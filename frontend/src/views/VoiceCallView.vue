@@ -39,30 +39,17 @@
           <div
             v-for="user in users"
             :key="user.id"
-            class="user-tile bg-gray-800 rounded-lg p-4 flex flex-col items-center justify-center h-48 relative border border-gray-700"
+            class="relative"
           >
-            <!-- User Avatar -->
-            <div class="w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center text-2xl font-bold text-white mb-3">
-              {{ user.nickname.charAt(0).toUpperCase() }}
-            </div>
-            
-            <!-- User Name -->
-            <div class="text-center">
-              <div class="text-white font-medium">{{ user.nickname }}</div>
-              <div class="text-xs text-gray-400 mt-1">
-                <span v-if="user.isSpeaking" class="text-green-400">Speaking...</span>
-                <span v-else-if="user.isMuted" class="text-red-400">Muted</span>
-                <span v-else>Listening</span>
-              </div>
-            </div>
-
-            <!-- Speaking Indicator -->
-            <div v-if="user.isSpeaking" class="absolute top-2 right-2 w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
-            
-            <!-- Muted Indicator -->
-            <div v-if="user.isMuted" class="absolute top-2 right-2 w-6 h-6 bg-red-600 rounded-full flex items-center justify-center">
-              <PhMicrophoneSlash class="w-3 h-3 text-white" />
-            </div>
+            <AudioStream
+              :userId="user.id"
+              :userNickname="user.nickname"
+              :stream="remoteStreams.get(user.id)"
+              :connectionState="peerConnectionStates.get(user.id)"
+              :initialVolume="remoteStreamVolumes.get(user.id) || 80"
+              @volume-change="handleVolumeChange"
+              @mute-toggle="handleMuteToggle"
+            />
           </div>
         </div>
 
@@ -124,6 +111,7 @@
 <script setup lang="ts">
  import { computed, onMounted, onUnmounted, ref } from 'vue'
  import AudioControls from '@/components/AudioControls.vue'
+ import AudioStream from '@/components/AudioStream.vue'
  import { wsService } from '@/services/websocket'
  import type { User, WebSocketMessage, IceCandidateData, SDPData } from '@/types'
  import { 
@@ -148,6 +136,9 @@ defineEmits<{
 const peerConnections = ref<Map<string, RTCPeerConnection>>(new Map())
 const peerConnectionStates = ref<Map<string, string>>(new Map())
 const peerConnectionRetries = ref<Map<string, number>>(new Map())
+const remoteStreams = ref<Map<string, MediaStream>>(new Map())
+const remoteStreamVolumes = ref<Map<string, number>>(new Map())
+const remoteStreamMutes = ref<Map<string, boolean>>(new Map())
 const localStream = ref<MediaStream | null>(null)
 const isMuted = ref(false)
 const isDeafened = ref(false)
@@ -443,23 +434,23 @@ const initializeWebRTC = async () => {
 
  const handleRemoteTrack = (userId: string, stream: MediaStream) => {
    try {
-     // Create or update audio element for remote user
-     let audioElement = document.getElementById(`audio-${userId}`) as HTMLAudioElement
+     console.log(`🎵 Received remote stream from ${userId}:`, stream)
      
-     if (!audioElement) {
-       audioElement = document.createElement('audio')
-       audioElement.id = `audio-${userId}`
-       audioElement.autoplay = true
-       audioElement.playsInline = true
-       audioElement.volume = 0.8 // Default volume
-       document.body.appendChild(audioElement)
-       console.log(`Created audio element for user ${userId}`)
+     // Store the remote stream
+     remoteStreams.value.set(userId, stream)
+     
+     // Initialize volume and mute state if not already set
+     if (!remoteStreamVolumes.value.has(userId)) {
+       remoteStreamVolumes.value.set(userId, 80) // Default volume
      }
      
-     audioElement.srcObject = stream
-     console.log(`Attached remote stream to audio element for ${userId}`)
+     if (!remoteStreamMutes.value.has(userId)) {
+       remoteStreamMutes.value.set(userId, false) // Default unmuted
+     }
+     
+     console.log(`🎵 Stored remote stream for ${userId}, total streams: ${remoteStreams.value.size}`)
    } catch (error) {
-     console.error('Error handling remote track:', error)
+     console.error('❌ Error handling remote track:', error)
    }
  }
 
@@ -518,6 +509,11 @@ const initializeWebRTC = async () => {
        audioElement.remove()
      }
      
+     // Clean up remote stream data
+     remoteStreams.value.delete(userId)
+     remoteStreamVolumes.value.delete(userId)
+     remoteStreamMutes.value.delete(userId)
+     
      // Remove from connection states and room users
      peerConnectionStates.value.delete(userId)
      peerConnectionRetries.value.delete(userId)
@@ -526,6 +522,22 @@ const initializeWebRTC = async () => {
      console.log(`✅ Cleaned up peer connection and audio for ${userId}`)
    } catch (error) {
      console.error('❌ Error cleaning up peer connection:', error)
+   }
+ }
+
+ const handleVolumeChange = (userId: string, volume: number) => {
+   console.log(`🔊 Volume changed for user ${userId}: ${volume}`)
+   remoteStreamVolumes.value.set(userId, volume)
+ }
+
+ const handleMuteToggle = (userId: string, isMuted: boolean) => {
+   console.log(`🎤 Mute toggled for user ${userId}: ${isMuted ? 'muted' : 'unmuted'}`)
+   remoteStreamMutes.value.set(userId, isMuted)
+   
+   // Update audio element if it exists
+   const audioElement = document.getElementById(`audio-${userId}`) as HTMLAudioElement
+   if (audioElement) {
+     audioElement.muted = isMuted
    }
  }
 

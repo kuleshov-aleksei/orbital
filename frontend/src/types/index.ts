@@ -67,3 +67,30 @@ export interface PeerConnectionInfo {
   audioElement?: HTMLAudioElement
   isConnected: boolean
 }
+
+export interface AudioStreamState {
+  userId: string
+  stream: MediaStream | null
+  volume: number
+  isMuted: boolean
+  audioLevel: number
+  connectionState: string
+}
+
+export interface WebRTCStats {
+  packetsLost: number
+  jitter: number
+  roundTripTime: number
+  bandwidth: {
+    upload: number
+    download: number
+  }
+  audioLevel: number
+  connectionState: string
+  timestamp: Date
+}
+
+export interface BandwidthStats {
+  upload: number
+  download: number
+}
