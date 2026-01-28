@@ -161,24 +161,34 @@ func (rs *RoomService) LeaveRoom(roomID, userID string) {
 	log.Printf("User %s left room %s", userID, roomID)
 }
 
-// GetRoomUsers returns all users in a room
-func (rs *RoomService) GetRoomUsers(roomID string) []models.User {
+// GetRoomUsers returns all users in a room with member-specific information
+func (rs *RoomService) GetRoomUsers(roomID string) []models.RoomUser {
 	rs.mu.RLock()
 	defer rs.mu.RUnlock()
 
-	var users []models.User
+	var users []models.RoomUser
 
 	if members, exists := rs.members[roomID]; exists {
 		for userID := range members {
 			if user, exists := rs.users[userID]; exists {
-				user := *user // Create copy
+				roomUser := models.RoomUser{
+					ID:        user.ID,
+					Nickname:  user.Nickname,
+					Status:    user.Status,
+					CreatedAt: user.CreatedAt,
+					LastSeen:  user.LastSeen,
+				}
+
 				// Add member-specific info
 				if member := members[userID]; member != nil {
-					user.IsSpeaking = member.IsSpeaking
-					user.IsMuted = member.IsMuted
-					user.IsDeafened = member.IsDeafened
+					roomUser.IsSpeaking = member.IsSpeaking
+					roomUser.IsMuted = member.IsMuted
+					roomUser.IsDeafened = member.IsDeafened
+					roomUser.JoinedAt = member.JoinedAt
+					roomUser.Role = member.Role
 				}
-				users = append(users, user)
+
+				users = append(users, roomUser)
 			}
 		}
 	}

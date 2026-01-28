@@ -17,6 +17,14 @@ export interface User {
   status: 'online' | 'away' | 'dnd'
 }
 
+// RoomUser interface - user with room-specific information
+export interface RoomUser extends User {
+  createdAt: string
+  lastSeen: string
+  joinedAt: string
+  role: 'member' | 'admin' | 'owner'
+}
+
 // WebSocket message types
 export interface WebSocketMessage {
   type: 'join_room' | 'leave_room' | 'ice_candidate' | 'sdp_offer' | 'sdp_answer' | 'speaking_status' | 'screen_share_start' | 'screen_share_stop'

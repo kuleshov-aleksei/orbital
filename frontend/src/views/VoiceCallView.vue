@@ -98,7 +98,7 @@
  import DebugDashboard from '@/components/DebugDashboard.vue'
  import { wsService } from '@/services/websocket'
  import { webRTCStatsCollector } from '@/services/webrtc-stats'
- import type { User, WebSocketMessage, IceCandidateData, SDPData } from '@/types'
+ import type { User, RoomUser, WebSocketMessage, IceCandidateData, SDPData } from '@/types'
  import { 
    PhArrowLeft, 
    PhGearSix, 
@@ -128,11 +128,13 @@ const remoteStreamVolumes = ref<Map<string, number>>(new Map())
  const isMuted = ref(false)
  const isDeafened = ref(false)
  const isScreenSharing = ref(false)
- const currentRoomUsers = ref<Map<string, any>>(new Map())
+ const currentRoomUsers = ref<Map<string, RoomUser>>(new Map())
  const maxRetries = 3
  const debugDashboardRef = ref()
 // Fix for ICE candidate race condition
 const pendingIceCandidates = ref<Map<string, any[]>>(new Map())
+// Track current user's join time (0 = not set yet)
+const currentUserJoinTime = ref<number>(0)
 
 // Computed properties
 const currentRoom = computed(() => {
@@ -195,30 +197,41 @@ const initializeWebRTC = async () => {
   }
 
  const handleIceCandidate = async (data: any) => {
-   try {
-     const { user_id, candidate } = data
-     const peerConnection = peerConnections.value.get(user_id)
-     
-     if (!peerConnection) {
-       console.warn(`⚠️ Received ICE candidate for unknown peer: ${user_id}, queuing candidate`)
-       // Queue the candidate for when connection is created
-       if (!pendingIceCandidates.value.has(user_id)) {
-         pendingIceCandidates.value.set(user_id, [])
-       }
-       pendingIceCandidates.value.get(user_id)!.push(candidate)
-       addDebugLog(`ICE candidate queued for unknown peer ${user_id}`, 'warning', user_id)
-       return
-     }
-     
-      await peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
-      updateConnectionState(user_id, 'ice-candidate-added')
-      console.log(`🧊 Added ICE candidate from ${user_id}:`, candidate)
-      addDebugLog(`ICE candidate added from ${user_id}`, 'info', user_id)
-   } catch (error) {
-     console.error('❌ Error handling ICE candidate:', error, 'Data:', data)
-     updateConnectionState(data.user_id, 'error')
-   }
- }
+    try {
+      const { user_id, candidate } = data
+      const peerConnection = peerConnections.value.get(user_id)
+      
+      if (!peerConnection) {
+        console.warn(`⚠️ Received ICE candidate for unknown peer: ${user_id}, queuing candidate`)
+        // Queue the candidate for when connection is created
+        if (!pendingIceCandidates.value.has(user_id)) {
+          pendingIceCandidates.value.set(user_id, [])
+        }
+        pendingIceCandidates.value.get(user_id)!.push(candidate)
+        addDebugLog(`ICE candidate queued for unknown peer ${user_id}`, 'warning', user_id)
+        return
+      }
+      
+      // Only add candidate if remote description is set, otherwise queue it
+      if (peerConnection.remoteDescription) {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
+        updateConnectionState(user_id, 'ice-candidate-added')
+        console.log(`🧊 Added ICE candidate from ${user_id}:`, candidate)
+        addDebugLog(`ICE candidate added from ${user_id}`, 'info', user_id)
+      } else {
+        // Queue candidate for when remote description is ready
+        console.log(`🧊 Queuing ICE candidate from ${user_id} (no remote description yet)`)
+        if (!pendingIceCandidates.value.has(user_id)) {
+          pendingIceCandidates.value.set(user_id, [])
+        }
+        pendingIceCandidates.value.get(user_id)!.push(candidate)
+        addDebugLog(`ICE candidate queued (no remote description) for ${user_id}`, 'info', user_id)
+      }
+    } catch (error) {
+      console.error('❌ Error handling ICE candidate:', error, 'Data:', data)
+      updateConnectionState(user_id, 'error')
+    }
+  }
 
   const handleSdpOffer = async (data: any) => {
      try {
@@ -238,9 +251,12 @@ const initializeWebRTC = async () => {
      updateConnectionState(user_id, 'setting-remote-desc')
      await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp))
      
+     // Process pending ICE candidates after remote description is set
+     await processPendingIceCandidates(user_id)
+      
      updateConnectionState(user_id, 'creating-answer')
      const answer = await peerConnection.createAnswer()
-     
+      
      updateConnectionState(user_id, 'setting-local-desc')
      await peerConnection.setLocalDescription(answer)
      
@@ -273,60 +289,96 @@ const initializeWebRTC = async () => {
       
       console.log(`🔍 Found existing peer connection for ${user_id}, state: ${peerConnection.signalingState}`)
       
-      updateConnectionState(user_id, 'answer-received')
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp))
-      updateConnectionState(user_id, 'handshake-complete')
+       updateConnectionState(user_id, 'answer-received')
+       await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp))
+       
+       // Process pending ICE candidates after remote description is set
+       await processPendingIceCandidates(user_id)
+       
+       updateConnectionState(user_id, 'handshake-complete')
       
       console.log(`✅ SDP answer processed for ${user_id}:`, sdp)
       addDebugLog(`SDP answer processed successfully for ${user_id}`, 'info', user_id)
     } catch (error) {
       console.error('❌ Error handling SDP answer:', error, 'Data:', data)
       updateConnectionState(user_id, 'error')
-      addDebugLog(`Error handling SDP answer: ${error.message}`, 'error', data.user_id)
+      addDebugLog(`Error handling SDP answer: ${error.message}`, 'error', userId)
     }
   }
 
-  const handleRoomUsers = (users: any[]) => {
-    addDebugLog('handleRoomUsers called', 'info')
-    const currentUserId = getCurrentUserId()
-    const otherUsers = users.filter((user: any) => user.id !== currentUserId)
+  const processPendingIceCandidates = async (userId: string) => {
+      const pendingCandidates = pendingIceCandidates.value.get(userId)
+      if (pendingCandidates && pendingCandidates.length > 0) {
+        console.log(`🧊 Processing ${pendingCandidates.length} pending ICE candidates for ${userId}`)
+        addDebugLog(`Processing ${pendingCandidates.length} pending ICE candidates for ${userId}`, 'info', userId)
+        
+        for (const candidate of pendingCandidates) {
+          try {
+            const peerConnection = peerConnections.value.get(userId)
+            if (peerConnection && peerConnection.remoteDescription) {
+              await peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
+              console.log(`🧊 Added pending ICE candidate for ${userId}:`, candidate)
+              addDebugLog(`Added pending ICE candidate for ${userId}`, 'info', userId)
+            }
+          } catch (error) {
+            console.error(`❌ Error adding pending ICE candidate for ${userId}:`, error)
+            addDebugLog(`Error adding pending ICE candidate: ${error.message}`, 'error', userId)
+          }
+        }
+        pendingIceCandidates.value.delete(userId)
+        addDebugLog(`Processed all pending ICE candidates for ${userId}`, 'info', userId)
+      }
+    }
+
+   const handleRoomUsers = (users: RoomUser[]) => {
+     addDebugLog('handleRoomUsers called', 'info')
+     const currentUserId = getCurrentUserId()
+     const otherUsers = users.filter((user: RoomUser) => user.id !== currentUserId)
     
     console.log('Current users in room:', otherUsers)
     console.log('Current connections:', Array.from(peerConnections.value.keys()))
     addDebugLog(`Current users: ${otherUsers.length}, connections: ${peerConnections.value.size}`, 'info')
     
-    // Update room users map
-    const newUsers = new Map<string, any>()
-    users.forEach((user: any) => {
-      newUsers.set(user.id, user)
-    })
-    currentRoomUsers.value = newUsers
-    
-    // Find users who joined (new users not in current connections)
-    const existingConnections = Array.from(peerConnections.value.keys())
-    const newUserIds = otherUsers
-      .filter((user: any) => !existingConnections.includes(user.id))
-      .map((user: any) => user.id)
-    
-    // Create connections with new users (new user should offer to existing users)
-    newUserIds.forEach(userId => {
-      const user = otherUsers.find((u: any) => u.id === userId)
-      if (user) {
-        console.log(`🔗 Creating connection with NEW user ${user.id} (${user.nickname})`)
-        addDebugLog(`Creating connection with new user ${user.id}`, 'info', userId)
-        createOfferForUser(userId)
-        updateConnectionState(userId, 'connecting')
-      }
-    })
-    
-    // Also ensure we have connections with ALL users (bidirectional connections)
-    otherUsers.forEach(user => {
-      if (!peerConnections.value.has(user.id)) {
-        console.log(`🔄 Creating missing connection with ${user.id} (${user.nickname})`)
-        createOfferForUser(user.id)
-        updateConnectionState(user.id, 'connecting')
-      }
-    })
+     // Update room users map
+     const newUsers = new Map<string, RoomUser>()
+     users.forEach((user: RoomUser) => {
+       newUsers.set(user.id, user)
+     })
+     currentRoomUsers.value = newUsers
+     
+     // Set current user join time from server
+     const currentUser = users.find((user: RoomUser) => user.id === currentUserId)
+     if (currentUser && currentUserJoinTime.value === 0) {
+       // Use joined_at field (snake_case) as that's what Go JSON sends
+       currentUserJoinTime.value = new Date(currentUser.joined_at).getTime()
+       console.log(`📅 Set current user join time from server: ${currentUser.joined_at}`)
+       addDebugLog(`Set current user join time from server: ${currentUser.joined_at}`, 'info')
+     }
+     
+     // MESH TOPOLOGY LOGIC: Existing users offer to newer users
+     const existingConnections = Array.from(peerConnections.value.keys())
+     
+     otherUsers.forEach(user => {
+        // Use joined_at field (snake_case) as that's what Go JSON sends
+        const userJoinTime = new Date(user.joined_at).getTime()
+        const alreadyConnected = existingConnections.includes(user.id)
+        const shouldCreateOffer = currentUserJoinTime.value < userJoinTime && !alreadyConnected
+        console.log(`🔍 User ${user.id} (${user.nickname}): joined at ${user.joined_at}, should create offer: ${shouldCreateOffer}`)
+       
+        console.log(`🔍 User ${user.id} (${user.nickname}): joined at ${user.joined_at}, should create offer: ${shouldCreateOffer}`)
+       
+       if (shouldCreateOffer) {
+         console.log(`🔗 Creating connection with newer user ${user.id} (${user.nickname})`)
+         addDebugLog(`Creating connection with newer user ${user.id}`, 'info', user.id)
+         createOfferForUser(user.id)
+         updateConnectionState(user.id, 'connecting')
+       } else if (alreadyConnected) {
+         console.log(`✅ Connection to ${user.id} already exists`)
+       } else {
+         console.log(`⏸️ Not creating connection to ${user.id} - user joined before us`)
+         addDebugLog(`Not creating connection to ${user.id} - user joined before us`, 'info', user.id)
+       }
+     })
     
     // Find users who left (connections that aren't in room anymore)
     const leftUserIds = existingConnections.filter(userId => 
