@@ -59,26 +59,104 @@
           <div class="overflow-y-auto max-h-[60vh]">
             <!-- Outgoing ICE Candidates Tab -->
             <div v-if="activeTab === 'ice-candidates'" class="p-6">
-              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div class="space-y-6">
                 <div
                   v-for="[userId, iceCandidates] in allOutgoingIceCandidates"
                   :key="userId"
-                  class="bg-gray-800 rounded-lg p-4 border border-gray-700"
+                  class="space-y-4"
                 >
-                  <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-sm font-medium text-white">
+                  <!-- Peer Header -->
+                  <div class="flex items-center space-x-3">
+                    <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                    <h3 class="text-base font-medium text-white">
                       {{ getUserNickname(userId) }}
                     </h3>
-                    <div class="flex items-center space-x-2">
-                      <div v-for="candidate in iceCandidates" class="text-xs text-gray-400">
-                        endpoint: {{ candidate.protocol }}://{{ candidate.address }}:{{ candidate.port }}
-                        priority: {{ candidate.priority }}
-                        usernameFragment: {{ candidate.usernameFragment }}
-                        type: {{ candidate.type }}
-                        component: {{ candidate.component }}
-                        foundation: {{ candidate.foundation }}
-                        sdpMid: {{ candidate.sdpMid }}
-                        sdpMLineIndex: {{ candidate.sdpMLineIndex }}
+                    <div class="text-xs text-gray-400">
+                      {{ iceCandidates.length }} candidate{{ iceCandidates.length !== 1 ? 's' : '' }}
+                    </div>
+                  </div>
+
+                  <!-- ICE Candidates Cards -->
+                  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div
+                      v-for="(candidate, index) in iceCandidates"
+                      :key="index"
+                      class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden hover:border-gray-600 transition-colors"
+                    >
+                      <!-- Card Header -->
+                      <div class="flex items-center justify-between px-4 py-3 bg-gray-750 border-b border-gray-700">
+                        <div class="flex items-center space-x-3">
+                          <div 
+                            class="w-3 h-3 rounded-full"
+                            :class="getCandidateTypeColor(candidate.type)"
+                          ></div>
+                          <div class="text-sm font-medium text-white">
+                            {{ candidate.type.toUpperCase() }}
+                          </div>
+                          <div class="text-xs text-gray-400">
+                            Component {{ candidate.component }}
+                          </div>
+                        </div>
+                        <button
+                          @click="copyCandidateToClipboard(candidate)"
+                          class="flex items-center space-x-1 px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors"
+                        >
+                          <PhCopy class="w-3 h-3" />
+                          <span>Copy</span>
+                        </button>
+                      </div>
+
+                      <!-- Card Content -->
+                      <div class="p-4 space-y-3">
+                        <!-- Endpoint -->
+                        <div class="flex items-center justify-between">
+                          <div class="text-xs text-gray-500">Endpoint</div>
+                          <div class="text-sm font-mono text-blue-400">
+                            {{ candidate.protocol.toUpperCase() }}://{{ candidate.address }}:{{ candidate.port }}
+                          </div>
+                        </div>
+
+                        <!-- Priority -->
+                        <div class="flex items-center justify-between">
+                          <div class="text-xs text-gray-500">Priority</div>
+                          <div class="text-sm font-mono text-green-400">
+                            {{ candidate.priority.toLocaleString() }}
+                          </div>
+                        </div>
+
+                        <!-- Foundation -->
+                        <div class="flex items-center justify-between">
+                          <div class="text-xs text-gray-500">Foundation</div>
+                          <div class="text-sm font-mono text-yellow-400">
+                            {{ candidate.foundation }}
+                          </div>
+                        </div>
+
+                        <!-- SDP Info -->
+                        <div class="grid grid-cols-2 gap-3 pt-3 border-t border-gray-700">
+                          <div>
+                            <div class="text-xs text-gray-500 mb-1">SDP Mid</div>
+                            <div class="text-sm font-mono text-gray-300">
+                              {{ candidate.sdpMid || 'N/A' }}
+                            </div>
+                          </div>
+                          <div>
+                            <div class="text-xs text-gray-500 mb-1">SDP MLine Index</div>
+                            <div class="text-sm font-mono text-gray-300">
+                              {{ candidate.sdpMLineIndex }}
+                            </div>
+                          </div>
+                        </div>
+
+                        <!-- Username Fragment (if available) -->
+                        <div v-if="candidate.usernameFragment" class="pt-2 border-t border-gray-700">
+                          <div class="flex items-center justify-between">
+                            <div class="text-xs text-gray-500">Username Fragment</div>
+                            <div class="text-sm font-mono text-purple-400">
+                              {{ candidate.usernameFragment }}
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -354,7 +432,8 @@ import type { ConnectionStats, ConnectionQuality, DebugInfo, ConnectionLog } fro
 import {
   PhBug,
   PhWarning,
-  PhInfo
+  PhInfo,
+  PhCopy
 } from '@phosphor-icons/vue'
 
 interface Props {
@@ -527,6 +606,27 @@ const addLog = (message: string, level: 'info' | 'warning' | 'error' = 'info', u
 
 const clearLogs = () => {
   connectionLogs.value = []
+}
+
+const copyCandidateToClipboard = async (candidate: any) => {
+  try {
+    const candidateJson = JSON.stringify(candidate, null, 2)
+    await navigator.clipboard.writeText(candidateJson)
+    addLog(`Copied ICE candidate for ${candidate.type} to clipboard`, 'info')
+  } catch (error) {
+    addLog('Failed to copy candidate to clipboard', 'error')
+    console.error('Failed to copy candidate:', error)
+  }
+}
+
+const getCandidateTypeColor = (type: string): string => {
+  switch (type.toLowerCase()) {
+    case 'host': return 'bg-green-400'
+    case 'srflx': return 'bg-blue-400'
+    case 'prflx': return 'bg-yellow-400'
+    case 'relay': return 'bg-purple-400'
+    default: return 'bg-gray-400'
+  }
 }
 
 // Expose methods to parent components
