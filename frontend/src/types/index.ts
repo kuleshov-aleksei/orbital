@@ -94,3 +94,55 @@ export interface BandwidthStats {
   upload: number
   download: number
 }
+
+// Enhanced WebRTC Statistics types
+export interface ConnectionStats {
+  packetsLost: number
+  jitter: number
+  roundTripTime: number
+  bandwidth: BandwidthStats
+  audioLevel: number
+  connectionState: string
+  timestamp: Date
+}
+
+export interface StatsHistory {
+  peerId: string
+  stats: ConnectionStats[]
+  maxHistorySize: number
+}
+
+export interface ConnectionQuality {
+  quality: 'excellent' | 'good' | 'fair' | 'poor'
+  score: number
+  issues: string[]
+}
+
+// Debugging and monitoring types
+export interface DebugInfo {
+  peerId: string
+  iceState: string
+  connectionState: string
+  signalingState: string
+  iceGatheringState: string
+  localCandidates: RTCIceCandidateInit[]
+  remoteCandidates: RTCIceCandidateInit[]
+  localDescription: RTCSessionDescriptionInit | null
+  remoteDescription: RTCSessionDescriptionInit | null
+}
+
+export interface AudioLevelData {
+  userId: string
+  level: number // 0-127
+  isSpeaking: boolean
+  timestamp: Date
+}
+
+export interface NetworkPathInfo {
+  localCandidate?: RTCIceCandidate
+  remoteCandidate?: RTCIceCandidate
+  connectionType: string
+  transport: string
+  localAddress?: string
+  remoteAddress?: string
+}

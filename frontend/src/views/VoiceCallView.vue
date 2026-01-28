@@ -100,6 +100,30 @@
                  </div>
                  <span class="font-mono">{{ info.state }}</span>
                </div>
+               <!-- Statistics Info -->
+               <div v-if="getConnectionStats(info.userId)" class="mt-2 text-xs">
+                 <div class="flex justify-between">
+                   <span>RTT:</span>
+                   <span>{{ Math.round(getConnectionStats(info.userId).roundTripTime) }}ms</span>
+                 </div>
+                 <div class="flex justify-between">
+                   <span>Jitter:</span>
+                   <span>{{ Math.round(getConnectionStats(info.userId).jitter) }}ms</span>
+                 </div>
+                 <div class="flex justify-between">
+                   <span>Loss:</span>
+                   <span>{{ getConnectionStats(info.userId).packetsLost }}</span>
+                 </div>
+                 <div class="flex justify-between">
+                   <span>Quality:</span>
+                   <span :class="{
+                     'text-green-400': getConnectionQuality(info.userId).quality === 'excellent',
+                     'text-blue-400': getConnectionQuality(info.userId).quality === 'good',
+                     'text-yellow-400': getConnectionQuality(info.userId).quality === 'fair',
+                     'text-red-400': getConnectionQuality(info.userId).quality === 'poor'
+                   }">{{ getConnectionQuality(info.userId).quality }}</span>
+                 </div>
+               </div>
              </div>
            </div>
          </div>
@@ -113,6 +137,7 @@
  import AudioControls from '@/components/AudioControls.vue'
  import AudioStream from '@/components/AudioStream.vue'
  import { wsService } from '@/services/websocket'
+ import { webRTCStatsCollector } from '@/services/webrtc-stats'
  import type { User, WebSocketMessage, IceCandidateData, SDPData } from '@/types'
  import { 
    PhArrowLeft, 
@@ -379,24 +404,31 @@ const initializeWebRTC = async () => {
      }
    }
 
-   // Handle connection state changes
-   peerConnection.onconnectionstatechange = () => {
-     const state = peerConnection.connectionState
-     console.log(`🔗 Connection state with ${userId}:`, state)
-     updateConnectionState(userId, state)
-     
-     if (state === 'connected') {
-       console.log(`✅ Successfully connected to ${userId}`)
-       // Reset retry counter on successful connection
-       peerConnectionRetries.value.set(userId, 0)
-     } else if (state === 'failed') {
-       console.error(`❌ Connection with ${userId} failed`)
-       handleConnectionFailure(userId)
-     } else if (state === 'disconnected') {
-       console.warn(`⚠️ Disconnected from ${userId}`)
-       handleConnectionDisconnection(userId)
-     }
-   }
+    // Handle connection state changes
+    peerConnection.onconnectionstatechange = () => {
+      const state = peerConnection.connectionState
+      console.log(`🔗 Connection state with ${userId}:`, state)
+      updateConnectionState(userId, state)
+      
+      if (state === 'connected') {
+        console.log(`✅ Successfully connected to ${userId}`)
+        // Reset retry counter on successful connection
+        peerConnectionRetries.value.set(userId, 0)
+        // Start statistics collection when connection is established
+        webRTCStatsCollector.startCollection(userId, peerConnection)
+        console.log(`📊 Started stats collection for ${userId}`)
+      } else if (state === 'failed') {
+        console.error(`❌ Connection with ${userId} failed`)
+        handleConnectionFailure(userId)
+      } else if (state === 'disconnected') {
+        console.warn(`⚠️ Disconnected from ${userId}`)
+        handleConnectionDisconnection(userId)
+      } else if (state === 'closed') {
+        // Stop statistics collection when connection is closed
+        webRTCStatsCollector.stopCollection(userId)
+        console.log(`📊 Stopped stats collection for ${userId}`)
+      }
+    }
 
    // Handle ICE connection state changes
    peerConnection.oniceconnectionstatechange = () => {
@@ -493,15 +525,18 @@ const initializeWebRTC = async () => {
    }
  }
 
- const cleanupPeerConnection = (userId: string) => {
-   try {
-     console.log(`🧹 Starting cleanup for peer ${userId}`)
-     
-     const peerConnection = peerConnections.value.get(userId)
-     if (peerConnection) {
-       peerConnection.close()
-       peerConnections.value.delete(userId)
-     }
+  const cleanupPeerConnection = (userId: string) => {
+    try {
+      console.log(`🧹 Starting cleanup for peer ${userId}`)
+      
+      // Stop statistics collection
+      webRTCStatsCollector.stopCollection(userId)
+      
+      const peerConnection = peerConnections.value.get(userId)
+      if (peerConnection) {
+        peerConnection.close()
+        peerConnections.value.delete(userId)
+      }
      
      // Remove audio element
      const audioElement = document.getElementById(`audio-${userId}`)
@@ -572,6 +607,19 @@ const toggleScreenShare = () => {
   console.log('Screen sharing:', isScreenSharing.value)
 }
 
+// Statistics methods
+const getConnectionStats = (userId: string) => {
+  return webRTCStatsCollector.getLatestStats(userId)
+}
+
+const getConnectionQuality = (userId: string) => {
+  return webRTCStatsCollector.getConnectionQuality(userId)
+}
+
+const getAllConnectionStats = () => {
+  return webRTCStatsCollector.getAllPeerStats()
+}
+
 // Lifecycle hooks
 onMounted(async () => {
   await initializeWebRTC()
@@ -589,6 +637,9 @@ onUnmounted(() => {
   peerConnections.value.forEach((connection, userId) => {
     cleanupPeerConnection(userId)
   })
+  
+  // Clean up all statistics collection
+  webRTCStatsCollector.cleanup()
   
   // Clean up media stream
   if (localStream.value) {
