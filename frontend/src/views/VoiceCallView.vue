@@ -83,6 +83,7 @@
       
       <!-- Debug Dashboard -->
       <DebugDashboard
+        ref="debugDashboardRef"
         :users="props.users"
         :peerConnections="peerConnections"
         :getConnectionQuality="getConnectionQuality"
@@ -122,13 +123,14 @@ const peerConnectionStates = ref<Map<string, string>>(new Map())
 const peerConnectionRetries = ref<Map<string, number>>(new Map())
 const remoteStreams = ref<Map<string, MediaStream>>(new Map())
 const remoteStreamVolumes = ref<Map<string, number>>(new Map())
-const remoteStreamMutes = ref<Map<string, boolean>>(new Map())
-const localStream = ref<MediaStream | null>(null)
-const isMuted = ref(false)
-const isDeafened = ref(false)
-const isScreenSharing = ref(false)
-const currentRoomUsers = ref<Map<string, any>>(new Map())
-const maxRetries = 3
+ const remoteStreamMutes = ref<Map<string, boolean>>(new Map())
+ const localStream = ref<MediaStream | null>(null)
+ const isMuted = ref(false)
+ const isDeafened = ref(false)
+ const isScreenSharing = ref(false)
+ const currentRoomUsers = ref<Map<string, any>>(new Map())
+ const maxRetries = 3
+ const debugDashboardRef = ref()
 // Fix for ICE candidate race condition
 const pendingIceCandidates = ref<Map<string, any[]>>(new Map())
 
@@ -219,12 +221,13 @@ const initializeWebRTC = async () => {
  }
 
   const handleSdpOffer = async (data: any) => {
-    try {
-      const { user_id, sdp } = data
-      console.log(`📥 Received SDP offer from ${user_id}:`, sdp)
-      // Add to debug logs
-      addDebugLog(`SDP offer received from ${user_id}`, 'info', user_id)
-      updateConnectionState(user_id, 'offer-received')
+     try {
+       addDebugLog('handleSdpOffer called!', 'info')
+       const { user_id, sdp } = data
+       console.log(`📥 Received SDP offer from ${user_id}:`, sdp)
+       // Add to debug logs
+       addDebugLog(`SDP offer received from ${user_id}`, 'info', user_id)
+       updateConnectionState(user_id, 'offer-received')
      
       let peerConnection = peerConnections.value.get(user_id)
       if (!peerConnection) {
@@ -284,11 +287,13 @@ const initializeWebRTC = async () => {
   }
 
   const handleRoomUsers = (users: any[]) => {
+    addDebugLog('handleRoomUsers called', 'info')
     const currentUserId = getCurrentUserId()
     const otherUsers = users.filter((user: any) => user.id !== currentUserId)
     
     console.log('Current users in room:', otherUsers)
     console.log('Current connections:', Array.from(peerConnections.value.keys()))
+    addDebugLog(`Current users: ${otherUsers.length}, connections: ${peerConnections.value.size}`, 'info')
     
     // Update room users map
     const newUsers = new Map<string, any>()
@@ -308,6 +313,7 @@ const initializeWebRTC = async () => {
       const user = otherUsers.find((u: any) => u.id === userId)
       if (user) {
         console.log(`🔗 Creating connection with NEW user ${user.id} (${user.nickname})`)
+        addDebugLog(`Creating connection with new user ${user.id}`, 'info', userId)
         createOfferForUser(userId)
         updateConnectionState(userId, 'connecting')
       }
@@ -345,27 +351,31 @@ const initializeWebRTC = async () => {
    console.log(`🔄 Connection state for ${userId}: ${state}`)
  }
 
-  const createOfferForUser = async (userId: string) => {
-    try {
-      const peerConnection = await createPeerConnection(userId)
-      const offer = await peerConnection.createOffer()
-      await peerConnection.setLocalDescription(offer)
+   const createOfferForUser = async (userId: string) => {
+     try {
+       addDebugLog(`Starting createOfferForUser for ${userId}`, 'info', userId)
+       const peerConnection = await createPeerConnection(userId)
+       const offer = await peerConnection.createOffer()
+       await peerConnection.setLocalDescription(offer)
+       
+       updateConnectionState(userId, 'creating-offer')
+       addDebugLog(`Created SDP offer for ${userId}`, 'info', userId)
       
-      updateConnectionState(userId, 'creating-offer')
-     
-     wsService.sendMessage('sdp_offer', {
-       target_user_id: userId,
-       user_id: getCurrentUserId(),
-       sdp: offer
-     })
-     
-     updateConnectionState(userId, 'offer-sent')
-     console.log(`✅ Created and sent offer to ${userId}:`, offer)
-   } catch (error) {
-     console.error('❌ Error creating offer:', error)
-     updateConnectionState(userId, 'error')
-   }
- }
+      wsService.sendMessage('sdp_offer', {
+        target_user_id: userId,
+        user_id: getCurrentUserId(),
+        sdp: offer
+      })
+      
+      updateConnectionState(userId, 'offer-sent')
+      console.log(`✅ Created and sent offer to ${userId}:`, offer)
+      addDebugLog(`Successfully sent offer to ${userId}`, 'info', userId)
+    } catch (error) {
+      console.error('❌ Error creating offer:', error)
+      addDebugLog(`Error creating offer: ${error.message}`, 'error', userId)
+      updateConnectionState(userId, 'error')
+    }
+  }
 
   const createPeerConnection = async (userId: string): Promise<RTCPeerConnection> => {
    const configuration = {
@@ -643,9 +653,8 @@ const getConnectionQuality = (userId: string) => {
 
 // Debug logging function
 const addDebugLog = (message: string, level: 'info' | 'warning' | 'error' = 'info', userId?: string) => {
-  const debugDashboard = document.querySelector('debug-dashboard') as any
-  if (debugDashboard && debugDashboard.addLog) {
-    debugDashboard.addLog(message, level, userId)
+  if (debugDashboardRef.value && debugDashboardRef.value.addLog) {
+    debugDashboardRef.value.addLog(message, level, userId)
   }
   console.log(`[${level.toUpperCase()}]${userId ? ' [' + userId + ']' : ''}: ${message}`)
 }
@@ -656,14 +665,28 @@ const getAllConnectionStats = () => {
 
 // Lifecycle hooks
 onMounted(async () => {
-  await initializeWebRTC()
+  // Register WebSocket listeners FIRST, before initializing WebRTC
+  wsService.on('ice_candidate', (message) => {
+    console.log('📨 Received ice_candidate message:', message)
+    handleIceCandidate(message.data)
+  })
+  wsService.on('sdp_offer', (message) => {
+    console.log('📨 Received sdp_offer message:', message)
+    addDebugLog('WebSocket received sdp_offer', 'info')
+    handleSdpOffer(message.data)
+  })
+  wsService.on('sdp_answer', (message) => handleSdpAnswer(message.data))
+  wsService.on('room_users', (message) => {
+    console.log('📨 Received room_users message:', message)
+    handleRoomUsers(message.data)
+  })
+  wsService.on('user_left', (message) => handleUserLeft(message.data))
+  wsService.on('speaking_status', (message) => {
+    // Handle speaking status updates if needed
+  })
   
-  // Listen for WebRTC signaling messages
-  wsService.on('ice_candidate', handleWebSocketMessage)
-  wsService.on('sdp_offer', handleWebSocketMessage)
-  wsService.on('sdp_answer', handleWebSocketMessage)
-  wsService.on('room_users', handleWebSocketMessage)
-  wsService.on('user_left', handleWebSocketMessage)
+  // Now initialize WebRTC after listeners are ready
+  await initializeWebRTC()
 })
 
 onUnmounted(() => {

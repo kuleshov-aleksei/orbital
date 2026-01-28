@@ -111,7 +111,9 @@ func (h *Hub) SendToUser(roomID string, userID string, message interface{}) {
 		}
 
 		// Find the specific client by userID
+		log.Printf("SendToUser: looking for user %s in room %s with %d clients", userID, roomID, len(clients))
 		for client := range clients {
+			log.Printf("SendToUser: checking client with userID '%s'", client.userID)
 			if client.userID == userID {
 				select {
 				case client.send <- data:
