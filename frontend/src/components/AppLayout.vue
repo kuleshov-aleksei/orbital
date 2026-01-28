@@ -36,6 +36,7 @@
         <VoiceCallView 
           v-else
           :roomId="activeRoomId"
+          :roomName="getRoomName(activeRoomId)"
           :users="currentRoomUsers"
           @leave-room="handleLeaveRoom"
         />
@@ -135,6 +136,11 @@ const getCurrentUserId = (): string => {
   return currentUser.value!.id
 }
 
+const getRoomName = (roomId: string): string => {
+  const room = rooms.value.find(r => r.id === roomId)
+  return room?.name || 'Voice Room'
+}
+
 // Lifecycle hooks
 onMounted(async () => {
   await loadRooms()
@@ -169,22 +175,42 @@ const handleRoomSelected = async (roomId: string) => {
     errorMessage.value = ''
     
     const userId = getCurrentUserId()
+    
+    // If already in a room, leave it first
+    if (activeRoomId.value) {
+      await leaveCurrentRoom()
+    }
+    
     await joinRoom(roomId, userId)
   } catch (error) {
-    console.error('Failed to join room:', error)
-    errorMessage.value = 'Failed to join room. Please try again.'
+    console.error('Failed to switch room:', error)
+    errorMessage.value = 'Failed to switch room. Please try again.'
   } finally {
     isLoading.value = false
   }
 }
 
+const leaveCurrentRoom = async () => {
+  if (!activeRoomId.value || !currentUser.value) {
+    return
+  }
+  
+  try {
+    await apiService.leaveRoom(activeRoomId.value, currentUser.value.id)
+    wsService.sendMessage('leave_room', { user_id: currentUser.value.id })
+    wsService.disconnect()
+    
+    // Clear current users but don't clear activeRoomId yet
+    currentRoomUsers.value = []
+  } catch (error) {
+    console.error('Failed to leave current room:', error)
+    throw error // Re-throw so handleRoomSelected can handle it
+  }
+}
+
 const handleLeaveRoom = async () => {
   try {
-    if (activeRoomId.value && currentUser.value) {
-      await apiService.leaveRoom(activeRoomId.value, currentUser.value.id)
-      wsService.sendMessage('leave_room', { user_id: currentUser.value.id })
-      wsService.disconnect()
-    }
+    await leaveCurrentRoom()
     activeRoomId.value = null
     currentRoomUsers.value = []
   } catch (error) {
@@ -194,12 +220,15 @@ const handleLeaveRoom = async () => {
 }
 
 const joinRoom = async (roomId: string, userId: string) => {
+  // Disconnect existing WebSocket connection if any
+  wsService.disconnect()
+  
   const user = await apiService.joinRoom(roomId, {
     user_id: userId,
     nickname: currentUser.value?.nickname || generateNickname(userId)
   })
 
-  // Connect to WebSocket
+  // Connect to WebSocket for new room
   await wsService.connect(roomId, userId)
   activeRoomId.value = roomId
 
@@ -249,33 +278,21 @@ const toggleMobileUserSidebar = () => {
 }
 
 const setupWebSocketListeners = () => {
-  // Listen for room users updates
+  // Listen for room users updates (handles both join and leave events)
   wsService.on('room_users', (message: WebSocketMessage) => {
     currentRoomUsers.value = message.data as User[]
     console.log('Updated room users:', currentRoomUsers.value)
   })
 
-  // Listen for user joining
-  wsService.on('user_joined', (message: WebSocketMessage) => {
-    const newUser = message.data as User
-    currentRoomUsers.value = currentRoomUsers.value.filter(u => u.id !== newUser.id)
-    currentRoomUsers.value.push(newUser)
-    console.log('User joined:', newUser)
-  })
-
-  // Listen for user leaving
-  wsService.on('user_left', (message: WebSocketMessage) => {
-    const leavingUser = message.data as { user_id: string }
-    currentRoomUsers.value = currentRoomUsers.value.filter(u => u.id !== leavingUser.user_id)
-    console.log('User left:', leavingUser.user_id)
-  })
-
   // Listen for speaking status updates
   wsService.on('speaking_status', (message: WebSocketMessage) => {
-    const statusData = message.data as { user_id: string; is_speaking: boolean }
+    const statusData = message.data as { user_id: string; is_speaking: boolean; is_muted?: boolean }
     const user = currentRoomUsers.value.find(u => u.id === statusData.user_id)
     if (user) {
       user.isSpeaking = statusData.is_speaking
+      if (statusData.is_muted !== undefined) {
+        user.isMuted = statusData.is_muted
+      }
     }
   })
 

@@ -96,6 +96,7 @@
           @toggle-mute="toggleMute"
           @toggle-deafen="toggleDeafen"
           @toggle-screen-share="toggleScreenShare"
+          @leave-room="$emit('leave-room')"
         />
       </div>
     </main>
@@ -110,6 +111,7 @@ import type { User, WebSocketMessage } from '@/types'
 
 interface Props {
   roomId: string
+  roomName: string
   users: User[]
 }
 
@@ -127,10 +129,8 @@ const isScreenSharing = ref(false)
 
 // Computed properties
 const currentRoom = computed(() => {
-  // For now, we'll use the room ID as name
-  // In real implementation, this would come from API
   return {
-    name: `Room ${props.roomId.substr(0, 8)}`,
+    name: props.roomName || 'Voice Room',
     id: props.roomId
   }
 })

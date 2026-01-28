@@ -34,6 +34,14 @@ export class WebSocketService {
         this.ws.onopen = (event) => {
           console.log('WebSocket connected:', event)
           this.reconnectAttempts = 0
+          
+          // Send join_room message when connected
+          this.sendMessage('join_room', {
+            room_id: this.roomId,
+            user_id: this.userId,
+            nickname: localStorage.getItem('orbital_user_nickname') || `User_${this.userId.substr(0, 8)}`
+          })
+          
           this.notifyConnectionCallbacks()
           resolve()
         }

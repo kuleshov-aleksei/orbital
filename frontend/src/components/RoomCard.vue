@@ -5,6 +5,7 @@
       'bg-indigo-600 text-white': isActive,
       'bg-gray-700 hover:bg-gray-600 text-gray-200': !isActive
     }"
+    @click="$emit('click')"
   >
     <!-- Room Icon -->
     <div class="mr-3">

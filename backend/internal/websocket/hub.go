@@ -172,7 +172,7 @@ func (c *Client) handleJoinRoom(data interface{}) {
 	json.Unmarshal(jsonData, &req)
 
 	c.userID = req.UserID
-	user, err := c.hub.roomService.JoinRoom(c.roomID, req.UserID, req.Nickname)
+	_, err := c.hub.roomService.JoinRoom(c.roomID, req.UserID, req.Nickname)
 	if err != nil {
 		log.Printf("Error joining room: %v", err)
 		return
@@ -186,23 +186,32 @@ func (c *Client) handleJoinRoom(data interface{}) {
 	}
 	c.send <- marshalMessage(response)
 
-	// Broadcast user joined to other users in room
-	joinMessage := models.WebSocketMessage{
-		Type: "user_joined",
-		Data: user,
+	// Broadcast updated user list to all users in room (including new user)
+	usersUpdate := models.WebSocketMessage{
+		Type: "room_users",
+		Data: users,
 	}
-	c.hub.BroadcastToRoom(c.roomID, joinMessage)
+	c.hub.BroadcastToRoom(c.roomID, usersUpdate)
 }
 
 // handleLeaveRoom handles user leaving a room
 func (c *Client) handleLeaveRoom(data interface{}) {
 	c.hub.roomService.LeaveRoom(c.roomID, c.userID)
 
+	// Broadcast user left message
 	leaveMessage := models.WebSocketMessage{
 		Type: "user_left",
 		Data: map[string]string{"user_id": c.userID},
 	}
 	c.hub.BroadcastToRoom(c.roomID, leaveMessage)
+
+	// Broadcast updated user list to all remaining users
+	users := c.hub.roomService.GetRoomUsers(c.roomID)
+	usersUpdate := models.WebSocketMessage{
+		Type: "room_users",
+		Data: users,
+	}
+	c.hub.BroadcastToRoom(c.roomID, usersUpdate)
 }
 
 // handleICECandidate handles WebRTC ICE candidates
@@ -239,6 +248,7 @@ func (c *Client) handleSDPAnswer(data interface{}) {
 func (c *Client) handleSpeakingStatus(data interface{}) {
 	var statusData struct {
 		IsSpeaking bool `json:"is_speaking"`
+		IsMuted    bool `json:"is_muted"`
 	}
 	jsonData, _ := json.Marshal(data)
 	json.Unmarshal(jsonData, &statusData)
@@ -251,6 +261,7 @@ func (c *Client) handleSpeakingStatus(data interface{}) {
 		Data: map[string]interface{}{
 			"user_id":     c.userID,
 			"is_speaking": statusData.IsSpeaking,
+			"is_muted":    statusData.IsMuted,
 		},
 	}
 	c.hub.BroadcastToRoom(c.roomID, statusMessage)
