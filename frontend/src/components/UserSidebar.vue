@@ -10,9 +10,7 @@
         @click="$emit('close-mobile-sidebar')"
         class="p-1 text-gray-400 hover:text-white"
       >
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-        </svg>
+        <PhCross class="w-5 h-5" />
       </button>
     </div>
 
@@ -22,9 +20,7 @@
         In Room — {{ userCount }}
       </h2>
       <button class="text-gray-400 hover:text-gray-200 transition-colors duration-200">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-        </svg>
+        <PhDotsThree class="w-4 h-4" />
       </button>
     </div>
 
@@ -41,16 +37,12 @@
     <div class="p-3 border-t border-gray-700">
       <div class="space-y-2">
         <button class="w-full flex items-center justify-center px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors duration-200">
-          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-          </svg>
+        <PhVideoCamera class="w-4 h-4 mr-2" />
           <span class="text-sm font-medium">Start Video</span>
         </button>
         
         <button class="w-full flex items-center justify-center px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors duration-200">
-          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-          </svg>
+        <PhMonitorPlay class="w-4 h-4 mr-2" />
           <span class="text-sm font-medium">Share Screen</span>
         </button>
       </div>
@@ -59,8 +51,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import UserCard from '@/components/UserCard.vue'
+ import { ref, computed } from 'vue'
+ import UserCard from '@/components/UserCard.vue'
+ import { 
+   PhCross, 
+   PhDotsThree, 
+   PhVideoCamera, 
+   PhMonitorPlay 
+ } from '@phosphor-icons/vue'
 
 interface User {
   id: string

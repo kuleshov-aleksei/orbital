@@ -8,9 +8,7 @@
         @click="$emit('close-mobile-sidebar')"
         class="p-1 text-gray-400 hover:text-white"
       >
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-        </svg>
+        <PhCross class="w-5 h-5" />
       </button>
     </div>
 
@@ -28,13 +26,10 @@
             class="w-full flex items-center justify-between px-2 py-1 text-xs font-medium text-gray-400 hover:text-gray-200 transition-colors duration-200"
           >
             <span>{{ category.name }}</span>
-            <svg 
+            <PhCaretCircleDown 
               class="w-3 h-3 transition-transform duration-200"
               :class="{ 'rotate-90': expandedCategories.has(category.name) }"
-              fill="currentColor" viewBox="0 0 20 20"
-            >
-              <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
-            </svg>
+            />
           </button>
         </div>
         
@@ -56,9 +51,7 @@
         @click="$emit('create-room')"
         class="w-full flex items-center justify-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors duration-200"
       >
-        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-        </svg>
+        <PhPlus class="w-4 h-4 mr-2" />
         <span class="text-sm font-medium">Create Room</span>
       </button>
     </div>
@@ -66,8 +59,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import RoomCard from '@/components/RoomCard.vue'
+ import { ref, computed } from 'vue'
+ import RoomCard from '@/components/RoomCard.vue'
+ import { 
+   PhCross, 
+   PhCaretCircleDown,
+   PhPlus 
+ } from '@phosphor-icons/vue'
 
 interface Room {
   id: string
