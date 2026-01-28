@@ -176,7 +176,11 @@ const emit = defineEmits<{
     analyzeAudioLevel()
     // Emit audio level data to parent for icon animation
     emit('audio-level', props.userId, audioLevel.value, isSpeaking.value)
-    animationId.value = requestAnimationFrame(animate)
+    
+    // Throttle to ~10fps (100ms intervals) instead of 60fps
+    setTimeout(() => {
+      animationId.value = requestAnimationFrame(animate)
+    }, 100)
   }
 
  // Setup audio analysis
