@@ -399,3 +399,4 @@ Transform signaling foundation into a fully functional mesh-based voice communic
 - [x] Production-ready build system
 - [x] WebRTC statistics collection and analysis
 - [x] Advanced debugging dashboard with recovery suggestions
+- [x] Playwright E2E UI test harness (Chromium) with backend reset endpoint for deterministic runs (`frontend/playwright.config.ts`, `frontend/tests/e2e`, `backend/cmd/server/main.go`)

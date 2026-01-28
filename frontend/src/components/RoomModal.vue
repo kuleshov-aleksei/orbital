@@ -1,11 +1,12 @@
 <template>
-  <div class="modal-overlay fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+  <div class="modal-overlay fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" data-testid="room-modal">
     <div class="modal-content bg-gray-800 rounded-lg p-6 w-full max-w-md">
       <!-- Modal Header -->
       <div class="flex items-center justify-between mb-6">
         <h2 class="text-xl font-semibold text-white">Create New Room</h2>
         <button
           @click="$emit('close')"
+          data-testid="room-modal-close"
           class="text-gray-400 hover:text-white transition-colors duration-200"
         >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -27,6 +28,7 @@
             type="text"
             required
             placeholder="Enter room name"
+            data-testid="room-name-input"
             class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
           />
         </div>
@@ -84,12 +86,14 @@
           <button
             type="button"
             @click="$emit('close')"
+            data-testid="room-cancel"
             class="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors duration-200"
           >
             Cancel
           </button>
           <button
             type="submit"
+            data-testid="room-create-submit"
             class="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors duration-200"
           >
             Create Room

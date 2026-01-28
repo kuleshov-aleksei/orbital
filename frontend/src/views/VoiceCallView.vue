@@ -1,19 +1,20 @@
 <template>
-  <div class="voice-call-view flex-1 flex flex-col">
+  <div class="voice-call-view flex-1 flex flex-col" data-testid="voice-call-view">
     <!-- Room Header -->
     <header class="bg-gray-800 px-6 py-4 border-b border-gray-700">
       <div class="flex items-center justify-between">
         <div class="flex items-center">
-          <button
-            @click="$emit('leave-room')"
-            class="mr-4 text-gray-400 hover:text-white transition-colors duration-200"
-          >
-            <PhArrowLeft class="w-5 h-5" />
-          </button>
-          <div>
-            <h1 class="text-xl font-semibold text-white">{{ currentRoom?.name || 'Voice Room' }}</h1>
-            <p class="text-sm text-gray-400">{{ users.length }} users in room</p>
-          </div>
+           <button
+             @click="$emit('leave-room')"
+             data-testid="leave-room-header"
+             class="mr-4 text-gray-400 hover:text-white transition-colors duration-200"
+           >
+             <PhArrowLeft class="w-5 h-5" />
+           </button>
+           <div>
+             <h1 class="text-xl font-semibold text-white" data-testid="room-title">{{ currentRoom?.name || 'Voice Room' }}</h1>
+             <p class="text-sm text-gray-400">{{ users.length }} users in room</p>
+           </div>
         </div>
         
         <div class="flex items-center space-x-3">

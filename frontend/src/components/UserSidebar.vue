@@ -1,5 +1,6 @@
 <template>
   <div class="user-sidebar w-60 lg:w-60 bg-gray-800 flex flex-col fixed lg:relative inset-y-0 right-0 z-40 lg:z-auto transform translate-x-full lg:translate-x-0 transition-transform duration-300"
+       data-testid="user-sidebar"
        :class="{ 'translate-x-0': !isHidden }">
     <!-- Mobile Close Button -->
     <div class="lg:hidden flex items-center justify-between p-4 border-b border-gray-700">
@@ -25,7 +26,7 @@
     </div>
 
     <!-- User List -->
-    <div class="flex-1 overflow-y-auto p-2">
+    <div class="flex-1 overflow-y-auto p-2" data-testid="user-list">
       <UserCard
         v-for="user in users"
         :key="user.id"

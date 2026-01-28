@@ -49,6 +49,7 @@
     <div class="p-3 border-t border-gray-700">
       <button
         @click="$emit('create-room')"
+        data-testid="create-room-sidebar"
         class="w-full flex items-center justify-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors duration-200"
       >
         <PhPlus class="w-4 h-4 mr-2" />

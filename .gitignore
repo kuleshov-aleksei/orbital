@@ -49,6 +49,12 @@ logs/
 tmp/
 temp/
 
+# Playwright
+playwright-report/
+test-results/
+blob-report/
+.playwright/
+
 # Created by https://www.toptal.com/developers/gitignore/api/go,vue,node
 # Edit at https://www.toptal.com/developers/gitignore?templates=go,vue,node
 

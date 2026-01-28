@@ -25,6 +25,17 @@ func NewRoomService() *RoomService {
 	}
 }
 
+// Reset clears all rooms/users.
+// Intended for test environments only.
+func (rs *RoomService) Reset() {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+
+	rs.rooms = make(map[string]*models.Room)
+	rs.members = make(map[string]map[string]*models.RoomMember)
+	rs.users = make(map[string]*models.User)
+}
+
 // CreateRoom creates a new room
 func (rs *RoomService) CreateRoom(name, category string, maxUsers int) (*models.Room, error) {
 	rs.mu.Lock()

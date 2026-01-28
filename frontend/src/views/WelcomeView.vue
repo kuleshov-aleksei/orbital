@@ -1,5 +1,5 @@
 <template>
-  <div class="welcome-view flex-1 flex flex-col p-4 lg:p-8 overflow-y-auto">
+  <div class="welcome-view flex-1 flex flex-col p-4 lg:p-8 overflow-y-auto" data-testid="welcome-view">
 
     <!-- Room Browser -->
     <div class="w-full max-w-4xl flex-1">
@@ -7,6 +7,7 @@
         <h2 class="text-2xl font-semibold text-white">Available Rooms</h2>
         <button
           @click="$emit('create-room')"
+          data-testid="create-room-welcome"
           class="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors duration-200"
         >
           <PhPlus class="w-4 h-4 mr-2" />
@@ -19,6 +20,7 @@
         <div
           v-for="room in rooms"
           :key="room.id"
+          :data-testid="`room-card-${room.id}`"
           class="room-browser-card bg-gray-800 rounded-lg p-6 hover:bg-gray-700 transition-all duration-200 cursor-pointer border border-gray-700 hover:border-indigo-500"
           @click="$emit('room-selected', room.id)"
         >
@@ -54,6 +56,7 @@
         <p class="text-gray-400 mb-6">Be the first to create a room and start chatting!</p>
         <button
           @click="$emit('create-room')"
+          data-testid="create-room-empty"
           class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors duration-200"
         >
           Create First Room
@@ -74,11 +77,13 @@
           v-model="roomCode"
           type="text"
           placeholder="Enter room code"
+          data-testid="room-code-input"
           class="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
         />
         <button 
           type="submit"
           :disabled="!roomCode.trim() || isJoining || isLoading"
+          data-testid="room-code-join"
           class="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg transition-colors duration-200"
         >
           {{ isJoining ? 'Joining...' : 'Join' }}

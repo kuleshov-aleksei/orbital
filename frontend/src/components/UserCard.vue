@@ -1,5 +1,5 @@
 <template>
-  <div class="user-card flex items-center px-3 py-2 rounded-lg hover:bg-gray-700 transition-colors duration-200 cursor-pointer group">
+  <div class="user-card flex items-center px-3 py-2 rounded-lg hover:bg-gray-700 transition-colors duration-200 cursor-pointer group" :data-testid="`user-card-${user.id}`">
     <!-- User Avatar -->
     <div class="relative mr-3">
       <div class="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-sm font-medium">
