@@ -397,10 +397,11 @@ const initializeWebRTC = async () => {
    // Handle ICE candidates
    peerConnection.onicecandidate = (event) => {
      if (event.candidate) {
-       wsService.sendMessage('ice_candidate', {
-         target_user_id: userId,
-         user_id: getCurrentUserId(),
-         candidate: event.candidate
+        webRTCStatsCollector.saveOutgoingIceCandidate(userId, event.candidate);
+        wsService.sendMessage('ice_candidate', {
+          target_user_id: userId,
+          user_id: getCurrentUserId(),
+          candidate: event.candidate
        })
      } else {
        console.log('ICE gathering completed for', userId)

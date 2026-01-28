@@ -1,4 +1,4 @@
-import { WebRTCStats, BandwidthStats } from '../types'
+import { WebRTCStats, BandwidthStats, IceCandidateData } from '../types'
 
 export interface ConnectionStats {
   packetsLost: number
@@ -22,6 +22,7 @@ export interface StatsHistory {
 
 export class WebRTCStatsCollector {
   private statsHistory: Map<string, StatsHistory> = new Map()
+  private outgoingIceCandidates: Map<string, Array<RTCIceCandidate>> = new Map();
   private collectionIntervals: Map<string, number> = new Map()
   private readonly COLLECTION_INTERVAL = 1000 // 1 second
   private readonly MAX_HISTORY_SIZE = 300 // 5 minutes at 1 second intervals
@@ -210,6 +211,20 @@ export class WebRTCStatsCollector {
     })
 
     return allStats
+  }
+
+  getAllOutgoingIceCandidates(): Map<string, Array<RTCIceCandidate>> {
+    return this.outgoingIceCandidates
+  }
+
+  saveOutgoingIceCandidate(peerId: string, iceCandidateData: RTCIceCandidate) {
+    var candidates = this.outgoingIceCandidates.get(peerId);
+    if (candidates === undefined) {
+      candidates = new Array<RTCIceCandidate>();
+      this.outgoingIceCandidates.set(peerId, candidates);
+    }
+
+    candidates.push(iceCandidateData);
   }
 
   clearHistory(peerId: string): void {

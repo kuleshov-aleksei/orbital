@@ -57,6 +57,35 @@
 
           <!-- Content -->
           <div class="overflow-y-auto max-h-[60vh]">
+            <!-- Outgoing ICE Candidates Tab -->
+            <div v-if="activeTab === 'ice-candidates'" class="p-6">
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div
+                  v-for="[userId, iceCandidates] in allOutgoingIceCandidates"
+                  :key="userId"
+                  class="bg-gray-800 rounded-lg p-4 border border-gray-700"
+                >
+                  <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-medium text-white">
+                      {{ getUserNickname(userId) }}
+                    </h3>
+                    <div class="flex items-center space-x-2">
+                      <div v-for="candidate in iceCandidates" class="text-xs text-gray-400">
+                        endpoint: {{ candidate.protocol }}://{{ candidate.address }}:{{ candidate.port }}
+                        priority: {{ candidate.priority }}
+                        usernameFragment: {{ candidate.usernameFragment }}
+                        type: {{ candidate.type }}
+                        component: {{ candidate.component }}
+                        foundation: {{ candidate.foundation }}
+                        sdpMid: {{ candidate.sdpMid }}
+                        sdpMLineIndex: {{ candidate.sdpMLineIndex }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- Connection Metrics Tab -->
             <div v-if="activeTab === 'metrics'" class="p-6">
               <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -338,7 +367,7 @@ const props = defineProps<Props>()
 
 // Component state
 const isVisible = ref(false)
-const activeTab = ref<'metrics' | 'network' | 'logs' | 'issues'>('metrics')
+const activeTab = ref<'metrics' | 'network' | 'logs' | 'issues' | 'ice-candidates'>('metrics')
 const connectionLogs = ref<ConnectionLog[]>([])
 const networkInfo = ref<Map<string, DebugInfo>>(new Map())
 const updateInterval = ref<number>()
@@ -347,11 +376,14 @@ const tabs = [
   { id: 'metrics' as const, label: 'Metrics' },
   { id: 'network' as const, label: 'Network' },
   { id: 'logs' as const, label: 'Logs' },
-  { id: 'issues' as const, label: 'Issues' }
+  { id: 'issues' as const, label: 'Issues' },
+  { id: 'ice-candidates' as const, label: 'Outgoing ICE candidates' }
 ]
 
 // Computed properties
 const allStats = computed(() => webRTCStatsCollector.getAllPeerStats())
+const allOutgoingIceCandidates = computed(() => webRTCStatsCollector.getAllOutgoingIceCandidates())
+
 
 const connectionIssues = computed(() => {
   const issues = new Map<string, { quality: ConnectionQuality['quality'], issues: string[], suggestions: string[] }>()
