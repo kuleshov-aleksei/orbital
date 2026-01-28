@@ -15,7 +15,7 @@
         </div>
       </div>
       <button
-        @click="$emit('copy')"
+        @click="copyCandidate"
         class="flex items-center space-x-1 px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors"
       >
         <PhCopy class="w-3 h-3" />
@@ -86,11 +86,22 @@ interface Props {
   candidate: RTCIceCandidate
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 
-defineEmits<{
-  copy: []
-}>()
+const copyCandidate = async () => {
+  if (!props.candidate) {
+    console.warn('Candidate is null or undefined')
+    return
+  }
+  
+  try {
+    const candidateJson = JSON.stringify(props.candidate, null, 2)
+    await navigator.clipboard.writeText(candidateJson)
+    console.log('ICE candidate copied to clipboard')
+  } catch (error) {
+    console.error('Failed to copy candidate:', error)
+  }
+}
 
 const getCandidateTypeColor = (type?: string): string => {
   if (!type) return 'bg-gray-400'

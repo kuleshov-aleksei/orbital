@@ -23,7 +23,6 @@
             v-for="(candidate, index) in iceCandidates"
             :key="index"
             :candidate="candidate"
-            @copy="onCopyCandidate"
           />
         </div>
       </div>
@@ -41,12 +40,4 @@ interface Props {
 }
 
 defineProps<Props>()
-
-const emit = defineEmits<{
-  copyCandidate: [candidate: RTCIceCandidate]
-}>()
-
-const onCopyCandidate = (candidate: RTCIceCandidate) => {
-  emit('copyCandidate', candidate)
-}
 </script>

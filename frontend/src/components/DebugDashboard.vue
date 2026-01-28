@@ -83,8 +83,7 @@ const currentTabProps = computed(() => {
     case 'ice-candidates':
       return {
         'ice-candidates-map': allOutgoingIceCandidates.value,
-        'get-user-nickname': getUserNickname,
-        'onCopyCandidate': onCopyCandidate
+        'get-user-nickname': getUserNickname
       }
     case 'metrics':
       return {
