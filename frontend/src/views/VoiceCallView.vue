@@ -98,7 +98,7 @@
  import { computed, onMounted, onUnmounted, ref } from 'vue'
  import AudioControls from '@/components/AudioControls.vue'
  import { wsService } from '@/services/websocket'
- import type { User, WebSocketMessage } from '@/types'
+ import type { User, WebSocketMessage, IceCandidateData, SDPData } from '@/types'
  import { 
    PhArrowLeft, 
    PhGearSix, 
@@ -149,68 +149,234 @@ const initializeWebRTC = async () => {
   }
 }
 
-const handleWebSocketMessage = (message: WebSocketMessage) => {
-  switch (message.type) {
-    case 'ice_candidate':
-      handleIceCandidate(message.data)
-      break
-    case 'sdp_offer':
-      handleSdpOffer(message.data)
-      break
-    case 'sdp_answer':
-      handleSdpAnswer(message.data)
-      break
-  }
-}
+ const handleWebSocketMessage = (message: WebSocketMessage) => {
+   switch (message.type) {
+     case 'ice_candidate':
+       handleIceCandidate(message.data)
+       break
+     case 'sdp_offer':
+       handleSdpOffer(message.data)
+       break
+     case 'sdp_answer':
+       handleSdpAnswer(message.data)
+       break
+     case 'room_users':
+       handleRoomUsers(message.data)
+       break
+     case 'user_left':
+       handleUserLeft(message.data)
+       break
+   }
+ }
 
-const handleIceCandidate = async (data: any) => {
-  // Handle ICE candidates for peer connections
-  console.log('Received ICE candidate:', data)
-  // Implementation would add ICE candidate to appropriate peer connection
-}
+ const handleIceCandidate = async (data: any) => {
+   try {
+     const { user_id, candidate } = data
+     const peerConnection = peerConnections.value.get(user_id)
+     
+     if (!peerConnection) {
+       console.warn(`Received ICE candidate for unknown peer: ${user_id}`)
+       return
+     }
+     
+     await peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
+     console.log(`Added ICE candidate from ${user_id}:`, candidate)
+   } catch (error) {
+     console.error('Error handling ICE candidate:', error, 'Data:', data)
+   }
+ }
 
-const handleSdpOffer = async (data: any) => {
-  // Handle WebRTC offer from another peer
-  console.log('Received SDP offer:', data)
-  // Implementation would create peer connection and set remote description
-}
+ const handleSdpOffer = async (data: any) => {
+   try {
+     const { user_id, sdp } = data
+     console.log(`Received SDP offer from ${user_id}:`, sdp)
+     
+     let peerConnection = peerConnections.value.get(user_id)
+     if (!peerConnection) {
+       peerConnection = createPeerConnection(user_id)
+     }
+     
+     await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp))
+     const answer = await peerConnection.createAnswer()
+     await peerConnection.setLocalDescription(answer)
+     
+     wsService.sendMessage('sdp_answer', { 
+       target_user_id: user_id,
+       user_id: getCurrentUserId(), 
+       sdp: answer 
+     })
+     
+     console.log(`Sent SDP answer to ${user_id}:`, answer)
+   } catch (error) {
+     console.error('Error handling SDP offer:', error, 'Data:', data)
+   }
+ }
 
-const handleSdpAnswer = async (data: any) => {
-  // Handle WebRTC answer from another peer
-  console.log('Received SDP answer:', data)
-  // Implementation would complete peer connection
-}
+ const handleSdpAnswer = async (data: any) => {
+   try {
+     const { user_id, sdp } = data
+     const peerConnection = peerConnections.value.get(user_id)
+     
+     if (!peerConnection) {
+       console.warn(`Received SDP answer for unknown peer: ${user_id}`)
+       return
+     }
+     
+     await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp))
+     console.log(`SDP answer processed for ${user_id}:`, sdp)
+   } catch (error) {
+     console.error('Error handling SDP answer:', error, 'Data:', data)
+   }
+ }
 
-const createPeerConnection = (userId: string): RTCPeerConnection => {
-  const configuration = {
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' }
-    ]
-  }
+ const handleRoomUsers = (users: any[]) => {
+   const currentUserId = getCurrentUserId()
+   const otherUsers = users.filter((user: any) => user.id !== currentUserId)
+   
+   console.log('Current users in room:', otherUsers)
+   
+   // Create connections with users we don't already have connections with
+   otherUsers.forEach((user: any) => {
+     if (!peerConnections.value.has(user.id)) {
+       console.log(`Creating connection with ${user.id} (${user.nickname})`)
+       createOfferForUser(user.id)
+     }
+   })
+ }
 
-  const peerConnection = new RTCPeerConnection(configuration)
-  
-  peerConnection.onicecandidate = (event) => {
-    if (event.candidate) {
-      wsService.sendMessage('ice_candidate', {
-        user_id: getCurrentUserId(),
-        candidate: event.candidate
-      })
-    }
-  }
+ const handleUserLeft = (data: any) => {
+   const { user_id } = data
+   console.log(`User left: ${user_id}`)
+   cleanupPeerConnection(user_id)
+ }
 
-  peerConnection.onconnectionstatechange = () => {
-    console.log(`Connection state with ${userId}:`, peerConnection.connectionState)
-  }
+ const createOfferForUser = async (userId: string) => {
+   try {
+     const peerConnection = createPeerConnection(userId)
+     const offer = await peerConnection.createOffer()
+     await peerConnection.setLocalDescription(offer)
+     
+     wsService.sendMessage('sdp_offer', {
+       target_user_id: userId,
+       user_id: getCurrentUserId(),
+       sdp: offer
+     })
+     
+     console.log(`Created and sent offer to ${userId}:`, offer)
+   } catch (error) {
+     console.error('Error creating offer:', error)
+   }
+ }
 
-  peerConnections.value.set(userId, peerConnection)
-  return peerConnection
-}
+ const createPeerConnection = (userId: string): RTCPeerConnection => {
+   const configuration = {
+     iceServers: [
+       { urls: 'stun:stun.l.google.com:19302' },
+       { urls: 'stun:stun1.l.google.com:19302' }
+     ]
+   }
 
-const getCurrentUserId = (): string => {
-  // Get current user ID from localStorage or generate new one
-  return localStorage.getItem('orbital_user_id') || 'unknown-user'
-}
+   const peerConnection = new RTCPeerConnection(configuration)
+   
+   // Add local audio tracks to the peer connection
+   if (localStream.value) {
+     localStream.value.getAudioTracks().forEach(track => {
+       peerConnection.addTrack(track, localStream.value!)
+     })
+   }
+   
+   // Handle ICE candidates
+   peerConnection.onicecandidate = (event) => {
+     if (event.candidate) {
+       wsService.sendMessage('ice_candidate', {
+         target_user_id: userId,
+         user_id: getCurrentUserId(),
+         candidate: event.candidate
+       })
+     } else {
+       console.log('ICE gathering completed for', userId)
+     }
+   }
+
+   // Handle connection state changes
+   peerConnection.onconnectionstatechange = () => {
+     console.log(`Connection state with ${userId}:`, peerConnection.connectionState)
+     if (peerConnection.connectionState === 'failed') {
+       console.error(`Connection with ${userId} failed, attempting cleanup`)
+       cleanupPeerConnection(userId)
+     }
+   }
+
+   // Handle ICE connection state changes
+   peerConnection.oniceconnectionstatechange = () => {
+     console.log(`ICE connection state with ${userId}:`, peerConnection.iceConnectionState)
+     if (peerConnection.iceConnectionState === 'failed') {
+       console.error(`ICE connection with ${userId} failed`)
+       // Could implement reconnection logic here
+     }
+   }
+
+   // Handle remote tracks (when user sends their audio)
+   peerConnection.ontrack = (event) => {
+     console.log(`Received remote track from ${userId}:`, event.streams)
+     handleRemoteTrack(userId, event.streams[0])
+   }
+
+   // Handle signaling state changes
+   peerConnection.onsignalingstatechange = () => {
+     console.log(`Signaling state with ${userId}:`, peerConnection.signalingState)
+   }
+
+   peerConnections.value.set(userId, peerConnection)
+   return peerConnection
+ }
+
+ const handleRemoteTrack = (userId: string, stream: MediaStream) => {
+   try {
+     // Create or update audio element for remote user
+     let audioElement = document.getElementById(`audio-${userId}`) as HTMLAudioElement
+     
+     if (!audioElement) {
+       audioElement = document.createElement('audio')
+       audioElement.id = `audio-${userId}`
+       audioElement.autoplay = true
+       audioElement.playsInline = true
+       audioElement.volume = 0.8 // Default volume
+       document.body.appendChild(audioElement)
+       console.log(`Created audio element for user ${userId}`)
+     }
+     
+     audioElement.srcObject = stream
+     console.log(`Attached remote stream to audio element for ${userId}`)
+   } catch (error) {
+     console.error('Error handling remote track:', error)
+   }
+ }
+
+ const cleanupPeerConnection = (userId: string) => {
+   try {
+     const peerConnection = peerConnections.value.get(userId)
+     if (peerConnection) {
+       peerConnection.close()
+       peerConnections.value.delete(userId)
+     }
+     
+     // Remove audio element
+     const audioElement = document.getElementById(`audio-${userId}`)
+     if (audioElement) {
+       audioElement.remove()
+     }
+     
+     console.log(`Cleaned up peer connection and audio for ${userId}`)
+   } catch (error) {
+     console.error('Error cleaning up peer connection:', error)
+   }
+ }
+
+ const getCurrentUserId = (): string => {
+   // Get current user ID from localStorage or generate new one
+   return localStorage.getItem('orbital_user_id') || 'unknown-user'
+ }
 
 const toggleMute = () => {
   isMuted.value = !isMuted.value
@@ -246,12 +412,14 @@ onMounted(async () => {
   wsService.on('ice_candidate', handleWebSocketMessage)
   wsService.on('sdp_offer', handleWebSocketMessage)
   wsService.on('sdp_answer', handleWebSocketMessage)
+  wsService.on('room_users', handleWebSocketMessage)
+  wsService.on('user_left', handleWebSocketMessage)
 })
 
 onUnmounted(() => {
-  // Clean up peer connections
-  peerConnections.value.forEach(connection => {
-    connection.close()
+  // Clean up all peer connections and audio elements
+  peerConnections.value.forEach((connection, userId) => {
+    cleanupPeerConnection(userId)
   })
   
   // Clean up media stream
@@ -260,5 +428,7 @@ onUnmounted(() => {
       track.stop()
     })
   }
+  
+  console.log('WebRTC cleanup completed')
 })
 </script>

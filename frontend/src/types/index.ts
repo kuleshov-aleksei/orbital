@@ -49,3 +49,21 @@ export interface HealthResponse {
   service: string
   version: string
 }
+
+// WebRTC related types
+export interface IceCandidateData {
+  user_id: string
+  candidate: RTCIceCandidateInit
+}
+
+export interface SDPData {
+  user_id: string
+  sdp: RTCSessionDescriptionInit
+}
+
+export interface PeerConnectionInfo {
+  userId: string
+  connection: RTCPeerConnection
+  audioElement?: HTMLAudioElement
+  isConnected: boolean
+}

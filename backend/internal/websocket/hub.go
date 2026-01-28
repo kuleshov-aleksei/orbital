@@ -98,6 +98,34 @@ func (h *Hub) BroadcastToRoom(roomID string, message interface{}) {
 	}
 }
 
+// SendToUser sends a message to a specific user in a room
+func (h *Hub) SendToUser(roomID string, userID string, message interface{}) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	if clients, exists := h.roomClients[roomID]; exists {
+		data, err := json.Marshal(message)
+		if err != nil {
+			log.Printf("Error marshaling message: %v", err)
+			return
+		}
+
+		// Find the specific client by userID
+		for client := range clients {
+			if client.userID == userID {
+				select {
+				case client.send <- data:
+					log.Printf("Message sent to user %s in room %s", userID, roomID)
+				default:
+					log.Printf("Failed to send message to user %s: channel blocked", userID)
+				}
+				return
+			}
+		}
+		log.Printf("User %s not found in room %s", userID, roomID)
+	}
+}
+
 // readPump handles messages from the WebSocket connection
 func (c *Client) readPump() {
 	defer func() {
@@ -216,32 +244,74 @@ func (c *Client) handleLeaveRoom(data interface{}) {
 
 // handleICECandidate handles WebRTC ICE candidates
 func (c *Client) handleICECandidate(data interface{}) {
-	// Relay ICE candidate to other users in room
-	candidateMessage := models.WebSocketMessage{
-		Type: "ice_candidate",
-		Data: data,
+	// Parse the data to extract target user if available
+	var candidateData map[string]interface{}
+	jsonData, _ := json.Marshal(data)
+	json.Unmarshal(jsonData, &candidateData)
+
+	if targetUserID, ok := candidateData["target_user_id"].(string); ok && targetUserID != "" {
+		// Send to specific user
+		candidateMessage := models.WebSocketMessage{
+			Type: "ice_candidate",
+			Data: data,
+		}
+		c.hub.SendToUser(c.roomID, targetUserID, candidateMessage)
+	} else {
+		// Broadcast to all users (legacy behavior)
+		candidateMessage := models.WebSocketMessage{
+			Type: "ice_candidate",
+			Data: data,
+		}
+		c.hub.BroadcastToRoom(c.roomID, candidateMessage)
 	}
-	c.hub.BroadcastToRoom(c.roomID, candidateMessage)
 }
 
 // handleSDPOffer handles WebRTC SDP offers
 func (c *Client) handleSDPOffer(data interface{}) {
-	// Relay SDP offer to other users in room
-	offerMessage := models.WebSocketMessage{
-		Type: "sdp_offer",
-		Data: data,
+	// Parse the data to extract target user if available
+	var offerData map[string]interface{}
+	jsonData, _ := json.Marshal(data)
+	json.Unmarshal(jsonData, &offerData)
+
+	if targetUserID, ok := offerData["target_user_id"].(string); ok && targetUserID != "" {
+		// Send to specific user
+		offerMessage := models.WebSocketMessage{
+			Type: "sdp_offer",
+			Data: data,
+		}
+		c.hub.SendToUser(c.roomID, targetUserID, offerMessage)
+	} else {
+		// Broadcast to all users (legacy behavior)
+		offerMessage := models.WebSocketMessage{
+			Type: "sdp_offer",
+			Data: data,
+		}
+		c.hub.BroadcastToRoom(c.roomID, offerMessage)
 	}
-	c.hub.BroadcastToRoom(c.roomID, offerMessage)
 }
 
 // handleSDPAnswer handles WebRTC SDP answers
 func (c *Client) handleSDPAnswer(data interface{}) {
-	// Relay SDP answer to other users in room
-	answerMessage := models.WebSocketMessage{
-		Type: "sdp_answer",
-		Data: data,
+	// Parse the data to extract target user if available
+	var answerData map[string]interface{}
+	jsonData, _ := json.Marshal(data)
+	json.Unmarshal(jsonData, &answerData)
+
+	if targetUserID, ok := answerData["target_user_id"].(string); ok && targetUserID != "" {
+		// Send to specific user
+		answerMessage := models.WebSocketMessage{
+			Type: "sdp_answer",
+			Data: data,
+		}
+		c.hub.SendToUser(c.roomID, targetUserID, answerMessage)
+	} else {
+		// Broadcast to all users (legacy behavior)
+		answerMessage := models.WebSocketMessage{
+			Type: "sdp_answer",
+			Data: data,
+		}
+		c.hub.BroadcastToRoom(c.roomID, answerMessage)
 	}
-	c.hub.BroadcastToRoom(c.roomID, answerMessage)
 }
 
 // handleSpeakingStatus handles user speaking status updates
