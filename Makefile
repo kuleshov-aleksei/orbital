@@ -31,8 +31,10 @@ dev:
 	@echo "Starting development servers..."
 	@echo "Frontend: http://localhost:3000"
 	@echo "Backend: http://localhost:8080"
-	cd frontend && npm run dev &
-	cd backend && go run ./cmd/server &
+	@echo "Press Ctrl+C to stop both servers"
+	(cd frontend && npm run dev) & \
+	(cd backend && go run ./cmd/server) & \
+	wait
 
 # Run linters
 lint:
