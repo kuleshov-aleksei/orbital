@@ -66,3 +66,50 @@ The project uses a Makefile for common operations:
 2. **Single Binary** - Backend compiles to one executable
 3. **Browser Native** - Use WebRTC without plugins
 4. **Clean Code** - Maintainable and readable codebase
+
+## 📋 Documentation Updates
+
+### Project Status Tracking
+
+**IMPORTANT**: All agents must update project documentation in `ISSUES.md` after completing any significant feature or milestone. This ensures accurate project tracking and status visibility.
+
+#### Update Requirements:
+1. **Immediately after completing** any major feature
+2. **Mark completed tasks** with `[x]`
+3. **Add new sections** for unexpected features or deviations
+
+#### Feature Completion Updates:
+- Change `[ ]` to `[x]` for completed tasks
+- Add "✅ COMPLETE" to step headers
+- Update timeline from "Timeline: X days" to "✅ COMPLETE"
+- Add "Implementation Highlights" section with:
+  - Key technical achievements
+  - Performance improvements
+  - Code organization benefits
+  - New capabilities enabled
+
+#### Documentation Quality Standards:
+- Maintain consistent formatting and emoji usage
+- Use present tense for completed features
+- Include specific files created/modified
+- Reference any new services or components
+- Note any architectural decisions made
+
+#### Tasks:
+- [x] **Task 1**: Description
+- [x] **Task 2**: Description
+- [x] **Task 3**: Description
+
+#### ✅ Implementation Highlights:
+- **Key achievement**: Technical description
+- **Performance benefit**: Measurable improvement
+- **Code organization**: Architecture enhancement
+```
+
+#### Failure to Update:
+- Project status will become inaccurate
+- Future agents may work on completed features
+- Progress tracking becomes unreliable
+- Stakeholders lose visibility into actual progress
+
+**This documentation update process is MANDATORY for all agents working on The Orbital project.**

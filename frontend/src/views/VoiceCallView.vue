@@ -53,89 +53,46 @@
           </div>
         </div>
 
-        <!-- Empty State -->
-        <div v-else class="flex items-center justify-center h-full">
-          <div class="text-center">
-            <div class="w-20 h-20 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-              <PhMicrophone class="w-10 h-10 text-gray-600" />
-            </div>
-            <h3 class="text-xl font-semibold text-white mb-2">Waiting for others...</h3>
-            <p class="text-gray-400">You're the first one here. Invite some friends to join!</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Audio Controls -->
-      <div class="bg-gray-800 border-t border-gray-700 px-6 py-4">
-        <AudioControls 
-          :isMuted="isMuted"
-          :isDeafened="isDeafened"
-          :isScreenSharing="isScreenSharing"
-          @toggle-mute="toggleMute"
-          @toggle-deafen="toggleDeafen"
-          @toggle-screen-share="toggleScreenShare"
-          @leave-room="$emit('leave-room')"
-        />
-       </div>
-
-       <!-- Debug Panel (Development) -->
-       <div v-if="connectionInfo.length > 0" class="bg-gray-900 border-t border-gray-700 p-4">
-         <div class="text-xs text-gray-400 mb-2">Connection Debug Info:</div>
-         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-           <div 
-             v-for="info in connectionInfo" 
-             :key="info.userId"
-             class="bg-gray-800 rounded p-2 border border-gray-600"
-           >
-             <div class="text-xs text-gray-300">
-               <div class="font-mono">{{ info.user?.nickname || info.userId }}</div>
-               <div class="flex items-center mt-1">
-                 <div class="w-2 h-2 rounded-full mr-2" 
-                      :class="{
-                        'bg-green-400': info.state === 'connected',
-                        'bg-yellow-400': ['connecting', 'creating-offer', 'creating-answer'].includes(info.state),
-                        'bg-red-400': info.state === 'failed' || info.state === 'error',
-                        'bg-gray-400': ['disconnected', 'ice-failed'].includes(info.state)
-                      }">
-                 </div>
-                 <span class="font-mono">{{ info.state }}</span>
-               </div>
-               <!-- Statistics Info -->
-               <div v-if="getConnectionStats(info.userId)" class="mt-2 text-xs">
-                 <div class="flex justify-between">
-                   <span>RTT:</span>
-                   <span>{{ Math.round(getConnectionStats(info.userId).roundTripTime) }}ms</span>
-                 </div>
-                 <div class="flex justify-between">
-                   <span>Jitter:</span>
-                   <span>{{ Math.round(getConnectionStats(info.userId).jitter) }}ms</span>
-                 </div>
-                 <div class="flex justify-between">
-                   <span>Loss:</span>
-                   <span>{{ getConnectionStats(info.userId).packetsLost }}</span>
-                 </div>
-                 <div class="flex justify-between">
-                   <span>Quality:</span>
-                   <span :class="{
-                     'text-green-400': getConnectionQuality(info.userId).quality === 'excellent',
-                     'text-blue-400': getConnectionQuality(info.userId).quality === 'good',
-                     'text-yellow-400': getConnectionQuality(info.userId).quality === 'fair',
-                     'text-red-400': getConnectionQuality(info.userId).quality === 'poor'
-                   }">{{ getConnectionQuality(info.userId).quality }}</span>
-                 </div>
-               </div>
+         <!-- Empty State -->
+         <div v-else class="flex items-center justify-center h-full">
+           <div class="text-center">
+             <div class="w-20 h-20 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+               <PhMicrophone class="w-10 h-10 text-gray-600" />
              </div>
+             <h3 class="text-xl font-semibold text-white mb-2">Waiting for others...</h3>
+             <p class="text-gray-400">You're the first one here. Invite some friends to join!</p>
            </div>
          </div>
-       </div>
-     </main>
-   </div>
- </template>
+        </div>
+
+        <!-- Audio Controls -->
+        <div class="bg-gray-800 border-t border-gray-700 px-6 py-4">
+          <AudioControls 
+            :isMuted="isMuted"
+            :isDeafened="isDeafened"
+            :isScreenSharing="isScreenSharing"
+            @toggle-mute="toggleMute"
+            @toggle-deafen="toggleDeafen"
+            @toggle-screen-share="toggleScreenShare"
+            @leave-room="$emit('leave-room')"
+          />
+        </div>
+      </main>
+      
+      <!-- Debug Dashboard -->
+      <DebugDashboard
+        :users="props.users"
+        :peerConnections="peerConnections"
+        :getConnectionQuality="getConnectionQuality"
+      />
+  </div>
+</template>
 
 <script setup lang="ts">
  import { computed, onMounted, onUnmounted, ref } from 'vue'
  import AudioControls from '@/components/AudioControls.vue'
  import AudioStream from '@/components/AudioStream.vue'
+ import DebugDashboard from '@/components/DebugDashboard.vue'
  import { wsService } from '@/services/websocket'
  import { webRTCStatsCollector } from '@/services/webrtc-stats'
  import type { User, WebSocketMessage, IceCandidateData, SDPData } from '@/types'

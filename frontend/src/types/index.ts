@@ -146,3 +146,34 @@ export interface NetworkPathInfo {
   localAddress?: string
   remoteAddress?: string
 }
+
+// Debug Dashboard Types
+export interface ConnectionLog {
+  id: string | number
+  timestamp: Date
+  level: 'info' | 'warning' | 'error'
+  message: string
+  userId?: string
+}
+
+export interface DebugSession {
+  sessionId: string
+  startTime: Date
+  duration: number
+  peerConnections: number
+  totalConnections: number
+  averageQuality: number
+}
+
+export interface ConnectionDiagnostic {
+  userId: string
+  timestamp: Date
+  iceConnectionState: RTCIceConnectionState
+  peerConnectionState: RTCPeerConnectionState
+  signalingState: RTCSignalingState
+  localCandidates: RTCIceCandidateInit[]
+  remoteCandidates: RTCIceCandidateInit[]
+  dataChannels: RTCDataChannel[]
+  selectedCandidatePair?: RTCIceCandidatePair
+  certificate?: RTCCertificate
+}
