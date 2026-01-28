@@ -1,0 +1,214 @@
+import { WebSocketMessage } from '@/types'
+
+export type MessageCallback = (message: WebSocketMessage) => void
+export type ConnectionCallback = () => void
+export type DisconnectionCallback = (event: CloseEvent) => void
+
+export class WebSocketService {
+  private ws: WebSocket | null = null
+  private callbacks: Map<string, MessageCallback[]> = new Map()
+  private connectionCallbacks: ConnectionCallback[] = []
+  private disconnectionCallbacks: DisconnectionCallback[] = []
+  private reconnectAttempts = 0
+  private maxReconnectAttempts = 5
+  private reconnectDelay = 1000
+  private roomId: string = ''
+  private userId: string = ''
+
+  constructor() {
+    this.setupEventHandlers()
+  }
+
+  // Connect to WebSocket for a room
+  async connect(roomId: string, userId: string): Promise<void> {
+    this.roomId = roomId
+    this.userId = userId
+
+    return new Promise((resolve, reject) => {
+      try {
+        const wsUrl = this.getWebSocketUrl(roomId)
+        console.log(`Connecting to WebSocket: ${wsUrl}`)
+        
+        this.ws = new WebSocket(wsUrl)
+        
+        this.ws.onopen = (event) => {
+          console.log('WebSocket connected:', event)
+          this.reconnectAttempts = 0
+          this.notifyConnectionCallbacks()
+          resolve()
+        }
+
+        this.ws.onerror = (error) => {
+          console.error('WebSocket error:', error)
+          reject(new Error('WebSocket connection failed'))
+        }
+
+        this.ws.onmessage = (event) => {
+          this.handleMessage(event)
+        }
+
+        this.ws.onclose = (event) => {
+          console.log('WebSocket closed:', event)
+          this.notifyDisconnectionCallbacks(event)
+          this.attemptReconnect()
+        }
+
+      } catch (error) {
+        reject(error)
+      }
+    })
+  }
+
+  // Disconnect from WebSocket
+  disconnect(): void {
+    if (this.ws) {
+      this.reconnectAttempts = this.maxReconnectAttempts // Prevent reconnection
+      this.ws.close()
+      this.ws = null
+    }
+  }
+
+  // Send message to WebSocket
+  sendMessage(type: string, data: any): void {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      const message: WebSocketMessage = { type, data }
+      this.ws.send(JSON.stringify(message))
+      console.log('Sent WebSocket message:', message)
+    } else {
+      console.warn('WebSocket not connected, cannot send message:', { type, data })
+    }
+  }
+
+  // Register callback for specific message type
+  on(type: string, callback: MessageCallback): void {
+    if (!this.callbacks.has(type)) {
+      this.callbacks.set(type, [])
+    }
+    this.callbacks.get(type)!.push(callback)
+  }
+
+  // Register connection callback
+  onConnection(callback: ConnectionCallback): void {
+    this.connectionCallbacks.push(callback)
+  }
+
+  // Register disconnection callback
+  onDisconnection(callback: DisconnectionCallback): void {
+    this.disconnectionCallbacks.push(callback)
+  }
+
+  // Remove callback for specific type
+  off(type: string, callback?: MessageCallback): void {
+    if (callback) {
+      const callbacks = this.callbacks.get(type)
+      if (callbacks) {
+        const index = callbacks.indexOf(callback)
+        if (index > -1) {
+          callbacks.splice(index, 1)
+        }
+      }
+    } else {
+      this.callbacks.delete(type)
+    }
+  }
+
+  // Get connection status
+  isConnected(): boolean {
+    return this.ws !== null && this.ws.readyState === WebSocket.OPEN
+  }
+
+  // Get connection state
+  getReadyState(): number {
+    return this.ws ? this.ws.readyState : WebSocket.CLOSED
+  }
+
+  // Private methods
+  private getWebSocketUrl(roomId: string): string {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const host = process.env.NODE_ENV === 'production' 
+      ? window.location.host 
+      : 'localhost:8080'
+    return `${protocol}//${host}/ws/${roomId}`
+  }
+
+  private handleMessage(event: MessageEvent): void {
+    try {
+      const message: WebSocketMessage = JSON.parse(event.data)
+      console.log('Received WebSocket message:', message)
+
+      // Route message to appropriate callbacks
+      const callbacks = this.callbacks.get(message.type)
+      if (callbacks) {
+        callbacks.forEach(callback => {
+          try {
+            callback(message)
+          } catch (error) {
+            console.error('Error in WebSocket callback:', error)
+          }
+        })
+      }
+    } catch (error) {
+      console.error('Error parsing WebSocket message:', error, event.data)
+    }
+  }
+
+  private notifyConnectionCallbacks(): void {
+    this.connectionCallbacks.forEach(callback => {
+      try {
+        callback()
+      } catch (error) {
+        console.error('Error in connection callback:', error)
+      }
+    })
+  }
+
+  private notifyDisconnectionCallbacks(event: CloseEvent): void {
+    this.disconnectionCallbacks.forEach(callback => {
+      try {
+        callback(event)
+      } catch (error) {
+        console.error('Error in disconnection callback:', error)
+      }
+    })
+  }
+
+  private attemptReconnect(): void {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.log('Max reconnection attempts reached')
+      return
+    }
+
+    this.reconnectAttempts++
+    console.log(`Attempting to reconnect... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`)
+
+    setTimeout(() => {
+      this.connect(this.roomId, this.userId).catch(error => {
+        console.error('Reconnection failed:', error)
+      })
+    }, this.reconnectDelay * this.reconnectAttempts)
+  }
+
+  private setupEventHandlers(): void {
+    // Handle page visibility change
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        // Page is hidden, consider pausing some operations
+        console.log('Page hidden, WebSocket still connected')
+      } else {
+        // Page is visible, check connection
+        if (!this.isConnected()) {
+          console.log('Page visible, attempting to reconnect')
+          this.attemptReconnect()
+        }
+      }
+    })
+
+    // Handle browser close
+    window.addEventListener('beforeunload', () => {
+      this.disconnect()
+    })
+  }
+}
+
+// Singleton instance
+export const wsService = new WebSocketService()

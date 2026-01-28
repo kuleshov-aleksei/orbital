@@ -70,39 +70,85 @@
       </div>
     </div>
 
+    <!-- Join Error -->
+    <div v-if="joinError" class="mb-4 p-3 bg-red-600 rounded-lg text-center">
+      {{ joinError }}
+    </div>
+
     <!-- Quick Join -->
     <div class="mt-12 text-center">
       <p class="text-gray-400 mb-4">Have a room code?</p>
-      <div class="flex items-center space-x-3">
+      <form @submit.prevent="handleQuickJoin" class="flex items-center space-x-3">
         <input
+          v-model="roomCode"
           type="text"
           placeholder="Enter room code"
           class="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
         />
-        <button class="px-6 py-2 bg-green-600 hover:bg-green-700 rounded-lg transition-colors duration-200">
-          Join
+        <button 
+          type="submit"
+          :disabled="!roomCode.trim() || isJoining || isLoading"
+          class="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg transition-colors duration-200"
+        >
+          {{ isJoining ? 'Joining...' : 'Join' }}
         </button>
-      </div>
+      </form>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-interface Room {
-  id: string
-  name: string
-  userCount: number
-  maxUsers: number
-  category: string
-}
+import { ref } from 'vue'
+import type { Room } from '@/types'
+import { apiService } from '@/services/api'
 
 interface Props {
   rooms: Room[]
+  isLoading?: boolean
 }
 
-defineProps<Props>()
-defineEmits<{
+const props = defineProps<Props>()
+const emit = defineEmits<{
   'room-selected': [roomId: string]
   'create-room': []
 }>()
+
+const roomCode = ref('')
+const isJoining = ref(false)
+const joinError = ref('')
+
+const handleQuickJoin = async () => {
+  if (!roomCode.value.trim()) {
+    joinError.value = 'Please enter a room code'
+    return
+  }
+
+  try {
+    isJoining.value = true
+    joinError.value = ''
+
+    // Find room by code (room ID)
+    const room = props.rooms.find(r => 
+      r.id.toLowerCase().includes(roomCode.value.toLowerCase().trim()) ||
+      r.name.toLowerCase().includes(roomCode.value.toLowerCase().trim())
+    )
+
+    if (!room) {
+      joinError.value = 'Room not found'
+      return
+    }
+
+    // Get room details to ensure it exists
+    const roomDetails = await apiService.getRoom(room.id)
+    if (roomDetails) {
+      emit('room-selected', room.id)
+      roomCode.value = ''
+    }
+  } catch (error) {
+    console.error('Failed to join room:', error)
+    joinError.value = 'Failed to join room. Please try again.'
+  } finally {
+    isJoining.value = false
+  }
+}
 </script>

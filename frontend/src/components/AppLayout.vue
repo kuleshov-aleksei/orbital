@@ -64,6 +64,25 @@
       </button>
     </div>
 
+    <!-- Error Message -->
+<div 
+  v-if="errorMessage" 
+  class="fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-4 py-2 rounded-lg z-50 max-w-md text-center"
+>
+  {{ errorMessage }}
+</div>
+
+<!-- Loading Overlay -->
+<div 
+  v-if="isLoading" 
+  class="fixed inset-0 bg-black bg-opacity-50 z-40 flex items-center justify-center"
+>
+  <div class="bg-gray-800 rounded-lg p-6 flex items-center space-x-3">
+    <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-t-2 border-white"></div>
+    <span class="text-white">Loading...</span>
+  </div>
+</div>
+
 <!-- Mobile Overlay -->
 <div 
   v-if="mobileSidebarOpen || mobileUserSidebarOpen"
@@ -81,75 +100,142 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import RoomSidebar from '@/components/RoomSidebar.vue'
 import UserSidebar from '@/components/UserSidebar.vue'
 import WelcomeView from '@/views/WelcomeView.vue'
 import VoiceCallView from '@/views/VoiceCallView.vue'
 import RoomModal from '@/components/RoomModal.vue'
-
-// Types
-interface Room {
-  id: string
-  name: string
-  userCount: number
-  maxUsers: number
-  category: string
-}
-
-interface User {
-  id: string
-  nickname: string
-  isSpeaking: boolean
-  isMuted: boolean
-  isDeafened: boolean
-  status: 'online' | 'away' | 'dnd'
-}
+import type { Room, User, WebSocketMessage } from '@/types'
+import { apiService, generateUserId, generateNickname } from '@/services/api'
+import { wsService } from '@/services/websocket'
 
 // State
 const activeRoomId = ref<string | null>(null)
 const showModal = ref(false)
 const mobileSidebarOpen = ref(false)
 const mobileUserSidebarOpen = ref(false)
+const currentUser = ref<{ id: string; nickname: string } | null>(null)
 
-// Mock data - will be replaced with API calls
-const rooms = ref<Room[]>([
-  { id: '1', name: 'General', userCount: 3, maxUsers: 10, category: 'Main' },
-  { id: '2', name: 'Gaming', userCount: 5, maxUsers: 10, category: 'Gaming' },
-  { id: '3', name: 'Study Room', userCount: 2, maxUsers: 10, category: 'Study' },
-  { id: '4', name: 'Music', userCount: 0, maxUsers: 10, category: 'Hobbies' },
-])
+// Real data from backend
+const rooms = ref<Room[]>([])
+const currentRoomUsers = ref<User[]>([])
+const isLoading = ref(false)
+const errorMessage = ref('')
 
-const currentRoomUsers = ref<User[]>([
-  { id: '1', nickname: 'Alice', isSpeaking: false, isMuted: false, isDeafened: false, status: 'online' },
-  { id: '2', nickname: 'Bob', isSpeaking: true, isMuted: false, isDeafened: false, status: 'online' },
-  { id: '3', nickname: 'Charlie', isSpeaking: false, isMuted: true, isDeafened: false, status: 'away' },
-])
-
-// Methods
-const handleRoomSelected = (roomId: string) => {
-  activeRoomId.value = roomId
+// Generate or get current user ID
+const getCurrentUserId = (): string => {
+  if (!currentUser.value) {
+    const userId = localStorage.getItem('orbital_user_id') || generateUserId()
+    const nickname = localStorage.getItem('orbital_user_nickname') || generateNickname(userId)
+    currentUser.value = { id: userId, nickname }
+    localStorage.setItem('orbital_user_id', userId)
+    localStorage.setItem('orbital_user_nickname', nickname)
+  }
+  return currentUser.value!.id
 }
 
-const handleLeaveRoom = () => {
-  activeRoomId.value = null
+// Lifecycle hooks
+onMounted(async () => {
+  await loadRooms()
+  setupWebSocketListeners()
+})
+
+onUnmounted(() => {
+  if (activeRoomId.value) {
+    leaveRoom()
+  }
+  wsService.disconnect()
+})
+
+// Methods
+const loadRooms = async () => {
+  try {
+    isLoading.value = true
+    errorMessage.value = ''
+    rooms.value = await apiService.getRooms()
+    console.log('Loaded rooms:', rooms.value)
+  } catch (error) {
+    console.error('Failed to load rooms:', error)
+    errorMessage.value = 'Failed to load rooms. Please refresh the page.'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const handleRoomSelected = async (roomId: string) => {
+  try {
+    isLoading.value = true
+    errorMessage.value = ''
+    
+    const userId = getCurrentUserId()
+    await joinRoom(roomId, userId)
+  } catch (error) {
+    console.error('Failed to join room:', error)
+    errorMessage.value = 'Failed to join room. Please try again.'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const handleLeaveRoom = async () => {
+  try {
+    if (activeRoomId.value && currentUser.value) {
+      await apiService.leaveRoom(activeRoomId.value, currentUser.value.id)
+      wsService.sendMessage('leave_room', { user_id: currentUser.value.id })
+      wsService.disconnect()
+    }
+    activeRoomId.value = null
+    currentRoomUsers.value = []
+  } catch (error) {
+    console.error('Failed to leave room:', error)
+    errorMessage.value = 'Failed to leave room.'
+  }
+}
+
+const joinRoom = async (roomId: string, userId: string) => {
+  const user = await apiService.joinRoom(roomId, {
+    user_id: userId,
+    nickname: currentUser.value?.nickname || generateNickname(userId)
+  })
+
+  // Connect to WebSocket
+  await wsService.connect(roomId, userId)
+  activeRoomId.value = roomId
+
+  // WebSocket will update currentRoomUsers when connected
+}
+
+const handleCreateRoom = async (roomName: string) => {
+  try {
+    isLoading.value = true
+    errorMessage.value = ''
+    
+    const newRoom = await apiService.createRoom({
+      name: roomName,
+      category: 'General',
+      maxUsers: 10
+    })
+
+    // Add to local rooms list for immediate UI update
+    rooms.value.unshift(newRoom)
+
+    // Join the newly created room
+    await handleRoomSelected(newRoom.id)
+    
+    console.log('Created room:', newRoom)
+  } catch (error) {
+    console.error('Failed to create room:', error)
+    errorMessage.value = 'Failed to create room. Please try again.'
+  } finally {
+    isLoading.value = false
+    showModal.value = false
+  }
 }
 
 const showCreateRoomModal = () => {
   showModal.value = true
-}
-
-const handleCreateRoom = (roomName: string) => {
-  const newRoom: Room = {
-    id: Date.now().toString(),
-    name: roomName,
-    userCount: 1,
-    maxUsers: 10,
-    category: 'Custom'
-  }
-  rooms.value.push(newRoom)
-  activeRoomId.value = newRoom.id
-  showModal.value = false
+  errorMessage.value = ''
 }
 
 const toggleMobileSidebar = () => {
@@ -160,6 +246,51 @@ const toggleMobileSidebar = () => {
 const toggleMobileUserSidebar = () => {
   mobileUserSidebarOpen.value = !mobileUserSidebarOpen.value
   mobileSidebarOpen.value = false
+}
+
+const setupWebSocketListeners = () => {
+  // Listen for room users updates
+  wsService.on('room_users', (message: WebSocketMessage) => {
+    currentRoomUsers.value = message.data as User[]
+    console.log('Updated room users:', currentRoomUsers.value)
+  })
+
+  // Listen for user joining
+  wsService.on('user_joined', (message: WebSocketMessage) => {
+    const newUser = message.data as User
+    currentRoomUsers.value = currentRoomUsers.value.filter(u => u.id !== newUser.id)
+    currentRoomUsers.value.push(newUser)
+    console.log('User joined:', newUser)
+  })
+
+  // Listen for user leaving
+  wsService.on('user_left', (message: WebSocketMessage) => {
+    const leavingUser = message.data as { user_id: string }
+    currentRoomUsers.value = currentRoomUsers.value.filter(u => u.id !== leavingUser.user_id)
+    console.log('User left:', leavingUser.user_id)
+  })
+
+  // Listen for speaking status updates
+  wsService.on('speaking_status', (message: WebSocketMessage) => {
+    const statusData = message.data as { user_id: string; is_speaking: boolean }
+    const user = currentRoomUsers.value.find(u => u.id === statusData.user_id)
+    if (user) {
+      user.isSpeaking = statusData.is_speaking
+    }
+  })
+
+  // Listen for connection/disconnection
+  wsService.onConnection(() => {
+    console.log('WebSocket connected')
+    errorMessage.value = ''
+  })
+
+  wsService.onDisconnection((event) => {
+    console.log('WebSocket disconnected:', event)
+    if (!event.wasClean) {
+      errorMessage.value = 'Connection lost. Attempting to reconnect...'
+    }
+  })
 }
 </script>
 

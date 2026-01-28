@@ -74,52 +74,83 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
+import { wsService } from '@/services/websocket'
 
-// Audio control state
-const isMuted = ref(false)
-const isDeafened = ref(false)
-const isScreenSharing = ref(false)
-const showSettings = ref(false)
+interface Props {
+  isMuted?: boolean
+  isDeafened?: boolean
+  isScreenSharing?: boolean
+}
 
-// Connection info
+const props = defineProps<Props>()
+const emit = defineEmits<{
+  'toggle-mute': []
+  'toggle-deafen': []
+  'toggle-screen-share': []
+}>()
+
+// Local state
 const ping = ref(42)
 const connectionQuality = ref('Excellent')
+const showSettings = ref(false)
 
 // Methods
 const toggleMute = () => {
-  isMuted.value = !isMuted.value
-  if (isMuted.value) {
-    console.log('Microphone muted')
-  } else {
-    console.log('Microphone unmuted')
-    isDeafened.value = false
-  }
+  emit('toggle-mute')
+  
+  // Notify WebSocket of speaking status change
+  const userId = getCurrentUserId()
+  wsService.sendMessage('speaking_status', {
+    user_id: userId,
+    is_speaking: false,
+    is_muted: !props.isMuted
+  })
 }
 
 const toggleDeafen = () => {
-  isDeafened.value = !isDeafened.value
-  if (isDeafened.value) {
-    console.log('Deafened')
-    isMuted.value = true
-  } else {
-    console.log('Undeafened')
-  }
+  emit('toggle-deafen')
+  console.log('Deafen status:', !props.isDeafened)
 }
 
 const toggleScreenShare = () => {
-  isScreenSharing.value = !isScreenSharing.value
-  if (isScreenSharing.value) {
-    console.log('Screen sharing started')
-  } else {
-    console.log('Screen sharing stopped')
-  }
+  emit('toggle-screen-share')
+  console.log('Screen sharing:', !props.isScreenSharing)
 }
 
 const toggleSettings = () => {
   showSettings.value = !showSettings.value
   console.log('Settings toggled')
 }
+
+const getCurrentUserId = (): string => {
+  return localStorage.getItem('orbital_user_id') || 'unknown-user'
+}
+
+// Simulate connection quality updates
+const updateConnectionInfo = () => {
+  // Simulate ping changes
+  ping.value = Math.floor(Math.random() * 50) + 20
+  
+  // Update connection quality based on ping
+  if (ping.value < 30) {
+    connectionQuality.value = 'Excellent'
+  } else if (ping.value < 60) {
+    connectionQuality.value = 'Good'
+  } else {
+    connectionQuality.value = 'Fair'
+  }
+}
+
+// Lifecycle hooks
+onMounted(() => {
+  // Update connection info periodically
+  const interval = setInterval(updateConnectionInfo, 3000)
+  
+  onUnmounted(() => {
+    clearInterval(interval)
+  })
+})
 </script>
 
 <style scoped>

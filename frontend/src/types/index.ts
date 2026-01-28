@@ -36,3 +36,16 @@ export interface CreateRoomData {
   category: string
   maxUsers: number
 }
+
+// Join room data
+export interface JoinRoomRequest {
+  user_id?: string
+  nickname?: string
+}
+
+// Health check response
+export interface HealthResponse {
+  status: string
+  service: string
+  version: string
+}

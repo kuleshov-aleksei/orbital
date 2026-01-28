@@ -89,38 +89,179 @@
 
       <!-- Audio Controls -->
       <div class="bg-gray-800 border-t border-gray-700 px-6 py-4">
-        <AudioControls />
+        <AudioControls 
+          :isMuted="isMuted"
+          :isDeafened="isDeafened"
+          :isScreenSharing="isScreenSharing"
+          @toggle-mute="toggleMute"
+          @toggle-deafen="toggleDeafen"
+          @toggle-screen-share="toggleScreenShare"
+        />
       </div>
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import AudioControls from '@/components/AudioControls.vue'
-
-interface User {
-  id: string
-  nickname: string
-  isSpeaking: boolean
-  isMuted: boolean
-  isDeafened: boolean
-  status: 'online' | 'away' | 'dnd'
-}
+import { wsService } from '@/services/websocket'
+import type { User, WebSocketMessage } from '@/types'
 
 interface Props {
   roomId: string
   users: User[]
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 defineEmits<{
   'leave-room': []
 }>()
 
-// Mock current room data - will be replaced with API call
-const currentRoom = computed(() => ({
-  name: 'General',
-  id: '1'
-}))
+// Local state
+const peerConnections = ref<Map<string, RTCPeerConnection>>(new Map())
+const localStream = ref<MediaStream | null>(null)
+const isMuted = ref(false)
+const isDeafened = ref(false)
+const isScreenSharing = ref(false)
+
+// Computed properties
+const currentRoom = computed(() => {
+  // For now, we'll use the room ID as name
+  // In real implementation, this would come from API
+  return {
+    name: `Room ${props.roomId.substr(0, 8)}`,
+    id: props.roomId
+  }
+})
+
+const userCount = computed(() => props.users.length)
+
+// WebRTC setup
+const initializeWebRTC = async () => {
+  try {
+    // Get user media
+    localStream.value = await navigator.mediaDevices.getUserMedia({ 
+      audio: true, 
+      video: false 
+    })
+
+    console.log('Local media stream obtained:', localStream.value)
+  } catch (error) {
+    console.error('Failed to get media stream:', error)
+  }
+}
+
+const handleWebSocketMessage = (message: WebSocketMessage) => {
+  switch (message.type) {
+    case 'ice_candidate':
+      handleIceCandidate(message.data)
+      break
+    case 'sdp_offer':
+      handleSdpOffer(message.data)
+      break
+    case 'sdp_answer':
+      handleSdpAnswer(message.data)
+      break
+  }
+}
+
+const handleIceCandidate = async (data: any) => {
+  // Handle ICE candidates for peer connections
+  console.log('Received ICE candidate:', data)
+  // Implementation would add ICE candidate to appropriate peer connection
+}
+
+const handleSdpOffer = async (data: any) => {
+  // Handle WebRTC offer from another peer
+  console.log('Received SDP offer:', data)
+  // Implementation would create peer connection and set remote description
+}
+
+const handleSdpAnswer = async (data: any) => {
+  // Handle WebRTC answer from another peer
+  console.log('Received SDP answer:', data)
+  // Implementation would complete peer connection
+}
+
+const createPeerConnection = (userId: string): RTCPeerConnection => {
+  const configuration = {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' }
+    ]
+  }
+
+  const peerConnection = new RTCPeerConnection(configuration)
+  
+  peerConnection.onicecandidate = (event) => {
+    if (event.candidate) {
+      wsService.sendMessage('ice_candidate', {
+        user_id: getCurrentUserId(),
+        candidate: event.candidate
+      })
+    }
+  }
+
+  peerConnection.onconnectionstatechange = () => {
+    console.log(`Connection state with ${userId}:`, peerConnection.connectionState)
+  }
+
+  peerConnections.value.set(userId, peerConnection)
+  return peerConnection
+}
+
+const getCurrentUserId = (): string => {
+  // Get current user ID from localStorage or generate new one
+  return localStorage.getItem('orbital_user_id') || 'unknown-user'
+}
+
+const toggleMute = () => {
+  isMuted.value = !isMuted.value
+  if (localStream.value) {
+    localStream.value.getAudioTracks().forEach(track => {
+      track.enabled = !isMuted.value
+    })
+  }
+  
+  // Notify others of mute status
+  wsService.sendMessage('speaking_status', {
+    user_id: getCurrentUserId(),
+    is_speaking: false,
+    is_muted: isMuted.value
+  })
+}
+
+const toggleDeafen = () => {
+  isDeafened.value = !isDeafened.value
+  console.log('Deafen status:', isDeafened.value)
+}
+
+const toggleScreenShare = () => {
+  isScreenSharing.value = !isScreenSharing.value
+  console.log('Screen sharing:', isScreenSharing.value)
+}
+
+// Lifecycle hooks
+onMounted(async () => {
+  await initializeWebRTC()
+  
+  // Listen for WebRTC signaling messages
+  wsService.on('ice_candidate', handleWebSocketMessage)
+  wsService.on('sdp_offer', handleWebSocketMessage)
+  wsService.on('sdp_answer', handleWebSocketMessage)
+})
+
+onUnmounted(() => {
+  // Clean up peer connections
+  peerConnections.value.forEach(connection => {
+    connection.close()
+  })
+  
+  // Clean up media stream
+  if (localStream.value) {
+    localStream.value.getTracks().forEach(track => {
+      track.stop()
+    })
+  }
+})
 </script>
