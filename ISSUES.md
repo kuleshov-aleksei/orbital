@@ -5,24 +5,24 @@ This document tracks backend features and API endpoints that need to be implemen
 ## Core Features
 
 ### Room Management
-- [ ] POST /api/rooms - Create new voice room
-- [ ] GET /api/rooms - List available rooms
-- [ ] GET /api/rooms/{id} - Get room details
+- [x] POST /api/rooms - Create new voice room
+- [x] GET /api/rooms - List available rooms
+- [x] GET /api/rooms/{id} - Get room details
 - [ ] DELETE /api/rooms/{id} - Delete room (owner only)
 - [ ] PUT /api/rooms/{id} - Update room settings
 
 ### User Management
-- [ ] POST /api/users - Create/generate user identity
+- [x] POST /api/users - Create/generate user identity (via join room)
 - [ ] GET /api/users/{id} - Get user profile
 - [ ] PUT /api/users/{id} - Update user status/nickname
-- [ ] GET /api/rooms/{id}/users - List users in room
+- [x] GET /api/rooms/{id}/users - List users in room
 
 ### WebSocket Signaling
-- [ ] WebSocket /ws/{roomId} - Real-time signaling for WebRTC
-- [ ] Handle room join/leave events
-- [ ] Relay ICE candidates between peers
-- [ ] Relay SDP offers/answers
-- [ ] Handle user speaking status updates
+- [x] WebSocket /ws/{roomId} - Real-time signaling for WebRTC
+- [x] Handle room join/leave events
+- [x] Relay ICE candidates between peers
+- [x] Relay SDP offers/answers
+- [x] Handle user speaking status updates
 - [ ] Handle screen sharing start/stop
 
 ### WebRTC Support
@@ -62,24 +62,24 @@ This document tracks backend features and API endpoints that need to be implemen
 ## Technical Requirements
 
 ### Performance
-- [ ] Handle 5-10 users per room efficiently
-- [ ] Low latency signaling (<100ms)
-- [ ] Concurrent room support
+- [x] Handle 5-10 users per room efficiently
+- [x] Low latency signaling (<100ms)
+- [x] Concurrent room support
 - [ ] Memory usage optimization
 
 ### Security
-- [ ] Input validation for all endpoints
+- [x] Input validation for all endpoints
 - [ ] Rate limiting on API calls
 - [ ] WebSocket authentication
-- [ ] CORS configuration
-- [ ] Room access control
+- [x] CORS configuration
+- [x] Room access control
 
 ### Monitoring
-- [ ] Health check endpoint
+- [x] Health check endpoint
 - [ ] Metrics collection
-- [ ] Error logging
+- [x] Error logging
 - [ ] Performance monitoring
-- [ ] Connection status tracking
+- [x] Connection status tracking
 
 ## Database Schema (Future)
 

@@ -1,0 +1,263 @@
+package websocket
+
+import (
+	"encoding/json"
+	"log"
+	"net/http"
+	"sync"
+
+	"github.com/gorilla/websocket"
+	"github.com/orbital/internal/models"
+	"github.com/orbital/internal/service"
+)
+
+// Hub manages WebSocket connections
+type Hub struct {
+	clients     map[*Client]bool
+	roomClients map[string]map[*Client]bool // room_id -> clients
+	roomService *service.RoomService
+	upgrader    websocket.Upgrader
+	mu          sync.RWMutex
+}
+
+// Client represents a WebSocket client
+type Client struct {
+	hub    *Hub
+	conn   *websocket.Conn
+	send   chan []byte
+	roomID string
+	userID string
+}
+
+// NewHub creates a new WebSocket hub
+func NewHub(roomService *service.RoomService) *Hub {
+	return &Hub{
+		clients:     make(map[*Client]bool),
+		roomClients: make(map[string]map[*Client]bool),
+		roomService: roomService,
+		upgrader: websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool {
+				return true // Allow all origins for development
+			},
+		},
+	}
+}
+
+// HandleWebSocket handles WebSocket connections
+func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Request) {
+	conn, err := h.upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("WebSocket upgrade error: %v", err)
+		return
+	}
+
+	client := &Client{
+		hub:    h,
+		conn:   conn,
+		send:   make(chan []byte, 256),
+		roomID: roomID,
+	}
+
+	h.mu.Lock()
+	h.clients[client] = true
+
+	if h.roomClients[roomID] == nil {
+		h.roomClients[roomID] = make(map[*Client]bool)
+	}
+	h.roomClients[roomID][client] = true
+	h.mu.Unlock()
+
+	// Start goroutines for this client
+	go client.writePump()
+	go client.readPump()
+
+	log.Printf("WebSocket client connected to room %s", roomID)
+}
+
+// BroadcastToRoom sends a message to all clients in a room
+func (h *Hub) BroadcastToRoom(roomID string, message interface{}) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	if clients, exists := h.roomClients[roomID]; exists {
+		data, err := json.Marshal(message)
+		if err != nil {
+			log.Printf("Error marshaling message: %v", err)
+			return
+		}
+
+		for client := range clients {
+			select {
+			case client.send <- data:
+			default:
+				close(client.send)
+				delete(h.clients, client)
+				delete(h.roomClients[roomID], client)
+			}
+		}
+	}
+}
+
+// readPump handles messages from the WebSocket connection
+func (c *Client) readPump() {
+	defer func() {
+		c.hub.mu.Lock()
+		delete(c.hub.clients, c)
+		if c.hub.roomClients[c.roomID] != nil {
+			delete(c.hub.roomClients[c.roomID], c)
+		}
+		c.hub.mu.Unlock()
+		c.conn.Close()
+	}()
+
+	for {
+		var message models.WebSocketMessage
+		err := c.conn.ReadJSON(&message)
+		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Printf("WebSocket error: %v", err)
+			}
+			break
+		}
+
+		c.handleMessage(message)
+	}
+}
+
+// writePump handles sending messages to the WebSocket connection
+func (c *Client) writePump() {
+	defer c.conn.Close()
+
+	for {
+		select {
+		case message, ok := <-c.send:
+			if !ok {
+				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				return
+			}
+
+			err := c.conn.WriteMessage(websocket.TextMessage, message)
+			if err != nil {
+				log.Printf("WebSocket write error: %v", err)
+				return
+			}
+		}
+	}
+}
+
+// handleMessage processes incoming WebSocket messages
+func (c *Client) handleMessage(message models.WebSocketMessage) {
+	switch message.Type {
+	case "join_room":
+		c.handleJoinRoom(message.Data)
+	case "leave_room":
+		c.handleLeaveRoom(message.Data)
+	case "ice_candidate":
+		c.handleICECandidate(message.Data)
+	case "sdp_offer":
+		c.handleSDPOffer(message.Data)
+	case "sdp_answer":
+		c.handleSDPAnswer(message.Data)
+	case "speaking_status":
+		c.handleSpeakingStatus(message.Data)
+	default:
+		log.Printf("Unknown message type: %s", message.Type)
+	}
+}
+
+// handleJoinRoom handles user joining a room
+func (c *Client) handleJoinRoom(data interface{}) {
+	var req models.JoinRoomRequest
+	jsonData, _ := json.Marshal(data)
+	json.Unmarshal(jsonData, &req)
+
+	c.userID = req.UserID
+	user, err := c.hub.roomService.JoinRoom(c.roomID, req.UserID, req.Nickname)
+	if err != nil {
+		log.Printf("Error joining room: %v", err)
+		return
+	}
+
+	// Send current room users to the joining user
+	users := c.hub.roomService.GetRoomUsers(c.roomID)
+	response := models.WebSocketMessage{
+		Type: "room_users",
+		Data: users,
+	}
+	c.send <- marshalMessage(response)
+
+	// Broadcast user joined to other users in room
+	joinMessage := models.WebSocketMessage{
+		Type: "user_joined",
+		Data: user,
+	}
+	c.hub.BroadcastToRoom(c.roomID, joinMessage)
+}
+
+// handleLeaveRoom handles user leaving a room
+func (c *Client) handleLeaveRoom(data interface{}) {
+	c.hub.roomService.LeaveRoom(c.roomID, c.userID)
+
+	leaveMessage := models.WebSocketMessage{
+		Type: "user_left",
+		Data: map[string]string{"user_id": c.userID},
+	}
+	c.hub.BroadcastToRoom(c.roomID, leaveMessage)
+}
+
+// handleICECandidate handles WebRTC ICE candidates
+func (c *Client) handleICECandidate(data interface{}) {
+	// Relay ICE candidate to other users in room
+	candidateMessage := models.WebSocketMessage{
+		Type: "ice_candidate",
+		Data: data,
+	}
+	c.hub.BroadcastToRoom(c.roomID, candidateMessage)
+}
+
+// handleSDPOffer handles WebRTC SDP offers
+func (c *Client) handleSDPOffer(data interface{}) {
+	// Relay SDP offer to other users in room
+	offerMessage := models.WebSocketMessage{
+		Type: "sdp_offer",
+		Data: data,
+	}
+	c.hub.BroadcastToRoom(c.roomID, offerMessage)
+}
+
+// handleSDPAnswer handles WebRTC SDP answers
+func (c *Client) handleSDPAnswer(data interface{}) {
+	// Relay SDP answer to other users in room
+	answerMessage := models.WebSocketMessage{
+		Type: "sdp_answer",
+		Data: data,
+	}
+	c.hub.BroadcastToRoom(c.roomID, answerMessage)
+}
+
+// handleSpeakingStatus handles user speaking status updates
+func (c *Client) handleSpeakingStatus(data interface{}) {
+	var statusData struct {
+		IsSpeaking bool `json:"is_speaking"`
+	}
+	jsonData, _ := json.Marshal(data)
+	json.Unmarshal(jsonData, &statusData)
+
+	c.hub.roomService.UpdateUserSpeakingStatus(c.roomID, c.userID, statusData.IsSpeaking)
+
+	// Broadcast speaking status to other users
+	statusMessage := models.WebSocketMessage{
+		Type: "speaking_status",
+		Data: map[string]interface{}{
+			"user_id":     c.userID,
+			"is_speaking": statusData.IsSpeaking,
+		},
+	}
+	c.hub.BroadcastToRoom(c.roomID, statusMessage)
+}
+
+// Helper function to marshal messages
+func marshalMessage(message interface{}) []byte {
+	data, _ := json.Marshal(message)
+	return data
+}
