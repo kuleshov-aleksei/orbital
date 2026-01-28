@@ -35,7 +35,7 @@
       
       <!-- Speaking Indicator -->
       <div v-if="user.isSpeaking" class="w-4 h-4 text-green-400 animate-pulse">
-        <PhSpeakerSimpleSlash class="w-3 h-3" />
+        <PhSpeakerHigh class="w-3 h-3" />
       </div>
 
       <!-- Deafened Icon -->
@@ -48,7 +48,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { PhMicrophoneSlash, PhspeakerHigh, PhSpeakerSlash } from '@phosphor-icons/vue'
+import { PhMicrophoneSlash, PhSpeakerHigh, PhSpeakerSimpleSlash, PhSpeakerSlash } from '@phosphor-icons/vue'
 
 interface User {
   id: string

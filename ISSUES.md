@@ -93,6 +93,15 @@ This document tracks backend features and API endpoints that have been implement
 - [x] Multi-user Support - Working
 - [x] Error Recovery - Working
 
+## Current bugs
+- [ ] Volume sliders go outside of user card - **FIXED** - Audio element ID mapping corrected
+- [ ] Users can't hear each other, possible reasons:
+  - [ ] There are error logs like `Received ICE candidate for unknown peer: p27osacodnmkwssejd`
+  - [ ] SDP handshake failing?
+- [x] WebRTC debug dashboard does not show anything useful. Metrics, Network, Issues are empty, Log contains only SystemDebug dashboard initialized. I would like to see all flowing SDP, and other relevant information. Like why connection does not works
+- [x] Connection quality in web ui is misleading. It shows 'Good', 'Excellent' even when there is no active call session
+- [ ] Microphone icon not animated
+
 ## 🎯 CURRENT PROJECT STATUS: PHASE 1 COMPLETE - PHASE 2 STEPS 1-5 COMPLETE
 
 ### ✅ Phase 1 Achievements (Signaling Foundation)
@@ -114,15 +123,6 @@ This document tracks backend features and API endpoints that have been implement
 - **Real-time audio stream processing** with volume controls and visualization
 - **WebRTC statistics collection** with connection quality monitoring
 - **Advanced debugging dashboard** with comprehensive diagnostics and recovery suggestions
-
-### 🎯 Remaining Phase 2 Steps 6-8 Goals
-- **Advanced audio level monitoring** with automatic status broadcasting
-- **SFU preparation** and backend model enhancements
-- **Type definitions completion** for remaining WebRTC features
-
-### 📊 Phase 2 Progress: 63% COMPLETE
-**Steps 1-5**: ✅ WebRTC Core, Mesh Logic, Audio Streams, Statistics & Debug Dashboard - COMPLETE
-**Steps 6-8**: 🔄 Audio Monitoring, Backend Models, Type Definitions - PENDING
 
 ### 🏗 Architecture Foundation
 - **Single binary backend deployment** with WebSocket hub

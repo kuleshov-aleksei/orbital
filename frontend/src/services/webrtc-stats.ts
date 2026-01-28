@@ -2,6 +2,10 @@ import { WebRTCStats, BandwidthStats } from '../types'
 
 export interface ConnectionStats {
   packetsLost: number
+  packetsReceived: number
+  packetsSent: number
+  bytesReceived: number
+  bytesSent: number
   jitter: number
   roundTripTime: number
   bandwidth: BandwidthStats
@@ -27,6 +31,10 @@ export class WebRTCStatsCollector {
       const stats = await peerConnection.getStats()
       
       let packetsLost = 0
+      let packetsReceived = 0
+      let packetsSent = 0
+      let bytesReceived = 0
+      let bytesSent = 0
       let jitter = 0
       let roundTripTime = 0
       let uploadBandwidth = 0
@@ -39,6 +47,8 @@ export class WebRTCStatsCollector {
           case 'inbound-rtp':
             if (report.mediaType === 'audio') {
               packetsLost = report.packetsLost || 0
+              packetsReceived = report.packetsReceived || 0
+              bytesReceived = report.bytesReceived || 0
               jitter = report.jitter || 0
               audioLevel = (report.audioLevel || 0) * 127 // Convert to 0-127 range
             }
@@ -46,6 +56,8 @@ export class WebRTCStatsCollector {
             
           case 'outbound-rtp':
             if (report.mediaType === 'audio') {
+              packetsSent = report.packetsSent || 0
+              bytesSent = report.bytesSent || 0
               // Calculate bandwidth from bitrate if available
               if (report.bitrate) {
                 uploadBandwidth = report.bitrate / 1000 // Convert to kbps
@@ -67,6 +79,10 @@ export class WebRTCStatsCollector {
 
       return {
         packetsLost,
+        packetsReceived,
+        packetsSent,
+        bytesReceived,
+        bytesSent,
         jitter,
         roundTripTime,
         bandwidth: {
@@ -81,6 +97,10 @@ export class WebRTCStatsCollector {
       console.error('Error collecting WebRTC stats:', error)
       return {
         packetsLost: 0,
+        packetsReceived: 0,
+        packetsSent: 0,
+        bytesReceived: 0,
+        bytesSent: 0,
         jitter: 0,
         roundTripTime: 0,
         bandwidth: { upload: 0, download: 0 },
@@ -221,7 +241,16 @@ export class WebRTCStatsCollector {
   } {
     const stats = this.getLatestStats(peerId)
     if (!stats) {
-      return { quality: 'poor', score: 0, issues: ['No stats available'] }
+      return { quality: 'poor', score: 0, issues: ['No connection established'] }
+    }
+
+    // Check if connection is actually established
+    if (stats.connectionState !== 'connected') {
+      return { 
+        quality: 'poor', 
+        score: 0, 
+        issues: [`Connection not established (state: ${stats.connectionState})`] 
+      }
     }
 
     const issues: string[] = []

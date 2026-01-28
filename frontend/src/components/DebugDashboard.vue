@@ -81,7 +81,37 @@
                   </div>
 
                   <!-- Metrics Grid -->
-                  <div class="grid grid-cols-2 gap-3 text-xs">
+                  <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <div class="text-gray-500">Packets Sent</div>
+                      <div class="text-white font-mono">
+                        {{ stats.packetsSent.toLocaleString() }}
+                      </div>
+                    </div>
+                    <div>
+                      <div class="text-gray-500">Packets Received</div>
+                      <div class="text-white font-mono">
+                        {{ stats.packetsReceived.toLocaleString() }}
+                      </div>
+                    </div>
+                    <div>
+                      <div class="text-gray-500">Packet Loss</div>
+                      <div class="text-white font-mono text-red-400">
+                        {{ stats.packetsLost }}
+                      </div>
+                    </div>
+                    <div>
+                      <div class="text-gray-500">Bytes Sent</div>
+                      <div class="text-white font-mono">
+                        {{ formatBytes(stats.bytesSent) }}
+                      </div>
+                    </div>
+                    <div>
+                      <div class="text-gray-500">Bytes Received</div>
+                      <div class="text-white font-mono">
+                        {{ formatBytes(stats.bytesReceived) }}
+                      </div>
+                    </div>
                     <div>
                       <div class="text-gray-500">RTT</div>
                       <div class="text-white font-mono">
@@ -95,18 +125,6 @@
                       </div>
                     </div>
                     <div>
-                      <div class="text-gray-500">Packet Loss</div>
-                      <div class="text-white font-mono">
-                        {{ stats.packetsLost }}
-                      </div>
-                    </div>
-                    <div>
-                      <div class="text-gray-500">Audio Level</div>
-                      <div class="text-white font-mono">
-                        {{ Math.round(stats.audioLevel) }}
-                      </div>
-                    </div>
-                    <div>
                       <div class="text-gray-500">Upload</div>
                       <div class="text-white font-mono">
                         {{ Math.round(stats.bandwidth.upload) }}kbps
@@ -116,6 +134,18 @@
                       <div class="text-gray-500">Download</div>
                       <div class="text-white font-mono">
                         {{ Math.round(stats.bandwidth.download) }}kbps
+                      </div>
+                    </div>
+                    <div>
+                      <div class="text-gray-500">Audio Level</div>
+                      <div class="text-white font-mono">
+                        {{ Math.round(stats.audioLevel) }}
+                      </div>
+                    </div>
+                    <div>
+                      <div class="text-gray-500">State</div>
+                      <div class="text-white font-mono capitalize">
+                        {{ stats.connectionState }}
                       </div>
                     </div>
                   </div>
@@ -395,6 +425,14 @@ const formatTime = (timestamp: Date): string => {
   return timestamp.toLocaleTimeString()
 }
 
+const formatBytes = (bytes: number): string => {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
 const generateSuggestions = (quality: ConnectionQuality): string[] => {
   const suggestions: string[] = []
   
@@ -458,6 +496,12 @@ const addLog = (message: string, level: 'info' | 'warning' | 'error' = 'info', u
 const clearLogs = () => {
   connectionLogs.value = []
 }
+
+// Expose methods to parent components
+defineExpose({
+  addLog,
+  clearLogs
+})
 
 // Lifecycle
 onMounted(() => {

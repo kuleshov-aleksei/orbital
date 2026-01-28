@@ -72,6 +72,7 @@ The project uses a Makefile for common operations:
 ### Project Status Tracking
 
 **IMPORTANT**: All agents must update project documentation in `ISSUES.md` after completing any significant feature or milestone. This ensures accurate project tracking and status visibility.
+IT IS PROHIBITED TO MODIFY SECTION "Current bugs". Leave it unchanged
 
 #### Update Requirements:
 1. **Immediately after completing** any major feature

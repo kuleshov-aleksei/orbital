@@ -49,6 +49,7 @@
               :initialVolume="remoteStreamVolumes.get(user.id) || 80"
               @volume-change="handleVolumeChange"
               @mute-toggle="handleMuteToggle"
+              @audio-level="handleAudioLevel"
             />
           </div>
         </div>
@@ -127,6 +128,8 @@ const isDeafened = ref(false)
 const isScreenSharing = ref(false)
 const currentRoomUsers = ref<Map<string, any>>(new Map())
 const maxRetries = 3
+// Fix for ICE candidate race condition
+const pendingIceCandidates = ref<Map<string, any[]>>(new Map())
 
 // Computed properties
 const currentRoom = computed(() => {
@@ -162,25 +165,31 @@ const initializeWebRTC = async () => {
   }
 }
 
- const handleWebSocketMessage = (message: WebSocketMessage) => {
-   switch (message.type) {
-     case 'ice_candidate':
-       handleIceCandidate(message.data)
-       break
-     case 'sdp_offer':
-       handleSdpOffer(message.data)
-       break
-     case 'sdp_answer':
-       handleSdpAnswer(message.data)
-       break
-     case 'room_users':
-       handleRoomUsers(message.data)
-       break
-     case 'user_left':
-       handleUserLeft(message.data)
-       break
-   }
- }
+  const handleWebSocketMessage = (message: WebSocketMessage) => {
+    console.log(`📨 Received WebSocket message:`, message.type, message.data)
+    switch (message.type) {
+      case 'ice_candidate':
+        handleIceCandidate(message.data)
+        break
+      case 'sdp_offer':
+        handleSdpOffer(message.data)
+        break
+      case 'sdp_answer':
+        handleSdpAnswer(message.data)
+        break
+      case 'room_users':
+        handleRoomUsers(message.data)
+        break
+      case 'user_left':
+        handleUserLeft(message.data)
+        break
+      case 'speaking_status':
+        // Handle speaking status updates
+        break
+      default:
+        console.warn(`⚠️ Unknown WebSocket message type: ${message.type}`)
+    }
+  }
 
  const handleIceCandidate = async (data: any) => {
    try {
@@ -188,30 +197,39 @@ const initializeWebRTC = async () => {
      const peerConnection = peerConnections.value.get(user_id)
      
      if (!peerConnection) {
-       console.warn(`⚠️ Received ICE candidate for unknown peer: ${user_id}`)
+       console.warn(`⚠️ Received ICE candidate for unknown peer: ${user_id}, queuing candidate`)
+       // Queue the candidate for when connection is created
+       if (!pendingIceCandidates.value.has(user_id)) {
+         pendingIceCandidates.value.set(user_id, [])
+       }
+       pendingIceCandidates.value.get(user_id)!.push(candidate)
+       addDebugLog(`ICE candidate queued for unknown peer ${user_id}`, 'warning', user_id)
        return
      }
      
-     await peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
-     updateConnectionState(user_id, 'ice-candidate-added')
-     console.log(`🧊 Added ICE candidate from ${user_id}:`, candidate)
+      await peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
+      updateConnectionState(user_id, 'ice-candidate-added')
+      console.log(`🧊 Added ICE candidate from ${user_id}:`, candidate)
+      addDebugLog(`ICE candidate added from ${user_id}`, 'info', user_id)
    } catch (error) {
      console.error('❌ Error handling ICE candidate:', error, 'Data:', data)
-     updateConnectionState(user_id, 'error')
+     updateConnectionState(data.user_id, 'error')
    }
  }
 
- const handleSdpOffer = async (data: any) => {
-   try {
-     const { user_id, sdp } = data
-     console.log(`📥 Received SDP offer from ${user_id}:`, sdp)
-     updateConnectionState(user_id, 'offer-received')
+  const handleSdpOffer = async (data: any) => {
+    try {
+      const { user_id, sdp } = data
+      console.log(`📥 Received SDP offer from ${user_id}:`, sdp)
+      // Add to debug logs
+      addDebugLog(`SDP offer received from ${user_id}`, 'info', user_id)
+      updateConnectionState(user_id, 'offer-received')
      
-     let peerConnection = peerConnections.value.get(user_id)
-     if (!peerConnection) {
-       console.log(`🔗 Creating new peer connection for ${user_id}`)
-       peerConnection = createPeerConnection(user_id)
-     }
+      let peerConnection = peerConnections.value.get(user_id)
+      if (!peerConnection) {
+        console.log(`🔗 Creating new peer connection for ${user_id}`)
+        peerConnection = await createPeerConnection(user_id)
+      }
      
      updateConnectionState(user_id, 'setting-remote-desc')
      await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp))
@@ -222,81 +240,98 @@ const initializeWebRTC = async () => {
      updateConnectionState(user_id, 'setting-local-desc')
      await peerConnection.setLocalDescription(answer)
      
-     wsService.sendMessage('sdp_answer', { 
-       target_user_id: user_id,
-       user_id: getCurrentUserId(), 
-       sdp: answer 
-     })
-     
-     updateConnectionState(user_id, 'answer-sent')
-     console.log(`📤 Sent SDP answer to ${user_id}:`, answer)
+      wsService.sendMessage('sdp_answer', { 
+        target_user_id: user_id,
+        user_id: getCurrentUserId(), 
+        sdp: answer 
+      })
+      
+      updateConnectionState(user_id, 'answer-sent')
+      console.log(`📤 Sent SDP answer to ${user_id}:`, answer)
+      addDebugLog(`SDP answer sent to ${user_id}`, 'info', user_id)
    } catch (error) {
      console.error('❌ Error handling SDP offer:', error, 'Data:', data)
      updateConnectionState(user_id, 'error')
    }
  }
 
- const handleSdpAnswer = async (data: any) => {
-   try {
-     const { user_id, sdp } = data
-     const peerConnection = peerConnections.value.get(user_id)
-     
-     if (!peerConnection) {
-       console.warn(`⚠️ Received SDP answer for unknown peer: ${user_id}`)
-       return
-     }
-     
-     updateConnectionState(user_id, 'answer-received')
-     await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp))
-     updateConnectionState(user_id, 'handshake-complete')
-     
-     console.log(`✅ SDP answer processed for ${user_id}:`, sdp)
-   } catch (error) {
-     console.error('❌ Error handling SDP answer:', error, 'Data:', data)
-     updateConnectionState(user_id, 'error')
-   }
- }
+  const handleSdpAnswer = async (data: any) => {
+    try {
+      console.log(`📥 Received SDP answer:`, data)
+      const { user_id, sdp } = data
+      const peerConnection = peerConnections.value.get(user_id)
+      
+      if (!peerConnection) {
+        console.warn(`⚠️ Received SDP answer for unknown peer: ${user_id}`)
+        addDebugLog(`SDP answer for unknown peer: ${user_id}`, 'warning', user_id)
+        return
+      }
+      
+      console.log(`🔍 Found existing peer connection for ${user_id}, state: ${peerConnection.signalingState}`)
+      
+      updateConnectionState(user_id, 'answer-received')
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp))
+      updateConnectionState(user_id, 'handshake-complete')
+      
+      console.log(`✅ SDP answer processed for ${user_id}:`, sdp)
+      addDebugLog(`SDP answer processed successfully for ${user_id}`, 'info', user_id)
+    } catch (error) {
+      console.error('❌ Error handling SDP answer:', error, 'Data:', data)
+      updateConnectionState(user_id, 'error')
+      addDebugLog(`Error handling SDP answer: ${error.message}`, 'error', data.user_id)
+    }
+  }
 
- const handleRoomUsers = (users: any[]) => {
-   const currentUserId = getCurrentUserId()
-   const otherUsers = users.filter((user: any) => user.id !== currentUserId)
-   
-   console.log('Current users in room:', otherUsers)
-   
-   // Update room users map
-   const newUsers = new Map<string, any>()
-   users.forEach((user: any) => {
-     newUsers.set(user.id, user)
-   })
-   currentRoomUsers.value = newUsers
-   
-   // Find users who joined (new users not in current connections)
-   const existingConnections = Array.from(peerConnections.value.keys())
-   const newUserIds = otherUsers
-     .filter((user: any) => !existingConnections.includes(user.id))
-     .map((user: any) => user.id)
-   
-   // Create connections with new users
-   newUserIds.forEach(userId => {
-     const user = otherUsers.find((u: any) => u.id === userId)
-     if (user) {
-       console.log(`🔗 Creating connection with ${user.id} (${user.nickname})`)
-       createOfferForUser(userId)
-       updateConnectionState(userId, 'connecting')
-     }
-   })
-   
-   // Find users who left (connections that aren't in room anymore)
-   const leftUserIds = existingConnections.filter(userId => 
-     !users.some((user: any) => user.id === userId)
-   )
-   
-   // Clean up connections to users who left
-   leftUserIds.forEach(userId => {
-     console.log(`👋 User ${userId} left room, cleaning up connection`)
-     cleanupPeerConnection(userId)
-   })
- }
+  const handleRoomUsers = (users: any[]) => {
+    const currentUserId = getCurrentUserId()
+    const otherUsers = users.filter((user: any) => user.id !== currentUserId)
+    
+    console.log('Current users in room:', otherUsers)
+    console.log('Current connections:', Array.from(peerConnections.value.keys()))
+    
+    // Update room users map
+    const newUsers = new Map<string, any>()
+    users.forEach((user: any) => {
+      newUsers.set(user.id, user)
+    })
+    currentRoomUsers.value = newUsers
+    
+    // Find users who joined (new users not in current connections)
+    const existingConnections = Array.from(peerConnections.value.keys())
+    const newUserIds = otherUsers
+      .filter((user: any) => !existingConnections.includes(user.id))
+      .map((user: any) => user.id)
+    
+    // Create connections with new users (new user should offer to existing users)
+    newUserIds.forEach(userId => {
+      const user = otherUsers.find((u: any) => u.id === userId)
+      if (user) {
+        console.log(`🔗 Creating connection with NEW user ${user.id} (${user.nickname})`)
+        createOfferForUser(userId)
+        updateConnectionState(userId, 'connecting')
+      }
+    })
+    
+    // Also ensure we have connections with ALL users (bidirectional connections)
+    otherUsers.forEach(user => {
+      if (!peerConnections.value.has(user.id)) {
+        console.log(`🔄 Creating missing connection with ${user.id} (${user.nickname})`)
+        createOfferForUser(user.id)
+        updateConnectionState(user.id, 'connecting')
+      }
+    })
+    
+    // Find users who left (connections that aren't in room anymore)
+    const leftUserIds = existingConnections.filter(userId => 
+      !users.some((user: any) => user.id === userId)
+    )
+    
+    // Clean up connections to users who left
+    leftUserIds.forEach(userId => {
+      console.log(`👋 User ${userId} left room, cleaning up connection`)
+      cleanupPeerConnection(userId)
+    })
+  }
 
  const handleUserLeft = (data: any) => {
    const { user_id } = data
@@ -309,13 +344,13 @@ const initializeWebRTC = async () => {
    console.log(`🔄 Connection state for ${userId}: ${state}`)
  }
 
- const createOfferForUser = async (userId: string) => {
-   try {
-     const peerConnection = createPeerConnection(userId)
-     const offer = await peerConnection.createOffer()
-     await peerConnection.setLocalDescription(offer)
-     
-     updateConnectionState(userId, 'creating-offer')
+  const createOfferForUser = async (userId: string) => {
+    try {
+      const peerConnection = await createPeerConnection(userId)
+      const offer = await peerConnection.createOffer()
+      await peerConnection.setLocalDescription(offer)
+      
+      updateConnectionState(userId, 'creating-offer')
      
      wsService.sendMessage('sdp_offer', {
        target_user_id: userId,
@@ -331,7 +366,7 @@ const initializeWebRTC = async () => {
    }
  }
 
- const createPeerConnection = (userId: string): RTCPeerConnection => {
+  const createPeerConnection = async (userId: string): Promise<RTCPeerConnection> => {
    const configuration = {
      iceServers: [
        { urls: 'stun:stun.l.google.com:19302' },
@@ -417,8 +452,23 @@ const initializeWebRTC = async () => {
      console.log(`Signaling state with ${userId}:`, peerConnection.signalingState)
    }
 
-   peerConnections.value.set(userId, peerConnection)
-   return peerConnection
+    // Process any pending ICE candidates
+    const pendingCandidates = pendingIceCandidates.value.get(userId)
+    if (pendingCandidates && pendingCandidates.length > 0) {
+      console.log(`🧊 Processing ${pendingCandidates.length} pending ICE candidates for ${userId}`)
+      for (const candidate of pendingCandidates) {
+        try {
+          await peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
+          console.log(`🧊 Added pending ICE candidate for ${userId}:`, candidate)
+        } catch (error) {
+          console.error(`❌ Error adding pending ICE candidate for ${userId}:`, error)
+        }
+      }
+      pendingIceCandidates.value.delete(userId)
+    }
+
+    peerConnections.value.set(userId, peerConnection)
+    return peerConnection
  }
 
  const handleRemoteTrack = (userId: string, stream: MediaStream) => {
@@ -522,21 +572,38 @@ const initializeWebRTC = async () => {
    remoteStreamVolumes.value.set(userId, volume)
  }
 
- const handleMuteToggle = (userId: string, isMuted: boolean) => {
-   console.log(`🎤 Mute toggled for user ${userId}: ${isMuted ? 'muted' : 'unmuted'}`)
-   remoteStreamMutes.value.set(userId, isMuted)
-   
-   // Update audio element if it exists
-   const audioElement = document.getElementById(`audio-${userId}`) as HTMLAudioElement
-   if (audioElement) {
-     audioElement.muted = isMuted
-   }
- }
+const handleMuteToggle = (userId: string, isMuted: boolean) => {
+  console.log(`🎤 Mute toggled for user ${userId}: ${isMuted ? 'muted' : 'unmuted'}`)
+  remoteStreamMutes.value.set(userId, isMuted)
+  
+  // Update audio element if it exists
+  const audioElement = document.getElementById(`audio-${userId}`) as HTMLAudioElement
+  if (audioElement) {
+    audioElement.muted = isMuted
+  }
+}
 
- const getCurrentUserId = (): string => {
-   // Get current user ID from localStorage or generate new one
-   return localStorage.getItem('orbital_user_id') || 'unknown-user'
- }
+const handleAudioLevel = (userId: string, level: number, isSpeaking: boolean) => {
+  // Update user in currentRoomUsers if exists
+  if (currentRoomUsers.value.has(userId)) {
+    const user = currentRoomUsers.value.get(userId)
+    if (user) {
+      user.is_speaking = isSpeaking
+      currentRoomUsers.value.set(userId, { ...user })
+    }
+  }
+}
+
+const getCurrentUserId = (): string => {
+  // Get current user ID from localStorage or generate new one
+  let userId = localStorage.getItem('orbital_user_id')
+  if (!userId) {
+    userId = 'user_' + Math.random().toString(36).substr(2, 12)
+    localStorage.setItem('orbital_user_id', userId)
+    console.log('Generated new user ID:', userId)
+  }
+  return userId
+}
 
 const toggleMute = () => {
   isMuted.value = !isMuted.value
@@ -571,6 +638,15 @@ const getConnectionStats = (userId: string) => {
 
 const getConnectionQuality = (userId: string) => {
   return webRTCStatsCollector.getConnectionQuality(userId)
+}
+
+// Debug logging function
+const addDebugLog = (message: string, level: 'info' | 'warning' | 'error' = 'info', userId?: string) => {
+  const debugDashboard = document.querySelector('debug-dashboard') as any
+  if (debugDashboard && debugDashboard.addLog) {
+    debugDashboard.addLog(message, level, userId)
+  }
+  console.log(`[${level.toUpperCase()}]${userId ? ' [' + userId + ']' : ''}: ${message}`)
 }
 
 const getAllConnectionStats = () => {

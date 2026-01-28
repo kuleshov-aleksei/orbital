@@ -57,6 +57,7 @@
 
     <!-- Audio Element (Hidden) -->
     <audio
+      :id="`audio-${userId}`"
       ref="audioElement"
       :muted="isMuted"
       autoplay
@@ -117,10 +118,11 @@
    initialVolume: 80
  })
 
- const emit = defineEmits<{
-   'volume-change': [userId: string, volume: number]
-   'mute-toggle': [userId: string, isMuted: boolean]
- }>()
+const emit = defineEmits<{
+  'volume-change': [userId: string, volume: number]
+  'mute-toggle': [userId: string, isMuted: boolean]
+  'audio-level': [userId: string, level: number, isSpeaking: boolean]
+}>()
 
  // Reactive state
  const audioElement = ref<HTMLAudioElement | null>(null)
@@ -169,11 +171,13 @@
    audioLevel.value = normalizedLevel
  }
 
- // Animation loop for audio level visualization
- const animate = () => {
-   analyzeAudioLevel()
-   animationId.value = requestAnimationFrame(animate)
- }
+  // Animation loop for audio level visualization
+  const animate = () => {
+    analyzeAudioLevel()
+    // Emit audio level data to parent for icon animation
+    emit('audio-level', props.userId, audioLevel.value, isSpeaking.value)
+    animationId.value = requestAnimationFrame(animate)
+  }
 
  // Setup audio analysis
  const setupAudioAnalysis = () => {
@@ -196,13 +200,17 @@
    }
  }
 
- // Watch for stream changes
- watch(() => props.stream, (newStream) => {
-   if (newStream && audioElement.value) {
-     audioElement.value.srcObject = newStream
-     setupAudioAnalysis()
-   }
- }, { immediate: true })
+  // Watch for stream changes
+  watch(() => props.stream, (newStream) => {
+    if (newStream && audioElement.value) {
+      console.log(`🎵 Setting stream for user ${props.userId}:`, newStream)
+      audioElement.value.srcObject = newStream
+      audioElement.value.play().catch(error => {
+        console.warn(`Audio play failed for user ${props.userId}:`, error)
+      })
+      setupAudioAnalysis()
+    }
+  }, { immediate: true })
 
  // Watch for volume changes
  watch(volume, updateVolume)
