@@ -22,9 +22,6 @@ func main() {
 	// Setup router
 	r := mux.NewRouter()
 
-	// CORS middleware
-	r.Use(corsMiddleware)
-
 	// API routes
 	r.HandleFunc("/api/health", healthHandler).Methods("GET")
 	r.HandleFunc("/api/rooms", roomHandler.CreateRoom).Methods("POST")
@@ -42,7 +39,10 @@ func main() {
 	})
 
 	log.Println("Server starting on :8080")
-	log.Fatal(http.ListenAndServe(":8080", r))
+
+	handler := corsMiddleware(r)
+
+	log.Fatal(http.ListenAndServe(":8080", handler))
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
@@ -62,6 +62,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
+		// Handle preflight requests
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return
