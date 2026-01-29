@@ -47,8 +47,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { PhMicrophoneSlash, PhSpeakerHigh, PhSpeakerSimpleSlash, PhSpeakerSlash } from '@phosphor-icons/vue'
+import { PhMicrophoneSlash, PhSpeakerHigh } from '@phosphor-icons/vue'
 
 interface User {
   id: string

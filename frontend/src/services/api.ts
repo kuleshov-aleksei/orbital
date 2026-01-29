@@ -1,4 +1,4 @@
-import { Room, User, CreateRoomData, ApiResponse } from '@/types'
+import { Room, User, CreateRoomData } from '@/types'
 
 const API_BASE = 'http://localhost:8080/api'
 

@@ -189,7 +189,7 @@ const emit = defineEmits<{
 
    try {
      // Create Web Audio API context
-     audioContext.value = new (window.AudioContext || (window as any).webkitAudioContext)()
+     audioContext.value = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
      
      const source = audioContext.value!.createMediaStreamSource(props.stream)
      analyser.value = audioContext.value!.createAnalyser()

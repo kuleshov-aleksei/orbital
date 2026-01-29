@@ -1,4 +1,4 @@
-import { WebRTCStats, BandwidthStats, IceCandidateData } from '../types'
+import { BandwidthStats } from '../types'
 
 export interface ConnectionStats {
   packetsLost: number
@@ -315,7 +315,7 @@ export class WebRTCStatsCollector {
 
   // Cleanup method to stop all collections
   cleanup(): void {
-    this.collectionIntervals.forEach((interval, peerId) => {
+    this.collectionIntervals.forEach((interval) => {
       clearInterval(interval)
     })
     this.collectionIntervals.clear()

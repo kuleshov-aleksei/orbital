@@ -77,7 +77,7 @@ export class WebSocketService {
   }
 
   // Send message to WebSocket
-  sendMessage(type: string, data: any): void {
+  sendMessage(type: string, data: unknown): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       const message: WebSocketMessage = { type, data }
       this.ws.send(JSON.stringify(message))

@@ -101,7 +101,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import RoomSidebar from '@/components/RoomSidebar.vue'
 import UserSidebar from '@/components/UserSidebar.vue'
 import WelcomeView from '@/views/WelcomeView.vue'
@@ -223,7 +223,7 @@ const joinRoom = async (roomId: string, userId: string) => {
   // Disconnect existing WebSocket connection if any
   wsService.disconnect()
   
-  const user = await apiService.joinRoom(roomId, {
+  await apiService.joinRoom(roomId, {
     user_id: userId,
     nickname: currentUser.value?.nickname || generateNickname(userId)
   })

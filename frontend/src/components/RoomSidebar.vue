@@ -83,7 +83,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
-const emit = defineEmits<{
+defineEmits<{
   'room-selected': [roomId: string]
   'create-room': []
   'close-mobile-sidebar': []

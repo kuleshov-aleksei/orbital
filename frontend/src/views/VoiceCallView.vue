@@ -98,13 +98,12 @@
  import DebugDashboard from '@/components/DebugDashboard.vue'
  import { wsService } from '@/services/websocket'
  import { webRTCStatsCollector } from '@/services/webrtc-stats'
- import type { User, RoomUser, WebSocketMessage, IceCandidateData, SDPData } from '@/types'
- import { 
-   PhArrowLeft, 
-   PhGearSix, 
-   PhMicrophoneSlash, 
-   PhMicrophone
- } from '@phosphor-icons/vue'
+ import type { User, RoomUser } from '@/types'
+import { 
+    PhArrowLeft, 
+    PhGearSix, 
+    PhMicrophone
+  } from '@phosphor-icons/vue'
 
 interface Props {
   roomId: string
@@ -132,7 +131,7 @@ const remoteStreamVolumes = ref<Map<string, number>>(new Map())
  const maxRetries = 3
  const debugDashboardRef = ref()
 // Fix for ICE candidate race condition
-const pendingIceCandidates = ref<Map<string, any[]>>(new Map())
+const pendingIceCandidates = ref<Map<string, RTCIceCandidate[]>>(new Map())
 // Track current user's join time (0 = not set yet)
 const currentUserJoinTime = ref<number>(0)
 
@@ -144,16 +143,7 @@ const currentRoom = computed(() => {
   }
 })
 
-const userCount = computed(() => props.users.length)
 
-// Connection info for debugging
-const connectionInfo = computed(() => {
-  return Array.from(peerConnectionStates.value.entries()).map(([userId, state]) => ({
-    userId,
-    state,
-    user: currentRoomUsers.value.get(userId)
-  }))
-})
 
 // WebRTC setup
 const initializeWebRTC = async () => {
@@ -170,33 +160,9 @@ const initializeWebRTC = async () => {
   }
 }
 
-  const handleWebSocketMessage = (message: WebSocketMessage) => {
-    console.log(`📨 Received WebSocket message:`, message.type, message.data)
-    switch (message.type) {
-      case 'ice_candidate':
-        handleIceCandidate(message.data)
-        break
-      case 'sdp_offer':
-        handleSdpOffer(message.data)
-        break
-      case 'sdp_answer':
-        handleSdpAnswer(message.data)
-        break
-      case 'room_users':
-        handleRoomUsers(message.data)
-        break
-      case 'user_left':
-        handleUserLeft(message.data)
-        break
-      case 'speaking_status':
-        // Handle speaking status updates
-        break
-      default:
-        console.warn(`⚠️ Unknown WebSocket message type: ${message.type}`)
-    }
-  }
+  
 
- const handleIceCandidate = async (data: any) => {
+ const handleIceCandidate = async (data: { user_id: string; candidate: RTCIceCandidateInit }) => {
     try {
       const { user_id, candidate } = data
       const peerConnection = peerConnections.value.get(user_id)
@@ -233,7 +199,7 @@ const initializeWebRTC = async () => {
     }
   }
 
-  const handleSdpOffer = async (data: any) => {
+  const handleSdpOffer = async (data: { user_id: string; sdp: string }) => {
      try {
        addDebugLog('handleSdpOffer called!', 'info')
        const { user_id, sdp } = data
@@ -275,7 +241,7 @@ const initializeWebRTC = async () => {
    }
  }
 
-  const handleSdpAnswer = async (data: any) => {
+  const handleSdpAnswer = async (data: { user_id: string; sdp: string }) => {
     try {
       console.log(`📥 Received SDP answer:`, data)
       const { user_id, sdp } = data
@@ -312,11 +278,11 @@ const initializeWebRTC = async () => {
         console.log(`🧊 Processing ${pendingCandidates.length} pending ICE candidates for ${userId}`)
         addDebugLog(`Processing ${pendingCandidates.length} pending ICE candidates for ${userId}`, 'info', userId)
         
-        for (const candidate of pendingCandidates) {
-          try {
-            const peerConnection = peerConnections.value.get(userId)
-            if (peerConnection && peerConnection.remoteDescription) {
-              await peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
+for (const candidate of pendingCandidates) {
+           try {
+             const peerConnection = peerConnections.value.get(userId)
+             if (peerConnection && peerConnection.remoteDescription) {
+               await peerConnection.addIceCandidate(candidate)
               console.log(`🧊 Added pending ICE candidate for ${userId}:`, candidate)
               addDebugLog(`Added pending ICE candidate for ${userId}`, 'info', userId)
             }
@@ -382,7 +348,7 @@ const initializeWebRTC = async () => {
     
     // Find users who left (connections that aren't in room anymore)
     const leftUserIds = existingConnections.filter(userId => 
-      !users.some((user: any) => user.id === userId)
+      !users.some((user: RoomUser) => user.id === userId)
     )
     
     // Clean up connections to users who left
@@ -392,7 +358,7 @@ const initializeWebRTC = async () => {
     })
   }
 
- const handleUserLeft = (data: any) => {
+ const handleUserLeft = (data: { user_id: string }) => {
    const { user_id } = data
    console.log(`User left: ${user_id}`)
    cleanupPeerConnection(user_id)
@@ -424,7 +390,7 @@ const initializeWebRTC = async () => {
       addDebugLog(`Successfully sent offer to ${userId}`, 'info', userId)
     } catch (error) {
       console.error('❌ Error creating offer:', error)
-      addDebugLog(`Error creating offer: ${error.message}`, 'error', userId)
+      addDebugLog(`Error creating offer: ${(error as Error).message}`, 'error', userId)
       updateConnectionState(userId, 'error')
     }
   }
@@ -696,9 +662,7 @@ const toggleScreenShare = () => {
 }
 
 // Statistics methods
-const getConnectionStats = (userId: string) => {
-  return webRTCStatsCollector.getLatestStats(userId)
-}
+
 
 const getConnectionQuality = (userId: string) => {
   return webRTCStatsCollector.getConnectionQuality(userId)
@@ -712,9 +676,7 @@ const addDebugLog = (message: string, level: 'info' | 'warning' | 'error' = 'inf
   console.log(`[${level.toUpperCase()}]${userId ? ' [' + userId + ']' : ''}: ${message}`)
 }
 
-const getAllConnectionStats = () => {
-  return webRTCStatsCollector.getAllPeerStats()
-}
+
 
 // Lifecycle hooks
 onMounted(async () => {
@@ -734,7 +696,7 @@ onMounted(async () => {
     handleRoomUsers(message.data)
   })
   wsService.on('user_left', (message) => handleUserLeft(message.data))
-  wsService.on('speaking_status', (message) => {
+  wsService.on('speaking_status', () => {
     // Handle speaking status updates if needed
   })
   

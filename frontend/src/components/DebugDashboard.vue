@@ -30,7 +30,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { webRTCStatsCollector } from '@/services/webrtc-stats'
-import type { ConnectionStats, ConnectionQuality, DebugInfo, ConnectionLog } from '@/types'
+import type { ConnectionQuality, DebugInfo, ConnectionLog } from '@/types'
 import DebugToggle from './debug/DebugToggle.vue'
 import DebugHeader from './debug/DebugHeader.vue'
 import IceCandidatesTab from './debug/IceCandidatesTab.vue'
@@ -40,7 +40,7 @@ import LogsTab from './debug/LogsTab.vue'
 import IssuesTab from './debug/IssuesTab.vue'
 
 interface Props {
-  users: any[]
+  users: Array<{ id: string; nickname: string; stream?: MediaStream }>
   peerConnections: Map<string, RTCPeerConnection>
   getConnectionQuality: (userId: string) => ConnectionQuality
 }
@@ -161,24 +161,7 @@ const onTabChange = (tabId: string) => {
   }
 }
 
-const onCopyCandidate = async (candidate: any) => {
-  if (!candidate || isUnmounting.value) {
-    console.warn('Candidate is null, undefined, or component is unmounting')
-    return
-  }
-  
-  try {
-    const candidateType = candidate?.type || 'unknown'
-    const candidateJson = JSON.stringify(candidate, null, 2)
-    await navigator.clipboard.writeText(candidateJson)
-    
-    // Add log after successful copy
-    addLog(`Copied ICE candidate for ${candidateType} to clipboard`, 'info')
-  } catch (error) {
-    addLog('Failed to copy candidate to clipboard', 'error')
-    console.error('Failed to copy candidate:', error)
-  }
-}
+
 
 const getUserNickname = (userId: string): string => {
   const user = props.users.find(u => u.id === userId)

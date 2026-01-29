@@ -97,12 +97,11 @@
  import { ref } from 'vue'
  import type { Room } from '@/types'
  import { apiService } from '@/services/api'
- import { 
-   PhPlus, 
-   PhFolderSimpleUser, 
-   PhChat, 
-   PhMagnifyingGlass 
- } from '@phosphor-icons/vue'
+import { 
+    PhPlus, 
+    PhFolderSimpleUser, 
+    PhMagnifyingGlass 
+  } from '@phosphor-icons/vue'
 
 interface Props {
   rooms: Room[]

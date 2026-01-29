@@ -21,5 +21,7 @@
 </template>
 
 <script setup lang="ts">
-// Home view component
+defineOptions({
+  name: 'HomeView'
+})
 </script>

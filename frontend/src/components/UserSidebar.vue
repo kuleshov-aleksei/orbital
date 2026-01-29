@@ -53,7 +53,7 @@ class="user-sidebar w-60 lg:w-60 bg-gray-800 flex flex-col fixed lg:relative ins
 </template>
 
 <script setup lang="ts">
- import { ref, computed } from 'vue'
+ import { computed } from 'vue'
  import UserCard from '@/components/UserCard.vue'
  import { 
    PhCross, 
@@ -77,7 +77,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
-const emit = defineEmits<{
+defineEmits<{
   'close-mobile-sidebar': []
 }>()
 

@@ -28,7 +28,7 @@ export interface RoomUser extends User {
 // WebSocket message types
 export interface WebSocketMessage {
   type: 'join_room' | 'leave_room' | 'ice_candidate' | 'sdp_offer' | 'sdp_answer' | 'speaking_status' | 'screen_share_start' | 'screen_share_stop'
-  data: any
+  data: unknown
 }
 
 // API response types
