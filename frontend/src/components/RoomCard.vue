@@ -9,7 +9,8 @@
   >
     <!-- Room Icon -->
     <div class="mr-3">
-      <div class="w-8 h-8 rounded-full flex items-center justify-center"
+      <div
+class="w-8 h-8 rounded-full flex items-center justify-center"
         :class="{
           'bg-indigo-500': isActive,
           'bg-gray-600': !isActive

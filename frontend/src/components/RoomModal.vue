@@ -5,9 +5,9 @@
       <div class="flex items-center justify-between mb-6">
         <h2 class="text-xl font-semibold text-white">Create New Room</h2>
         <button
-          @click="$emit('close')"
           data-testid="room-modal-close"
           class="text-gray-400 hover:text-white transition-colors duration-200"
+          @click="$emit('close')"
         >
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -73,8 +73,8 @@
             <code class="text-lg font-mono text-indigo-400">{{ generatedRoomCode }}</code>
             <button
               type="button"
-              @click="copyRoomCode"
               class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 rounded text-sm transition-colors duration-200"
+              @click="copyRoomCode"
             >
               Copy
             </button>
@@ -85,9 +85,9 @@
         <div class="flex space-x-3">
           <button
             type="button"
-            @click="$emit('close')"
             data-testid="room-cancel"
             class="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors duration-200"
+            @click="$emit('close')"
           >
             Cancel
           </button>

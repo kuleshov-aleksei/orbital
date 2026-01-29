@@ -39,9 +39,9 @@ export class WebRTCStatsCollector {
       let jitter = 0
       let roundTripTime = 0
       let uploadBandwidth = 0
-      let downloadBandwidth = 0
+      const downloadBandwidth = 0
       let audioLevel = 0
-      let connectionState = peerConnection.connectionState
+      const connectionState = peerConnection.connectionState
 
       stats.forEach(report => {
         switch (report.type) {
@@ -218,7 +218,7 @@ export class WebRTCStatsCollector {
   }
 
   saveOutgoingIceCandidate(peerId: string, iceCandidateData: RTCIceCandidate) {
-    var candidates = this.outgoingIceCandidates.get(peerId);
+    let candidates = this.outgoingIceCandidates.get(peerId);
     if (candidates === undefined) {
       candidates = new Array<RTCIceCandidate>();
       this.outgoingIceCandidates.set(peerId, candidates);

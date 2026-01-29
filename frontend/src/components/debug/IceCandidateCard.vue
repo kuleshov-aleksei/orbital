@@ -15,8 +15,8 @@
         </div>
       </div>
       <button
-        @click="copyCandidate"
         class="flex items-center space-x-1 px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors"
+        @click="copyCandidate"
       >
         <PhCopy class="w-3 h-3" />
         <span>Copy</span>

@@ -6,9 +6,9 @@
       <div class="flex items-center justify-between mb-6">
         <h2 class="text-2xl font-semibold text-white">Available Rooms</h2>
         <button
-          @click="$emit('create-room')"
           data-testid="create-room-welcome"
           class="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors duration-200"
+          @click="$emit('create-room')"
         >
           <PhPlus class="w-4 h-4 mr-2" />
           Create Room
@@ -55,9 +55,9 @@
         <h3 class="text-xl font-semibold text-white mb-2">No rooms available</h3>
         <p class="text-gray-400 mb-6">Be the first to create a room and start chatting!</p>
         <button
-          @click="$emit('create-room')"
           data-testid="create-room-empty"
           class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors duration-200"
+          @click="$emit('create-room')"
         >
           Create First Room
         </button>
@@ -72,7 +72,7 @@
     <!-- Quick Join -->
     <div class="mt-12 text-center">
       <p class="text-gray-400 mb-4">Have a room code?</p>
-      <form @submit.prevent="handleQuickJoin" class="flex items-center space-x-3">
+      <form class="flex items-center space-x-3" @submit.prevent="handleQuickJoin">
         <input
           v-model="roomCode"
           type="text"

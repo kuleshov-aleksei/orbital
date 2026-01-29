@@ -4,8 +4,8 @@
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-sm font-medium text-white">Connection Logs</h3>
         <button
-          @click="$emit('clearLogs')"
           class="px-3 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors"
+          @click="$emit('clearLogs')"
         >
           Clear Logs
         </button>

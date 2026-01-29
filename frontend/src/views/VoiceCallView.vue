@@ -5,9 +5,9 @@
       <div class="flex items-center justify-between">
         <div class="flex items-center">
            <button
-             @click="$emit('leave-room')"
              data-testid="leave-room-header"
              class="mr-4 text-gray-400 hover:text-white transition-colors duration-200"
+             @click="$emit('leave-room')"
            >
              <PhArrowLeft class="w-5 h-5" />
            </button>
@@ -43,11 +43,11 @@
             class="relative"
           >
             <AudioStream
-              :userId="user.id"
-              :userNickname="user.nickname"
+              :user-id="user.id"
+              :user-nickname="user.nickname"
               :stream="remoteStreams.get(user.id)"
-              :connectionState="peerConnectionStates.get(user.id)"
-              :initialVolume="remoteStreamVolumes.get(user.id) || 80"
+              :connection-state="peerConnectionStates.get(user.id)"
+              :initial-volume="remoteStreamVolumes.get(user.id) || 80"
               @volume-change="handleVolumeChange"
               @mute-toggle="handleMuteToggle"
               @audio-level="handleAudioLevel"
@@ -70,9 +70,9 @@
         <!-- Audio Controls -->
         <div class="bg-gray-800 border-t border-gray-700 px-6 py-4">
           <AudioControls 
-            :isMuted="isMuted"
-            :isDeafened="isDeafened"
-            :isScreenSharing="isScreenSharing"
+            :is-muted="isMuted"
+            :is-deafened="isDeafened"
+            :is-screen-sharing="isScreenSharing"
             @toggle-mute="toggleMute"
             @toggle-deafen="toggleDeafen"
             @toggle-screen-share="toggleScreenShare"
@@ -85,8 +85,8 @@
       <DebugDashboard
         ref="debugDashboardRef"
         :users="props.users"
-        :peerConnections="peerConnections"
-        :getConnectionQuality="getConnectionQuality"
+        :peer-connections="peerConnections"
+        :get-connection-quality="getConnectionQuality"
       />
   </div>
 </template>

@@ -15,13 +15,13 @@
         <button
           v-for="tab in tabs"
           :key="tab.id"
-          @click="$emit('tab-change', tab.id)"
           :class="[
             'px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
             activeTab === tab.id
               ? 'bg-blue-600 text-white'
               : 'text-gray-400 hover:text-white hover:bg-gray-700'
           ]"
+          @click="$emit('tab-change', tab.id)"
         >
           {{ tab.label }}
         </button>

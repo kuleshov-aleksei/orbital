@@ -1,12 +1,13 @@
 <template>
-  <div class="room-sidebar w-60 lg:w-60 bg-gray-800 flex flex-col fixed lg:relative inset-y-0 left-0 z-40 lg:z-auto transform -translate-x-full lg:translate-x-0 transition-transform duration-300"
+  <div
+class="room-sidebar w-60 lg:w-60 bg-gray-800 flex flex-col fixed lg:relative inset-y-0 left-0 z-40 lg:z-auto transform -translate-x-full lg:translate-x-0 transition-transform duration-300"
        :class="{ 'translate-x-0': !isHidden }">
     <!-- Mobile Close Button -->
     <div class="lg:hidden flex items-center justify-between p-4 border-b border-gray-700">
       <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">Rooms</h2>
       <button
-        @click="$emit('close-mobile-sidebar')"
         class="p-1 text-gray-400 hover:text-white"
+        @click="$emit('close-mobile-sidebar')"
       >
         <PhCross class="w-5 h-5" />
       </button>
@@ -22,8 +23,8 @@
       <div v-for="category in categorizedRooms" :key="category.name" class="mb-4">
         <div class="px-2 py-1">
           <button 
-            @click="toggleCategory(category.name)"
             class="w-full flex items-center justify-between px-2 py-1 text-xs font-medium text-gray-400 hover:text-gray-200 transition-colors duration-200"
+            @click="toggleCategory(category.name)"
           >
             <span>{{ category.name }}</span>
             <PhCaretCircleDown 
@@ -38,7 +39,7 @@
             v-for="room in category.rooms"
             :key="room.id"
             :room="room"
-            :isActive="room.id === activeRoomId"
+            :is-active="room.id === activeRoomId"
             @click="$emit('room-selected', room.id)"
           />
         </div>
@@ -48,9 +49,9 @@
     <!-- Create Room Button -->
     <div class="p-3 border-t border-gray-700">
       <button
-        @click="$emit('create-room')"
         data-testid="create-room-sidebar"
         class="w-full flex items-center justify-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors duration-200"
+        @click="$emit('create-room')"
       >
         <PhPlus class="w-4 h-4 mr-2" />
         <span class="text-sm font-medium">Create Room</span>

@@ -1,5 +1,6 @@
 <template>
-  <div class="user-sidebar w-60 lg:w-60 bg-gray-800 flex flex-col fixed lg:relative inset-y-0 right-0 z-40 lg:z-auto transform translate-x-full lg:translate-x-0 transition-transform duration-300"
+  <div
+class="user-sidebar w-60 lg:w-60 bg-gray-800 flex flex-col fixed lg:relative inset-y-0 right-0 z-40 lg:z-auto transform translate-x-full lg:translate-x-0 transition-transform duration-300"
        data-testid="user-sidebar"
        :class="{ 'translate-x-0': !isHidden }">
     <!-- Mobile Close Button -->
@@ -8,8 +9,8 @@
         In Room — {{ userCount }}
       </h2>
       <button
-        @click="$emit('close-mobile-sidebar')"
         class="p-1 text-gray-400 hover:text-white"
+        @click="$emit('close-mobile-sidebar')"
       >
         <PhCross class="w-5 h-5" />
       </button>

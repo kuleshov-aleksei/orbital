@@ -20,12 +20,12 @@
       <div class="flex items-center space-x-2">
         <!-- Mute Button -->
         <button
-          @click="toggleMute"
           :class="[
             'p-2 rounded-full transition-colors duration-200',
             isMuted ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-700 hover:bg-gray-600'
           ]"
           :title="isMuted ? 'Unmute user' : 'Mute user'"
+          @click="toggleMute"
         >
           <PhMicrophoneSlash v-if="isMuted" class="w-4 h-4 text-white" />
           <PhMicrophone v-else class="w-4 h-4 text-white" />
@@ -36,13 +36,13 @@
           <PhSpeakerHigh class="w-4 h-4 text-gray-400 mr-2" />
           <div class="relative">
             <input
-              type="range"
               v-model="volume"
+              type="range"
               min="0"
               max="100"
-              @input="updateVolume"
               class="w-20 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer"
               title="Volume control"
+              @input="updateVolume"
             />
             <div 
               class="absolute top-0 left-0 text-xs text-gray-400"
