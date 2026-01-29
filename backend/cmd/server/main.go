@@ -18,7 +18,7 @@ func main() {
 	wsHub := websocket.NewHub(roomService)
 
 	// Initialize handlers
-	roomHandler := handlers.NewRoomHandler(roomService)
+	roomHandler := handlers.NewRoomHandler(roomService, wsHub)
 
 	// Setup router
 	r := mux.NewRouter()
@@ -45,11 +45,16 @@ func main() {
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}).Methods("POST")
 
-	// WebSocket route
+	// WebSocket routes
 	r.HandleFunc("/ws/{roomId}", func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		roomID := vars["roomId"]
 		wsHub.HandleWebSocket(roomID, w, r)
+	})
+
+	// Global WebSocket endpoint for receiving broadcasts (like room creation)
+	r.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		wsHub.HandleGlobalWebSocket(w, r)
 	})
 
 	log.Println("Server starting on :8080")

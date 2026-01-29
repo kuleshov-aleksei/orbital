@@ -6,9 +6,13 @@ export type DisconnectionCallback = (event: CloseEvent) => void
 
 export class WebSocketService {
   private ws: WebSocket | null = null
+  private globalWs: WebSocket | null = null
   private callbacks: Map<string, MessageCallback[]> = new Map()
+  private globalCallbacks: Map<string, MessageCallback[]> = new Map()
   private connectionCallbacks: ConnectionCallback[] = []
   private disconnectionCallbacks: DisconnectionCallback[] = []
+  private globalConnectionCallbacks: ConnectionCallback[] = []
+  private globalDisconnectionCallbacks: DisconnectionCallback[] = []
   private reconnectAttempts = 0
   private maxReconnectAttempts = 5
   private reconnectDelay = 1000
@@ -67,12 +71,55 @@ export class WebSocketService {
     })
   }
 
+  // Connect to global WebSocket for broadcasts
+  async connectGlobal(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      try {
+        const wsUrl = this.getGlobalWebSocketUrl()
+        console.log(`Connecting to global WebSocket: ${wsUrl}`)
+        
+        this.globalWs = new WebSocket(wsUrl)
+        
+        this.globalWs.onopen = (event) => {
+          console.log('Global WebSocket connected:', event)
+          this.notifyGlobalConnectionCallbacks()
+          resolve()
+        }
+
+        this.globalWs.onerror = (error) => {
+          console.error('Global WebSocket error:', error)
+          reject(new Error('Global WebSocket connection failed'))
+        }
+
+        this.globalWs.onmessage = (event) => {
+          this.handleGlobalMessage(event)
+        }
+
+        this.globalWs.onclose = (event) => {
+          console.log('Global WebSocket closed:', event)
+          this.notifyGlobalDisconnectionCallbacks(event)
+        }
+
+      } catch (error) {
+        reject(error)
+      }
+    })
+  }
+
   // Disconnect from WebSocket
   disconnect(): void {
     if (this.ws) {
       this.reconnectAttempts = this.maxReconnectAttempts // Prevent reconnection
       this.ws.close()
       this.ws = null
+    }
+  }
+
+  // Disconnect from global WebSocket
+  disconnectGlobal(): void {
+    if (this.globalWs) {
+      this.globalWs.close()
+      this.globalWs = null
     }
   }
 
@@ -95,6 +142,14 @@ export class WebSocketService {
     this.callbacks.get(type)!.push(callback)
   }
 
+  // Register callback for specific global message type
+  onGlobal(type: string, callback: MessageCallback): void {
+    if (!this.globalCallbacks.has(type)) {
+      this.globalCallbacks.set(type, [])
+    }
+    this.globalCallbacks.get(type)!.push(callback)
+  }
+
   // Register connection callback
   onConnection(callback: ConnectionCallback): void {
     this.connectionCallbacks.push(callback)
@@ -103,6 +158,16 @@ export class WebSocketService {
   // Register disconnection callback
   onDisconnection(callback: DisconnectionCallback): void {
     this.disconnectionCallbacks.push(callback)
+  }
+
+  // Register global connection callback
+  onGlobalConnection(callback: ConnectionCallback): void {
+    this.globalConnectionCallbacks.push(callback)
+  }
+
+  // Register global disconnection callback
+  onGlobalDisconnection(callback: DisconnectionCallback): void {
+    this.globalDisconnectionCallbacks.push(callback)
   }
 
   // Remove callback for specific type
@@ -125,9 +190,19 @@ export class WebSocketService {
     return this.ws !== null && this.ws.readyState === WebSocket.OPEN
   }
 
+  // Get global connection status
+  isGlobalConnected(): boolean {
+    return this.globalWs !== null && this.globalWs.readyState === WebSocket.OPEN
+  }
+
   // Get connection state
   getReadyState(): number {
     return this.ws ? this.ws.readyState : WebSocket.CLOSED
+  }
+
+  // Get global connection state
+  getGlobalReadyState(): number {
+    return this.globalWs ? this.globalWs.readyState : WebSocket.CLOSED
   }
 
   // Private methods
@@ -137,6 +212,14 @@ export class WebSocketService {
       ? window.location.host 
       : 'localhost:8080'
     return `${protocol}//${host}/ws/${roomId}`
+  }
+
+  private getGlobalWebSocketUrl(): string {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const host = process.env.NODE_ENV === 'production' 
+      ? window.location.host 
+      : 'localhost:8080'
+    return `${protocol}//${host}/ws`
   }
 
   private handleMessage(event: MessageEvent): void {
@@ -180,6 +263,26 @@ export class WebSocketService {
     })
   }
 
+  private notifyGlobalConnectionCallbacks(): void {
+    this.globalConnectionCallbacks.forEach(callback => {
+      try {
+        callback()
+      } catch (error) {
+        console.error('Error in global connection callback:', error)
+      }
+    })
+  }
+
+  private notifyGlobalDisconnectionCallbacks(event: CloseEvent): void {
+    this.globalDisconnectionCallbacks.forEach(callback => {
+      try {
+        callback(event)
+      } catch (error) {
+        console.error('Error in global disconnection callback:', error)
+      }
+    })
+  }
+
   private attemptReconnect(): void {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.log('Max reconnection attempts reached')
@@ -196,6 +299,27 @@ export class WebSocketService {
     }, this.reconnectDelay * this.reconnectAttempts)
   }
 
+  private handleGlobalMessage(event: MessageEvent): void {
+    try {
+      const message: WebSocketMessage = JSON.parse(event.data)
+      console.log('Received global WebSocket message:', message)
+
+      // Route message to appropriate global callbacks
+      const callbacks = this.globalCallbacks.get(message.type)
+      if (callbacks) {
+        callbacks.forEach(callback => {
+          try {
+            callback(message)
+          } catch (error) {
+            console.error('Error in global WebSocket callback:', error)
+          }
+        })
+      }
+    } catch (error) {
+      console.error('Error parsing global WebSocket message:', error, event.data)
+    }
+  }
+
   private setupEventHandlers(): void {
     // Handle page visibility change
     document.addEventListener('visibilitychange', () => {
@@ -208,12 +332,19 @@ export class WebSocketService {
           console.log('Page visible, attempting to reconnect')
           this.attemptReconnect()
         }
+        if (!this.isGlobalConnected()) {
+          console.log('Page visible, attempting to reconnect global WebSocket')
+          this.connectGlobal().catch(error => {
+            console.error('Failed to reconnect global WebSocket:', error)
+          })
+        }
       }
     })
 
     // Handle browser close
     window.addEventListener('beforeunload', () => {
       this.disconnect()
+      this.disconnectGlobal()
     })
   }
 }

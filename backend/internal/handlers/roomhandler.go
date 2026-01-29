@@ -9,17 +9,20 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/orbital/internal/models"
 	"github.com/orbital/internal/service"
+	"github.com/orbital/internal/websocket"
 )
 
 // RoomHandler handles room-related HTTP requests
 type RoomHandler struct {
 	roomService *service.RoomService
+	wsHub       *websocket.Hub
 }
 
 // NewRoomHandler creates a new RoomHandler
-func NewRoomHandler(roomService *service.RoomService) *RoomHandler {
+func NewRoomHandler(roomService *service.RoomService, wsHub *websocket.Hub) *RoomHandler {
 	return &RoomHandler{
 		roomService: roomService,
+		wsHub:       wsHub,
 	}
 }
 
@@ -49,6 +52,15 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	// Broadcast room creation to all connected clients
+	if h.wsHub != nil {
+		roomCreatedMessage := map[string]interface{}{
+			"type": "room_created",
+			"data": room,
+		}
+		h.wsHub.BroadcastToAll(roomCreatedMessage)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

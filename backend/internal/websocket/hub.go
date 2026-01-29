@@ -61,17 +61,29 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 	h.mu.Lock()
 	h.clients[client] = true
 
-	if h.roomClients[roomID] == nil {
-		h.roomClients[roomID] = make(map[*Client]bool)
+	// Only add to roomClients if roomID is provided (not empty)
+	if roomID != "" {
+		if h.roomClients[roomID] == nil {
+			h.roomClients[roomID] = make(map[*Client]bool)
+		}
+		h.roomClients[roomID][client] = true
 	}
-	h.roomClients[roomID][client] = true
 	h.mu.Unlock()
 
 	// Start goroutines for this client
 	go client.writePump()
 	go client.readPump()
 
-	log.Printf("WebSocket client connected to room %s", roomID)
+	if roomID != "" {
+		log.Printf("WebSocket client connected to room %s", roomID)
+	} else {
+		log.Printf("WebSocket client connected for global broadcasts")
+	}
+}
+
+// HandleGlobalWebSocket handles WebSocket connections for global broadcasts (not room-specific)
+func (h *Hub) HandleGlobalWebSocket(w http.ResponseWriter, r *http.Request) {
+	h.HandleWebSocket("", w, r)
 }
 
 // BroadcastToRoom sends a message to all clients in a room
@@ -93,6 +105,31 @@ func (h *Hub) BroadcastToRoom(roomID string, message interface{}) {
 				close(client.send)
 				delete(h.clients, client)
 				delete(h.roomClients[roomID], client)
+			}
+		}
+	}
+}
+
+// BroadcastToAll sends a message to all connected clients
+func (h *Hub) BroadcastToAll(message interface{}) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	data, err := json.Marshal(message)
+	if err != nil {
+		log.Printf("Error marshaling message: %v", err)
+		return
+	}
+
+	for client := range h.clients {
+		select {
+		case client.send <- data:
+		default:
+			close(client.send)
+			delete(h.clients, client)
+			// Remove from room clients if present
+			if h.roomClients[client.roomID] != nil {
+				delete(h.roomClients[client.roomID], client)
 			}
 		}
 	}
@@ -190,6 +227,9 @@ func (c *Client) handleMessage(message models.WebSocketMessage) {
 		c.handleSDPAnswer(message.Data)
 	case "speaking_status":
 		c.handleSpeakingStatus(message.Data)
+	case "room_created":
+		// This is a broadcast message, no action needed on receive
+		log.Printf("Received room_created broadcast")
 	default:
 		log.Printf("Unknown message type: %s", message.Type)
 	}

@@ -145,6 +145,8 @@ const getRoomName = (roomId: string): string => {
 onMounted(async () => {
   await loadRooms()
   setupWebSocketListeners()
+  setupGlobalWebSocketListeners()
+  await connectGlobalWebSocket()
 })
 
 onUnmounted(() => {
@@ -152,6 +154,7 @@ onUnmounted(() => {
     leaveRoom()
   }
   wsService.disconnect()
+  wsService.disconnectGlobal()
 })
 
 // Methods
@@ -308,6 +311,40 @@ const setupWebSocketListeners = () => {
       errorMessage.value = 'Connection lost. Attempting to reconnect...'
     }
   })
+}
+
+const setupGlobalWebSocketListeners = () => {
+  // Listen for room creation events
+  wsService.onGlobal('room_created', (message: WebSocketMessage) => {
+    const newRoom = message.data as Room
+    console.log('Received room_created event:', newRoom)
+    
+    // Update rooms list to include the new room
+    const existingIndex = rooms.value.findIndex(r => r.id === newRoom.id)
+    if (existingIndex === -1) {
+      // Add new room at the beginning of the list
+      rooms.value.unshift(newRoom)
+      console.log('Added new room to list:', newRoom.name)
+    }
+  })
+
+  // Listen for global connection/disconnection
+  wsService.onGlobalConnection(() => {
+    console.log('Global WebSocket connected')
+  })
+
+  wsService.onGlobalDisconnection((event) => {
+    console.log('Global WebSocket disconnected:', event)
+  })
+}
+
+const connectGlobalWebSocket = async () => {
+  try {
+    await wsService.connectGlobal()
+    console.log('Global WebSocket connected successfully')
+  } catch (error) {
+    console.error('Failed to connect global WebSocket:', error)
+  }
 }
 </script>
 
