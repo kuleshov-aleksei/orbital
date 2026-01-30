@@ -9,7 +9,7 @@ class="room-sidebar w-60 lg:w-60 bg-gray-800 flex flex-col fixed lg:relative ins
         class="p-1 text-gray-400 hover:text-white"
         @click="$emit('close-mobile-sidebar')"
       >
-        <PhCross class="w-5 h-5" />
+        <PhList class="w-5 h-5" />
       </button>
     </div>
 
@@ -63,11 +63,11 @@ class="room-sidebar w-60 lg:w-60 bg-gray-800 flex flex-col fixed lg:relative ins
 <script setup lang="ts">
  import { ref, computed } from 'vue'
  import RoomCard from '@/components/RoomCard.vue'
- import { 
-   PhCross, 
-   PhCaretCircleDown,
-   PhPlus 
- } from '@phosphor-icons/vue'
+import { 
+  PhList, 
+  PhCaretCircleDown,
+  PhPlus 
+} from '@phosphor-icons/vue'
 
 interface RoomPreviewUser {
   id: string
@@ -100,7 +100,7 @@ const isHidden = computed(() => {
   return props.rooms.length === 0
 })
 
-const expandedCategories = ref(new Set(['Main', 'Gaming', 'Study', 'Hobbies']))
+const expandedCategories = ref(new Set<string>())
 
 const categorizedRooms = computed(() => {
   const categories: { name: string; rooms: Room[] }[] = []
@@ -114,9 +114,10 @@ const categorizedRooms = computed(() => {
     categoryMap.get(room.category)!.push(room)
   })
 
-  // Convert to array format
+  // Convert to array format and expand all categories by default
   categoryMap.forEach((rooms, name) => {
     categories.push({ name, rooms })
+    expandedCategories.value.add(name)
   })
 
   return categories
