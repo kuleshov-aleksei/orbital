@@ -5,6 +5,14 @@ export interface Room {
   userCount: number
   maxUsers: number
   category: string
+  users?: RoomPreviewUser[]
+}
+
+// Room preview user interface
+export interface RoomPreviewUser {
+  id: string
+  nickname: string
+  role: string
 }
 
 // User interface

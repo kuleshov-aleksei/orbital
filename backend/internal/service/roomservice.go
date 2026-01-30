@@ -73,6 +73,49 @@ func (rs *RoomService) GetRooms() []models.Room {
 	return rooms
 }
 
+// GetRoomsWithPreview returns all rooms with preview user information
+func (rs *RoomService) GetRoomsWithPreview() []models.RoomPreview {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+
+	rooms := make([]models.RoomPreview, 0, len(rs.rooms))
+	for _, room := range rs.rooms {
+		preview := models.RoomPreview{
+			ID:        room.ID,
+			Name:      room.Name,
+			OwnerID:   room.OwnerID,
+			MaxUsers:  room.MaxUsers,
+			UserCount: rs.getRoomUserCount(room.ID),
+			CreatedAt: room.CreatedAt,
+			Category:  room.Category,
+			Users:     rs.getRoomPreviewUsers(room.ID),
+		}
+		rooms = append(rooms, preview)
+	}
+
+	return rooms
+}
+
+// getRoomPreviewUsers returns limited user information for room preview
+func (rs *RoomService) getRoomPreviewUsers(roomID string) []models.RoomPreviewUser {
+	var users []models.RoomPreviewUser
+
+	if members, exists := rs.members[roomID]; exists {
+		for userID, member := range members {
+			if user, exists := rs.users[userID]; exists {
+				previewUser := models.RoomPreviewUser{
+					ID:       user.ID,
+					Nickname: user.Nickname,
+					Role:     member.Role,
+				}
+				users = append(users, previewUser)
+			}
+		}
+	}
+
+	return users
+}
+
 // GetRoom returns a specific room
 func (rs *RoomService) GetRoom(roomID string) (*models.Room, bool) {
 	rs.mu.RLock()
@@ -90,19 +133,19 @@ func (rs *RoomService) GetRoom(roomID string) (*models.Room, bool) {
 }
 
 // JoinRoom adds a user to a room
-func (rs *RoomService) JoinRoom(roomID, userID, nickname string) (*models.User, error) {
+func (rs *RoomService) JoinRoom(roomID, userID, nickname string) (*models.User, *models.RoomPreviewUser, error) {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 
 	// Check if room exists
 	room, exists := rs.rooms[roomID]
 	if !exists {
-		return nil, &RoomError{Message: "Room not found"}
+		return nil, nil, &RoomError{Message: "Room not found"}
 	}
 
 	// Check if room is full
 	if rs.getRoomUserCount(roomID) >= room.MaxUsers {
-		return nil, &RoomError{Message: "Room is full"}
+		return nil, nil, &RoomError{Message: "Room is full"}
 	}
 
 	// Create user if not exists
@@ -142,23 +185,38 @@ func (rs *RoomService) JoinRoom(roomID, userID, nickname string) (*models.User, 
 	user.LastSeen = time.Now()
 
 	log.Printf("User %s joined room %s", userID, roomID)
-	return user, nil
+	return user, &models.RoomPreviewUser{
+		ID:       user.ID,
+		Nickname: user.Nickname,
+		Role:     member.Role,
+	}, nil
 }
 
 // LeaveRoom removes a user from a room
-func (rs *RoomService) LeaveRoom(roomID, userID string) {
+func (rs *RoomService) LeaveRoom(roomID, userID string) *models.RoomPreviewUser {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 
-	if rs.members[roomID] != nil {
-		delete(rs.members[roomID], userID)
-	}
+	var leftUser *models.RoomPreviewUser
 
 	if user, exists := rs.users[userID]; exists {
 		user.LastSeen = time.Now()
+		leftUser = &models.RoomPreviewUser{
+			ID:       user.ID,
+			Nickname: user.Nickname,
+			Role:     "member",
+		}
+	}
+
+	if rs.members[roomID] != nil {
+		if member, exists := rs.members[roomID][userID]; exists {
+			leftUser.Role = member.Role
+		}
+		delete(rs.members[roomID], userID)
 	}
 
 	log.Printf("User %s left room %s", userID, roomID)
+	return leftUser
 }
 
 // GetRoomUsers returns all users in a room with member-specific information

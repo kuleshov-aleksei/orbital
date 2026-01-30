@@ -162,7 +162,7 @@ const loadRooms = async () => {
   try {
     isLoading.value = true
     errorMessage.value = ''
-    rooms.value = await apiService.getRooms()
+    rooms.value = await apiService.getRooms(true) // Include preview data
     console.log('Loaded rooms:', rooms.value)
   } catch (error) {
     console.error('Failed to load rooms:', error)
@@ -325,6 +325,45 @@ const setupGlobalWebSocketListeners = () => {
       // Add new room at the beginning of the list
       rooms.value.unshift(newRoom)
       console.log('Added new room to list:', newRoom.name)
+    }
+  })
+
+  // Listen for room user joined events
+  wsService.onGlobal('room_user_joined', (message: WebSocketMessage) => {
+    const data = message.data as { room_id: string; user: { id: string; nickname: string; role: string } }
+    console.log('Received room_user_joined event:', data)
+    
+    // Update the specific room with the new user
+    const room = rooms.value.find(r => r.id === data.room_id)
+    if (room) {
+      if (!room.users) {
+        room.users = []
+      }
+      
+      // Check if user already exists in room
+      const existingUserIndex = room.users.findIndex(u => u.id === data.user.id)
+      if (existingUserIndex === -1) {
+        room.users.push(data.user)
+        room.userCount = room.users.length
+        console.log(`User ${data.user.nickname} joined room ${room.name}`)
+      }
+    }
+  })
+
+  // Listen for room user left events
+  wsService.onGlobal('room_user_left', (message: WebSocketMessage) => {
+    const data = message.data as { room_id: string; user: { id: string; nickname: string; role: string } }
+    console.log('Received room_user_left event:', data)
+    
+    // Update the specific room by removing the user
+    const room = rooms.value.find(r => r.id === data.room_id)
+    if (room && room.users) {
+      const userIndex = room.users.findIndex(u => u.id === data.user.id)
+      if (userIndex !== -1) {
+        room.users.splice(userIndex, 1)
+        room.userCount = room.users.length
+        console.log(`User ${data.user.nickname} left room ${room.name}`)
+      }
     }
   })
 

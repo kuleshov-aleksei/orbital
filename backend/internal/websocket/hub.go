@@ -242,7 +242,7 @@ func (c *Client) handleJoinRoom(data interface{}) {
 	json.Unmarshal(jsonData, &req)
 
 	c.userID = req.UserID
-	_, err := c.hub.roomService.JoinRoom(c.roomID, req.UserID, req.Nickname)
+	_, _, err := c.hub.roomService.JoinRoom(c.roomID, req.UserID, req.Nickname)
 	if err != nil {
 		log.Printf("Error joining room: %v", err)
 		return

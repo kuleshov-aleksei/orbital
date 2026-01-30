@@ -69,7 +69,15 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 
 // GetRooms handles GET /api/rooms
 func (h *RoomHandler) GetRooms(w http.ResponseWriter, r *http.Request) {
-	rooms := h.roomService.GetRooms()
+	// Check if preview is requested
+	includePreview := r.URL.Query().Get("preview") == "true"
+
+	var rooms interface{}
+	if includePreview {
+		rooms = h.roomService.GetRoomsWithPreview()
+	} else {
+		rooms = h.roomService.GetRooms()
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(rooms)
@@ -120,10 +128,22 @@ func (h *RoomHandler) JoinRoom(w http.ResponseWriter, r *http.Request) {
 		req.Nickname = "User-" + req.UserID[:8]
 	}
 
-	user, err := h.roomService.JoinRoom(roomID, req.UserID, req.Nickname)
+	user, previewUser, err := h.roomService.JoinRoom(roomID, req.UserID, req.Nickname)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	// Broadcast room user joined event to all clients
+	if h.wsHub != nil && previewUser != nil {
+		roomUserJoinedMessage := map[string]interface{}{
+			"type": "room_user_joined",
+			"data": map[string]interface{}{
+				"room_id": roomID,
+				"user":    previewUser,
+			},
+		}
+		h.wsHub.BroadcastToAll(roomUserJoinedMessage)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -143,7 +163,19 @@ func (h *RoomHandler) LeaveRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.roomService.LeaveRoom(roomID, req.UserID)
+	leftUser := h.roomService.LeaveRoom(roomID, req.UserID)
+
+	// Broadcast room user left event to all clients
+	if h.wsHub != nil && leftUser != nil {
+		roomUserLeftMessage := map[string]interface{}{
+			"type": "room_user_left",
+			"data": map[string]interface{}{
+				"room_id": roomID,
+				"user":    leftUser,
+			},
+		}
+		h.wsHub.BroadcastToAll(roomUserLeftMessage)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "success"})

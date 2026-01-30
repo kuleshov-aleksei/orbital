@@ -84,3 +84,22 @@ type SDPMessage struct {
 	SDP    map[string]interface{} `json:"sdp"`
 	Type   string                 `json:"type"` // offer, answer
 }
+
+// RoomPreview represents a room with limited user information for preview
+type RoomPreview struct {
+	ID        string            `json:"id"`
+	Name      string            `json:"name"`
+	OwnerID   string            `json:"owner_id"`
+	MaxUsers  int               `json:"max_users"`
+	UserCount int               `json:"user_count"`
+	CreatedAt time.Time         `json:"created_at"`
+	Category  string            `json:"category"`
+	Users     []RoomPreviewUser `json:"users"`
+}
+
+// RoomPreviewUser represents limited user information for room preview
+type RoomPreviewUser struct {
+	ID       string `json:"id"`
+	Nickname string `json:"nickname"`
+	Role     string `json:"role"`
+}

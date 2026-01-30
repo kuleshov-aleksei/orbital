@@ -69,12 +69,19 @@ class="room-sidebar w-60 lg:w-60 bg-gray-800 flex flex-col fixed lg:relative ins
    PhPlus 
  } from '@phosphor-icons/vue'
 
+interface RoomPreviewUser {
+  id: string
+  nickname: string
+  role: string
+}
+
 interface Room {
   id: string
   name: string
   userCount: number
   maxUsers: number
   category: string
+  users?: RoomPreviewUser[]
 }
 
 interface Props {

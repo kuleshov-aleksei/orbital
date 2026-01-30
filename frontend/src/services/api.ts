@@ -31,8 +31,9 @@ async function apiRequest<T>(
 // Room management API calls
 export const apiService = {
   // Get all available rooms
-  async getRooms(): Promise<Room[]> {
-    return apiRequest<Room[]>('/rooms')
+  async getRooms(includePreview = false): Promise<Room[]> {
+    const endpoint = includePreview ? '/rooms?preview=true' : '/rooms'
+    return apiRequest<Room[]>(endpoint)
   },
 
   // Get specific room details
