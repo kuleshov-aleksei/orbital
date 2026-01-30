@@ -133,7 +133,7 @@ const remoteStreamVolumes = ref<Map<string, number>>(new Map())
  const maxRetries = 3
  const debugDashboardRef = ref()
 // Fix for ICE candidate race condition
-const pendingIceCandidates = ref<Map<string, RTCIceCandidate[]>>(new Map())
+const pendingIceCandidates = ref<Map<string, RTCIceCandidateInit[]>>(new Map())
 // Track current user's join time (0 = not set yet)
 const currentUserJoinTime = ref<number>(0)
 
@@ -279,10 +279,17 @@ const initializeWebRTC = async () => {
         return
       }
       
-      console.log(`🔍 Found existing peer connection for ${user_id}, state: ${peerConnection.signalingState}`)
-      
-       updateConnectionState(user_id, 'answer-received')
-       await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp))
+       console.log(`🔍 Found existing peer connection for ${user_id}, state: ${peerConnection.signalingState}`)
+
+       // Defensive: ignore duplicate answers (can happen if event handlers were registered twice)
+       if (peerConnection.signalingState === 'stable' && peerConnection.remoteDescription?.type === 'answer') {
+         console.warn(`⚠️ Ignoring duplicate SDP answer for ${user_id} (already stable)`)
+         addDebugLog(`Ignoring duplicate SDP answer for ${user_id} (already stable)`, 'warning', user_id)
+         return
+       }
+       
+        updateConnectionState(user_id, 'answer-received')
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp))
        
        // Process pending ICE candidates after remote description is set
        await processPendingIceCandidates(user_id)
@@ -304,19 +311,19 @@ const initializeWebRTC = async () => {
         console.log(`🧊 Processing ${pendingCandidates.length} pending ICE candidates for ${userId}`)
         addDebugLog(`Processing ${pendingCandidates.length} pending ICE candidates for ${userId}`, 'info', userId)
         
-for (const candidate of pendingCandidates) {
+	for (const candidate of pendingCandidates) {
            try {
              const peerConnection = peerConnections.value.get(userId)
              if (peerConnection && peerConnection.remoteDescription) {
-               await peerConnection.addIceCandidate(candidate)
-              console.log(`🧊 Added pending ICE candidate for ${userId}:`, candidate)
-              addDebugLog(`Added pending ICE candidate for ${userId}`, 'info', userId)
-            }
-          } catch (error) {
-            console.error(`❌ Error adding pending ICE candidate for ${userId}:`, error)
-            addDebugLog(`Error adding pending ICE candidate: ${error.message}`, 'error', userId)
-          }
-        }
+               await peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
+               console.log(`🧊 Added pending ICE candidate for ${userId}:`, candidate)
+               addDebugLog(`Added pending ICE candidate for ${userId}`, 'info', userId)
+             }
+           } catch (error) {
+             console.error(`❌ Error adding pending ICE candidate for ${userId}:`, error)
+             addDebugLog(`Error adding pending ICE candidate: ${error.message}`, 'error', userId)
+           }
+         }
         pendingIceCandidates.value.delete(userId)
         addDebugLog(`Processed all pending ICE candidates for ${userId}`, 'info', userId)
       }
@@ -423,7 +430,7 @@ for (const candidate of pendingCandidates) {
     }
   }
 
-   const createPeerConnection = async (userId: string): Promise<RTCPeerConnection> => {
+  const createPeerConnection = async (userId: string): Promise<RTCPeerConnection> => {
    const configuration = {
      iceServers: [
        { urls: 'stun:stun.l.google.com:19302' },
@@ -510,24 +517,9 @@ for (const candidate of pendingCandidates) {
      console.log(`Signaling state with ${userId}:`, peerConnection.signalingState)
    }
 
-    // Process any pending ICE candidates
-    const pendingCandidates = pendingIceCandidates.value.get(userId)
-    if (pendingCandidates && pendingCandidates.length > 0) {
-      console.log(`🧊 Processing ${pendingCandidates.length} pending ICE candidates for ${userId}`)
-      for (const candidate of pendingCandidates) {
-        try {
-          await peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
-          console.log(`🧊 Added pending ICE candidate for ${userId}:`, candidate)
-        } catch (error) {
-          console.error(`❌ Error adding pending ICE candidate for ${userId}:`, error)
-        }
-      }
-      pendingIceCandidates.value.delete(userId)
-    }
-
     peerConnections.value.set(userId, peerConnection)
     return peerConnection
- }
+  }
 
  const handleRemoteTrack = (userId: string, stream: MediaStream) => {
    try {
@@ -706,33 +698,49 @@ const addDebugLog = (message: string, level: 'info' | 'warning' | 'error' = 'inf
 
 
 
+// WebSocket handlers must be stable references so we can unregister them.
+const onIceCandidateMessage = (message: any) => {
+  console.log('📨 Received ice_candidate message:', message)
+  handleIceCandidate(message.data)
+}
+const onSdpOfferMessage = (message: any) => {
+  console.log('📨 Received sdp_offer message:', message)
+  addDebugLog('WebSocket received sdp_offer', 'info')
+  handleSdpOffer(message.data)
+}
+const onSdpAnswerMessage = (message: any) => handleSdpAnswer(message.data)
+const onRoomUsersMessage = (message: any) => {
+  console.log('📨 Received room_users message:', message)
+  handleRoomUsers(message.data)
+}
+const onUserLeftMessage = (message: any) => handleUserLeft(message.data)
+const onSpeakingStatusMessage = (_message: any) => {
+  // Handle speaking status updates if needed
+}
+
 // Lifecycle hooks
 onMounted(async () => {
   // Register WebSocket listeners FIRST, before initializing WebRTC
-  wsService.on('ice_candidate', (message) => {
-    console.log('📨 Received ice_candidate message:', message)
-    handleIceCandidate(message.data)
-  })
-  wsService.on('sdp_offer', (message) => {
-    console.log('📨 Received sdp_offer message:', message)
-    addDebugLog('WebSocket received sdp_offer', 'info')
-    handleSdpOffer(message.data)
-  })
-  wsService.on('sdp_answer', (message) => handleSdpAnswer(message.data))
-  wsService.on('room_users', (message) => {
-    console.log('📨 Received room_users message:', message)
-    handleRoomUsers(message.data)
-  })
-  wsService.on('user_left', (message) => handleUserLeft(message.data))
-  wsService.on('speaking_status', () => {
-    // Handle speaking status updates if needed
-  })
+  wsService.on('ice_candidate', onIceCandidateMessage)
+  wsService.on('sdp_offer', onSdpOfferMessage)
+  wsService.on('sdp_answer', onSdpAnswerMessage)
+  wsService.on('room_users', onRoomUsersMessage)
+  wsService.on('user_left', onUserLeftMessage)
+  wsService.on('speaking_status', onSpeakingStatusMessage)
   
   // Now initialize WebRTC after listeners are ready
   await initializeWebRTC()
 })
 
 onUnmounted(() => {
+  // Unregister WebSocket listeners to prevent duplicate signaling after re-join.
+  wsService.off('ice_candidate', onIceCandidateMessage)
+  wsService.off('sdp_offer', onSdpOfferMessage)
+  wsService.off('sdp_answer', onSdpAnswerMessage)
+  wsService.off('room_users', onRoomUsersMessage)
+  wsService.off('user_left', onUserLeftMessage)
+  wsService.off('speaking_status', onSpeakingStatusMessage)
+
   // Clean up all peer connections and audio elements
   peerConnections.value.forEach((connection, userId) => {
     cleanupPeerConnection(userId)
