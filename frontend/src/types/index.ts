@@ -38,7 +38,7 @@ export interface RoomUser extends User {
 
 // WebSocket message types
 export interface WebSocketMessage {
-  type: 'join_room' | 'leave_room' | 'ice_candidate' | 'sdp_offer' | 'sdp_answer' | 'speaking_status' | 'mute_status' | 'deafen_status' | 'screen_share_start' | 'screen_share_stop'
+  type: 'join_room' | 'leave_room' | 'ice_candidate' | 'sdp_offer' | 'sdp_answer' | 'speaking_status' | 'mute_status' | 'deafen_status' | 'screen_share_start' | 'screen_share_stop' | 'nickname_change'
   data: unknown
 }
 
@@ -60,6 +60,12 @@ export interface CreateRoomData {
 export interface JoinRoomRequest {
   user_id?: string
   nickname?: string
+}
+
+// Nickname change data
+export interface NicknameChangeRequest {
+  user_id: string
+  nickname: string
 }
 
 // Health check response

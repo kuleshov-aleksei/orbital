@@ -260,6 +260,8 @@ func (c *Client) handleMessage(message models.WebSocketMessage) {
 		c.handleMuteStatus(message.Data)
 	case "deafen_status":
 		c.handleDeafenStatus(message.Data)
+	case "nickname_change":
+		c.handleNicknameChange(message.Data)
 	case "room_created":
 		// This is a broadcast message, no action needed on receive
 		log.Printf("Received room_created broadcast")
@@ -461,6 +463,39 @@ func (c *Client) handleDeafenStatus(data interface{}) {
 
 	// Also broadcast globally so users outside room can see status in room list
 	c.hub.BroadcastToAll(statusMessage)
+}
+
+// handleNicknameChange handles user nickname changes
+func (c *Client) handleNicknameChange(data interface{}) {
+	var req models.NicknameChangeRequest
+	jsonData, _ := json.Marshal(data)
+	json.Unmarshal(jsonData, &req)
+
+	// Only allow users to change their own nickname
+	if req.UserID != c.userID {
+		log.Printf("User %s attempted to change nickname for user %s", c.userID, req.UserID)
+		return
+	}
+
+	// Update nickname in room service
+	err := c.hub.roomService.UpdateUserNickname(c.roomID, req.UserID, req.Nickname)
+	if err != nil {
+		log.Printf("Error updating nickname: %v", err)
+		return
+	}
+
+	// Broadcast nickname change to all users in room
+	nicknameMessage := models.WebSocketMessage{
+		Type: "nickname_change",
+		Data: map[string]interface{}{
+			"user_id":  req.UserID,
+			"nickname": req.Nickname,
+		},
+	}
+	c.hub.BroadcastToRoom(c.roomID, nicknameMessage)
+
+	// Also broadcast globally so users outside room can see updated nickname
+	c.hub.BroadcastToAll(nicknameMessage)
 }
 
 // Helper function to marshal messages

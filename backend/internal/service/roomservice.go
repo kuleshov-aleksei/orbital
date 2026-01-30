@@ -313,6 +313,20 @@ func (rs *RoomService) UpdateUserDeafenStatus(roomID, userID string, isDeafened 
 	}
 }
 
+// UpdateUserNickname updates user's nickname
+func (rs *RoomService) UpdateUserNickname(roomID, userID, nickname string) error {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+
+	if user, exists := rs.users[userID]; exists {
+		user.Nickname = nickname
+		user.LastSeen = time.Now()
+		return nil
+	}
+
+	return &RoomError{Message: "User not found"}
+}
+
 // Helper methods
 func (rs *RoomService) getRoomUserCount(roomID string) int {
 	if members, exists := rs.members[roomID]; exists {

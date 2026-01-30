@@ -134,6 +134,14 @@ export class WebSocketService {
     }
   }
 
+  // Send nickname change message
+  changeNickname(userId: string, nickname: string): void {
+    this.sendMessage('nickname_change', {
+      user_id: userId,
+      nickname: nickname
+    })
+  }
+
   // Register callback for specific message type
   on(type: string, callback: MessageCallback): void {
     if (!this.callbacks.has(type)) {

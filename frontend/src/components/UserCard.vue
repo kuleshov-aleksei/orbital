@@ -18,7 +18,27 @@
 
     <!-- User Info -->
     <div class="flex-1 min-w-0">
-      <div class="font-medium text-sm truncate">{{ user.nickname }}</div>
+      <div 
+        v-if="!isEditingNickname"
+        class="font-medium text-sm truncate cursor-pointer hover:text-indigo-400 transition-colors"
+        :title="isCurrentUser ? 'Click to edit nickname' : ''"
+        @click="startEditingNickname"
+      >
+        {{ user.nickname }}
+      </div>
+      <div v-else class="flex items-center">
+        <input
+          ref="nicknameInput"
+          v-model="editingNickname"
+          type="text"
+          class="w-full px-2 py-1 text-sm bg-gray-700 border border-gray-600 rounded focus:outline-none focus:border-indigo-500"
+          maxlength="32"
+          placeholder="Enter nickname"
+          @blur="saveNickname"
+          @keydown.enter="saveNickname"
+          @keydown.escape="cancelEdit"
+        />
+      </div>
       <div class="text-xs text-gray-400">
         <span v-if="user.isSpeaking" class="text-green-400">Speaking...</span>
         <span v-else-if="user.isDeafened" class="text-red-400">Deafened</span>
@@ -90,7 +110,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { PhMicrophoneSlash, PhSpeakerHigh } from '@phosphor-icons/vue'
 
 interface User {
@@ -113,11 +133,19 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   'volume-change': [userId: string, volume: number]
+  'nickname-change': [userId: string, nickname: string]
 }>()
 
 const showMenu = ref(false)
 const volume = ref(props.initialVolume)
-let menuPosition = { x: 0, y: 0 }
+const isEditingNickname = ref(false)
+const editingNickname = ref('')
+const nicknameInput = ref<HTMLInputElement>()
+const menuPosition = { x: 0, y: 0 }
+
+// Check if this is the current user (for nickname editing)
+const currentUserId = localStorage.getItem('orbital_user_id')
+const isCurrentUser = computed(() => props.user.id === currentUserId)
 
 const statusColors = {
   online: 'bg-green-400',
@@ -152,6 +180,34 @@ const handleVolumeChange = () => {
   emit('volume-change', props.user.id, volume.value)
 }
 
+const startEditingNickname = () => {
+  if (!isCurrentUser.value) return
+  
+  isEditingNickname.value = true
+  editingNickname.value = props.user.nickname
+  
+  nextTick(() => {
+    nicknameInput.value?.focus()
+    nicknameInput.value?.select()
+  })
+}
+
+const saveNickname = () => {
+  if (!isCurrentUser.value) return
+  
+  const trimmedNickname = editingNickname.value.trim()
+  if (trimmedNickname && trimmedNickname !== props.user.nickname) {
+    emit('nickname-change', props.user.id, trimmedNickname)
+    localStorage.setItem('orbital_user_nickname', trimmedNickname)
+  }
+  isEditingNickname.value = false
+}
+
+const cancelEdit = () => {
+  isEditingNickname.value = false
+  editingNickname.value = props.user.nickname
+}
+
 // Close menu on escape key or document click
 const handleKeydown = (event: KeyboardEvent) => {
   if (event.key === 'Escape') {
@@ -159,7 +215,7 @@ const handleKeydown = (event: KeyboardEvent) => {
   }
 }
 
-const handleDocumentClick = (event: MouseEvent) => {
+const handleDocumentClick = () => {
   if (showMenu.value) {
     hideContextMenu()
   }

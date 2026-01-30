@@ -106,3 +106,9 @@ type RoomPreviewUser struct {
 	IsDeafened bool   `json:"is_deafened"`
 	IsSpeaking bool   `json:"is_speaking"`
 }
+
+// NicknameChangeRequest represents a request to change a user's nickname
+type NicknameChangeRequest struct {
+	UserID   string `json:"user_id"`
+	Nickname string `json:"nickname"`
+}

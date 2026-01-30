@@ -156,7 +156,7 @@ const emit = defineEmits<{
  const analyser = ref<AnalyserNode | null>(null)
  const animationId = ref<number | null>(null)
  const showMenu = ref(false)
- let menuPosition = { x: 0, y: 0 }
+ const menuPosition = { x: 0, y: 0 }
 
  // Computed properties
  const isSpeaking = computed(() => audioLevel.value > 0.1) // Threshold for speaking detection
@@ -282,7 +282,7 @@ const emit = defineEmits<{
      }
    }
 
-   const handleDocumentClick = (event: MouseEvent) => {
+   const handleDocumentClick = () => {
      if (showMenu.value) {
        hideContextMenu()
      }

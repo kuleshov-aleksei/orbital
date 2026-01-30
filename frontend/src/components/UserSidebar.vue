@@ -34,6 +34,7 @@ class="user-sidebar w-60 lg:w-60 bg-gray-800 flex flex-col fixed lg:relative ins
         :user="user"
         :initial-volume="getInitialVolume(user.id)"
         @volume-change="handleVolumeChange"
+        @nickname-change="handleNicknameChange"
       />
     </div>
 
@@ -86,6 +87,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   'close-mobile-sidebar': []
   'volume-change': [userId: string, volume: number]
+  'nickname-change': [userId: string, nickname: string]
 }>()
 
 const isHidden = computed(() => {
@@ -98,5 +100,9 @@ const getInitialVolume = (userId: string) => {
 
 const handleVolumeChange = (userId: string, volume: number) => {
   emit('volume-change', userId, volume)
+}
+
+const handleNicknameChange = (userId: string, nickname: string) => {
+  emit('nickname-change', userId, nickname)
 }
 </script>

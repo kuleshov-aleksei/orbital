@@ -41,6 +41,7 @@
           :remote-stream-volumes="remoteStreamVolumes"
           @leave-room="handleLeaveRoom"
           @volume-change="handleVolumeChange"
+          @nickname-change="handleNicknameChange"
         />
       </main>
 
@@ -53,6 +54,7 @@
         :initial-volumes="remoteStreamVolumes"
         @close-mobile-sidebar="mobileUserSidebarOpen = false"
         @volume-change="handleVolumeChange"
+        @nickname-change="handleNicknameChange"
       />
     </div>
 
@@ -158,6 +160,23 @@ const updateRoomUserStatus = (userId: string, status: { isSpeaking?: boolean; is
         if (status.isSpeaking !== undefined) updatedUser.isSpeaking = status.isSpeaking
         if (status.isMuted !== undefined) updatedUser.isMuted = status.isMuted
         if (status.isDeafened !== undefined) updatedUser.isDeafened = status.isDeafened
+        
+        // Replace the user in the array to trigger Vue reactivity
+        rooms.value[roomIndex].users[userIndex] = updatedUser
+      }
+    }
+  })
+}
+
+const updateRoomNickname = (userId: string, nickname: string) => {
+  rooms.value.forEach((room, roomIndex) => {
+    if (room.users) {
+      const userIndex = room.users.findIndex(u => u.id === userId)
+      if (userIndex !== -1) {
+        const user = room.users[userIndex]
+        
+        // Create new user object with updated nickname to trigger Vue reactivity
+        const updatedUser = { ...user, nickname }
         
         // Replace the user in the array to trigger Vue reactivity
         rooms.value[roomIndex].users[userIndex] = updatedUser
@@ -307,6 +326,18 @@ const handleVolumeChange = (userId: string, volume: number) => {
   remoteStreamVolumes.value.set(userId, volume)
 }
 
+const handleNicknameChange = (userId: string, nickname: string) => {
+  console.log(`👤 Nickname changed for user ${userId}: ${nickname}`)
+  
+  // Send nickname change via WebSocket
+  wsService.changeNickname(userId, nickname)
+  
+  // Update current user reference if it's the current user
+  if (currentUser.value && currentUser.value.id === userId) {
+    currentUser.value.nickname = nickname
+  }
+}
+
 const setupWebSocketListeners = () => {
   // Listen for room users updates (handles both join and leave events)
   wsService.on('room_users', (message: WebSocketMessage) => {
@@ -351,6 +382,17 @@ const setupWebSocketListeners = () => {
     }
     // Update room list preview to reflect status changes
     updateRoomUserStatus(statusData.user_id, { isDeafened: statusData.is_deafened })
+  })
+
+  // Listen for nickname change updates
+  wsService.on('nickname_change', (message: WebSocketMessage) => {
+    const nicknameData = message.data as { user_id: string; nickname: string }
+    const user = currentRoomUsers.value.find(u => u.id === nicknameData.user_id)
+    if (user) {
+      user.nickname = nicknameData.nickname
+    }
+    // Update room list preview to reflect nickname changes
+    updateRoomNickname(nicknameData.user_id, nicknameData.nickname)
   })
 
   // Listen for connection/disconnection
@@ -399,6 +441,12 @@ const setupGlobalWebSocketListeners = () => {
   wsService.onGlobal('deafen_status', (message: WebSocketMessage) => {
     const statusData = message.data as { user_id: string; is_deafened: boolean }
     updateRoomUserStatus(statusData.user_id, { isDeafened: statusData.is_deafened })
+  })
+
+  // Listen for global nickname change updates
+  wsService.onGlobal('nickname_change', (message: WebSocketMessage) => {
+    const nicknameData = message.data as { user_id: string; nickname: string }
+    updateRoomNickname(nicknameData.user_id, nicknameData.nickname)
   })
 
   // Listen for room user joined events
