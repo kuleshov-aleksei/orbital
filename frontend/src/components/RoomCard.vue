@@ -39,9 +39,9 @@
           class="flex items-center text-xs"
         >
           <div class="mr-2 flex items-center">
-            <PhMicrophone class="text-green-500 w-4 h-4" v-if="!user.isMuted && !user.isDeafened"/>
-            <PhMicrophoneSlash class="text-red-500 w-4 h-4" v-if="user.isMuted"/>
-            <PhHeadphones class="text-red-500 w-4 h-4" v-if="user.isDeafened"/>
+            <PhMicrophone v-if="!user.isMuted && !user.isDeafened" class="text-green-500 w-4 h-4"/>
+            <PhMicrophoneSlash v-if="user.isMuted" class="text-red-500 w-4 h-4"/>
+            <PhHeadphones v-if="user.isDeafened" class="text-red-500 w-4 h-4"/>
           </div>
           <span>{{ user.nickname }}</span>
           <span v-if="user.role === 'owner'" class="ml-1 opacity-60">(owner)</span>
