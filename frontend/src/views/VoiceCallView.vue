@@ -48,6 +48,7 @@
               :stream="remoteStreams.get(user.id)"
               :connection-state="peerConnectionStates.get(user.id)"
               :initial-volume="remoteStreamVolumes.get(user.id) || 80"
+              :is-deafened="isDeafened"
               @volume-change="handleVolumeChange"
               @mute-toggle="handleMuteToggle"
               @audio-level="handleAudioLevel"
@@ -674,6 +675,16 @@ const toggleMute = () => {
 const toggleDeafen = () => {
   isDeafened.value = !isDeafened.value
   console.log('Deafen status:', isDeafened.value)
+  
+  // Mute/unmute all incoming audio streams when deafened
+  currentRoomUsers.value.forEach((user, userId) => {
+    if (userId !== getCurrentUserId()) {
+      const audioElement = document.getElementById(`audio-${userId}`) as HTMLAudioElement
+      if (audioElement) {
+        audioElement.muted = isDeafened.value
+      }
+    }
+  })
 }
 
 const toggleScreenShare = () => {

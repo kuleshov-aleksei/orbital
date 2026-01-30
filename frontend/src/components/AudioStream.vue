@@ -105,18 +105,20 @@
    PhSpeakerHigh 
  } from '@phosphor-icons/vue'
 
- interface Props {
-   userId: string
-   userNickname: string
-   stream: MediaStream | null
-   connectionState?: string
-   initialVolume?: number
- }
+  interface Props {
+    userId: string
+    userNickname: string
+    stream: MediaStream | null
+    connectionState?: string
+    initialVolume?: number
+    isDeafened?: boolean
+  }
 
- const props = withDefaults(defineProps<Props>(), {
-   connectionState: 'disconnected',
-   initialVolume: 80
- })
+  const props = withDefaults(defineProps<Props>(), {
+    connectionState: 'disconnected',
+    initialVolume: 80,
+    isDeafened: false
+  })
 
 const emit = defineEmits<{
   'volume-change': [userId: string, volume: number]
@@ -216,17 +218,28 @@ const emit = defineEmits<{
     }
   }, { immediate: true })
 
- // Watch for volume changes
- watch(volume, updateVolume)
+  // Watch for volume changes
+  watch(volume, updateVolume)
 
- // Lifecycle hooks
- onMounted(() => {
-   nextTick(() => {
-     if (audioElement.value) {
-       updateVolume()
-     }
-   })
- })
+  // Watch for deafen state changes
+  watch(() => props.isDeafened, (newDeafened) => {
+    if (audioElement.value) {
+      audioElement.value.muted = newDeafened
+    }
+  })
+
+  // Lifecycle hooks
+  onMounted(() => {
+    nextTick(() => {
+      if (audioElement.value) {
+        updateVolume()
+        // Apply initial deafen state
+        if (props.isDeafened) {
+          audioElement.value.muted = true
+        }
+      }
+    })
+  })
 
  onUnmounted(() => {
    if (animationId.value) {
