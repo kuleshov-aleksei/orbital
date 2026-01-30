@@ -1,5 +1,9 @@
 <template>
-  <div class="user-card flex items-center px-3 py-2 rounded-lg hover:bg-gray-700 transition-colors duration-200 cursor-pointer group" :data-testid="`user-card-${user.id}`">
+  <div 
+    class="user-card flex items-center px-3 py-2 rounded-lg hover:bg-gray-700 transition-colors duration-200 cursor-pointer group relative" 
+    :data-testid="`user-card-${user.id}`"
+    @contextmenu="showContextMenu"
+  >
     <!-- User Avatar -->
     <div class="relative mr-3">
       <div class="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-sm font-medium">
@@ -44,10 +48,49 @@
         <PhMicrophoneSlash class="w-3 h-3" />
       </div>
     </div>
+
+    <!-- Context Menu -->
+    <div 
+      v-if="showMenu"
+      class="fixed bg-gray-800 border border-gray-600 rounded-lg shadow-lg z-[9999] py-2 min-w-48"
+      :style="getMenuPosition()"
+      @click.stop
+    >
+      <div class="px-3 py-2 text-sm text-gray-300 border-b border-gray-600">
+        {{ user.nickname }}
+      </div>
+      
+      <!-- Volume Control -->
+      <div class="px-3 py-2">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm text-gray-300">Volume</span>
+          <span class="text-xs text-gray-400">{{ Math.round(volume) }}%</span>
+        </div>
+        <div class="flex items-center space-x-2">
+          <PhSpeakerHigh class="w-4 h-4 text-gray-400" />
+          <input
+            v-model="volume"
+            type="range"
+            min="0"
+            max="100"
+            class="flex-1 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer"
+            @input="handleVolumeChange"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Click outside to close menu -->
+    <div 
+      v-if="showMenu"
+      class="fixed inset-0 z-40"
+      @click="hideContextMenu"
+    ></div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref, onMounted, onUnmounted } from 'vue'
 import { PhMicrophoneSlash, PhSpeakerHigh } from '@phosphor-icons/vue'
 
 interface User {
@@ -61,13 +104,97 @@ interface User {
 
 interface Props {
   user: User
+  initialVolume?: number
 }
 
-defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  initialVolume: 80
+})
+
+const emit = defineEmits<{
+  'volume-change': [userId: string, volume: number]
+}>()
+
+const showMenu = ref(false)
+const volume = ref(props.initialVolume)
+let menuPosition = { x: 0, y: 0 }
 
 const statusColors = {
   online: 'bg-green-400',
   away: 'bg-yellow-400',
   dnd: 'bg-red-400'
 }
+
+const showContextMenu = (event: MouseEvent) => {
+  event.preventDefault()
+  event.stopPropagation()
+  
+  // Store mouse position for fixed positioning
+  menuPosition.x = event.clientX
+  menuPosition.y = event.clientY
+  
+  showMenu.value = true
+}
+
+const getMenuPosition = () => {
+  return {
+    left: `${menuPosition.x}px`,
+    top: `${menuPosition.y}px`,
+    transform: 'translate(0, -100%)' // Position above mouse
+  }
+}
+
+const hideContextMenu = () => {
+  showMenu.value = false
+}
+
+const handleVolumeChange = () => {
+  emit('volume-change', props.user.id, volume.value)
+}
+
+// Close menu on escape key or document click
+const handleKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Escape') {
+    hideContextMenu()
+  }
+}
+
+const handleDocumentClick = (event: MouseEvent) => {
+  if (showMenu.value) {
+    hideContextMenu()
+  }
+}
+
+
+
+onMounted(() => {
+  document.addEventListener('keydown', handleKeydown)
+  document.addEventListener('click', handleDocumentClick)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeydown)
+  document.removeEventListener('click', handleDocumentClick)
+})
 </script>
+
+<style scoped>
+.user-card input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  background: #10b981;
+  cursor: pointer;
+  border-radius: 50%;
+}
+
+.user-card input[type="range"]::-moz-range-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  background: #10b981;
+  cursor: pointer;
+  border-radius: 50%;
+  border: none;
+}
+</style>

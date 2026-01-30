@@ -38,7 +38,9 @@
           :room-id="activeRoomId"
           :room-name="getRoomName(activeRoomId)"
           :users="currentRoomUsers"
+          :remote-stream-volumes="remoteStreamVolumes"
           @leave-room="handleLeaveRoom"
+          @volume-change="handleVolumeChange"
         />
       </main>
 
@@ -48,7 +50,9 @@
         :class="{ 'hidden lg:flex': !mobileUserSidebarOpen, 'flex': mobileUserSidebarOpen }"
         :users="currentRoomUsers"
         :user-count="currentRoomUsers.length"
+        :initial-volumes="remoteStreamVolumes"
         @close-mobile-sidebar="mobileUserSidebarOpen = false"
+        @volume-change="handleVolumeChange"
       />
     </div>
 
@@ -121,6 +125,7 @@ const currentUser = ref<{ id: string; nickname: string } | null>(null)
 // Real data from backend
 const rooms = ref<Room[]>([])
 const currentRoomUsers = ref<User[]>([])
+const remoteStreamVolumes = ref<Map<string, number>>(new Map())
 const isLoading = ref(false)
 const errorMessage = ref('')
 
@@ -295,6 +300,11 @@ const toggleMobileSidebar = () => {
 const toggleMobileUserSidebar = () => {
   mobileUserSidebarOpen.value = !mobileUserSidebarOpen.value
   mobileSidebarOpen.value = false
+}
+
+const handleVolumeChange = (userId: string, volume: number) => {
+  console.log(`🔊 Volume changed for user ${userId}: ${volume}`)
+  remoteStreamVolumes.value.set(userId, volume)
 }
 
 const setupWebSocketListeners = () => {

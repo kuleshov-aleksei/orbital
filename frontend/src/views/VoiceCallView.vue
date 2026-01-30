@@ -47,7 +47,7 @@
               :user-nickname="user.nickname"
               :stream="remoteStreams.get(user.id)"
               :connection-state="peerConnectionStates.get(user.id)"
-              :initial-volume="remoteStreamVolumes.get(user.id) || 80"
+              :initial-volume="props.remoteStreamVolumes.get(user.id) || 80"
               :is-deafened="isDeafened"
               @volume-change="handleVolumeChange"
               @mute-toggle="handleMuteToggle"
@@ -110,21 +110,22 @@ interface Props {
   roomId: string
   roomName: string
   users: User[]
+  remoteStreamVolumes: Map<string, number>
 }
 
 const props = defineProps<Props>()
-defineEmits<{
+
+const emit = defineEmits<{
   'leave-room': []
+  'volume-change': [userId: string, volume: number]
 }>()
 
-// Local state
+// Reactive state
+const localStream = ref<MediaStream | null>(null)
+const remoteStreams = ref<Map<string, MediaStream>>(new Map())
 const peerConnections = ref<Map<string, RTCPeerConnection>>(new Map())
 const peerConnectionStates = ref<Map<string, string>>(new Map())
-const peerConnectionRetries = ref<Map<string, number>>(new Map())
-const remoteStreams = ref<Map<string, MediaStream>>(new Map())
-const remoteStreamVolumes = ref<Map<string, number>>(new Map())
-  const remoteStreamMutes = ref<Map<string, boolean>>(new Map())
-  const localStream = ref<MediaStream | null>(null)
+const remoteStreamMutes = ref<Map<string, boolean>>(new Map())
   // Used to avoid getUserMedia races during offer/answer handling
   let localStreamPromise: Promise<MediaStream | null> | null = null
   const isMuted = ref(false)
@@ -529,10 +530,10 @@ const initializeWebRTC = async () => {
      // Store the remote stream
      remoteStreams.value.set(userId, stream)
      
-     // Initialize volume and mute state if not already set
-     if (!remoteStreamVolumes.value.has(userId)) {
-       remoteStreamVolumes.value.set(userId, 80) // Default volume
-     }
+      // Initialize volume and mute state if not already set
+      if (!props.remoteStreamVolumes.has(userId)) {
+        emit('volume-change', userId, 80) // Default volume
+      }
      
      if (!remoteStreamMutes.value.has(userId)) {
        remoteStreamMutes.value.set(userId, false) // Default unmuted
@@ -604,7 +605,6 @@ const initializeWebRTC = async () => {
      
      // Clean up remote stream data
      remoteStreams.value.delete(userId)
-     remoteStreamVolumes.value.delete(userId)
      remoteStreamMutes.value.delete(userId)
      
      // Remove from connection states and room users
@@ -620,7 +620,7 @@ const initializeWebRTC = async () => {
 
  const handleVolumeChange = (userId: string, volume: number) => {
    console.log(`🔊 Volume changed for user ${userId}: ${volume}`)
-   remoteStreamVolumes.value.set(userId, volume)
+   emit('volume-change', userId, volume)
  }
 
 const handleMuteToggle = (userId: string, isMuted: boolean) => {
@@ -710,23 +710,23 @@ const addDebugLog = (message: string, level: 'info' | 'warning' | 'error' = 'inf
 
 
 // WebSocket handlers must be stable references so we can unregister them.
-const onIceCandidateMessage = (message: any) => {
+const onIceCandidateMessage = (message: WebSocketMessage) => {
   console.log('📨 Received ice_candidate message:', message)
   handleIceCandidate(message.data)
 }
-const onSdpOfferMessage = (message: any) => {
+const onSdpOfferMessage = (message: WebSocketMessage) => {
   console.log('📨 Received sdp_offer message:', message)
   addDebugLog('WebSocket received sdp_offer', 'info')
   handleSdpOffer(message.data)
 }
-const onSdpAnswerMessage = (message: any) => handleSdpAnswer(message.data)
-const onRoomUsersMessage = (message: any) => {
+const onSdpAnswerMessage = (message: WebSocketMessage) => handleSdpAnswer(message.data)
+const onRoomUsersMessage = (message: WebSocketMessage) => {
   console.log('📨 Received room_users message:', message)
   handleRoomUsers(message.data)
 }
-const onUserLeftMessage = (message: any) => handleUserLeft(message.data)
-const onSpeakingStatusMessage = (_message: any) => {
-  // Handle speaking status updates if needed
+const onUserLeftMessage = (message: WebSocketMessage) => handleUserLeft(message.data)
+const onSpeakingStatusMessage = () => {
+  // TODO: Handle speaking status updates if needed
 }
 
 // Lifecycle hooks

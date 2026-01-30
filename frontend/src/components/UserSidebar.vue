@@ -32,6 +32,8 @@ class="user-sidebar w-60 lg:w-60 bg-gray-800 flex flex-col fixed lg:relative ins
         v-for="user in users"
         :key="user.id"
         :user="user"
+        :initial-volume="getInitialVolume(user.id)"
+        @volume-change="handleVolumeChange"
       />
     </div>
 
@@ -74,14 +76,27 @@ interface User {
 interface Props {
   users: User[]
   userCount: number
+  initialVolumes?: Map<string, number>
 }
 
-const props = defineProps<Props>()
-defineEmits<{
+const props = withDefaults(defineProps<Props>(), {
+  initialVolumes: () => new Map()
+})
+
+const emit = defineEmits<{
   'close-mobile-sidebar': []
+  'volume-change': [userId: string, volume: number]
 }>()
 
 const isHidden = computed(() => {
   return props.userCount === 0
 })
+
+const getInitialVolume = (userId: string) => {
+  return props.initialVolumes.get(userId) || 80
+}
+
+const handleVolumeChange = (userId: string, volume: number) => {
+  emit('volume-change', userId, volume)
+}
 </script>

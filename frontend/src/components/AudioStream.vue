@@ -1,5 +1,8 @@
 <template>
-  <div class="audio-stream relative bg-gray-800 rounded-lg p-3 border border-gray-600">
+  <div 
+    class="audio-stream relative bg-gray-800 rounded-lg p-3 border border-gray-600"
+    @contextmenu="showContextMenu"
+  >
     <!-- User Info Header -->
     <div class="flex items-center justify-between mb-3">
       <div class="flex items-center">
@@ -31,27 +34,7 @@
           <PhMicrophone v-else class="w-4 h-4 text-white" />
         </button>
         
-        <!-- Volume Control -->
-        <div class="flex items-center">
-          <PhSpeakerHigh class="w-4 h-4 text-gray-400 mr-2" />
-          <div class="relative">
-            <input
-              v-model="volume"
-              type="range"
-              min="0"
-              max="100"
-              class="w-20 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer"
-              title="Volume control"
-              @input="updateVolume"
-            />
-            <div 
-              class="absolute top-0 left-0 text-xs text-gray-400"
-              style="margin-top: -20px;"
-            >
-              {{ Math.round(volume) }}%
-            </div>
-          </div>
-        </div>
+
       </div>
     </div>
 
@@ -94,6 +77,44 @@
     >
       <PhMicrophoneSlash class="w-3 h-3 text-white" />
     </div>
+
+    <!-- Context Menu -->
+    <div 
+      v-if="showMenu"
+      class="fixed bg-gray-800 border border-gray-600 rounded-lg shadow-lg z-[9999] py-2 min-w-48"
+      :style="getMenuPosition()"
+      @click.stop
+    >
+      <div class="px-3 py-2 text-sm text-gray-300 border-b border-gray-600">
+        {{ userNickname }}
+      </div>
+      
+      <!-- Volume Control -->
+      <div class="px-3 py-2">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm text-gray-300">Volume</span>
+          <span class="text-xs text-gray-400">{{ Math.round(volume) }}%</span>
+        </div>
+        <div class="flex items-center space-x-2">
+          <PhSpeakerHigh class="w-4 h-4 text-gray-400" />
+          <input
+            v-model="volume"
+            type="range"
+            min="0"
+            max="100"
+            class="flex-1 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer"
+            @input="updateVolume"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Click outside to close menu -->
+    <div 
+      v-if="showMenu"
+      class="fixed inset-0 z-40"
+      @click="hideContextMenu"
+    ></div>
   </div>
 </template>
 
@@ -101,8 +122,8 @@
  import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
  import { 
    PhMicrophone, 
-   PhMicrophoneSlash, 
-   PhSpeakerHigh 
+   PhMicrophoneSlash,
+   PhSpeakerHigh
  } from '@phosphor-icons/vue'
 
   interface Props {
@@ -134,6 +155,8 @@ const emit = defineEmits<{
  const audioContext = ref<AudioContext | null>(null)
  const analyser = ref<AnalyserNode | null>(null)
  const animationId = ref<number | null>(null)
+ const showMenu = ref(false)
+ let menuPosition = { x: 0, y: 0 }
 
  // Computed properties
  const isSpeaking = computed(() => audioLevel.value > 0.1) // Threshold for speaking detection
@@ -144,6 +167,30 @@ const emit = defineEmits<{
      audioElement.value.volume = volume.value / 100
    }
    emit('volume-change', props.userId, volume.value)
+ }
+
+ // Context menu functions
+ const showContextMenu = (event: MouseEvent) => {
+   event.preventDefault()
+   event.stopPropagation()
+   
+   // Store mouse position for fixed positioning
+   menuPosition.x = event.clientX
+   menuPosition.y = event.clientY
+   
+   showMenu.value = true
+ }
+
+ const hideContextMenu = () => {
+   showMenu.value = false
+ }
+
+ const getMenuPosition = () => {
+   return {
+     left: `${menuPosition.x}px`,
+     top: `${menuPosition.y}px`,
+     transform: 'translate(0, -100%)' // Position above mouse
+   }
  }
 
  // Toggle mute state
@@ -228,28 +275,49 @@ const emit = defineEmits<{
     }
   })
 
-  // Lifecycle hooks
-  onMounted(() => {
-    nextTick(() => {
-      if (audioElement.value) {
-        updateVolume()
-        // Apply initial deafen state
-        if (props.isDeafened) {
-          audioElement.value.muted = true
-        }
-      }
-    })
-  })
+   // Close menu on escape key or document click
+   const handleKeydown = (event: KeyboardEvent) => {
+     if (event.key === 'Escape') {
+       hideContextMenu()
+     }
+   }
 
- onUnmounted(() => {
-   if (animationId.value) {
-     cancelAnimationFrame(animationId.value)
+   const handleDocumentClick = (event: MouseEvent) => {
+     if (showMenu.value) {
+       hideContextMenu()
+     }
    }
-   
-   if (audioContext.value) {
-     audioContext.value.close()
-   }
- })
+
+   // Lifecycle hooks
+   onMounted(() => {
+     nextTick(() => {
+       if (audioElement.value) {
+         updateVolume()
+         // Apply initial deafen state
+         if (props.isDeafened) {
+           audioElement.value.muted = true
+         }
+       }
+     })
+
+     // Add document event listeners for context menu
+     document.addEventListener('keydown', handleKeydown)
+     document.addEventListener('click', handleDocumentClick)
+   })
+
+  onUnmounted(() => {
+    if (animationId.value) {
+      cancelAnimationFrame(animationId.value)
+    }
+    
+    if (audioContext.value) {
+      audioContext.value.close()
+    }
+
+    // Clean up document event listeners
+    document.removeEventListener('keydown', handleKeydown)
+    document.removeEventListener('click', handleDocumentClick)
+  })
 </script>
 
 <style scoped>
