@@ -99,6 +99,9 @@ func (h *Hub) BroadcastToRoom(roomID string, message interface{}) {
 		}
 
 		for client := range clients {
+			if client == nil {
+				continue
+			}
 			select {
 			case client.send <- data:
 			default:
@@ -130,6 +133,32 @@ func (h *Hub) BroadcastToAll(message interface{}) {
 			// Remove from room clients if present
 			if h.roomClients[client.roomID] != nil {
 				delete(h.roomClients[client.roomID], client)
+			}
+		}
+	}
+}
+
+// BroadcastToRoomExcluding sends a message to all clients in a room except the specified client
+func (h *Hub) BroadcastToRoomExcluding(roomID string, excludeClient *Client, message interface{}) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	if clients, exists := h.roomClients[roomID]; exists {
+		data, err := json.Marshal(message)
+		if err != nil {
+			log.Printf("Error marshaling message: %v", err)
+			return
+		}
+
+		for client := range clients {
+			if client != excludeClient {
+				select {
+				case client.send <- data:
+				default:
+					close(client.send)
+					delete(h.clients, client)
+					delete(h.roomClients[roomID], client)
+				}
 			}
 		}
 	}
@@ -227,6 +256,10 @@ func (c *Client) handleMessage(message models.WebSocketMessage) {
 		c.handleSDPAnswer(message.Data)
 	case "speaking_status":
 		c.handleSpeakingStatus(message.Data)
+	case "mute_status":
+		c.handleMuteStatus(message.Data)
+	case "deafen_status":
+		c.handleDeafenStatus(message.Data)
 	case "room_created":
 		// This is a broadcast message, no action needed on receive
 		log.Printf("Received room_created broadcast")
@@ -367,7 +400,7 @@ func (c *Client) handleSpeakingStatus(data interface{}) {
 
 	c.hub.roomService.UpdateUserSpeakingStatus(c.roomID, c.userID, statusData.IsSpeaking)
 
-	// Broadcast speaking status to other users
+	// Broadcast speaking status to other users in room
 	statusMessage := models.WebSocketMessage{
 		Type: "speaking_status",
 		Data: map[string]interface{}{
@@ -376,7 +409,58 @@ func (c *Client) handleSpeakingStatus(data interface{}) {
 			"is_muted":    statusData.IsMuted,
 		},
 	}
-	c.hub.BroadcastToRoom(c.roomID, statusMessage)
+	c.hub.BroadcastToRoomExcluding(c.roomID, c, statusMessage)
+
+	// Also broadcast globally so users outside room can see status in room list
+	c.hub.BroadcastToAll(statusMessage)
+}
+
+// handleMuteStatus handles user mute status updates
+func (c *Client) handleMuteStatus(data interface{}) {
+	var statusData struct {
+		IsMuted bool `json:"is_muted"`
+	}
+	jsonData, _ := json.Marshal(data)
+	json.Unmarshal(jsonData, &statusData)
+
+	c.hub.roomService.UpdateUserMuteStatus(c.roomID, c.userID, statusData.IsMuted)
+
+	// Broadcast mute status to other users in room (excluding sender)
+	statusMessage := models.WebSocketMessage{
+		Type: "mute_status",
+		Data: map[string]interface{}{
+			"user_id":  c.userID,
+			"is_muted": statusData.IsMuted,
+		},
+	}
+	c.hub.BroadcastToRoomExcluding(c.roomID, c, statusMessage)
+
+	// Also broadcast globally so users outside room can see status in room list
+	c.hub.BroadcastToAll(statusMessage)
+}
+
+// handleDeafenStatus handles user deafen status updates
+func (c *Client) handleDeafenStatus(data interface{}) {
+	var statusData struct {
+		IsDeafened bool `json:"is_deafened"`
+	}
+	jsonData, _ := json.Marshal(data)
+	json.Unmarshal(jsonData, &statusData)
+
+	c.hub.roomService.UpdateUserDeafenStatus(c.roomID, c.userID, statusData.IsDeafened)
+
+	// Broadcast deafen status to other users in room (excluding sender)
+	statusMessage := models.WebSocketMessage{
+		Type: "deafen_status",
+		Data: map[string]interface{}{
+			"user_id":     c.userID,
+			"is_deafened": statusData.IsDeafened,
+		},
+	}
+	c.hub.BroadcastToRoomExcluding(c.roomID, c, statusMessage)
+
+	// Also broadcast globally so users outside room can see status in room list
+	c.hub.BroadcastToAll(statusMessage)
 }
 
 // Helper function to marshal messages

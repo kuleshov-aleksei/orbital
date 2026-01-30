@@ -141,6 +141,26 @@ const getRoomName = (roomId: string): string => {
   return room?.name || 'Voice Room'
 }
 
+const updateRoomUserStatus = (userId: string, status: { isSpeaking?: boolean; isMuted?: boolean; isDeafened?: boolean }) => {
+  rooms.value.forEach((room, roomIndex) => {
+    if (room.users) {
+      const userIndex = room.users.findIndex(u => u.id === userId)
+      if (userIndex !== -1) {
+        const user = room.users[userIndex]
+        
+        // Create new user object with updated status to trigger Vue reactivity
+        const updatedUser = { ...user }
+        if (status.isSpeaking !== undefined) updatedUser.isSpeaking = status.isSpeaking
+        if (status.isMuted !== undefined) updatedUser.isMuted = status.isMuted
+        if (status.isDeafened !== undefined) updatedUser.isDeafened = status.isDeafened
+        
+        // Replace the user in the array to trigger Vue reactivity
+        rooms.value[roomIndex].users[userIndex] = updatedUser
+      }
+    }
+  })
+}
+
 // Lifecycle hooks
 onMounted(async () => {
   await loadRooms()
@@ -294,6 +314,33 @@ const setupWebSocketListeners = () => {
         user.isMuted = statusData.is_muted
       }
     }
+    // Update room list preview to reflect status changes
+    updateRoomUserStatus(statusData.user_id, {
+      isSpeaking: statusData.is_speaking,
+      isMuted: statusData.is_muted
+    })
+  })
+
+  // Listen for mute status updates
+  wsService.on('mute_status', (message: WebSocketMessage) => {
+    const statusData = message.data as { user_id: string; is_muted: boolean }
+    const user = currentRoomUsers.value.find(u => u.id === statusData.user_id)
+    if (user) {
+      user.isMuted = statusData.is_muted
+    }
+    // Update room list preview to reflect status changes
+    updateRoomUserStatus(statusData.user_id, { isMuted: statusData.is_muted })
+  })
+
+  // Listen for deafen status updates
+  wsService.on('deafen_status', (message: WebSocketMessage) => {
+    const statusData = message.data as { user_id: string; is_deafened: boolean }
+    const user = currentRoomUsers.value.find(u => u.id === statusData.user_id)
+    if (user) {
+      user.isDeafened = statusData.is_deafened
+    }
+    // Update room list preview to reflect status changes
+    updateRoomUserStatus(statusData.user_id, { isDeafened: statusData.is_deafened })
   })
 
   // Listen for connection/disconnection
@@ -323,6 +370,25 @@ const setupGlobalWebSocketListeners = () => {
       rooms.value.unshift(newRoom)
       console.log('Added new room to list:', newRoom.name)
     }
+  })
+
+  // Listen for global status updates (for room list sidebar)
+  wsService.onGlobal('speaking_status', (message: WebSocketMessage) => {
+    const statusData = message.data as { user_id: string; is_speaking: boolean; is_muted?: boolean }
+    updateRoomUserStatus(statusData.user_id, {
+      isSpeaking: statusData.is_speaking,
+      isMuted: statusData.is_muted
+    })
+  })
+
+  wsService.onGlobal('mute_status', (message: WebSocketMessage) => {
+    const statusData = message.data as { user_id: string; is_muted: boolean }
+    updateRoomUserStatus(statusData.user_id, { isMuted: statusData.is_muted })
+  })
+
+  wsService.onGlobal('deafen_status', (message: WebSocketMessage) => {
+    const statusData = message.data as { user_id: string; is_deafened: boolean }
+    updateRoomUserStatus(statusData.user_id, { isDeafened: statusData.is_deafened })
   })
 
   // Listen for room user joined events

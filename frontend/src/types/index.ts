@@ -13,6 +13,9 @@ export interface RoomPreviewUser {
   id: string
   nickname: string
   role: string
+  isMuted: boolean
+  isDeafened: boolean
+  isSpeaking: boolean
 }
 
 // User interface
@@ -35,7 +38,7 @@ export interface RoomUser extends User {
 
 // WebSocket message types
 export interface WebSocketMessage {
-  type: 'join_room' | 'leave_room' | 'ice_candidate' | 'sdp_offer' | 'sdp_answer' | 'speaking_status' | 'screen_share_start' | 'screen_share_stop'
+  type: 'join_room' | 'leave_room' | 'ice_candidate' | 'sdp_offer' | 'sdp_answer' | 'speaking_status' | 'mute_status' | 'deafen_status' | 'screen_share_start' | 'screen_share_stop'
   data: unknown
 }
 

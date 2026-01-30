@@ -106,8 +106,14 @@ const showSettings = ref(false)
 const toggleMute = () => {
   emit('toggle-mute')
   
-  // Notify WebSocket of speaking status change
+  // Notify WebSocket of mute status change
   const userId = getCurrentUserId()
+  wsService.sendMessage('mute_status', {
+    user_id: userId,
+    is_muted: !props.isMuted
+  })
+  
+  // Also update speaking status
   wsService.sendMessage('speaking_status', {
     user_id: userId,
     is_speaking: false,
@@ -117,6 +123,14 @@ const toggleMute = () => {
 
 const toggleDeafen = () => {
   emit('toggle-deafen')
+  
+  // Notify WebSocket of deafen status change
+  const userId = getCurrentUserId()
+  wsService.sendMessage('deafen_status', {
+    user_id: userId,
+    is_deafened: !props.isDeafened
+  })
+  
   console.log('Deafen status:', !props.isDeafened)
 }
 

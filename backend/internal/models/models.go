@@ -99,7 +99,10 @@ type RoomPreview struct {
 
 // RoomPreviewUser represents limited user information for room preview
 type RoomPreviewUser struct {
-	ID       string `json:"id"`
-	Nickname string `json:"nickname"`
-	Role     string `json:"role"`
+	ID         string `json:"id"`
+	Nickname   string `json:"nickname"`
+	Role       string `json:"role"`
+	IsMuted    bool   `json:"is_muted"`
+	IsDeafened bool   `json:"is_deafened"`
+	IsSpeaking bool   `json:"is_speaking"`
 }

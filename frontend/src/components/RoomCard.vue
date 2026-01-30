@@ -38,7 +38,11 @@
           :key="user.id"
           class="flex items-center text-xs"
         >
-          <div class="w-2 h-2 rounded-full mr-2" :class="getUserRoleColor(user.role)"></div>
+          <div class="mr-2 flex items-center">
+            <PhMicrophone class="text-green-500 w-4 h-4" v-if="!user.isMuted && !user.isDeafened"/>
+            <PhMicrophoneSlash class="text-red-500 w-4 h-4" v-if="user.isMuted"/>
+            <PhHeadphones class="text-red-500 w-4 h-4" v-if="user.isDeafened"/>
+          </div>
           <span>{{ user.nickname }}</span>
           <span v-if="user.role === 'owner'" class="ml-1 opacity-60">(owner)</span>
         </div>
@@ -48,13 +52,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { PhWaveform } from '@phosphor-icons/vue'
+
+import { PhWaveform, PhMicrophone, PhHeadphones, PhMicrophoneSlash } from '@phosphor-icons/vue'
 
 interface RoomPreviewUser {
   id: string
   nickname: string
   role: string
+  isMuted: boolean
+  isDeafened: boolean
+  isSpeaking: boolean
 }
 
 interface Room {
@@ -71,21 +78,11 @@ interface Props {
   isActive: boolean
 }
 
-const showPreview = ref(false)
+
 
 defineProps<Props>()
 defineEmits<{
   click: []
 }>()
 
-const getUserRoleColor = (role: string) => {
-  switch (role) {
-    case 'owner':
-      return 'bg-yellow-400'
-    case 'admin':
-      return 'bg-purple-400'
-    default:
-      return 'bg-green-400'
-  }
-}
 </script>

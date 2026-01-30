@@ -98,16 +98,20 @@ func (rs *RoomService) GetRoomsWithPreview() []models.RoomPreview {
 
 // getRoomPreviewUsers returns limited user information for room preview
 func (rs *RoomService) getRoomPreviewUsers(roomID string) []models.RoomPreviewUser {
-	var users []models.RoomPreviewUser
+	users := make([]models.RoomPreviewUser, 0)
 
 	if members, exists := rs.members[roomID]; exists {
 		for userID, member := range members {
 			if user, exists := rs.users[userID]; exists {
 				previewUser := models.RoomPreviewUser{
-					ID:       user.ID,
-					Nickname: user.Nickname,
-					Role:     member.Role,
+					ID:         user.ID,
+					Nickname:   user.Nickname,
+					Role:       member.Role,
+					IsMuted:    member.IsMuted,
+					IsDeafened: member.IsDeafened,
+					IsSpeaking: member.IsSpeaking,
 				}
+
 				users = append(users, previewUser)
 			}
 		}
@@ -148,7 +152,7 @@ func (rs *RoomService) JoinRoom(roomID, userID, nickname string) (*models.User, 
 		return nil, nil, &RoomError{Message: "Room is full"}
 	}
 
-	// Create user if not exists
+	// Create user if not exists, or update nickname if different
 	user, userExists := rs.users[userID]
 	if !userExists {
 		user = &models.User{
@@ -159,6 +163,10 @@ func (rs *RoomService) JoinRoom(roomID, userID, nickname string) (*models.User, 
 			LastSeen:  time.Now(),
 		}
 		rs.users[userID] = user
+	} else if user.Nickname != nickname {
+		// Update nickname if it's different
+		user.Nickname = nickname
+		user.LastSeen = time.Now()
 	}
 
 	// Add user to room
@@ -284,6 +292,23 @@ func (rs *RoomService) UpdateUserMuteStatus(roomID, userID string, isMuted bool)
 
 	if user, exists := rs.users[userID]; exists {
 		user.IsMuted = isMuted
+		user.LastSeen = time.Now()
+	}
+}
+
+// UpdateUserDeafenStatus updates user's deafen status
+func (rs *RoomService) UpdateUserDeafenStatus(roomID, userID string, isDeafened bool) {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+
+	if rs.members[roomID] != nil {
+		if member, exists := rs.members[roomID][userID]; exists {
+			member.IsDeafened = isDeafened
+		}
+	}
+
+	if user, exists := rs.users[userID]; exists {
+		user.IsDeafened = isDeafened
 		user.LastSeen = time.Now()
 	}
 }

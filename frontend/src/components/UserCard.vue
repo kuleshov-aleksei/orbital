@@ -17,6 +17,7 @@
       <div class="font-medium text-sm truncate">{{ user.nickname }}</div>
       <div class="text-xs text-gray-400">
         <span v-if="user.isSpeaking" class="text-green-400">Speaking...</span>
+        <span v-else-if="user.isDeafened" class="text-red-400">Deafened</span>
         <span v-else-if="user.isMuted" class="text-red-400">Muted</span>
         <span v-else-if="user.status === 'away'">Away</span>
         <span v-else-if="user.status === 'dnd'">Do Not Disturb</span>

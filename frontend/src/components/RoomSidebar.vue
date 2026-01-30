@@ -73,6 +73,9 @@ interface RoomPreviewUser {
   id: string
   nickname: string
   role: string
+  isMuted: boolean
+  isDeafened: boolean
+  isSpeaking: boolean
 }
 
 interface Room {
