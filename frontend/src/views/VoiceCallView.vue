@@ -122,11 +122,13 @@ const peerConnectionStates = ref<Map<string, string>>(new Map())
 const peerConnectionRetries = ref<Map<string, number>>(new Map())
 const remoteStreams = ref<Map<string, MediaStream>>(new Map())
 const remoteStreamVolumes = ref<Map<string, number>>(new Map())
- const remoteStreamMutes = ref<Map<string, boolean>>(new Map())
- const localStream = ref<MediaStream | null>(null)
- const isMuted = ref(false)
- const isDeafened = ref(false)
- const isScreenSharing = ref(false)
+  const remoteStreamMutes = ref<Map<string, boolean>>(new Map())
+  const localStream = ref<MediaStream | null>(null)
+  // Used to avoid getUserMedia races during offer/answer handling
+  let localStreamPromise: Promise<MediaStream | null> | null = null
+  const isMuted = ref(false)
+  const isDeafened = ref(false)
+  const isScreenSharing = ref(false)
  const currentRoomUsers = ref<Map<string, RoomUser>>(new Map())
  const maxRetries = 3
  const debugDashboardRef = ref()
@@ -146,26 +148,38 @@ const currentRoom = computed(() => {
 
 
 // WebRTC setup
-const initializeWebRTC = async () => {
-  try {
-    // Get user media
-    localStream.value = await navigator.mediaDevices.getUserMedia({ 
-      audio: true, 
-      video: false 
-    })
+const ensureLocalStream = async (): Promise<MediaStream | null> => {
+  if (localStream.value) return localStream.value
 
-    console.log('Local media stream obtained:', localStream.value)
-  } catch (error) {
-    console.error('Failed to get media stream:', error)
+  if (!localStreamPromise) {
+    localStreamPromise = navigator.mediaDevices
+      .getUserMedia({ audio: true, video: false })
+      .then((stream) => {
+        localStream.value = stream
+        console.log('Local media stream obtained:', localStream.value)
+        return stream
+      })
+      .catch((error) => {
+        console.error('Failed to get media stream:', error)
+        return null
+      })
   }
+
+  return await localStreamPromise
+}
+
+const initializeWebRTC = async () => {
+  await ensureLocalStream()
 }
 
   
 
  const handleIceCandidate = async (data: { user_id: string; candidate: RTCIceCandidateInit }) => {
-    try {
-      const { user_id, candidate } = data
-      const peerConnection = peerConnections.value.get(user_id)
+     let peerUserId = 'unknown'
+     try {
+       const { user_id, candidate } = data
+       peerUserId = user_id
+       const peerConnection = peerConnections.value.get(user_id)
       
       if (!peerConnection) {
         console.warn(`⚠️ Received ICE candidate for unknown peer: ${user_id}, queuing candidate`)
@@ -193,26 +207,38 @@ const initializeWebRTC = async () => {
         pendingIceCandidates.value.get(user_id)!.push(candidate)
         addDebugLog(`ICE candidate queued (no remote description) for ${user_id}`, 'info', user_id)
       }
-    } catch (error) {
-      console.error('❌ Error handling ICE candidate:', error, 'Data:', data)
-      updateConnectionState(user_id, 'error')
-    }
-  }
+     } catch (error) {
+       console.error('❌ Error handling ICE candidate:', error, 'Data:', data)
+       updateConnectionState(peerUserId, 'error')
+     }
+   }
 
-  const handleSdpOffer = async (data: { user_id: string; sdp: string }) => {
-     try {
-       addDebugLog('handleSdpOffer called!', 'info')
-       const { user_id, sdp } = data
-       console.log(`📥 Received SDP offer from ${user_id}:`, sdp)
-       // Add to debug logs
-       addDebugLog(`SDP offer received from ${user_id}`, 'info', user_id)
-       updateConnectionState(user_id, 'offer-received')
+  const handleSdpOffer = async (data: { user_id: string; sdp: RTCSessionDescriptionInit }) => {
+      try {
+        addDebugLog('handleSdpOffer called!', 'info')
+        const { user_id, sdp } = data
+        console.log(`📥 Received SDP offer from ${user_id}:`, sdp)
+
+        // Ensure we have local tracks before answering, otherwise the answer becomes recvonly
+        const ensuredStream = await ensureLocalStream()
+        // Add to debug logs
+        addDebugLog(`SDP offer received from ${user_id}`, 'info', user_id)
+        updateConnectionState(user_id, 'offer-received')
      
-      let peerConnection = peerConnections.value.get(user_id)
-      if (!peerConnection) {
-        console.log(`🔗 Creating new peer connection for ${user_id}`)
-        peerConnection = await createPeerConnection(user_id)
-      }
+       let peerConnection = peerConnections.value.get(user_id)
+       if (!peerConnection) {
+         console.log(`🔗 Creating new peer connection for ${user_id}`)
+         peerConnection = await createPeerConnection(user_id)
+       } else if (ensuredStream) {
+         // If the PC existed before mic permission was granted, it may have no sender track.
+         // Attach tracks before creating the answer so SDP is sendrecv.
+         const hasAudioSender = peerConnection.getSenders().some((s) => s.track?.kind === 'audio')
+         if (!hasAudioSender) {
+           ensuredStream.getAudioTracks().forEach((track) => {
+             peerConnection.addTrack(track, ensuredStream)
+           })
+         }
+       }
      
      updateConnectionState(user_id, 'setting-remote-desc')
      await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp))
@@ -220,8 +246,8 @@ const initializeWebRTC = async () => {
      // Process pending ICE candidates after remote description is set
      await processPendingIceCandidates(user_id)
       
-     updateConnectionState(user_id, 'creating-answer')
-     const answer = await peerConnection.createAnswer()
+      updateConnectionState(user_id, 'creating-answer')
+      const answer = await peerConnection.createAnswer()
       
      updateConnectionState(user_id, 'setting-local-desc')
      await peerConnection.setLocalDescription(answer)
@@ -238,14 +264,14 @@ const initializeWebRTC = async () => {
    } catch (error) {
      console.error('❌ Error handling SDP offer:', error, 'Data:', data)
      updateConnectionState(user_id, 'error')
-   }
- }
+    }
+  }
 
-  const handleSdpAnswer = async (data: { user_id: string; sdp: string }) => {
-    try {
-      console.log(`📥 Received SDP answer:`, data)
-      const { user_id, sdp } = data
-      const peerConnection = peerConnections.value.get(user_id)
+  const handleSdpAnswer = async (data: { user_id: string; sdp: RTCSessionDescriptionInit }) => {
+     try {
+       console.log(`📥 Received SDP answer:`, data)
+       const { user_id, sdp } = data
+       const peerConnection = peerConnections.value.get(user_id)
       
       if (!peerConnection) {
         console.warn(`⚠️ Received SDP answer for unknown peer: ${user_id}`)
@@ -265,12 +291,12 @@ const initializeWebRTC = async () => {
       
       console.log(`✅ SDP answer processed for ${user_id}:`, sdp)
       addDebugLog(`SDP answer processed successfully for ${user_id}`, 'info', user_id)
-    } catch (error) {
-      console.error('❌ Error handling SDP answer:', error, 'Data:', data)
-      updateConnectionState(user_id, 'error')
-      addDebugLog(`Error handling SDP answer: ${error.message}`, 'error', userId)
-    }
-  }
+     } catch (error) {
+       console.error('❌ Error handling SDP answer:', error, 'Data:', data)
+       updateConnectionState(data?.user_id || 'unknown', 'error')
+       addDebugLog(`Error handling SDP answer: ${(error as Error).message}`, 'error', data?.user_id)
+     }
+   }
 
   const processPendingIceCandidates = async (userId: string) => {
       const pendingCandidates = pendingIceCandidates.value.get(userId)
@@ -369,12 +395,14 @@ for (const candidate of pendingCandidates) {
    console.log(`🔄 Connection state for ${userId}: ${state}`)
  }
 
-   const createOfferForUser = async (userId: string) => {
-     try {
-       addDebugLog(`Starting createOfferForUser for ${userId}`, 'info', userId)
-       const peerConnection = await createPeerConnection(userId)
-       const offer = await peerConnection.createOffer()
-       await peerConnection.setLocalDescription(offer)
+    const createOfferForUser = async (userId: string) => {
+      try {
+        addDebugLog(`Starting createOfferForUser for ${userId}`, 'info', userId)
+        // Ensure local tracks exist before creating the offer (prevents recvonly/one-way media)
+        await ensureLocalStream()
+        const peerConnection = await createPeerConnection(userId)
+        const offer = await peerConnection.createOffer()
+        await peerConnection.setLocalDescription(offer)
        
        updateConnectionState(userId, 'creating-offer')
        addDebugLog(`Created SDP offer for ${userId}`, 'info', userId)
@@ -395,7 +423,7 @@ for (const candidate of pendingCandidates) {
     }
   }
 
-  const createPeerConnection = async (userId: string): Promise<RTCPeerConnection> => {
+   const createPeerConnection = async (userId: string): Promise<RTCPeerConnection> => {
    const configuration = {
      iceServers: [
        { urls: 'stun:stun.l.google.com:19302' },
@@ -405,12 +433,12 @@ for (const candidate of pendingCandidates) {
 
    const peerConnection = new RTCPeerConnection(configuration)
    
-   // Add local audio tracks to the peer connection
-   if (localStream.value) {
-     localStream.value.getAudioTracks().forEach(track => {
-       peerConnection.addTrack(track, localStream.value!)
-     })
-   }
+    // Add local audio tracks to the peer connection
+    if (localStream.value) {
+      localStream.value.getAudioTracks().forEach(track => {
+        peerConnection.addTrack(track, localStream.value!)
+      })
+    }
    
    // Handle ICE candidates
    peerConnection.onicecandidate = (event) => {
