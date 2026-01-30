@@ -249,9 +249,6 @@ const handleCreateRoom = async (roomName: string) => {
       maxUsers: 10
     })
 
-    // Add to local rooms list for immediate UI update
-    rooms.value.unshift(newRoom)
-
     // Join the newly created room
     await handleRoomSelected(newRoom.id)
     
