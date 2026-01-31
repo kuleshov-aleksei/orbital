@@ -106,8 +106,8 @@ export interface RenameCategoryData {
 
 // Delete category data
 export interface DeleteCategoryData {
-  deleteRooms: boolean
-  targetCategoryId?: string
+  delete_rooms: boolean
+  target_category_id?: string
 }
 
 // Health check response

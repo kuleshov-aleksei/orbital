@@ -90,7 +90,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+
+interface Props {
+  initialCategory?: string
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  initialCategory: ''
+})
 
 const emit = defineEmits<{
   close: []
@@ -99,8 +107,12 @@ const emit = defineEmits<{
 
 // Form data
 const roomName = ref('')
-const roomCategory = ref('')
+const roomCategory = ref(props.initialCategory)
 const maxUsers = ref(10)
+
+onMounted(() => {
+  roomCategory.value = props.initialCategory
+})
 
 // Validation errors
 const roomNameError = computed(() => {

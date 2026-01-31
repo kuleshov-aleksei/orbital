@@ -454,8 +454,8 @@ const handleDeleteCategoryConfirm = async (deleteRooms: boolean, targetCategoryI
     errorMessage.value = ''
     
     await apiService.deleteCategory(selectedCategoryId.value, {
-      deleteRooms,
-      targetCategoryId
+      delete_rooms: deleteRooms,
+      target_category_id: targetCategoryId
     })
     
     console.log('Deleted category:', selectedCategoryId.value)
