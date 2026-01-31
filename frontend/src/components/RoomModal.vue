@@ -66,21 +66,6 @@
           </select>
         </div>
 
-        <!-- Room Code Display -->
-        <div v-if="generatedRoomCode" class="mb-6 p-4 bg-gray-700 rounded-lg">
-          <div class="text-sm text-gray-300 mb-1">Room Code</div>
-          <div class="flex items-center justify-between">
-            <code class="text-lg font-mono text-indigo-400">{{ generatedRoomCode }}</code>
-            <button
-              type="button"
-              class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 rounded text-sm transition-colors duration-200"
-              @click="copyRoomCode"
-            >
-              Copy
-            </button>
-          </div>
-        </div>
-
         <!-- Action Buttons -->
         <div class="flex space-x-3">
           <button
@@ -105,7 +90,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 
 const emit = defineEmits<{
   close: []
@@ -116,31 +101,6 @@ const emit = defineEmits<{
 const roomName = ref('')
 const roomCategory = ref('Main')
 const maxUsers = ref(10)
-const generatedRoomCode = ref('')
-
-// Generate room code on mount
-onMounted(() => {
-  generateRoomCode()
-})
-
-const generateRoomCode = () => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-  let code = ''
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length))
-  }
-  generatedRoomCode.value = code
-}
-
-const copyRoomCode = async () => {
-  try {
-    await navigator.clipboard.writeText(generatedRoomCode.value)
-    // Could add a toast notification here
-    console.log('Room code copied to clipboard')
-  } catch (err) {
-    console.error('Failed to copy room code:', err)
-  }
-}
 
 const handleSubmit = () => {
   if (roomName.value.trim()) {

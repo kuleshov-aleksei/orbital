@@ -6,16 +6,6 @@
       <button class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg">
         Create Room
       </button>
-      <div>
-        <input 
-          type="text" 
-          placeholder="Enter room code" 
-          class="bg-gray-800 px-4 py-2 rounded-lg mr-2"
-        />
-        <button class="bg-green-600 hover:bg-green-700 px-6 py-2 rounded-lg">
-          Join Room
-        </button>
-      </div>
     </div>
   </div>
 </template>
