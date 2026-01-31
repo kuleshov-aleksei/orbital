@@ -1,32 +1,42 @@
 <template>
   <div class="app-layout h-screen bg-gray-900 text-white flex flex-col lg:flex-row overflow-hidden">
-    <!-- Mobile Menu Toggle -->
-    <div class="lg:hidden flex items-center justify-between p-4 bg-gray-800 border-b border-gray-700">
-      <button
-        class="p-2 text-gray-400 hover:text-white"
-        @click="toggleMobileSidebar"
-      >
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
-      </button>
-      <h1 class="text-lg font-semibold">The Orbital</h1>
-      <div class="w-10"></div>
-    </div>
-
     <div class="flex flex-1 overflow-hidden">
-      <!-- Left Sidebar - Room List -->
+      <!-- Left Sidebar - Room List (Desktop) -->
       <RoomSidebar 
+        class="hidden lg:flex"
         :rooms="rooms" 
         :active-room-id="activeRoomId"
-        :class="{ 'hidden lg:flex': !mobileSidebarOpen, 'flex': mobileSidebarOpen }"
+        :is-mobile-view="false"
         @room-selected="handleRoomSelected"
         @create-room="showCreateRoomModal"
-        @close-mobile-sidebar="mobileSidebarOpen = false"
       />
 
-      <!-- Main Content Area -->
-      <main class="flex-1 flex flex-col min-h-0 bg-gray-900">
+      <!-- Mobile: Full-screen Room List View -->
+      <div 
+        v-if="isMobile && mobileView === 'rooms'" 
+        class="lg:hidden flex-1 flex flex-col bg-gray-900"
+      >
+        <!-- Mobile Header -->
+        <div class="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-700">
+          <h1 class="text-lg font-semibold">The Orbital</h1>
+        </div>
+        
+        <!-- Mobile Room List Content -->
+        <RoomSidebar
+          :rooms="rooms"
+          :active-room-id="activeRoomId"
+          :is-mobile-view="true"
+          class="flex-1"
+          @room-selected="handleRoomSelectedMobile"
+          @create-room="showCreateRoomModal"
+        />
+      </div>
+
+      <!-- Main Content Area (Desktop: always visible, Mobile: only when in room) -->
+      <main 
+        v-if="!isMobile || mobileView === 'room'"
+        class="flex-1 flex flex-col min-h-0 bg-gray-900"
+      >
         <WelcomeView 
           v-if="!activeRoomId"
           :rooms="rooms"
@@ -39,16 +49,39 @@
           :room-name="getRoomName(activeRoomId)"
           :users="currentRoomUsers"
           :remote-stream-volumes="remoteStreamVolumes"
+          :is-mobile="isMobile"
           @leave-room="handleLeaveRoom"
           @volume-change="handleVolumeChange"
           @nickname-change="handleNicknameChange"
+          @show-room-list="mobileView = 'rooms'"
+          @toggle-user-sidebar="toggleMobileUserSidebar"
         />
       </main>
 
-      <!-- Right Sidebar - User List -->
+      <!-- Right Sidebar - User List (Desktop) -->
       <UserSidebar 
-        v-if="activeRoomId"
-        :class="{ 'hidden lg:flex': !mobileUserSidebarOpen, 'flex': mobileUserSidebarOpen }"
+        v-if="activeRoomId && !isMobile"
+        class="hidden lg:flex"
+        :users="currentRoomUsers"
+        :user-count="currentRoomUsers.length"
+        :initial-volumes="remoteStreamVolumes"
+        @volume-change="handleVolumeChange"
+        @nickname-change="handleNicknameChange"
+      />
+
+      <!-- Mobile: User Sidebar Overlay -->
+      <div 
+        v-if="isMobile && mobileUserSidebarOpen && activeRoomId"
+        class="fixed inset-0 bg-black bg-opacity-50 z-30"
+        @click="mobileUserSidebarOpen = false"
+      ></div>
+      <UserSidebar
+        v-if="isMobile && activeRoomId"
+        :class="{ 
+          'translate-x-full': !mobileUserSidebarOpen,
+          'translate-x-0': mobileUserSidebarOpen 
+        }"
+        class="fixed right-0 top-0 h-full w-60 bg-gray-800 z-40 transform transition-transform duration-300"
         :users="currentRoomUsers"
         :user-count="currentRoomUsers.length"
         :initial-volumes="remoteStreamVolumes"
@@ -56,19 +89,6 @@
         @volume-change="handleVolumeChange"
         @nickname-change="handleNicknameChange"
       />
-    </div>
-
-    <!-- Mobile User Toggle (when in call) -->
-    <div v-if="activeRoomId" class="lg:hidden flex items-center justify-center p-3 bg-gray-800 border-t border-gray-700">
-      <button
-        class="flex items-center px-4 py-2 bg-gray-700 rounded-lg"
-        @click="toggleMobileUserSidebar"
-      >
-        <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-          <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
-        </svg>
-        <span class="text-sm">{{ currentRoomUsers.length }} Users</span>
-      </button>
     </div>
 
     <!-- Error Message -->
@@ -123,6 +143,8 @@ const showModal = ref(false)
 const mobileSidebarOpen = ref(false)
 const mobileUserSidebarOpen = ref(false)
 const currentUser = ref<{ id: string; nickname: string } | null>(null)
+const mobileView = ref<'rooms' | 'room'>('rooms')
+const isMobile = ref(false)
 
 // Real data from backend
 const rooms = ref<Room[]>([])
@@ -191,6 +213,15 @@ onMounted(async () => {
   setupWebSocketListeners()
   setupGlobalWebSocketListeners()
   await connectGlobalWebSocket()
+  
+  // Check if mobile on mount
+  checkMobile()
+  // Listen for resize events
+  window.addEventListener('resize', checkMobile)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
 })
 
 onUnmounted(() => {
@@ -260,6 +291,10 @@ const handleLeaveRoom = async () => {
     await leaveCurrentRoom()
     activeRoomId.value = null
     currentRoomUsers.value = []
+    // On mobile, return to room list view
+    if (isMobile.value) {
+      mobileView.value = 'rooms'
+    }
   } catch (error) {
     console.error('Failed to leave room:', error)
     errorMessage.value = 'Failed to leave room.'
@@ -311,9 +346,14 @@ const showCreateRoomModal = () => {
   errorMessage.value = ''
 }
 
-const toggleMobileSidebar = () => {
-  mobileSidebarOpen.value = !mobileSidebarOpen.value
-  mobileUserSidebarOpen.value = false
+const checkMobile = () => {
+  isMobile.value = window.innerWidth < 1024 // lg breakpoint
+}
+
+const handleRoomSelectedMobile = async (roomId: string) => {
+  // On mobile, switch to room view when a room is selected
+  await handleRoomSelected(roomId)
+  mobileView.value = 'room'
 }
 
 const toggleMobileUserSidebar = () => {

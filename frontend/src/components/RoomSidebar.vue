@@ -1,21 +1,21 @@
 <template>
   <div
-class="room-sidebar w-60 lg:w-60 bg-gray-800 flex flex-col fixed lg:relative inset-y-0 left-0 z-40 lg:z-auto transform -translate-x-full lg:translate-x-0 transition-transform duration-300"
-       :class="{ 'translate-x-0': !isHidden }">
-    <!-- Mobile Close Button -->
-    <div class="lg:hidden flex items-center justify-between p-4 border-b border-gray-700">
+    class="room-sidebar"
+    :class="{
+      'w-60 bg-gray-800 flex flex-col': !isMobileView,
+      'flex-1 flex flex-col bg-gray-900': isMobileView,
+      'fixed lg:relative inset-y-0 left-0 z-40 lg:z-auto transform -translate-x-full lg:translate-x-0 transition-transform duration-300': !isMobileView,
+      'translate-x-0': !isHidden && !isMobileView
+    }">
+    <!-- Desktop Header (only when not in mobile view mode) -->
+    <div v-if="!isMobileView" class="hidden lg:flex p-4 border-b border-gray-700">
       <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">Rooms</h2>
-      <button
-        class="p-1 text-gray-400 hover:text-white"
-        @click="$emit('close-mobile-sidebar')"
-      >
-        <PhList class="w-5 h-5" />
-      </button>
     </div>
 
-    <!-- Desktop Header -->
-    <div class="hidden lg:flex p-4 border-b border-gray-700">
-      <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">Rooms</h2>
+    <!-- Mobile Full-screen Header -->
+    <div v-if="isMobileView" class="p-4 border-b border-gray-800">
+      <h2 class="text-xl font-semibold text-white">Available Rooms</h2>
+      <p class="text-sm text-gray-400 mt-1">{{ rooms.length }} room{{ rooms.length !== 1 ? 's' : '' }}</p>
     </div>
 
     <!-- Room Categories and List -->
@@ -64,7 +64,6 @@ class="room-sidebar w-60 lg:w-60 bg-gray-800 flex flex-col fixed lg:relative ins
  import { ref, computed } from 'vue'
  import RoomCard from '@/components/RoomCard.vue'
 import { 
-  PhList, 
   PhCaretCircleDown,
   PhPlus 
 } from '@phosphor-icons/vue'
@@ -90,9 +89,13 @@ interface Room {
 interface Props {
   rooms: Room[]
   activeRoomId: string | null
+  isMobileView?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  isMobileView: false
+})
+
 defineEmits<{
   'room-selected': [roomId: string]
   'create-room': []

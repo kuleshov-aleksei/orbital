@@ -4,30 +4,62 @@
     <header class="bg-gray-800 px-6 py-4 border-b border-gray-700">
       <div class="flex items-center justify-between">
         <div class="flex items-center">
+           <!-- Back to room list button (mobile only, doesn't leave room) -->
            <button
+             v-if="isMobile"
+             data-testid="back-to-rooms"
+             class="mr-4 text-gray-400 hover:text-white transition-colors duration-200"
+             title="Back to room list"
+             @click="$emit('show-room-list')"
+           >
+             <PhArrowLeft class="w-5 h-5" />
+           </button>
+           
+           <!-- Leave room button (desktop only) -->
+           <button
+             v-else
              data-testid="leave-room-header"
              class="mr-4 text-gray-400 hover:text-white transition-colors duration-200"
              @click="$emit('leave-room')"
            >
              <PhArrowLeft class="w-5 h-5" />
            </button>
+           
            <div>
-             <h1 class="text-xl font-semibold text-white" data-testid="room-title">{{ currentRoom?.name || 'Voice Room' }}</h1>
+             <h1 
+               class="text-xl font-semibold text-white cursor-pointer hover:text-indigo-400 transition-colors duration-200" 
+               :class="{ 'cursor-pointer': isMobile }"
+               data-testid="room-title"
+               @click="isMobile && $emit('toggle-user-sidebar')"
+             >
+               {{ currentRoom?.name || 'Voice Room' }}
+             </h1>
              <p class="text-sm text-gray-400">{{ users.length }} users in room</p>
            </div>
         </div>
         
         <div class="flex items-center space-x-3">
-          <!-- Connection Status -->
-          <div class="flex items-center text-sm">
-            <div class="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
-            <span class="text-gray-300">Connected</span>
-          </div>
-          
-          <!-- Room Settings -->
-          <button class="p-2 text-gray-400 hover:text-white transition-colors duration-200">
-            <PhGearSix class="w-5 h-5" />
+          <!-- Mobile: Users count button to toggle sidebar -->
+          <button
+            v-if="isMobile"
+            class="flex items-center px-3 py-1.5 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors duration-200"
+            @click="$emit('toggle-user-sidebar')"
+          >
+            <PhUsers class="w-4 h-4 mr-2" />
+            <span class="text-sm">{{ users.length }}</span>
           </button>
+          
+          <!-- Desktop: Connection Status and Settings -->
+          <template v-if="!isMobile">
+            <div class="flex items-center text-sm">
+              <div class="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
+              <span class="text-gray-300">Connected</span>
+            </div>
+            
+            <button class="p-2 text-gray-400 hover:text-white transition-colors duration-200">
+              <PhGearSix class="w-5 h-5" />
+            </button>
+          </template>
         </div>
       </div>
     </header>
@@ -103,7 +135,8 @@
 import { 
     PhArrowLeft, 
     PhGearSix, 
-    PhMicrophone
+    PhMicrophone,
+    PhUsers
   } from '@phosphor-icons/vue'
 
 interface Props {
@@ -111,13 +144,18 @@ interface Props {
   roomName: string
   users: User[]
   remoteStreamVolumes: Map<string, number>
+  isMobile?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  isMobile: false
+})
 
 const emit = defineEmits<{
   'leave-room': []
   'volume-change': [userId: string, volume: number]
+  'show-room-list': []
+  'toggle-user-sidebar': []
 }>()
 
 // Reactive state
