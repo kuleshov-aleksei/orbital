@@ -407,9 +407,6 @@ const handleCreateRoom = async (roomName: string, category: string, maxUsers: nu
       category: category,
       maxUsers: maxUsers
     })
-
-    // Join the newly created room
-    await handleRoomSelected(newRoom.id)
     
     console.log('Created room:', newRoom)
   } catch (error) {
