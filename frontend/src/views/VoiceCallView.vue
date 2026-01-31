@@ -141,6 +141,8 @@
         :users="props.users"
         :peer-connections="peerConnections"
         :get-connection-quality="getConnectionQuality"
+        :local-screen-shares="localScreenShareDebugData"
+        :remote-screen-shares="remoteScreenShareDebugData"
       />
   </div>
 </template>
@@ -238,9 +240,46 @@ const emit = defineEmits<{
      }
    })
    
+    return shares
+  })
+
+ // Debug data for screen sharing
+ const localScreenShareDebugData = computed(() => {
+   if (!isScreenSharing.value || !localScreenStream.value) return []
+   
+   return [{
+     userId: getCurrentUserId(),
+     userNickname: 'You',
+     stream: localScreenStream.value,
+     quality: screenShareQuality.value,
+     connectionState: 'connected'
+   }]
+ })
+ 
+ const remoteScreenShareDebugData = computed(() => {
+   const shares: Array<{
+     userId: string
+     userNickname: string
+     stream: MediaStream | null
+     quality: ScreenShareQuality
+     connectionState: string
+   }> = []
+   
+   userScreenShareStates.value.forEach((state, userId) => {
+     if (state.isSharing) {
+       const user = currentRoomUsers.value.get(userId)
+       shares.push({
+         userId,
+         userNickname: user?.nickname || userId,
+         stream: remoteScreenStreams.value.get(userId) || null,
+         quality: state.quality,
+         connectionState: peerConnectionStates.value.get(userId) || 'connecting'
+       })
+     }
+   })
+   
    return shares
  })
-
 
 
 // WebRTC setup
@@ -869,7 +908,7 @@ const startScreenShare = async (quality: ScreenShareQuality, audio: boolean) => 
     const screenStream = await navigator.mediaDevices.getDisplayMedia(constraints)
     localScreenStream.value = screenStream
     
-    // Add video tracks to all existing peer connections
+    // Add video tracks to all existing peer connections and renegotiate
     const videoTracks = screenStream.getVideoTracks()
     if (videoTracks.length > 0) {
       const track = videoTracks[0]
@@ -880,19 +919,41 @@ const startScreenShare = async (quality: ScreenShareQuality, audio: boolean) => 
         stopScreenShare()
       }
       
-      // Add track to all peer connections
-      peerConnections.value.forEach((pc, userId) => {
+      // Add track to all peer connections and trigger renegotiation
+      const userId = getCurrentUserId()
+      
+      for (const [peerUserId, pc] of peerConnections.value.entries()) {
         try {
+          // Add the track to the peer connection
           pc.addTrack(track, screenStream)
-          console.log(`🖥️ Added screen share track to peer ${userId}`)
-          addDebugLog(`Added screen share track to peer ${userId}`, 'info', userId)
+          console.log(`🖥️ Added screen share track to peer ${peerUserId}`)
+          addDebugLog(`Added screen share track to peer ${peerUserId}`, 'info', peerUserId)
+          
+          // Trigger renegotiation - create new offer with the video track
+          console.log(`🔄 Triggering renegotiation for screen share with peer ${peerUserId}`)
+          addDebugLog(`Triggering renegotiation for screen share with peer ${peerUserId}`, 'info', peerUserId)
+          
+          const offer = await pc.createOffer()
+          await pc.setLocalDescription(offer)
+          
+          // Send the offer to the peer
+          wsService.sendMessage('sdp_offer', {
+            target_user_id: peerUserId,
+            user_id: userId,
+            sdp: offer
+          })
+          
+          console.log(`📤 Sent screen share renegotiation offer to ${peerUserId}`)
+          addDebugLog(`Sent screen share renegotiation offer to ${peerUserId}`, 'info', peerUserId)
+          
         } catch (error) {
-          console.error(`Failed to add screen track to peer ${userId}:`, error)
+          console.error(`Failed to add screen track or renegotiate with peer ${peerUserId}:`, error)
+          addDebugLog(`Failed to add screen track to peer ${peerUserId}: ${(error as Error).message}`, 'error', peerUserId)
         }
-      })
+      }
     }
     
-    // Send screen_share_start message via WebSocket
+    // Send screen_share_start message via WebSocket (for UI state sync)
     const userId = getCurrentUserId()
     wsService.sendMessage('screen_share_start', {
       user_id: userId,

@@ -30,7 +30,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { webRTCStatsCollector } from '@/services/webrtc-stats'
-import type { ConnectionQuality, DebugInfo, ConnectionLog } from '@/types'
+import type { ConnectionQuality, DebugInfo, ConnectionLog, ScreenShareQuality } from '@/types'
 import DebugToggle from './debug/DebugToggle.vue'
 import DebugHeader from './debug/DebugHeader.vue'
 import IceCandidatesTab from './debug/IceCandidatesTab.vue'
@@ -38,18 +38,29 @@ import MetricsTab from './debug/MetricsTab.vue'
 import NetworkTab from './debug/NetworkTab.vue'
 import LogsTab from './debug/LogsTab.vue'
 import IssuesTab from './debug/IssuesTab.vue'
+import ScreenShareTab from './debug/ScreenShareTab.vue'
+
+interface ScreenShareDebugInfo {
+  userId: string
+  userNickname: string
+  stream: MediaStream | null
+  quality: ScreenShareQuality
+  connectionState: string
+}
 
 interface Props {
   users: Array<{ id: string; nickname: string; stream?: MediaStream }>
   peerConnections: Map<string, RTCPeerConnection>
   getConnectionQuality: (userId: string) => ConnectionQuality
+  localScreenShares?: ScreenShareDebugInfo[]
+  remoteScreenShares?: ScreenShareDebugInfo[]
 }
 
 const props = defineProps<Props>()
 
 // Component state
 const isVisible = ref(false)
-const activeTab = ref<'metrics' | 'network' | 'logs' | 'issues' | 'ice-candidates'>('metrics')
+const activeTab = ref<'metrics' | 'network' | 'screen-share' | 'logs' | 'issues' | 'ice-candidates'>('metrics')
 const connectionLogs = ref<ConnectionLog[]>([])
 const networkInfo = ref<Map<string, DebugInfo>>(new Map())
 const updateInterval = ref<number>()
@@ -58,6 +69,7 @@ const isUnmounting = ref(false)
 const tabs = [
   { id: 'metrics' as const, label: 'Metrics' },
   { id: 'network' as const, label: 'Network' },
+  { id: 'screen-share' as const, label: 'Screen Share' },
   { id: 'logs' as const, label: 'Logs' },
   { id: 'issues' as const, label: 'Issues' },
   { id: 'ice-candidates' as const, label: 'Outgoing ICE candidates' }
@@ -72,6 +84,7 @@ const currentTabComponent = computed(() => {
     case 'ice-candidates': return IceCandidatesTab
     case 'metrics': return MetricsTab
     case 'network': return NetworkTab
+    case 'screen-share': return ScreenShareTab
     case 'logs': return LogsTab
     case 'issues': return IssuesTab
     default: return null
@@ -96,6 +109,11 @@ const currentTabProps = computed(() => {
         'network-info': networkInfo.value,
         'get-user-nickname': getUserNickname
       }
+    case 'screen-share':
+      return {
+        'local-screen-shares': formatScreenShareData(props.localScreenShares || []),
+        'remote-screen-shares': formatScreenShareData(props.remoteScreenShares || [])
+      }
     case 'logs':
       return {
         'logs': connectionLogs.value,
@@ -110,6 +128,29 @@ const currentTabProps = computed(() => {
       return {}
   }
 })
+
+const formatScreenShareData = (shares: ScreenShareDebugInfo[]) => {
+  return shares.map(share => {
+    const stream = share.stream
+    const videoTracks = stream?.getVideoTracks() || []
+    const audioTracks = stream?.getAudioTracks() || []
+    const videoTrack = videoTracks[0]
+    
+    return {
+      userId: share.userId,
+      userNickname: share.userNickname,
+      stream: stream,
+      quality: share.quality,
+      hasVideo: videoTracks.length > 0,
+      hasAudio: audioTracks.length > 0,
+      videoWidth: videoTrack?.getSettings().width || 0,
+      videoHeight: videoTrack?.getSettings().height || 0,
+      connectionState: share.connectionState,
+      trackCount: (stream?.getTracks().length || 0),
+      active: videoTrack?.enabled || false
+    }
+  })
+}
 
 
 const connectionIssues = computed(() => {
