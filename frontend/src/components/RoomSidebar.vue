@@ -104,8 +104,8 @@
       <div class="relative group">
         <button
           class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors flex items-center justify-between"
-          @mouseenter="showMoveSubmenu = true"
-          @mouseleave="showMoveSubmenu = false">
+          @mouseenter="onMoveButtonEnter"
+          @mouseleave="onMoveButtonLeave">
           <div class="flex items-center gap-2">
             <PhArrowsLeftRight class="w-4 h-4" />
             <span>Move to Category</span>
@@ -113,17 +113,25 @@
           <PhCaretDown class="w-3 h-3 transform -rotate-90" />
         </button>
         
+        <!-- Invisible bridge to prevent menu from closing when moving cursor -->
+        <div
+          v-if="showMoveSubmenu"
+          class="absolute left-full top-0 w-8 h-full -ml-4 z-50"
+          @mouseenter="onBridgeEnter"
+          @mouseleave="onBridgeLeave">
+        </div>
+        
         <!-- Move Submenu -->
         <div
           v-if="showMoveSubmenu"
-          class="absolute left-full top-0 ml-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[160px]"
-          @mouseenter="showMoveSubmenu = true"
-          @mouseleave="showMoveSubmenu = false">
+          class="absolute left-full top-0 ml-2 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[160px]"
+          @mouseenter="onSubmenuEnter"
+          @mouseleave="onSubmenuLeave">
           <button
             v-for="category in availableCategoriesForMove"
             :key="category.id"
             class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
-            @click="handleMoveRoom(category.id)">
+            @click="onMoveCategorySelect(category.id)">
             {{ category.name }}
           </button>
           <div v-if="availableCategoriesForMove.length === 0" class="px-4 py-2 text-sm text-gray-500">
@@ -301,6 +309,8 @@ const roomContextMenu = ref({
 })
 
 const showMoveSubmenu = ref(false)
+const isHoveringSubmenu = ref(false)
+let submenuHideTimeout: ReturnType<typeof setTimeout> | null = null
 
 // Get available categories for moving (exclude current room's category)
 const availableCategoriesForMove = computed(() => {
@@ -324,6 +334,12 @@ const closeRoomContextMenu = () => {
   roomContextMenu.value.visible = false
   roomContextMenu.value.room = null
   showMoveSubmenu.value = false
+  isHoveringSubmenu.value = false
+  // Clear any pending hide timeout
+  if (submenuHideTimeout) {
+    clearTimeout(submenuHideTimeout)
+    submenuHideTimeout = null
+  }
 }
 
 const closeAllContextMenus = () => {
@@ -331,12 +347,77 @@ const closeAllContextMenus = () => {
   closeRoomContextMenu()
 }
 
+// Smart submenu hover handlers with delay
+const SUBMENU_HIDE_DELAY = 400 // Longer delay for better UX
+
+const onMoveButtonEnter = () => {
+  // Clear any pending hide timeout
+  if (submenuHideTimeout) {
+    clearTimeout(submenuHideTimeout)
+    submenuHideTimeout = null
+  }
+  showMoveSubmenu.value = true
+}
+
+const onMoveButtonLeave = () => {
+  // Delay hiding to allow user to move cursor to submenu or bridge
+  submenuHideTimeout = setTimeout(() => {
+    if (!isHoveringSubmenu.value) {
+      showMoveSubmenu.value = false
+    }
+  }, SUBMENU_HIDE_DELAY)
+}
+
+const onBridgeEnter = () => {
+  isHoveringSubmenu.value = true
+  // Clear any pending hide timeout
+  if (submenuHideTimeout) {
+    clearTimeout(submenuHideTimeout)
+    submenuHideTimeout = null
+  }
+}
+
+const onBridgeLeave = () => {
+  // Small delay to allow moving from bridge to submenu
+  submenuHideTimeout = setTimeout(() => {
+    isHoveringSubmenu.value = false
+    showMoveSubmenu.value = false
+  }, 100)
+}
+
+const onSubmenuEnter = () => {
+  isHoveringSubmenu.value = true
+  // Clear any pending hide timeout
+  if (submenuHideTimeout) {
+    clearTimeout(submenuHideTimeout)
+    submenuHideTimeout = null
+  }
+}
+
+const onSubmenuLeave = () => {
+  // Delay hiding to check if user is moving back to bridge or button
+  submenuHideTimeout = setTimeout(() => {
+    isHoveringSubmenu.value = false
+    showMoveSubmenu.value = false
+  }, SUBMENU_HIDE_DELAY)
+}
+
+const onMoveCategorySelect = (targetCategoryId: string) => {
+  // Clear timeout and hide immediately when selecting
+  if (submenuHideTimeout) {
+    clearTimeout(submenuHideTimeout)
+    submenuHideTimeout = null
+  }
+  isHoveringSubmenu.value = false
+  showMoveSubmenu.value = false
+  handleMoveRoom(targetCategoryId)
+}
+
 const handleMoveRoom = (targetCategoryId: string) => {
   if (roomContextMenu.value.room) {
     emit('move-room', roomContextMenu.value.room.id, targetCategoryId)
   }
   closeRoomContextMenu()
-  showMoveSubmenu.value = false
 }
 
 const handleEditRoom = () => {
