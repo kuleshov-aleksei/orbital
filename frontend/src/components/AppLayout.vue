@@ -77,11 +77,8 @@
       ></div>
       <UserSidebar
         v-if="isMobile && activeRoomId"
-        :class="{ 
-          'translate-x-full': !mobileUserSidebarOpen,
-          'translate-x-0': mobileUserSidebarOpen 
-        }"
-        class="fixed right-0 top-0 h-full w-60 bg-gray-800 z-40 transform transition-transform duration-300"
+        :is-open="mobileUserSidebarOpen"
+        class="fixed right-0 top-0 h-full w-60 bg-gray-800 z-40"
         :users="currentRoomUsers"
         :user-count="currentRoomUsers.length"
         :initial-volumes="remoteStreamVolumes"

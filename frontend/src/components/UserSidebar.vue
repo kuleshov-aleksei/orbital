@@ -1,8 +1,11 @@
 <template>
   <div
-class="user-sidebar w-60 lg:w-60 bg-gray-800 flex flex-col fixed lg:relative inset-y-0 right-0 z-40 lg:z-auto transform translate-x-full lg:translate-x-0 transition-transform duration-300"
+class="user-sidebar w-60 lg:w-60 bg-gray-800 flex flex-col fixed lg:relative inset-y-0 right-0 z-40 lg:z-auto transform lg:translate-x-0 transition-transform duration-300"
        data-testid="user-sidebar"
-       :class="{ 'translate-x-0': !isHidden }">
+       :class="{ 
+         'translate-x-full': !isVisible,
+         'translate-x-0': isVisible
+       }">
     <!-- Mobile Close Button -->
     <div class="lg:hidden flex items-center justify-between p-4 border-b border-gray-700">
       <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">
@@ -78,10 +81,12 @@ interface Props {
   users: User[]
   userCount: number
   initialVolumes?: Map<string, number>
+  isOpen?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  initialVolumes: () => new Map()
+  initialVolumes: () => new Map(),
+  isOpen: true
 })
 
 const emit = defineEmits<{
@@ -90,8 +95,15 @@ const emit = defineEmits<{
   'nickname-change': [userId: string, nickname: string]
 }>()
 
-const isHidden = computed(() => {
-  return props.userCount === 0
+// On desktop, always visible. On mobile, controlled by parent via isOpen prop.
+// User count check is for desktop only - hide sidebar when no users and no room joined.
+const isVisible = computed(() => {
+  // If explicitly controlled by parent (mobile), use isOpen prop
+  if (props.isOpen !== undefined) {
+    return props.userCount > 0 || props.isOpen
+  }
+  // Default behavior: visible when there are users
+  return props.userCount > 0
 })
 
 const getInitialVolume = (userId: string) => {
