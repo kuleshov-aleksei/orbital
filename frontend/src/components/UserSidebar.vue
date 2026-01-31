@@ -85,8 +85,9 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  initialVolumes: () => new Map(),
-  isOpen: true
+  initialVolumes: () => new Map()
+  // isOpen has no default - when undefined, sidebar controls itself (desktop mode)
+  // when provided, parent controls visibility (mobile mode)
 })
 
 const emit = defineEmits<{
@@ -95,14 +96,15 @@ const emit = defineEmits<{
   'nickname-change': [userId: string, nickname: string]
 }>()
 
-// On desktop, always visible. On mobile, controlled by parent via isOpen prop.
-// User count check is for desktop only - hide sidebar when no users and no room joined.
+// Visibility logic:
+// - Desktop (isOpen not provided): always visible when there are users
+// - Mobile (isOpen provided): visibility controlled by parent via isOpen prop
 const isVisible = computed(() => {
-  // If explicitly controlled by parent (mobile), use isOpen prop
+  // If isOpen prop is explicitly provided (mobile mode), use it directly
   if (props.isOpen !== undefined) {
-    return props.userCount > 0 || props.isOpen
+    return props.isOpen
   }
-  // Default behavior: visible when there are users
+  // Desktop mode: visible when there are users
   return props.userCount > 0
 })
 
