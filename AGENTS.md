@@ -35,6 +35,20 @@ The Orbital is a voice chat web application for 5-10 people using WebRTC technol
 - Add comments for complex logic
 - Follow language-specific conventions
 
+### ⚠️ CRITICAL: API Naming Convention
+**Backend (Go)** uses **snake_case** for JSON field names (`max_users`)
+**Frontend (TypeScript)** uses **camelCase** for property names (`maxUsers`)
+
+**When sending data from Frontend to Backend:**
+- Always convert camelCase to snake_case in the API layer
+- See `frontend/src/services/api.ts` for examples (e.g., `updateRoom` function)
+- Example: `maxUsers` → `max_users`, `targetCategoryId` → `target_category_id`
+
+**Failure to follow this convention will result in:**
+- Request body fields being ignored (zero values)
+- Bad Request errors from validation
+- Silent failures where data doesn't persist
+
 ### Testing
 - Write unit tests for business logic
 - Test WebRTC functionality in browsers
@@ -68,26 +82,6 @@ The project uses a Makefile for common operations:
 4. **Clean Code** - Maintainable and readable codebase
 
 ## 📋 Documentation Updates
-
-### Project Status Tracking
-
-**IMPORTANT**: All agents must update project documentation in `ISSUES.md` after completing any significant feature or milestone. This ensures accurate project tracking and status visibility.
-IT IS PROHIBITED TO MODIFY SECTION "Current bugs". Leave it unchanged
-
-#### Update Requirements:
-1. **Immediately after completing** any major feature
-2. **Mark completed tasks** with `[x]`
-3. **Add new sections** for unexpected features or deviations
-
-#### Feature Completion Updates:
-- Change `[ ]` to `[x]` for completed tasks
-- Add "✅ COMPLETE" to step headers
-- Update timeline from "Timeline: X days" to "✅ COMPLETE"
-- Add "Implementation Highlights" section with:
-  - Key technical achievements
-  - Performance improvements
-  - Code organization benefits
-  - New capabilities enabled
 
 #### Documentation Quality Standards:
 - Maintain consistent formatting and emoji usage
