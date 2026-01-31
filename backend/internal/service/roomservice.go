@@ -183,27 +183,39 @@ func (rs *RoomService) JoinRoom(roomID, userID, nickname string) (*models.User, 
 		user.LastSeen = time.Now()
 	}
 
-	// Add user to room
-	member := &models.RoomMember{
-		RoomID:     roomID,
-		UserID:     userID,
-		JoinedAt:   time.Now(),
-		Role:       "member",
-		IsSpeaking: false,
-		IsMuted:    false,
+	// Check if member already exists to preserve their state
+	var member *models.RoomMember
+	if rs.members[roomID] != nil {
+		member = rs.members[roomID][userID]
 	}
 
-	if rs.members[roomID] == nil {
-		rs.members[roomID] = make(map[string]*models.RoomMember)
+	if member == nil {
+		// Create new member only if doesn't exist
+		member = &models.RoomMember{
+			RoomID:     roomID,
+			UserID:     userID,
+			JoinedAt:   time.Now(),
+			Role:       "member",
+			IsSpeaking: false,
+			IsMuted:    false,
+			IsDeafened: false,
+		}
+
+		if rs.members[roomID] == nil {
+			rs.members[roomID] = make(map[string]*models.RoomMember)
+		}
+
+		// Set owner if this is the first user
+		if len(rs.members[roomID]) == 0 {
+			member.Role = "owner"
+			room.OwnerID = userID
+		}
+
+		rs.members[roomID][userID] = member
 	}
 
-	// Set owner if this is the first user
-	if len(rs.members[roomID]) == 0 {
-		member.Role = "owner"
-		room.OwnerID = userID
-	}
-
-	rs.members[roomID][userID] = member
+	// Update last seen timestamp
+	user.LastSeen = time.Now()
 	user.LastSeen = time.Now()
 
 	log.Printf("User %s joined room %s", userID, roomID)
@@ -264,6 +276,8 @@ func (rs *RoomService) GetRoomUsers(roomID string) []models.RoomUser {
 					roomUser.IsSpeaking = member.IsSpeaking
 					roomUser.IsMuted = member.IsMuted
 					roomUser.IsDeafened = member.IsDeafened
+					roomUser.IsScreenSharing = member.IsScreenSharing
+					roomUser.ScreenShareQuality = member.ScreenShareQuality
 					roomUser.JoinedAt = member.JoinedAt
 					roomUser.Role = member.Role
 				}
@@ -323,6 +337,23 @@ func (rs *RoomService) UpdateUserDeafenStatus(roomID, userID string, isDeafened 
 
 	if user, exists := rs.users[userID]; exists {
 		user.IsDeafened = isDeafened
+		user.LastSeen = time.Now()
+	}
+}
+
+// UpdateUserScreenShareStatus updates user's screen sharing status
+func (rs *RoomService) UpdateUserScreenShareStatus(roomID, userID string, isSharing bool, quality string) {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+
+	if rs.members[roomID] != nil {
+		if member, exists := rs.members[roomID][userID]; exists {
+			member.IsScreenSharing = isSharing
+			member.ScreenShareQuality = quality
+		}
+	}
+
+	if user, exists := rs.users[userID]; exists {
 		user.LastSeen = time.Now()
 	}
 }

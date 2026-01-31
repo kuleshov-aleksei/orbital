@@ -69,6 +69,15 @@
       title="Speaking"
     />
 
+    <!-- Screen Sharing Indicator -->
+    <div
+      v-if="isScreenSharing"
+      class="absolute top-2 right-8 w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center"
+      :title="'Sharing screen (' + (screenShareQuality || 'unknown') + ')'"
+    >
+      <PhMonitorPlay class="w-3 h-3 text-white" />
+    </div>
+
     <!-- Muted Indicator -->
     <div
       v-if="isMuted"
@@ -119,27 +128,33 @@
 </template>
 
 <script setup lang="ts">
- import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
- import { 
-   PhMicrophone, 
-   PhMicrophoneSlash,
-   PhSpeakerHigh
- } from '@phosphor-icons/vue'
+  import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+  import {
+    PhMicrophone,
+    PhMicrophoneSlash,
+    PhSpeakerHigh,
+    PhMonitorPlay
+  } from '@phosphor-icons/vue'
+  import type { ScreenShareQuality } from '@/types'
 
-  interface Props {
-    userId: string
-    userNickname: string
-    stream: MediaStream | null
-    connectionState?: string
-    initialVolume?: number
-    isDeafened?: boolean
-  }
+   interface Props {
+     userId: string
+     userNickname: string
+     stream: MediaStream | null
+     connectionState?: string
+     initialVolume?: number
+     isDeafened?: boolean
+     isScreenSharing?: boolean
+     screenShareQuality?: ScreenShareQuality
+   }
 
-  const props = withDefaults(defineProps<Props>(), {
-    connectionState: 'disconnected',
-    initialVolume: 80,
-    isDeafened: false
-  })
+   const props = withDefaults(defineProps<Props>(), {
+     connectionState: 'disconnected',
+     initialVolume: 80,
+     isDeafened: false,
+     isScreenSharing: false,
+     screenShareQuality: '1080p30'
+   })
 
 const emit = defineEmits<{
   'volume-change': [userId: string, volume: number]

@@ -262,6 +262,10 @@ func (c *Client) handleMessage(message models.WebSocketMessage) {
 		c.handleDeafenStatus(message.Data)
 	case "nickname_change":
 		c.handleNicknameChange(message.Data)
+	case "screen_share_start":
+		c.handleScreenShareStart(message.Data)
+	case "screen_share_stop":
+		c.handleScreenShareStop(message.Data)
 	case "room_created":
 		// This is a broadcast message, no action needed on receive
 		log.Printf("Received room_created broadcast")
@@ -496,6 +500,68 @@ func (c *Client) handleNicknameChange(data interface{}) {
 
 	// Also broadcast globally so users outside room can see updated nickname
 	c.hub.BroadcastToAll(nicknameMessage)
+}
+
+// handleScreenShareStart handles screen sharing start notifications
+func (c *Client) handleScreenShareStart(data interface{}) {
+	var shareData struct {
+		UserID   string `json:"user_id"`
+		Quality  string `json:"quality"`
+		HasAudio bool   `json:"has_audio"`
+	}
+	jsonData, _ := json.Marshal(data)
+	json.Unmarshal(jsonData, &shareData)
+
+	// Validate that the user is only reporting their own screen share
+	if shareData.UserID != c.userID {
+		log.Printf("User %s attempted to report screen share for user %s", c.userID, shareData.UserID)
+		return
+	}
+
+	// Update screen sharing state in room service
+	c.hub.roomService.UpdateUserScreenShareStatus(c.roomID, c.userID, true, shareData.Quality)
+
+	log.Printf("User %s started screen sharing (quality: %s, audio: %v)", c.userID, shareData.Quality, shareData.HasAudio)
+
+	// Broadcast screen share start to all other users in room
+	shareMessage := models.WebSocketMessage{
+		Type: "screen_share_start",
+		Data: map[string]interface{}{
+			"user_id":   c.userID,
+			"quality":   shareData.Quality,
+			"has_audio": shareData.HasAudio,
+		},
+	}
+	c.hub.BroadcastToRoomExcluding(c.roomID, c, shareMessage)
+}
+
+// handleScreenShareStop handles screen sharing stop notifications
+func (c *Client) handleScreenShareStop(data interface{}) {
+	var stopData struct {
+		UserID string `json:"user_id"`
+	}
+	jsonData, _ := json.Marshal(data)
+	json.Unmarshal(jsonData, &stopData)
+
+	// Validate that the user is only stopping their own screen share
+	if stopData.UserID != c.userID {
+		log.Printf("User %s attempted to stop screen share for user %s", c.userID, stopData.UserID)
+		return
+	}
+
+	// Update screen sharing state in room service
+	c.hub.roomService.UpdateUserScreenShareStatus(c.roomID, c.userID, false, "")
+
+	log.Printf("User %s stopped screen sharing", c.userID)
+
+	// Broadcast screen share stop to all other users in room
+	stopMessage := models.WebSocketMessage{
+		Type: "screen_share_stop",
+		Data: map[string]interface{}{
+			"user_id": c.userID,
+		},
+	}
+	c.hub.BroadcastToRoomExcluding(c.roomID, c, stopMessage)
 }
 
 // Helper function to marshal messages

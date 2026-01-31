@@ -23,7 +23,7 @@ export interface StatsHistory {
 export class WebRTCStatsCollector {
   private statsHistory: Map<string, StatsHistory> = new Map()
   private outgoingIceCandidates: Map<string, Array<RTCIceCandidate>> = new Map();
-  private collectionIntervals: Map<string, number> = new Map()
+  private collectionIntervals: Map<string, ReturnType<typeof setInterval>> = new Map()
   private readonly COLLECTION_INTERVAL = 1000 // 1 second
   private readonly MAX_HISTORY_SIZE = 300 // 5 minutes at 1 second intervals
 
@@ -186,6 +186,10 @@ export class WebRTCStatsCollector {
     // Calculate averages
     const avgStats: ConnectionStats = {
       packetsLost: Math.max(...recentStats.map(s => s.packetsLost)), // Use max for packet loss
+      packetsReceived: recentStats.reduce((sum, s) => sum + s.packetsReceived, 0), // Sum of packets
+      packetsSent: recentStats.reduce((sum, s) => sum + s.packetsSent, 0), // Sum of packets
+      bytesReceived: recentStats.reduce((sum, s) => sum + s.bytesReceived, 0), // Sum of bytes
+      bytesSent: recentStats.reduce((sum, s) => sum + s.bytesSent, 0), // Sum of bytes
       jitter: recentStats.reduce((sum, s) => sum + s.jitter, 0) / recentStats.length,
       roundTripTime: recentStats.reduce((sum, s) => sum + s.roundTripTime, 0) / recentStats.length,
       bandwidth: {
@@ -203,7 +207,7 @@ export class WebRTCStatsCollector {
   getAllPeerStats(): Map<string, ConnectionStats> {
     const allStats = new Map<string, ConnectionStats>()
     
-    this.statsHistory.forEach((history, peerId) => {
+    this.statsHistory.forEach((_, peerId) => {
       const latest = this.getLatestStats(peerId)
       if (latest) {
         allStats.set(peerId, latest)
