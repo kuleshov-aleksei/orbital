@@ -14,23 +14,34 @@ import (
 
 func main() {
 	// Initialize services
+	categoryService := service.NewCategoryService()
 	roomService := service.NewRoomService()
+	roomService.SetCategoryService(categoryService)
 	wsHub := websocket.NewHub(roomService)
 
 	// Initialize handlers
-	roomHandler := handlers.NewRoomHandler(roomService, wsHub)
+	roomHandler := handlers.NewRoomHandler(roomService, categoryService, wsHub)
+	categoryHandler := handlers.NewCategoryHandler(categoryService, roomService, wsHub)
 
 	// Setup router
 	r := mux.NewRouter()
 
 	// API routes
 	r.HandleFunc("/api/health", healthHandler).Methods("GET")
+
+	// Room routes
 	r.HandleFunc("/api/rooms", roomHandler.CreateRoom).Methods("POST")
 	r.HandleFunc("/api/rooms", roomHandler.GetRooms).Methods("GET")
 	r.HandleFunc("/api/rooms/{id}", roomHandler.GetRoom).Methods("GET")
 	r.HandleFunc("/api/rooms/{id}/users", roomHandler.GetRoomUsers).Methods("GET")
 	r.HandleFunc("/api/rooms/{id}/join", roomHandler.JoinRoom).Methods("POST")
 	r.HandleFunc("/api/rooms/{id}/leave", roomHandler.LeaveRoom).Methods("POST")
+
+	// Category routes
+	r.HandleFunc("/api/categories", categoryHandler.GetCategories).Methods("GET")
+	r.HandleFunc("/api/categories", categoryHandler.CreateCategory).Methods("POST")
+	r.HandleFunc("/api/categories/{id}", categoryHandler.RenameCategory).Methods("PUT")
+	r.HandleFunc("/api/categories/{id}", categoryHandler.DeleteCategory).Methods("DELETE")
 
 	// Test-only routes (guarded to avoid accidental use).
 	// Allowed when either ORBITAL_E2E=1 is set OR the request explicitly opts in.
@@ -40,6 +51,7 @@ func main() {
 			return
 		}
 		roomService.Reset()
+		categoryService.Reset()
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})

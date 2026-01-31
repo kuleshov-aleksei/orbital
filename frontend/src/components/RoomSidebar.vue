@@ -20,28 +20,31 @@
 
     <!-- Room Categories and List -->
     <div class="flex-1 overflow-y-auto">
-      <div v-for="category in categorizedRooms" :key="category.name" class="mb-4">
+      <div v-for="category in categorizedRooms" :key="category.id" class="mb-4">
         <div class="px-2 py-1">
-          <button 
-            class="w-full flex items-center justify-between px-2 py-1 text-xs font-medium text-gray-400 hover:text-gray-200 transition-colors duration-200"
+          <div
+            class="w-full flex items-center justify-between px-2 py-1 text-xs font-medium text-gray-400 hover:text-gray-200 transition-colors duration-200 cursor-pointer group"
             @click="toggleCategory(category.name)"
-          >
+            @contextmenu.prevent="showContextMenu($event, category)">
             <span>{{ category.name }}</span>
-            <PhCaretCircleDown 
-              class="w-3 h-3 transition-transform duration-200"
-              :class="{ 'rotate-90': expandedCategories.has(category.name) }"
-            />
-          </button>
+            <div class="flex items-center gap-1">
+              <PhDotsThree
+                class="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity"
+                @click.stop="showContextMenu($event, category)" />
+              <PhCaretDown
+                class="w-3 h-3 transition-transform duration-200"
+                :class="{ 'rotate-180': expandedCategories.has(category.name) }" />
+            </div>
+          </div>
         </div>
-        
+
         <div v-show="expandedCategories.has(category.name)" class="px-2">
           <RoomCard
             v-for="room in category.rooms"
             :key="room.id"
             :room="room"
             :is-active="room.id === activeRoomId"
-            @click="$emit('room-selected', room.id)"
-          />
+            @click="$emit('room-selected', room.id)" />
         </div>
       </div>
     </div>
@@ -51,54 +54,83 @@
       <button
         data-testid="create-room-sidebar"
         class="w-full flex items-center justify-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors duration-200"
-        @click="$emit('create-room')"
-      >
+        @click="$emit('create-room')">
         <PhPlus class="w-4 h-4 mr-2" />
         <span class="text-sm font-medium">Create Room</span>
       </button>
     </div>
+
+    <!-- Category Context Menu -->
+    <div
+      v-if="contextMenu.visible"
+      class="fixed bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 py-1 min-w-[160px]"
+      :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"
+      @click.stop>
+      <button
+        class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+        @click="handleCreateRoomInCategory">
+        <div class="flex items-center gap-2">
+          <PhPlus class="w-4 h-4" />
+          <span>Create Room</span>
+        </div>
+      </button>
+      <button
+        class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+        @click="handleRenameCategory">
+        <div class="flex items-center gap-2">
+          <PhPencil class="w-4 h-4" />
+          <span>Rename</span>
+        </div>
+      </button>
+      <div class="border-t border-gray-700 my-1"></div>
+      <button
+        class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-gray-700 hover:text-red-300 transition-colors"
+        @click="handleDeleteCategory">
+        <div class="flex items-center gap-2">
+          <PhTrash class="w-4 h-4" />
+          <span>Delete</span>
+        </div>
+      </button>
+    </div>
+
+    <!-- Click outside to close context menu -->
+    <div
+      v-if="contextMenu.visible"
+      class="fixed inset-0 z-40"
+      @click="closeContextMenu"
+      @contextmenu.prevent="closeContextMenu"></div>
   </div>
 </template>
 
 <script setup lang="ts">
- import { ref, computed } from 'vue'
- import RoomCard from '@/components/RoomCard.vue'
-import { 
-  PhCaretCircleDown,
-  PhPlus 
-} from '@phosphor-icons/vue'
+import { ref, computed } from 'vue'
+import RoomCard from '@/components/RoomCard.vue'
+import { PhCaretDown, PhPlus, PhDotsThree, PhPencil, PhTrash } from '@phosphor-icons/vue'
+import type { Category, Room } from '@/types'
 
-interface RoomPreviewUser {
-  id: string
-  nickname: string
-  role: string
-  isMuted: boolean
-  isDeafened: boolean
-  isSpeaking: boolean
-}
-
-interface Room {
+interface CategorizedRoom {
   id: string
   name: string
-  userCount: number
-  maxUsers: number
-  category: string
-  users?: RoomPreviewUser[]
+  rooms: Room[]
 }
 
 interface Props {
   rooms: Room[]
+  categories: Category[]
   activeRoomId: string | null
   isMobileView?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  isMobileView: false
+  isMobileView: false,
 })
 
-defineEmits<{
+const emit = defineEmits<{
   'room-selected': [roomId: string]
   'create-room': []
+  'create-room-in-category': [categoryId: string, categoryName: string]
+  'rename-category': [categoryId: string, currentName: string]
+  'delete-category': [categoryId: string, categoryName: string]
   'close-mobile-sidebar': []
 }>()
 
@@ -109,21 +141,35 @@ const isHidden = computed(() => {
 const expandedCategories = ref(new Set<string>())
 
 const categorizedRooms = computed(() => {
-  const categories: { name: string; rooms: Room[] }[] = []
-  const categoryMap = new Map<string, Room[]>()
+  const categories: CategorizedRoom[] = []
+  const categoryRoomMap = new Map<string, { id: string; name: string; rooms: Room[] }>()
 
-  // Group rooms by category
-  props.rooms.forEach(room => {
-    if (!categoryMap.has(room.category)) {
-      categoryMap.set(room.category, [])
+  // Group rooms by category ID
+  props.rooms.forEach((room) => {
+    const categoryId = room.category
+    // Look up category name from the categories list
+    const category = props.categories.find((c) => c.id === categoryId)
+    const categoryName = category?.name || room.categoryName || categoryId
+
+    if (!categoryRoomMap.has(categoryId)) {
+      categoryRoomMap.set(categoryId, { id: categoryId, name: categoryName, rooms: [] })
     }
-    categoryMap.get(room.category)!.push(room)
+    categoryRoomMap.get(categoryId)!.rooms.push(room)
   })
 
   // Convert to array format and expand all categories by default
-  categoryMap.forEach((rooms, name) => {
-    categories.push({ name, rooms })
-    expandedCategories.value.add(name)
+  categoryRoomMap.forEach((categoryData) => {
+    categories.push(categoryData)
+    expandedCategories.value.add(categoryData.name)
+  })
+
+  // Also add empty categories from the categories list
+  props.categories.forEach((category) => {
+    const exists = categories.some((c) => c.id === category.id)
+    if (!exists) {
+      categories.push({ id: category.id, name: category.name, rooms: [] })
+      expandedCategories.value.add(category.name)
+    }
   })
 
   return categories
@@ -135,5 +181,52 @@ const toggleCategory = (categoryName: string) => {
   } else {
     expandedCategories.value.add(categoryName)
   }
+}
+
+// Context Menu State
+const contextMenu = ref({
+  visible: false,
+  x: 0,
+  y: 0,
+  category: null as CategorizedRoom | null,
+})
+
+const showContextMenu = (event: MouseEvent, category: CategorizedRoom) => {
+  contextMenu.value = {
+    visible: true,
+    x: event.clientX,
+    y: event.clientY,
+    category,
+  }
+}
+
+const closeContextMenu = () => {
+  contextMenu.value.visible = false
+  contextMenu.value.category = null
+}
+
+const handleCreateRoomInCategory = () => {
+  if (contextMenu.value.category) {
+    // Use the category ID and name directly from the context menu
+    // categorizedRooms now properly stores the category ID from room.category
+    emit('create-room-in-category', contextMenu.value.category.id, contextMenu.value.category.name)
+  }
+  closeContextMenu()
+}
+
+const handleRenameCategory = () => {
+  if (contextMenu.value.category) {
+    // Use the category ID and name directly from the context menu
+    emit('rename-category', contextMenu.value.category.id, contextMenu.value.category.name)
+  }
+  closeContextMenu()
+}
+
+const handleDeleteCategory = () => {
+  if (contextMenu.value.category) {
+    // Use the category ID and name directly from the context menu
+    emit('delete-category', contextMenu.value.category.id, contextMenu.value.category.name)
+  }
+  closeContextMenu()
 }
 </script>

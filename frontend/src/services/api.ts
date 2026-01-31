@@ -1,4 +1,4 @@
-import { Room, User, CreateRoomData } from '@/types'
+import { Room, User, CreateRoomData, Category, CreateCategoryData, RenameCategoryData, DeleteCategoryData } from '@/types'
 
 const API_BASE = 'http://localhost:8080/api'
 
@@ -73,6 +73,32 @@ export const apiService = {
   // Health check
   async healthCheck(): Promise<{ status: string; service: string; version: string }> {
     return apiRequest<{ status: string; service: string; version: string }>('/health')
+  },
+
+  // Category management
+  async getCategories(): Promise<Category[]> {
+    return apiRequest<Category[]>('/categories')
+  },
+
+  async createCategory(data: CreateCategoryData): Promise<Category> {
+    return apiRequest<Category>('/categories', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async renameCategory(categoryId: string, data: RenameCategoryData): Promise<Category> {
+    return apiRequest<Category>(`/categories/${categoryId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async deleteCategory(categoryId: string, data: DeleteCategoryData): Promise<{ status: string }> {
+    return apiRequest<{ status: string }>(`/categories/${categoryId}`, {
+      method: 'DELETE',
+      body: JSON.stringify(data),
+    })
   },
 }
 

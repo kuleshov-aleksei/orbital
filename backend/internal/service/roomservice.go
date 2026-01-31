@@ -10,10 +10,11 @@ import (
 
 // RoomService manages rooms and users
 type RoomService struct {
-	rooms   map[string]*models.Room
-	members map[string]map[string]*models.RoomMember // room_id -> user_id -> member
-	users   map[string]*models.User
-	mu      sync.RWMutex
+	rooms           map[string]*models.Room
+	members         map[string]map[string]*models.RoomMember // room_id -> user_id -> member
+	users           map[string]*models.User
+	categoryService *CategoryService
+	mu              sync.RWMutex
 }
 
 // NewRoomService creates a new RoomService
@@ -23,6 +24,11 @@ func NewRoomService() *RoomService {
 		members: make(map[string]map[string]*models.RoomMember),
 		users:   make(map[string]*models.User),
 	}
+}
+
+// SetCategoryService sets the category service for resolving category names
+func (rs *RoomService) SetCategoryService(cs *CategoryService) {
+	rs.categoryService = cs
 }
 
 // Reset clears all rooms/users.
@@ -90,6 +96,14 @@ func (rs *RoomService) GetRoomsWithPreview() []models.RoomPreview {
 			Category:  room.Category,
 			Users:     rs.getRoomPreviewUsers(room.ID),
 		}
+
+		// Resolve category name if category service is available
+		if rs.categoryService != nil {
+			if category, exists := rs.categoryService.GetCategory(room.Category); exists {
+				preview.CategoryName = category.Name
+			}
+		}
+
 		rooms = append(rooms, preview)
 	}
 
@@ -325,6 +339,61 @@ func (rs *RoomService) UpdateUserNickname(roomID, userID, nickname string) error
 	}
 
 	return &RoomError{Message: "User not found"}
+}
+
+// UpdateRoomCategory updates a room's category
+func (rs *RoomService) UpdateRoomCategory(roomID string, categoryID string) error {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+
+	room, exists := rs.rooms[roomID]
+	if !exists {
+		return &RoomError{Message: "Room not found"}
+	}
+
+	room.Category = categoryID
+	return nil
+}
+
+// GetRoomsByCategory returns all rooms in a specific category
+func (rs *RoomService) GetRoomsByCategory(categoryID string) []*models.Room {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+
+	var rooms []*models.Room
+	for _, room := range rs.rooms {
+		if room.Category == categoryID {
+			rooms = append(rooms, room)
+		}
+	}
+
+	return rooms
+}
+
+// DeleteRoom removes a room completely
+func (rs *RoomService) DeleteRoom(roomID string) error {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+
+	if _, exists := rs.rooms[roomID]; !exists {
+		return &RoomError{Message: "Room not found"}
+	}
+
+	// Remove all members first
+	if members, exists := rs.members[roomID]; exists {
+		for userID := range members {
+			if user, exists := rs.users[userID]; exists {
+				user.LastSeen = time.Now()
+			}
+		}
+	}
+
+	// Delete room and its members
+	delete(rs.rooms, roomID)
+	delete(rs.members, roomID)
+
+	log.Printf("Deleted room: %s", roomID)
+	return nil
 }
 
 // Helper methods

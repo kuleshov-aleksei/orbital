@@ -87,14 +87,15 @@ type SDPMessage struct {
 
 // RoomPreview represents a room with limited user information for preview
 type RoomPreview struct {
-	ID        string            `json:"id"`
-	Name      string            `json:"name"`
-	OwnerID   string            `json:"owner_id"`
-	MaxUsers  int               `json:"max_users"`
-	UserCount int               `json:"user_count"`
-	CreatedAt time.Time         `json:"created_at"`
-	Category  string            `json:"category"`
-	Users     []RoomPreviewUser `json:"users"`
+	ID           string            `json:"id"`
+	Name         string            `json:"name"`
+	OwnerID      string            `json:"owner_id"`
+	MaxUsers     int               `json:"max_users"`
+	UserCount    int               `json:"user_count"`
+	CreatedAt    time.Time         `json:"created_at"`
+	Category     string            `json:"category"`
+	CategoryName string            `json:"category_name"`
+	Users        []RoomPreviewUser `json:"users"`
 }
 
 // RoomPreviewUser represents limited user information for room preview
@@ -111,4 +112,27 @@ type RoomPreviewUser struct {
 type NicknameChangeRequest struct {
 	UserID   string `json:"user_id"`
 	Nickname string `json:"nickname"`
+}
+
+// Category represents a room category
+type Category struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// CreateCategoryRequest represents a request to create a new category
+type CreateCategoryRequest struct {
+	Name string `json:"name"`
+}
+
+// RenameCategoryRequest represents a request to rename a category
+type RenameCategoryRequest struct {
+	Name string `json:"name"`
+}
+
+// DeleteCategoryRequest represents a request to delete a category
+type DeleteCategoryRequest struct {
+	DeleteRooms      bool   `json:"delete_rooms"`
+	TargetCategoryID string `json:"target_category_id,omitempty"`
 }

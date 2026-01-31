@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -14,15 +15,17 @@ import (
 
 // RoomHandler handles room-related HTTP requests
 type RoomHandler struct {
-	roomService *service.RoomService
-	wsHub       *websocket.Hub
+	roomService     *service.RoomService
+	categoryService *service.CategoryService
+	wsHub           *websocket.Hub
 }
 
 // NewRoomHandler creates a new RoomHandler
-func NewRoomHandler(roomService *service.RoomService, wsHub *websocket.Hub) *RoomHandler {
+func NewRoomHandler(roomService *service.RoomService, categoryService *service.CategoryService, wsHub *websocket.Hub) *RoomHandler {
 	return &RoomHandler{
-		roomService: roomService,
-		wsHub:       wsHub,
+		roomService:     roomService,
+		categoryService: categoryService,
+		wsHub:           wsHub,
 	}
 }
 
@@ -45,10 +48,42 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Category == "" {
-		req.Category = "General"
+		req.Category = "general"
 	}
 
-	room, err := h.roomService.CreateRoom(req.Name, req.Category, req.MaxUsers)
+	// Check if category exists, if not create it
+	categoryExists := false
+	categoryID := ""
+	categories := h.categoryService.GetCategories()
+	for _, cat := range categories {
+		if cat.Name == req.Category {
+			categoryExists = true
+			categoryID = cat.ID
+			break
+		}
+	}
+
+	if !categoryExists {
+		// Create the category
+		newCategory, err := h.categoryService.CreateCategory(req.Category)
+		if err != nil {
+			http.Error(w, "Failed to create category: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		categoryID = newCategory.ID
+		log.Printf("Auto-created category: %s (ID: %s)", req.Category, categoryID)
+
+		// Broadcast category creation
+		if h.wsHub != nil {
+			categoryCreatedMessage := map[string]interface{}{
+				"type": "category_created",
+				"data": newCategory,
+			}
+			h.wsHub.BroadcastToAll(categoryCreatedMessage)
+		}
+	}
+
+	room, err := h.roomService.CreateRoom(req.Name, categoryID, req.MaxUsers)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

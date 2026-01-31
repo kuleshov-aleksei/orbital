@@ -4,7 +4,8 @@ export interface Room {
   name: string
   userCount: number
   maxUsers: number
-  category: string
+  category: string  // Category ID
+  categoryName?: string  // Category name for display
   users?: RoomPreviewUser[]
 }
 
@@ -37,8 +38,26 @@ export interface RoomUser extends User {
 }
 
 // WebSocket message types
+export type WebSocketMessageType =
+  | 'join_room'
+  | 'leave_room'
+  | 'ice_candidate'
+  | 'sdp_offer'
+  | 'sdp_answer'
+  | 'speaking_status'
+  | 'mute_status'
+  | 'deafen_status'
+  | 'screen_share_start'
+  | 'screen_share_stop'
+  | 'nickname_change'
+  | 'category_created'
+  | 'category_renamed'
+  | 'category_deleted'
+  | 'room_updated'
+  | 'room_deleted'
+
 export interface WebSocketMessage {
-  type: 'join_room' | 'leave_room' | 'ice_candidate' | 'sdp_offer' | 'sdp_answer' | 'speaking_status' | 'mute_status' | 'deafen_status' | 'screen_share_start' | 'screen_share_stop' | 'nickname_change'
+  type: WebSocketMessageType
   data: unknown
 }
 
@@ -66,6 +85,29 @@ export interface JoinRoomRequest {
 export interface NicknameChangeRequest {
   user_id: string
   nickname: string
+}
+
+// Category interface
+export interface Category {
+  id: string
+  name: string
+  createdAt: string
+}
+
+// Create category data
+export interface CreateCategoryData {
+  name: string
+}
+
+// Rename category data
+export interface RenameCategoryData {
+  name: string
+}
+
+// Delete category data
+export interface DeleteCategoryData {
+  deleteRooms: boolean
+  targetCategoryId?: string
 }
 
 // Health check response
