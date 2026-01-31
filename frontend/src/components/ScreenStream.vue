@@ -190,6 +190,14 @@ const handlePiPChange = () => {
 }
 
 onMounted(() => {
+  // Re-attach stream when component mounts (handles view switching)
+  if (props.stream && videoElement.value) {
+    videoElement.value.srcObject = props.stream
+    videoElement.value.play().catch(error => {
+      console.warn(`Screen video play failed for user ${props.userId}:`, error)
+    })
+  }
+  
   document.addEventListener('fullscreenchange', handleFullscreenChange)
   document.addEventListener('webkitfullscreenchange', handleFullscreenChange)
   videoElement.value?.addEventListener('enterpictureinpicture', handlePiPChange)

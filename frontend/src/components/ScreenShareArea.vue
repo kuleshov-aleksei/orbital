@@ -1,59 +1,9 @@
 <template>
   <div class="screen-share-area bg-gray-800 rounded-lg overflow-hidden">
-    <!-- Header with controls -->
-    <div class="px-4 py-3 bg-gray-800 border-b border-gray-700 flex items-center justify-between">
-      <div class="flex items-center space-x-2">
-        <PhMonitorPlay class="w-5 h-5 text-indigo-400" />
-        <span class="text-white font-medium">
-          {{ screenShares.length }} screen{{ screenShares.length !== 1 ? 's' : '' }} sharing
-        </span>
-      </div>
-      
-      <div class="flex items-center space-x-2">
-        <!-- Layout Toggle -->
-        <div class="flex bg-gray-700 rounded-lg p-1">
-          <button
-            class="px-3 py-1.5 rounded-md text-sm transition-colors flex items-center"
-            :class="[
-              layout === 'grid'
-                ? 'bg-indigo-600 text-white'
-                : 'text-gray-400 hover:text-white'
-            ]"
-            @click="layout = 'grid'"
-          >
-            <PhGridFour class="w-4 h-4 mr-1" />
-            Grid
-          </button>
-          <button
-            class="px-3 py-1.5 rounded-md text-sm transition-colors flex items-center"
-            :class="[
-              layout === 'focus'
-                ? 'bg-indigo-600 text-white'
-                : 'text-gray-400 hover:text-white'
-            ]"
-            @click="layout = 'focus'"
-          >
-            <PhArrowsOut class="w-4 h-4 mr-1" />
-            Focus
-          </button>
-        </div>
-        
-        <!-- Hide/Show User Grid Button -->
-        <button
-          class="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
-          :title="isUserGridVisible ? 'Hide user grid' : 'Show user grid'"
-          @click="$emit('toggle-user-grid')"
-        >
-          <PhEye v-if="isUserGridVisible" class="w-4 h-4" />
-          <PhEyeSlash v-else class="w-4 h-4" />
-        </button>
-      </div>
-    </div>
-    
     <!-- Screen Share Content -->
     <div class="p-4">
       <!-- Focus Layout: Main screen + thumbnails -->
-      <div v-if="layout === 'focus'" class="space-y-4">
+      <div v-if="props.layout === 'focus'" class="space-y-4">
         <!-- Main focused screen -->
         <div v-if="focusedShare">
           <ScreenStream
@@ -72,21 +22,14 @@
           <div
             v-for="share in thumbnailShares"
             :key="share.userId"
-            class="cursor-pointer"
+            class="cursor-pointer border-2 border-gray-600 hover:border-indigo-500 transition-colors rounded-lg overflow-hidden"
             @click="setFocusedShare(share.userId)"
           >
-            <div class="relative aspect-video rounded-lg overflow-hidden border-2 border-gray-600 hover:border-indigo-500 transition-colors">
-              <video
-                :srcObject="share.stream"
-                class="w-full h-full object-cover"
-                autoplay
-                playsinline
-                muted
-              />
-              <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1">
-                <span class="text-white text-xs font-medium">{{ share.userNickname }}</span>
-              </div>
-            </div>
+            <ThumbnailStream
+              :user-id="share.userId"
+              :user-nickname="share.userNickname"
+              :stream="share.stream"
+            />
           </div>
         </div>
       </div>
@@ -126,6 +69,7 @@ import {
   PhEyeSlash
 } from '@phosphor-icons/vue'
 import ScreenStream from './ScreenStream.vue'
+import ThumbnailStream from './ThumbnailStream.vue'
 import type { ScreenShareQuality } from '@/types'
 
 interface ScreenShare {
@@ -139,15 +83,19 @@ interface ScreenShare {
 interface Props {
   screenShares: ScreenShare[]
   isUserGridVisible: boolean
+  layout: 'grid' | 'focus'
 }
 
 const props = defineProps<Props>()
-defineEmits<{
+const emit = defineEmits<{
   'toggle-user-grid': []
+  'update:layout': [layout: 'grid' | 'focus']
 }>()
 
-type LayoutMode = 'grid' | 'focus'
-const layout = ref<LayoutMode>('focus')
+const localLayout = computed({
+  get: () => props.layout,
+  set: (value) => emit('update:layout', value)
+})
 const focusedUserId = ref<string | null>(null)
 
 // Set initial focus to first screen share
@@ -177,8 +125,8 @@ const thumbnailShares = computed(() => {
 const setFocusedShare = (userId: string) => {
   focusedUserId.value = userId
   // Switch to focus layout when user clicks on a thumbnail
-  if (layout.value === 'grid') {
-    layout.value = 'focus'
+  if (props.layout === 'grid') {
+    localLayout.value = 'focus'
   }
 }
 </script>
