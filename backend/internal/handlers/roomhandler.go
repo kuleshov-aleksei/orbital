@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/orbital/internal/config"
 	"github.com/orbital/internal/models"
 	"github.com/orbital/internal/service"
 	"github.com/orbital/internal/websocket"
@@ -43,8 +44,8 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.MaxUsers < 2 || req.MaxUsers > 10 {
-		req.MaxUsers = 10
+	if req.MaxUsers < config.RoomConfig.MinUsers || req.MaxUsers > config.RoomConfig.MaxUsers {
+		req.MaxUsers = config.RoomConfig.DefaultMaxUsers
 	}
 
 	if req.Category == "" {
@@ -210,6 +211,110 @@ func (h *RoomHandler) LeaveRoom(w http.ResponseWriter, r *http.Request) {
 			},
 		}
 		h.wsHub.BroadcastToAll(roomUserLeftMessage)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+}
+
+// UpdateRoom handles PUT /api/rooms/{id}
+func (h *RoomHandler) UpdateRoom(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	roomID := vars["id"]
+
+	var req models.UpdateRoomRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate request
+	if req.Name != "" && len(req.Name) > 100 {
+		http.Error(w, "Room name too long (max 100 characters)", http.StatusBadRequest)
+		return
+	}
+
+	if req.MaxUsers > 0 && (req.MaxUsers < config.RoomConfig.MinUsers || req.MaxUsers > config.RoomConfig.MaxUsers) {
+		http.Error(w, "Max users must be between 2 and 10", http.StatusBadRequest)
+		return
+	}
+
+	// Get current room to check if category is being changed
+	currentRoom, exists := h.roomService.GetRoom(roomID)
+	if !exists {
+		http.Error(w, "Room not found", http.StatusNotFound)
+		return
+	}
+
+	// Resolve category ID if category name is provided
+	categoryID := req.Category
+	if categoryID != "" {
+		categories := h.categoryService.GetCategories()
+		found := false
+		for _, cat := range categories {
+			if cat.ID == categoryID || cat.Name == categoryID {
+				categoryID = cat.ID
+				found = true
+				break
+			}
+		}
+		if !found {
+			http.Error(w, "Category not found", http.StatusBadRequest)
+			return
+		}
+	}
+
+	room, err := h.roomService.UpdateRoom(roomID, req.Name, req.MaxUsers, categoryID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Broadcast room update to all connected clients
+	if h.wsHub != nil {
+		roomUpdatedMessage := map[string]interface{}{
+			"type": "room_updated",
+			"data": map[string]interface{}{
+				"room_id":      roomID,
+				"room":         room,
+				"old_category": currentRoom.Category,
+			},
+		}
+		h.wsHub.BroadcastToAll(roomUpdatedMessage)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(room)
+}
+
+// DeleteRoom handles DELETE /api/rooms/{id}
+func (h *RoomHandler) DeleteRoom(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	roomID := vars["id"]
+
+	// Get room info before deletion for the broadcast
+	room, exists := h.roomService.GetRoom(roomID)
+	if !exists {
+		http.Error(w, "Room not found", http.StatusNotFound)
+		return
+	}
+
+	err := h.roomService.DeleteRoom(roomID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Broadcast room deletion to all connected clients
+	if h.wsHub != nil {
+		roomDeletedMessage := map[string]interface{}{
+			"type": "room_deleted",
+			"data": map[string]interface{}{
+				"room_id":  roomID,
+				"category": room.Category,
+			},
+		}
+		h.wsHub.BroadcastToAll(roomDeletedMessage)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

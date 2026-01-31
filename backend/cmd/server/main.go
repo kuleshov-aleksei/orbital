@@ -33,6 +33,8 @@ func main() {
 	r.HandleFunc("/api/rooms", roomHandler.CreateRoom).Methods("POST")
 	r.HandleFunc("/api/rooms", roomHandler.GetRooms).Methods("GET")
 	r.HandleFunc("/api/rooms/{id}", roomHandler.GetRoom).Methods("GET")
+	r.HandleFunc("/api/rooms/{id}", roomHandler.UpdateRoom).Methods("PUT")
+	r.HandleFunc("/api/rooms/{id}", roomHandler.DeleteRoom).Methods("DELETE")
 	r.HandleFunc("/api/rooms/{id}/users", roomHandler.GetRoomUsers).Methods("GET")
 	r.HandleFunc("/api/rooms/{id}/join", roomHandler.JoinRoom).Methods("POST")
 	r.HandleFunc("/api/rooms/{id}/leave", roomHandler.LeaveRoom).Methods("POST")

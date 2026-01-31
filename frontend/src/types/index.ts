@@ -75,6 +75,13 @@ export interface CreateRoomData {
   maxUsers: number
 }
 
+// Room update data
+export interface UpdateRoomData {
+  name?: string
+  category?: string
+  maxUsers?: number
+}
+
 // Join room data
 export interface JoinRoomRequest {
   user_id?: string

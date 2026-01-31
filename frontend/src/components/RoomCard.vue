@@ -6,13 +6,14 @@
       'bg-gray-700 hover:bg-gray-600 text-gray-200': !isActive
     }"
     @click="$emit('click')"
+    @contextmenu.prevent="showContextMenu"
   >
     <!-- Room Header -->
     <div class="flex items-center">
       <!-- Room Icon -->
       <div class="mr-3">
         <div
-  class="w-8 h-8 rounded-full flex items-center justify-center"
+          class="w-8 h-8 rounded-full flex items-center justify-center"
           :class="{
             'bg-indigo-500': isActive,
             'bg-gray-600': !isActive
@@ -78,11 +79,14 @@ interface Props {
   isActive: boolean
 }
 
-
-
-defineProps<Props>()
-defineEmits<{
+const props = defineProps<Props>()
+const emit = defineEmits<{
   click: []
+  'show-context-menu': [event: MouseEvent, room: Room]
 }>()
+
+const showContextMenu = (event: MouseEvent) => {
+  emit('show-context-menu', event, props.room)
+}
 
 </script>

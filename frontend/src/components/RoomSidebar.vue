@@ -44,7 +44,8 @@
             :key="room.id"
             :room="room"
             :is-active="room.id === activeRoomId"
-            @click="$emit('room-selected', room.id)" />
+            @click="$emit('room-selected', room.id)"
+            @show-context-menu="showRoomContextMenu" />
         </div>
       </div>
     </div>
@@ -93,19 +94,77 @@
       </button>
     </div>
 
+    <!-- Room Context Menu -->
+    <div
+      v-if="roomContextMenu.visible"
+      class="fixed bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 py-1 min-w-[200px]"
+      :style="{ top: roomContextMenu.y + 'px', left: roomContextMenu.x + 'px' }"
+      @click.stop>
+      <!-- Move to Category - With Submenu -->
+      <div class="relative group">
+        <button
+          class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors flex items-center justify-between"
+          @mouseenter="showMoveSubmenu = true"
+          @mouseleave="showMoveSubmenu = false">
+          <div class="flex items-center gap-2">
+            <PhArrowsLeftRight class="w-4 h-4" />
+            <span>Move to Category</span>
+          </div>
+          <PhCaretDown class="w-3 h-3 transform -rotate-90" />
+        </button>
+        
+        <!-- Move Submenu -->
+        <div
+          v-if="showMoveSubmenu"
+          class="absolute left-full top-0 ml-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[160px]"
+          @mouseenter="showMoveSubmenu = true"
+          @mouseleave="showMoveSubmenu = false">
+          <button
+            v-for="category in availableCategoriesForMove"
+            :key="category.id"
+            class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+            @click="handleMoveRoom(category.id)">
+            {{ category.name }}
+          </button>
+          <div v-if="availableCategoriesForMove.length === 0" class="px-4 py-2 text-sm text-gray-500">
+            No other categories
+          </div>
+        </div>
+      </div>
+
+      <button
+        class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+        @click="handleEditRoom">
+        <div class="flex items-center gap-2">
+          <PhPencil class="w-4 h-4" />
+          <span>Properties</span>
+        </div>
+      </button>
+
+      <div class="border-t border-gray-700 my-1"></div>
+      <button
+        class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-gray-700 hover:text-red-300 transition-colors"
+        @click="handleDeleteRoom">
+        <div class="flex items-center gap-2">
+          <PhTrash class="w-4 h-4" />
+          <span>Delete</span>
+        </div>
+      </button>
+    </div>
+
     <!-- Click outside to close context menu -->
     <div
-      v-if="contextMenu.visible"
+      v-if="contextMenu.visible || roomContextMenu.visible"
       class="fixed inset-0 z-40"
-      @click="closeContextMenu"
-      @contextmenu.prevent="closeContextMenu"></div>
+      @click="closeAllContextMenus"
+      @contextmenu.prevent="closeAllContextMenus"></div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import RoomCard from '@/components/RoomCard.vue'
-import { PhCaretDown, PhPlus, PhDotsThree, PhPencil, PhTrash } from '@phosphor-icons/vue'
+import { PhCaretDown, PhPlus, PhDotsThree, PhPencil, PhTrash, PhArrowsLeftRight } from '@phosphor-icons/vue'
 import type { Category, Room } from '@/types'
 
 interface CategorizedRoom {
@@ -131,6 +190,9 @@ const emit = defineEmits<{
   'create-room-in-category': [categoryId: string, categoryName: string]
   'rename-category': [categoryId: string, currentName: string]
   'delete-category': [categoryId: string, categoryName: string]
+  'move-room': [roomId: string, currentCategoryId: string]
+  'edit-room': [roomId: string, currentName: string, currentMaxUsers: number]
+  'delete-room': [roomId: string, roomName: string, userCount: number]
   'close-mobile-sidebar': []
 }>()
 
@@ -228,5 +290,66 @@ const handleDeleteCategory = () => {
     emit('delete-category', contextMenu.value.category.id, contextMenu.value.category.name)
   }
   closeContextMenu()
+}
+
+// Room Context Menu State
+const roomContextMenu = ref({
+  visible: false,
+  x: 0,
+  y: 0,
+  room: null as Room | null,
+})
+
+const showMoveSubmenu = ref(false)
+
+// Get available categories for moving (exclude current room's category)
+const availableCategoriesForMove = computed(() => {
+  if (!roomContextMenu.value.room) return props.categories
+  return props.categories.filter(cat => cat.id !== roomContextMenu.value.room?.category)
+})
+
+const showRoomContextMenu = (event: MouseEvent, room: Room) => {
+  // Close category menu if open
+  closeContextMenu()
+  
+  roomContextMenu.value = {
+    visible: true,
+    x: event.clientX,
+    y: event.clientY,
+    room,
+  }
+}
+
+const closeRoomContextMenu = () => {
+  roomContextMenu.value.visible = false
+  roomContextMenu.value.room = null
+  showMoveSubmenu.value = false
+}
+
+const closeAllContextMenus = () => {
+  closeContextMenu()
+  closeRoomContextMenu()
+}
+
+const handleMoveRoom = (targetCategoryId: string) => {
+  if (roomContextMenu.value.room) {
+    emit('move-room', roomContextMenu.value.room.id, targetCategoryId)
+  }
+  closeRoomContextMenu()
+  showMoveSubmenu.value = false
+}
+
+const handleEditRoom = () => {
+  if (roomContextMenu.value.room) {
+    emit('edit-room', roomContextMenu.value.room.id, roomContextMenu.value.room.name, roomContextMenu.value.room.maxUsers)
+  }
+  closeRoomContextMenu()
+}
+
+const handleDeleteRoom = () => {
+  if (roomContextMenu.value.room) {
+    emit('delete-room', roomContextMenu.value.room.id, roomContextMenu.value.room.name, roomContextMenu.value.room.userCount)
+  }
+  closeRoomContextMenu()
 }
 </script>

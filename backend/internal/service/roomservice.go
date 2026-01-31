@@ -355,6 +355,36 @@ func (rs *RoomService) UpdateRoomCategory(roomID string, categoryID string) erro
 	return nil
 }
 
+// UpdateRoom updates a room's name, max users, and optionally category
+func (rs *RoomService) UpdateRoom(roomID string, name string, maxUsers int, categoryID string) (*models.Room, error) {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+
+	room, exists := rs.rooms[roomID]
+	if !exists {
+		return nil, &RoomError{Message: "Room not found"}
+	}
+
+	// Validate max users only if it's being updated (maxUsers > 0)
+	if maxUsers > 0 && (maxUsers < 2 || maxUsers > 10) {
+		return nil, &RoomError{Message: "Max users must be between 2 and 10"}
+	}
+
+	// Update fields
+	if name != "" {
+		room.Name = name
+	}
+	// Only update maxUsers if it's being changed (> 0)
+	if maxUsers > 0 {
+		room.MaxUsers = maxUsers
+	}
+	if categoryID != "" {
+		room.Category = categoryID
+	}
+
+	return room, nil
+}
+
 // GetRoomsByCategory returns all rooms in a specific category
 func (rs *RoomService) GetRoomsByCategory(categoryID string) []*models.Room {
 	rs.mu.RLock()

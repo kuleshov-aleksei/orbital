@@ -13,6 +13,9 @@
         @create-room-in-category="handleCreateRoomInCategory"
         @rename-category="handleRenameCategory"
         @delete-category="handleDeleteCategory"
+        @move-room="handleMoveRoom"
+        @edit-room="handleEditRoom"
+        @delete-room="handleDeleteRoom"
       />
 
       <!-- Mobile: Full-screen Room List View -->
@@ -37,6 +40,9 @@
           @create-room-in-category="handleCreateRoomInCategory"
           @rename-category="handleRenameCategory"
           @delete-category="handleDeleteCategory"
+          @move-room="handleMoveRoom"
+          @edit-room="handleEditRoom"
+          @delete-room="handleDeleteRoom"
         />
       </div>
 
@@ -140,17 +146,37 @@
   @submit="handleCategoryModalSubmit"
 />
 
-<!-- Confirm Delete Category Modal -->
-<ConfirmDeleteCategoryModal
-  v-if="showDeleteCategoryModal"
-  :category-id="selectedCategoryId"
-  :category-name="selectedCategoryName"
-  :room-count="selectedCategoryRoomCount"
-  :categories="categories"
-  :general-category-id="getGeneralCategoryId()"
-  @close="showDeleteCategoryModal = false"
-  @confirm="handleDeleteCategoryConfirm"
-/>
+  <!-- Confirm Delete Category Modal -->
+  <ConfirmDeleteCategoryModal
+    v-if="showDeleteCategoryModal"
+    :category-id="selectedCategoryId"
+    :category-name="selectedCategoryName"
+    :room-count="selectedCategoryRoomCount"
+    :categories="categories"
+    :general-category-id="getGeneralCategoryId()"
+    @close="showDeleteCategoryModal = false"
+    @confirm="handleDeleteCategoryConfirm"
+  />
+
+  <!-- Edit Room Modal -->
+  <EditRoomModal
+    v-if="showEditRoomModal"
+    :title="'Edit Room'"
+    :initial-name="selectedRoomName"
+    :initial-max-users="selectedRoomMaxUsers"
+    @close="showEditRoomModal = false"
+    @submit="handleEditRoomSubmit"
+  />
+
+  <!-- Confirm Delete Room Modal -->
+  <ConfirmDeleteRoomModal
+    v-if="showDeleteRoomModal"
+    :room-id="selectedRoomId"
+    :room-name="selectedRoomName"
+    :user-count="selectedRoomUserCount"
+    @close="showDeleteRoomModal = false"
+    @confirm="handleDeleteRoomConfirm"
+  />
 </div>
 </template>
 
@@ -163,6 +189,8 @@ import VoiceCallView from '@/views/VoiceCallView.vue'
 import RoomModal from '@/components/RoomModal.vue'
 import CategoryModal from '@/components/CategoryModal.vue'
 import ConfirmDeleteCategoryModal from '@/components/ConfirmDeleteCategoryModal.vue'
+import EditRoomModal from '@/components/EditRoomModal.vue'
+import ConfirmDeleteRoomModal from '@/components/ConfirmDeleteRoomModal.vue'
 import type { Room, User, WebSocketMessage, Category } from '@/types'
 import { apiService, generateUserId, generateNickname } from '@/services/api'
 import { wsService } from '@/services/websocket'
@@ -194,6 +222,15 @@ const selectedCategoryId = ref('')
 const selectedCategoryName = ref('')
 const selectedCategoryRoomCount = ref(0)
 const createRoomCategoryName = ref('')
+
+// Room management
+const showEditRoomModal = ref(false)
+const showDeleteRoomModal = ref(false)
+const selectedRoomId = ref('')
+const selectedRoomName = ref('')
+const selectedRoomUserCount = ref(0)
+const selectedRoomMaxUsers = ref(10)
+const selectedRoomCurrentCategoryId = ref('')
 
 // Generate or get current user ID
 const getCurrentUserId = (): string => {
@@ -468,6 +505,87 @@ const handleDeleteCategoryConfirm = async (deleteRooms: boolean, targetCategoryI
   }
 }
 
+// Room management handlers
+const handleMoveRoom = (roomId: string, targetCategoryId: string) => {
+  selectedRoomId.value = roomId
+  selectedRoomCurrentCategoryId.value = targetCategoryId
+  
+  // Immediately move the room via API - the category submenu already selected the target
+  moveRoomToCategory(roomId, targetCategoryId)
+}
+
+const moveRoomToCategory = async (roomId: string, targetCategoryId: string) => {
+  try {
+    isLoading.value = true
+    errorMessage.value = ''
+    
+    await apiService.updateRoom(roomId, { category: targetCategoryId })
+    console.log('Moved room', roomId, 'to category', targetCategoryId)
+  } catch (error) {
+    console.error('Failed to move room:', error)
+    errorMessage.value = 'Failed to move room. Please try again.'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const handleEditRoom = (roomId: string, currentName: string, currentMaxUsers: number) => {
+  selectedRoomId.value = roomId
+  selectedRoomName.value = currentName
+  selectedRoomMaxUsers.value = currentMaxUsers
+  showEditRoomModal.value = true
+  errorMessage.value = ''
+}
+
+const handleEditRoomSubmit = async (name: string, maxUsers: number) => {
+  try {
+    isLoading.value = true
+    errorMessage.value = ''
+    
+    await apiService.updateRoom(selectedRoomId.value, { name, maxUsers })
+    console.log('Updated room:', selectedRoomId.value, 'name:', name, 'maxUsers:', maxUsers)
+    showEditRoomModal.value = false
+  } catch (error) {
+    console.error('Failed to update room:', error)
+    errorMessage.value = 'Failed to update room. Please try again.'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const handleDeleteRoom = (roomId: string, roomName: string, userCount: number) => {
+  selectedRoomId.value = roomId
+  selectedRoomName.value = roomName
+  selectedRoomUserCount.value = userCount
+  showDeleteRoomModal.value = true
+  errorMessage.value = ''
+}
+
+const handleDeleteRoomConfirm = async () => {
+  try {
+    isLoading.value = true
+    errorMessage.value = ''
+    
+    await apiService.deleteRoom(selectedRoomId.value)
+    console.log('Deleted room:', selectedRoomId.value)
+    showDeleteRoomModal.value = false
+    
+    // If the deleted room was the active room, leave it
+    if (activeRoomId.value === selectedRoomId.value) {
+      activeRoomId.value = null
+      currentRoomUsers.value = []
+      if (isMobile.value) {
+        mobileView.value = 'rooms'
+      }
+    }
+  } catch (error) {
+    console.error('Failed to delete room:', error)
+    errorMessage.value = 'Failed to delete room. Please try again.'
+  } finally {
+    isLoading.value = false
+  }
+}
+
 const loadCategories = async () => {
   try {
     categories.value = await apiService.getCategories()
@@ -728,19 +846,24 @@ const setupGlobalWebSocketListeners = () => {
   })
 
   wsService.onGlobal('room_updated', (message: WebSocketMessage) => {
-    const updatedRoom = message.data as Room
-    console.log('Received room_updated event:', updatedRoom)
+    const data = message.data as { room_id: string; room: Room; old_category: string }
+    console.log('Received room_updated event:', data)
     
     // Update room in list
-    const index = rooms.value.findIndex(r => r.id === updatedRoom.id)
+    const index = rooms.value.findIndex(r => r.id === data.room_id)
     if (index !== -1) {
-      rooms.value[index] = { ...rooms.value[index], ...updatedRoom }
-      console.log('Updated room:', updatedRoom.name)
+      rooms.value[index] = { ...rooms.value[index], ...data.room }
+      console.log('Updated room:', data.room.name)
+    }
+    
+    // If the room was moved to a different category, update the category
+    if (data.old_category && data.room.category && data.old_category !== data.room.category) {
+      console.log('Room moved from category', data.old_category, 'to', data.room.category)
     }
   })
 
   wsService.onGlobal('room_deleted', (message: WebSocketMessage) => {
-    const data = message.data as { room_id: string }
+    const data = message.data as { room_id: string; category: string }
     console.log('Received room_deleted event:', data)
     
     // Remove room from list
@@ -749,6 +872,15 @@ const setupGlobalWebSocketListeners = () => {
       const roomName = rooms.value[index].name
       rooms.value.splice(index, 1)
       console.log('Deleted room:', roomName)
+    }
+    
+    // If the deleted room was the active room, handle it
+    if (activeRoomId.value === data.room_id) {
+      activeRoomId.value = null
+      currentRoomUsers.value = []
+      if (isMobile.value) {
+        mobileView.value = 'rooms'
+      }
     }
   })
 

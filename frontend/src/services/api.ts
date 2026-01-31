@@ -1,4 +1,4 @@
-import { Room, User, CreateRoomData, Category, CreateCategoryData, RenameCategoryData, DeleteCategoryData } from '@/types'
+import { Room, User, CreateRoomData, UpdateRoomData, Category, CreateCategoryData, RenameCategoryData, DeleteCategoryData } from '@/types'
 
 const API_BASE = 'http://localhost:8080/api'
 
@@ -46,6 +46,27 @@ export const apiService = {
     return apiRequest<Room>('/rooms', {
       method: 'POST',
       body: JSON.stringify(data),
+    })
+  },
+
+  // Update a room
+  async updateRoom(roomId: string, data: UpdateRoomData): Promise<Room> {
+    // Convert camelCase to snake_case for backend compatibility
+    const snakeCaseData: Record<string, unknown> = {}
+    if (data.name !== undefined) snakeCaseData.name = data.name
+    if (data.category !== undefined) snakeCaseData.category = data.category
+    if (data.maxUsers !== undefined) snakeCaseData.max_users = data.maxUsers
+    
+    return apiRequest<Room>(`/rooms/${roomId}`, {
+      method: 'PUT',
+      body: JSON.stringify(snakeCaseData),
+    })
+  },
+
+  // Delete a room
+  async deleteRoom(roomId: string): Promise<{ status: string }> {
+    return apiRequest<{ status: string }>(`/rooms/${roomId}`, {
+      method: 'DELETE',
     })
   },
 

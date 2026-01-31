@@ -51,6 +51,13 @@ type CreateRoomRequest struct {
 	MaxUsers int    `json:"max_users"`
 }
 
+// UpdateRoomRequest represents a request to update a room
+type UpdateRoomRequest struct {
+	Name     string `json:"name,omitempty"`
+	Category string `json:"category,omitempty"`
+	MaxUsers int    `json:"max_users,omitempty"`
+}
+
 // JoinRoomRequest represents a request to join a room
 type JoinRoomRequest struct {
 	RoomID   string `json:"room_id"`
