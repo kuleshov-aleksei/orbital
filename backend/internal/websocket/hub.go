@@ -518,6 +518,9 @@ func (c *Client) handleScreenShareStart(data interface{}) {
 		return
 	}
 
+	// Update screen sharing state in room service
+	c.hub.roomService.UpdateUserScreenShareStatus(c.roomID, c.userID, true, shareData.Quality)
+
 	log.Printf("User %s started screen sharing (quality: %s, audio: %v)", c.userID, shareData.Quality, shareData.HasAudio)
 
 	// Broadcast screen share start to all other users in room
@@ -545,6 +548,9 @@ func (c *Client) handleScreenShareStop(data interface{}) {
 		log.Printf("User %s attempted to stop screen share for user %s", c.userID, stopData.UserID)
 		return
 	}
+
+	// Update screen sharing state in room service
+	c.hub.roomService.UpdateUserScreenShareStatus(c.roomID, c.userID, false, "")
 
 	log.Printf("User %s stopped screen sharing", c.userID)
 

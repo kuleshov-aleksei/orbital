@@ -29,13 +29,15 @@ type Room struct {
 
 // RoomMember represents a user in a room
 type RoomMember struct {
-	RoomID     string    `json:"room_id"`
-	UserID     string    `json:"user_id"`
-	JoinedAt   time.Time `json:"joined_at"`
-	Role       string    `json:"role"` // member, admin, owner
-	IsSpeaking bool      `json:"is_speaking"`
-	IsMuted    bool      `json:"is_muted"`
-	IsDeafened bool      `json:"is_deafened"`
+	RoomID             string    `json:"room_id"`
+	UserID             string    `json:"user_id"`
+	JoinedAt           time.Time `json:"joined_at"`
+	Role               string    `json:"role"` // member, admin, owner
+	IsSpeaking         bool      `json:"is_speaking"`
+	IsMuted            bool      `json:"is_muted"`
+	IsDeafened         bool      `json:"is_deafened"`
+	IsScreenSharing    bool      `json:"is_screen_sharing"`
+	ScreenShareQuality string    `json:"screen_share_quality"`
 }
 
 // WebSocketMessage represents a WebSocket message
@@ -73,16 +75,18 @@ type ICECandidate struct {
 
 // RoomUser represents a user in a room with member-specific information
 type RoomUser struct {
-	ID         string    `json:"id"`
-	Nickname   string    `json:"nickname"`
-	Status     string    `json:"status"` // online, away, dnd
-	IsSpeaking bool      `json:"is_speaking"`
-	IsMuted    bool      `json:"is_muted"`
-	IsDeafened bool      `json:"is_deafened"`
-	CreatedAt  time.Time `json:"created_at"`
-	LastSeen   time.Time `json:"last_seen"`
-	JoinedAt   time.Time `json:"joined_at"` // When user joined this room
-	Role       string    `json:"role"`      // member, admin, owner
+	ID                 string    `json:"id"`
+	Nickname           string    `json:"nickname"`
+	Status             string    `json:"status"` // online, away, dnd
+	IsSpeaking         bool      `json:"is_speaking"`
+	IsMuted            bool      `json:"is_muted"`
+	IsDeafened         bool      `json:"is_deafened"`
+	IsScreenSharing    bool      `json:"is_screen_sharing"`
+	ScreenShareQuality string    `json:"screen_share_quality,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
+	LastSeen           time.Time `json:"last_seen"`
+	JoinedAt           time.Time `json:"joined_at"` // When user joined this room
+	Role               string    `json:"role"`      // member, admin, owner
 }
 
 // SDPMessage represents WebRTC SDP offer/answer

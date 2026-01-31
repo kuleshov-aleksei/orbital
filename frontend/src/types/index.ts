@@ -28,23 +28,37 @@ export type ScreenShareQuality =
   | '360p30'
   | 'text'
 
-// User interface
+// User interface - supports both camelCase (TypeScript convention) 
+// and snake_case (from Go backend JSON)
 export interface User {
   id: string
   nickname: string
-  isSpeaking: boolean
-  isMuted: boolean
-  isDeafened: boolean
-  isScreenSharing: boolean
+  // camelCase versions for TypeScript code
+  isSpeaking?: boolean
+  isMuted?: boolean
+  isDeafened?: boolean
+  isScreenSharing?: boolean
   screenShareQuality?: ScreenShareQuality
+  // snake_case versions from backend JSON
+  is_speaking?: boolean
+  is_muted?: boolean
+  is_deafened?: boolean
+  is_screen_sharing?: boolean
+  screen_share_quality?: ScreenShareQuality
   status: 'online' | 'away' | 'dnd'
 }
 
 // RoomUser interface - user with room-specific information
+// Note: Backend sends snake_case, frontend uses camelCase
 export interface RoomUser extends User {
-  createdAt: string
-  lastSeen: string
-  joinedAt: string
+  // camelCase versions
+  createdAt?: string
+  lastSeen?: string
+  joinedAt?: string
+  // snake_case versions from backend
+  created_at?: string
+  last_seen?: string
+  joined_at?: string
   role: 'member' | 'admin' | 'owner'
 }
 

@@ -62,11 +62,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import {
-  PhMonitorPlay,
-  PhGridFour,
-  PhArrowsOut,
-  PhEye,
-  PhEyeSlash
+  PhMonitorPlay
 } from '@phosphor-icons/vue'
 import ScreenStream from './ScreenStream.vue'
 import ThumbnailStream from './ThumbnailStream.vue'

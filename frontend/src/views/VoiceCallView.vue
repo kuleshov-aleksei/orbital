@@ -144,7 +144,7 @@
           >
             <AudioStream
               :user-id="user.id"
-              :user-nickname="user.nickname"
+              :user-nickname="user.nickname || 'Unknown'"
               :stream="remoteStreams.get(user.id)"
               :connection-state="peerConnectionStates.get(user.id)"
               :initial-volume="props.remoteStreamVolumes.get(user.id) || 80"
@@ -259,6 +259,7 @@ const emit = defineEmits<{
   const currentRoomUsers = ref<Map<string, RoomUser>>(new Map())
   const maxRetries = 3
   const debugDashboardRef = ref()
+  const peerConnectionRetries = ref<Map<string, number>>(new Map())
  // Fix for ICE candidate race condition
  const pendingIceCandidates = ref<Map<string, RTCIceCandidateInit[]>>(new Map())
  // Track current user's join time (0 = not set yet)
@@ -519,8 +520,9 @@ const initializeWebRTC = async () => {
       }
     }
 
-   const handleRoomUsers = (users: RoomUser[]) => {
-     addDebugLog('handleRoomUsers called', 'info')
+const handleRoomUsers = (users: RoomUser[]) => {
+    console.log("handleRoomUsers called with " + users.length + " users")
+    addDebugLog('handleRoomUsers called', 'info')
      const currentUserId = getCurrentUserId()
      const otherUsers = users.filter((user: RoomUser) => user.id !== currentUserId)
     
@@ -534,40 +536,74 @@ const initializeWebRTC = async () => {
        newUsers.set(user.id, user)
      })
      currentRoomUsers.value = newUsers
+
+      // Update screen sharing states from room_users data
+      // Note: Backend sends snake_case, so we check both property names
+        users.forEach((user: RoomUser) => {
+          if (!user) return
+          
+          // Check both snake_case (from backend) and camelCase
+          const isSharing = user.is_screen_sharing || user.isScreenSharing
+          const quality = user.screen_share_quality || user.screenShareQuality
+          
+          console.log("Processing user " + user.id + " isScreenSharing: " + isSharing + " (raw: " + user.is_screen_sharing + ")")
+          
+          if (isSharing) {
+           userScreenShareStates.value.set(user.id, {
+             isSharing: true,
+             quality: quality || '1080p30'
+           })
+           addDebugLog(`User ${user.id} is screen sharing (${quality}) from room state`, 'info', user.id)
+         } else {
+           // Only update if previously was sharing (to clear state)
+           const prevState = userScreenShareStates.value.get(user.id)
+           if (prevState?.isSharing) {
+             userScreenShareStates.value.set(user.id, {
+               isSharing: false,
+               quality: '1080p30'
+             })
+           }
+         }
+       })
      
-     // Set current user join time from server
-     const currentUser = users.find((user: RoomUser) => user.id === currentUserId)
-     if (currentUser && currentUserJoinTime.value === 0) {
-       // Use joined_at field (snake_case) as that's what Go JSON sends
-       currentUserJoinTime.value = new Date(currentUser.joined_at).getTime()
-       console.log(`📅 Set current user join time from server: ${currentUser.joined_at}`)
-       addDebugLog(`Set current user join time from server: ${currentUser.joined_at}`, 'info')
-     }
+      // Set current user join time from server
+      const currentUser = users.find((user: RoomUser) => user.id === currentUserId)
+      if (currentUser && currentUserJoinTime.value === 0) {
+        // Check both snake_case (from backend) and camelCase
+        const joinedAt = currentUser.joined_at || currentUser.joinedAt
+        if (joinedAt) {
+          currentUserJoinTime.value = new Date(joinedAt).getTime()
+          console.log(`📅 Set current user join time from server: ${joinedAt}`)
+          addDebugLog(`Set current user join time from server: ${joinedAt}`, 'info')
+        }
+      }
      
      // MESH TOPOLOGY LOGIC: Existing users offer to newer users
      const existingConnections = Array.from(peerConnections.value.keys())
      
-     otherUsers.forEach(user => {
-        // Use joined_at field (snake_case) as that's what Go JSON sends
-        const userJoinTime = new Date(user.joined_at).getTime()
-        const alreadyConnected = existingConnections.includes(user.id)
-        const shouldCreateOffer = currentUserJoinTime.value < userJoinTime && !alreadyConnected
-        console.log(`🔍 User ${user.id} (${user.nickname}): joined at ${user.joined_at}, should create offer: ${shouldCreateOffer}`)
-       
-        console.log(`🔍 User ${user.id} (${user.nickname}): joined at ${user.joined_at}, should create offer: ${shouldCreateOffer}`)
-       
-       if (shouldCreateOffer) {
-         console.log(`🔗 Creating connection with newer user ${user.id} (${user.nickname})`)
-         addDebugLog(`Creating connection with newer user ${user.id}`, 'info', user.id)
-         createOfferForUser(user.id)
-         updateConnectionState(user.id, 'connecting')
-       } else if (alreadyConnected) {
-         console.log(`✅ Connection to ${user.id} already exists`)
-       } else {
-         console.log(`⏸️ Not creating connection to ${user.id} - user joined before us`)
-         addDebugLog(`Not creating connection to ${user.id} - user joined before us`, 'info', user.id)
-       }
-     })
+      otherUsers.forEach(user => {
+         // Check both snake_case (from backend) and camelCase for joined_at
+         const joinedAt = user.joined_at || user.joinedAt
+         const userJoinTime = joinedAt ? new Date(joinedAt).getTime() : 0
+         const alreadyConnected = existingConnections.includes(user.id)
+         const shouldCreateOffer = currentUserJoinTime.value < userJoinTime && !alreadyConnected
+         const userNickname = user.nickname || 'Unknown'
+         console.log(`🔍 User ${user.id} (${userNickname}): joined at ${joinedAt}, should create offer: ${shouldCreateOffer}`)
+        
+         console.log(`🔍 User ${user.id} (${userNickname}): joined at ${joinedAt}, should create offer: ${shouldCreateOffer}`)
+        
+        if (shouldCreateOffer) {
+          console.log(`🔗 Creating connection with newer user ${user.id} (${userNickname})`)
+          addDebugLog(`Creating connection with newer user ${user.id}`, 'info', user.id)
+          createOfferForUser(user.id)
+          updateConnectionState(user.id, 'connecting')
+        } else if (alreadyConnected) {
+          console.log(`✅ Connection to ${user.id} already exists`)
+        } else {
+          console.log(`⏸️ Not creating connection to ${user.id} - user joined before us`)
+          addDebugLog(`Not creating connection to ${user.id} - user joined before us`, 'info', user.id)
+        }
+      })
     
     // Find users who left (connections that aren't in room anymore)
     const leftUserIds = existingConnections.filter(userId => 
@@ -636,8 +672,15 @@ const initializeWebRTC = async () => {
         peerConnection.addTrack(track, localStream.value!)
       })
     }
-   
-   // Handle ICE candidates
+    
+    // Add screen share video track if active
+    if (localScreenStream.value) {
+      localScreenStream.value.getVideoTracks().forEach(track => {
+        peerConnection.addTrack(track, localScreenStream.value!)
+      })
+    }
+    
+    // Handle ICE candidates
    peerConnection.onicecandidate = (event) => {
      if (event.candidate) {
         webRTCStatsCollector.saveOutgoingIceCandidate(userId, event.candidate);
@@ -889,14 +932,15 @@ const toggleDeafen = () => {
 }
 
 const toggleScreenShare = () => {
-  if (isScreenSharing.value) {
-    // Stop screen sharing
-    stopScreenShare()
-  } else {
-    // Open quality selection modal
-    showQualityModal.value = true
-  }
-}
+   console.log("toggleScreenShare called, isScreenSharing: " + isScreenSharing.value)
+   if (isScreenSharing.value) {
+     // Stop screen sharing
+     stopScreenShare()
+   } else {
+     // Open quality selection modal
+     showQualityModal.value = true
+   }
+ }
 
 const handleQualitySelected = async (quality: ScreenShareQuality, shareAudio: boolean) => {
   showQualityModal.value = false
@@ -970,6 +1014,7 @@ const startScreenShare = async (quality: ScreenShareQuality, audio: boolean) => 
       
       // Listen for the 'ended' event (when user stops sharing via browser UI)
       track.onended = () => {
+        console.log("Track onended event triggered!")
         console.log('Screen share track ended (browser UI)')
         stopScreenShare()
       }
@@ -1028,6 +1073,7 @@ const startScreenShare = async (quality: ScreenShareQuality, audio: boolean) => 
 }
 
 const stopScreenShare = () => {
+  console.log("stopScreenShare called, isScreenSharing: " + isScreenSharing.value)
   if (!isScreenSharing.value) return
   
   try {
