@@ -14,6 +14,7 @@
             :connection-state="focusedShare.connectionState"
             :is-focused="true"
             :show-focus-button="false"
+            :is-self-view="focusedShare.isSelfView"
           />
         </div>
         
@@ -46,6 +47,7 @@
           :connection-state="share.connectionState"
           :is-focused="false"
           :show-focus-button="screenShares.length > 1"
+          :is-self-view="share.isSelfView"
           @make-focused="setFocusedShare(share.userId)"
         />
       </div>
@@ -74,6 +76,7 @@ interface ScreenShare {
   stream: MediaStream | null
   quality: ScreenShareQuality
   connectionState?: string
+  isSelfView?: boolean
 }
 
 interface Props {

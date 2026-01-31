@@ -2,6 +2,8 @@
   <div 
     class="screen-stream relative bg-gray-900 rounded-lg overflow-hidden border border-gray-600"
     :class="{ 'border-indigo-500 ring-2 ring-indigo-500/50': isFocused }"
+    @mouseenter="handleMouseEnter"
+    @mouseleave="handleMouseLeave"
   >
     <!-- Video Element -->
     <video
@@ -89,6 +91,15 @@
         <span class="text-gray-400 text-sm">Connecting...</span>
       </div>
     </div>
+    
+    <!-- Paused State (for self-view when not hovered) -->
+    <div v-if="isPausedComputed" class="absolute inset-0 flex items-center justify-center bg-gray-900/90 z-10">
+      <div class="text-center">
+        <PhPause class="w-12 h-12 text-gray-400 mx-auto mb-3" />
+        <span class="text-gray-300 text-lg font-medium">Paused</span>
+        <p class="text-gray-500 text-sm mt-1">Hover to view</p>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -99,7 +110,8 @@ import {
   PhArrowsOut,
   PhArrowsIn,
   PhPictureInPicture,
-  PhSpinner
+  PhSpinner,
+  PhPause
 } from '@phosphor-icons/vue'
 import type { ScreenShareQuality } from '@/types'
 
@@ -111,12 +123,14 @@ interface Props {
   connectionState?: string
   isFocused?: boolean
   showFocusButton?: boolean
+  isSelfView?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   connectionState: 'connecting',
   isFocused: false,
-  showFocusButton: false
+  showFocusButton: false,
+  isSelfView: false
 })
 
 defineEmits<{
@@ -126,6 +140,20 @@ defineEmits<{
 const videoElement = ref<HTMLVideoElement | null>(null)
 const isFullscreen = ref(false)
 const isPiPActive = ref(false)
+const isHovered = ref(false)
+
+// Self-view pauses when not hovered
+const isPausedComputed = computed(() => {
+  return props.isSelfView && !isHovered.value
+})
+
+const handleMouseEnter = () => {
+  isHovered.value = true
+}
+
+const handleMouseLeave = () => {
+  isHovered.value = false
+}
 
 const qualityLabels: Record<ScreenShareQuality, string> = {
   'source': 'Source',
@@ -147,6 +175,21 @@ watch(() => props.stream, (newStream) => {
     })
   }
 }, { immediate: true })
+
+// Actually pause/resume video for self-view
+watch(isPausedComputed, (isPaused) => {
+  if (!videoElement.value || !props.isSelfView) return
+  
+  if (isPaused) {
+    videoElement.value.pause()
+    console.log(`⏸️ Self-view paused for ${props.userId}`)
+  } else {
+    videoElement.value.play().catch(error => {
+      console.warn(`Failed to resume self-view for ${props.userId}:`, error)
+    })
+    console.log(`▶️ Self-view resumed for ${props.userId}`)
+  }
+})
 
 const toggleFullscreen = async () => {
   if (!videoElement.value) return

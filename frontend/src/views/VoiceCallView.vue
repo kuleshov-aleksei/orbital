@@ -254,9 +254,9 @@ const emit = defineEmits<{
    const remoteScreenStreams = ref<Map<string, MediaStream>>(new Map())
    const userScreenShareStates = ref<Map<string, { isSharing: boolean; quality: ScreenShareQuality }>>(new Map())
     const showQualityModal = ref(false)
-    const isUserGridVisible = ref(true)
-    const screenShareLayout = ref<'grid' | 'focus'>('focus')
-  const currentRoomUsers = ref<Map<string, RoomUser>>(new Map())
+      const isUserGridVisible = ref(true)
+      const screenShareLayout = ref<'grid' | 'focus'>('focus')
+    const currentRoomUsers = ref<Map<string, RoomUser>>(new Map())
   const maxRetries = 3
   const debugDashboardRef = ref()
   const peerConnectionRetries = ref<Map<string, number>>(new Map())
@@ -273,31 +273,44 @@ const emit = defineEmits<{
    }
  })
 
- // Build screen share data for ScreenShareArea component
- const screenShareData = computed(() => {
-   const shares: Array<{
-     userId: string
-     userNickname: string
-     stream: MediaStream | null
-     quality: ScreenShareQuality
-     connectionState: string
-   }> = []
-   
-   userScreenShareStates.value.forEach((state, userId) => {
-     if (state.isSharing) {
-       const user = currentRoomUsers.value.get(userId)
-       shares.push({
-         userId,
-         userNickname: user?.nickname || userId,
-         stream: remoteScreenStreams.value.get(userId) || null,
-         quality: state.quality,
-         connectionState: peerConnectionStates.value.get(userId) || 'connecting'
-       })
-     }
+  // Build screen share data for ScreenShareArea component
+  const screenShareData = computed(() => {
+    const shares: Array<{
+      userId: string
+      userNickname: string
+      stream: MediaStream | null
+      quality: ScreenShareQuality
+      connectionState: string
+      isSelfView?: boolean
+    }> = []
+    
+    // Add self-view if current user is screen sharing
+    if (isScreenSharing.value && localScreenStream.value) {
+      shares.push({
+        userId: getCurrentUserId() + '-self',
+        userNickname: 'Your Screen',
+        stream: localScreenStream.value,
+        quality: screenShareQuality.value,
+        connectionState: 'self-view',
+        isSelfView: true
+      })
+    }
+    
+    userScreenShareStates.value.forEach((state, userId) => {
+      if (state.isSharing) {
+        const user = currentRoomUsers.value.get(userId)
+        shares.push({
+          userId,
+          userNickname: user?.nickname || userId,
+          stream: remoteScreenStreams.value.get(userId) || null,
+          quality: state.quality,
+          connectionState: peerConnectionStates.value.get(userId) || 'connecting'
+        })
+      }
+    })
+    
+     return shares
    })
-   
-    return shares
-  })
 
  // Debug data for screen sharing
  const localScreenShareDebugData = computed(() => {
