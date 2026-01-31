@@ -64,10 +64,29 @@
       </div>
     </header>
 
+    <!-- Screen Share Quality Modal -->
+    <ScreenShareQualityModal
+      :is-open="showQualityModal"
+      @select-quality="handleQualitySelected"
+      @cancel="showQualityModal = false"
+    />
+
     <!-- Main Call Area -->
     <main class="flex-1 flex flex-col min-h-0 overflow-hidden">
+      <!-- Screen Share Area -->
+      <ScreenShareArea
+        v-if="screenShareData.length > 0"
+        :screen-shares="screenShareData"
+        :is-user-grid-visible="isUserGridVisible"
+        class="flex-shrink-0 m-4"
+        @toggle-user-grid="isUserGridVisible = !isUserGridVisible"
+      />
+
       <!-- User Grid -->
-      <div class="flex-1 p-4 lg:p-6 overflow-y-auto">
+      <div
+        v-show="isUserGridVisible || screenShareData.length === 0"
+        class="flex-1 p-4 lg:p-6 overflow-y-auto"
+      >
         <div v-if="users.length > 0" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
           <div
             v-for="user in users"
@@ -81,6 +100,8 @@
               :connection-state="peerConnectionStates.get(user.id)"
               :initial-volume="props.remoteStreamVolumes.get(user.id) || 80"
               :is-deafened="isDeafened"
+              :is-screen-sharing="userScreenShareStates.get(user.id)?.isSharing || false"
+              :screen-share-quality="userScreenShareStates.get(user.id)?.quality"
               @volume-change="handleVolumeChange"
               @mute-toggle="handleMuteToggle"
               @audio-level="handleAudioLevel"
@@ -124,17 +145,19 @@
   </div>
 </template>
 
-<script setup lang="ts">
+ <script setup lang="ts">
  import { computed, onMounted, onUnmounted, ref } from 'vue'
  import AudioControls from '@/components/AudioControls.vue'
  import AudioStream from '@/components/AudioStream.vue'
  import DebugDashboard from '@/components/DebugDashboard.vue'
+ import ScreenShareArea from '@/components/ScreenShareArea.vue'
+ import ScreenShareQualityModal from '@/components/ScreenShareQualityModal.vue'
  import { wsService } from '@/services/websocket'
  import { webRTCStatsCollector } from '@/services/webrtc-stats'
- import type { User, RoomUser } from '@/types'
-import { 
-    PhArrowLeft, 
-    PhGearSix, 
+ import type { User, RoomUser, ScreenShareQuality, ScreenShareData } from '@/types'
+import {
+    PhArrowLeft,
+    PhGearSix,
     PhMicrophone,
     PhUsers
   } from '@phosphor-icons/vue'
@@ -158,32 +181,65 @@ const emit = defineEmits<{
   'toggle-user-sidebar': []
 }>()
 
-// Reactive state
-const localStream = ref<MediaStream | null>(null)
-const remoteStreams = ref<Map<string, MediaStream>>(new Map())
-const peerConnections = ref<Map<string, RTCPeerConnection>>(new Map())
-const peerConnectionStates = ref<Map<string, string>>(new Map())
-const remoteStreamMutes = ref<Map<string, boolean>>(new Map())
-  // Used to avoid getUserMedia races during offer/answer handling
-  let localStreamPromise: Promise<MediaStream | null> | null = null
-  const isMuted = ref(false)
-  const isDeafened = ref(false)
-  const isScreenSharing = ref(false)
- const currentRoomUsers = ref<Map<string, RoomUser>>(new Map())
- const maxRetries = 3
- const debugDashboardRef = ref()
-// Fix for ICE candidate race condition
-const pendingIceCandidates = ref<Map<string, RTCIceCandidateInit[]>>(new Map())
-// Track current user's join time (0 = not set yet)
-const currentUserJoinTime = ref<number>(0)
+ // Reactive state
+ const localStream = ref<MediaStream | null>(null)
+ const remoteStreams = ref<Map<string, MediaStream>>(new Map())
+ const peerConnections = ref<Map<string, RTCPeerConnection>>(new Map())
+ const peerConnectionStates = ref<Map<string, string>>(new Map())
+ const remoteStreamMutes = ref<Map<string, boolean>>(new Map())
+   // Used to avoid getUserMedia races during offer/answer handling
+   let localStreamPromise: Promise<MediaStream | null> | null = null
+   const isMuted = ref(false)
+   const isDeafened = ref(false)
+   const isScreenSharing = ref(false)
+   const screenShareQuality = ref<ScreenShareQuality>('1080p30')
+   const screenShareAudioEnabled = ref(false)
+   const localScreenStream = ref<MediaStream | null>(null)
+   const remoteScreenStreams = ref<Map<string, MediaStream>>(new Map())
+   const userScreenShareStates = ref<Map<string, { isSharing: boolean; quality: ScreenShareQuality }>>(new Map())
+   const showQualityModal = ref(false)
+   const isUserGridVisible = ref(true)
+  const currentRoomUsers = ref<Map<string, RoomUser>>(new Map())
+  const maxRetries = 3
+  const debugDashboardRef = ref()
+ // Fix for ICE candidate race condition
+ const pendingIceCandidates = ref<Map<string, RTCIceCandidateInit[]>>(new Map())
+ // Track current user's join time (0 = not set yet)
+ const currentUserJoinTime = ref<number>(0)
 
 // Computed properties
-const currentRoom = computed(() => {
-  return {
-    name: props.roomName || 'Voice Room',
-    id: props.roomId
-  }
-})
+ const currentRoom = computed(() => {
+   return {
+     name: props.roomName || 'Voice Room',
+     id: props.roomId
+   }
+ })
+
+ // Build screen share data for ScreenShareArea component
+ const screenShareData = computed(() => {
+   const shares: Array<{
+     userId: string
+     userNickname: string
+     stream: MediaStream | null
+     quality: ScreenShareQuality
+     connectionState: string
+   }> = []
+   
+   userScreenShareStates.value.forEach((state, userId) => {
+     if (state.isSharing) {
+       const user = currentRoomUsers.value.get(userId)
+       shares.push({
+         userId,
+         userNickname: user?.nickname || userId,
+         stream: remoteScreenStreams.value.get(userId) || null,
+         quality: state.quality,
+         connectionState: peerConnectionStates.value.get(userId) || 'connecting'
+       })
+     }
+   })
+   
+   return shares
+ })
 
 
 
@@ -561,27 +617,40 @@ const initializeWebRTC = async () => {
     return peerConnection
   }
 
- const handleRemoteTrack = (userId: string, stream: MediaStream) => {
-   try {
-     console.log(`🎵 Received remote stream from ${userId}:`, stream)
-     
-     // Store the remote stream
-     remoteStreams.value.set(userId, stream)
-     
-      // Initialize volume and mute state if not already set
-      if (!props.remoteStreamVolumes.has(userId)) {
-        emit('volume-change', userId, 80) // Default volume
+  const handleRemoteTrack = (userId: string, stream: MediaStream) => {
+    try {
+      console.log(`🎵 Received remote stream from ${userId}:`, stream)
+      
+      // Check if this is a screen share stream (has video track but no audio)
+      // or an audio stream (has audio track)
+      const hasVideo = stream.getVideoTracks().length > 0
+      const hasAudio = stream.getAudioTracks().length > 0
+      
+      if (hasVideo) {
+        // This is a screen share stream
+        handleScreenShareTrack(userId, stream)
+        console.log(`🖥️ Stored screen share stream for ${userId}`)
       }
-     
-     if (!remoteStreamMutes.value.has(userId)) {
-       remoteStreamMutes.value.set(userId, false) // Default unmuted
-     }
-     
-     console.log(`🎵 Stored remote stream for ${userId}, total streams: ${remoteStreams.value.size}`)
-   } catch (error) {
-     console.error('❌ Error handling remote track:', error)
-   }
- }
+      
+      if (hasAudio || !hasVideo) {
+        // This is an audio stream (or default if no video)
+        remoteStreams.value.set(userId, stream)
+        
+        // Initialize volume and mute state if not already set
+        if (!props.remoteStreamVolumes.has(userId)) {
+          emit('volume-change', userId, 80) // Default volume
+        }
+        
+        if (!remoteStreamMutes.value.has(userId)) {
+          remoteStreamMutes.value.set(userId, false) // Default unmuted
+        }
+        
+        console.log(`🎵 Stored audio stream for ${userId}, total streams: ${remoteStreams.value.size}`)
+      }
+    } catch (error) {
+      console.error('❌ Error handling remote track:', error)
+    }
+  }
 
  const handleConnectionFailure = (userId: string) => {
    const currentRetries = peerConnectionRetries.value.get(userId) || 0
@@ -726,8 +795,203 @@ const toggleDeafen = () => {
 }
 
 const toggleScreenShare = () => {
-  isScreenSharing.value = !isScreenSharing.value
-  console.log('Screen sharing:', isScreenSharing.value)
+  if (isScreenSharing.value) {
+    // Stop screen sharing
+    stopScreenShare()
+  } else {
+    // Open quality selection modal
+    showQualityModal.value = true
+  }
+}
+
+const handleQualitySelected = async (quality: ScreenShareQuality, shareAudio: boolean) => {
+  showQualityModal.value = false
+  screenShareQuality.value = quality
+  screenShareAudioEnabled.value = shareAudio
+  
+  try {
+    await startScreenShare(quality, shareAudio)
+  } catch (error) {
+    console.error('Failed to start screen share:', error)
+    addDebugLog(`Failed to start screen share: ${(error as Error).message}`, 'error')
+  }
+}
+
+const getDisplayMediaConstraints = (quality: ScreenShareQuality, audio: boolean): MediaStreamConstraints => {
+  const constraints: MediaStreamConstraints = {
+    video: true,
+    audio: audio ? { echoCancellation: false, noiseSuppression: false } : false
+  }
+  
+  // Apply quality constraints
+  if (quality !== 'source') {
+    const videoConstraints: MediaTrackConstraints = {}
+    
+    switch (quality) {
+      case '1080p60':
+        videoConstraints.width = { ideal: 1920 }
+        videoConstraints.height = { ideal: 1080 }
+        videoConstraints.frameRate = { ideal: 60 }
+        break
+      case '1080p30':
+        videoConstraints.width = { ideal: 1920 }
+        videoConstraints.height = { ideal: 1080 }
+        videoConstraints.frameRate = { ideal: 30 }
+        break
+      case '720p30':
+        videoConstraints.width = { ideal: 1280 }
+        videoConstraints.height = { ideal: 720 }
+        videoConstraints.frameRate = { ideal: 30 }
+        break
+      case '360p30':
+        videoConstraints.width = { ideal: 640 }
+        videoConstraints.height = { ideal: 360 }
+        videoConstraints.frameRate = { ideal: 30 }
+        break
+      case 'text':
+        videoConstraints.width = { ideal: 1920 }
+        videoConstraints.height = { ideal: 1080 }
+        videoConstraints.frameRate = { ideal: 5 }
+        break
+    }
+    
+    constraints.video = videoConstraints
+  }
+  
+  return constraints
+}
+
+const startScreenShare = async (quality: ScreenShareQuality, audio: boolean) => {
+  try {
+    const constraints = getDisplayMediaConstraints(quality, audio)
+    
+    // Get screen share stream
+    const screenStream = await navigator.mediaDevices.getDisplayMedia(constraints)
+    localScreenStream.value = screenStream
+    
+    // Add video tracks to all existing peer connections
+    const videoTracks = screenStream.getVideoTracks()
+    if (videoTracks.length > 0) {
+      const track = videoTracks[0]
+      
+      // Listen for the 'ended' event (when user stops sharing via browser UI)
+      track.onended = () => {
+        console.log('Screen share track ended (browser UI)')
+        stopScreenShare()
+      }
+      
+      // Add track to all peer connections
+      peerConnections.value.forEach((pc, userId) => {
+        try {
+          pc.addTrack(track, screenStream)
+          console.log(`🖥️ Added screen share track to peer ${userId}`)
+          addDebugLog(`Added screen share track to peer ${userId}`, 'info', userId)
+        } catch (error) {
+          console.error(`Failed to add screen track to peer ${userId}:`, error)
+        }
+      })
+    }
+    
+    // Send screen_share_start message via WebSocket
+    const userId = getCurrentUserId()
+    wsService.sendMessage('screen_share_start', {
+      user_id: userId,
+      quality: quality,
+      has_audio: audio
+    } as ScreenShareData)
+    
+    isScreenSharing.value = true
+    console.log('✅ Screen sharing started:', quality, audio ? 'with audio' : 'without audio')
+    addDebugLog(`Screen sharing started: ${quality}${audio ? ' with audio' : ''}`, 'info')
+    
+  } catch (error) {
+    console.error('❌ Failed to get display media:', error)
+    addDebugLog(`Failed to start screen share: ${(error as Error).message}`, 'error')
+    throw error
+  }
+}
+
+const stopScreenShare = () => {
+  if (!isScreenSharing.value) return
+  
+  try {
+    // Stop all tracks in the local screen stream
+    if (localScreenStream.value) {
+      localScreenStream.value.getTracks().forEach(track => {
+        track.stop()
+        
+        // Remove track from all peer connections
+        peerConnections.value.forEach((pc) => {
+          const sender = pc.getSenders().find(s => s.track === track)
+          if (sender) {
+            try {
+              pc.removeTrack(sender)
+              console.log('🖥️ Removed screen share track from peer connection')
+            } catch (error) {
+              console.error('Failed to remove screen track:', error)
+            }
+          }
+        })
+      })
+      
+      localScreenStream.value = null
+    }
+    
+    // Send screen_share_stop message via WebSocket
+    const userId = getCurrentUserId()
+    wsService.sendMessage('screen_share_stop', {
+      user_id: userId
+    })
+    
+    isScreenSharing.value = false
+    screenShareQuality.value = '1080p30'
+    screenShareAudioEnabled.value = false
+    
+    console.log('✅ Screen sharing stopped')
+    addDebugLog('Screen sharing stopped', 'info')
+    
+  } catch (error) {
+    console.error('❌ Error stopping screen share:', error)
+    addDebugLog(`Error stopping screen share: ${(error as Error).message}`, 'error')
+  }
+}
+
+const handleScreenShareStart = (data: ScreenShareData) => {
+  const { user_id, quality } = data
+  console.log(`🖥️ User ${user_id} started screen sharing:`, quality)
+  
+  // Update user's screen share state
+  userScreenShareStates.value.set(user_id, {
+    isSharing: true,
+    quality: quality
+  })
+  
+  addDebugLog(`User ${user_id} started screen sharing (${quality})`, 'info', user_id)
+}
+
+const handleScreenShareStop = (data: { user_id: string }) => {
+  const { user_id } = data
+  console.log(`🖥️ User ${user_id} stopped screen sharing`)
+  
+  // Update user's screen share state
+  userScreenShareStates.value.set(user_id, {
+    isSharing: false,
+    quality: '1080p30'
+  })
+  
+  // Clean up remote screen stream
+  remoteScreenStreams.value.delete(user_id)
+  
+  addDebugLog(`User ${user_id} stopped screen sharing`, 'info', user_id)
+}
+
+const handleScreenShareTrack = (userId: string, stream: MediaStream) => {
+  console.log(`🖥️ Received screen share stream from ${userId}:`, stream)
+  
+  // Store the remote screen stream
+  remoteScreenStreams.value.set(userId, stream)
+  
+  console.log(`🖥️ Stored screen share stream for ${userId}`)
 }
 
 // Statistics methods
@@ -766,6 +1030,14 @@ const onUserLeftMessage = (message: WebSocketMessage) => handleUserLeft(message.
 const onSpeakingStatusMessage = () => {
   // TODO: Handle speaking status updates if needed
 }
+const onScreenShareStartMessage = (message: WebSocketMessage) => {
+  console.log('📨 Received screen_share_start message:', message)
+  handleScreenShareStart(message.data as ScreenShareData)
+}
+const onScreenShareStopMessage = (message: WebSocketMessage) => {
+  console.log('📨 Received screen_share_stop message:', message)
+  handleScreenShareStop(message.data as { user_id: string })
+}
 
 // Lifecycle hooks
 onMounted(async () => {
@@ -776,7 +1048,9 @@ onMounted(async () => {
   wsService.on('room_users', onRoomUsersMessage)
   wsService.on('user_left', onUserLeftMessage)
   wsService.on('speaking_status', onSpeakingStatusMessage)
-  
+  wsService.on('screen_share_start', onScreenShareStartMessage)
+  wsService.on('screen_share_stop', onScreenShareStopMessage)
+
   // Now initialize WebRTC after listeners are ready
   await initializeWebRTC()
 })
@@ -789,22 +1063,31 @@ onUnmounted(() => {
   wsService.off('room_users', onRoomUsersMessage)
   wsService.off('user_left', onUserLeftMessage)
   wsService.off('speaking_status', onSpeakingStatusMessage)
+  wsService.off('screen_share_start', onScreenShareStartMessage)
+  wsService.off('screen_share_stop', onScreenShareStopMessage)
 
   // Clean up all peer connections and audio elements
   peerConnections.value.forEach((connection, userId) => {
     cleanupPeerConnection(userId)
   })
-  
+
   // Clean up all statistics collection
   webRTCStatsCollector.cleanup()
-  
+
   // Clean up media stream
   if (localStream.value) {
     localStream.value.getTracks().forEach(track => {
       track.stop()
     })
   }
-  
+
+  // Clean up screen share stream
+  if (localScreenStream.value) {
+    localScreenStream.value.getTracks().forEach(track => {
+      track.stop()
+    })
+  }
+
   console.log('WebRTC cleanup completed')
 })
 </script>

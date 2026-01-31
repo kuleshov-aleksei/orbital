@@ -19,6 +19,15 @@ export interface RoomPreviewUser {
   isSpeaking: boolean
 }
 
+// Screen sharing quality options
+export type ScreenShareQuality =
+  | 'source'
+  | '1080p60'
+  | '1080p30'
+  | '720p30'
+  | '360p30'
+  | 'text'
+
 // User interface
 export interface User {
   id: string
@@ -26,6 +35,8 @@ export interface User {
   isSpeaking: boolean
   isMuted: boolean
   isDeafened: boolean
+  isScreenSharing: boolean
+  screenShareQuality?: ScreenShareQuality
   status: 'online' | 'away' | 'dnd'
 }
 
@@ -122,6 +133,13 @@ export interface HealthResponse {
   status: string
   service: string
   version: string
+}
+
+// Screen sharing data for WebSocket messages
+export interface ScreenShareData {
+  user_id: string
+  quality: ScreenShareQuality
+  has_audio: boolean
 }
 
 // WebRTC related types
