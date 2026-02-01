@@ -37,8 +37,23 @@ export function useWebSocketHandlers() {
     // Deafen status updates
     wsService.on('deafen_status', (message: WebSocketMessage) => {
       const statusData = message.data as { user_id: string; is_deafened: boolean }
+      console.log('Room deafen_status received:', statusData)
       roomStore.updateCurrentRoomUser(statusData.user_id, { is_deafened: statusData.is_deafened })
       roomStore.updateUserStatus(statusData.user_id, { is_deafened: statusData.is_deafened })
+    })
+
+    // Screen share start
+    wsService.on('screen_share_start', (message: WebSocketMessage) => {
+      const shareData = message.data as { user_id: string; quality: string }
+      roomStore.updateCurrentRoomUser(shareData.user_id, { is_screen_sharing: true, screen_share_quality: shareData.quality })
+      roomStore.updateUserStatus(shareData.user_id, { is_screen_sharing: true })
+    })
+
+    // Screen share stop
+    wsService.on('screen_share_stop', (message: WebSocketMessage) => {
+      const stopData = message.data as { user_id: string }
+      roomStore.updateCurrentRoomUser(stopData.user_id, { is_screen_sharing: false })
+      roomStore.updateUserStatus(stopData.user_id, { is_screen_sharing: false })
     })
 
     // Nickname change updates
@@ -85,7 +100,19 @@ export function useWebSocketHandlers() {
 
     wsService.onGlobal('deafen_status', (message: WebSocketMessage) => {
       const statusData = message.data as { user_id: string; is_deafened: boolean }
+      console.log('Global deafen_status received:', statusData)
       roomStore.updateUserStatus(statusData.user_id, { is_deafened: statusData.is_deafened })
+    })
+
+    // Screen share updates for sidebar
+    wsService.onGlobal('screen_share_start', (message: WebSocketMessage) => {
+      const shareData = message.data as { user_id: string; quality: string }
+      roomStore.updateUserStatus(shareData.user_id, { is_screen_sharing: true })
+    })
+
+    wsService.onGlobal('screen_share_stop', (message: WebSocketMessage) => {
+      const stopData = message.data as { user_id: string }
+      roomStore.updateUserStatus(stopData.user_id, { is_screen_sharing: false })
     })
 
     // Nickname changes

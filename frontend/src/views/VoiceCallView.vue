@@ -83,9 +83,10 @@
  import ScreenShareArea from '@/components/ScreenShareArea.vue'
  import ScreenShareQualityModal from '@/components/ScreenShareQualityModal.vue'
  import UserGrid from '@/components/UserGrid.vue'
- import { useWebRTC } from '@/composables'
- import { useAudioSettingsStore } from '@/stores/audioSettings'
- import { useCallStore } from '@/stores/call'
+import { useWebRTC } from '@/composables'
+import { useAudioSettingsStore } from '@/stores/audioSettings'
+import { useCallStore, useUserStore, useRoomStore } from '@/stores'
+import { wsService } from '@/services/websocket'
  import type { User, ScreenShareQuality } from '@/types'
 
 interface Props {
@@ -133,8 +134,10 @@ const onDebugLog = (message: string, level: 'info' | 'warning' | 'error' = 'info
 // Audio settings store
 const audioSettingsStore = useAudioSettingsStore()
 
-// Call store for mute/deafen state
+// Stores
 const callStore = useCallStore()
+const userStore = useUserStore()
+const roomStore = useRoomStore()
 
 // Initialize WebRTC composable - destructure for template reactivity
 const {
@@ -256,12 +259,55 @@ const handleVolumeChange = (userId: string, volume: number) => {
 }
 
 const toggleMute = () => {
-  isMuted.value = !isMuted.value
+  const newValue = !isMuted.value
+  isMuted.value = newValue
+  console.log('toggleMute called:', { newValue, isConnected: wsService.isConnected(), userId: userStore.userId })
+  
+  // Update call store
+  callStore.setMuted(newValue)
+  
+  // Immediately update room store for local user so UI updates right away
+  roomStore.updateUserStatus(userStore.userId, { is_muted: newValue })
+  
+  // Send WebSocket message if connected
+  if (wsService.isConnected()) {
+    console.log('Sending mute_status from VoiceCallView:', { user_id: userStore.userId, is_muted: newValue })
+    wsService.sendMessage('mute_status', {
+      user_id: userStore.userId,
+      is_muted: newValue
+    })
+    // Also send speaking_status since mute affects speaking
+    wsService.sendMessage('speaking_status', {
+      user_id: userStore.userId,
+      is_speaking: false,
+      is_muted: newValue
+    })
+  } else {
+    console.warn('WebSocket not connected in VoiceCallView, cannot send mute_status')
+  }
 }
 
 const toggleDeafen = () => {
-  isDeafened.value = !isDeafened.value
-  console.log('Deafen status:', isDeafened.value)
+  const newValue = !isDeafened.value
+  isDeafened.value = newValue
+  console.log('toggleDeafen called:', { newValue, isConnected: wsService.isConnected(), userId: userStore.userId })
+  
+  // Update call store
+  callStore.setDeafened(newValue)
+  
+  // Immediately update room store for local user so UI updates right away
+  roomStore.updateUserStatus(userStore.userId, { is_deafened: newValue })
+  
+  // Send WebSocket message if connected
+  if (wsService.isConnected()) {
+    console.log('Sending deafen_status from VoiceCallView:', { user_id: userStore.userId, is_deafened: newValue })
+    wsService.sendMessage('deafen_status', {
+      user_id: userStore.userId,
+      is_deafened: newValue
+    })
+  } else {
+    console.warn('WebSocket not connected in VoiceCallView, cannot send deafen_status')
+  }
 }
 
 const toggleScreenShare = () => {

@@ -17,6 +17,7 @@ export interface RoomPreviewUser {
   is_muted: boolean
   is_deafened: boolean
   is_speaking: boolean
+  is_screen_sharing?: boolean
 }
 
 // Screen sharing quality options

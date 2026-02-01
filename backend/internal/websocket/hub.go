@@ -535,6 +535,9 @@ func (c *Client) handleScreenShareStart(data interface{}) {
 		},
 	}
 	c.hub.BroadcastToRoomExcluding(c.roomID, c, shareMessage)
+
+	// Also broadcast globally so users outside room can see status in room list
+	c.hub.BroadcastToAll(shareMessage)
 }
 
 // handleScreenShareStop handles screen sharing stop notifications
@@ -564,6 +567,9 @@ func (c *Client) handleScreenShareStop(data interface{}) {
 		},
 	}
 	c.hub.BroadcastToRoomExcluding(c.roomID, c, stopMessage)
+
+	// Also broadcast globally so users outside room can see status in room list
+	c.hub.BroadcastToAll(stopMessage)
 }
 
 // handlePing handles ping messages and responds with pong

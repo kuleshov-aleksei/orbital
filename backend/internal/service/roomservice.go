@@ -118,12 +118,13 @@ func (rs *RoomService) getRoomPreviewUsers(roomID string) []models.RoomPreviewUs
 		for userID, member := range members {
 			if user, exists := rs.users[userID]; exists {
 				previewUser := models.RoomPreviewUser{
-					ID:         user.ID,
-					Nickname:   user.Nickname,
-					Role:       member.Role,
-					IsMuted:    member.IsMuted,
-					IsDeafened: member.IsDeafened,
-					IsSpeaking: member.IsSpeaking,
+					ID:              user.ID,
+					Nickname:        user.Nickname,
+					Role:            member.Role,
+					IsMuted:         member.IsMuted,
+					IsDeafened:      member.IsDeafened,
+					IsSpeaking:      member.IsSpeaking,
+					IsScreenSharing: member.IsScreenSharing,
 				}
 
 				users = append(users, previewUser)
@@ -220,9 +221,13 @@ func (rs *RoomService) JoinRoom(roomID, userID, nickname string) (*models.User, 
 
 	log.Printf("User %s joined room %s", userID, roomID)
 	return user, &models.RoomPreviewUser{
-		ID:       user.ID,
-		Nickname: user.Nickname,
-		Role:     member.Role,
+		ID:              user.ID,
+		Nickname:        user.Nickname,
+		Role:            member.Role,
+		IsMuted:         member.IsMuted,
+		IsDeafened:      member.IsDeafened,
+		IsSpeaking:      member.IsSpeaking,
+		IsScreenSharing: member.IsScreenSharing,
 	}, nil
 }
 
@@ -233,19 +238,34 @@ func (rs *RoomService) LeaveRoom(roomID, userID string) *models.RoomPreviewUser 
 
 	var leftUser *models.RoomPreviewUser
 
+	var member *models.RoomMember
+	if rs.members[roomID] != nil {
+		if m, exists := rs.members[roomID][userID]; exists {
+			member = m
+		}
+	}
+
 	if user, exists := rs.users[userID]; exists {
 		user.LastSeen = time.Now()
 		leftUser = &models.RoomPreviewUser{
-			ID:       user.ID,
-			Nickname: user.Nickname,
-			Role:     "member",
+			ID:              user.ID,
+			Nickname:        user.Nickname,
+			Role:            "member",
+			IsMuted:         false,
+			IsDeafened:      false,
+			IsSpeaking:      false,
+			IsScreenSharing: false,
+		}
+		if member != nil {
+			leftUser.Role = member.Role
+			leftUser.IsMuted = member.IsMuted
+			leftUser.IsDeafened = member.IsDeafened
+			leftUser.IsSpeaking = member.IsSpeaking
+			leftUser.IsScreenSharing = member.IsScreenSharing
 		}
 	}
 
 	if rs.members[roomID] != nil {
-		if member, exists := rs.members[roomID][userID]; exists {
-			leftUser.Role = member.Role
-		}
 		delete(rs.members[roomID], userID)
 	}
 

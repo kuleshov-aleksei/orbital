@@ -30,6 +30,7 @@ export function useCallControls() {
   }
 
   const handleDeafenToggle = (deafened: boolean) => {
+    console.log('handleDeafenToggle called:', { deafened, isConnected: wsService.isConnected(), userId: userStore.userId })
     callStore.setDeafened(deafened)
     
     // Immediately update room store for local user so UI updates right away
@@ -38,10 +39,13 @@ export function useCallControls() {
     // Notify WebSocket of deafen status change only if connected
     if (wsService.isConnected()) {
       const userId = userStore.userId
+      console.log('Sending deafen_status message:', { user_id: userId, is_deafened: deafened })
       wsService.sendMessage('deafen_status', {
         user_id: userId,
         is_deafened: deafened
       })
+    } else {
+      console.warn('WebSocket not connected, cannot send deafen_status')
     }
   }
 

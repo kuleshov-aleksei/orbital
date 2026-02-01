@@ -41,12 +41,14 @@
           :key="user.id"
           class="flex items-center text-xs"
         >
-          <div class="mr-2 flex items-center">
+          <div class="mr-2 flex items-center gap-1">
             <PhMicrophone v-if="!user.is_muted && !user.is_deafened" class="text-green-500 w-4 h-4"/>
 
             <PhMicrophoneSlash v-if="user.is_muted" class="text-red-500 w-4 h-4"/>
 
             <PhHeadphones v-if="user.is_deafened" class="text-red-500 w-4 h-4"/>
+
+            <PhMonitor v-if="user.is_screen_sharing" class="text-blue-400 w-4 h-4"/>
           </div>
 
           <span>{{ user.nickname }}</span>
@@ -60,7 +62,7 @@
 
 <script setup lang="ts">
 
-import { PhWaveform, PhMicrophone, PhHeadphones, PhMicrophoneSlash } from '@phosphor-icons/vue'
+import { PhWaveform, PhMicrophone, PhHeadphones, PhMicrophoneSlash, PhMonitor } from '@phosphor-icons/vue'
 
 // Use snake_case to match backend API and global types
 interface RoomPreviewUser {
@@ -70,6 +72,7 @@ interface RoomPreviewUser {
   is_muted: boolean
   is_deafened: boolean
   is_speaking: boolean
+  is_screen_sharing?: boolean
 }
 
 interface Room {
