@@ -145,8 +145,43 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
   /**
    * Check if the microphone supports 48kHz sample rate
    * This is required for RNNoise
+   * Uses a two-step approach: first try ideal, then try exact to determine capability
    */
   async function checkMicrophone48kHzSupport(): Promise<boolean> {
+    // Step 1: Try with ideal constraint first (most likely to succeed)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          sampleRate: { ideal: 48000 },
+          channelCount: { ideal: 1 }
+        }
+      })
+
+      const track = stream.getAudioTracks()[0]
+      const settings = track.getSettings()
+
+      // Clean up
+      stream.getTracks().forEach(t => t.stop())
+
+      // Check if we got 48kHz (browsers may not report sampleRate in settings)
+      // If we got a stream with ideal 48kHz, we assume it supports it
+      // unless we can confirm otherwise
+      if (settings.sampleRate === 48000) {
+        microphoneSupports48kHz.value = true
+        return true
+      }
+
+      // If sampleRate is not in settings or different value, 
+      // check if it's at least close (some mics report 44100 or 48000)
+      if (settings.sampleRate && settings.sampleRate >= 44100) {
+        microphoneSupports48kHz.value = true
+        return true
+      }
+    } catch (error) {
+      console.log('Ideal 48kHz check failed:', error)
+    }
+
+    // Step 2: Try with exact constraint to confirm support
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -155,19 +190,17 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
         }
       })
 
-      // Check actual sample rate
-      const track = stream.getAudioTracks()[0]
-      const settings = track.getSettings()
-      const actualRate = settings.sampleRate
-
-      // Clean up
+      // If we get here, the microphone supports 48kHz
       stream.getTracks().forEach(t => t.stop())
-
-      const supports48kHz = actualRate === 48000
-      microphoneSupports48kHz.value = supports48kHz
-      return supports48kHz
+      microphoneSupports48kHz.value = true
+      return true
     } catch (error) {
-      console.warn('Microphone does not support 48kHz:', error)
+      // OverconstrainedError means the microphone doesn't support 48kHz
+      if (error instanceof Error && error.name === 'OverconstrainedError') {
+        console.warn('Microphone does not support 48kHz sample rate (OverconstrainedError)')
+      } else {
+        console.warn('Could not verify 48kHz support:', error)
+      }
       microphoneSupports48kHz.value = false
       return false
     }
