@@ -35,6 +35,7 @@
 
       <!-- Screen Share -->
       <button
+        v-if="isScreenShareSupported"
         type="button"
         class="control-button"
         :class="{ 'bg-indigo-600 hover:bg-indigo-700': isScreenSharing, 'bg-gray-700 hover:bg-gray-600': !isScreenSharing }"
@@ -74,6 +75,7 @@ import {
   PhSignOut,
   PhGearSix
 } from '@phosphor-icons/vue'
+import { useScreenShareSupport } from '@/composables/useScreenShareSupport'
 
 interface Props {
   isMuted?: boolean
@@ -91,6 +93,9 @@ const emit = defineEmits<{
 
 // Local state
 const showSettings = ref(false)
+
+// Screen share support detection
+const { isScreenShareSupported } = useScreenShareSupport()
 
 // Methods
 const toggleMute = () => {

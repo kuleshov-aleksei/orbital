@@ -23,8 +23,9 @@
 
         <!-- Call Control Buttons -->
         <div class="flex items-center space-x-2 ml-3">
-          <!-- Screen Share Toggle -->
+          <!-- Screen Share Toggle - Hidden on mobile browsers -->
           <button
+            v-if="isScreenShareSupported"
             type="button"
             class="w-9 h-9 rounded-lg flex items-center justify-center transition-colors duration-200"
             :class="screenShareButtonClass"
@@ -123,6 +124,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { useModalStore } from '@/stores/modal'
+import { useScreenShareSupport } from '@/composables/useScreenShareSupport'
 import {
   PhMicrophone,
   PhMicrophoneSlash,
@@ -166,6 +168,9 @@ const emit = defineEmits<{
 
 // Stores
 const modalStore = useModalStore()
+
+// Screen share support detection
+const { isScreenShareSupported } = useScreenShareSupport()
 
 // Local storage keys
 const MUTE_STORAGE_KEY = 'orbital_mic_muted'
