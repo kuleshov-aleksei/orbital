@@ -1,5 +1,6 @@
 import type { AudioProcessor, AudioWorkletProcessor, NoiseSuppressionAlgorithm } from '@/types/audio'
 import { BrowserNativeProcessor } from './browser'
+import { createNoNoiseSuppressionProcessor } from './noNoiseSuppression'
 import { createRNNoiseProcessor, createSpeexProcessor } from './noiseSuppressor'
 
 /**
@@ -9,7 +10,7 @@ import { createRNNoiseProcessor, createSpeexProcessor } from './noiseSuppressor'
 
 const processorRegistry: Map<NoiseSuppressionAlgorithm, () => AudioProcessor> = new Map([
   ['browser-native', () => new BrowserNativeProcessor()],
-  ['off', () => new BrowserNativeProcessor()], // Off just returns constraints with noiseSuppression: false
+  ['off', () => createNoNoiseSuppressionProcessor()],
   ['rnnoise', () => createRNNoiseProcessor()],
   ['speex', () => createSpeexProcessor()],
 ])
@@ -108,4 +109,5 @@ export async function checkMicrophoneSampleRate(
 }
 
 export { BrowserNativeProcessor }
+export { createNoNoiseSuppressionProcessor } from './noNoiseSuppression'
 export { createRNNoiseProcessor, createSpeexProcessor } from './noiseSuppressor'
