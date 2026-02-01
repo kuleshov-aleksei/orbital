@@ -1,115 +1,17 @@
 <template>
   <div class="voice-call-view flex-1 flex flex-col" data-testid="voice-call-view">
     <!-- Room Header -->
-    <header class="bg-gray-800 px-6 py-4 border-b border-gray-700">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center">
-           <!-- Back to room list button (mobile only, doesn't leave room) -->
-           <button
-             v-if="isMobile"
-             data-testid="back-to-rooms"
-             class="mr-4 text-gray-400 hover:text-white transition-colors duration-200"
-             title="Back to room list"
-             @click="$emit('show-room-list')"
-           >
-             <PhArrowLeft class="w-5 h-5" />
-           </button>
-           
-           <!-- Leave room button (desktop only) -->
-           <button
-             v-else
-             data-testid="leave-room-header"
-             class="mr-4 text-gray-400 hover:text-white transition-colors duration-200"
-             @click="$emit('leave-room')"
-           >
-             <PhArrowLeft class="w-5 h-5" />
-           </button>
-           
-            <div>
-              <h1 
-                class="text-xl font-semibold text-white cursor-pointer hover:text-indigo-400 transition-colors duration-200" 
-                :class="{ 'cursor-pointer': isMobile }"
-                data-testid="room-title"
-                @click="isMobile && $emit('toggle-user-sidebar')"
-              >
-                {{ currentRoom?.name || 'Voice Room' }}
-              </h1>
-              <div class="flex items-center text-sm text-gray-400">
-                <span>{{ users.length }} users</span>
-                <span v-if="screenShareData.length > 0" class="ml-2 text-indigo-400 flex items-center">
-                  <span class="mx-1.5">•</span>
-                  <PhMonitorPlay class="w-3.5 h-3.5 mr-1" />
-                  {{ screenShareData.length }} sharing
-                </span>
-              </div>
-            </div>
-        </div>
-        
-        <div class="flex items-center space-x-2">
-          <!-- Screen Share Layout Toggle (when sharing active) -->
-          <template v-if="screenShareData.length > 0">
-            <div class="flex bg-gray-700 rounded-lg p-0.5">
-              <button
-                class="px-2 py-1 rounded-md text-xs transition-colors flex items-center"
-                :class="[
-                  screenShareLayout === 'grid'
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-gray-400 hover:text-white'
-                ]"
-                @click="screenShareLayout = 'grid'"
-              >
-                <PhGridFour class="w-3.5 h-3.5 mr-1" />
-                Grid
-              </button>
-              <button
-                class="px-2 py-1 rounded-md text-xs transition-colors flex items-center"
-                :class="[
-                  screenShareLayout === 'focus'
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-gray-400 hover:text-white'
-                ]"
-                @click="screenShareLayout = 'focus'"
-              >
-                <PhArrowsOut class="w-3.5 h-3.5 mr-1" />
-                Focus
-              </button>
-            </div>
-            
-            <!-- Toggle User Grid Visibility -->
-            <button
-              class="p-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
-              :title="isUserGridVisible ? 'Hide user grid' : 'Show user grid'"
-              @click="isUserGridVisible = !isUserGridVisible"
-            >
-              <PhEye v-if="isUserGridVisible" class="w-4 h-4" />
-              <PhEyeSlash v-else class="w-4 h-4" />
-            </button>
-          </template>
-          
-          <!-- Mobile: Users count button to toggle sidebar -->
-          <button
-            v-if="isMobile"
-            class="flex items-center px-3 py-1.5 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors duration-200"
-            @click="$emit('toggle-user-sidebar')"
-          >
-            <PhUsers class="w-4 h-4 mr-2" />
-            <span class="text-sm">{{ users.length }}</span>
-          </button>
-          
-          <!-- Desktop: Connection Status and Settings -->
-          <template v-if="!isMobile">
-            <div class="flex items-center text-sm">
-              <div class="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
-              <span class="text-gray-300">Connected</span>
-            </div>
-            
-            <button class="p-2 text-gray-400 hover:text-white transition-colors duration-200">
-              <PhGearSix class="w-5 h-5" />
-            </button>
-          </template>
-        </div>
-      </div>
-    </header>
+    <RoomHeader
+      v-model:screen-share-layout="screenShareLayout"
+      v-model:is-user-grid-visible="isUserGridVisible"
+      :room-name="currentRoom?.name || 'Voice Room'"
+      :user-count="users.length"
+      :screen-share-count="screenShareData.length"
+      :is-mobile="isMobile"
+      @leave-room="$emit('leave-room')"
+      @show-room-list="$emit('show-room-list')"
+      @toggle-user-sidebar="$emit('toggle-user-sidebar')"
+    />
 
     <!-- Screen Share Quality Modal -->
     <ScreenShareQualityModal
@@ -132,43 +34,19 @@
       />
 
       <!-- User Grid -->
-      <div
-        v-show="isUserGridVisible || screenShareData.length === 0"
-        class="flex-1 p-4 lg:p-6 overflow-y-auto"
-      >
-        <div v-if="users.length > 0" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
-          <div
-            v-for="user in users"
-            :key="user.id"
-            class="relative"
-          >
-            <AudioStream
-              :user-id="user.id"
-              :user-nickname="user.nickname || 'Unknown'"
-              :stream="remoteStreams.get(user.id)"
-              :connection-state="peerConnectionStates.get(user.id)"
-              :initial-volume="props.remoteStreamVolumes.get(user.id) || 80"
-              :is-deafened="isDeafened"
-              :is-screen-sharing="userScreenShareStates.get(user.id)?.isSharing || false"
-              :screen-share-quality="userScreenShareStates.get(user.id)?.quality"
-              @volume-change="handleVolumeChange"
-              @mute-toggle="handleMuteToggle"
-              @audio-level="handleAudioLevel"
-            />
-          </div>
-        </div>
-
-         <!-- Empty State -->
-         <div v-else class="flex items-center justify-center h-full">
-           <div class="text-center">
-             <div class="w-20 h-20 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-               <PhMicrophone class="w-10 h-10 text-gray-600" />
-             </div>
-             <h3 class="text-xl font-semibold text-white mb-2">Waiting for others...</h3>
-             <p class="text-gray-400">You're the first one here. Invite some friends to join!</p>
-           </div>
-         </div>
-        </div>
+      <UserGrid
+        :users="users"
+        :remote-streams="remoteStreams"
+        :peer-connection-states="peerConnectionStates"
+        :remote-stream-volumes="props.remoteStreamVolumes"
+        :user-screen-share-states="userScreenShareStates"
+        :is-deafened="isDeafened"
+        :is-visible="isUserGridVisible"
+        :screen-share-count="screenShareData.length"
+        @volume-change="handleVolumeChange"
+        @mute-toggle="handleMuteToggle"
+        @audio-level="handleAudioLevel"
+      />
 
         <!-- Audio Controls -->
         <div class="bg-gray-800 border-t border-gray-700 px-6 py-4">
@@ -199,23 +77,13 @@
  <script setup lang="ts">
  import { computed, ref } from 'vue'
  import AudioControls from '@/components/AudioControls.vue'
- import AudioStream from '@/components/AudioStream.vue'
  import DebugDashboard from '@/components/DebugDashboard.vue'
+ import RoomHeader from '@/components/RoomHeader.vue'
  import ScreenShareArea from '@/components/ScreenShareArea.vue'
  import ScreenShareQualityModal from '@/components/ScreenShareQualityModal.vue'
+ import UserGrid from '@/components/UserGrid.vue'
  import { useWebRTC } from '@/composables'
  import type { User, ScreenShareQuality } from '@/types'
- import {
-     PhArrowLeft,
-     PhGearSix,
-     PhMicrophone,
-     PhUsers,
-     PhMonitorPlay,
-     PhGridFour,
-     PhArrowsOut,
-     PhEye,
-     PhEyeSlash
-   } from '@phosphor-icons/vue'
 
 interface Props {
   roomId: string
