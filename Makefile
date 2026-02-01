@@ -1,4 +1,4 @@
-.PHONY: help install build dev dev-public lint test clean docker-build docker-up
+.PHONY: help install build dev dev-public lint test clean docker-build docker-up certs
 
 # Default target
 help:
@@ -37,22 +37,37 @@ dev:
 	(cd backend && go run ./cmd/server) & \
 	wait
 
+# Generate SSL certificates for HTTPS development
+certs:
+	@if [ ! -f certs/key.pem ] || [ ! -f certs/cert.pem ]; then \
+		echo "Generating SSL certificates..."; \
+		mkdir -p certs; \
+		openssl req -x509 -newkey rsa:2048 -keyout certs/key.pem -out certs/cert.pem -days 365 -nodes -subj "/C=US/ST=State/L=City/O=Orbital/CN=localhost" 2>/dev/null; \
+		echo "Certificates generated in certs/"; \
+	fi
+
 # Run development servers on all interfaces (for testing on multiple devices)
-dev-public:
-	@echo "Starting development servers on all interfaces..."
-	@echo "Frontend: http://0.0.0.0:3000"
-	@echo "Backend: http://0.0.0.0:8080"
+dev-public: certs
+	@echo "Starting development servers on all interfaces with HTTPS..."
 	@LOCAL_IP=$$(hostname -I | awk '{print $$1}'); \
 	if [ -z "$$LOCAL_IP" ]; then \
 		LOCAL_IP=$$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K\S+'); \
 	fi; \
 	if [ -n "$$LOCAL_IP" ]; then \
-		echo "Access from other devices at: http://$$LOCAL_IP:3000"; \
+		echo "Frontend: https://$$LOCAL_IP:3000"; \
+		echo "Backend: http://$$LOCAL_IP:8080"; \
+		echo ""; \
+		echo "Access from other devices at: https://$$LOCAL_IP:3000"; \
+		echo ""; \
+		echo "NOTE: You will see a certificate warning - this is expected for self-signed certs."; \
+		echo "      Click 'Advanced' -> 'Proceed anyway' to continue."; \
 	else \
-		echo "Access from other devices using your machine's IP address"; \
+		echo "Frontend: https://0.0.0.0:3000"; \
+		echo "Backend: http://0.0.0.0:8080"; \
 	fi
 	@echo "Press Ctrl+C to stop both servers"
-	(cd frontend && npm run dev -- --host 0.0.0.0) & \
+	@echo ""
+	(cd frontend && VITE_HTTPS=true npm run dev) & \
 	(cd backend && go run ./cmd/server) & \
 	wait
 
@@ -77,6 +92,7 @@ clean:
 	rm -rf frontend/node_modules
 	rm -rf backend/bin
 	rm -rf bin
+	rm -rf certs
 
 # Docker commands
 docker-build:
