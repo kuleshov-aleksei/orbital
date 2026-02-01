@@ -207,7 +207,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, useTemplateRef } from 'vue'
 import RoomSidebar from '@/components/RoomSidebar.vue'
 import UserSidebar from '@/components/UserSidebar.vue'
 import UserControlPanel from '@/components/UserControlPanel.vue'
@@ -267,7 +267,7 @@ const connectionPing = ref(0)
 const connectionQuality = ref<'excellent' | 'good' | 'fair' | 'poor'>('excellent')
 
 // Template refs
-const voiceCallViewRef = ref<InstanceType<typeof VoiceCallView> | null>(null)
+const voiceCallViewRef = useTemplateRef<InstanceType<typeof VoiceCallView>>('voiceCallViewRef')
 
 // Generate or get current user ID
 const getCurrentUserId = (): string => {

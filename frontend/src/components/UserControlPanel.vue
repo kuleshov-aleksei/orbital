@@ -25,6 +25,7 @@
         <div class="flex items-center space-x-2 ml-3">
           <!-- Screen Share Toggle -->
           <button
+            type="button"
             class="w-9 h-9 rounded-lg flex items-center justify-center transition-colors duration-200"
             :class="screenShareButtonClass"
             :title="localScreenSharing ? 'Stop Sharing' : 'Share Screen'"
@@ -35,6 +36,7 @@
 
           <!-- Leave Room Button -->
           <button
+            type="button"
             class="w-9 h-9 rounded-lg flex items-center justify-center bg-red-600 hover:bg-red-700 text-white transition-colors duration-200"
             title="Leave Room"
             @click="leaveRoom"
@@ -72,6 +74,7 @@
         <div class="flex items-center space-x-2 ml-2">
           <!-- Microphone Toggle -->
           <button
+            type="button"
             class="w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-200"
             :class="micButtonClass"
             :title="localMuted ? 'Unmute' : 'Mute'"
@@ -84,6 +87,7 @@
 
           <!-- Headphone/Deafen Toggle -->
           <button
+            type="button"
             class="w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-200"
             :class="deafenButtonClass"
             :title="localDeafened ? 'Undeafen' : 'Deafen'"

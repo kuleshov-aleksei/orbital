@@ -6,6 +6,7 @@
         <h2 class="text-xl font-semibold text-white">Create New Room</h2>
 
         <button
+          type="button"
           data-testid="room-modal-close"
           class="text-gray-400 hover:text-white transition-colors duration-200"
           @click="$emit('close')"

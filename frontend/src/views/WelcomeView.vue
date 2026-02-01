@@ -7,6 +7,7 @@
         <h2 class="text-2xl font-semibold text-white">Available Rooms</h2>
 
         <button
+          type="button"
           data-testid="create-room-welcome"
           class="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors duration-200"
           @click="$emit('create-room')"
@@ -43,7 +44,7 @@
               {{ room.userCount }}/{{ room.maxUsers }}
             </div>
 
-            <button class="text-indigo-400 hover:text-indigo-300 font-medium">
+            <button type="button" class="text-indigo-400 hover:text-indigo-300 font-medium">
               Join →
             </button>
           </div>
@@ -61,6 +62,7 @@
         <p class="text-gray-400 mb-6">Be the first to create a room and start chatting!</p>
 
         <button
+          type="button"
           data-testid="create-room-empty"
           class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors duration-200"
           @click="$emit('create-room')"

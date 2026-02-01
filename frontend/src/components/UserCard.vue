@@ -116,7 +116,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, computed, nextTick, useTemplateRef } from 'vue'
 import { PhMicrophoneSlash, PhSpeakerHigh } from '@phosphor-icons/vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 
@@ -147,7 +147,7 @@ const showMenu = ref(false)
 const volume = ref(props.initialVolume)
 const isEditingNickname = ref(false)
 const editingNickname = ref('')
-const nicknameInput = ref<HTMLInputElement>()
+const nicknameInput = useTemplateRef<HTMLInputElement>('nicknameInput')
 const menuPosition = { x: 0, y: 0 }
 
 // Check if this is the current user (for nickname editing)

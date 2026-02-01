@@ -5,7 +5,7 @@
     <p class="text-lg mb-4">Voice chat for 5-10 people</p>
 
     <div class="space-y-4">
-      <button class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg">
+      <button type="button" class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg">
         Create Room
       </button>
     </div>

@@ -56,6 +56,7 @@
         <!-- Left: Make Focus Button (only when not focused in multi-stream mode) -->
         <div v-if="!isFocused && showFocusButton">
           <button
+            type="button"
             class="px-3 py-1.5 bg-gray-700/80 hover:bg-gray-600 rounded-lg text-white text-sm flex items-center transition-colors"
             @click="$emit('make-focused')"
           >
@@ -69,6 +70,7 @@
         <!-- Right: Control Buttons -->
         <div class="flex items-center space-x-2">
           <button
+            type="button"
             class="p-2 bg-gray-700/80 hover:bg-gray-600 rounded-lg text-white transition-colors"
             :title="isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'"
             @click="toggleFullscreen"
@@ -79,6 +81,7 @@
           </button>
           
           <button
+            type="button"
             class="p-2 bg-gray-700/80 hover:bg-gray-600 rounded-lg text-white transition-colors"
             title="Picture in Picture"
             @click="togglePiP"
@@ -112,7 +115,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, useTemplateRef } from 'vue'
 import {
   PhMonitorPlay,
   PhArrowsOut,
@@ -145,7 +148,7 @@ defineEmits<{
   'make-focused': []
 }>()
 
-const videoElement = ref<HTMLVideoElement | null>(null)
+const videoElement = useTemplateRef<HTMLVideoElement>('videoElement')
 const isFullscreen = ref(false)
 const isPiPActive = ref(false)
 const isHovered = ref(false)

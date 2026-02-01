@@ -18,6 +18,7 @@
         <button
           v-for="tab in tabs"
           :key="tab.id"
+          type="button"
           :class="[
             'px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
             activeTab === tab.id

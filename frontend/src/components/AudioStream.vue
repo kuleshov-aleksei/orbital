@@ -93,6 +93,7 @@
 
       <!-- Mute/Unmute User -->
       <button
+        type="button"
         class="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors flex items-center space-x-2"
         @click="toggleMute(); hideContextMenu()"
       >
@@ -138,7 +139,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+  import { ref, computed, onMounted, onUnmounted, watch, nextTick, useTemplateRef } from 'vue'
   import {
     PhMicrophone,
     PhMicrophoneSlash,
@@ -173,7 +174,7 @@ const emit = defineEmits<{
 }>()
 
  // Reactive state
- const audioElement = ref<HTMLAudioElement | null>(null)
+ const audioElement = useTemplateRef<HTMLAudioElement>('audioElement')
  const volume = ref(props.initialVolume)
  const isMuted = ref(false)
  const audioLevel = ref(0)

@@ -5,6 +5,7 @@
         <!-- Back to room list button (mobile only, doesn't leave room) -->
         <button
           v-if="isMobile"
+          type="button"
           data-testid="back-to-rooms"
           class="mr-4 text-gray-400 hover:text-white transition-colors duration-200"
           title="Back to room list"
@@ -16,6 +17,7 @@
         <!-- Leave room button (desktop only) -->
         <button
           v-else
+          type="button"
           data-testid="leave-room-header"
           class="mr-4 text-gray-400 hover:text-white transition-colors duration-200"
           @click="$emit('leave-room')"
@@ -51,6 +53,7 @@
         <template v-if="screenShareCount > 0">
           <div class="flex bg-gray-700 rounded-lg p-0.5">
             <button
+              type="button"
               class="px-2 py-1 rounded-md text-xs transition-colors flex items-center"
               :class="[
                 screenShareLayout === 'grid'
@@ -64,6 +67,7 @@
             </button>
 
             <button
+              type="button"
               class="px-2 py-1 rounded-md text-xs transition-colors flex items-center"
               :class="[
                 screenShareLayout === 'focus'
@@ -79,6 +83,7 @@
           
           <!-- Toggle User Grid Visibility -->
           <button
+            type="button"
             class="p-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
             :title="isUserGridVisible ? 'Hide user grid' : 'Show user grid'"
             @click="$emit('update:isUserGridVisible', !isUserGridVisible)"
@@ -92,6 +97,7 @@
         <!-- Mobile: Users count button to toggle sidebar -->
         <button
           v-if="isMobile"
+          type="button"
           class="flex items-center px-3 py-1.5 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors duration-200"
           @click="$emit('toggle-user-sidebar')"
         >
@@ -108,7 +114,7 @@
             <span class="text-gray-300">Connected</span>
           </div>
           
-          <button class="p-2 text-gray-400 hover:text-white transition-colors duration-200">
+          <button type="button" class="p-2 text-gray-400 hover:text-white transition-colors duration-200">
             <PhGearSix class="w-5 h-5" />
           </button>
         </template>

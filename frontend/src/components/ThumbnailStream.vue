@@ -15,7 +15,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { onMounted, useTemplateRef } from 'vue'
 
 interface Props {
   userId: string
@@ -25,7 +25,7 @@ interface Props {
 
 const props = defineProps<Props>()
 
-const videoElement = ref<HTMLVideoElement | null>(null)
+const videoElement = useTemplateRef<HTMLVideoElement>('videoElement')
 
 onMounted(() => {
   if (props.stream && videoElement.value) {

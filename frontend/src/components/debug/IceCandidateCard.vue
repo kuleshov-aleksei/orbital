@@ -18,6 +18,7 @@
       </div>
 
       <button
+        type="button"
         class="flex items-center space-x-1 px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors"
         @click="copyCandidate"
       >

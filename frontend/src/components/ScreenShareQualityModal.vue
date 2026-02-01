@@ -28,6 +28,7 @@
             <button
               v-for="option in qualityOptions"
               :key="option.value"
+              type="button"
               class="w-full flex items-center px-3 py-2 rounded-lg border transition-all duration-200 text-left"
               :class="[
                 selectedQuality === option.value
@@ -78,6 +79,7 @@
         <!-- Actions -->
         <div class="px-5 py-3 border-t border-gray-700 flex justify-end space-x-2">
           <button
+            type="button"
             class="px-3 py-1.5 rounded-lg bg-gray-700 text-sm text-gray-300 hover:bg-gray-600 transition-colors duration-200"
             @click="handleCancel"
           >
@@ -85,6 +87,7 @@
           </button>
 
           <button
+            type="button"
             class="px-3 py-1.5 rounded-lg bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition-colors duration-200 flex items-center"
             @click="handleStartShare"
           >

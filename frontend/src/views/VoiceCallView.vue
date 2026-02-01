@@ -75,7 +75,7 @@
 </template>
 
  <script setup lang="ts">
- import { computed, ref } from 'vue'
+ import { computed, ref, useTemplateRef } from 'vue'
  import AudioControls from '@/components/AudioControls.vue'
  import DebugDashboard from '@/components/DebugDashboard.vue'
  import RoomHeader from '@/components/RoomHeader.vue'
@@ -118,7 +118,7 @@ const emit = defineEmits<{
 const showQualityModal = ref(false)
 const isUserGridVisible = ref(true)
 const screenShareLayout = ref<'grid' | 'focus'>('focus')
-const debugDashboardRef = ref()
+const debugDashboardRef = useTemplateRef<InstanceType<typeof DebugDashboard>>('debugDashboardRef')
 
 // Debug logging callback
 const onDebugLog = (message: string, level: 'info' | 'warning' | 'error' = 'info', userId?: string) => {

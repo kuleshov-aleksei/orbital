@@ -56,6 +56,7 @@
     <!-- Create Room Button -->
     <div class="p-3 border-t border-gray-700">
       <button
+        type="button"
         data-testid="create-room-sidebar"
         class="w-full flex items-center justify-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors duration-200"
         @click="$emit('create-room')">
@@ -72,6 +73,7 @@
       :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"
       @click.stop>
       <button
+        type="button"
         class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
         @click="handleCreateRoomInCategory">
         <div class="flex items-center gap-2">
@@ -82,6 +84,7 @@
       </button>
 
       <button
+        type="button"
         class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
         @click="handleRenameCategory">
         <div class="flex items-center gap-2">
@@ -94,6 +97,7 @@
       <div class="border-t border-gray-700 my-1"></div>
 
       <button
+        type="button"
         class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-gray-700 hover:text-red-300 transition-colors"
         @click="handleDeleteCategory">
         <div class="flex items-center gap-2">
@@ -113,6 +117,7 @@
       <!-- Move to Category - With Submenu -->
       <div class="relative group">
         <button
+          type="button"
           class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors flex items-center justify-between"
           @mouseenter="onMoveButtonEnter"
           @mouseleave="onMoveButtonLeave">
@@ -142,6 +147,7 @@
           <button
             v-for="category in availableCategoriesForMove"
             :key="category.id"
+            type="button"
             class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
             @click="onMoveCategorySelect(category.id)">
             {{ category.name }}
@@ -154,6 +160,7 @@
       </div>
 
       <button
+        type="button"
         class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
         @click="handleEditRoom">
         <div class="flex items-center gap-2">
@@ -166,6 +173,7 @@
       <div class="border-t border-gray-700 my-1"></div>
 
       <button
+        type="button"
         class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-gray-700 hover:text-red-300 transition-colors"
         @click="handleDeleteRoom">
         <div class="flex items-center gap-2">

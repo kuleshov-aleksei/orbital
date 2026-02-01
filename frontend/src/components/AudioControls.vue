@@ -3,6 +3,7 @@
     <div class="flex items-center justify-center space-x-4">
       <!-- Mute/Unmute -->
       <button
+        type="button"
         class="control-button"
         :class="{ 'bg-red-600 hover:bg-red-700': isMuted, 'bg-gray-700 hover:bg-gray-600': !isMuted }"
         @click="toggleMute"
@@ -14,6 +15,7 @@
 
       <!-- Deafen/Undeafen -->
       <button
+        type="button"
         class="control-button"
         :class="{ 'bg-red-600 hover:bg-red-700': isDeafened, 'bg-gray-700 hover:bg-gray-600': !isDeafened }"
         @click="toggleDeafen"
@@ -33,6 +35,7 @@
 
       <!-- Screen Share -->
       <button
+        type="button"
         class="control-button"
         :class="{ 'bg-indigo-600 hover:bg-indigo-700': isScreenSharing, 'bg-gray-700 hover:bg-gray-600': !isScreenSharing }"
         @click="toggleScreenShare"
@@ -42,6 +45,7 @@
 
       <!-- Leave Room -->
       <button
+        type="button"
         class="control-button bg-red-600 hover:bg-red-700"
         @click="$emit('leave-room')"
       >
@@ -50,6 +54,7 @@
 
       <!-- Settings -->
       <button
+        type="button"
         class="control-button bg-gray-700 hover:bg-gray-600"
         @click="toggleSettings"
       >
