@@ -51,15 +51,9 @@ export const apiService = {
 
   // Update a room
   async updateRoom(roomId: string, data: UpdateRoomData): Promise<Room> {
-    // Convert camelCase to snake_case for backend compatibility
-    const snakeCaseData: Record<string, unknown> = {}
-    if (data.name !== undefined) snakeCaseData.name = data.name
-    if (data.category !== undefined) snakeCaseData.category = data.category
-    if (data.maxUsers !== undefined) snakeCaseData.max_users = data.maxUsers
-    
     return apiRequest<Room>(`/rooms/${roomId}`, {
       method: 'PUT',
-      body: JSON.stringify(snakeCaseData),
+      body: JSON.stringify(data),
     })
   },
 

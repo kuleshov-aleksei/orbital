@@ -286,7 +286,7 @@ const getRoomName = (roomId: string): string => {
   return room?.name || 'Voice Room'
 }
 
-const updateRoomUserStatus = (userId: string, status: { isSpeaking?: boolean; isMuted?: boolean; isDeafened?: boolean }) => {
+const updateRoomUserStatus = (userId: string, status: { is_speaking?: boolean; is_muted?: boolean; is_deafened?: boolean }) => {
   rooms.value.forEach((room, roomIndex) => {
     if (room.users) {
       const userIndex = room.users.findIndex(u => u.id === userId)
@@ -295,9 +295,9 @@ const updateRoomUserStatus = (userId: string, status: { isSpeaking?: boolean; is
         
         // Create new user object with updated status to trigger Vue reactivity
         const updatedUser = { ...user }
-        if (status.isSpeaking !== undefined) updatedUser.isSpeaking = status.isSpeaking
-        if (status.isMuted !== undefined) updatedUser.isMuted = status.isMuted
-        if (status.isDeafened !== undefined) updatedUser.isDeafened = status.isDeafened
+        if (status.is_speaking !== undefined) updatedUser.is_speaking = status.is_speaking
+        if (status.is_muted !== undefined) updatedUser.is_muted = status.is_muted
+        if (status.is_deafened !== undefined) updatedUser.is_deafened = status.is_deafened
         
         // Replace the user in the array to trigger Vue reactivity
         rooms.value[roomIndex].users[userIndex] = updatedUser
@@ -488,7 +488,7 @@ const handleCreateRoom = async (roomName: string, category: string, maxUsers: nu
     const newRoom = await apiService.createRoom({
       name: roomName,
       category: category,
-      maxUsers: maxUsers
+      max_users: maxUsers
     })
     
     console.log('Created room:', newRoom)
@@ -622,8 +622,8 @@ const handleEditRoomSubmit = async (name: string, maxUsers: number) => {
     isLoading.value = true
     errorMessage.value = ''
     
-    await apiService.updateRoom(selectedRoomId.value, { name, maxUsers })
-    console.log('Updated room:', selectedRoomId.value, 'name:', name, 'maxUsers:', maxUsers)
+    await apiService.updateRoom(selectedRoomId.value, { name, max_users: maxUsers })
+    console.log('Updated room:', selectedRoomId.value, 'name:', name, 'max_users:', maxUsers)
     showEditRoomModal.value = false
   } catch (error) {
     console.error('Failed to update room:', error)
@@ -724,15 +724,15 @@ const setupWebSocketListeners = () => {
     const statusData = message.data as { user_id: string; is_speaking: boolean; is_muted?: boolean }
     const user = currentRoomUsers.value.find(u => u.id === statusData.user_id)
     if (user) {
-      user.isSpeaking = statusData.is_speaking
+      user.is_speaking = statusData.is_speaking
       if (statusData.is_muted !== undefined) {
-        user.isMuted = statusData.is_muted
+        user.is_muted = statusData.is_muted
       }
     }
     // Update room list preview to reflect status changes
     updateRoomUserStatus(statusData.user_id, {
-      isSpeaking: statusData.is_speaking,
-      isMuted: statusData.is_muted
+      is_speaking: statusData.is_speaking,
+      is_muted: statusData.is_muted
     })
   })
 
@@ -741,10 +741,10 @@ const setupWebSocketListeners = () => {
     const statusData = message.data as { user_id: string; is_muted: boolean }
     const user = currentRoomUsers.value.find(u => u.id === statusData.user_id)
     if (user) {
-      user.isMuted = statusData.is_muted
+      user.is_muted = statusData.is_muted
     }
     // Update room list preview to reflect status changes
-    updateRoomUserStatus(statusData.user_id, { isMuted: statusData.is_muted })
+    updateRoomUserStatus(statusData.user_id, { is_muted: statusData.is_muted })
   })
 
   // Listen for deafen status updates
@@ -752,10 +752,10 @@ const setupWebSocketListeners = () => {
     const statusData = message.data as { user_id: string; is_deafened: boolean }
     const user = currentRoomUsers.value.find(u => u.id === statusData.user_id)
     if (user) {
-      user.isDeafened = statusData.is_deafened
+      user.is_deafened = statusData.is_deafened
     }
     // Update room list preview to reflect status changes
-    updateRoomUserStatus(statusData.user_id, { isDeafened: statusData.is_deafened })
+    updateRoomUserStatus(statusData.user_id, { is_deafened: statusData.is_deafened })
   })
 
   // Listen for nickname change updates
@@ -802,19 +802,19 @@ const setupGlobalWebSocketListeners = () => {
   wsService.onGlobal('speaking_status', (message: WebSocketMessage) => {
     const statusData = message.data as { user_id: string; is_speaking: boolean; is_muted?: boolean }
     updateRoomUserStatus(statusData.user_id, {
-      isSpeaking: statusData.is_speaking,
-      isMuted: statusData.is_muted
+      is_speaking: statusData.is_speaking,
+      is_muted: statusData.is_muted
     })
   })
 
   wsService.onGlobal('mute_status', (message: WebSocketMessage) => {
     const statusData = message.data as { user_id: string; is_muted: boolean }
-    updateRoomUserStatus(statusData.user_id, { isMuted: statusData.is_muted })
+    updateRoomUserStatus(statusData.user_id, { is_muted: statusData.is_muted })
   })
 
   wsService.onGlobal('deafen_status', (message: WebSocketMessage) => {
     const statusData = message.data as { user_id: string; is_deafened: boolean }
-    updateRoomUserStatus(statusData.user_id, { isDeafened: statusData.is_deafened })
+    updateRoomUserStatus(statusData.user_id, { is_deafened: statusData.is_deafened })
   })
 
   // Listen for global nickname change updates

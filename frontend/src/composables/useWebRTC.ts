@@ -491,10 +491,10 @@ export function useWebRTC(options: UseWebRTCOptions) {
     users.forEach((user: RoomUser) => {
       if (!user) return
 
-      const isSharing = user.is_screen_sharing || user.isScreenSharing
-      const quality = user.screen_share_quality || user.screenShareQuality
+      const isSharing = user.is_screen_sharing
+      const quality = user.screen_share_quality
 
-      console.log("Processing user " + user.id + " isScreenSharing: " + isSharing + " (raw: " + user.is_screen_sharing + ")")
+      console.log("Processing user " + user.id + " is_screen_sharing: " + isSharing)
 
       if (isSharing) {
         userScreenShareStates.value.set(user.id, {
@@ -516,7 +516,7 @@ export function useWebRTC(options: UseWebRTCOptions) {
     // Set current user join time from server
     const currentUser = users.find((user: RoomUser) => user.id === currentUserId)
     if (currentUser && currentUserJoinTime.value === 0) {
-      const joinedAt = currentUser.joined_at || currentUser.joinedAt
+      const joinedAt = currentUser.joined_at
       if (joinedAt) {
         currentUserJoinTime.value = new Date(joinedAt).getTime()
         console.log(`📅 Set current user join time from server: ${joinedAt}`)
@@ -528,7 +528,7 @@ export function useWebRTC(options: UseWebRTCOptions) {
     const existingConnections = Array.from(peerConnections.value.keys())
 
     otherUsers.forEach(user => {
-      const joinedAt = user.joined_at || user.joinedAt
+      const joinedAt = user.joined_at
       const userJoinTime = joinedAt ? new Date(joinedAt).getTime() : 0
       const alreadyConnected = existingConnections.includes(user.id)
       const shouldCreateOffer = currentUserJoinTime.value < userJoinTime && !alreadyConnected

@@ -41,7 +41,7 @@
           <div class="flex items-center justify-between text-sm">
             <div class="flex items-center text-gray-400">
               <PhFolderSimpleUser class="w-4 h-4 mr-1" />
-              {{ room.userCount }}/{{ room.maxUsers }}
+              {{ room.user_count }}/{{ room.max_users }}
             </div>
 
             <button type="button" class="text-indigo-400 hover:text-indigo-300 font-medium">

@@ -76,9 +76,9 @@ class="user-sidebar w-60 lg:w-60 bg-gray-800 flex flex-col fixed lg:relative ins
 interface User {
   id: string
   nickname: string
-  isSpeaking: boolean
-  isMuted: boolean
-  isDeafened: boolean
+  is_speaking: boolean
+  is_muted: boolean
+  is_deafened: boolean
   status: 'online' | 'away' | 'dnd'
 }
 

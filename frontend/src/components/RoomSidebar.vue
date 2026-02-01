@@ -446,14 +446,14 @@ const handleMoveRoom = (targetCategoryId: string) => {
 
 const handleEditRoom = () => {
   if (roomContextMenu.value.room) {
-    emit('edit-room', roomContextMenu.value.room.id, roomContextMenu.value.room.name, roomContextMenu.value.room.maxUsers)
+    emit('edit-room', roomContextMenu.value.room.id, roomContextMenu.value.room.name, roomContextMenu.value.room.max_users)
   }
   closeRoomContextMenu()
 }
 
 const handleDeleteRoom = () => {
   if (roomContextMenu.value.room) {
-    emit('delete-room', roomContextMenu.value.room.id, roomContextMenu.value.room.name, roomContextMenu.value.room.userCount)
+    emit('delete-room', roomContextMenu.value.room.id, roomContextMenu.value.room.name, roomContextMenu.value.room.user_count)
   }
   closeRoomContextMenu()
 }
