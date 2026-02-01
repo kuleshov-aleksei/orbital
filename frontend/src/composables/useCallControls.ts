@@ -1,13 +1,18 @@
-import { useUserStore, useAppStore, useCallStore } from '@/stores'
+import { useUserStore, useAppStore, useCallStore, useRoomStore } from '@/stores'
 import { wsService } from '@/services/websocket'
 
 export function useCallControls() {
   const userStore = useUserStore()
   const appStore = useAppStore()
   const callStore = useCallStore()
+  const roomStore = useRoomStore()
 
   const handleMuteToggle = (muted: boolean) => {
     callStore.setMuted(muted)
+    
+    // Immediately update room store for local user so UI updates right away
+    // This ensures the sidebar RoomCard shows the muted status immediately
+    roomStore.updateUserStatus(userStore.userId, { is_muted: muted })
     
     // Notify WebSocket of mute status change only if connected
     if (wsService.isConnected()) {
@@ -26,6 +31,9 @@ export function useCallControls() {
 
   const handleDeafenToggle = (deafened: boolean) => {
     callStore.setDeafened(deafened)
+    
+    // Immediately update room store for local user so UI updates right away
+    roomStore.updateUserStatus(userStore.userId, { is_deafened: deafened })
     
     // Notify WebSocket of deafen status change only if connected
     if (wsService.isConnected()) {

@@ -62,7 +62,10 @@ export const useRoomStore = defineStore('room', () => {
   }
 
   function updateUserStatus(userId: string, status: { is_speaking?: boolean; is_muted?: boolean; is_deafened?: boolean }) {
-    rooms.value.forEach((room, roomIndex) => {
+    // Update rooms array for sidebar display
+    // Use slice() to create new array references for Vue reactivity
+    let hasChanges = false
+    const updatedRooms = rooms.value.map((room) => {
       if (room.users) {
         const userIndex = room.users.findIndex(u => u.id === userId)
         if (userIndex !== -1) {
@@ -71,10 +74,31 @@ export const useRoomStore = defineStore('room', () => {
           if (status.is_speaking !== undefined) updatedUser.is_speaking = status.is_speaking
           if (status.is_muted !== undefined) updatedUser.is_muted = status.is_muted
           if (status.is_deafened !== undefined) updatedUser.is_deafened = status.is_deafened
-          rooms.value[roomIndex].users[userIndex] = updatedUser
+          
+          // Check if anything actually changed
+          if (updatedUser.is_speaking !== user.is_speaking ||
+              updatedUser.is_muted !== user.is_muted ||
+              updatedUser.is_deafened !== user.is_deafened) {
+            hasChanges = true
+          }
+          
+          // Create new users array with updated user
+          const updatedUsers = room.users.slice()
+          updatedUsers[userIndex] = updatedUser
+          
+          return { ...room, users: updatedUsers }
         }
       }
+      return room
     })
+    
+    // Only update if there were actual changes
+    if (hasChanges) {
+      rooms.value = updatedRooms
+    }
+    
+    // Also update current room users if applicable
+    updateCurrentRoomUser(userId, status)
   }
 
   function updateUserNickname(userId: string, nickname: string) {

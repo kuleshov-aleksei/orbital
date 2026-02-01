@@ -121,7 +121,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { computed } from 'vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { useModalStore } from '@/stores/modal'
 import { useScreenShareSupport } from '@/composables/useScreenShareSupport'
@@ -172,47 +172,20 @@ const modalStore = useModalStore()
 // Screen share support detection
 const { isScreenShareSupported } = useScreenShareSupport()
 
-// Local storage keys
-const MUTE_STORAGE_KEY = 'orbital_mic_muted'
-const DEAFEN_STORAGE_KEY = 'orbital_deafened'
-
-// Local state refs - initialized from props
-const localMuted = ref(props.modelValueMuted)
-const localDeafened = ref(props.modelValueDeafened)
-const localScreenSharing = ref(props.modelValueScreenSharing)
-
-// Sync local state with props (for bidirectional sync with parent)
-watch(() => props.modelValueMuted, (newValue) => {
-  if (newValue !== localMuted.value) {
-    localMuted.value = newValue
-  }
+// Computed properties for v-model support - parent controls all state
+const localMuted = computed({
+  get: () => props.modelValueMuted,
+  set: (value) => emit('update:modelValueMuted', value)
 })
 
-watch(() => props.modelValueDeafened, (newValue) => {
-  if (newValue !== localDeafened.value) {
-    localDeafened.value = newValue
-  }
+const localDeafened = computed({
+  get: () => props.modelValueDeafened,
+  set: (value) => emit('update:modelValueDeafened', value)
 })
 
-watch(() => props.modelValueScreenSharing, (newValue) => {
-  if (newValue !== localScreenSharing.value) {
-    localScreenSharing.value = newValue
-  }
-})
-
-// Watch local changes and emit to parent
-watch(localMuted, (newValue) => {
-  emit('update:modelValueMuted', newValue)
-  savePreference(MUTE_STORAGE_KEY, newValue)
-})
-
-watch(localDeafened, (newValue) => {
-  emit('update:modelValueDeafened', newValue)
-  savePreference(DEAFEN_STORAGE_KEY, newValue)
-})
-
-watch(localScreenSharing, (newValue) => {
-  emit('update:modelValueScreenSharing', newValue)
+const localScreenSharing = computed({
+  get: () => props.modelValueScreenSharing,
+  set: (value) => emit('update:modelValueScreenSharing', value)
 })
 
 // Button styling
@@ -274,13 +247,15 @@ const connectionStatusColor = computed(() => {
 
 // Methods
 const toggleMute = () => {
-  localMuted.value = !localMuted.value
-  emit('toggle-mute', localMuted.value)
+  const newValue = !localMuted.value
+  localMuted.value = newValue
+  emit('toggle-mute', newValue)
 }
 
 const toggleDeafen = () => {
-  localDeafened.value = !localDeafened.value
-  emit('toggle-deafen', localDeafened.value)
+  const newValue = !localDeafened.value
+  localDeafened.value = newValue
+  emit('toggle-deafen', newValue)
 }
 
 const toggleScreenShare = () => {
@@ -295,39 +270,6 @@ const openSettings = () => {
   modalStore.openUserSettingsModal()
   emit('open-settings')
 }
-
-// Local storage utilities
-const savePreference = (key: string, value: boolean) => {
-  try {
-    localStorage.setItem(key, JSON.stringify(value))
-  } catch (e) {
-    console.warn('Failed to save preference to localStorage:', e)
-  }
-}
-
-const loadPreference = (key: string, defaultValue: boolean): boolean => {
-  try {
-    const stored = localStorage.getItem(key)
-    return stored !== null ? JSON.parse(stored) : defaultValue
-  } catch (e) {
-    console.warn('Failed to load preference from localStorage:', e)
-    return defaultValue
-  }
-}
-
-// Initialize from local storage on mount
-onMounted(() => {
-  const savedMute = loadPreference(MUTE_STORAGE_KEY, props.modelValueMuted)
-  const savedDeafen = loadPreference(DEAFEN_STORAGE_KEY, props.modelValueDeafened)
-
-  // Only update if different from current local value
-  if (savedMute !== localMuted.value) {
-    localMuted.value = savedMute
-  }
-  if (savedDeafen !== localDeafened.value) {
-    localDeafened.value = savedDeafen
-  }
-})
 </script>
 
 <style scoped>

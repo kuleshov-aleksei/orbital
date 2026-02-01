@@ -12,9 +12,9 @@
     <VoiceCallView
       v-else
       ref="voiceCallViewRef"
-      v-model:model-value-muted="callState.isMuted"
-      v-model:model-value-deafened="callState.isDeafened"
-      v-model:model-value-screen-sharing="callState.isScreenSharing"
+      v-model:model-value-muted="callStore.isMuted"
+      v-model:model-value-deafened="callStore.isDeafened"
+      v-model:model-value-screen-sharing="callStore.isScreenSharing"
       :room-id="roomStore.activeRoomId"
       :room-name="roomStore.activeRoomName"
       :users="roomStore.currentRoomUsers"
@@ -50,12 +50,6 @@ const appStore = useAppStore()
 const callStore = useCallStore()
 
 const voiceCallViewRef = useTemplateRef<InstanceType<typeof VoiceCallView>>('voiceCallViewRef')
-
-const callState = {
-  isMuted: callStore.isMuted,
-  isDeafened: callStore.isDeafened,
-  isScreenSharing: callStore.isScreenSharing
-}
 
 defineExpose({
   voiceCallViewRef

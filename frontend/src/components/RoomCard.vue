@@ -27,7 +27,7 @@
       <div class="flex-1 min-w-0">
         <div class="font-medium text-sm truncate">{{ room.name }}</div>
 
-        <div class="text-xs opacity-75">{{ room.userCount }}/{{ room.maxUsers }} users</div>
+        <div class="text-xs opacity-75">{{ room.user_count }}/{{ room.max_users }} users</div>
       </div>
     </div>
 
@@ -42,11 +42,11 @@
           class="flex items-center text-xs"
         >
           <div class="mr-2 flex items-center">
-            <PhMicrophone v-if="!user.isMuted && !user.isDeafened" class="text-green-500 w-4 h-4"/>
+            <PhMicrophone v-if="!user.is_muted && !user.is_deafened" class="text-green-500 w-4 h-4"/>
 
-            <PhMicrophoneSlash v-if="user.isMuted" class="text-red-500 w-4 h-4"/>
+            <PhMicrophoneSlash v-if="user.is_muted" class="text-red-500 w-4 h-4"/>
 
-            <PhHeadphones v-if="user.isDeafened" class="text-red-500 w-4 h-4"/>
+            <PhHeadphones v-if="user.is_deafened" class="text-red-500 w-4 h-4"/>
           </div>
 
           <span>{{ user.nickname }}</span>
@@ -62,20 +62,21 @@
 
 import { PhWaveform, PhMicrophone, PhHeadphones, PhMicrophoneSlash } from '@phosphor-icons/vue'
 
+// Use snake_case to match backend API and global types
 interface RoomPreviewUser {
   id: string
   nickname: string
   role: string
-  isMuted: boolean
-  isDeafened: boolean
-  isSpeaking: boolean
+  is_muted: boolean
+  is_deafened: boolean
+  is_speaking: boolean
 }
 
 interface Room {
   id: string
   name: string
-  userCount: number
-  maxUsers: number
+  user_count: number
+  max_users: number
   category: string
   users?: RoomPreviewUser[]
 }

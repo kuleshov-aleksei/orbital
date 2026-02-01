@@ -85,6 +85,7 @@
  import UserGrid from '@/components/UserGrid.vue'
  import { useWebRTC } from '@/composables'
  import { useAudioSettingsStore } from '@/stores/audioSettings'
+ import { useCallStore } from '@/stores/call'
  import type { User, ScreenShareQuality } from '@/types'
 
 interface Props {
@@ -131,6 +132,9 @@ const onDebugLog = (message: string, level: 'info' | 'warning' | 'error' = 'info
 
 // Audio settings store
 const audioSettingsStore = useAudioSettingsStore()
+
+// Call store for mute/deafen state
+const callStore = useCallStore()
 
 // Initialize WebRTC composable - destructure for template reactivity
 const {
@@ -207,6 +211,43 @@ watch(() => audioSettingsStore.noiseSuppressionAlgorithm, async (newAlgorithm, o
     }
   }
 })
+
+// Watch call store mute/deafen state and apply to WebRTC audio
+// This ensures sidebar controls affect the actual audio
+watch(() => callStore.isMuted, (newValue) => {
+  console.log(`🎤 Call store mute state changed: ${newValue}`)
+  applyMuteState(newValue)
+  // Sync with parent v-model if different
+  if (props.modelValueMuted !== newValue) {
+    emit('update:modelValueMuted', newValue)
+  }
+})
+
+watch(() => callStore.isDeafened, (newValue) => {
+  console.log(`🎧 Call store deafen state changed: ${newValue}`)
+  applyDeafenState(newValue)
+  // Sync with parent v-model if different
+  if (props.modelValueDeafened !== newValue) {
+    emit('update:modelValueDeafened', newValue)
+  }
+})
+
+// Apply initial mute/deafen state from store when joining a room
+watch(() => props.roomId, (newRoomId) => {
+  if (newRoomId) {
+    console.log(`📞 Joined room ${newRoomId}, applying mute/deafen state from store`)
+    // Apply current store state to audio
+    applyMuteState(callStore.isMuted)
+    applyDeafenState(callStore.isDeafened)
+    // Sync with parent v-model
+    if (props.modelValueMuted !== callStore.isMuted) {
+      emit('update:modelValueMuted', callStore.isMuted)
+    }
+    if (props.modelValueDeafened !== callStore.isDeafened) {
+      emit('update:modelValueDeafened', callStore.isDeafened)
+    }
+  }
+}, { immediate: true })
 
 // Event handlers
 const handleVolumeChange = (userId: string, volume: number) => {

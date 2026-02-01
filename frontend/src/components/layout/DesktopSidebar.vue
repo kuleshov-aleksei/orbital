@@ -15,9 +15,9 @@
     />
 
     <UserControlPanel
-      v-model:model-value-muted="callState.isMuted"
-      v-model:model-value-deafened="callState.isDeafened"
-      v-model:model-value-screen-sharing="callState.isScreenSharing"
+      v-model:model-value-muted="callStore.isMuted"
+      v-model:model-value-deafened="callStore.isDeafened"
+      v-model:model-value-screen-sharing="callStore.isScreenSharing"
       :nickname="userStore.nickname"
       :user-id="userStore.userId"
       :is-in-call="roomStore.isInRoom"
@@ -59,10 +59,4 @@ const userStore = useUserStore()
 const appStore = useAppStore()
 const callStore = useCallStore()
 const callControls = useCallControls()
-
-const callState = {
-  isMuted: callStore.isMuted,
-  isDeafened: callStore.isDeafened,
-  isScreenSharing: callStore.isScreenSharing
-}
 </script>
