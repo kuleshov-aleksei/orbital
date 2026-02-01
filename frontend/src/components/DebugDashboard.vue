@@ -40,6 +40,7 @@ import NetworkTab from './debug/NetworkTab.vue'
 import LogsTab from './debug/LogsTab.vue'
 import IssuesTab from './debug/IssuesTab.vue'
 import ScreenShareTab from './debug/ScreenShareTab.vue'
+import AudioTab from './debug/AudioTab.vue'
 
 interface ScreenShareDebugInfo {
   userId: string
@@ -53,6 +54,7 @@ interface Props {
   users: Array<{ id: string; nickname: string; stream?: MediaStream }>
   peerConnections: Map<string, RTCPeerConnection>
   getConnectionQuality: (userId: string) => ConnectionQuality
+  localStream?: MediaStream | null
   localScreenShares?: ScreenShareDebugInfo[]
   remoteScreenShares?: ScreenShareDebugInfo[]
 }
@@ -61,7 +63,7 @@ const props = defineProps<Props>()
 
 // Component state
 const isVisible = ref(false)
-const activeTab = ref<'metrics' | 'network' | 'screen-share' | 'logs' | 'issues' | 'ice-candidates'>('metrics')
+const activeTab = ref<'metrics' | 'network' | 'screen-share' | 'logs' | 'issues' | 'ice-candidates' | 'audio'>('metrics')
 const connectionLogs = ref<ConnectionLog[]>([])
 const networkInfo = ref<Map<string, DebugInfo>>(new Map())
 const updateInterval = ref<number>()
@@ -70,6 +72,7 @@ const isUnmounting = ref(false)
 const tabs = [
   { id: 'metrics' as const, label: 'Metrics' },
   { id: 'network' as const, label: 'Network' },
+  { id: 'audio' as const, label: 'Audio' },
   { id: 'screen-share' as const, label: 'Screen Share' },
   { id: 'logs' as const, label: 'Logs' },
   { id: 'issues' as const, label: 'Issues' },
@@ -85,6 +88,7 @@ const currentTabComponent = computed(() => {
     case 'ice-candidates': return IceCandidatesTab
     case 'metrics': return MetricsTab
     case 'network': return NetworkTab
+    case 'audio': return AudioTab
     case 'screen-share': return ScreenShareTab
     case 'logs': return LogsTab
     case 'issues': return IssuesTab
@@ -109,6 +113,10 @@ const currentTabProps = computed(() => {
       return {
         'network-info': networkInfo.value,
         'get-user-nickname': getUserNickname
+      }
+    case 'audio':
+      return {
+        'local-stream': props.localStream
       }
     case 'screen-share':
       return {

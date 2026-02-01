@@ -121,6 +121,10 @@ export default typescriptEslint.config(
       
     // Enforce refs to have defined types
     'vue/require-typed-ref': ['error'],
+
+    //'@typescript-eslint/no-unsafe-member-access': ['error'],
+
+    '@typescript-eslint/no-explicit-any': ['error'],
     },
   },
   eslintConfigPrettier

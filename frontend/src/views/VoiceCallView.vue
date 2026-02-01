@@ -68,6 +68,7 @@
         :users="props.users"
         :peer-connections="peerConnections"
         :get-connection-quality="getConnectionQuality"
+        :local-stream="localStream"
         :local-screen-shares="localScreenShareDebugData"
         :remote-screen-shares="remoteScreenShareDebugData"
       />
@@ -133,6 +134,7 @@ const audioSettingsStore = useAudioSettingsStore()
 
 // Initialize WebRTC composable - destructure for template reactivity
 const {
+  localStream,
   remoteStreams,
   peerConnections,
   peerConnectionStates,
