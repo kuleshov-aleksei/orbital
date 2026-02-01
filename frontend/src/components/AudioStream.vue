@@ -21,20 +21,7 @@
       
       <!-- Audio Controls -->
       <div class="flex items-center space-x-2">
-        <!-- Mute Button -->
-        <button
-          :class="[
-            'p-2 rounded-full transition-colors duration-200',
-            isMuted ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-700 hover:bg-gray-600'
-          ]"
-          :title="isMuted ? 'Unmute user' : 'Mute user'"
-          @click="toggleMute"
-        >
-          <PhMicrophoneSlash v-if="isMuted" class="w-4 h-4 text-white" />
-          <PhMicrophone v-else class="w-4 h-4 text-white" />
-        </button>
-        
-
+        <!-- Placeholder for future controls -->
       </div>
     </div>
 
@@ -88,16 +75,28 @@
     </div>
 
     <!-- Context Menu -->
-    <div 
+    <div
       v-if="showMenu"
-      class="fixed bg-gray-800 border border-gray-600 rounded-lg shadow-lg z-[9999] py-2 min-w-48"
+      class="fixed bg-gray-800 border border-gray-600 rounded-lg shadow-lg z-50 py-2 min-w-48"
       :style="getMenuPosition()"
       @click.stop
     >
       <div class="px-3 py-2 text-sm text-gray-300 border-b border-gray-600">
         {{ userNickname }}
       </div>
-      
+
+      <!-- Mute/Unmute User -->
+      <button
+        class="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors flex items-center space-x-2"
+        @click="toggleMute(); hideContextMenu()"
+      >
+        <PhMicrophoneSlash v-if="isMuted" class="w-4 h-4" />
+        <PhMicrophone v-else class="w-4 h-4" />
+        <span>{{ isMuted ? 'Unmute User' : 'Mute User' }}</span>
+      </button>
+
+      <div class="border-t border-gray-600 my-1"></div>
+
       <!-- Volume Control -->
       <div class="px-3 py-2">
         <div class="flex items-center justify-between mb-2">

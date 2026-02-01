@@ -66,9 +66,9 @@
     </div>
 
     <!-- Context Menu -->
-    <div 
+    <div
       v-if="showMenu"
-      class="fixed bg-gray-800 border border-gray-600 rounded-lg shadow-lg z-[9999] py-2 min-w-48"
+      class="fixed bg-gray-800 border border-gray-600 rounded-lg shadow-lg z-50 py-2 min-w-48"
       :style="getMenuPosition()"
       @click.stop
     >

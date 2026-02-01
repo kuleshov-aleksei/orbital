@@ -1,12 +1,12 @@
 <template>
   <div
-    class="room-sidebar"
-    :class="{
-      'w-60 bg-gray-800 flex flex-col': !isMobileView,
-      'flex-1 flex flex-col bg-gray-900': isMobileView,
-      'fixed lg:relative inset-y-0 left-0 z-40 lg:z-auto transform -translate-x-full lg:translate-x-0 transition-transform duration-300': !isMobileView,
-      'translate-x-0': !isHidden && !isMobileView
-    }">
+     class="room-sidebar"
+     :class="{
+       'w-60 bg-gray-800 flex flex-col': !isMobileView,
+       'flex-1 flex flex-col bg-gray-900': isMobileView,
+       'fixed lg:relative inset-y-0 left-0 z-40 transform -translate-x-full lg:translate-x-0 transition-transform duration-300': !isMobileView,
+       'translate-x-0': !isHidden && !isMobileView
+     }">
     <!-- Desktop Header (only when not in mobile view mode) -->
     <div v-if="!isMobileView" class="hidden lg:flex p-4 border-b border-gray-700">
       <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">Rooms</h2>
@@ -64,7 +64,7 @@
     <!-- Category Context Menu -->
     <div
       v-if="contextMenu.visible"
-      class="fixed bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 py-1 min-w-[160px]"
+      class="fixed bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-[9999] py-1 min-w-[160px]"
       :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"
       @click.stop>
       <button
@@ -97,7 +97,7 @@
     <!-- Room Context Menu -->
     <div
       v-if="roomContextMenu.visible"
-      class="fixed bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 py-1 min-w-[200px]"
+      class="fixed bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-[9999] py-1 min-w-[200px]"
       :style="{ top: roomContextMenu.y + 'px', left: roomContextMenu.x + 'px' }"
       @click.stop>
       <!-- Move to Category - With Submenu -->
@@ -116,7 +116,7 @@
         <!-- Invisible bridge to prevent menu from closing when moving cursor -->
         <div
           v-if="showMoveSubmenu"
-          class="absolute left-full top-0 w-8 h-full -ml-4 z-50"
+          class="absolute left-full top-0 w-8 h-full -ml-4 z-[9999]"
           @mouseenter="onBridgeEnter"
           @mouseleave="onBridgeLeave">
         </div>
@@ -124,7 +124,7 @@
         <!-- Move Submenu -->
         <div
           v-if="showMoveSubmenu"
-          class="absolute left-full top-0 ml-2 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[160px]"
+          class="absolute left-full top-0 ml-2 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-[9999] py-1 min-w-[160px]"
           @mouseenter="onSubmenuEnter"
           @mouseleave="onSubmenuLeave">
           <button
