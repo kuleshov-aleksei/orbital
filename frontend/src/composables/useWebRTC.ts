@@ -1,6 +1,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { wsService } from '@/services/websocket'
 import { webRTCStatsCollector } from '@/services/webrtc-stats'
+import { useAudioSettingsStore } from '@/stores/audioSettings'
 import type {
   User,
   RoomUser,
@@ -25,6 +26,9 @@ export interface ScreenShareState {
 }
 
 export function useWebRTC(options: UseWebRTCOptions) {
+  // Audio settings store
+  const audioSettings = useAudioSettingsStore()
+
   // Reactive state
   const localStream = ref<MediaStream | null>(null)
   const remoteStreams = ref<Map<string, MediaStream>>(new Map())
@@ -83,15 +87,28 @@ export function useWebRTC(options: UseWebRTCOptions) {
     if (localStream.value) return localStream.value
 
     if (!localStreamPromise) {
+      // Load audio settings if not already loaded
+      if (!audioSettings.isLoaded) {
+        audioSettings.loadSettings()
+      }
+
+      // Get audio constraints from store
+      const audioConstraints = audioSettings.audioConstraints
+
+      console.log('Getting user media with audio constraints:', audioConstraints)
+      addDebugLog(`Audio constraints: ${JSON.stringify(audioConstraints)}`, 'info')
+
       localStreamPromise = navigator.mediaDevices
-        .getUserMedia({ audio: true, video: false })
+        .getUserMedia({ audio: audioConstraints, video: false })
         .then((stream) => {
           localStream.value = stream
           console.log('Local media stream obtained:', localStream.value)
+          addDebugLog('Local media stream obtained successfully', 'info')
           return stream
         })
         .catch((error) => {
           console.error('Failed to get media stream:', error)
+          addDebugLog(`Failed to get media stream: ${error.message}`, 'error')
           return null
         })
     }
@@ -1016,6 +1033,60 @@ export function useWebRTC(options: UseWebRTCOptions) {
     console.log('WebRTC cleanup completed')
   })
 
+  // Reinitialize audio stream with new constraints when settings change
+  const reinitializeAudioStream = async (): Promise<void> => {
+    try {
+      console.log('Reinitializing audio stream with new constraints...')
+      addDebugLog('Reinitializing audio stream with new constraints', 'info')
+
+      // Stop existing local stream
+      if (localStream.value) {
+        localStream.value.getTracks().forEach(track => {
+          track.stop()
+        })
+        localStream.value = null
+      }
+
+      // Reset the promise so ensureLocalStream will create a new one
+      localStreamPromise = null
+
+      // Get new stream with updated constraints
+      const newStream = await ensureLocalStream()
+
+      if (!newStream) {
+        console.error('Failed to reinitialize audio stream')
+        addDebugLog('Failed to reinitialize audio stream', 'error')
+        return
+      }
+
+      // Replace tracks in all peer connections
+      const audioTrack = newStream.getAudioTracks()[0]
+      if (audioTrack) {
+        for (const [userId, pc] of peerConnections.value.entries()) {
+          const senders = pc.getSenders()
+          const audioSender = senders.find(s => s.track?.kind === 'audio')
+
+          if (audioSender) {
+            await audioSender.replaceTrack(audioTrack)
+            console.log(`Replaced audio track for peer ${userId}`)
+            addDebugLog(`Replaced audio track for peer ${userId}`, 'info')
+          } else {
+            // If no audio sender exists, add the track
+            pc.addTrack(audioTrack, newStream)
+            console.log(`Added audio track to peer ${userId}`)
+            addDebugLog(`Added audio track to peer ${userId}`, 'info')
+          }
+        }
+      }
+
+      console.log('Audio stream reinitialized successfully')
+      addDebugLog('Audio stream reinitialized successfully', 'info')
+    } catch (error) {
+      console.error('Error reinitializing audio stream:', error)
+      addDebugLog(`Error reinitializing audio stream: ${(error as Error).message}`, 'error')
+    }
+  }
+
   return {
     // State refs
     localStream,
@@ -1049,6 +1120,7 @@ export function useWebRTC(options: UseWebRTCOptions) {
     getConnectionQuality,
     applyMuteState,
     applyDeafenState,
-    addDebugLog
+    addDebugLog,
+    reinitializeAudioStream
   }
 }

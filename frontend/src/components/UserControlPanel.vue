@@ -103,6 +103,16 @@
 
             <PhHeadphones v-else class="w-4 h-4" />
           </button>
+
+          <!-- Settings Button -->
+          <button
+            type="button"
+            class="w-8 h-8 rounded-full flex items-center justify-center bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition-colors duration-200"
+            title="Settings"
+            @click="openSettings"
+          >
+            <PhGearSix class="w-4 h-4" />
+          </button>
         </div>
       </div>
     </div>
@@ -112,12 +122,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import UserAvatar from '@/components/UserAvatar.vue'
+import { useModalStore } from '@/stores/modal'
 import {
   PhMicrophone,
   PhMicrophoneSlash,
   PhHeadphones,
   PhMonitorPlay,
-  PhSignOut
+  PhSignOut,
+  PhGearSix
 } from '@phosphor-icons/vue'
 
 interface Props {
@@ -149,7 +161,11 @@ const emit = defineEmits<{
   'toggle-deafen': [isDeafened: boolean]
   'toggle-screen-share': []
   'leave-room': []
+  'open-settings': []
 }>()
+
+// Stores
+const modalStore = useModalStore()
 
 // Local storage keys
 const MUTE_STORAGE_KEY = 'orbital_mic_muted'
@@ -268,6 +284,11 @@ const toggleScreenShare = () => {
 
 const leaveRoom = () => {
   emit('leave-room')
+}
+
+const openSettings = () => {
+  modalStore.openUserSettingsModal()
+  emit('open-settings')
 }
 
 // Local storage utilities

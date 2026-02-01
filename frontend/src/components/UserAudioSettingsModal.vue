@@ -1,0 +1,240 @@
+<template>
+  <div
+    v-if="isOpen"
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+    @click.self="close"
+  >
+    <div class="bg-gray-800 rounded-xl shadow-xl w-full max-w-lg mx-4 overflow-hidden">
+      <!-- Header -->
+      <div class="bg-gray-700 px-6 py-4 border-b border-gray-600">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xl font-semibold text-white flex items-center gap-2">
+            <PhGearSix class="w-6 h-6 text-indigo-400" />
+            User Settings
+          </h2>
+
+          <button
+            type="button"
+            class="text-gray-400 hover:text-white transition-colors"
+            @click="close"
+          >
+            <PhX class="w-6 h-6" />
+          </button>
+        </div>
+      </div>
+
+      <!-- Content -->
+      <div class="p-6 space-y-6">
+        <!-- Audio Settings Section -->
+        <div class="space-y-4">
+          <h3 class="text-lg font-medium text-white flex items-center gap-2">
+            <PhSpeakerHigh class="w-5 h-5 text-indigo-400" />
+            Audio Settings
+          </h3>
+
+          <!-- Noise Suppression -->
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <label class="text-sm font-medium text-gray-200 block">
+                  Noise Suppression
+                </label>
+
+                <p class="text-xs text-gray-400 mt-0.5">
+                  Reduce background noise like typing, fans, or traffic
+                </p>
+              </div>
+
+              <button
+                type="button"
+                class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+                :class="noiseSuppressionEnabled ? 'bg-indigo-600' : 'bg-gray-600'"
+                @click="toggleNoiseSuppression"
+              >
+                <span
+                  class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                  :class="noiseSuppressionEnabled ? 'translate-x-6' : 'translate-x-1'"
+                />
+              </button>
+            </div>
+
+            <!-- Algorithm Selection (only visible when enabled) -->
+            <div
+              v-if="noiseSuppressionEnabled"
+              class="ml-0 pl-4 border-l-2 border-gray-600 space-y-3"
+            >
+              <div>
+                <label class="text-sm font-medium text-gray-300 block mb-1.5">
+                  Algorithm
+                </label>
+
+                <select
+                  v-model="selectedAlgorithm"
+                  class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  @change="onAlgorithmChange"
+                >
+                  <option
+                    v-for="algo in availableAlgorithms"
+                    :key="algo.id"
+                    :value="algo.id"
+                    :disabled="!algo.isAvailable"
+                  >
+                    {{ algo.name }}
+                    {{ !algo.isAvailable ? '(Coming Soon)' : '' }}
+                  </option>
+                </select>
+
+                <p
+                  v-if="currentAlgorithmInfo?.description"
+                  class="text-xs text-gray-400 mt-1.5"
+                >
+                  {{ currentAlgorithmInfo.description }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Echo Cancellation -->
+          <div class="flex items-center justify-between pt-2 border-t border-gray-700">
+            <div>
+              <label class="text-sm font-medium text-gray-200 block">
+                Echo Cancellation
+              </label>
+
+              <p class="text-xs text-gray-400 mt-0.5">
+                Prevent echo from your speakers being picked up by your microphone
+              </p>
+            </div>
+
+            <button
+              type="button"
+              class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+              :class="echoCancellationEnabled ? 'bg-indigo-600' : 'bg-gray-600'"
+              @click="toggleEchoCancellation"
+            >
+              <span
+                class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                :class="echoCancellationEnabled ? 'translate-x-6' : 'translate-x-1'"
+              />
+            </button>
+          </div>
+
+          <!-- Auto Gain Control -->
+          <div class="flex items-center justify-between pt-2 border-t border-gray-700">
+            <div>
+              <label class="text-sm font-medium text-gray-200 block">
+                Automatic Gain Control
+              </label>
+
+              <p class="text-xs text-gray-400 mt-0.5">
+                Automatically adjust your microphone volume to maintain consistent loudness
+              </p>
+            </div>
+
+            <button
+              type="button"
+              class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+              :class="autoGainControlEnabled ? 'bg-indigo-600' : 'bg-gray-600'"
+              @click="toggleAutoGainControl"
+            >
+              <span
+                class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                :class="autoGainControlEnabled ? 'translate-x-6' : 'translate-x-1'"
+              />
+            </button>
+          </div>
+        </div>
+
+        <!-- Reset Button -->
+        <div class="pt-4 border-t border-gray-700">
+          <button
+            type="button"
+            class="text-sm text-gray-400 hover:text-white transition-colors flex items-center gap-1.5"
+            @click="resetSettings"
+          >
+            <PhArrowCounterClockwise class="w-4 h-4" />
+            Reset to Defaults
+          </button>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="bg-gray-700 px-6 py-4 border-t border-gray-600 flex justify-end">
+        <button
+          type="button"
+          class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 rounded-lg transition-colors"
+          @click="close"
+        >
+          Done
+        </button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted, watch } from 'vue'
+import { useAudioSettingsStore } from '@/stores/audioSettings'
+import { useModalStore } from '@/stores/modal'
+import {
+  PhGearSix,
+  PhX,
+  PhSpeakerHigh,
+  PhArrowCounterClockwise
+} from '@phosphor-icons/vue'
+import type { NoiseSuppressionAlgorithm } from '@/types/audio'
+
+// Stores
+const audioStore = useAudioSettingsStore()
+const modalStore = useModalStore()
+
+// Local state
+const selectedAlgorithm = ref<NoiseSuppressionAlgorithm>('browser-native')
+
+// Computed
+const isOpen = computed(() => modalStore.isUserSettingsModal)
+const noiseSuppressionEnabled = computed(() => audioStore.noiseSuppressionEnabled)
+const echoCancellationEnabled = computed(() => audioStore.echoCancellationEnabled)
+const autoGainControlEnabled = computed(() => audioStore.autoGainControlEnabled)
+const availableAlgorithms = computed(() => audioStore.availableNoiseSuppressionAlgorithms)
+const currentAlgorithmInfo = computed(() => audioStore.currentAlgorithmInfo)
+
+// Watch for store changes to sync local state
+watch(() => audioStore.noiseSuppressionAlgorithm, (newVal) => {
+  selectedAlgorithm.value = newVal
+}, { immediate: true })
+
+// Methods
+function close() {
+  modalStore.closeModal()
+}
+
+function toggleNoiseSuppression() {
+  audioStore.toggleNoiseSuppression(!noiseSuppressionEnabled.value)
+}
+
+function toggleEchoCancellation() {
+  audioStore.toggleEchoCancellation(!echoCancellationEnabled.value)
+}
+
+function toggleAutoGainControl() {
+  audioStore.toggleAutoGainControl(!autoGainControlEnabled.value)
+}
+
+function onAlgorithmChange() {
+  audioStore.setNoiseSuppressionAlgorithm(selectedAlgorithm.value)
+}
+
+function resetSettings() {
+  if (confirm('Reset all audio settings to default values?')) {
+    audioStore.resetSettings()
+    selectedAlgorithm.value = audioStore.noiseSuppressionAlgorithm
+  }
+}
+
+// Load settings on mount
+onMounted(() => {
+  audioStore.loadSettings()
+  selectedAlgorithm.value = audioStore.noiseSuppressionAlgorithm
+})
+</script>

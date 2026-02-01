@@ -75,7 +75,7 @@
 </template>
 
  <script setup lang="ts">
- import { computed, ref, useTemplateRef } from 'vue'
+ import { computed, ref, useTemplateRef, watch } from 'vue'
  import AudioControls from '@/components/AudioControls.vue'
  import DebugDashboard from '@/components/DebugDashboard.vue'
  import RoomHeader from '@/components/RoomHeader.vue'
@@ -83,6 +83,7 @@
  import ScreenShareQualityModal from '@/components/ScreenShareQualityModal.vue'
  import UserGrid from '@/components/UserGrid.vue'
  import { useWebRTC } from '@/composables'
+ import { useAudioSettingsStore } from '@/stores/audioSettings'
  import type { User, ScreenShareQuality } from '@/types'
 
 interface Props {
@@ -127,6 +128,9 @@ const onDebugLog = (message: string, level: 'info' | 'warning' | 'error' = 'info
   }
 }
 
+// Audio settings store
+const audioSettingsStore = useAudioSettingsStore()
+
 // Initialize WebRTC composable - destructure for template reactivity
 const {
   remoteStreams,
@@ -143,7 +147,8 @@ const {
   stopScreenShare,
   getConnectionQuality,
   applyMuteState,
-  applyDeafenState
+  applyDeafenState,
+  reinitializeAudioStream
 } = useWebRTC({
   roomId: props.roomId,
   roomName: props.roomName,
@@ -182,6 +187,15 @@ const currentRoom = computed(() => {
     id: props.roomId
   }
 })
+
+// Watch for audio settings changes and reinitialize stream
+watch(() => audioSettingsStore.settings, async (newSettings, oldSettings) => {
+  // Only reinitialize if settings actually changed and we're in a call
+  if (props.roomId && newSettings !== oldSettings) {
+    console.log('Audio settings changed, reinitializing audio stream...')
+    await reinitializeAudioStream()
+  }
+}, { deep: true })
 
 // Event handlers
 const handleVolumeChange = (userId: string, volume: number) => {

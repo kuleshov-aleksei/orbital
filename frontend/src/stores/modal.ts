@@ -1,13 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
-export type ModalType = 
-  | 'createRoom' 
-  | 'editRoom' 
-  | 'deleteRoom' 
-  | 'createCategory' 
-  | 'renameCategory' 
+export type ModalType =
+  | 'createRoom'
+  | 'editRoom'
+  | 'deleteRoom'
+  | 'createCategory'
+  | 'renameCategory'
   | 'deleteCategory'
+  | 'userSettings'
   | null
 
 export interface ModalData {
@@ -37,6 +38,7 @@ export const useModalStore = defineStore('modal', () => {
   const isCreateCategoryModal = computed(() => activeModal.value === 'createCategory')
   const isRenameCategoryModal = computed(() => activeModal.value === 'renameCategory')
   const isDeleteCategoryModal = computed(() => activeModal.value === 'deleteCategory')
+  const isUserSettingsModal = computed(() => activeModal.value === 'userSettings')
 
   const modalTitle = computed(() => {
     switch (activeModal.value) {
@@ -46,6 +48,7 @@ export const useModalStore = defineStore('modal', () => {
       case 'createCategory': return 'Create Category'
       case 'renameCategory': return 'Rename Category'
       case 'deleteCategory': return 'Delete Category'
+      case 'userSettings': return 'User Settings'
       default: return ''
     }
   })
@@ -102,6 +105,10 @@ export const useModalStore = defineStore('modal', () => {
     openModal('deleteCategory', { categoryId, categoryName, categoryRoomCount: roomCount })
   }
 
+  function openUserSettingsModal() {
+    openModal('userSettings')
+  }
+
   return {
     activeModal,
     modalData,
@@ -113,6 +120,7 @@ export const useModalStore = defineStore('modal', () => {
     isCreateCategoryModal,
     isRenameCategoryModal,
     isDeleteCategoryModal,
+    isUserSettingsModal,
     modalTitle,
     submitButtonText,
     openModal,
@@ -122,6 +130,7 @@ export const useModalStore = defineStore('modal', () => {
     openDeleteRoomModal,
     openCreateCategoryModal,
     openRenameCategoryModal,
-    openDeleteCategoryModal
+    openDeleteCategoryModal,
+    openUserSettingsModal
   }
 })
