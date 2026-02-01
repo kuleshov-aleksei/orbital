@@ -1,6 +1,6 @@
 import { Room, User, CreateRoomData, UpdateRoomData, Category, CreateCategoryData, RenameCategoryData, DeleteCategoryData } from '@/types'
 
-const API_BASE = 'http://localhost:8080/api'
+const API_BASE = '/api'
 
 // Generic API wrapper with error handling
 async function apiRequest<T>(

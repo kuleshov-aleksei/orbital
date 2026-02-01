@@ -1,4 +1,4 @@
-.PHONY: help install build dev lint test clean docker-build docker-up
+.PHONY: help install build dev dev-public lint test clean docker-build docker-up
 
 # Default target
 help:
@@ -6,6 +6,7 @@ help:
 	@echo "  install      - Install dependencies for frontend and backend"
 	@echo "  build        - Build frontend and backend"
 	@echo "  dev          - Run development servers"
+	@echo "  dev-public   - Run development servers on all interfaces (0.0.0.0)"
 	@echo "  lint         - Run linters for frontend and backend"
 	@echo "  test         - Run tests"
 	@echo "  clean        - Clean build artifacts"
@@ -33,6 +34,25 @@ dev:
 	@echo "Backend: http://localhost:8080"
 	@echo "Press Ctrl+C to stop both servers"
 	(cd frontend && npm run dev) & \
+	(cd backend && go run ./cmd/server) & \
+	wait
+
+# Run development servers on all interfaces (for testing on multiple devices)
+dev-public:
+	@echo "Starting development servers on all interfaces..."
+	@echo "Frontend: http://0.0.0.0:3000"
+	@echo "Backend: http://0.0.0.0:8080"
+	@LOCAL_IP=$$(hostname -I | awk '{print $$1}'); \
+	if [ -z "$$LOCAL_IP" ]; then \
+		LOCAL_IP=$$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K\S+'); \
+	fi; \
+	if [ -n "$$LOCAL_IP" ]; then \
+		echo "Access from other devices at: http://$$LOCAL_IP:3000"; \
+	else \
+		echo "Access from other devices using your machine's IP address"; \
+	fi
+	@echo "Press Ctrl+C to stop both servers"
+	(cd frontend && npm run dev -- --host 0.0.0.0) & \
 	(cd backend && go run ./cmd/server) & \
 	wait
 

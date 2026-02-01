@@ -216,18 +216,12 @@ export class WebSocketService {
   // Private methods
   private getWebSocketUrl(roomId: string): string {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const host = process.env.NODE_ENV === 'production' 
-      ? window.location.host 
-      : 'localhost:8080'
-    return `${protocol}//${host}/ws/${roomId}`
+    return `${protocol}//${window.location.host}/ws/${roomId}`
   }
 
   private getGlobalWebSocketUrl(): string {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const host = process.env.NODE_ENV === 'production' 
-      ? window.location.host 
-      : 'localhost:8080'
-    return `${protocol}//${host}/ws`
+    return `${protocol}//${window.location.host}/ws`
   }
 
   private handleMessage(event: MessageEvent): void {
