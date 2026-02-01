@@ -172,7 +172,7 @@
 
         <!-- Audio Controls -->
         <div class="bg-gray-800 border-t border-gray-700 px-6 py-4">
-          <AudioControls 
+          <AudioControls
             :is-muted="isMuted"
             :is-deafened="isDeafened"
             :is-screen-sharing="isScreenSharing"
@@ -224,10 +224,16 @@ interface Props {
   users: User[]
   remoteStreamVolumes: Map<string, number>
   isMobile?: boolean
+  modelValueMuted?: boolean
+  modelValueDeafened?: boolean
+  modelValueScreenSharing?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  isMobile: false
+  isMobile: false,
+  modelValueMuted: false,
+  modelValueDeafened: false,
+  modelValueScreenSharing: false
 })
 
 const emit = defineEmits<{
@@ -235,35 +241,77 @@ const emit = defineEmits<{
   'volume-change': [userId: string, volume: number]
   'show-room-list': []
   'toggle-user-sidebar': []
+  'update:modelValueMuted': [value: boolean]
+  'update:modelValueDeafened': [value: boolean]
+  'update:modelValueScreenSharing': [value: boolean]
+  'ping-update': [ping: number, quality: 'excellent' | 'good' | 'fair' | 'poor']
 }>()
 
- // Reactive state
- const localStream = ref<MediaStream | null>(null)
- const remoteStreams = ref<Map<string, MediaStream>>(new Map())
- const peerConnections = ref<Map<string, RTCPeerConnection>>(new Map())
- const peerConnectionStates = ref<Map<string, string>>(new Map())
- const remoteStreamMutes = ref<Map<string, boolean>>(new Map())
-   // Used to avoid getUserMedia races during offer/answer handling
-   let localStreamPromise: Promise<MediaStream | null> | null = null
-   const isMuted = ref(false)
-   const isDeafened = ref(false)
-   const isScreenSharing = ref(false)
-   const screenShareQuality = ref<ScreenShareQuality>('1080p30')
-   const screenShareAudioEnabled = ref(false)
-   const localScreenStream = ref<MediaStream | null>(null)
-   const remoteScreenStreams = ref<Map<string, MediaStream>>(new Map())
-   const userScreenShareStates = ref<Map<string, { isSharing: boolean; quality: ScreenShareQuality }>>(new Map())
-    const showQualityModal = ref(false)
-      const isUserGridVisible = ref(true)
-      const screenShareLayout = ref<'grid' | 'focus'>('focus')
-    const currentRoomUsers = ref<Map<string, RoomUser>>(new Map())
-  const maxRetries = 3
-  const debugDashboardRef = ref()
-  const peerConnectionRetries = ref<Map<string, number>>(new Map())
- // Fix for ICE candidate race condition
- const pendingIceCandidates = ref<Map<string, RTCIceCandidateInit[]>>(new Map())
- // Track current user's join time (0 = not set yet)
- const currentUserJoinTime = ref<number>(0)
+// Reactive state
+const localStream = ref<MediaStream | null>(null)
+const remoteStreams = ref<Map<string, MediaStream>>(new Map())
+const peerConnections = ref<Map<string, RTCPeerConnection>>(new Map())
+const peerConnectionStates = ref<Map<string, string>>(new Map())
+const remoteStreamMutes = ref<Map<string, boolean>>(new Map())
+// Used to avoid getUserMedia races during offer/answer handling
+let localStreamPromise: Promise<MediaStream | null> | null = null
+// Sync mute/deafen/screen sharing state with parent via v-model
+const isMuted = computed({
+  get: () => props.modelValueMuted,
+  set: (value) => {
+    emit('update:modelValueMuted', value)
+    // Apply to local media stream
+    if (localStream.value) {
+      localStream.value.getAudioTracks().forEach(track => {
+        track.enabled = !value
+      })
+    }
+    // Notify others of mute status
+    wsService.sendMessage('speaking_status', {
+      user_id: getCurrentUserId(),
+      is_speaking: false,
+      is_muted: value
+    })
+  }
+})
+const isDeafened = computed({
+  get: () => props.modelValueDeafened,
+  set: (value) => {
+    emit('update:modelValueDeafened', value)
+    // Mute/unmute all incoming audio streams when deafened
+    currentRoomUsers.value.forEach((user, userId) => {
+      if (userId !== getCurrentUserId()) {
+        const audioElement = document.getElementById(`audio-${userId}`) as HTMLAudioElement
+        if (audioElement) {
+          audioElement.muted = value
+        }
+      }
+    })
+  }
+})
+const isScreenSharing = computed({
+  get: () => props.modelValueScreenSharing,
+  set: (value) => emit('update:modelValueScreenSharing', value)
+})
+const screenShareQuality = ref<ScreenShareQuality>('1080p30')
+const screenShareAudioEnabled = ref(false)
+const localScreenStream = ref<MediaStream | null>(null)
+const remoteScreenStreams = ref<Map<string, MediaStream>>(new Map())
+const userScreenShareStates = ref<Map<string, { isSharing: boolean; quality: ScreenShareQuality }>>(new Map())
+const showQualityModal = ref(false)
+const isUserGridVisible = ref(true)
+const screenShareLayout = ref<'grid' | 'focus'>('focus')
+const currentRoomUsers = ref<Map<string, RoomUser>>(new Map())
+const maxRetries = 3
+const debugDashboardRef = ref()
+const peerConnectionRetries = ref<Map<string, number>>(new Map())
+// Fix for ICE candidate race condition
+const pendingIceCandidates = ref<Map<string, RTCIceCandidateInit[]>>(new Map())
+// Track current user's join time (0 = not set yet)
+const currentUserJoinTime = ref<number>(0)
+// Ping tracking
+const lastPingTime = ref<number>(0)
+const currentPing = ref<number>(0)
 
 // Computed properties
  const currentRoom = computed(() => {
@@ -915,45 +963,23 @@ const getCurrentUserId = (): string => {
 
 const toggleMute = () => {
   isMuted.value = !isMuted.value
-  if (localStream.value) {
-    localStream.value.getAudioTracks().forEach(track => {
-      track.enabled = !isMuted.value
-    })
-  }
-  
-  // Notify others of mute status
-  wsService.sendMessage('speaking_status', {
-    user_id: getCurrentUserId(),
-    is_speaking: false,
-    is_muted: isMuted.value
-  })
 }
 
 const toggleDeafen = () => {
   isDeafened.value = !isDeafened.value
   console.log('Deafen status:', isDeafened.value)
-  
-  // Mute/unmute all incoming audio streams when deafened
-  currentRoomUsers.value.forEach((user, userId) => {
-    if (userId !== getCurrentUserId()) {
-      const audioElement = document.getElementById(`audio-${userId}`) as HTMLAudioElement
-      if (audioElement) {
-        audioElement.muted = isDeafened.value
-      }
-    }
-  })
 }
 
 const toggleScreenShare = () => {
-   console.log("toggleScreenShare called, isScreenSharing: " + isScreenSharing.value)
-   if (isScreenSharing.value) {
-     // Stop screen sharing
-     stopScreenShare()
-   } else {
-     // Open quality selection modal
-     showQualityModal.value = true
-   }
- }
+  console.log("toggleScreenShare called, isScreenSharing: " + isScreenSharing.value)
+  if (isScreenSharing.value) {
+    // Stop screen sharing
+    stopScreenShare()
+  } else {
+    // Open quality selection modal
+    showQualityModal.value = true
+  }
+}
 
 const handleQualitySelected = async (quality: ScreenShareQuality, shareAudio: boolean) => {
   showQualityModal.value = false
@@ -1214,6 +1240,40 @@ const onScreenShareStopMessage = (message: WebSocketMessage) => {
   handleScreenShareStop(message.data as { user_id: string })
 }
 
+// Ping tracking
+let pingInterval: ReturnType<typeof setInterval> | null = null
+const PING_INTERVAL = 3000 // Send ping every 3 seconds
+
+const sendPing = () => {
+  lastPingTime.value = Date.now()
+  // Send a ping message via WebSocket
+  wsService.sendMessage('ping', {
+    user_id: getCurrentUserId(),
+    timestamp: lastPingTime.value
+  })
+}
+
+const onPongMessage = (message: WebSocketMessage) => {
+  const data = message.data as { timestamp: number }
+  const now = Date.now()
+  const ping = now - data.timestamp
+  currentPing.value = ping
+
+  // Calculate quality based on ping
+  let quality: 'excellent' | 'good' | 'fair' | 'poor' = 'excellent'
+  if (ping < 30) {
+    quality = 'excellent'
+  } else if (ping < 60) {
+    quality = 'good'
+  } else if (ping < 100) {
+    quality = 'fair'
+  } else {
+    quality = 'poor'
+  }
+
+  emit('ping-update', ping, quality)
+}
+
 // Lifecycle hooks
 onMounted(async () => {
   // Register WebSocket listeners FIRST, before initializing WebRTC
@@ -1225,12 +1285,24 @@ onMounted(async () => {
   wsService.on('speaking_status', onSpeakingStatusMessage)
   wsService.on('screen_share_start', onScreenShareStartMessage)
   wsService.on('screen_share_stop', onScreenShareStopMessage)
+  wsService.on('pong', onPongMessage)
 
   // Now initialize WebRTC after listeners are ready
   await initializeWebRTC()
+
+  // Start ping interval
+  pingInterval = setInterval(sendPing, PING_INTERVAL)
+  // Send initial ping
+  sendPing()
 })
 
 onUnmounted(() => {
+  // Clear ping interval
+  if (pingInterval) {
+    clearInterval(pingInterval)
+    pingInterval = null
+  }
+
   // Unregister WebSocket listeners to prevent duplicate signaling after re-join.
   wsService.off('ice_candidate', onIceCandidateMessage)
   wsService.off('sdp_offer', onSdpOfferMessage)
@@ -1240,6 +1312,7 @@ onUnmounted(() => {
   wsService.off('speaking_status', onSpeakingStatusMessage)
   wsService.off('screen_share_start', onScreenShareStartMessage)
   wsService.off('screen_share_stop', onScreenShareStopMessage)
+  wsService.off('pong', onPongMessage)
 
   // Clean up all peer connections and audio elements
   peerConnections.value.forEach((connection, userId) => {
@@ -1264,5 +1337,10 @@ onUnmounted(() => {
   }
 
   console.log('WebRTC cleanup completed')
+})
+
+// Expose methods for parent component access
+defineExpose({
+  toggleScreenShare
 })
 </script>

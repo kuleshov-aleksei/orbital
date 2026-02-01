@@ -1,20 +1,16 @@
 <template>
-  <div 
-    class="user-card flex items-center px-3 py-2 rounded-lg hover:bg-gray-700 transition-colors duration-200 cursor-pointer group relative" 
+  <div
+    class="user-card flex items-center px-3 py-2 rounded-lg hover:bg-gray-700 transition-colors duration-200 cursor-pointer group relative"
     :data-testid="`user-card-${user.id}`"
     @contextmenu="showContextMenu"
   >
     <!-- User Avatar -->
-    <div class="relative mr-3">
-      <div class="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-sm font-medium">
-        {{ user.nickname.charAt(0).toUpperCase() }}
-      </div>
-      <!-- Status Indicator -->
-      <div 
-        class="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-gray-800"
-        :class="statusColors[user.status]"
-      ></div>
-    </div>
+    <UserAvatar
+      :nickname="user.nickname"
+      :status="user.status"
+      :size="32"
+      class="mr-3"
+    />
 
     <!-- User Info -->
     <div class="flex-1 min-w-0">
@@ -112,6 +108,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { PhMicrophoneSlash, PhSpeakerHigh } from '@phosphor-icons/vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 interface User {
   id: string
@@ -146,12 +143,6 @@ const menuPosition = { x: 0, y: 0 }
 // Check if this is the current user (for nickname editing)
 const currentUserId = localStorage.getItem('orbital_user_id')
 const isCurrentUser = computed(() => props.user.id === currentUserId)
-
-const statusColors = {
-  online: 'bg-green-400',
-  away: 'bg-yellow-400',
-  dnd: 'bg-red-400'
-}
 
 const showContextMenu = (event: MouseEvent) => {
   event.preventDefault()

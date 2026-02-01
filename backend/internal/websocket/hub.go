@@ -266,6 +266,8 @@ func (c *Client) handleMessage(message models.WebSocketMessage) {
 		c.handleScreenShareStart(message.Data)
 	case "screen_share_stop":
 		c.handleScreenShareStop(message.Data)
+	case "ping":
+		c.handlePing(message.Data)
 	case "room_created":
 		// This is a broadcast message, no action needed on receive
 		log.Printf("Received room_created broadcast")
@@ -562,6 +564,25 @@ func (c *Client) handleScreenShareStop(data interface{}) {
 		},
 	}
 	c.hub.BroadcastToRoomExcluding(c.roomID, c, stopMessage)
+}
+
+// handlePing handles ping messages and responds with pong
+func (c *Client) handlePing(data interface{}) {
+	var pingData struct {
+		UserID    string `json:"user_id"`
+		Timestamp int64  `json:"timestamp"`
+	}
+	jsonData, _ := json.Marshal(data)
+	json.Unmarshal(jsonData, &pingData)
+
+	// Send pong response back to the client with the same timestamp
+	pongMessage := models.WebSocketMessage{
+		Type: "pong",
+		Data: map[string]interface{}{
+			"timestamp": pingData.Timestamp,
+		},
+	}
+	c.send <- marshalMessage(pongMessage)
 }
 
 // Helper function to marshal messages

@@ -53,35 +53,19 @@
         <PhGearSix class="w-5 h-5" />
       </button>
     </div>
-
-    <!-- Connection Info -->
-    <div class="flex items-center justify-center mt-4 space-x-6 text-xs text-gray-400">
-      <div class="flex items-center">
-        <div class="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
-        <span>Ping: {{ ping }}ms</span>
-      </div>
-      <div>
-        <span>Quality: {{ connectionQuality }}</span>
-      </div>
-      <div v-if="isScreenSharing" class="flex items-center text-indigo-400">
-        <PhMonitorPlay class="w-3 h-3 mr-1" />
-        <span>Screen Sharing</span>
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
- import { ref, onMounted, onUnmounted } from 'vue'
- import { wsService } from '@/services/websocket'
- import { 
-   PhMicrophone, 
-   PhMicrophoneSlash, 
-   PhHeadphones, 
-   PhMonitorPlay, 
-   PhSignOut, 
-   PhGearSix 
- } from '@phosphor-icons/vue'
+import { ref } from 'vue'
+import {
+  PhMicrophone,
+  PhMicrophoneSlash,
+  PhHeadphones,
+  PhMonitorPlay,
+  PhSignOut,
+  PhGearSix
+} from '@phosphor-icons/vue'
 
 interface Props {
   isMuted?: boolean
@@ -89,7 +73,7 @@ interface Props {
   isScreenSharing?: boolean
 }
 
-const props = defineProps<Props>()
+defineProps<Props>()
 const emit = defineEmits<{
   'toggle-mute': []
   'toggle-deafen': []
@@ -98,80 +82,25 @@ const emit = defineEmits<{
 }>()
 
 // Local state
-const ping = ref(42)
-const connectionQuality = ref('Excellent')
 const showSettings = ref(false)
 
 // Methods
 const toggleMute = () => {
   emit('toggle-mute')
-  
-  // Notify WebSocket of mute status change
-  const userId = getCurrentUserId()
-  wsService.sendMessage('mute_status', {
-    user_id: userId,
-    is_muted: !props.isMuted
-  })
-  
-  // Also update speaking status
-  wsService.sendMessage('speaking_status', {
-    user_id: userId,
-    is_speaking: false,
-    is_muted: !props.isMuted
-  })
 }
 
 const toggleDeafen = () => {
   emit('toggle-deafen')
-  
-  // Notify WebSocket of deafen status change
-  const userId = getCurrentUserId()
-  wsService.sendMessage('deafen_status', {
-    user_id: userId,
-    is_deafened: !props.isDeafened
-  })
-  
-  console.log('Deafen status:', !props.isDeafened)
 }
 
 const toggleScreenShare = () => {
   emit('toggle-screen-share')
-  console.log('Screen sharing:', !props.isScreenSharing)
 }
 
 const toggleSettings = () => {
   showSettings.value = !showSettings.value
   console.log('Settings toggled')
 }
-
-const getCurrentUserId = (): string => {
-  return localStorage.getItem('orbital_user_id') || 'unknown-user'
-}
-
-// Simulate connection quality updates
-const updateConnectionInfo = () => {
-  // Simulate ping changes
-  ping.value = Math.floor(Math.random() * 50) + 20
-  
-  // Update connection quality based on ping
-  if (ping.value < 30) {
-    connectionQuality.value = 'Excellent'
-  } else if (ping.value < 60) {
-    connectionQuality.value = 'Good'
-  } else {
-    connectionQuality.value = 'Fair'
-  }
-}
-
-// Lifecycle hooks
-onMounted(() => {
-  // Update connection info periodically
-  const interval = setInterval(updateConnectionInfo, 3000)
-  
-  onUnmounted(() => {
-    clearInterval(interval)
-  })
-})
 </script>
 
 <style scoped>

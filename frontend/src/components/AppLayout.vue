@@ -1,22 +1,39 @@
 <template>
   <div class="app-layout h-screen bg-gray-900 text-white flex flex-col lg:flex-row overflow-hidden">
     <div class="flex flex-1 overflow-hidden">
-      <!-- Left Sidebar - Room List (Desktop) -->
-      <RoomSidebar 
-        class="hidden lg:flex"
-        :rooms="rooms" 
-        :categories="categories"
-        :active-room-id="activeRoomId"
-        :is-mobile-view="false"
-        @room-selected="handleRoomSelected"
-        @create-room="showCreateRoomModal"
-        @create-room-in-category="handleCreateRoomInCategory"
-        @rename-category="handleRenameCategory"
-        @delete-category="handleDeleteCategory"
-        @move-room="handleMoveRoom"
-        @edit-room="handleEditRoom"
-        @delete-room="handleDeleteRoom"
-      />
+      <!-- Left Sidebar - Room List + User Controls (Desktop) -->
+      <div class="hidden lg:flex flex-col w-60 bg-gray-800">
+        <RoomSidebar
+          class="flex-1"
+          :rooms="rooms"
+          :categories="categories"
+          :active-room-id="activeRoomId"
+          :is-mobile-view="false"
+          @room-selected="handleRoomSelected"
+          @create-room="showCreateRoomModal"
+          @create-room-in-category="handleCreateRoomInCategory"
+          @rename-category="handleRenameCategory"
+          @delete-category="handleDeleteCategory"
+          @move-room="handleMoveRoom"
+          @edit-room="handleEditRoom"
+          @delete-room="handleDeleteRoom"
+        />
+        <UserControlPanel
+          v-model:model-value-muted="isMuted"
+          v-model:model-value-deafened="isDeafened"
+          v-model:model-value-screen-sharing="isScreenSharing"
+          :nickname="currentUser?.nickname || 'User'"
+          :user-id="currentUser?.id || ''"
+          :is-in-call="!!activeRoomId"
+          :room-name="getRoomName(activeRoomId)"
+          :ping="connectionPing"
+          :connection-quality="connectionQuality"
+          @toggle-mute="handleMuteToggle"
+          @toggle-deafen="handleDeafenToggle"
+          @toggle-screen-share="handleScreenShareToggle"
+          @leave-room="handleLeaveRoom"
+        />
+      </div>
 
       <!-- Mobile: Full-screen Room List View -->
       <div 
@@ -57,8 +74,12 @@
           @room-selected="handleRoomSelected"
           @create-room="showCreateRoomModal"
         />
-        <VoiceCallView 
+        <VoiceCallView
           v-else
+          ref="voiceCallViewRef"
+          v-model:model-value-muted="isMuted"
+          v-model:model-value-deafened="isDeafened"
+          v-model:model-value-screen-sharing="isScreenSharing"
           :room-id="activeRoomId"
           :room-name="getRoomName(activeRoomId)"
           :users="currentRoomUsers"
@@ -69,6 +90,7 @@
           @nickname-change="handleNicknameChange"
           @show-room-list="mobileView = 'rooms'"
           @toggle-user-sidebar="toggleMobileUserSidebar"
+          @ping-update="handlePingUpdate"
         />
       </main>
 
@@ -184,6 +206,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import RoomSidebar from '@/components/RoomSidebar.vue'
 import UserSidebar from '@/components/UserSidebar.vue'
+import UserControlPanel from '@/components/UserControlPanel.vue'
 import WelcomeView from '@/views/WelcomeView.vue'
 import VoiceCallView from '@/views/VoiceCallView.vue'
 import RoomModal from '@/components/RoomModal.vue'
@@ -231,6 +254,16 @@ const selectedRoomName = ref('')
 const selectedRoomUserCount = ref(0)
 const selectedRoomMaxUsers = ref(10)
 const selectedRoomCurrentCategoryId = ref('')
+
+// User control panel state
+const isMuted = ref(false)
+const isDeafened = ref(false)
+const isScreenSharing = ref(false)
+const connectionPing = ref(0)
+const connectionQuality = ref<'excellent' | 'good' | 'fair' | 'poor'>('excellent')
+
+// Template refs
+const voiceCallViewRef = ref<InstanceType<typeof VoiceCallView> | null>(null)
 
 // Generate or get current user ID
 const getCurrentUserId = (): string => {
@@ -288,12 +321,15 @@ const updateRoomNickname = (userId: string, nickname: string) => {
 
 // Lifecycle hooks
 onMounted(async () => {
+  // Initialize current user early so it's available for UserControlPanel
+  getCurrentUserId()
+
   await loadRooms()
   await loadCategories()
   setupWebSocketListeners()
   setupGlobalWebSocketListeners()
   await connectGlobalWebSocket()
-  
+
   // Check if mobile on mount
   checkMobile()
   // Listen for resize events
@@ -371,6 +407,8 @@ const handleLeaveRoom = async () => {
     await leaveCurrentRoom()
     activeRoomId.value = null
     currentRoomUsers.value = []
+    // Reset screen sharing state when leaving
+    isScreenSharing.value = false
     // On mobile, return to room list view
     if (isMobile.value) {
       mobileView.value = 'rooms'
@@ -378,6 +416,47 @@ const handleLeaveRoom = async () => {
   } catch (error) {
     console.error('Failed to leave room:', error)
     errorMessage.value = 'Failed to leave room.'
+  }
+}
+
+// User control panel event handlers
+const handleMuteToggle = (muted: boolean) => {
+  isMuted.value = muted
+  // Notify WebSocket of mute status change only if connected
+  if (wsService.isConnected()) {
+    const userId = getCurrentUserId()
+    wsService.sendMessage('mute_status', {
+      user_id: userId,
+      is_muted: muted
+    })
+    wsService.sendMessage('speaking_status', {
+      user_id: userId,
+      is_speaking: false,
+      is_muted: muted
+    })
+  } else {
+    console.warn('WebSocket not connected, skipping mute status broadcast')
+  }
+}
+
+const handleDeafenToggle = (deafened: boolean) => {
+  isDeafened.value = deafened
+  // Notify WebSocket of deafen status change only if connected
+  if (wsService.isConnected()) {
+    const userId = getCurrentUserId()
+    wsService.sendMessage('deafen_status', {
+      user_id: userId,
+      is_deafened: deafened
+    })
+  } else {
+    console.warn('WebSocket not connected, skipping deafen status broadcast')
+  }
+}
+
+const handleScreenShareToggle = () => {
+  // Forward the toggle to VoiceCallView via the template ref
+  if (voiceCallViewRef.value) {
+    voiceCallViewRef.value.toggleScreenShare()
   }
 }
 
@@ -614,14 +693,19 @@ const handleVolumeChange = (userId: string, volume: number) => {
 
 const handleNicknameChange = (userId: string, nickname: string) => {
   console.log(`👤 Nickname changed for user ${userId}: ${nickname}`)
-  
+
   // Send nickname change via WebSocket
   wsService.changeNickname(userId, nickname)
-  
+
   // Update current user reference if it's the current user
   if (currentUser.value && currentUser.value.id === userId) {
     currentUser.value.nickname = nickname
   }
+}
+
+const handlePingUpdate = (ping: number, quality: 'excellent' | 'good' | 'fair' | 'poor') => {
+  connectionPing.value = ping
+  connectionQuality.value = quality
 }
 
 const setupWebSocketListeners = () => {
