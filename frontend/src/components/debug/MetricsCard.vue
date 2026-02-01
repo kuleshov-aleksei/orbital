@@ -4,11 +4,13 @@
       <h3 class="text-sm font-medium text-white">
         {{ getUserNickname(userId) }}
       </h3>
+
       <div class="flex items-center space-x-2">
         <div
           class="w-2 h-2 rounded-full"
           :class="connectionQualityClass"
         ></div>
+
         <span class="text-xs text-gray-400">
           {{ connectionQuality.quality }}
         </span>
@@ -19,66 +21,87 @@
     <div class="grid grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
       <div>
         <div class="text-gray-500">Packets Sent</div>
+
         <div class="text-white font-mono">
           {{ stats.packetsSent.toLocaleString() }}
         </div>
       </div>
+
       <div>
         <div class="text-gray-500">Packets Received</div>
+
         <div class="text-white font-mono">
           {{ stats.packetsReceived.toLocaleString() }}
         </div>
       </div>
+
       <div>
         <div class="text-gray-500">Packet Loss</div>
+
         <div class="text-white font-mono text-red-400">
           {{ stats.packetsLost }}
         </div>
       </div>
+
       <div>
         <div class="text-gray-500">Bytes Sent</div>
+
         <div class="text-white font-mono">
           {{ formatBytes(stats.bytesSent) }}
         </div>
       </div>
+
       <div>
         <div class="text-gray-500">Bytes Received</div>
+
         <div class="text-white font-mono">
           {{ formatBytes(stats.bytesReceived) }}
         </div>
       </div>
+
       <div>
         <div class="text-gray-500">RTT</div>
+
         <div class="text-white font-mono">
           {{ Math.round(stats.roundTripTime) }}ms
         </div>
       </div>
+
       <div>
         <div class="text-gray-500">Jitter</div>
+
         <div class="text-white font-mono">
           {{ Math.round(stats.jitter) }}ms
         </div>
       </div>
+
       <div>
         <div class="text-gray-500">Upload</div>
+
         <div class="text-white font-mono">
           {{ Math.round(stats.bandwidth.upload) }}kbps
         </div>
       </div>
+
       <div>
         <div class="text-gray-500">Download</div>
+
         <div class="text-white font-mono">
           {{ Math.round(stats.bandwidth.download) }}kbps
         </div>
       </div>
+
       <div>
         <div class="text-gray-500">Audio Level</div>
+
         <div class="text-white font-mono">
           {{ Math.round(stats.audioLevel) }}
         </div>
       </div>
+
       <div>
         <div class="text-gray-500">State</div>
+
         <div class="text-white font-mono capitalize">
           {{ stats.connectionState }}
         </div>
@@ -89,10 +112,12 @@
     <div class="mt-3 pt-3 border-t border-gray-700">
       <div class="flex items-center justify-between mb-1">
         <span class="text-xs text-gray-500">Quality Score</span>
+
         <span class="text-xs text-white">
           {{ connectionQuality.score }}/100
         </span>
       </div>
+
       <div class="w-full bg-gray-700 rounded-full h-2">
         <div
           class="h-2 rounded-full transition-all duration-300"

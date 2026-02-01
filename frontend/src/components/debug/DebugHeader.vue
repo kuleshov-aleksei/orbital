@@ -3,9 +3,12 @@
     <div class="flex items-center justify-between">
       <div class="flex items-center space-x-3">
         <PhBug class="w-5 h-5 text-blue-400" />
+
         <h2 class="text-lg font-semibold text-white">WebRTC Debug Dashboard</h2>
+
         <div class="flex items-center space-x-2 text-sm text-gray-400">
           <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+
           <span>Live</span>
         </div>
       </div>
@@ -15,6 +18,7 @@
         <button
           v-for="tab in tabs"
           :key="tab.id"
+          type="button"
           :class="[
             'px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
             activeTab === tab.id

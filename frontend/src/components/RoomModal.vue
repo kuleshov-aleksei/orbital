@@ -4,7 +4,9 @@
       <!-- Modal Header -->
       <div class="flex items-center justify-between mb-6">
         <h2 class="text-xl font-semibold text-white">Create New Room</h2>
+
         <button
+          type="button"
           data-testid="room-modal-close"
           class="text-gray-400 hover:text-white transition-colors duration-200"
           @click="$emit('close')"
@@ -22,6 +24,7 @@
           <label for="roomName" class="block text-sm font-medium text-gray-300 mb-2">
             Room Name
           </label>
+
           <input
             id="roomName"
             v-model="roomName"
@@ -31,6 +34,7 @@
             data-testid="room-name-input"
             class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
           />
+
           <p v-if="roomNameError" class="text-red-500 text-sm mt-1">{{ roomNameError }}</p>
         </div>
 
@@ -39,6 +43,7 @@
           <label for="roomCategory" class="block text-sm font-medium text-gray-300 mb-2">
             Category
           </label>
+
           <input
             id="roomCategory"
             v-model="roomCategory"
@@ -47,7 +52,9 @@
             data-testid="room-category-input"
             class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
           />
+
           <p class="text-gray-500 text-xs mt-1">Leave empty for "general" category. Max 32 characters.</p>
+
           <p v-if="categoryError" class="text-red-500 text-sm mt-1">{{ categoryError }}</p>
         </div>
 
@@ -56,12 +63,14 @@
           <label for="maxUsers" class="block text-sm font-medium text-gray-300 mb-2">
             Max Users
           </label>
+
           <select
             id="maxUsers"
             v-model="maxUsers"
             class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
           >
             <option value="5">5 users</option>
+
             <option value="10">10 users</option>
           </select>
         </div>
@@ -76,6 +85,7 @@
           >
             Cancel
           </button>
+
           <button
             type="submit"
             data-testid="room-create-submit"

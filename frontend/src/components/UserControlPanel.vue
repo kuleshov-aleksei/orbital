@@ -9,10 +9,12 @@
             class="w-2 h-2 rounded-full mr-2 flex-shrink-0"
             :class="connectionStatusColor"
           ></div>
+
           <div class="min-w-0">
             <div class="text-sm font-medium text-white truncate">
               {{ roomName }}
             </div>
+
             <div class="text-xs text-gray-400">
               {{ connectionStatusText }} • {{ ping }}ms
             </div>
@@ -23,6 +25,7 @@
         <div class="flex items-center space-x-2 ml-3">
           <!-- Screen Share Toggle -->
           <button
+            type="button"
             class="w-9 h-9 rounded-lg flex items-center justify-center transition-colors duration-200"
             :class="screenShareButtonClass"
             :title="localScreenSharing ? 'Stop Sharing' : 'Share Screen'"
@@ -33,6 +36,7 @@
 
           <!-- Leave Room Button -->
           <button
+            type="button"
             class="w-9 h-9 rounded-lg flex items-center justify-center bg-red-600 hover:bg-red-700 text-white transition-colors duration-200"
             title="Leave Room"
             @click="leaveRoom"
@@ -54,10 +58,12 @@
             :size="36"
             class="mr-3 flex-shrink-0"
           />
+
           <div class="min-w-0">
             <div class="font-medium text-sm text-white truncate">
               {{ nickname }}
             </div>
+
             <div class="text-xs text-gray-400">
               {{ statusText }}
             </div>
@@ -68,17 +74,20 @@
         <div class="flex items-center space-x-2 ml-2">
           <!-- Microphone Toggle -->
           <button
+            type="button"
             class="w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-200"
             :class="micButtonClass"
             :title="localMuted ? 'Unmute' : 'Mute'"
             @click="toggleMute"
           >
             <PhMicrophoneSlash v-if="localMuted" class="w-4 h-4" />
+
             <PhMicrophone v-else class="w-4 h-4" />
           </button>
 
           <!-- Headphone/Deafen Toggle -->
           <button
+            type="button"
             class="w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-200"
             :class="deafenButtonClass"
             :title="localDeafened ? 'Undeafen' : 'Deafen'"
@@ -86,10 +95,12 @@
           >
             <div v-if="localDeafened" class="w-4 h-4 relative">
               <PhHeadphones class="absolute inset-0" />
+
               <div class="absolute inset-0 flex items-center justify-center">
                 <div class="w-4 h-0.5 bg-current rotate-45"></div>
               </div>
             </div>
+
             <PhHeadphones v-else class="w-4 h-4" />
           </button>
         </div>

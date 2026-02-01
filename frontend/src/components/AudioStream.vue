@@ -9,11 +9,15 @@
         <div class="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-sm font-bold text-white mr-3">
           {{ userNickname.charAt(0).toUpperCase() }}
         </div>
+
         <div>
           <div class="text-white font-medium">{{ userNickname }}</div>
+
           <div class="text-xs text-gray-400">
             <span v-if="connectionState === 'connected'" class="text-green-400">Connected</span>
+
             <span v-else-if="connectionState === 'connecting'" class="text-yellow-400">Connecting...</span>
+
             <span v-else class="text-gray-400">{{ connectionState || 'Unknown' }}</span>
           </div>
         </div>
@@ -39,8 +43,10 @@
     <div class="mt-3">
       <div class="flex items-center justify-between text-xs text-gray-400 mb-1">
         <span>Audio Level</span>
+
         <span>{{ Math.round(audioLevel * 100) }}%</span>
       </div>
+
       <div class="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
         <div
           class="bg-green-400 h-full transition-all duration-150 ease-out"
@@ -87,11 +93,14 @@
 
       <!-- Mute/Unmute User -->
       <button
+        type="button"
         class="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors flex items-center space-x-2"
         @click="toggleMute(); hideContextMenu()"
       >
         <PhMicrophoneSlash v-if="isMuted" class="w-4 h-4" />
+
         <PhMicrophone v-else class="w-4 h-4" />
+
         <span>{{ isMuted ? 'Unmute User' : 'Mute User' }}</span>
       </button>
 
@@ -101,10 +110,13 @@
       <div class="px-3 py-2">
         <div class="flex items-center justify-between mb-2">
           <span class="text-sm text-gray-300">Volume</span>
+
           <span class="text-xs text-gray-400">{{ Math.round(volume) }}%</span>
         </div>
+
         <div class="flex items-center space-x-2">
           <PhSpeakerHigh class="w-4 h-4 text-gray-400" />
+
           <input
             v-model="volume"
             type="range"
@@ -127,7 +139,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+  import { ref, computed, onMounted, onUnmounted, watch, nextTick, useTemplateRef } from 'vue'
   import {
     PhMicrophone,
     PhMicrophoneSlash,
@@ -162,7 +174,7 @@ const emit = defineEmits<{
 }>()
 
  // Reactive state
- const audioElement = ref<HTMLAudioElement | null>(null)
+ const audioElement = useTemplateRef<HTMLAudioElement>('audioElement')
  const volume = ref(props.initialVolume)
  const isMuted = ref(false)
  const audioLevel = ref(0)

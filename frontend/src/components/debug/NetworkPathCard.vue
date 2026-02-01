@@ -7,24 +7,31 @@
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
       <div>
         <div class="text-gray-500 mb-1">ICE State</div>
+
         <div class="text-white font-mono">
           {{ debugInfo.iceState }}
         </div>
       </div>
+
       <div>
         <div class="text-gray-500 mb-1">Connection State</div>
+
         <div class="text-white font-mono">
           {{ debugInfo.connectionState }}
         </div>
       </div>
+
       <div>
         <div class="text-gray-500 mb-1">Signaling State</div>
+
         <div class="text-white font-mono">
           {{ debugInfo.signalingState }}
         </div>
       </div>
+
       <div>
         <div class="text-gray-500 mb-1">Gathering State</div>
+
         <div class="text-white font-mono">
           {{ debugInfo.iceGatheringState }}
         </div>
@@ -34,6 +41,7 @@
     <!-- Candidates -->
     <div class="mt-4 space-y-2">
       <div class="text-xs text-gray-500">Local Candidates</div>
+
       <div class="bg-gray-900 rounded p-2 max-h-24 overflow-y-auto">
         <div
           v-for="(candidate, index) in debugInfo.localCandidates"
@@ -45,6 +53,7 @@
       </div>
       
       <div class="text-xs text-gray-500">Remote Candidates</div>
+
       <div class="bg-gray-900 rounded p-2 max-h-24 overflow-y-auto">
         <div
           v-for="(candidate, index) in debugInfo.remoteCandidates"

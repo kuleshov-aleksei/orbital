@@ -15,7 +15,8 @@
     <!-- Mobile Full-screen Header -->
     <div v-if="isMobileView" class="p-4 border-b border-gray-800">
       <h2 class="text-xl font-semibold text-white">Available Rooms</h2>
-      <p class="text-sm text-gray-400 mt-1">{{ rooms.length }} room{{ rooms.length !== 1 ? 's' : '' }}</p>
+
+      <p class="text-sm text-gray-400 mt-1">{{ rooms?.length || 0 }} room{{ (rooms?.length || 0) !== 1 ? 's' : '' }}</p>
     </div>
 
     <!-- Room Categories and List -->
@@ -27,10 +28,12 @@
             @click="toggleCategory(category.name)"
             @contextmenu.prevent="showContextMenu($event, category)">
             <span>{{ category.name }}</span>
+
             <div class="flex items-center gap-1">
               <PhDotsThree
                 class="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity"
                 @click.stop="showContextMenu($event, category)" />
+
               <PhCaretDown
                 class="w-3 h-3 transition-transform duration-200"
                 :class="{ 'rotate-180': expandedCategories.has(category.name) }" />
@@ -53,10 +56,12 @@
     <!-- Create Room Button -->
     <div class="p-3 border-t border-gray-700">
       <button
+        type="button"
         data-testid="create-room-sidebar"
         class="w-full flex items-center justify-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors duration-200"
         @click="$emit('create-room')">
         <PhPlus class="w-4 h-4 mr-2" />
+
         <span class="text-sm font-medium">Create Room</span>
       </button>
     </div>
@@ -68,27 +73,36 @@
       :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"
       @click.stop>
       <button
+        type="button"
         class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
         @click="handleCreateRoomInCategory">
         <div class="flex items-center gap-2">
           <PhPlus class="w-4 h-4" />
+
           <span>Create Room</span>
         </div>
       </button>
+
       <button
+        type="button"
         class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
         @click="handleRenameCategory">
         <div class="flex items-center gap-2">
           <PhPencil class="w-4 h-4" />
+
           <span>Rename</span>
         </div>
       </button>
+
       <div class="border-t border-gray-700 my-1"></div>
+
       <button
+        type="button"
         class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-gray-700 hover:text-red-300 transition-colors"
         @click="handleDeleteCategory">
         <div class="flex items-center gap-2">
           <PhTrash class="w-4 h-4" />
+
           <span>Delete</span>
         </div>
       </button>
@@ -103,13 +117,16 @@
       <!-- Move to Category - With Submenu -->
       <div class="relative group">
         <button
+          type="button"
           class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors flex items-center justify-between"
           @mouseenter="onMoveButtonEnter"
           @mouseleave="onMoveButtonLeave">
           <div class="flex items-center gap-2">
             <PhArrowsLeftRight class="w-4 h-4" />
+
             <span>Move to Category</span>
           </div>
+
           <PhCaretDown class="w-3 h-3 transform -rotate-90" />
         </button>
         
@@ -130,10 +147,12 @@
           <button
             v-for="category in availableCategoriesForMove"
             :key="category.id"
+            type="button"
             class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
             @click="onMoveCategorySelect(category.id)">
             {{ category.name }}
           </button>
+
           <div v-if="availableCategoriesForMove.length === 0" class="px-4 py-2 text-sm text-gray-500">
             No other categories
           </div>
@@ -141,20 +160,25 @@
       </div>
 
       <button
+        type="button"
         class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
         @click="handleEditRoom">
         <div class="flex items-center gap-2">
           <PhPencil class="w-4 h-4" />
+
           <span>Properties</span>
         </div>
       </button>
 
       <div class="border-t border-gray-700 my-1"></div>
+
       <button
+        type="button"
         class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-gray-700 hover:text-red-300 transition-colors"
         @click="handleDeleteRoom">
         <div class="flex items-center gap-2">
           <PhTrash class="w-4 h-4" />
+
           <span>Delete</span>
         </div>
       </button>
@@ -171,9 +195,11 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { storeToRefs } from 'pinia'
 import RoomCard from '@/components/RoomCard.vue'
 import { PhCaretDown, PhPlus, PhDotsThree, PhPencil, PhTrash, PhArrowsLeftRight } from '@phosphor-icons/vue'
-import type { Category, Room } from '@/types'
+import { useRoomStore, useCategoryStore } from '@/stores'
+import type { Room } from '@/types'
 
 interface CategorizedRoom {
   id: string
@@ -182,15 +208,11 @@ interface CategorizedRoom {
 }
 
 interface Props {
-  rooms: Room[]
-  categories: Category[]
   activeRoomId: string | null
   isMobileView?: boolean
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  isMobileView: false,
-})
+const { activeRoomId, isMobileView = false } = defineProps<Props>()
 
 const emit = defineEmits<{
   'room-selected': [roomId: string]
@@ -198,27 +220,32 @@ const emit = defineEmits<{
   'create-room-in-category': [categoryId: string, categoryName: string]
   'rename-category': [categoryId: string, currentName: string]
   'delete-category': [categoryId: string, categoryName: string]
-  'move-room': [roomId: string, currentCategoryId: string]
-  'edit-room': [roomId: string, currentName: string, currentMaxUsers: number]
-  'delete-room': [roomId: string, roomName: string, userCount: number]
+  'move-room': [payload: { roomId: string, targetCategoryId: string }]
+  'edit-room': [payload: { roomId: string, roomName: string, maxUsers: number }]
+  'delete-room': [payload: { roomId: string, roomName: string, userCount: number }]
   'close-mobile-sidebar': []
 }>()
+// Use stores directly for reactivity
+const roomStore = useRoomStore()
+const categoryStore = useCategoryStore()
+const { rooms } = storeToRefs(roomStore)
+const { categories } = storeToRefs(categoryStore)
 
 const isHidden = computed(() => {
-  return props.rooms.length === 0
+  return !rooms.value || rooms.value.length === 0
 })
 
 const expandedCategories = ref(new Set<string>())
 
 const categorizedRooms = computed(() => {
-  const categories: CategorizedRoom[] = []
+  const result: CategorizedRoom[] = []
   const categoryRoomMap = new Map<string, { id: string; name: string; rooms: Room[] }>()
 
   // Group rooms by category ID
-  props.rooms.forEach((room) => {
+  rooms.value?.forEach((room) => {
     const categoryId = room.category
     // Look up category name from the categories list
-    const category = props.categories.find((c) => c.id === categoryId)
+    const category = categories.value?.find((c) => c.id === categoryId)
     const categoryName = category?.name || room.categoryName || categoryId
 
     if (!categoryRoomMap.has(categoryId)) {
@@ -229,20 +256,20 @@ const categorizedRooms = computed(() => {
 
   // Convert to array format and expand all categories by default
   categoryRoomMap.forEach((categoryData) => {
-    categories.push(categoryData)
+    result.push(categoryData)
     expandedCategories.value.add(categoryData.name)
   })
 
   // Also add empty categories from the categories list
-  props.categories.forEach((category) => {
-    const exists = categories.some((c) => c.id === category.id)
+  categories.value?.forEach((category) => {
+    const exists = result.some((c) => c.id === category.id)
     if (!exists) {
-      categories.push({ id: category.id, name: category.name, rooms: [] })
+      result.push({ id: category.id, name: category.name, rooms: [] })
       expandedCategories.value.add(category.name)
     }
   })
 
-  return categories
+  return result
 })
 
 const toggleCategory = (categoryName: string) => {
@@ -314,8 +341,8 @@ let submenuHideTimeout: ReturnType<typeof setTimeout> | null = null
 
 // Get available categories for moving (exclude current room's category)
 const availableCategoriesForMove = computed(() => {
-  if (!roomContextMenu.value.room) return props.categories
-  return props.categories.filter(cat => cat.id !== roomContextMenu.value.room?.category)
+  if (!roomContextMenu.value.room) return categories.value || []
+  return (categories.value || []).filter(cat => cat.id !== roomContextMenu.value.room?.category)
 })
 
 const showRoomContextMenu = (event: MouseEvent, room: Room) => {
@@ -415,21 +442,29 @@ const onMoveCategorySelect = (targetCategoryId: string) => {
 
 const handleMoveRoom = (targetCategoryId: string) => {
   if (roomContextMenu.value.room) {
-    emit('move-room', roomContextMenu.value.room.id, targetCategoryId)
+    emit('move-room', { roomId: roomContextMenu.value.room.id, targetCategoryId })
   }
   closeRoomContextMenu()
 }
 
 const handleEditRoom = () => {
   if (roomContextMenu.value.room) {
-    emit('edit-room', roomContextMenu.value.room.id, roomContextMenu.value.room.name, roomContextMenu.value.room.maxUsers)
+    emit('edit-room', {
+      roomId: roomContextMenu.value.room.id,
+      roomName: roomContextMenu.value.room.name,
+      maxUsers: roomContextMenu.value.room.max_users
+    })
   }
   closeRoomContextMenu()
 }
 
 const handleDeleteRoom = () => {
   if (roomContextMenu.value.room) {
-    emit('delete-room', roomContextMenu.value.room.id, roomContextMenu.value.room.name, roomContextMenu.value.room.userCount)
+    emit('delete-room', {
+      roomId: roomContextMenu.value.room.id,
+      roomName: roomContextMenu.value.room.name,
+      userCount: roomContextMenu.value.room.user_count
+    })
   }
   closeRoomContextMenu()
 }

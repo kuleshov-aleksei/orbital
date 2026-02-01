@@ -13,8 +13,10 @@
         <div class="px-5 py-3 border-b border-gray-700">
           <div class="flex items-center">
             <PhMonitorPlay class="w-5 h-5 text-indigo-400 mr-2" />
+
             <h2 class="text-lg font-semibold text-white">Share Your Screen</h2>
           </div>
+
           <p class="text-xs text-gray-400 mt-0.5">Select streaming quality and audio</p>
         </div>
         
@@ -26,6 +28,7 @@
             <button
               v-for="option in qualityOptions"
               :key="option.value"
+              type="button"
               class="w-full flex items-center px-3 py-2 rounded-lg border transition-all duration-200 text-left"
               :class="[
                 selectedQuality === option.value
@@ -47,8 +50,10 @@
                   class="w-1.5 h-1.5 bg-white rounded-full"
                 />
               </div>
+
               <div class="min-w-0">
                 <div class="text-sm text-white font-medium leading-tight">{{ option.label }}</div>
+
                 <div class="text-[10px] text-gray-400 truncate">{{ option.description }}</div>
               </div>
             </button>
@@ -63,6 +68,7 @@
               type="checkbox"
               class="w-4 h-4 rounded border-gray-600 bg-gray-700 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-gray-800"
             />
+
             <span class="ml-2 text-sm text-gray-300 flex items-center">
               <PhSpeakerHigh class="w-3.5 h-3.5 mr-1" />
               Share system audio
@@ -73,12 +79,15 @@
         <!-- Actions -->
         <div class="px-5 py-3 border-t border-gray-700 flex justify-end space-x-2">
           <button
+            type="button"
             class="px-3 py-1.5 rounded-lg bg-gray-700 text-sm text-gray-300 hover:bg-gray-600 transition-colors duration-200"
             @click="handleCancel"
           >
             Cancel
           </button>
+
           <button
+            type="button"
             class="px-3 py-1.5 rounded-lg bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition-colors duration-200 flex items-center"
             @click="handleStartShare"
           >

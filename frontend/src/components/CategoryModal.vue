@@ -4,7 +4,9 @@
       <!-- Modal Header -->
       <div class="flex items-center justify-between mb-6">
         <h2 class="text-xl font-semibold text-white">{{ title }}</h2>
+
         <button
+          type="button"
           class="text-gray-400 hover:text-white transition-colors duration-200"
           @click="$emit('close')"
         >
@@ -21,6 +23,7 @@
           <label for="categoryName" class="block text-sm font-medium text-gray-300 mb-2">
             Category Name
           </label>
+
           <input
             id="categoryName"
             v-model="categoryName"
@@ -30,8 +33,10 @@
             maxlength="32"
             class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
           />
+
           <div class="flex justify-between mt-1">
             <p v-if="categoryNameError" class="text-red-500 text-sm">{{ categoryNameError }}</p>
+
             <p class="text-gray-500 text-xs">{{ charCount }}/32 characters</p>
           </div>
         </div>
@@ -45,6 +50,7 @@
           >
             Cancel
           </button>
+
           <button
             type="submit"
             class="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors duration-200"

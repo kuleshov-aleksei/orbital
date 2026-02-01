@@ -11,7 +11,9 @@ class="user-sidebar w-60 lg:w-60 bg-gray-800 flex flex-col fixed lg:relative ins
       <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">
         In Room — {{ userCount }}
       </h2>
+
       <button
+        type="button"
         class="p-1 text-gray-400 hover:text-white"
         @click="$emit('close-mobile-sidebar')"
       >
@@ -24,7 +26,8 @@ class="user-sidebar w-60 lg:w-60 bg-gray-800 flex flex-col fixed lg:relative ins
       <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">
         In Room — {{ userCount }}
       </h2>
-      <button class="text-gray-400 hover:text-gray-200 transition-colors duration-200">
+
+      <button type="button" class="text-gray-400 hover:text-gray-200 transition-colors duration-200">
         <PhDotsThree class="w-4 h-4" />
       </button>
     </div>
@@ -44,13 +47,15 @@ class="user-sidebar w-60 lg:w-60 bg-gray-800 flex flex-col fixed lg:relative ins
     <!-- User Controls -->
     <div class="p-3 border-t border-gray-700">
       <div class="space-y-2">
-        <button class="w-full flex items-center justify-center px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors duration-200">
+        <button type="button" class="w-full flex items-center justify-center px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors duration-200">
         <PhVideoCamera class="w-4 h-4 mr-2" />
+
           <span class="text-sm font-medium">Start Video</span>
         </button>
         
-        <button class="w-full flex items-center justify-center px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors duration-200">
+        <button type="button" class="w-full flex items-center justify-center px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors duration-200">
         <PhMonitorPlay class="w-4 h-4 mr-2" />
+
           <span class="text-sm font-medium">Share Screen</span>
         </button>
       </div>
@@ -71,9 +76,9 @@ class="user-sidebar w-60 lg:w-60 bg-gray-800 flex flex-col fixed lg:relative ins
 interface User {
   id: string
   nickname: string
-  isSpeaking: boolean
-  isMuted: boolean
-  isDeafened: boolean
+  is_speaking: boolean
+  is_muted: boolean
+  is_deafened: boolean
   status: 'online' | 'away' | 'dnd'
 }
 

@@ -2,10 +2,10 @@
 export interface Room {
   id: string
   name: string
-  userCount: number
-  maxUsers: number
+  user_count: number
+  max_users: number
   category: string  // Category ID
-  categoryName?: string  // Category name for display
+  category_name?: string  // Category name for display
   users?: RoomPreviewUser[]
 }
 
@@ -14,9 +14,9 @@ export interface RoomPreviewUser {
   id: string
   nickname: string
   role: string
-  isMuted: boolean
-  isDeafened: boolean
-  isSpeaking: boolean
+  is_muted: boolean
+  is_deafened: boolean
+  is_speaking: boolean
 }
 
 // Screen sharing quality options
@@ -28,18 +28,10 @@ export type ScreenShareQuality =
   | '360p30'
   | 'text'
 
-// User interface - supports both camelCase (TypeScript convention) 
-// and snake_case (from Go backend JSON)
+// User interface - uses snake_case to match Go backend JSON
 export interface User {
   id: string
   nickname: string
-  // camelCase versions for TypeScript code
-  isSpeaking?: boolean
-  isMuted?: boolean
-  isDeafened?: boolean
-  isScreenSharing?: boolean
-  screenShareQuality?: ScreenShareQuality
-  // snake_case versions from backend JSON
   is_speaking?: boolean
   is_muted?: boolean
   is_deafened?: boolean
@@ -49,13 +41,7 @@ export interface User {
 }
 
 // RoomUser interface - user with room-specific information
-// Note: Backend sends snake_case, frontend uses camelCase
 export interface RoomUser extends User {
-  // camelCase versions
-  createdAt?: string
-  lastSeen?: string
-  joinedAt?: string
-  // snake_case versions from backend
   created_at?: string
   last_seen?: string
   joined_at?: string
@@ -97,14 +83,14 @@ export interface ApiResponse<T> {
 export interface CreateRoomData {
   name: string
   category: string
-  maxUsers: number
+  max_users: number
 }
 
 // Room update data
 export interface UpdateRoomData {
   name?: string
   category?: string
-  maxUsers?: number
+  max_users?: number
 }
 
 // Join room data
@@ -123,7 +109,7 @@ export interface NicknameChangeRequest {
 export interface Category {
   id: string
   name: string
-  createdAt: string
+  created_at: string
 }
 
 // Create category data
@@ -238,9 +224,9 @@ export interface DebugInfo {
 }
 
 export interface AudioLevelData {
-  userId: string
+  user_id: string
   level: number // 0-127
-  isSpeaking: boolean
+  is_speaking: boolean
   timestamp: Date
 }
 

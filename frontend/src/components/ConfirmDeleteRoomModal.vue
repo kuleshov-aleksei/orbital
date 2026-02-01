@@ -4,7 +4,9 @@
       <!-- Modal Header -->
       <div class="flex items-center justify-between mb-6">
         <h2 class="text-xl font-semibold text-white">Delete Room</h2>
+
         <button
+          type="button"
           class="text-gray-400 hover:text-white transition-colors duration-200"
           @click="$emit('close')"
         >
@@ -33,6 +35,7 @@
           >
             Cancel
           </button>
+
           <button
             type="submit"
             class="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors duration-200"

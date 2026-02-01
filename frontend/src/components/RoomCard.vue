@@ -26,6 +26,7 @@
       <!-- Room Info -->
       <div class="flex-1 min-w-0">
         <div class="font-medium text-sm truncate">{{ room.name }}</div>
+
         <div class="text-xs opacity-75">{{ room.userCount }}/{{ room.maxUsers }} users</div>
       </div>
     </div>
@@ -33,6 +34,7 @@
     <!-- Users List -->
     <div v-if="room.users && room.users.length > 0" class="mt-2 ml-11">
       <div class="text-xs opacity-75 mb-1">In this room:</div>
+
       <div class="space-y-1">
         <div
           v-for="user in room.users"
@@ -41,10 +43,14 @@
         >
           <div class="mr-2 flex items-center">
             <PhMicrophone v-if="!user.isMuted && !user.isDeafened" class="text-green-500 w-4 h-4"/>
+
             <PhMicrophoneSlash v-if="user.isMuted" class="text-red-500 w-4 h-4"/>
+
             <PhHeadphones v-if="user.isDeafened" class="text-red-500 w-4 h-4"/>
           </div>
+
           <span>{{ user.nickname }}</span>
+
           <span v-if="user.role === 'owner'" class="ml-1 opacity-60">(owner)</span>
         </div>
       </div>

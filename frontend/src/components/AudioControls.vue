@@ -3,16 +3,19 @@
     <div class="flex items-center justify-center space-x-4">
       <!-- Mute/Unmute -->
       <button
+        type="button"
         class="control-button"
         :class="{ 'bg-red-600 hover:bg-red-700': isMuted, 'bg-gray-700 hover:bg-gray-600': !isMuted }"
         @click="toggleMute"
       >
         <PhMicrophoneSlash v-if="isMuted" class="w-5 h-5" />
+
         <PhMicrophone v-else class="w-5 h-5" />
       </button>
 
       <!-- Deafen/Undeafen -->
       <button
+        type="button"
         class="control-button"
         :class="{ 'bg-red-600 hover:bg-red-700': isDeafened, 'bg-gray-700 hover:bg-gray-600': !isDeafened }"
         @click="toggleDeafen"
@@ -21,15 +24,18 @@
         <!-- Headphones with slash (deafened) - TODO: Find proper crossed headphones icon -->
         <div v-if="isDeafened" class="w-5 h-5 relative">
           <PhHeadphones class="absolute inset-0" />
+
           <div class="absolute inset-0 flex items-center justify-center">
             <div class="w-6 h-0.5 bg-red-500 rotate-45"></div>
           </div>
         </div>
+
         <PhHeadphones v-else class="w-5 h-5" />
       </button>
 
       <!-- Screen Share -->
       <button
+        type="button"
         class="control-button"
         :class="{ 'bg-indigo-600 hover:bg-indigo-700': isScreenSharing, 'bg-gray-700 hover:bg-gray-600': !isScreenSharing }"
         @click="toggleScreenShare"
@@ -39,6 +45,7 @@
 
       <!-- Leave Room -->
       <button
+        type="button"
         class="control-button bg-red-600 hover:bg-red-700"
         @click="$emit('leave-room')"
       >
@@ -47,6 +54,7 @@
 
       <!-- Settings -->
       <button
+        type="button"
         class="control-button bg-gray-700 hover:bg-gray-600"
         @click="toggleSettings"
       >
