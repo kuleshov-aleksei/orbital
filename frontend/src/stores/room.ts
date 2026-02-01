@@ -1,0 +1,151 @@
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+import type { Room, User } from '@/types'
+
+export const useRoomStore = defineStore('room', () => {
+  // State
+  const rooms = ref<Room[]>([])
+  const activeRoomId = ref<string | null>(null)
+  const currentRoomUsers = ref<User[]>([])
+  const remoteStreamVolumes = ref<Map<string, number>>(new Map())
+
+  // Getters
+  const activeRoom = computed(() => 
+    rooms.value.find(r => r.id === activeRoomId.value) || null
+  )
+  
+  const activeRoomName = computed(() => 
+    activeRoom.value?.name || 'Voice Room'
+  )
+  
+  const isInRoom = computed(() => !!activeRoomId.value)
+  
+  const getRoomById = computed(() => (roomId: string) => 
+    rooms.value.find(r => r.id === roomId)
+  )
+
+  // Actions
+  function setRooms(newRooms: Room[]) {
+    rooms.value = newRooms
+  }
+
+  function addRoom(room: Room) {
+    const existingIndex = rooms.value.findIndex(r => r.id === room.id)
+    if (existingIndex === -1) {
+      rooms.value.unshift(room)
+    }
+  }
+
+  function updateRoom(roomId: string, updates: Partial<Room>) {
+    const index = rooms.value.findIndex(r => r.id === roomId)
+    if (index !== -1) {
+      rooms.value[index] = { ...rooms.value[index], ...updates }
+    }
+  }
+
+  function removeRoom(roomId: string) {
+    const index = rooms.value.findIndex(r => r.id === roomId)
+    if (index !== -1) {
+      rooms.value.splice(index, 1)
+    }
+  }
+
+  function setActiveRoom(roomId: string | null) {
+    activeRoomId.value = roomId
+    if (!roomId) {
+      currentRoomUsers.value = []
+    }
+  }
+
+  function setCurrentRoomUsers(users: User[]) {
+    currentRoomUsers.value = users
+  }
+
+  function updateUserStatus(userId: string, status: { is_speaking?: boolean; is_muted?: boolean; is_deafened?: boolean }) {
+    rooms.value.forEach((room, roomIndex) => {
+      if (room.users) {
+        const userIndex = room.users.findIndex(u => u.id === userId)
+        if (userIndex !== -1) {
+          const user = room.users[userIndex]
+          const updatedUser = { ...user }
+          if (status.is_speaking !== undefined) updatedUser.is_speaking = status.is_speaking
+          if (status.is_muted !== undefined) updatedUser.is_muted = status.is_muted
+          if (status.is_deafened !== undefined) updatedUser.is_deafened = status.is_deafened
+          rooms.value[roomIndex].users[userIndex] = updatedUser
+        }
+      }
+    })
+  }
+
+  function updateUserNickname(userId: string, nickname: string) {
+    rooms.value.forEach((room, roomIndex) => {
+      if (room.users) {
+        const userIndex = room.users.findIndex(u => u.id === userId)
+        if (userIndex !== -1) {
+          const user = room.users[userIndex]
+          rooms.value[roomIndex].users[userIndex] = { ...user, nickname }
+        }
+      }
+    })
+  }
+
+  function addUserToRoom(roomId: string, user: User) {
+    const room = rooms.value.find(r => r.id === roomId)
+    if (room) {
+      if (!room.users) room.users = []
+      const existingUserIndex = room.users.findIndex(u => u.id === user.id)
+      if (existingUserIndex === -1) {
+        room.users.push(user)
+        room.user_count = room.users.length
+      }
+    }
+  }
+
+  function removeUserFromRoom(roomId: string, userId: string) {
+    const room = rooms.value.find(r => r.id === roomId)
+    if (room && room.users) {
+      const userIndex = room.users.findIndex(u => u.id === userId)
+      if (userIndex !== -1) {
+        room.users.splice(userIndex, 1)
+        room.user_count = room.users.length
+      }
+    }
+  }
+
+  function setUserVolume(userId: string, volume: number) {
+    remoteStreamVolumes.value.set(userId, volume)
+  }
+
+  function updateCurrentRoomUser(userId: string, updates: Partial<User>) {
+    const userIndex = currentRoomUsers.value.findIndex(u => u.id === userId)
+    if (userIndex !== -1) {
+      currentRoomUsers.value[userIndex] = { 
+        ...currentRoomUsers.value[userIndex], 
+        ...updates 
+      }
+    }
+  }
+
+  return {
+    rooms,
+    activeRoomId,
+    currentRoomUsers,
+    remoteStreamVolumes,
+    activeRoom,
+    activeRoomName,
+    isInRoom,
+    getRoomById,
+    setRooms,
+    addRoom,
+    updateRoom,
+    removeRoom,
+    setActiveRoom,
+    setCurrentRoomUsers,
+    updateUserStatus,
+    updateUserNickname,
+    addUserToRoom,
+    removeUserFromRoom,
+    setUserVolume,
+    updateCurrentRoomUser
+  }
+})

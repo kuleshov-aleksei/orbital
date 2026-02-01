@@ -18,7 +18,7 @@
       </div>
 
       <!-- Room Grid -->
-      <div v-if="rooms.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div v-if="rooms?.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div
           v-for="room in rooms"
           :key="room.id"
@@ -76,20 +76,20 @@
 </template>
 
 <script setup lang="ts">
- import type { Room } from '@/types'
+import { storeToRefs } from 'pinia'
+import { useRoomStore } from '@/stores'
 import { 
     PhPlus, 
     PhFolderSimpleUser, 
     PhMagnifyingGlass 
   } from '@phosphor-icons/vue'
 
-defineProps<{
-  rooms: Room[]
-  isLoading?: boolean
-}>()
-
 defineEmits<{
   'room-selected': [roomId: string]
   'create-room': []
 }>()
+// Use store directly for reactivity
+const roomStore = useRoomStore()
+const { rooms } = storeToRefs(roomStore)
+
 </script>

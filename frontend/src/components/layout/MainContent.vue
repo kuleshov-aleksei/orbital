@@ -1,0 +1,63 @@
+<template>
+  <main 
+    v-if="!appStore.isMobile || appStore.mobileView === 'room'"
+    class="flex-1 flex flex-col min-h-0 bg-gray-900"
+  >
+    <WelcomeView 
+      v-if="!roomStore.activeRoomId"
+      @room-selected="$emit('room-selected', $event)"
+      @create-room="$emit('create-room')"
+    />
+
+    <VoiceCallView
+      v-else
+      ref="voiceCallViewRef"
+      v-model:model-value-muted="callState.isMuted"
+      v-model:model-value-deafened="callState.isDeafened"
+      v-model:model-value-screen-sharing="callState.isScreenSharing"
+      :room-id="roomStore.activeRoomId"
+      :room-name="roomStore.activeRoomName"
+      :users="roomStore.currentRoomUsers"
+      :remote-stream-volumes="roomStore.remoteStreamVolumes"
+      :is-mobile="appStore.isMobile"
+      @leave-room="$emit('leave-room')"
+      @volume-change="$emit('volume-change', $event)"
+      @nickname-change="$emit('nickname-change', $event)"
+      @show-room-list="appStore.showRoomsView()"
+      @toggle-user-sidebar="appStore.toggleMobileUserSidebar()"
+      @ping-update="$emit('ping-update', $event)"
+    />
+  </main>
+</template>
+
+<script setup lang="ts">
+import { useTemplateRef } from 'vue'
+import { useRoomStore, useAppStore, useCallStore } from '@/stores'
+import WelcomeView from '@/views/WelcomeView.vue'
+import VoiceCallView from '@/views/VoiceCallView.vue'
+
+defineEmits<{
+  (e: 'room-selected', roomId: string): void
+  (e: 'create-room'): void
+  (e: 'leave-room'): void
+  (e: 'volume-change', payload: { userId: string, volume: number }): void
+  (e: 'nickname-change', payload: { userId: string, nickname: string }): void
+  (e: 'ping-update', payload: { ping: number, quality: 'excellent' | 'good' | 'fair' | 'poor' }): void
+}>()
+
+const roomStore = useRoomStore()
+const appStore = useAppStore()
+const callStore = useCallStore()
+
+const voiceCallViewRef = useTemplateRef<InstanceType<typeof VoiceCallView>>('voiceCallViewRef')
+
+const callState = {
+  isMuted: callStore.isMuted,
+  isDeafened: callStore.isDeafened,
+  isScreenSharing: callStore.isScreenSharing
+}
+
+defineExpose({
+  voiceCallViewRef
+})
+</script>

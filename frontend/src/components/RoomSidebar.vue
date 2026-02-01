@@ -16,7 +16,7 @@
     <div v-if="isMobileView" class="p-4 border-b border-gray-800">
       <h2 class="text-xl font-semibold text-white">Available Rooms</h2>
 
-      <p class="text-sm text-gray-400 mt-1">{{ rooms.length }} room{{ rooms.length !== 1 ? 's' : '' }}</p>
+      <p class="text-sm text-gray-400 mt-1">{{ rooms?.length || 0 }} room{{ (rooms?.length || 0) !== 1 ? 's' : '' }}</p>
     </div>
 
     <!-- Room Categories and List -->
@@ -195,9 +195,11 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { storeToRefs } from 'pinia'
 import RoomCard from '@/components/RoomCard.vue'
 import { PhCaretDown, PhPlus, PhDotsThree, PhPencil, PhTrash, PhArrowsLeftRight } from '@phosphor-icons/vue'
-import type { Category, Room } from '@/types'
+import { useRoomStore, useCategoryStore } from '@/stores'
+import type { Room } from '@/types'
 
 interface CategorizedRoom {
   id: string
@@ -206,15 +208,11 @@ interface CategorizedRoom {
 }
 
 interface Props {
-  rooms: Room[]
-  categories: Category[]
   activeRoomId: string | null
   isMobileView?: boolean
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  isMobileView: false,
-})
+const { activeRoomId, isMobileView = false } = defineProps<Props>()
 
 const emit = defineEmits<{
   'room-selected': [roomId: string]
@@ -222,27 +220,32 @@ const emit = defineEmits<{
   'create-room-in-category': [categoryId: string, categoryName: string]
   'rename-category': [categoryId: string, currentName: string]
   'delete-category': [categoryId: string, categoryName: string]
-  'move-room': [roomId: string, currentCategoryId: string]
-  'edit-room': [roomId: string, currentName: string, currentMaxUsers: number]
-  'delete-room': [roomId: string, roomName: string, userCount: number]
+  'move-room': [payload: { roomId: string, targetCategoryId: string }]
+  'edit-room': [payload: { roomId: string, roomName: string, maxUsers: number }]
+  'delete-room': [payload: { roomId: string, roomName: string, userCount: number }]
   'close-mobile-sidebar': []
 }>()
+// Use stores directly for reactivity
+const roomStore = useRoomStore()
+const categoryStore = useCategoryStore()
+const { rooms } = storeToRefs(roomStore)
+const { categories } = storeToRefs(categoryStore)
 
 const isHidden = computed(() => {
-  return props.rooms.length === 0
+  return !rooms.value || rooms.value.length === 0
 })
 
 const expandedCategories = ref(new Set<string>())
 
 const categorizedRooms = computed(() => {
-  const categories: CategorizedRoom[] = []
+  const result: CategorizedRoom[] = []
   const categoryRoomMap = new Map<string, { id: string; name: string; rooms: Room[] }>()
 
   // Group rooms by category ID
-  props.rooms.forEach((room) => {
+  rooms.value?.forEach((room) => {
     const categoryId = room.category
     // Look up category name from the categories list
-    const category = props.categories.find((c) => c.id === categoryId)
+    const category = categories.value?.find((c) => c.id === categoryId)
     const categoryName = category?.name || room.categoryName || categoryId
 
     if (!categoryRoomMap.has(categoryId)) {
@@ -253,20 +256,20 @@ const categorizedRooms = computed(() => {
 
   // Convert to array format and expand all categories by default
   categoryRoomMap.forEach((categoryData) => {
-    categories.push(categoryData)
+    result.push(categoryData)
     expandedCategories.value.add(categoryData.name)
   })
 
   // Also add empty categories from the categories list
-  props.categories.forEach((category) => {
-    const exists = categories.some((c) => c.id === category.id)
+  categories.value?.forEach((category) => {
+    const exists = result.some((c) => c.id === category.id)
     if (!exists) {
-      categories.push({ id: category.id, name: category.name, rooms: [] })
+      result.push({ id: category.id, name: category.name, rooms: [] })
       expandedCategories.value.add(category.name)
     }
   })
 
-  return categories
+  return result
 })
 
 const toggleCategory = (categoryName: string) => {
@@ -338,8 +341,8 @@ let submenuHideTimeout: ReturnType<typeof setTimeout> | null = null
 
 // Get available categories for moving (exclude current room's category)
 const availableCategoriesForMove = computed(() => {
-  if (!roomContextMenu.value.room) return props.categories
-  return props.categories.filter(cat => cat.id !== roomContextMenu.value.room?.category)
+  if (!roomContextMenu.value.room) return categories.value || []
+  return (categories.value || []).filter(cat => cat.id !== roomContextMenu.value.room?.category)
 })
 
 const showRoomContextMenu = (event: MouseEvent, room: Room) => {
@@ -439,21 +442,29 @@ const onMoveCategorySelect = (targetCategoryId: string) => {
 
 const handleMoveRoom = (targetCategoryId: string) => {
   if (roomContextMenu.value.room) {
-    emit('move-room', roomContextMenu.value.room.id, targetCategoryId)
+    emit('move-room', { roomId: roomContextMenu.value.room.id, targetCategoryId })
   }
   closeRoomContextMenu()
 }
 
 const handleEditRoom = () => {
   if (roomContextMenu.value.room) {
-    emit('edit-room', roomContextMenu.value.room.id, roomContextMenu.value.room.name, roomContextMenu.value.room.max_users)
+    emit('edit-room', {
+      roomId: roomContextMenu.value.room.id,
+      roomName: roomContextMenu.value.room.name,
+      maxUsers: roomContextMenu.value.room.max_users
+    })
   }
   closeRoomContextMenu()
 }
 
 const handleDeleteRoom = () => {
   if (roomContextMenu.value.room) {
-    emit('delete-room', roomContextMenu.value.room.id, roomContextMenu.value.room.name, roomContextMenu.value.room.user_count)
+    emit('delete-room', {
+      roomId: roomContextMenu.value.room.id,
+      roomName: roomContextMenu.value.room.name,
+      userCount: roomContextMenu.value.room.user_count
+    })
   }
   closeRoomContextMenu()
 }
