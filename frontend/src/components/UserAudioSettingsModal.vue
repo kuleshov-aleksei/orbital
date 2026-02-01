@@ -80,7 +80,9 @@
                     :disabled="!algo.isSupported || !algo.isAvailable"
                   >
                     {{ algo.name }}
-                    <span v-if="!algo.isSupported">(Not Supported)</span>
+                    <span v-if="!algo.isSupported && algo.notSupportedReason">({{ algo.notSupportedReason }})</span>
+
+                    <span v-else-if="!algo.isSupported">(Not Supported)</span>
                   </option>
                 </select>
 
@@ -90,6 +92,15 @@
                 >
                   {{ currentAlgorithmInfo.description }}
                 </p>
+
+                <!-- Algorithm Not Supported Warning -->
+                <div
+                  v-if="selectedAlgorithmInfo && !selectedAlgorithmInfo.isSupported && selectedAlgorithmInfo.notSupportedReason"
+                  class="mt-2 p-2 bg-red-900/50 border border-red-700 rounded text-xs text-red-200"
+                >
+                  <span class="font-semibold">Not Available:</span>
+                  {{ selectedAlgorithmInfo.notSupportedReason }}
+                </div>
 
                 <!-- 48kHz Warning for RNNoise -->
                 <div
@@ -227,6 +238,11 @@ const autoGainControlEnabled = computed(() => audioStore.autoGainControlEnabled)
 const availableAlgorithms = computed(() => audioStore.availableNoiseSuppressionAlgorithms)
 const currentAlgorithmInfo = computed(() => audioStore.currentAlgorithmInfo)
 const wasmError = computed(() => audioStore.wasmError)
+
+// Get the currently selected algorithm info with support status
+const selectedAlgorithmInfo = computed(() => {
+  return availableAlgorithms.value.find(a => a.id === selectedAlgorithm.value)
+})
 
 // Watch for store changes to sync local state
 watch(() => audioStore.noiseSuppressionAlgorithm, (newVal) => {

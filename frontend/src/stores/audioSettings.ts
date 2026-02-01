@@ -38,10 +38,14 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
    * Filters out unsupported algorithms based on browser capabilities
    */
   const availableNoiseSuppressionAlgorithms = computed<AudioAlgorithmInfo[]>(() => {
-    return availableAlgorithms.map(algo => ({
-      ...algo,
-      isSupported: checkAlgorithmSupport(algo.id)
-    }))
+    return availableAlgorithms.map(algo => {
+      const support = checkAlgorithmSupportWithReason(algo.id)
+      return {
+        ...algo,
+        isSupported: support.isSupported,
+        notSupportedReason: support.reason
+      }
+    })
   })
 
   /**
@@ -85,30 +89,56 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
   // Actions
 
   /**
-   * Check if a specific algorithm is supported by the browser
+   * Check if a specific algorithm is supported and return the reason if not
    */
-  function checkAlgorithmSupport(algorithm: NoiseSuppressionAlgorithm): boolean {
+  function checkAlgorithmSupportWithReason(algorithm: NoiseSuppressionAlgorithm): {
+    isSupported: boolean
+    reason?: string
+  } {
     switch (algorithm) {
       case 'browser-native':
       case 'off':
         // Browser native constraints are supported by all modern browsers
-        return true
-      case 'rnnoise':
-        // RNNoise requires WebAssembly and more advanced APIs
-        // Also requires 48kHz sample rate support
-        return typeof WebAssembly === 'object' &&
-               typeof AudioContext !== 'undefined' &&
-               typeof MediaStreamAudioSourceNode !== 'undefined' &&
-               typeof AudioWorkletNode !== 'undefined' &&
-               microphoneSupports48kHz.value !== false
-      case 'speex':
-        // Speex requires WebAssembly and AudioWorklet
-        return typeof WebAssembly === 'object' &&
-               typeof AudioContext !== 'undefined' &&
-               typeof MediaStreamAudioSourceNode !== 'undefined' &&
-               typeof AudioWorkletNode !== 'undefined'
+        return { isSupported: true }
+
+      case 'rnnoise': {
+        // Check WebAssembly support
+        if (typeof WebAssembly !== 'object') {
+          return { isSupported: false, reason: 'WebAssembly not supported by browser' }
+        }
+        // Check AudioContext support
+        if (typeof AudioContext === 'undefined') {
+          return { isSupported: false, reason: 'AudioContext not supported by browser' }
+        }
+        // Check AudioWorklet support
+        if (typeof AudioWorkletNode === 'undefined') {
+          return { isSupported: false, reason: 'AudioWorklet not supported by browser' }
+        }
+        // Check 48kHz support
+        if (microphoneSupports48kHz.value === false) {
+          return { isSupported: false, reason: 'Microphone doesn\'t support 48kHz sample rate' }
+        }
+        return { isSupported: true }
+      }
+
+      case 'speex': {
+        // Check WebAssembly support
+        if (typeof WebAssembly !== 'object') {
+          return { isSupported: false, reason: 'WebAssembly not supported by browser' }
+        }
+        // Check AudioContext support
+        if (typeof AudioContext === 'undefined') {
+          return { isSupported: false, reason: 'AudioContext not supported by browser' }
+        }
+        // Check AudioWorklet support
+        if (typeof AudioWorkletNode === 'undefined') {
+          return { isSupported: false, reason: 'AudioWorklet not supported by browser' }
+        }
+        return { isSupported: true }
+      }
+
       default:
-        return false
+        return { isSupported: false, reason: 'Unknown algorithm' }
     }
   }
 

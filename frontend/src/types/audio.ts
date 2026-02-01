@@ -26,6 +26,7 @@ export interface AudioAlgorithmInfo {
   isAvailable: boolean // Whether it's implemented
   requiresAudioWorklet: boolean // Whether it uses custom AudioWorklet processing
   sampleRate: number | null // Required sample rate (null if any)
+  notSupportedReason?: string // Reason why algorithm is not supported (for UI display)
 }
 
 /**
