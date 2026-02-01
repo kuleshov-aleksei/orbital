@@ -9,6 +9,7 @@ help:
 	@echo "  dev-public   - Run development servers on all interfaces (0.0.0.0)"
 	@echo "  lint         - Run linters for frontend and backend"
 	@echo "  test         - Run tests"
+	@echo "  test-headed  - Run tests in headed mode"
 	@echo "  clean        - Clean build artifacts"
 	@echo "  docker-build - Build Docker images"
 	@echo "  docker-up    - Run with Docker Compose"
@@ -80,10 +81,15 @@ lint:
 
 # Run tests
 test:
-	@echo "Running frontend tests..."
-	cd frontend && npm run test
+	@echo "Running frontend e2e tests..."
+	cd frontend && npm run test:e2e
 	@echo "Running backend tests..."
 	cd backend && go test ./...
+
+# Run tests
+test-headed:
+	@echo "Running frontend e2e tests..."
+	cd frontend && npm run test:e2e:headed
 
 # Clean build artifacts
 clean:
