@@ -190,14 +190,23 @@ const currentRoom = computed(() => {
   }
 })
 
-// Watch for audio settings changes and reinitialize stream
-watch(() => audioSettingsStore.settings, async (newSettings, oldSettings) => {
-  // Only reinitialize if settings actually changed and we're in a call
-  if (props.roomId && newSettings !== oldSettings) {
-    console.log('Audio settings changed, reinitializing audio stream...')
-    await reinitializeAudioStream()
+// Track reinitialization state
+let isReinitializing = false
+
+// Watch specifically for noise suppression algorithm changes
+watch(() => audioSettingsStore.noiseSuppressionAlgorithm, async (newAlgorithm, oldAlgorithm) => {
+  // Only reinitialize if algorithm actually changed and we're in a call
+  if (props.roomId && newAlgorithm !== oldAlgorithm && !isReinitializing) {
+    console.log(`Noise suppression algorithm changed from ${oldAlgorithm} to ${newAlgorithm}, reinitializing audio stream...`)
+    
+    isReinitializing = true
+    try {
+      await reinitializeAudioStream()
+    } finally {
+      isReinitializing = false
+    }
   }
-}, { deep: true })
+})
 
 // Event handlers
 const handleVolumeChange = (userId: string, volume: number) => {
