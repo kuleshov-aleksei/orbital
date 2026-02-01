@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@phosphor-icons/vue": "^2.2.1",
+    "@sapphi-red/web-noise-suppressor": "^0.3.5",
     "eslint-config-prettier": "^10.1.8",
     "pinia": "^2.1.0",
     "vue": "^3.3.0",

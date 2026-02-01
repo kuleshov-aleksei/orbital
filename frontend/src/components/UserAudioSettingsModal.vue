@@ -77,10 +77,10 @@
                     v-for="algo in availableAlgorithms"
                     :key="algo.id"
                     :value="algo.id"
-                    :disabled="!algo.isAvailable"
+                    :disabled="!algo.isSupported || !algo.isAvailable"
                   >
                     {{ algo.name }}
-                    {{ !algo.isAvailable ? '(Coming Soon)' : '' }}
+                    <span v-if="!algo.isSupported">(Not Supported)</span>
                   </option>
                 </select>
 
@@ -90,6 +90,32 @@
                 >
                   {{ currentAlgorithmInfo.description }}
                 </p>
+
+                <!-- 48kHz Warning for RNNoise -->
+                <div
+                  v-if="selectedAlgorithm === 'rnnoise' && !supports48kHz"
+                  class="mt-2 p-2 bg-red-900/50 border border-red-700 rounded text-xs text-red-200"
+                >
+                  <span class="font-semibold">Warning:</span>
+                  Your microphone doesn't support 48kHz sample rate required for RNNoise.
+                  Please select a different algorithm or use a different microphone.
+                </div>
+
+                <!-- WASM Error Message -->
+                <div
+                  v-if="wasmError"
+                  class="mt-2 p-2 bg-red-900/50 border border-red-700 rounded text-xs text-red-200"
+                >
+                  <span class="font-semibold">Error:</span>
+                  {{ wasmError }}
+                  <button
+                    type="button"
+                    class="ml-2 underline hover:no-underline"
+                    @click="clearWASMError"
+                  >
+                    Dismiss
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -190,6 +216,8 @@ const modalStore = useModalStore()
 
 // Local state
 const selectedAlgorithm = ref<NoiseSuppressionAlgorithm>('browser-native')
+const supports48kHz = ref<boolean | null>(null)
+const isCheckingMicrophone = ref(false)
 
 // Computed
 const isOpen = computed(() => modalStore.isUserSettingsModal)
@@ -198,11 +226,19 @@ const echoCancellationEnabled = computed(() => audioStore.echoCancellationEnable
 const autoGainControlEnabled = computed(() => audioStore.autoGainControlEnabled)
 const availableAlgorithms = computed(() => audioStore.availableNoiseSuppressionAlgorithms)
 const currentAlgorithmInfo = computed(() => audioStore.currentAlgorithmInfo)
+const wasmError = computed(() => audioStore.wasmError)
 
 // Watch for store changes to sync local state
 watch(() => audioStore.noiseSuppressionAlgorithm, (newVal) => {
   selectedAlgorithm.value = newVal
 }, { immediate: true })
+
+// Watch for modal open to check microphone support
+watch(() => modalStore.isUserSettingsModal, async (isOpen) => {
+  if (isOpen && supports48kHz.value === null) {
+    await checkMicrophoneSupport()
+  }
+})
 
 // Methods
 function close() {
@@ -229,6 +265,25 @@ function resetSettings() {
   if (confirm('Reset all audio settings to default values?')) {
     audioStore.resetSettings()
     selectedAlgorithm.value = audioStore.noiseSuppressionAlgorithm
+    supports48kHz.value = null
+  }
+}
+
+function clearWASMError() {
+  audioStore.clearWASMError()
+}
+
+async function checkMicrophoneSupport() {
+  if (isCheckingMicrophone.value) return
+  isCheckingMicrophone.value = true
+
+  try {
+    supports48kHz.value = await audioStore.checkMicrophone48kHzSupport()
+  } catch (error) {
+    console.error('Error checking microphone support:', error)
+    supports48kHz.value = false
+  } finally {
+    isCheckingMicrophone.value = false
   }
 }
 
@@ -236,5 +291,6 @@ function resetSettings() {
 onMounted(() => {
   audioStore.loadSettings()
   selectedAlgorithm.value = audioStore.noiseSuppressionAlgorithm
+  checkMicrophoneSupport()
 })
 </script>

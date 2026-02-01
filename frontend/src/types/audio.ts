@@ -3,7 +3,7 @@
  * Designed to be extensible for different noise suppression algorithms
  */
 
-export type NoiseSuppressionAlgorithm = 'off' | 'browser-native' | 'rnnoise'
+export type NoiseSuppressionAlgorithm = 'off' | 'browser-native' | 'rnnoise' | 'speex'
 
 export interface NoiseSuppressionConfig {
   enabled: boolean
@@ -23,7 +23,9 @@ export interface AudioAlgorithmInfo {
   name: string
   description: string
   isSupported: boolean
-  isAvailable: boolean // Whether it's implemented (rnnoise = false)
+  isAvailable: boolean // Whether it's implemented
+  requiresAudioWorklet: boolean // Whether it uses custom AudioWorklet processing
+  sampleRate: number | null // Required sample rate (null if any)
 }
 
 /**
@@ -45,6 +47,31 @@ export interface AudioProcessor {
 
   /** Get MediaTrackConstraints for this algorithm */
   getConstraints(): MediaTrackConstraints
+
+  /** Check if this processor requires AudioWorklet processing */
+  requiresAudioWorklet(): boolean
+}
+
+/**
+ * Interface for AudioWorklet-based noise suppressors
+ * These processors create a processed audio stream through AudioWorklet
+ */
+export interface AudioWorkletProcessor extends AudioProcessor {
+  /**
+   * Process an audio stream through AudioWorklet
+   * Returns a new MediaStream with noise suppression applied
+   */
+  processStream(stream: MediaStream): Promise<MediaStream>
+
+  /**
+   * Check if the WASM module is loaded and ready
+   */
+  isReady(): boolean
+
+  /**
+   * Clean up resources
+   */
+  dispose(): void
 }
 
 /** Default audio settings */
@@ -69,20 +96,35 @@ export const availableAlgorithms: AudioAlgorithmInfo[] = [
     name: 'Browser Native',
     description: 'Built-in browser noise suppression (WebRTC Audio Processing)',
     isSupported: true,
-    isAvailable: true
+    isAvailable: true,
+    requiresAudioWorklet: false,
+    sampleRate: null
   },
   {
     id: 'rnnoise',
     name: 'RNNoise',
-    description: 'Machine learning-based noise suppression (high quality)',
+    description: 'Machine learning-based noise suppression (high quality, requires 48kHz)',
     isSupported: true,
-    isAvailable: false // Coming soon
+    isAvailable: true,
+    requiresAudioWorklet: true,
+    sampleRate: 48000
+  },
+  {
+    id: 'speex',
+    name: 'Speex',
+    description: 'Fast CPU-efficient noise suppression',
+    isSupported: true,
+    isAvailable: true,
+    requiresAudioWorklet: true,
+    sampleRate: null
   },
   {
     id: 'off',
     name: 'Off',
     description: 'Disable noise suppression',
     isSupported: true,
-    isAvailable: true
+    isAvailable: true,
+    requiresAudioWorklet: false,
+    sampleRate: null
   }
 ]

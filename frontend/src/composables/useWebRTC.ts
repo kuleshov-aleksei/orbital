@@ -2,6 +2,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { wsService } from '@/services/websocket'
 import { webRTCStatsCollector } from '@/services/webrtc-stats'
 import { useAudioSettingsStore } from '@/stores/audioSettings'
+import { getAudioWorkletProcessor } from '@/services/audio'
 import type {
   User,
   RoomUser,
@@ -9,6 +10,7 @@ import type {
   ScreenShareData,
   WebSocketMessage
 } from '@/types'
+import type { AudioWorkletProcessor } from '@/types/audio'
 
 export interface UseWebRTCOptions {
   roomId: string
@@ -48,6 +50,9 @@ export function useWebRTC(options: UseWebRTCOptions) {
   const remoteScreenStreams = ref<Map<string, MediaStream>>(new Map())
   const userScreenShareStates = ref<Map<string, ScreenShareState>>(new Map())
 
+  // AudioWorklet processor for 3rd party noise suppression
+  let audioWorkletProcessor: AudioWorkletProcessor | null = null
+
   // Ping tracking
   const lastPingTime = ref<number>(0)
   const currentPing = ref<number>(0)
@@ -82,6 +87,18 @@ export function useWebRTC(options: UseWebRTCOptions) {
     console.log(`🔄 Connection state for ${userId}: ${state}`)
   }
 
+  // Dispose AudioWorklet processor
+  const disposeAudioWorkletProcessor = () => {
+    if (audioWorkletProcessor) {
+      try {
+        audioWorkletProcessor.dispose()
+      } catch (error) {
+        console.warn('Error disposing AudioWorklet processor:', error)
+      }
+      audioWorkletProcessor = null
+    }
+  }
+
   // Ensure local media stream is available
   const ensureLocalStream = async (): Promise<MediaStream | null> => {
     if (localStream.value) return localStream.value
@@ -94,23 +111,72 @@ export function useWebRTC(options: UseWebRTCOptions) {
 
       // Get audio constraints from store
       const audioConstraints = audioSettings.audioConstraints
+      const algorithm = audioSettings.noiseSuppressionAlgorithm
+      const requiresWorklet = audioSettings.requiresAudioWorklet
 
       console.log('Getting user media with audio constraints:', audioConstraints)
       addDebugLog(`Audio constraints: ${JSON.stringify(audioConstraints)}`, 'info')
+      addDebugLog(`Algorithm: ${algorithm}, requires AudioWorklet: ${requiresWorklet}`, 'info')
 
-      localStreamPromise = navigator.mediaDevices
-        .getUserMedia({ audio: audioConstraints, video: false })
-        .then((stream) => {
-          localStream.value = stream
-          console.log('Local media stream obtained:', localStream.value)
+      localStreamPromise = (async () => {
+        try {
+          // Get raw audio stream
+          const rawStream = await navigator.mediaDevices.getUserMedia({
+            audio: audioConstraints,
+            video: false
+          })
+
+          // If algorithm requires AudioWorklet processing, apply it
+          if (requiresWorklet) {
+            addDebugLog(`Applying AudioWorklet processing for ${algorithm}`, 'info')
+
+            // Dispose any existing processor
+            disposeAudioWorkletProcessor()
+
+            // Get the AudioWorklet processor
+            audioWorkletProcessor = getAudioWorkletProcessor(algorithm)
+
+            if (audioWorkletProcessor) {
+              try {
+                // Process the stream through AudioWorklet
+                const processedStream = await audioWorkletProcessor.processStream(rawStream)
+                localStream.value = processedStream
+                addDebugLog(`AudioWorklet processing applied successfully for ${algorithm}`, 'info')
+                return processedStream
+              } catch (error) {
+                console.error(`Failed to apply ${algorithm} AudioWorklet processing:`, error)
+                addDebugLog(`Failed to apply ${algorithm} processing: ${(error as Error).message}`, 'error')
+
+                // Set WASM error in store
+                audioSettings.setWASMError(`Failed to load ${algorithm}: ${(error as Error).message}. Falling back to browser-native noise suppression.`)
+
+                // Fallback to browser-native
+                addDebugLog('Falling back to browser-native noise suppression', 'warning')
+                disposeAudioWorkletProcessor()
+                audioSettings.setNoiseSuppressionAlgorithm('browser-native')
+
+                // Get new stream with browser-native constraints
+                rawStream.getTracks().forEach(t => t.stop())
+                const fallbackStream = await navigator.mediaDevices.getUserMedia({
+                  audio: audioSettings.audioConstraints,
+                  video: false
+                })
+                localStream.value = fallbackStream
+                return fallbackStream
+              }
+            }
+          }
+
+          // No AudioWorklet processing needed or failed to get processor
+          localStream.value = rawStream
           addDebugLog('Local media stream obtained successfully', 'info')
-          return stream
-        })
-        .catch((error) => {
+          return rawStream
+        } catch (error) {
           console.error('Failed to get media stream:', error)
-          addDebugLog(`Failed to get media stream: ${error.message}`, 'error')
+          addDebugLog(`Failed to get media stream: ${(error as Error).message}`, 'error')
           return null
-        })
+        }
+      })()
     }
 
     return await localStreamPromise
@@ -1030,6 +1096,9 @@ export function useWebRTC(options: UseWebRTCOptions) {
       })
     }
 
+    // Clean up AudioWorklet processor
+    disposeAudioWorkletProcessor()
+
     console.log('WebRTC cleanup completed')
   })
 
@@ -1046,6 +1115,9 @@ export function useWebRTC(options: UseWebRTCOptions) {
         })
         localStream.value = null
       }
+
+      // Dispose AudioWorklet processor
+      disposeAudioWorkletProcessor()
 
       // Reset the promise so ensureLocalStream will create a new one
       localStreamPromise = null

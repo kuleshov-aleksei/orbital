@@ -10,17 +10,28 @@ import {
   AUDIO_SETTINGS_STORAGE_KEY,
   availableAlgorithms
 } from '@/types/audio'
+import { getAudioProcessor } from '@/services/audio'
 
 export const useAudioSettingsStore = defineStore('audioSettings', () => {
   // State
   const settings = ref<AudioSettings>({ ...defaultAudioSettings })
   const isLoaded = ref(false)
+  const wasmError = ref<string | null>(null)
+  const microphoneSupports48kHz = ref<boolean | null>(null)
 
   // Getters
   const noiseSuppressionEnabled = computed(() => settings.value.noiseSuppression.enabled)
   const noiseSuppressionAlgorithm = computed(() => settings.value.noiseSuppression.algorithm)
   const echoCancellationEnabled = computed(() => settings.value.echoCancellation)
   const autoGainControlEnabled = computed(() => settings.value.autoGainControl)
+
+  /**
+   * Check if current algorithm requires AudioWorklet processing
+   */
+  const requiresAudioWorklet = computed(() => {
+    const processor = getAudioProcessor(settings.value.noiseSuppression.algorithm)
+    return processor ? processor.requiresAudioWorklet() : false
+  })
 
   /**
    * Get available noise suppression algorithms
@@ -41,43 +52,32 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
   })
 
   /**
+   * Check if RNNoise is available (48kHz supported and WASM ready)
+   */
+  const isRNNoiseAvailable = computed(() => {
+    if (microphoneSupports48kHz.value === null) return true // Still checking
+    return microphoneSupports48kHz.value === true && wasmError.value === null
+  })
+
+  /**
    * Generate MediaTrackConstraints based on current settings
    */
   const audioConstraints = computed<MediaTrackConstraints | boolean>(() => {
-    // If noise suppression is off and echo cancellation is off, return simple boolean
-    if (!settings.value.noiseSuppression.enabled && !settings.value.echoCancellation) {
-      return true
+    // Get the processor for the current algorithm
+    const processor = getAudioProcessor(settings.value.noiseSuppression.algorithm)
+
+    if (processor && processor.isSupported()) {
+      return processor.getConstraints()
     }
 
-    const constraints: MediaTrackConstraints = {}
-
-    // Noise suppression
-    if (settings.value.noiseSuppression.enabled) {
-      switch (settings.value.noiseSuppression.algorithm) {
-        case 'browser-native':
-          constraints.noiseSuppression = true
-          break
-        case 'rnnoise':
-          // RNNoise not yet implemented - fall back to browser native
-          constraints.noiseSuppression = true
-          break
-        case 'off':
-          constraints.noiseSuppression = false
-          break
-      }
-    } else {
-      constraints.noiseSuppression = false
+    // Fallback constraints
+    const constraints: MediaTrackConstraints = {
+      noiseSuppression: settings.value.noiseSuppression.enabled && settings.value.noiseSuppression.algorithm === 'browser-native',
+      echoCancellation: settings.value.echoCancellation,
+      autoGainControl: settings.value.autoGainControl,
+      sampleRate: { ideal: settings.value.sampleRate },
+      channelCount: { ideal: settings.value.channelCount }
     }
-
-    // Echo cancellation
-    constraints.echoCancellation = settings.value.echoCancellation
-
-    // Auto gain control
-    constraints.autoGainControl = settings.value.autoGainControl
-
-    // Audio quality settings
-    constraints.sampleRate = { ideal: settings.value.sampleRate }
-    constraints.channelCount = { ideal: settings.value.channelCount }
 
     return constraints
   })
@@ -95,13 +95,66 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
         return true
       case 'rnnoise':
         // RNNoise requires WebAssembly and more advanced APIs
-        // Check for required features
+        // Also requires 48kHz sample rate support
         return typeof WebAssembly === 'object' &&
                typeof AudioContext !== 'undefined' &&
-               typeof MediaStreamAudioSourceNode !== 'undefined'
+               typeof MediaStreamAudioSourceNode !== 'undefined' &&
+               typeof AudioWorkletNode !== 'undefined' &&
+               microphoneSupports48kHz.value !== false
+      case 'speex':
+        // Speex requires WebAssembly and AudioWorklet
+        return typeof WebAssembly === 'object' &&
+               typeof AudioContext !== 'undefined' &&
+               typeof MediaStreamAudioSourceNode !== 'undefined' &&
+               typeof AudioWorkletNode !== 'undefined'
       default:
         return false
     }
+  }
+
+  /**
+   * Check if the microphone supports 48kHz sample rate
+   * This is required for RNNoise
+   */
+  async function checkMicrophone48kHzSupport(): Promise<boolean> {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          sampleRate: { exact: 48000 },
+          channelCount: { ideal: 1 }
+        }
+      })
+
+      // Check actual sample rate
+      const track = stream.getAudioTracks()[0]
+      const settings = track.getSettings()
+      const actualRate = settings.sampleRate
+
+      // Clean up
+      stream.getTracks().forEach(t => t.stop())
+
+      const supports48kHz = actualRate === 48000
+      microphoneSupports48kHz.value = supports48kHz
+      return supports48kHz
+    } catch (error) {
+      console.warn('Microphone does not support 48kHz:', error)
+      microphoneSupports48kHz.value = false
+      return false
+    }
+  }
+
+  /**
+   * Set WASM loading error
+   */
+  function setWASMError(error: string | null) {
+    wasmError.value = error
+  }
+
+  /**
+   * Clear WASM loading error
+   */
+  function clearWASMError() {
+    wasmError.value = null
   }
 
   /**
@@ -121,6 +174,8 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
     if (algorithm !== 'off') {
       settings.value.noiseSuppression.enabled = true
     }
+    // Clear any previous WASM error when switching algorithms
+    wasmError.value = null
     saveSettings()
   }
 
@@ -181,6 +236,7 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
    */
   function resetSettings() {
     settings.value = { ...defaultAudioSettings }
+    wasmError.value = null
     saveSettings()
   }
 
@@ -188,6 +244,8 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
     // State
     settings,
     isLoaded,
+    wasmError,
+    microphoneSupports48kHz,
 
     // Getters
     noiseSuppressionEnabled,
@@ -197,6 +255,8 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
     availableNoiseSuppressionAlgorithms,
     currentAlgorithmInfo,
     audioConstraints,
+    requiresAudioWorklet,
+    isRNNoiseAvailable,
 
     // Actions
     toggleNoiseSuppression,
@@ -205,6 +265,9 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
     toggleAutoGainControl,
     loadSettings,
     saveSettings,
-    resetSettings
+    resetSettings,
+    checkMicrophone48kHzSupport,
+    setWASMError,
+    clearWASMError
   }
 })

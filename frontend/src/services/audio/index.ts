@@ -1,5 +1,6 @@
-import type { AudioProcessor, NoiseSuppressionAlgorithm } from '@/types/audio'
+import type { AudioProcessor, AudioWorkletProcessor, NoiseSuppressionAlgorithm } from '@/types/audio'
 import { BrowserNativeProcessor } from './browser'
+import { createRNNoiseProcessor, createSpeexProcessor } from './noiseSuppressor'
 
 /**
  * Audio Processor Registry
@@ -9,6 +10,8 @@ import { BrowserNativeProcessor } from './browser'
 const processorRegistry: Map<NoiseSuppressionAlgorithm, () => AudioProcessor> = new Map([
   ['browser-native', () => new BrowserNativeProcessor()],
   ['off', () => new BrowserNativeProcessor()], // Off just returns constraints with noiseSuppression: false
+  ['rnnoise', () => createRNNoiseProcessor()],
+  ['speex', () => createSpeexProcessor()],
 ])
 
 /**
@@ -20,8 +23,28 @@ export function getAudioProcessor(algorithm: NoiseSuppressionAlgorithm): AudioPr
 }
 
 /**
+ * Get an AudioWorklet processor for the specified algorithm
+ * Returns null if the algorithm doesn't require AudioWorklet processing
+ */
+export function getAudioWorkletProcessor(algorithm: NoiseSuppressionAlgorithm): AudioWorkletProcessor | null {
+  const processor = getAudioProcessor(algorithm)
+  if (processor && processor.requiresAudioWorklet()) {
+    return processor as AudioWorkletProcessor
+  }
+  return null
+}
+
+/**
+ * Check if an algorithm requires AudioWorklet processing
+ */
+export function requiresAudioWorklet(algorithm: NoiseSuppressionAlgorithm): boolean {
+  const processor = getAudioProcessor(algorithm)
+  return processor ? processor.requiresAudioWorklet() : false
+}
+
+/**
  * Register a new audio processor
- * Use this to add custom algorithms like RNNoise
+ * Use this to add custom algorithms
  */
 export function registerAudioProcessor(
   algorithm: NoiseSuppressionAlgorithm,
@@ -53,4 +76,36 @@ export function getConstraintsForAlgorithm(
   return {}
 }
 
+/**
+ * Check if a microphone supports the required sample rate for an algorithm
+ */
+export async function checkMicrophoneSampleRate(
+  algorithm: NoiseSuppressionAlgorithm,
+  requiredRate: number
+): Promise<boolean> {
+  if (algorithm !== 'rnnoise') return true
+
+  try {
+    // Try to get user media with the required sample rate
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        sampleRate: { exact: requiredRate },
+      },
+    })
+
+    // Check if we actually got the requested sample rate
+    const track = stream.getAudioTracks()[0]
+    const settings = track.getSettings()
+    const actualRate = settings.sampleRate
+
+    // Clean up
+    stream.getTracks().forEach((t) => t.stop())
+
+    return actualRate === requiredRate
+  } catch {
+    return false
+  }
+}
+
 export { BrowserNativeProcessor }
+export { createRNNoiseProcessor, createSpeexProcessor } from './noiseSuppressor'
