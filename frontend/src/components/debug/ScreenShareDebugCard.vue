@@ -5,11 +5,14 @@
         <div class="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-sm font-bold text-white mr-2">
           {{ share.userNickname.charAt(0).toUpperCase() }}
         </div>
+
         <div>
           <div class="text-white font-medium">{{ share.userNickname }}</div>
+
           <div class="text-xs text-gray-400">{{ share.userId }}</div>
         </div>
       </div>
+
       <div 
         class="px-2 py-1 rounded text-xs font-medium"
         :class="{
@@ -26,11 +29,13 @@
     <div class="grid grid-cols-2 gap-2 text-sm">
       <div class="bg-gray-800 rounded p-2">
         <div class="text-gray-500 text-xs mb-1">Quality</div>
+
         <div class="text-white">{{ share.quality }}</div>
       </div>
       
       <div class="bg-gray-800 rounded p-2">
         <div class="text-gray-500 text-xs mb-1">Status</div>
+
         <div :class="share.active ? 'text-green-400' : 'text-red-400'">
           {{ share.active ? 'Active' : 'Inactive' }}
         </div>
@@ -38,6 +43,7 @@
       
       <div class="bg-gray-800 rounded p-2">
         <div class="text-gray-500 text-xs mb-1">Video</div>
+
         <div :class="share.hasVideo ? 'text-green-400' : 'text-red-400'">
           {{ share.hasVideo ? '✓ Enabled' : '✗ None' }}
           <span v-if="share.hasVideo" class="text-gray-400 text-xs block">
@@ -48,6 +54,7 @@
       
       <div class="bg-gray-800 rounded p-2">
         <div class="text-gray-500 text-xs mb-1">Audio</div>
+
         <div :class="share.hasAudio ? 'text-green-400' : 'text-gray-400'">
           {{ share.hasAudio ? '✓ Enabled' : '—' }}
         </div>
@@ -55,6 +62,7 @@
       
       <div class="bg-gray-800 rounded p-2 col-span-2">
         <div class="text-gray-500 text-xs mb-1">Tracks</div>
+
         <div class="text-white">{{ share.trackCount }} total</div>
       </div>
     </div>

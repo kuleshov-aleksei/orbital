@@ -17,6 +17,7 @@
             <template v-if="!isUnmounting">
               <component :is="currentTabComponent" v-bind="currentTabProps" />
             </template>
+
             <div v-else class="p-6 text-center text-gray-400">
               Component is unmounting...
             </div>

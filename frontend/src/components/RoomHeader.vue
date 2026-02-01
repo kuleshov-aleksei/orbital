@@ -32,10 +32,13 @@
           >
             {{ roomName || 'Voice Room' }}
           </h1>
+
           <div class="flex items-center text-sm text-gray-400">
             <span>{{ userCount }} users</span>
+
             <span v-if="screenShareCount > 0" class="ml-2 text-indigo-400 flex items-center">
               <span class="mx-1.5">•</span>
+
               <PhMonitorPlay class="w-3.5 h-3.5 mr-1" />
               {{ screenShareCount }} sharing
             </span>
@@ -59,6 +62,7 @@
               <PhGridFour class="w-3.5 h-3.5 mr-1" />
               Grid
             </button>
+
             <button
               class="px-2 py-1 rounded-md text-xs transition-colors flex items-center"
               :class="[
@@ -80,6 +84,7 @@
             @click="$emit('update:isUserGridVisible', !isUserGridVisible)"
           >
             <PhEye v-if="isUserGridVisible" class="w-4 h-4" />
+
             <PhEyeSlash v-else class="w-4 h-4" />
           </button>
         </template>
@@ -91,6 +96,7 @@
           @click="$emit('toggle-user-sidebar')"
         >
           <PhUsers class="w-4 h-4 mr-2" />
+
           <span class="text-sm">{{ userCount }}</span>
         </button>
         
@@ -98,6 +104,7 @@
         <template v-if="!isMobile">
           <div class="flex items-center text-sm">
             <div class="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
+
             <span class="text-gray-300">Connected</span>
           </div>
           

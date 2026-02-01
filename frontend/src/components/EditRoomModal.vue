@@ -4,6 +4,7 @@
       <!-- Modal Header -->
       <div class="flex items-center justify-between mb-6">
         <h2 class="text-xl font-semibold text-white">{{ title }}</h2>
+
         <button
           class="text-gray-400 hover:text-white transition-colors duration-200"
           @click="$emit('close')"
@@ -21,6 +22,7 @@
           <label for="roomName" class="block text-sm font-medium text-gray-300 mb-2">
             Room Name
           </label>
+
           <input
             id="roomName"
             v-model="roomName"
@@ -30,8 +32,10 @@
             maxlength="100"
             class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
           />
+
           <div class="flex justify-between mt-1">
             <p v-if="roomNameError" class="text-red-500 text-sm">{{ roomNameError }}</p>
+
             <p class="text-gray-500 text-xs">{{ roomNameCharCount }}/100 characters</p>
           </div>
         </div>
@@ -41,6 +45,7 @@
           <label for="maxUsers" class="block text-sm font-medium text-gray-300 mb-2">
             Maximum Users ({{ ROOM_CONFIG.MIN_USERS }} - {{ ROOM_CONFIG.MAX_USERS }})
           </label>
+
           <input
             id="maxUsers"
             v-model.number="maxUsers"
@@ -50,6 +55,7 @@
             :max="ROOM_CONFIG.MAX_USERS"
             class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
           />
+
           <p v-if="maxUsersError" class="text-red-500 text-sm mt-1">{{ maxUsersError }}</p>
         </div>
 
@@ -62,6 +68,7 @@
           >
             Cancel
           </button>
+
           <button
             type="submit"
             class="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors duration-200"

@@ -9,10 +9,12 @@
             class="w-2 h-2 rounded-full mr-2 flex-shrink-0"
             :class="connectionStatusColor"
           ></div>
+
           <div class="min-w-0">
             <div class="text-sm font-medium text-white truncate">
               {{ roomName }}
             </div>
+
             <div class="text-xs text-gray-400">
               {{ connectionStatusText }} • {{ ping }}ms
             </div>
@@ -54,10 +56,12 @@
             :size="36"
             class="mr-3 flex-shrink-0"
           />
+
           <div class="min-w-0">
             <div class="font-medium text-sm text-white truncate">
               {{ nickname }}
             </div>
+
             <div class="text-xs text-gray-400">
               {{ statusText }}
             </div>
@@ -74,6 +78,7 @@
             @click="toggleMute"
           >
             <PhMicrophoneSlash v-if="localMuted" class="w-4 h-4" />
+
             <PhMicrophone v-else class="w-4 h-4" />
           </button>
 
@@ -86,10 +91,12 @@
           >
             <div v-if="localDeafened" class="w-4 h-4 relative">
               <PhHeadphones class="absolute inset-0" />
+
               <div class="absolute inset-0 flex items-center justify-center">
                 <div class="w-4 h-0.5 bg-current rotate-45"></div>
               </div>
             </div>
+
             <PhHeadphones v-else class="w-4 h-4" />
           </button>
         </div>

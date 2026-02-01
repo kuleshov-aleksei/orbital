@@ -8,6 +8,7 @@
         @click="toggleMute"
       >
         <PhMicrophoneSlash v-if="isMuted" class="w-5 h-5" />
+
         <PhMicrophone v-else class="w-5 h-5" />
       </button>
 
@@ -21,10 +22,12 @@
         <!-- Headphones with slash (deafened) - TODO: Find proper crossed headphones icon -->
         <div v-if="isDeafened" class="w-5 h-5 relative">
           <PhHeadphones class="absolute inset-0" />
+
           <div class="absolute inset-0 flex items-center justify-center">
             <div class="w-6 h-0.5 bg-red-500 rotate-45"></div>
           </div>
         </div>
+
         <PhHeadphones v-else class="w-5 h-5" />
       </button>
 

@@ -22,8 +22,10 @@
           <div class="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-sm font-bold text-white mr-2">
             {{ userNickname.charAt(0).toUpperCase() }}
           </div>
+
           <div>
             <div class="text-white font-medium text-sm">{{ userNickname }}</div>
+
             <div class="text-xs text-gray-300 flex items-center">
               <PhMonitorPlay class="w-3 h-3 mr-1" />
               {{ qualityLabel }}
@@ -42,6 +44,7 @@
               'bg-gray-400': !connectionState || connectionState === 'new'
             }"
           />
+
           <span class="text-gray-300 capitalize">{{ connectionState || 'connecting' }}</span>
         </div>
       </div>
@@ -60,6 +63,7 @@
             Focus
           </button>
         </div>
+
         <div v-else />
         
         <!-- Right: Control Buttons -->
@@ -70,6 +74,7 @@
             @click="toggleFullscreen"
           >
             <PhArrowsOut v-if="!isFullscreen" class="w-4 h-4" />
+
             <PhArrowsIn v-else class="w-4 h-4" />
           </button>
           
@@ -88,6 +93,7 @@
     <div v-if="!stream" class="absolute inset-0 flex items-center justify-center bg-gray-900">
       <div class="text-center">
         <PhSpinner class="w-8 h-8 text-indigo-400 animate-spin mx-auto mb-2" />
+
         <span class="text-gray-400 text-sm">Connecting...</span>
       </div>
     </div>
@@ -96,7 +102,9 @@
     <div v-if="isPausedComputed" class="absolute inset-0 flex items-center justify-center bg-gray-900/90 z-10">
       <div class="text-center">
         <PhPause class="w-12 h-12 text-gray-400 mx-auto mb-3" />
+
         <span class="text-gray-300 text-lg font-medium">Paused</span>
+
         <p class="text-gray-500 text-sm mt-1">Hover to view</p>
       </div>
     </div>

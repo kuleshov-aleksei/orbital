@@ -3,6 +3,7 @@
     <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-sm font-medium text-white">Connection Logs</h3>
+
         <button
           class="px-3 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors"
           @click="$emit('clearLogs')"
@@ -19,7 +20,9 @@
           :class="getLogStyle(log.level)"
         >
           <span class="text-gray-500 font-mono">{{ formatTime(log.timestamp) }}</span>
+
           <span class="font-mono">{{ log.userId || 'System' }}</span>
+
           <span class="flex-1">{{ log.message }}</span>
         </div>
       </div>

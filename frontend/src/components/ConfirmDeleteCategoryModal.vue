@@ -4,6 +4,7 @@
       <!-- Modal Header -->
       <div class="flex items-center justify-between mb-6">
         <h2 class="text-xl font-semibold text-white">Delete Category</h2>
+
         <button
           class="text-gray-400 hover:text-white transition-colors duration-200"
           @click="$emit('close')"
@@ -31,8 +32,10 @@
               type="checkbox"
               class="mt-1 w-4 h-4 rounded border-gray-600 bg-gray-700 text-red-600 focus:ring-red-500"
             />
+
             <div>
               <span class="text-sm font-medium text-gray-300">Delete all rooms in this category</span>
+
               <p class="text-xs text-gray-500 mt-1">
                 If checked, all {{ roomCount }} room{{ roomCount !== 1 ? 's' : '' }} will be permanently deleted.
                 If unchecked, rooms will be moved to another category.
@@ -46,6 +49,7 @@
           <label for="targetCategory" class="block text-sm font-medium text-gray-300 mb-2">
             Move rooms to category
           </label>
+
           <select
             id="targetCategory"
             v-model="targetCategoryId"
@@ -55,6 +59,7 @@
               {{ cat.name }}
             </option>
           </select>
+
           <p class="text-gray-500 text-xs mt-1">
             All rooms will be moved to the selected category.
           </p>
@@ -75,6 +80,7 @@
           >
             Cancel
           </button>
+
           <button
             type="submit"
             class="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors duration-200"

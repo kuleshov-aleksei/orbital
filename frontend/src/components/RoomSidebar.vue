@@ -15,6 +15,7 @@
     <!-- Mobile Full-screen Header -->
     <div v-if="isMobileView" class="p-4 border-b border-gray-800">
       <h2 class="text-xl font-semibold text-white">Available Rooms</h2>
+
       <p class="text-sm text-gray-400 mt-1">{{ rooms.length }} room{{ rooms.length !== 1 ? 's' : '' }}</p>
     </div>
 
@@ -27,10 +28,12 @@
             @click="toggleCategory(category.name)"
             @contextmenu.prevent="showContextMenu($event, category)">
             <span>{{ category.name }}</span>
+
             <div class="flex items-center gap-1">
               <PhDotsThree
                 class="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity"
                 @click.stop="showContextMenu($event, category)" />
+
               <PhCaretDown
                 class="w-3 h-3 transition-transform duration-200"
                 :class="{ 'rotate-180': expandedCategories.has(category.name) }" />
@@ -57,6 +60,7 @@
         class="w-full flex items-center justify-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors duration-200"
         @click="$emit('create-room')">
         <PhPlus class="w-4 h-4 mr-2" />
+
         <span class="text-sm font-medium">Create Room</span>
       </button>
     </div>
@@ -72,23 +76,29 @@
         @click="handleCreateRoomInCategory">
         <div class="flex items-center gap-2">
           <PhPlus class="w-4 h-4" />
+
           <span>Create Room</span>
         </div>
       </button>
+
       <button
         class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
         @click="handleRenameCategory">
         <div class="flex items-center gap-2">
           <PhPencil class="w-4 h-4" />
+
           <span>Rename</span>
         </div>
       </button>
+
       <div class="border-t border-gray-700 my-1"></div>
+
       <button
         class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-gray-700 hover:text-red-300 transition-colors"
         @click="handleDeleteCategory">
         <div class="flex items-center gap-2">
           <PhTrash class="w-4 h-4" />
+
           <span>Delete</span>
         </div>
       </button>
@@ -108,8 +118,10 @@
           @mouseleave="onMoveButtonLeave">
           <div class="flex items-center gap-2">
             <PhArrowsLeftRight class="w-4 h-4" />
+
             <span>Move to Category</span>
           </div>
+
           <PhCaretDown class="w-3 h-3 transform -rotate-90" />
         </button>
         
@@ -134,6 +146,7 @@
             @click="onMoveCategorySelect(category.id)">
             {{ category.name }}
           </button>
+
           <div v-if="availableCategoriesForMove.length === 0" class="px-4 py-2 text-sm text-gray-500">
             No other categories
           </div>
@@ -145,16 +158,19 @@
         @click="handleEditRoom">
         <div class="flex items-center gap-2">
           <PhPencil class="w-4 h-4" />
+
           <span>Properties</span>
         </div>
       </button>
 
       <div class="border-t border-gray-700 my-1"></div>
+
       <button
         class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-gray-700 hover:text-red-300 transition-colors"
         @click="handleDeleteRoom">
         <div class="flex items-center gap-2">
           <PhTrash class="w-4 h-4" />
+
           <span>Delete</span>
         </div>
       </button>

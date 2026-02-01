@@ -7,6 +7,7 @@
       playsinline
       muted
     />
+
     <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1">
       <span class="text-white text-xs font-medium">{{ userNickname }}</span>
     </div>

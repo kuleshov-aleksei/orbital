@@ -9,9 +9,11 @@
         <!-- Peer Header -->
         <div class="flex items-center space-x-3">
           <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+
           <h3 class="text-base font-medium text-white">
             {{ getUserNickname(userId) }}
           </h3>
+
           <div class="text-xs text-gray-400">
             {{ iceCandidates.length }} candidate{{ iceCandidates.length !== 1 ? 's' : '' }}
           </div>

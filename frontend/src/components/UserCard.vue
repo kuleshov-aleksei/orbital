@@ -22,6 +22,7 @@
       >
         {{ user.nickname }}
       </div>
+
       <div v-else class="flex items-center">
         <input
           ref="nicknameInput"
@@ -35,12 +36,18 @@
           @keydown.escape="cancelEdit"
         />
       </div>
+
       <div class="text-xs text-gray-400">
         <span v-if="user.isSpeaking" class="text-green-400">Speaking...</span>
+
         <span v-else-if="user.isDeafened" class="text-red-400">Deafened</span>
+
         <span v-else-if="user.isMuted" class="text-red-400">Muted</span>
+
         <span v-else-if="user.status === 'away'">Away</span>
+
         <span v-else-if="user.status === 'dnd'">Do Not Disturb</span>
+
         <span v-else>Online</span>
       </div>
     </div>
@@ -80,10 +87,13 @@
       <div class="px-3 py-2">
         <div class="flex items-center justify-between mb-2">
           <span class="text-sm text-gray-300">Volume</span>
+
           <span class="text-xs text-gray-400">{{ Math.round(volume) }}%</span>
         </div>
+
         <div class="flex items-center space-x-2">
           <PhSpeakerHigh class="w-4 h-4 text-gray-400" />
+
           <input
             v-model="volume"
             type="range"

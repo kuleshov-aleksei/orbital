@@ -12,6 +12,7 @@
       @click.stop="$emit('toggle')"
     >
       <PhBug :class="['w-4 h-4', isVisible && 'animate-pulse']" />
+
       <span class="text-sm font-medium">{{ isVisible ? 'Close Debug' : 'Debug' }}</span>
     </button>
   </div>
