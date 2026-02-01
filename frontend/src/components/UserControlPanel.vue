@@ -24,16 +24,11 @@
         <!-- Call Control Buttons -->
         <div class="flex items-center space-x-2 ml-3">
           <!-- Screen Share Toggle - Hidden on mobile browsers -->
-          <button
-            v-if="isScreenShareSupported"
-            type="button"
-            class="w-9 h-9 rounded-lg flex items-center justify-center transition-colors duration-200"
-            :class="screenShareButtonClass"
-            :title="localScreenSharing ? 'Stop Sharing' : 'Share Screen'"
-            @click="toggleScreenShare"
-          >
-            <PhMonitorPlay class="w-5 h-5" />
-          </button>
+          <ScreenShareButton 
+            v-model="localScreenSharing" 
+            size="sm" 
+            @start-screen-share="$emit('start-screen-share')"
+          />
 
           <!-- Leave Room Button -->
           <button
@@ -74,36 +69,10 @@
         <!-- Control Buttons -->
         <div class="flex items-center space-x-2 ml-2">
           <!-- Microphone Toggle -->
-          <button
-            type="button"
-            class="w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-200"
-            :class="micButtonClass"
-            :title="localMuted ? 'Unmute' : 'Mute'"
-            @click="toggleMute"
-          >
-            <PhMicrophoneSlash v-if="localMuted" class="w-4 h-4" />
-
-            <PhMicrophone v-else class="w-4 h-4" />
-          </button>
+          <MicMuteButton v-model="localMuted" size="sm" />
 
           <!-- Headphone/Deafen Toggle -->
-          <button
-            type="button"
-            class="w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-200"
-            :class="deafenButtonClass"
-            :title="localDeafened ? 'Undeafen' : 'Deafen'"
-            @click="toggleDeafen"
-          >
-            <div v-if="localDeafened" class="w-4 h-4 relative">
-              <PhHeadphones class="absolute inset-0" />
-
-              <div class="absolute inset-0 flex items-center justify-center">
-                <div class="w-4 h-0.5 bg-current rotate-45"></div>
-              </div>
-            </div>
-
-            <PhHeadphones v-else class="w-4 h-4" />
-          </button>
+          <AudioDeafenButton v-model="localDeafened" size="sm" />
 
           <!-- Settings Button -->
           <button
@@ -123,13 +92,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import UserAvatar from '@/components/UserAvatar.vue'
+import MicMuteButton from '@/components/MicMuteButton.vue'
+import AudioDeafenButton from '@/components/AudioDeafenButton.vue'
+import ScreenShareButton from '@/components/ScreenShareButton.vue'
 import { useModalStore } from '@/stores/modal'
-import { useScreenShareSupport } from '@/composables/useScreenShareSupport'
 import {
-  PhMicrophone,
-  PhMicrophoneSlash,
-  PhHeadphones,
-  PhMonitorPlay,
   PhSignOut,
   PhGearSix
 } from '@phosphor-icons/vue'
@@ -159,18 +126,13 @@ const emit = defineEmits<{
   'update:modelValueMuted': [value: boolean]
   'update:modelValueDeafened': [value: boolean]
   'update:modelValueScreenSharing': [value: boolean]
-  'toggle-mute': [isMuted: boolean]
-  'toggle-deafen': [isDeafened: boolean]
-  'toggle-screen-share': []
+  'start-screen-share': []
   'leave-room': []
   'open-settings': []
 }>()
 
 // Stores
 const modalStore = useModalStore()
-
-// Screen share support detection
-const { isScreenShareSupported } = useScreenShareSupport()
 
 // Computed properties for v-model support - parent controls all state
 const localMuted = computed({
@@ -186,25 +148,6 @@ const localDeafened = computed({
 const localScreenSharing = computed({
   get: () => props.modelValueScreenSharing,
   set: (value) => emit('update:modelValueScreenSharing', value)
-})
-
-// Button styling
-const micButtonClass = computed(() => {
-  return localMuted.value
-    ? 'bg-red-600 hover:bg-red-700 text-white'
-    : 'bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white'
-})
-
-const deafenButtonClass = computed(() => {
-  return localDeafened.value
-    ? 'bg-red-600 hover:bg-red-700 text-white'
-    : 'bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white'
-})
-
-const screenShareButtonClass = computed(() => {
-  return localScreenSharing.value
-    ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
-    : 'bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white'
 })
 
 // Status text
@@ -246,22 +189,6 @@ const connectionStatusColor = computed(() => {
 })
 
 // Methods
-const toggleMute = () => {
-  const newValue = !localMuted.value
-  localMuted.value = newValue
-  emit('toggle-mute', newValue)
-}
-
-const toggleDeafen = () => {
-  const newValue = !localDeafened.value
-  localDeafened.value = newValue
-  emit('toggle-deafen', newValue)
-}
-
-const toggleScreenShare = () => {
-  emit('toggle-screen-share')
-}
-
 const leaveRoom = () => {
   emit('leave-room')
 }

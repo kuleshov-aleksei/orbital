@@ -24,9 +24,7 @@
       :room-name="roomStore.activeRoomName"
       :ping="appStore.connectionPing"
       :connection-quality="appStore.connectionQuality"
-      @toggle-mute="callControls.handleMuteToggle"
-      @toggle-deafen="callControls.handleDeafenToggle"
-      @toggle-screen-share="callControls.handleScreenShareToggle"
+      @start-screen-share="$emit('start-screen-share')"
       @leave-room="$emit('leave-room')"
     />
   </div>
@@ -34,7 +32,6 @@
 
 <script setup lang="ts">
 import { useRoomStore, useUserStore, useAppStore, useCallStore } from '@/stores'
-import { useCallControls } from '@/composables'
 import RoomSidebar from '@/components/RoomSidebar.vue'
 import UserControlPanel from '@/components/UserControlPanel.vue'
 
@@ -51,6 +48,7 @@ defineEmits<{
   (e: 'move-room', payload: { roomId: string, targetCategoryId: string }): void
   (e: 'edit-room', payload: { roomId: string, roomName: string, maxUsers: number }): void
   (e: 'delete-room', payload: { roomId: string, roomName: string, userCount: number }): void
+  (e: 'start-screen-share'): void
   (e: 'leave-room'): void
 }>()
 
@@ -58,5 +56,4 @@ const roomStore = useRoomStore()
 const userStore = useUserStore()
 const appStore = useAppStore()
 const callStore = useCallStore()
-const callControls = useCallControls()
 </script>

@@ -12,6 +12,7 @@
         @move-room="handleMoveRoom"
         @edit-room="handleEditRoom"
         @delete-room="handleDeleteRoom"
+        @start-screen-share="showScreenShareQualityModal = true"
         @leave-room="roomManager.handleLeaveRoom"
       />
 
@@ -37,6 +38,7 @@
         @volume-change="roomManager.handleVolumeChange"
         @nickname-change="callControls.handleNicknameChange"
         @ping-update="callControls.handlePingUpdate"
+        @request-screen-share="showScreenShareQualityModal = true"
       />
 
       <!-- User Sidebar (Desktop + Mobile) -->
@@ -51,11 +53,18 @@
 
     <!-- Modal Manager -->
     <ModalManager />
+
+    <!-- Screen Share Quality Modal -->
+    <ScreenShareQualityModal
+      :is-open="showScreenShareQualityModal"
+      @select-quality="handleScreenShareQualitySelected"
+      @cancel="showScreenShareQualityModal = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, useTemplateRef } from 'vue'
+import { onMounted, ref, useTemplateRef } from 'vue'
 import { 
   DesktopSidebar, 
   MobileRoomView, 
@@ -64,6 +73,7 @@ import {
   AppOverlays 
 } from '@/components/layout'
 import ModalManager from '@/components/ModalManager.vue'
+import ScreenShareQualityModal from '@/components/ScreenShareQualityModal.vue'
 import { useUserSession, useRoomManager, useCategoryManager, useCallControls, useModalManager } from '@/composables'
 import { useWebSocketHandlers } from '@/composables'
 
@@ -79,6 +89,9 @@ const modalManager = useModalManager()
 
 // Template refs
 const mainContentRef = useTemplateRef<InstanceType<typeof MainContent>>('mainContentRef')
+
+// Modal state
+const showScreenShareQualityModal = ref(false)
 
 // Event handlers for sidebar actions
 const handleCreateRoomInCategory = (payload: { categoryId: string, categoryName: string }) => {
@@ -104,6 +117,11 @@ const handleEditRoom = (payload: { roomId: string, roomName: string, maxUsers: n
 
 const handleDeleteRoom = (payload: { roomId: string, roomName: string, userCount: number }) => {
   modalManager.openDeleteRoomModal(payload.roomId, payload.roomName, payload.userCount)
+}
+
+const handleScreenShareQualitySelected = (quality: string, shareAudio: boolean) => {
+  showScreenShareQualityModal.value = false
+  mainContentRef.value?.voiceCallViewRef?.startScreenShare(quality, shareAudio)
 }
 
 // Initialize data on mount

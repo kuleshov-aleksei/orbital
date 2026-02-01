@@ -26,6 +26,7 @@
       @show-room-list="appStore.showRoomsView()"
       @toggle-user-sidebar="appStore.toggleMobileUserSidebar()"
       @ping-update="$emit('ping-update', $event)"
+      @request-screen-share="$emit('request-screen-share')"
     />
   </main>
 </template>
@@ -43,6 +44,7 @@ defineEmits<{
   (e: 'volume-change', payload: { userId: string, volume: number }): void
   (e: 'nickname-change', payload: { userId: string, nickname: string }): void
   (e: 'ping-update', payload: { ping: number, quality: 'excellent' | 'good' | 'fair' | 'poor' }): void
+  (e: 'request-screen-share'): void
 }>()
 
 const roomStore = useRoomStore()

@@ -13,12 +13,7 @@
       @toggle-user-sidebar="$emit('toggle-user-sidebar')"
     />
 
-    <!-- Screen Share Quality Modal -->
-    <ScreenShareQualityModal
-      :is-open="showQualityModal"
-      @select-quality="handleQualitySelected"
-      @cancel="showQualityModal = false"
-    />
+    <!-- Screen Share Quality Modal handled by parent -->
 
     <!-- Main Call Area -->
     <main class="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -51,12 +46,11 @@
         <!-- Audio Controls -->
         <div class="bg-gray-800 border-t border-gray-700 px-6 py-4">
           <AudioControls
-            :is-muted="isMuted"
-            :is-deafened="isDeafened"
-            :is-screen-sharing="isScreenSharing"
-            @toggle-mute="toggleMute"
-            @toggle-deafen="toggleDeafen"
-            @toggle-screen-share="toggleScreenShare"
+            ref="audioControlsRef"
+            v-model:model-value-muted="isMuted"
+            v-model:model-value-deafened="isDeafened"
+            v-model:model-value-screen-sharing="isScreenSharing"
+            @start-screen-share="$emit('request-screen-share')"
             @leave-room="$emit('leave-room')"
           />
         </div>
@@ -78,15 +72,12 @@
  <script setup lang="ts">
  import { computed, ref, useTemplateRef, watch } from 'vue'
  import AudioControls from '@/components/AudioControls.vue'
- import DebugDashboard from '@/components/DebugDashboard.vue'
+import DebugDashboard from '@/components/DebugDashboard.vue'
  import RoomHeader from '@/components/RoomHeader.vue'
  import ScreenShareArea from '@/components/ScreenShareArea.vue'
- import ScreenShareQualityModal from '@/components/ScreenShareQualityModal.vue'
- import UserGrid from '@/components/UserGrid.vue'
-import { useWebRTC } from '@/composables'
-import { useAudioSettingsStore } from '@/stores/audioSettings'
-import { useCallStore, useUserStore, useRoomStore } from '@/stores'
-import { wsService } from '@/services/websocket'
+  import UserGrid from '@/components/UserGrid.vue'
+ import { useWebRTC } from '@/composables'
+import { useAudioSettingsStore, useCallStore } from '@/stores'
  import type { User, ScreenShareQuality } from '@/types'
 
 interface Props {
@@ -116,13 +107,14 @@ const emit = defineEmits<{
   'update:modelValueDeafened': [value: boolean]
   'update:modelValueScreenSharing': [value: boolean]
   'ping-update': [ping: number, quality: 'excellent' | 'good' | 'fair' | 'poor']
+  'request-screen-share': []
 }>()
 
 // UI State (layout and display preferences)
-const showQualityModal = ref(false)
 const isUserGridVisible = ref(true)
 const screenShareLayout = ref<'grid' | 'focus'>('focus')
 const debugDashboardRef = useTemplateRef<InstanceType<typeof DebugDashboard>>('debugDashboardRef')
+const audioControlsRef = useTemplateRef<InstanceType<typeof AudioControls>>('audioControlsRef')
 
 // Debug logging callback
 const onDebugLog = (message: string, level: 'info' | 'warning' | 'error' = 'info', userId?: string) => {
@@ -136,8 +128,6 @@ const audioSettingsStore = useAudioSettingsStore()
 
 // Stores
 const callStore = useCallStore()
-const userStore = useUserStore()
-const roomStore = useRoomStore()
 
 // Initialize WebRTC composable - destructure for template reactivity
 const {
@@ -153,7 +143,6 @@ const {
   handleMuteToggle,
   handleAudioLevel,
   startScreenShare,
-  stopScreenShare,
   getConnectionQuality,
   applyMuteState,
   applyDeafenState,
@@ -258,82 +247,19 @@ const handleVolumeChange = (userId: string, volume: number) => {
   emit('volume-change', userId, volume)
 }
 
-const toggleMute = () => {
-  const newValue = !isMuted.value
-  isMuted.value = newValue
-  console.log('toggleMute called:', { newValue, isConnected: wsService.isConnected(), userId: userStore.userId })
-  
-  // Update call store
-  callStore.setMuted(newValue)
-  
-  // Immediately update room store for local user so UI updates right away
-  roomStore.updateUserStatus(userStore.userId, { is_muted: newValue })
-  
-  // Send WebSocket message if connected
-  if (wsService.isConnected()) {
-    console.log('Sending mute_status from VoiceCallView:', { user_id: userStore.userId, is_muted: newValue })
-    wsService.sendMessage('mute_status', {
-      user_id: userStore.userId,
-      is_muted: newValue
-    })
-    // Also send speaking_status since mute affects speaking
-    wsService.sendMessage('speaking_status', {
-      user_id: userStore.userId,
-      is_speaking: false,
-      is_muted: newValue
-    })
-  } else {
-    console.warn('WebSocket not connected in VoiceCallView, cannot send mute_status')
-  }
-}
-
-const toggleDeafen = () => {
-  const newValue = !isDeafened.value
-  isDeafened.value = newValue
-  console.log('toggleDeafen called:', { newValue, isConnected: wsService.isConnected(), userId: userStore.userId })
-  
-  // Update call store
-  callStore.setDeafened(newValue)
-  
-  // Immediately update room store for local user so UI updates right away
-  roomStore.updateUserStatus(userStore.userId, { is_deafened: newValue })
-  
-  // Send WebSocket message if connected
-  if (wsService.isConnected()) {
-    console.log('Sending deafen_status from VoiceCallView:', { user_id: userStore.userId, is_deafened: newValue })
-    wsService.sendMessage('deafen_status', {
-      user_id: userStore.userId,
-      is_deafened: newValue
-    })
-  } else {
-    console.warn('WebSocket not connected in VoiceCallView, cannot send deafen_status')
-  }
-}
-
-const toggleScreenShare = () => {
-  console.log("toggleScreenShare called, isScreenSharing: " + isScreenSharing.value)
-  if (isScreenSharing.value) {
-    stopScreenShare()
-    emit('update:modelValueScreenSharing', false)
-  } else {
-    showQualityModal.value = true
-  }
-}
-
-const handleQualitySelected = async (quality: ScreenShareQuality, shareAudio: boolean) => {
-  showQualityModal.value = false
-  
+// Start screen share wrapper - called by parent (AppLayout)
+const startScreenShareWithQuality = async (quality: string, shareAudio: boolean) => {
   try {
-    await startScreenShare(quality, shareAudio)
-    emit('update:modelValueScreenSharing', true)
+    // Start the actual WebRTC screen share
+    await startScreenShare(quality as ScreenShareQuality, shareAudio)
+    // Tell AudioControls to update state and send WebSocket message
+    audioControlsRef.value?.confirmStartScreenShare(quality as ScreenShareQuality, shareAudio)
   } catch (error) {
     console.error('Failed to start screen share:', error)
     onDebugLog(`Failed to start screen share: ${(error as Error).message}`, 'error')
   }
 }
 
-// Expose methods for parent component access
-defineExpose({
-  toggleScreenShare
-})
+// Expose methods to parent component
+defineExpose({ startScreenShare: startScreenShareWithQuality })
 </script>

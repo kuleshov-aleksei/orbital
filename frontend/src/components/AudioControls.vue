@@ -2,47 +2,18 @@
   <div class="audio-controls">
     <div class="flex items-center justify-center space-x-4">
       <!-- Mute/Unmute -->
-      <button
-        type="button"
-        class="control-button"
-        :class="{ 'bg-red-600 hover:bg-red-700': isMuted, 'bg-gray-700 hover:bg-gray-600': !isMuted }"
-        @click="toggleMute"
-      >
-        <PhMicrophoneSlash v-if="isMuted" class="w-5 h-5" />
-
-        <PhMicrophone v-else class="w-5 h-5" />
-      </button>
+      <MicMuteButton v-model="isMuted" size="lg" />
 
       <!-- Deafen/Undeafen -->
-      <button
-        type="button"
-        class="control-button"
-        :class="{ 'bg-red-600 hover:bg-red-700': isDeafened, 'bg-gray-700 hover:bg-gray-600': !isDeafened }"
-        @click="toggleDeafen"
-      >
-        <!-- Headphones with slash (deafened) -->
-        <!-- Headphones with slash (deafened) - TODO: Find proper crossed headphones icon -->
-        <div v-if="isDeafened" class="w-5 h-5 relative">
-          <PhHeadphones class="absolute inset-0" />
-
-          <div class="absolute inset-0 flex items-center justify-center">
-            <div class="w-6 h-0.5 bg-red-500 rotate-45"></div>
-          </div>
-        </div>
-
-        <PhHeadphones v-else class="w-5 h-5" />
-      </button>
+      <AudioDeafenButton v-model="isDeafened" size="lg" />
 
       <!-- Screen Share -->
-      <button
-        v-if="isScreenShareSupported"
-        type="button"
-        class="control-button"
-        :class="{ 'bg-indigo-600 hover:bg-indigo-700': isScreenSharing, 'bg-gray-700 hover:bg-gray-600': !isScreenSharing }"
-        @click="toggleScreenShare"
-      >
-        <PhMonitorPlay class="w-5 h-5" />
-      </button>
+      <ScreenShareButton 
+        ref="screenShareButtonRef"
+        v-model="isScreenSharing" 
+        size="lg" 
+        @start-screen-share="$emit('start-screen-share')"
+      />
 
       <!-- Leave Room -->
       <button
@@ -66,54 +37,70 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import {
-  PhMicrophone,
-  PhMicrophoneSlash,
-  PhHeadphones,
-  PhMonitorPlay,
-  PhSignOut,
-  PhGearSix
-} from '@phosphor-icons/vue'
-import { useScreenShareSupport } from '@/composables/useScreenShareSupport'
+import { computed, ref, useTemplateRef } from 'vue'
+import { PhSignOut, PhGearSix } from '@phosphor-icons/vue'
+import MicMuteButton from '@/components/MicMuteButton.vue'
+import AudioDeafenButton from '@/components/AudioDeafenButton.vue'
+import ScreenShareButton from '@/components/ScreenShareButton.vue'
+import type { ScreenShareQuality } from '@/types'
 
 interface Props {
-  isMuted?: boolean
-  isDeafened?: boolean
-  isScreenSharing?: boolean
+  modelValueMuted?: boolean
+  modelValueDeafened?: boolean
+  modelValueScreenSharing?: boolean
 }
 
-defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  modelValueMuted: false,
+  modelValueDeafened: false,
+  modelValueScreenSharing: false
+})
+
 const emit = defineEmits<{
-  'toggle-mute': []
-  'toggle-deafen': []
-  'toggle-screen-share': []
+  'update:modelValueMuted': [value: boolean]
+  'update:modelValueDeafened': [value: boolean]
+  'update:modelValueScreenSharing': [value: boolean]
+  'start-screen-share': []
   'leave-room': []
 }>()
 
 // Local state
 const showSettings = ref(false)
 
-// Screen share support detection
-const { isScreenShareSupported } = useScreenShareSupport()
+// Template refs
+const screenShareButtonRef = useTemplateRef<InstanceType<typeof ScreenShareButton>>('screenShareButtonRef')
+
+// Computed v-model bindings
+const isMuted = computed({
+  get: () => props.modelValueMuted,
+  set: (value) => emit('update:modelValueMuted', value)
+})
+
+const isDeafened = computed({
+  get: () => props.modelValueDeafened,
+  set: (value) => emit('update:modelValueDeafened', value)
+})
+
+const isScreenSharing = computed({
+  get: () => props.modelValueScreenSharing,
+  set: (value) => emit('update:modelValueScreenSharing', value)
+})
 
 // Methods
-const toggleMute = () => {
-  emit('toggle-mute')
-}
-
-const toggleDeafen = () => {
-  emit('toggle-deafen')
-}
-
-const toggleScreenShare = () => {
-  emit('toggle-screen-share')
-}
-
 const toggleSettings = () => {
   showSettings.value = !showSettings.value
   console.log('Settings toggled')
 }
+
+// Confirm screen share start (called by parent after quality selection)
+const confirmStartScreenShare = (quality: ScreenShareQuality, hasAudio: boolean) => {
+  screenShareButtonRef.value?.confirmStartScreenShare(quality, hasAudio)
+}
+
+// Expose for parent component
+defineExpose({
+  confirmStartScreenShare
+})
 </script>
 
 <style scoped>
