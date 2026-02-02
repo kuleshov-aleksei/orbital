@@ -6,23 +6,28 @@ import (
 	"time"
 
 	"github.com/orbital/internal/models"
+	"github.com/orbital/internal/repository"
 )
 
 // RoomService manages rooms and users
 type RoomService struct {
 	rooms           map[string]*models.Room
-	members         map[string]map[string]*models.RoomMember // room_id -> user_id -> member
+	members         map[string]map[string]*models.RoomMember // room_id -> user_id -> member (ephemeral)
 	users           map[string]*models.User
 	categoryService *CategoryService
+	roomRepo        *repository.RoomRepository
+	userRepo        *repository.UserRepository
 	mu              sync.RWMutex
 }
 
 // NewRoomService creates a new RoomService
-func NewRoomService() *RoomService {
+func NewRoomService(roomRepo *repository.RoomRepository, userRepo *repository.UserRepository) *RoomService {
 	return &RoomService{
-		rooms:   make(map[string]*models.Room),
-		members: make(map[string]map[string]*models.RoomMember),
-		users:   make(map[string]*models.User),
+		rooms:    make(map[string]*models.Room),
+		members:  make(map[string]map[string]*models.RoomMember),
+		users:    make(map[string]*models.User),
+		roomRepo: roomRepo,
+		userRepo: userRepo,
 	}
 }
 
@@ -42,6 +47,44 @@ func (rs *RoomService) Reset() {
 	rs.users = make(map[string]*models.User)
 }
 
+// LoadFromDB loads all rooms and users from the database into memory
+func (rs *RoomService) LoadFromDB() error {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+
+	// Clear existing data
+	rs.rooms = make(map[string]*models.Room)
+	rs.members = make(map[string]map[string]*models.RoomMember)
+	rs.users = make(map[string]*models.User)
+
+	// Load users from database
+	if rs.userRepo != nil {
+		users, err := rs.userRepo.GetAll()
+		if err != nil {
+			return err
+		}
+		for _, user := range users {
+			rs.users[user.ID] = user
+		}
+		log.Printf("Loaded %d users from database", len(users))
+	}
+
+	// Load rooms from database
+	if rs.roomRepo != nil {
+		rooms, err := rs.roomRepo.GetAll()
+		if err != nil {
+			return err
+		}
+		for _, room := range rooms {
+			rs.rooms[room.ID] = room
+			rs.members[room.ID] = make(map[string]*models.RoomMember)
+		}
+		log.Printf("Loaded %d rooms from database", len(rooms))
+	}
+
+	return nil
+}
+
 // CreateRoom creates a new room
 func (rs *RoomService) CreateRoom(name, category string, maxUsers int) (*models.Room, error) {
 	rs.mu.Lock()
@@ -55,6 +98,13 @@ func (rs *RoomService) CreateRoom(name, category string, maxUsers int) (*models.
 		MaxUsers:  maxUsers,
 		CreatedAt: time.Now(),
 		Category:  category,
+	}
+
+	// Save to database first
+	if rs.roomRepo != nil {
+		if err := rs.roomRepo.Create(room); err != nil {
+			return nil, err
+		}
 	}
 
 	rs.rooms[roomID] = room
@@ -178,10 +228,25 @@ func (rs *RoomService) JoinRoom(roomID, userID, nickname string) (*models.User, 
 			LastSeen:  time.Now(),
 		}
 		rs.users[userID] = user
+
+		// Save new user to database
+		if rs.userRepo != nil {
+			if err := rs.userRepo.Create(user); err != nil {
+				// Log error but don't fail the join
+				log.Printf("Failed to save user to database: %v", err)
+			}
+		}
 	} else if user.Nickname != nickname {
 		// Update nickname if it's different
 		user.Nickname = nickname
 		user.LastSeen = time.Now()
+
+		// Update user in database
+		if rs.userRepo != nil {
+			if err := rs.userRepo.Update(user); err != nil {
+				log.Printf("Failed to update user in database: %v", err)
+			}
+		}
 	}
 
 	// Check if member already exists to preserve their state
@@ -210,6 +275,13 @@ func (rs *RoomService) JoinRoom(roomID, userID, nickname string) (*models.User, 
 		if len(rs.members[roomID]) == 0 {
 			member.Role = "owner"
 			room.OwnerID = userID
+
+			// Update room owner in database
+			if rs.roomRepo != nil {
+				if err := rs.roomRepo.Update(room); err != nil {
+					log.Printf("Failed to update room owner in database: %v", err)
+				}
+			}
 		}
 
 		rs.members[roomID][userID] = member
@@ -386,6 +458,14 @@ func (rs *RoomService) UpdateUserNickname(roomID, userID, nickname string) error
 	if user, exists := rs.users[userID]; exists {
 		user.Nickname = nickname
 		user.LastSeen = time.Now()
+
+		// Update in database
+		if rs.userRepo != nil {
+			if err := rs.userRepo.Update(user); err != nil {
+				return err
+			}
+		}
+
 		return nil
 	}
 
@@ -433,6 +513,13 @@ func (rs *RoomService) UpdateRoom(roomID string, name string, maxUsers int, cate
 		room.Category = categoryID
 	}
 
+	// Update in database
+	if rs.roomRepo != nil {
+		if err := rs.roomRepo.Update(room); err != nil {
+			return nil, err
+		}
+	}
+
 	return room, nil
 }
 
@@ -465,11 +552,25 @@ func (rs *RoomService) DeleteRoom(roomID string) error {
 		for userID := range members {
 			if user, exists := rs.users[userID]; exists {
 				user.LastSeen = time.Now()
+
+				// Update last_seen in database
+				if rs.userRepo != nil {
+					if err := rs.userRepo.UpdateLastSeen(userID, user.LastSeen); err != nil {
+						log.Printf("Failed to update user last_seen in database: %v", err)
+					}
+				}
 			}
 		}
 	}
 
-	// Delete room and its members
+	// Delete from database
+	if rs.roomRepo != nil {
+		if err := rs.roomRepo.Delete(roomID); err != nil {
+			return err
+		}
+	}
+
+	// Delete room and its members from memory
 	delete(rs.rooms, roomID)
 	delete(rs.members, roomID)
 

@@ -31,6 +31,10 @@ room:
 security:
   e2e_mode: false  # Enable E2E testing mode (allows test/reset endpoint)
 
+# Database configuration
+database:
+  path: "./data/orbital.db"  # Path to SQLite database file
+
 # Logging configuration
 logging:
   level: "info"  # Options: debug, info, warn, error

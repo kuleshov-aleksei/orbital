@@ -2,34 +2,70 @@ package service
 
 import (
 	"errors"
+	"log"
 	"sync"
 	"time"
 	"unicode/utf8"
 
 	"github.com/orbital/internal/models"
+	"github.com/orbital/internal/repository"
 )
 
 // CategoryService manages room categories
 type CategoryService struct {
 	categories map[string]*models.Category
+	repo       *repository.CategoryRepository
 	mu         sync.RWMutex
 }
 
-// NewCategoryService creates a new CategoryService with a default "general" category
-func NewCategoryService() *CategoryService {
-	cs := &CategoryService{
+// NewCategoryService creates a new CategoryService
+func NewCategoryService(repo *repository.CategoryRepository) *CategoryService {
+	return &CategoryService{
 		categories: make(map[string]*models.Category),
+		repo:       repo,
+	}
+}
+
+// LoadFromDB loads all categories from the database into memory
+func (cs *CategoryService) LoadFromDB() error {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+
+	// Clear existing categories
+	cs.categories = make(map[string]*models.Category)
+
+	// Load from database
+	categories, err := cs.repo.GetAll()
+	if err != nil {
+		return err
 	}
 
-	// Create default "general" category
-	generalID := generateID()
-	cs.categories[generalID] = &models.Category{
-		ID:        generalID,
-		Name:      "general",
-		CreatedAt: time.Now(),
+	// Populate memory map
+	for _, category := range categories {
+		cs.categories[category.ID] = category
 	}
 
-	return cs
+	// If no categories exist, create the default "general" category
+	if len(cs.categories) == 0 {
+		generalID := generateID()
+		generalCategory := &models.Category{
+			ID:        generalID,
+			Name:      "general",
+			CreatedAt: time.Now(),
+		}
+
+		// Save to database
+		if err := cs.repo.Create(generalCategory); err != nil {
+			return err
+		}
+
+		// Add to memory
+		cs.categories[generalID] = generalCategory
+		log.Printf("Created default 'general' category: %s", generalID)
+	}
+
+	log.Printf("Loaded %d categories from database", len(cs.categories))
+	return nil
 }
 
 // Reset clears all categories and reinitializes with default.
@@ -71,7 +107,15 @@ func (cs *CategoryService) CreateCategory(name string) (*models.Category, error)
 		CreatedAt: time.Now(),
 	}
 
+	// Save to database first
+	if cs.repo != nil {
+		if err := cs.repo.Create(category); err != nil {
+			return nil, err
+		}
+	}
+
 	cs.categories[categoryID] = category
+	log.Printf("Created category: %s (%s)", categoryID, name)
 
 	return category, nil
 }
@@ -119,6 +163,14 @@ func (cs *CategoryService) RenameCategory(categoryID string, newName string) (*m
 	}
 
 	category.Name = newName
+
+	// Update in database
+	if cs.repo != nil {
+		if err := cs.repo.Update(category); err != nil {
+			return nil, err
+		}
+	}
+
 	return category, nil
 }
 
@@ -161,7 +213,14 @@ func (cs *CategoryService) DeleteCategory(categoryID string, deleteRooms bool, t
 		}
 	}
 
-	// Delete the category
+	// Delete from database
+	if cs.repo != nil {
+		if err := cs.repo.Delete(categoryID); err != nil {
+			return "", err
+		}
+	}
+
+	// Delete from memory
 	delete(cs.categories, categoryID)
 
 	if deleteRooms {

@@ -10,7 +10,9 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/orbital/internal/config"
 	"github.com/orbital/internal/handlers"
+	"github.com/orbital/internal/repository"
 	"github.com/orbital/internal/service"
+	"github.com/orbital/internal/storage"
 	"github.com/orbital/internal/websocket"
 )
 
@@ -37,9 +39,50 @@ func main() {
 	log.Printf("Configuration loaded: %s", cfg.String())
 	log.Printf("Server starting in %s mode on port %s", cfg.Server.Mode, cfg.Server.Port)
 
-	// Initialize services
-	categoryService := service.NewCategoryService()
-	roomService := service.NewRoomService()
+	// Initialize database
+	var categoryService *service.CategoryService
+	var roomService *service.RoomService
+
+	if cfg.Database.Path != "" {
+		db, err := storage.NewDB(cfg.Database.Path)
+		if err != nil {
+			log.Fatalf("Failed to initialize database: %v", err)
+		}
+		defer db.Close()
+
+		// Run migrations
+		if err := db.RunMigrations(); err != nil {
+			log.Fatalf("Failed to run database migrations: %v", err)
+		}
+
+		// Create repositories
+		categoryRepo := repository.NewCategoryRepository(db)
+		roomRepo := repository.NewRoomRepository(db)
+		userRepo := repository.NewUserRepository(db)
+
+		// Initialize services with repositories
+		categoryService = service.NewCategoryService(categoryRepo)
+		roomService = service.NewRoomService(roomRepo, userRepo)
+
+		// Load data from database
+		if err := categoryService.LoadFromDB(); err != nil {
+			log.Fatalf("Failed to load categories from database: %v", err)
+		}
+		if err := roomService.LoadFromDB(); err != nil {
+			log.Fatalf("Failed to load rooms from database: %v", err)
+		}
+	} else {
+		// Initialize services without database (memory-only mode)
+		log.Println("Warning: No database path configured, running in memory-only mode")
+		categoryService = service.NewCategoryService(nil)
+		roomService = service.NewRoomService(nil, nil)
+
+		// Create default "general" category in memory
+		if err := categoryService.LoadFromDB(); err != nil {
+			log.Fatalf("Failed to initialize categories: %v", err)
+		}
+	}
+
 	roomService.SetCategoryService(categoryService)
 	wsHub := websocket.NewHub(roomService)
 

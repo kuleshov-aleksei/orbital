@@ -17,6 +17,12 @@ type Config struct {
 	Room     RoomSettings   `yaml:"room"`
 	Security SecurityConfig `yaml:"security"`
 	Logging  LoggingConfig  `yaml:"logging"`
+	Database DatabaseConfig `yaml:"database"`
+}
+
+// DatabaseConfig holds database-related configuration
+type DatabaseConfig struct {
+	Path string `yaml:"path"`
 }
 
 // ServerConfig holds server-related configuration
@@ -81,6 +87,9 @@ func DefaultConfig() *Config {
 		Logging: LoggingConfig{
 			Level:          "info",
 			RequestLogging: true,
+		},
+		Database: DatabaseConfig{
+			Path: "./data/orbital.db",
 		},
 	}
 }
@@ -186,6 +195,11 @@ func (c *Config) loadFromEnv() {
 			c.Logging.RequestLogging = logRequests
 		}
 	}
+
+	// Database config
+	if v := os.Getenv("DATABASE_PATH"); v != "" {
+		c.Database.Path = v
+	}
 }
 
 // splitEnvList splits a comma-separated environment variable into a slice
@@ -245,8 +259,12 @@ func (c *Config) GetSTUNServersString() string {
 
 // String returns a string representation of the configuration (without sensitive data)
 func (c *Config) String() string {
+	dbConfigured := "no"
+	if c.Database.Path != "" {
+		dbConfigured = "yes"
+	}
 	return fmt.Sprintf(
-		"Config{Server: {Port: %s, Mode: %s}, TURN: {URL: %s, STUN: %d servers, Realm: %s}, Room: {Min: %d, Max: %d}, Security: {E2E: %v}, Logging: {Level: %s, Requests: %v}}",
+		"Config{Server: {Port: %s, Mode: %s}, TURN: {URL: %s, STUN: %d servers, Realm: %s}, Room: {Min: %d, Max: %d}, Security: {E2E: %v}, Logging: {Level: %s, Requests: %v}, Database: {Configured: %s}}",
 		c.Server.Port,
 		c.Server.Mode,
 		c.TURN.TURNURL,
@@ -257,6 +275,7 @@ func (c *Config) String() string {
 		c.Security.E2EMode,
 		c.Logging.Level,
 		c.Logging.RequestLogging,
+		dbConfigured,
 	)
 }
 
@@ -287,6 +306,11 @@ func (c *Config) GetTURNConfig() *TURNConfig {
 // GetRoomConfig returns the room configuration section
 func (c *Config) GetRoomConfig() *RoomSettings {
 	return &c.Room
+}
+
+// GetDatabaseConfig returns the database configuration section
+func (c *Config) GetDatabaseConfig() *DatabaseConfig {
+	return &c.Database
 }
 
 // GenerateTURNCredentials generates time-limited TURN credentials
