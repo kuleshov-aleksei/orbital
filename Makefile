@@ -36,6 +36,7 @@ dev:
 	@echo "Press Ctrl+C to stop both servers"
 	(cd frontend && npm run dev) & \
 	(cd backend && go run ./cmd/server) & \
+	(cd docker && turnserver -c turnserver-dev.conf --use-auth-secret --static-auth-secret=pink-goose)
 	wait
 
 # Generate SSL certificates for HTTPS development

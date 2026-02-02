@@ -3,6 +3,7 @@ import { wsService } from '@/services/websocket'
 import { webRTCStatsCollector } from '@/services/webrtc-stats'
 import { useAudioSettingsStore } from '@/stores/audioSettings'
 import { getAudioWorkletProcessor } from '@/services/audio'
+import { apiService, type ICEServer } from '@/services/api'
 import type {
   User,
   RoomUser,
@@ -49,6 +50,12 @@ export function useWebRTC(options: UseWebRTCOptions) {
   const localScreenStream = ref<MediaStream | null>(null)
   const remoteScreenStreams = ref<Map<string, MediaStream>>(new Map())
   const userScreenShareStates = ref<Map<string, ScreenShareState>>(new Map())
+
+  // ICE servers configuration for TURN/STUN
+  const iceServers = ref<ICEServer[]>([
+    { urls: ['stun:stun.l.google.com:19302'] },
+    { urls: ['stun:stun1.l.google.com:19302'] }
+  ])
 
   // AudioWorklet processor for 3rd party noise suppression
   let audioWorkletProcessor: AudioWorkletProcessor | null = null
@@ -184,13 +191,17 @@ export function useWebRTC(options: UseWebRTCOptions) {
 
   // Create peer connection for a user
   const createPeerConnection = async (userId: string): Promise<RTCPeerConnection> => {
-    const configuration = {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
-      ]
+    const configuration: RTCConfiguration = {
+      iceServers: iceServers.value
     }
 
+    // Debug: Force ICE relay if enabled in settings
+    if (audioSettings.forceICERelay) {
+      configuration.iceTransportPolicy = 'relay'
+      addDebugLog('⚠️ Force ICE relay enabled - using TURN only', 'warning', userId)
+    }
+
+    addDebugLog(`Creating peer connection with ${iceServers.value.length} ICE servers`, 'info', userId)
     const peerConnection = new RTCPeerConnection(configuration)
 
     // Add local audio tracks to the peer connection
@@ -929,8 +940,36 @@ export function useWebRTC(options: UseWebRTCOptions) {
     options.onPingUpdate(ping, quality)
   }
 
+  // Fetch TURN server configuration from backend
+  const fetchTURNConfig = async () => {
+    try {
+      addDebugLog('Fetching TURN server configuration...', 'info')
+      const turnConfig = await apiService.getTurnConfig(getCurrentUserId())
+      
+      if (turnConfig.ice_servers && turnConfig.ice_servers.length > 0) {
+        iceServers.value = turnConfig.ice_servers
+        addDebugLog(`Loaded ${turnConfig.ice_servers.length} ICE servers (TTL: ${turnConfig.ttl}s)`, 'info')
+        
+        // Log TURN servers for debugging (without credentials)
+        const turnServers = turnConfig.ice_servers.filter(s => 
+          s.urls.some(url => url.startsWith('turn:') || url.startsWith('turns:'))
+        )
+        if (turnServers.length > 0) {
+          addDebugLog(`Found ${turnServers.length} TURN server(s)`, 'info')
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch TURN configuration:', error)
+      addDebugLog('Failed to fetch TURN configuration, using default STUN servers', 'warning')
+      // Keep default STUN servers on error
+    }
+  }
+
   // Initialize WebRTC
   const initializeWebRTC = async () => {
+    // Fetch TURN configuration first
+    await fetchTURNConfig()
+    // Then get local media stream
     await ensureLocalStream()
   }
 
@@ -1184,6 +1223,7 @@ export function useWebRTC(options: UseWebRTCOptions) {
     getCurrentUserId,
     ensureLocalStream,
     initializeWebRTC,
+    fetchTURNConfig,
     cleanupPeerConnection,
     handleMuteToggle,
     handleAudioLevel,

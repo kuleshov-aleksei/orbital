@@ -24,6 +24,7 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
   const noiseSuppressionAlgorithm = computed(() => settings.value.noiseSuppression.algorithm)
   const echoCancellationEnabled = computed(() => settings.value.echoCancellation)
   const autoGainControlEnabled = computed(() => settings.value.autoGainControl)
+  const forceICERelay = computed(() => settings.value.forceICERelay)
 
   /**
    * Check if current algorithm requires AudioWorklet processing
@@ -259,6 +260,14 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
   }
 
   /**
+   * Toggle force ICE relay (debug: force TURN only)
+   */
+  function toggleForceICERelay(enabled: boolean) {
+    settings.value.forceICERelay = enabled
+    saveSettings()
+  }
+
+  /**
    * Save settings to localStorage
    */
   function saveSettings() {
@@ -315,6 +324,7 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
     noiseSuppressionAlgorithm,
     echoCancellationEnabled,
     autoGainControlEnabled,
+    forceICERelay,
     availableNoiseSuppressionAlgorithms,
     currentAlgorithmInfo,
     audioConstraints,
@@ -326,6 +336,7 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
     setNoiseSuppressionAlgorithm,
     toggleEchoCancellation,
     toggleAutoGainControl,
+    toggleForceICERelay,
     loadSettings,
     saveSettings,
     resetSettings,

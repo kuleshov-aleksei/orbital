@@ -22,12 +22,16 @@ func main() {
 	// Initialize handlers
 	roomHandler := handlers.NewRoomHandler(roomService, categoryService, wsHub)
 	categoryHandler := handlers.NewCategoryHandler(categoryService, roomService, wsHub)
+	turnHandler := handlers.NewTURNHandler()
 
 	// Setup router
 	r := mux.NewRouter()
 
 	// API routes
 	r.HandleFunc("/api/health", healthHandler).Methods("GET")
+
+	// TURN server configuration route
+	r.HandleFunc("/api/turn-config", turnHandler.GetTURNConfig).Methods("GET")
 
 	// Room routes
 	r.HandleFunc("/api/rooms", roomHandler.CreateRoom).Methods("POST")

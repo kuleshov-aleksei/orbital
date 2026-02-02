@@ -2,6 +2,18 @@ import { Room, User, CreateRoomData, UpdateRoomData, Category, CreateCategoryDat
 
 const API_BASE = '/api'
 
+// TURN server configuration types
+export interface ICEServer {
+  urls: string[]
+  username?: string
+  credential?: string
+}
+
+export interface TURNConfigResponse {
+  ice_servers: ICEServer[]
+  ttl: number
+}
+
 // Generic API wrapper with error handling
 async function apiRequest<T>(
   endpoint: string, 
@@ -114,6 +126,12 @@ export const apiService = {
       method: 'DELETE',
       body: JSON.stringify(data),
     })
+  },
+
+  // Get TURN server configuration for WebRTC
+  async getTurnConfig(userId?: string): Promise<TURNConfigResponse> {
+    const endpoint = userId ? `/turn-config?user_id=${userId}` : '/turn-config'
+    return apiRequest<TURNConfigResponse>(endpoint)
   },
 }
 
