@@ -71,6 +71,21 @@
       <PhMonitorPlay class="w-3 h-3 text-white" />
     </div>
 
+    <!-- Connection Info Indicator -->
+    <div
+      v-if="connectionDisplay && (connectionState === 'connected' || connectionState === 'answer-received' || connectionState === 'handshake-complete')"
+      class="absolute top-2 left-2 w-5 h-5 rounded-full flex items-center justify-center cursor-help"
+      :class="{
+        'bg-blue-500': connectionDisplay.icon === 'relay',
+        'bg-yellow-500': connectionDisplay.icon === 'stun',
+        'bg-green-500': connectionDisplay.icon === 'direct',
+        'bg-gray-500': connectionDisplay.icon === 'unknown'
+      }"
+      :title="connectionDisplay.tooltip"
+    >
+      <PhInfo class="w-3 h-3 text-white" />
+    </div>
+
     <!-- Muted Indicator -->
     <div
       v-if="isMuted"
@@ -144,9 +159,11 @@
     PhMicrophone,
     PhMicrophoneSlash,
     PhSpeakerHigh,
-    PhMonitorPlay
+    PhMonitorPlay,
+    PhInfo
   } from '@phosphor-icons/vue'
-  import type { ScreenShareQuality } from '@/types'
+  import { analyzeICEConnection } from '@/services/webrtc-stats'
+  import type { ScreenShareQuality, ICEConnectionType } from '@/types'
 
    interface Props {
      userId: string
@@ -157,6 +174,7 @@
      isDeafened?: boolean
      isScreenSharing?: boolean
      screenShareQuality?: ScreenShareQuality
+     peerConnection?: RTCPeerConnection
    }
 
    const props = withDefaults(defineProps<Props>(), {
@@ -164,7 +182,8 @@
      initialVolume: 80,
      isDeafened: false,
      isScreenSharing: false,
-     screenShareQuality: '1080p30'
+     screenShareQuality: '1080p30',
+     peerConnection: undefined
    })
 
 const emit = defineEmits<{
@@ -183,9 +202,86 @@ const emit = defineEmits<{
  const animationId = ref<number | null>(null)
  const showMenu = ref(false)
  const menuPosition = { x: 0, y: 0 }
+ const connectionInfo = ref<ICEConnectionType | null>(null)
+ const connectionInfoInterval = ref<number | null>(null)
 
  // Computed properties
  const isSpeaking = computed(() => audioLevel.value > 0.1) // Threshold for speaking detection
+
+ // Connection display info
+ const connectionDisplay = computed(() => {
+   // If we don't have connection info yet, show connecting state
+   if (!connectionInfo.value) {
+     return {
+       icon: 'unknown',
+       label: 'Detecting...',
+       tooltip: 'Detecting connection type...'
+     }
+   }
+   
+   const info = connectionInfo.value
+   let icon = 'direct'
+   let label = 'Direct P2P'
+   let tooltip = 'Direct peer-to-peer connection'
+   
+   switch (info.type) {
+     case 'relay':
+       icon = 'relay'
+       label = 'TURN Relay'
+       tooltip = `Connected via TURN relay server (${info.relayProtocol?.toUpperCase()})`
+       break
+     case 'srflx':
+       icon = 'stun'
+       label = 'STUN (NAT)'
+       tooltip = 'Connected via STUN server (traversing NAT)'
+       break
+     case 'host':
+       icon = 'direct'
+       label = 'Direct P2P'
+       tooltip = 'Direct peer-to-peer connection'
+       break
+     case 'unknown':
+     default:
+       icon = 'unknown'
+       label = 'Connecting...'
+       tooltip = 'Connection type not yet determined'
+   }
+   
+   return { icon, label, tooltip }
+ })
+
+ // Update connection info from peer connection
+ const updateConnectionInfo = async () => {
+   if (!props.peerConnection || props.connectionState !== 'connected') {
+     connectionInfo.value = null
+     return
+   }
+   
+   try {
+     connectionInfo.value = await analyzeICEConnection(props.peerConnection)
+   } catch (error) {
+     console.warn('Failed to analyze ICE connection:', error)
+   }
+ }
+
+ // Start polling for connection info
+ const startConnectionInfoPolling = async () => {
+   // Update immediately (don't wait for interval)
+   await updateConnectionInfo()
+   
+   // Then poll every 3 seconds
+   connectionInfoInterval.value = window.setInterval(() => {
+     updateConnectionInfo()
+   }, 3000)
+ }
+
+ // Stop polling
+ const stopConnectionInfoPolling = () => {
+   if (connectionInfoInterval.value) {
+     clearInterval(connectionInfoInterval.value)
+     connectionInfoInterval.value = null
+   }
+ }
 
  // Update volume of audio element
  const updateVolume = () => {
@@ -294,14 +390,24 @@ const emit = defineEmits<{
   // Watch for volume changes
   watch(volume, updateVolume)
 
-  // Watch for deafen state changes
-  watch(() => props.isDeafened, (newDeafened) => {
-    if (audioElement.value) {
-      audioElement.value.muted = newDeafened
-    }
-  })
+   // Watch for deafen state changes
+   watch(() => props.isDeafened, (newDeafened) => {
+     if (audioElement.value) {
+       audioElement.value.muted = newDeafened
+     }
+   })
 
-   // Close menu on escape key or document click
+    // Watch for connection state changes to start/stop polling
+    watch(() => props.connectionState, (newState, oldState) => {
+      if (newState === 'connected' && oldState !== 'connected') {
+        startConnectionInfoPolling()
+      } else if (newState !== 'connected') {
+        stopConnectionInfoPolling()
+        connectionInfo.value = null
+      }
+    })
+
+    // Close menu on escape key or document click
    const handleKeydown = (event: KeyboardEvent) => {
      if (event.key === 'Escape') {
        hideContextMenu()
@@ -314,36 +420,45 @@ const emit = defineEmits<{
      }
    }
 
-   // Lifecycle hooks
-   onMounted(() => {
-     nextTick(() => {
-       if (audioElement.value) {
-         updateVolume()
-         // Apply initial deafen state
-         if (props.isDeafened) {
-           audioElement.value.muted = true
-         }
-       }
-     })
+    // Lifecycle hooks
+    onMounted(() => {
+      nextTick(() => {
+        if (audioElement.value) {
+          updateVolume()
+          // Apply initial deafen state
+          if (props.isDeafened) {
+            audioElement.value.muted = true
+          }
+        }
+      })
 
-     // Add document event listeners for context menu
-     document.addEventListener('keydown', handleKeydown)
-     document.addEventListener('click', handleDocumentClick)
+      // Check if already connected when component mounts
+      // (handles race condition where connectionState is already 'connected')
+      if (props.connectionState === 'connected') {
+        startConnectionInfoPolling()
+      }
+
+      // Add document event listeners for context menu
+      document.addEventListener('keydown', handleKeydown)
+      document.addEventListener('click', handleDocumentClick)
+    })
+
+   onUnmounted(() => {
+     if (animationId.value) {
+       cancelAnimationFrame(animationId.value)
+     }
+     
+     if (audioContext.value) {
+       audioContext.value.close()
+     }
+
+     // Clean up connection info polling
+     stopConnectionInfoPolling()
+
+     // Clean up document event listeners
+     document.removeEventListener('keydown', handleKeydown)
+     document.removeEventListener('click', handleDocumentClick)
    })
-
-  onUnmounted(() => {
-    if (animationId.value) {
-      cancelAnimationFrame(animationId.value)
-    }
-    
-    if (audioContext.value) {
-      audioContext.value.close()
-    }
-
-    // Clean up document event listeners
-    document.removeEventListener('keydown', handleKeydown)
-    document.removeEventListener('click', handleDocumentClick)
-  })
 </script>
 
 <style scoped>

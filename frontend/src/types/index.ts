@@ -270,3 +270,11 @@ export interface ConnectionDiagnostic {
   selectedCandidatePair?: RTCIceCandidatePair
   certificate?: RTCCertificate
 }
+
+export interface ICEConnectionType {
+  type: 'host' | 'srflx' | 'relay' | 'unknown'
+  usingTURN: boolean
+  relayProtocol?: 'udp' | 'tcp' | 'tls'
+  localType: string
+  remoteType: string
+}

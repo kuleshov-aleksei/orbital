@@ -18,6 +18,7 @@
           :is-deafened="isDeafened"
           :is-screen-sharing="userScreenShareStates.get(user.id)?.isSharing || false"
           :screen-share-quality="userScreenShareStates.get(user.id)?.quality"
+          :peer-connection="peerConnections.get(user.id)"
           @volume-change="(userId, volume) => $emit('volume-change', userId, volume)"
           @mute-toggle="(userId, isMuted) => $emit('mute-toggle', userId, isMuted)"
           @audio-level="(userId, level, isSpeaking) => $emit('audio-level', userId, level, isSpeaking)"
@@ -41,6 +42,7 @@ interface Props {
   peerConnectionStates: Map<string, string>
   remoteStreamVolumes: Map<string, number>
   userScreenShareStates: Map<string, ScreenShareState>
+  peerConnections: Map<string, RTCPeerConnection>
   isDeafened: boolean
   isVisible: boolean
   screenShareCount: number

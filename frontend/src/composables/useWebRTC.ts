@@ -1,6 +1,6 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { wsService } from '@/services/websocket'
-import { webRTCStatsCollector } from '@/services/webrtc-stats'
+import { webRTCStatsCollector, analyzeICEConnection } from '@/services/webrtc-stats'
 import { useAudioSettingsStore } from '@/stores/audioSettings'
 import { getAudioWorkletProcessor } from '@/services/audio'
 import { apiService, type ICEServer } from '@/services/api'
@@ -9,7 +9,8 @@ import type {
   RoomUser,
   ScreenShareQuality,
   ScreenShareData,
-  WebSocketMessage
+  WebSocketMessage,
+  ICEConnectionType
 } from '@/types'
 import type { AudioWorkletProcessor } from '@/types/audio'
 
@@ -459,9 +460,10 @@ export function useWebRTC(options: UseWebRTCOptions) {
 
       if (peerConnection.remoteDescription) {
         await peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
-        updateConnectionState(user_id, 'ice-candidate-added')
         console.log(`🧊 Added ICE candidate from ${user_id}:`, candidate)
         addDebugLog(`ICE candidate added from ${user_id}`, 'info', user_id)
+        // Note: Don't update connection state here - the actual connection state
+        // is tracked by peerConnection.onconnectionstatechange
       } else {
         console.log(`🧊 Queuing ICE candidate from ${user_id} (no remote description yet)`)
         if (!pendingIceCandidates.value.has(user_id)) {
@@ -552,7 +554,8 @@ export function useWebRTC(options: UseWebRTCOptions) {
 
       await processPendingIceCandidates(user_id)
 
-      updateConnectionState(user_id, 'handshake-complete')
+      // Note: Don't set 'handshake-complete' state - wait for actual connection state
+      // from onconnectionstatechange which will be 'connected' when ready
 
       console.log(`✅ SDP answer processed for ${user_id}:`, sdp)
       addDebugLog(`SDP answer processed successfully for ${user_id}`, 'info', user_id)
@@ -867,6 +870,20 @@ export function useWebRTC(options: UseWebRTCOptions) {
   // Get connection quality
   const getConnectionQuality = (userId: string) => {
     return webRTCStatsCollector.getConnectionQuality(userId)
+  }
+
+  // Analyze ICE connection to determine if using TURN relay
+  const analyzeConnection = async (userId: string): Promise<ICEConnectionType> => {
+    const peerConnection = peerConnections.value.get(userId)
+    if (!peerConnection) {
+      return {
+        type: 'unknown',
+        usingTURN: false,
+        localType: 'unknown',
+        remoteType: 'unknown'
+      }
+    }
+    return analyzeICEConnection(peerConnection)
   }
 
   // WebSocket message handlers (must be stable references)
@@ -1230,6 +1247,7 @@ export function useWebRTC(options: UseWebRTCOptions) {
     startScreenShare,
     stopScreenShare,
     getConnectionQuality,
+    analyzeConnection,
     applyMuteState,
     applyDeafenState,
     addDebugLog,

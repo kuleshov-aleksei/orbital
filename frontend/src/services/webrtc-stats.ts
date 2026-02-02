@@ -1,4 +1,4 @@
-import { BandwidthStats } from '../types'
+import { BandwidthStats, ICEConnectionType } from '../types'
 
 export interface ConnectionStats {
   packetsLost: number
@@ -329,3 +329,125 @@ export class WebRTCStatsCollector {
 
 // Singleton instance
 export const webRTCStatsCollector = new WebRTCStatsCollector()
+
+/**
+ * Analyzes an RTCPeerConnection to determine the ICE connection type.
+ * Detects if the connection is using direct P2P (host), STUN (srflx), or TURN relay.
+ * 
+ * @param peerConnection - The RTCPeerConnection to analyze
+ * @returns Promise<ICEConnectionType> - The connection type and additional info
+ */
+export async function analyzeICEConnection(
+  peerConnection: RTCPeerConnection
+): Promise<ICEConnectionType> {
+  try {
+    const stats = await peerConnection.getStats()
+    
+    // Find all candidate stats and candidate pair stats
+    const candidates = new Map<string, RTCStatsReport[keyof RTCStatsReport]>()
+    let selectedPair: RTCStatsReport[keyof RTCStatsReport] | null = null
+    let transport: RTCStatsReport[keyof RTCStatsReport] | null = null
+    
+    stats.forEach((report) => {
+      // Store local/remote candidate stats
+      if (report.type === 'local-candidate' || report.type === 'remote-candidate') {
+        candidates.set(report.id, report)
+      }
+      
+      // Find selected candidate pair
+      if (report.type === 'candidate-pair' && report.selected) {
+        selectedPair = report
+      }
+      
+      // Find transport (may contain selected candidate pair reference)
+      if (report.type === 'transport') {
+        transport = report
+      }
+    })
+    
+    // If no selected pair found, try getting it from transport
+    if (!selectedPair && transport && transport.selectedCandidatePairId) {
+      const pair = stats.get(transport.selectedCandidatePairId)
+      if (pair && pair.type === 'candidate-pair') {
+        selectedPair = pair
+      }
+    }
+    
+    // If still no selected pair, we can't determine the connection type
+    if (!selectedPair) {
+      return {
+        type: 'unknown',
+        usingTURN: false,
+        localType: 'unknown',
+        remoteType: 'unknown'
+      }
+    }
+    
+    // Get the local and remote candidates from the selected pair
+    const localCandidate = selectedPair.localCandidateId 
+      ? candidates.get(selectedPair.localCandidateId) 
+      : null
+    const remoteCandidate = selectedPair.remoteCandidateId 
+      ? candidates.get(selectedPair.remoteCandidateId) 
+      : null
+    
+    if (!localCandidate) {
+      return {
+        type: 'unknown',
+        usingTURN: false,
+        localType: 'unknown',
+        remoteType: remoteCandidate?.candidateType || 'unknown'
+      }
+    }
+    
+    const localType = localCandidate.candidateType || 'unknown'
+    const remoteType = remoteCandidate?.candidateType || 'unknown'
+    
+    // Determine connection type based on local candidate
+    let connectionType: ICEConnectionType['type']
+    let usingTURN = false
+    let relayProtocol: ICEConnectionType['relayProtocol']
+    
+    switch (localType) {
+      case 'host':
+        connectionType = 'host'
+        usingTURN = false
+        break
+      case 'srflx':
+        connectionType = 'srflx'
+        usingTURN = false
+        break
+      case 'relay':
+        connectionType = 'relay'
+        usingTURN = true
+        // Determine relay protocol from local candidate
+        relayProtocol = localCandidate.relayProtocol || 
+                       localCandidate.protocol || 'udp'
+        break
+      default:
+        connectionType = 'unknown'
+        usingTURN = false
+    }
+    
+    const result: ICEConnectionType = {
+      type: connectionType,
+      usingTURN,
+      localType,
+      remoteType
+    }
+    
+    if (relayProtocol) {
+      result.relayProtocol = relayProtocol as 'udp' | 'tcp' | 'tls'
+    }
+    
+    return result
+  } catch (error) {
+    console.error('Error analyzing ICE connection:', error)
+    return {
+      type: 'unknown',
+      usingTURN: false,
+      localType: 'error',
+      remoteType: 'error'
+    }
+  }
+}

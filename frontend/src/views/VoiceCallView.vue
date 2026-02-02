@@ -38,6 +38,7 @@
         :is-deafened="isDeafened"
         :is-visible="isUserGridVisible"
         :screen-share-count="screenShareData.length"
+        :peer-connections="peerConnections"
         @volume-change="handleVolumeChange"
         @mute-toggle="handleMuteToggle"
         @audio-level="handleAudioLevel"
