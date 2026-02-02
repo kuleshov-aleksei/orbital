@@ -2,30 +2,59 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"log"
 	"net/http"
-	"os"
+	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/orbital/internal/config"
 	"github.com/orbital/internal/handlers"
 	"github.com/orbital/internal/service"
 	"github.com/orbital/internal/websocket"
 )
 
 func main() {
+	// Parse command-line flags
+	configPath := flag.String("config", "configs/config.yaml", "Path to configuration file")
+	flag.Parse()
+
+	// Load configuration
+	cfg, err := config.Load(*configPath)
+	if err != nil {
+		log.Fatalf("Failed to load configuration: %v", err)
+	}
+
+	// Validate configuration
+	if err := cfg.Validate(); err != nil {
+		log.Fatalf("Invalid configuration: %v", err)
+	}
+
+	// Initialize legacy room config for backward compatibility
+	config.InitializeRoomConfig(cfg)
+
+	// Log configuration (without sensitive data)
+	log.Printf("Configuration loaded: %s", cfg.String())
+	log.Printf("Server starting in %s mode on port %s", cfg.Server.Mode, cfg.Server.Port)
+
 	// Initialize services
 	categoryService := service.NewCategoryService()
 	roomService := service.NewRoomService()
 	roomService.SetCategoryService(categoryService)
 	wsHub := websocket.NewHub(roomService)
 
-	// Initialize handlers
+	// Initialize handlers with config
 	roomHandler := handlers.NewRoomHandler(roomService, categoryService, wsHub)
 	categoryHandler := handlers.NewCategoryHandler(categoryService, roomService, wsHub)
-	turnHandler := handlers.NewTURNHandler()
+	turnHandler := handlers.NewTURNHandler(cfg)
 
 	// Setup router
 	r := mux.NewRouter()
+
+	// Add request logging middleware if enabled
+	if cfg.ShouldLogRequests() {
+		r.Use(requestLoggingMiddleware)
+	}
 
 	// API routes
 	r.HandleFunc("/api/health", healthHandler).Methods("GET")
@@ -52,7 +81,7 @@ func main() {
 	// Test-only routes (guarded to avoid accidental use).
 	// Allowed when either ORBITAL_E2E=1 is set OR the request explicitly opts in.
 	r.HandleFunc("/api/test/reset", func(w http.ResponseWriter, r *http.Request) {
-		if os.Getenv("ORBITAL_E2E") != "1" && r.Header.Get("X-Orbital-E2E") != "1" {
+		if !cfg.IsE2EMode() && r.Header.Get("X-Orbital-E2E") != "1" {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
@@ -75,11 +104,22 @@ func main() {
 		wsHub.HandleGlobalWebSocket(w, r)
 	})
 
-	log.Println("Server starting on :8080")
+	// Setup CORS middleware with configured origins
+	handler := corsMiddleware(r, cfg.GetCORSOrigins())
 
-	handler := corsMiddleware(r)
+	// Start server
+	addr := cfg.GetAddress()
+	log.Printf("Server listening on %s", addr)
 
-	log.Fatal(http.ListenAndServe(":8080", handler))
+	server := &http.Server{
+		Addr:         addr,
+		Handler:      handler,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	log.Fatal(server.ListenAndServe())
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
@@ -92,10 +132,25 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// corsMiddleware handles CORS headers
-func corsMiddleware(next http.Handler) http.Handler {
+// corsMiddleware handles CORS headers with configurable origins
+func corsMiddleware(next http.Handler, allowedOrigins []string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		// Determine which origin to allow
+		origin := r.Header.Get("Origin")
+		allowedOrigin := ""
+
+		for _, o := range allowedOrigins {
+			if o == "*" || o == origin {
+				allowedOrigin = o
+				break
+			}
+		}
+
+		if allowedOrigin == "" && len(allowedOrigins) > 0 {
+			allowedOrigin = allowedOrigins[0]
+		}
+
+		w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
@@ -106,5 +161,15 @@ func corsMiddleware(next http.Handler) http.Handler {
 		}
 
 		next.ServeHTTP(w, r)
+	})
+}
+
+// requestLoggingMiddleware logs all HTTP requests
+func requestLoggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		next.ServeHTTP(w, r)
+		duration := time.Since(start)
+		log.Printf("[%s] %s %s - %v", r.Method, r.URL.Path, r.RemoteAddr, duration)
 	})
 }

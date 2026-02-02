@@ -18,10 +18,10 @@ type TURNHandler struct {
 	config *config.TURNConfig
 }
 
-// NewTURNHandler creates a new TURN handler
-func NewTURNHandler() *TURNHandler {
+// NewTURNHandler creates a new TURN handler with the provided configuration
+func NewTURNHandler(cfg *config.Config) *TURNHandler {
 	return &TURNHandler{
-		config: config.DefaultTURNConfig(),
+		config: cfg.GetTURNConfig(),
 	}
 }
 

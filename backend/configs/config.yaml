@@ -1,0 +1,37 @@
+# Orbital Backend Configuration
+# This file contains default configuration values for the backend server
+# Environment variables can override these values (see config/config.go for env var names)
+
+# Server configuration
+server:
+  port: "8080"
+  mode: "development"  # Options: development, production
+  cors_origins:
+    - "*"
+
+# TURN server configuration for WebRTC
+# These settings control how clients connect to TURN/STUN servers
+turn:
+  shared_secret: "pink-goose"
+  url: "turn:192.168.1.169:3478"
+  tls_url: "turns:192.168.1.169:5349"
+  stun_urls:
+    - "stun:stun.l.google.com:19302"
+    - "stun:stun1.l.google.com:19302"
+  realm: "orbital"
+  credential_lifetime: 86400  # 24 hours in seconds
+
+# Room configuration
+room:
+  min_users: 2
+  max_users: 10
+  default_max_users: 10
+
+# Security configuration
+security:
+  e2e_mode: false  # Enable E2E testing mode (allows test/reset endpoint)
+
+# Logging configuration
+logging:
+  level: "info"  # Options: debug, info, warn, error
+  request_logging: true

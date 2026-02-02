@@ -235,5 +235,6 @@ test/
 
 backend/orbital-server
 backend/server
+backend/main
 certs/
 docker/turndata/
