@@ -38,6 +38,7 @@ The Orbital is a voice chat web application for 5-10 people using WebRTC technol
 ### ⚠️ CRITICAL: API Naming Convention
 **Backend (Go)** uses **snake_case** for JSON field names (`max_users`)
 **Frontend (TypeScript)** uses **camelCase** for property names (`maxUsers`)
+Types coming FROM backend to frontend should have **snake_case**. Do not follow regular frontend convention for this case
 
 **When sending data from Frontend to Backend:**
 - Always convert camelCase to snake_case in the API layer

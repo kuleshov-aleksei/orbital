@@ -1,9 +1,9 @@
 <template>
   <div id="app" class="h-screen bg-gray-900 text-white">
-    <AppLayout />
+    <router-view />
   </div>
 </template>
 
 <script setup lang="ts">
-import AppLayout from '@/components/AppLayout.vue'
+// Router handles component rendering via router-view
 </script>

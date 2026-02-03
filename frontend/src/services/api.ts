@@ -2,6 +2,30 @@ import { Room, User, CreateRoomData, UpdateRoomData, Category, CreateCategoryDat
 
 const API_BASE = '/api'
 
+// Token storage
+let currentToken: string | null = null
+
+export function setAuthToken(token: string | null) {
+  currentToken = token
+  if (token) {
+    localStorage.setItem('orbital_auth_token', token)
+  } else {
+    localStorage.removeItem('orbital_auth_token')
+  }
+}
+
+export function getAuthToken(): string | null {
+  if (!currentToken) {
+    currentToken = localStorage.getItem('orbital_auth_token')
+  }
+  return currentToken
+}
+
+export function clearAuthToken() {
+  currentToken = null
+  localStorage.removeItem('orbital_auth_token')
+}
+
 // TURN server configuration types
 export interface ICEServer {
   urls: string[]
@@ -14,17 +38,37 @@ export interface TURNConfigResponse {
   ttl: number
 }
 
+// Auth response types
+export interface AuthResponse {
+  token: string
+  user: User
+  expires_at: string
+}
+
+export interface AuthStatus {
+  discord_enabled: boolean
+  google_enabled: boolean
+}
+
 // Generic API wrapper with error handling
 async function apiRequest<T>(
   endpoint: string, 
   options: RequestInit = {}
 ): Promise<T> {
   try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...options.headers as Record<string, string>,
+    }
+
+    // Add auth token if available
+    const token = getAuthToken()
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+
     const response = await fetch(`${API_BASE}${endpoint}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+      headers,
       ...options,
     })
 
@@ -132,6 +176,43 @@ export const apiService = {
   async getTurnConfig(userId?: string): Promise<TURNConfigResponse> {
     const endpoint = userId ? `/turn-config?user_id=${userId}` : '/turn-config'
     return apiRequest<TURNConfigResponse>(endpoint)
+  },
+
+  // Auth API calls
+  async initiateDiscordLogin(): Promise<void> {
+    // Redirect to Discord OAuth endpoint
+    window.location.href = `${API_BASE}/auth/discord/login`
+  },
+
+  async initiateGoogleLogin(): Promise<void> {
+    // Redirect to Google OAuth endpoint
+    window.location.href = `${API_BASE}/auth/google/login`
+  },
+
+  async guestLogin(): Promise<AuthResponse> {
+    const response = await apiRequest<AuthResponse>('/auth/guest', {
+      method: 'POST',
+    })
+    // Store token
+    setAuthToken(response.token)
+    return response
+  },
+
+  async logout(): Promise<{ status: string; message: string }> {
+    const response = await apiRequest<{ status: string; message: string }>('/auth/logout', {
+      method: 'POST',
+    })
+    // Clear token
+    clearAuthToken()
+    return response
+  },
+
+  async getCurrentUser(): Promise<User> {
+    return apiRequest<User>('/auth/me')
+  },
+
+  async getAuthStatus(): Promise<AuthStatus> {
+    return apiRequest<AuthStatus>('/auth/status')
   },
 }
 

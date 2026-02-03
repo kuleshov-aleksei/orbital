@@ -8,6 +8,12 @@ const router = createRouter({
       name: 'home',
       component: () => import('@/components/AppLayout.vue'),
     },
+    {
+      path: '/auth/callback',
+      name: 'auth-callback',
+      alias: '/auth/callback/',
+      component: () => import('@/views/AuthCallback.vue'),
+    },
   ],
 })
 

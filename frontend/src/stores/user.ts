@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { apiService, setAuthToken, clearAuthToken } from '@/services/api'
 
 export type AuthProvider = 'guest' | 'discord' | 'google'
 
@@ -9,25 +10,33 @@ export interface UserSession {
   authProvider: AuthProvider
   email?: string
   avatarUrl?: string
+  isGuest: boolean
 }
 
 export const useUserStore = defineStore('user', () => {
   const currentUser = ref<UserSession | null>(null)
   const hasCompletedAuth = ref(false)
+  const token = ref<string | null>(null)
+  
   const userId = computed(() => currentUser.value?.id || '')
   const nickname = computed(() => currentUser.value?.nickname || 'User')
-  const isAuthenticated = computed(() => !!currentUser.value)
+  const isAuthenticated = computed(() => !!currentUser.value && !!token.value)
   const authProvider = computed(() => currentUser.value?.authProvider || 'guest')
   const isLoggedIn = computed(() => authProvider.value !== 'guest')
-  const isGuest = computed(() => authProvider.value === 'guest')
+  const isGuest = computed(() => authProvider.value === 'guest' || currentUser.value?.isGuest === true)
   const email = computed(() => currentUser.value?.email)
   const avatarUrl = computed(() => currentUser.value?.avatarUrl)
 
-  function setUser(user: UserSession) {
+  function setUser(user: UserSession, authToken?: string) {
     currentUser.value = user
+    if (authToken) {
+      token.value = authToken
+      setAuthToken(authToken)
+    }
     localStorage.setItem('orbital_user_id', user.id)
     localStorage.setItem('orbital_user_nickname', user.nickname)
     localStorage.setItem('orbital_auth_provider', user.authProvider)
+    localStorage.setItem('orbital_is_guest', String(user.isGuest))
     if (user.email) {
       localStorage.setItem('orbital_user_email', user.email)
     }
@@ -43,23 +52,46 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
-  function loadUserFromStorage(): UserSession | null {
+  async function loadUserFromStorage(): Promise<UserSession | null> {
+    const storedToken = localStorage.getItem('orbital_auth_token')
     const id = localStorage.getItem('orbital_user_id')
     const nickname = localStorage.getItem('orbital_user_nickname')
     const authProvider = localStorage.getItem('orbital_auth_provider') as AuthProvider | null
+    const isGuestStored = localStorage.getItem('orbital_is_guest')
     const hasCompletedAuthValue = localStorage.getItem('orbital_has_completed_auth')
     
     hasCompletedAuth.value = hasCompletedAuthValue === 'true'
     
-    if (id && nickname && authProvider) {
+    if (storedToken && id && nickname && authProvider) {
+      // Set token for API calls
+      token.value = storedToken
+      setAuthToken(storedToken)
+      
       const user: UserSession = { 
         id, 
         nickname, 
         authProvider,
+        isGuest: isGuestStored === 'true',
         email: localStorage.getItem('orbital_user_email') || undefined,
         avatarUrl: localStorage.getItem('orbital_user_avatar') || undefined
       }
       currentUser.value = user
+      
+      // Try to validate token by fetching current user
+      try {
+        const freshUser = await apiService.getCurrentUser()
+        // Update user data from server (convert snake_case to camelCase)
+        user.email = freshUser.email
+        user.avatarUrl = freshUser.avatar_url
+        user.nickname = freshUser.nickname
+        currentUser.value = { ...user }
+      } catch {
+        // Token might be expired, clear everything
+        console.warn('Token validation failed, clearing auth state')
+        clearUser()
+        return null
+      }
+      
       return user
     }
     return null
@@ -68,43 +100,65 @@ export const useUserStore = defineStore('user', () => {
   function clearUser() {
     currentUser.value = null
     hasCompletedAuth.value = false
+    token.value = null
+    clearAuthToken()
     localStorage.removeItem('orbital_user_id')
     localStorage.removeItem('orbital_user_nickname')
     localStorage.removeItem('orbital_auth_provider')
     localStorage.removeItem('orbital_user_email')
     localStorage.removeItem('orbital_user_avatar')
     localStorage.removeItem('orbital_has_completed_auth')
+    localStorage.removeItem('orbital_is_guest')
   }
 
   async function loginWithProvider(provider: 'discord' | 'google') {
-    // Backend integration placeholder
-    // This will redirect to OAuth provider and handle callback
-    console.log(`[Auth] Initiating login with ${provider}`)
-    // TODO: Implement OAuth flow when backend is ready
+    // Redirect to OAuth provider
+    if (provider === 'discord') {
+      await apiService.initiateDiscordLogin()
+    } else if (provider === 'google') {
+      await apiService.initiateGoogleLogin()
+    }
   }
 
   async function continueAsGuest() {
-    const id = generateUserId()
-    const nickname = generateNickname(id)
-    const user: UserSession = {
-      id,
-      nickname,
-      authProvider: 'guest'
+    try {
+      const response = await apiService.guestLogin()
+      const user: UserSession = {
+        id: response.user.id,
+        nickname: response.user.nickname,
+        authProvider: 'guest',
+        isGuest: true,
+        email: response.user.email,
+        avatarUrl: response.user.avatar_url
+      }
+      setUser(user, response.token)
+      hasCompletedAuth.value = true
+      localStorage.setItem('orbital_has_completed_auth', 'true')
+    } catch (error) {
+      console.error('Guest login failed:', error)
+      throw error
     }
-    setUser(user)
+  }
+
+  async function logout() {
+    try {
+      await apiService.logout()
+    } catch {
+      console.warn('Logout API call failed, clearing locally anyway')
+    }
+    clearUser()
+  }
+
+  // Handle OAuth callback
+  function handleOAuthCallback(tokenStr: string, userData: UserSession) {
+    setUser(userData, tokenStr)
     hasCompletedAuth.value = true
     localStorage.setItem('orbital_has_completed_auth', 'true')
   }
 
-  async function logout() {
-    // Backend integration placeholder
-    console.log('[Auth] Logging out')
-    // TODO: Call backend logout endpoint when ready
-    clearUser()
-  }
-
   return {
     currentUser,
+    token,
     userId,
     nickname,
     email,
@@ -120,14 +174,7 @@ export const useUserStore = defineStore('user', () => {
     clearUser,
     loginWithProvider,
     continueAsGuest,
-    logout
+    logout,
+    handleOAuthCallback
   }
 })
-
-function generateUserId(): string {
-  return 'user_' + Math.random().toString(36).substring(2, 15)
-}
-
-function generateNickname(userId: string): string {
-  return 'Guest-' + userId.substring(0, 5)
-}

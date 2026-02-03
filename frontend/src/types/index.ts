@@ -39,6 +39,12 @@ export interface User {
   is_screen_sharing?: boolean
   screen_share_quality?: ScreenShareQuality
   status: 'online' | 'away' | 'dnd'
+  auth_provider: 'guest' | 'discord' | 'google'
+  is_guest: boolean
+  email?: string
+  avatar_url?: string
+  created_at?: string
+  last_seen?: string
 }
 
 // RoomUser interface - user with room-specific information

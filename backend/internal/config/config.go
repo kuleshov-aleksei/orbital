@@ -18,6 +18,21 @@ type Config struct {
 	Security SecurityConfig `yaml:"security"`
 	Logging  LoggingConfig  `yaml:"logging"`
 	Database DatabaseConfig `yaml:"database"`
+	Auth     AuthConfig     `yaml:"auth"`
+}
+
+// AuthConfig holds OAuth and JWT configuration
+type AuthConfig struct {
+	JWTSecret string              `yaml:"jwt_secret"`
+	Discord   OAuthProviderConfig `yaml:"discord"`
+	Google    OAuthProviderConfig `yaml:"google"`
+}
+
+// OAuthProviderConfig holds OAuth configuration for a specific provider
+type OAuthProviderConfig struct {
+	ClientID     string `yaml:"client_id"`
+	ClientSecret string `yaml:"client_secret"`
+	RedirectURL  string `yaml:"redirect_url"`
 }
 
 // DatabaseConfig holds database-related configuration
@@ -30,6 +45,7 @@ type ServerConfig struct {
 	Port        string   `yaml:"port"`
 	Mode        string   `yaml:"mode"`
 	CORSOrigins []string `yaml:"cors_origins"`
+	ExternalURL string   `yaml:"external_url"`
 }
 
 // TURNConfig holds TURN server configuration
@@ -67,6 +83,7 @@ func DefaultConfig() *Config {
 			Port:        "8080",
 			Mode:        "development",
 			CORSOrigins: []string{"*"},
+			ExternalURL: "http://localhost:5173",
 		},
 		TURN: TURNConfig{
 			SharedSecret:       "pink-goose",
@@ -90,6 +107,19 @@ func DefaultConfig() *Config {
 		},
 		Database: DatabaseConfig{
 			Path: "./data/orbital.db",
+		},
+		Auth: AuthConfig{
+			JWTSecret: "change-this-in-production",
+			Discord: OAuthProviderConfig{
+				ClientID:     "",
+				ClientSecret: "",
+				RedirectURL:  "http://localhost:8080/api/auth/discord/callback",
+			},
+			Google: OAuthProviderConfig{
+				ClientID:     "",
+				ClientSecret: "",
+				RedirectURL:  "http://localhost:8080/api/auth/google/callback",
+			},
 		},
 	}
 }
@@ -140,6 +170,9 @@ func (c *Config) loadFromEnv() {
 	}
 	if v := os.Getenv("SERVER_CORS_ORIGINS"); v != "" {
 		c.Server.CORSOrigins = splitEnvList(v)
+	}
+	if v := os.Getenv("EXTERNAL_URL"); v != "" {
+		c.Server.ExternalURL = v
 	}
 
 	// TURN config
@@ -200,6 +233,33 @@ func (c *Config) loadFromEnv() {
 	if v := os.Getenv("DATABASE_PATH"); v != "" {
 		c.Database.Path = v
 	}
+
+	// Auth config
+	if v := os.Getenv("JWT_SECRET"); v != "" {
+		c.Auth.JWTSecret = v
+	}
+
+	// Discord OAuth config
+	if v := os.Getenv("DISCORD_CLIENT_ID"); v != "" {
+		c.Auth.Discord.ClientID = v
+	}
+	if v := os.Getenv("DISCORD_CLIENT_SECRET"); v != "" {
+		c.Auth.Discord.ClientSecret = v
+	}
+	if v := os.Getenv("DISCORD_REDIRECT_URL"); v != "" {
+		c.Auth.Discord.RedirectURL = v
+	}
+
+	// Google OAuth config
+	if v := os.Getenv("GOOGLE_CLIENT_ID"); v != "" {
+		c.Auth.Google.ClientID = v
+	}
+	if v := os.Getenv("GOOGLE_CLIENT_SECRET"); v != "" {
+		c.Auth.Google.ClientSecret = v
+	}
+	if v := os.Getenv("GOOGLE_REDIRECT_URL"); v != "" {
+		c.Auth.Google.RedirectURL = v
+	}
 }
 
 // splitEnvList splits a comma-separated environment variable into a slice
@@ -247,6 +307,12 @@ func (c *Config) Validate() error {
 	}
 	if c.Room.MaxUsers < c.Room.MinUsers {
 		return fmt.Errorf("room maximum users must be greater than or equal to minimum users")
+	}
+	if c.Auth.JWTSecret == "" {
+		return fmt.Errorf("JWT secret is required")
+	}
+	if c.IsProduction() && c.Auth.JWTSecret == "change-this-in-production" {
+		return fmt.Errorf("default JWT secret must be changed in production")
 	}
 	return nil
 }
@@ -311,6 +377,11 @@ func (c *Config) GetRoomConfig() *RoomSettings {
 // GetDatabaseConfig returns the database configuration section
 func (c *Config) GetDatabaseConfig() *DatabaseConfig {
 	return &c.Database
+}
+
+// GetAuthConfig returns the auth configuration section
+func (c *Config) GetAuthConfig() *AuthConfig {
+	return &c.Auth
 }
 
 // GenerateTURNCredentials generates time-limited TURN credentials

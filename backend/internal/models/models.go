@@ -4,16 +4,30 @@ import (
 	"time"
 )
 
+// AuthProvider represents the authentication provider type
+type AuthProvider string
+
+const (
+	AuthProviderGuest   AuthProvider = "guest"
+	AuthProviderDiscord AuthProvider = "discord"
+	AuthProviderGoogle  AuthProvider = "google"
+)
+
 // User represents a user in the system
 type User struct {
-	ID         string    `json:"id"`
-	Nickname   string    `json:"nickname"`
-	Status     string    `json:"status"` // online, away, dnd
-	IsSpeaking bool      `json:"is_speaking"`
-	IsMuted    bool      `json:"is_muted"`
-	IsDeafened bool      `json:"is_deafened"`
-	CreatedAt  time.Time `json:"created_at"`
-	LastSeen   time.Time `json:"last_seen"`
+	ID           string       `json:"id"`
+	Nickname     string       `json:"nickname"`
+	Status       string       `json:"status"` // online, away, dnd
+	IsSpeaking   bool         `json:"is_speaking"`
+	IsMuted      bool         `json:"is_muted"`
+	IsDeafened   bool         `json:"is_deafened"`
+	CreatedAt    time.Time    `json:"created_at"`
+	LastSeen     time.Time    `json:"last_seen"`
+	AuthProvider AuthProvider `json:"auth_provider"`
+	ProviderID   string       `json:"provider_id,omitempty"`
+	Email        string       `json:"email,omitempty"`
+	AvatarURL    string       `json:"avatar_url,omitempty"`
+	IsGuest      bool         `json:"is_guest"`
 }
 
 // Room represents a voice room
@@ -147,4 +161,30 @@ type RenameCategoryRequest struct {
 type DeleteCategoryRequest struct {
 	DeleteRooms      bool   `json:"delete_rooms"`
 	TargetCategoryID string `json:"target_category_id,omitempty"`
+}
+
+// JWTClaims represents the claims stored in a JWT token
+type JWTClaims struct {
+	UserID       string       `json:"user_id"`
+	Nickname     string       `json:"nickname"`
+	AuthProvider AuthProvider `json:"auth_provider"`
+	Email        string       `json:"email,omitempty"`
+	AvatarURL    string       `json:"avatar_url,omitempty"`
+	IsGuest      bool         `json:"is_guest"`
+}
+
+// AuthResponse represents the response after successful authentication
+type AuthResponse struct {
+	Token     string    `json:"token"`
+	User      User      `json:"user"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// OAuthUserInfo represents user information from OAuth providers
+type OAuthUserInfo struct {
+	ID        string       `json:"id"`
+	Nickname  string       `json:"nickname"`
+	Email     string       `json:"email,omitempty"`
+	AvatarURL string       `json:"avatar_url,omitempty"`
+	Provider  AuthProvider `json:"provider"`
 }

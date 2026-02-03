@@ -1,4 +1,5 @@
 import { WebSocketMessage } from '@/types'
+import { getAuthToken } from './api'
 
 export type MessageCallback = (message: WebSocketMessage) => void
 export type ConnectionCallback = () => void
@@ -216,12 +217,16 @@ export class WebSocketService {
   // Private methods
   private getWebSocketUrl(roomId: string): string {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    return `${protocol}//${window.location.host}/ws/${roomId}`
+    const token = getAuthToken()
+    const baseUrl = `${protocol}//${window.location.host}/ws/${roomId}`
+    return token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl
   }
 
   private getGlobalWebSocketUrl(): string {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    return `${protocol}//${window.location.host}/ws`
+    const token = getAuthToken()
+    const baseUrl = `${protocol}//${window.location.host}/ws`
+    return token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl
   }
 
   private handleMessage(event: MessageEvent): void {

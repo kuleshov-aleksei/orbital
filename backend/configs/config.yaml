@@ -6,6 +6,7 @@
 server:
   port: "8080"
   mode: "development"  # Options: development, production
+  external_url: "http://localhost:5173"  # Frontend URL to redirect after OAuth
   cors_origins:
     - "*"
 
@@ -34,6 +35,18 @@ security:
 # Database configuration
 database:
   path: "./data/orbital.db"  # Path to SQLite database file
+
+# Authentication & OAuth configuration
+auth:
+  jwt_secret: "change-this-in-production"  # Override with JWT_SECRET env var
+  discord:
+    client_id: ""      # Override with DISCORD_CLIENT_ID env var
+    client_secret: ""  # Override with DISCORD_CLIENT_SECRET env var
+    redirect_url: "http://localhost:8080/api/auth/discord/callback"
+  google:
+    client_id: ""      # Override with GOOGLE_CLIENT_ID env var
+    client_secret: ""  # Override with GOOGLE_CLIENT_SECRET env var
+    redirect_url: "http://localhost:8080/api/auth/google/callback"
 
 # Logging configuration
 logging:

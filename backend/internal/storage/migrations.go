@@ -48,6 +48,16 @@ var migrations = []Migration{
 			FOREIGN KEY (category_id) REFERENCES categories(id)
 		);`,
 	},
+	{
+		Version: 4,
+		Name:    "add_oauth_fields_to_users",
+		SQL: `ALTER TABLE users ADD COLUMN auth_provider TEXT DEFAULT 'guest';
+ALTER TABLE users ADD COLUMN provider_id TEXT;
+ALTER TABLE users ADD COLUMN email TEXT;
+ALTER TABLE users ADD COLUMN avatar_url TEXT;
+ALTER TABLE users ADD COLUMN is_guest BOOLEAN DEFAULT 1;
+CREATE INDEX IF NOT EXISTS idx_users_provider ON users(auth_provider, provider_id);`,
+	},
 }
 
 // RunMigrations runs all pending migrations

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 	"github.com/orbital/internal/config"
 	"github.com/orbital/internal/handlers"
 	"github.com/orbital/internal/repository"
@@ -17,6 +18,11 @@ import (
 )
 
 func main() {
+	// Load .env file if it exists (doesn't error if not found)
+	if err := godotenv.Load(".env"); err != nil {
+		log.Printf("Note: .env file not loaded: %v", err)
+	}
+
 	// Parse command-line flags
 	configPath := flag.String("config", "configs/config.yaml", "Path to configuration file")
 	flag.Parse()
@@ -42,6 +48,7 @@ func main() {
 	// Initialize database
 	var categoryService *service.CategoryService
 	var roomService *service.RoomService
+	var userRepo *repository.UserRepository
 
 	if cfg.Database.Path != "" {
 		db, err := storage.NewDB(cfg.Database.Path)
@@ -58,7 +65,7 @@ func main() {
 		// Create repositories
 		categoryRepo := repository.NewCategoryRepository(db)
 		roomRepo := repository.NewRoomRepository(db)
-		userRepo := repository.NewUserRepository(db)
+		userRepo = repository.NewUserRepository(db)
 
 		// Initialize services with repositories
 		categoryService = service.NewCategoryService(categoryRepo)
@@ -84,12 +91,17 @@ func main() {
 	}
 
 	roomService.SetCategoryService(categoryService)
-	wsHub := websocket.NewHub(roomService)
+
+	// Initialize auth service
+	authService := service.NewAuthService(cfg.GetAuthConfig(), userRepo)
+
+	wsHub := websocket.NewHub(roomService, authService)
 
 	// Initialize handlers with config
 	roomHandler := handlers.NewRoomHandler(roomService, categoryService, wsHub)
 	categoryHandler := handlers.NewCategoryHandler(categoryService, roomService, wsHub)
 	turnHandler := handlers.NewTURNHandler(cfg)
+	authHandler := handlers.NewAuthHandler(authService, cfg.Server.ExternalURL)
 
 	// Setup router
 	r := mux.NewRouter()
@@ -101,6 +113,16 @@ func main() {
 
 	// API routes
 	r.HandleFunc("/api/health", healthHandler).Methods("GET")
+
+	// Auth routes
+	r.HandleFunc("/api/auth/discord/login", authHandler.DiscordLogin).Methods("GET")
+	r.HandleFunc("/api/auth/discord/callback", authHandler.DiscordCallback).Methods("GET")
+	r.HandleFunc("/api/auth/google/login", authHandler.GoogleLogin).Methods("GET")
+	r.HandleFunc("/api/auth/google/callback", authHandler.GoogleCallback).Methods("GET")
+	r.HandleFunc("/api/auth/guest", authHandler.GuestLogin).Methods("POST")
+	r.HandleFunc("/api/auth/logout", authHandler.Logout).Methods("POST")
+	r.Handle("/api/auth/me", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.GetCurrentUser))).Methods("GET")
+	r.HandleFunc("/api/auth/status", authHandler.GetAuthStatus).Methods("GET")
 
 	// TURN server configuration route
 	r.HandleFunc("/api/turn-config", turnHandler.GetTURNConfig).Methods("GET")

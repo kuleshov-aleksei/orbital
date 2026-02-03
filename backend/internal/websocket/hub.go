@@ -16,6 +16,7 @@ type Hub struct {
 	clients     map[*Client]bool
 	roomClients map[string]map[*Client]bool // room_id -> clients
 	roomService *service.RoomService
+	authService *service.AuthService
 	upgrader    websocket.Upgrader
 	mu          sync.RWMutex
 }
@@ -30,11 +31,12 @@ type Client struct {
 }
 
 // NewHub creates a new WebSocket hub
-func NewHub(roomService *service.RoomService) *Hub {
+func NewHub(roomService *service.RoomService, authService *service.AuthService) *Hub {
 	return &Hub{
 		clients:     make(map[*Client]bool),
 		roomClients: make(map[string]map[*Client]bool),
 		roomService: roomService,
+		authService: authService,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				return true // Allow all origins for development
@@ -56,6 +58,21 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 		conn:   conn,
 		send:   make(chan []byte, 256),
 		roomID: roomID,
+	}
+
+	// Extract and validate JWT token if auth service is available
+	if h.authService != nil {
+		token := r.URL.Query().Get("token")
+		if token != "" {
+			claims, err := h.authService.ValidateJWT(token)
+			if err != nil {
+				log.Printf("WebSocket token validation failed: %v", err)
+				conn.Close()
+				return
+			}
+			client.userID = claims.UserID
+			log.Printf("WebSocket client authenticated with userID: %s", client.userID)
+		}
 	}
 
 	h.mu.Lock()
