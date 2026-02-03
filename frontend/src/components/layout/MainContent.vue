@@ -22,7 +22,7 @@
       :is-mobile="appStore.isMobile"
       @leave-room="$emit('leave-room')"
       @volume-change="$emit('volume-change', $event)"
-      @nickname-change="$emit('nickname-change', $event)"
+      @nickname-change="(userId, nickname) => $emit('nickname-change', { userId, nickname })"
       @show-room-list="appStore.showRoomsView()"
       @toggle-user-sidebar="appStore.toggleMobileUserSidebar()"
       @ping-update="$emit('ping-update', $event)"

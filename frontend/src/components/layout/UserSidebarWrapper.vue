@@ -7,7 +7,7 @@
     :user-count="roomStore.currentRoomUsers.length"
     :initial-volumes="roomStore.remoteStreamVolumes"
     @volume-change="$emit('volume-change', $event)"
-    @nickname-change="$emit('nickname-change', $event)"
+    @nickname-change="(userId, nickname) => $emit('nickname-change', { userId, nickname })"
   />
 
   <!-- Mobile User Sidebar Overlay -->
@@ -27,7 +27,7 @@
     :initial-volumes="roomStore.remoteStreamVolumes"
     @close-mobile-sidebar="appStore.closeMobileUserSidebar()"
     @volume-change="$emit('volume-change', $event)"
-    @nickname-change="$emit('nickname-change', $event)"
+    @nickname-change="(userId, nickname) => $emit('nickname-change', { userId, nickname })"
   />
 </template>
 
