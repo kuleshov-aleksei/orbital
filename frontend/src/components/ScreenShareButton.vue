@@ -1,24 +1,36 @@
 <template>
-  <button
-    v-if="isScreenShareSupported"
-    type="button"
-    class="control-button"
-    :class="[
-      sizeClasses,
-      isScreenSharing
-        ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
-        : 'bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white'
-    ]"
-    :title="isScreenSharing ? 'Stop Sharing' : 'Share Screen'"
-    @click="toggleScreenShare"
-  >
-    <PhMonitorPlay :class="iconClasses" />
-  </button>
+  <div v-if="isScreenShareSupported" class="relative inline-block">
+    <!-- Screen Share Button -->
+    <button
+      type="button"
+      class="control-button"
+      :class="[
+        sizeClasses,
+        isScreenSharing
+          ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+          : isGuest
+            ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+            : 'bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white'
+      ]"
+      :title="buttonTitle"
+      @click="handleClick"
+    >
+      <PhMonitorPlay :class="iconClasses" />
+    </button>
+    
+    <!-- Lock Icon Overlay for Guests -->
+    <div
+      v-if="isGuest"
+      class="absolute -bottom-1 -right-1 bg-gray-800 rounded-full p-0.5 border border-gray-700"
+    >
+      <PhLock class="w-3 h-3 text-gray-500" />
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { PhMonitorPlay } from '@phosphor-icons/vue'
+import { PhMonitorPlay, PhLock } from '@phosphor-icons/vue'
 import { useCallStore, useUserStore, useRoomStore } from '@/stores'
 import { wsService } from '@/services/websocket'
 import { useScreenShareSupport } from '@/composables/useScreenShareSupport'
@@ -35,6 +47,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
   'start-screen-share': []
+  'auth-required': []
 }>()
 
 // Stores and composables
@@ -42,6 +55,16 @@ const callStore = useCallStore()
 const userStore = useUserStore()
 const roomStore = useRoomStore()
 const { isScreenShareSupported } = useScreenShareSupport()
+
+// Computed properties
+const isGuest = computed(() => userStore.isGuest)
+
+const buttonTitle = computed(() => {
+  if (isGuest.value) {
+    return 'Login required for screensharing'
+  }
+  return isScreenSharing.value ? 'Stop Sharing' : 'Share Screen'
+})
 
 // Computed v-model
 const isScreenSharing = computed({
@@ -76,6 +99,18 @@ const iconClasses = computed(() => {
       return 'w-5 h-5'
   }
 })
+
+// Handle button click
+const handleClick = () => {
+  // If user is a guest, emit auth-required event
+  if (isGuest.value) {
+    emit('auth-required')
+    return
+  }
+  
+  // Otherwise, toggle screen share
+  toggleScreenShare()
+}
 
 // Toggle screen share with WebSocket notification
 const toggleScreenShare = () => {

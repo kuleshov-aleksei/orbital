@@ -28,6 +28,7 @@
             v-model="localScreenSharing" 
             size="sm" 
             @start-screen-share="$emit('start-screen-share')"
+            @auth-required="$emit('auth-required')"
           />
 
           <!-- Leave Room Button -->
@@ -50,6 +51,7 @@
         <div class="flex items-center flex-1 min-w-0">
           <UserAvatar
             :nickname="nickname"
+            :avatar-url="avatarUrl"
             status="online"
             :size="36"
             class="mr-3 flex-shrink-0"
@@ -111,6 +113,7 @@ interface Props {
   modelValueMuted?: boolean
   modelValueDeafened?: boolean
   modelValueScreenSharing?: boolean
+  avatarUrl?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -119,7 +122,8 @@ const props = withDefaults(defineProps<Props>(), {
   connectionQuality: 'excellent',
   modelValueMuted: false,
   modelValueDeafened: false,
-  modelValueScreenSharing: false
+  modelValueScreenSharing: false,
+  avatarUrl: undefined
 })
 
 const emit = defineEmits<{
@@ -127,6 +131,7 @@ const emit = defineEmits<{
   'update:modelValueDeafened': [value: boolean]
   'update:modelValueScreenSharing': [value: boolean]
   'start-screen-share': []
+  'auth-required': []
   'leave-room': []
   'open-settings': []
 }>()

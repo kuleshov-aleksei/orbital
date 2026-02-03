@@ -1,65 +1,72 @@
 <template>
   <div class="app-layout h-screen bg-gray-900 text-white flex flex-col lg:flex-row overflow-hidden">
-    <div class="flex flex-1 overflow-hidden">
-      <!-- Desktop Sidebar -->
-      <DesktopSidebar
-        :active-room-id="roomManager.activeRoomId"
-        @room-selected="roomManager.handleRoomSelected"
-        @create-room="modalManager.openCreateRoomModal()"
-        @create-room-in-category="handleCreateRoomInCategory"
-        @rename-category="handleRenameCategory"
-        @delete-category="handleDeleteCategory"
-        @move-room="handleMoveRoom"
-        @edit-room="handleEditRoom"
-        @delete-room="handleDeleteRoom"
-        @start-screen-share="showScreenShareQualityModal = true"
-        @leave-room="roomManager.handleLeaveRoom"
+    <!-- Auth View - Blocks entire app until user completes auth -->
+    <AuthView v-if="!userStore.hasCompletedAuth" />
+
+    <!-- Main App Content - Only visible after auth -->
+    <template v-else>
+      <div class="flex flex-1 overflow-hidden">
+        <!-- Desktop Sidebar -->
+        <DesktopSidebar
+          :active-room-id="roomManager.activeRoomId"
+          @room-selected="roomManager.handleRoomSelected"
+          @create-room="modalManager.openCreateRoomModal()"
+          @create-room-in-category="handleCreateRoomInCategory"
+          @rename-category="handleRenameCategory"
+          @delete-category="handleDeleteCategory"
+          @move-room="handleMoveRoom"
+          @edit-room="handleEditRoom"
+          @delete-room="handleDeleteRoom"
+          @start-screen-share="showScreenShareQualityModal = true"
+          @auth-required="handleAuthRequired"
+          @leave-room="roomManager.handleLeaveRoom"
+        />
+
+        <!-- Mobile Room List View -->
+        <MobileRoomView
+          :active-room-id="roomManager.activeRoomId"
+          @room-selected-mobile="roomManager.handleRoomSelectedMobile"
+          @create-room="modalManager.openCreateRoomModal()"
+          @create-room-in-category="handleCreateRoomInCategory"
+          @rename-category="handleRenameCategory"
+          @delete-category="handleDeleteCategory"
+          @move-room="handleMoveRoom"
+          @edit-room="handleEditRoom"
+          @delete-room="handleDeleteRoom"
+        />
+
+        <!-- Main Content Area -->
+        <MainContent
+          ref="mainContentRef"
+          @room-selected="roomManager.handleRoomSelected"
+          @create-room="modalManager.openCreateRoomModal()"
+          @leave-room="roomManager.handleLeaveRoom"
+          @volume-change="roomManager.handleVolumeChange"
+          @nickname-change="callControls.handleNicknameChange"
+          @ping-update="callControls.handlePingUpdate"
+          @request-screen-share="showScreenShareQualityModal = true"
+        />
+
+        <!-- User Sidebar (Desktop + Mobile) -->
+        <UserSidebarWrapper
+          @volume-change="roomManager.handleVolumeChange"
+          @nickname-change="callControls.handleNicknameChange"
+        />
+      </div>
+
+      <!-- Overlays (Error, Loading, Mobile) -->
+      <AppOverlays />
+
+      <!-- Modal Manager -->
+      <ModalManager />
+
+      <!-- Screen Share Quality Modal -->
+      <ScreenShareQualityModal
+        :is-open="showScreenShareQualityModal"
+        @select-quality="handleScreenShareQualitySelected"
+        @cancel="showScreenShareQualityModal = false"
       />
-
-      <!-- Mobile Room List View -->
-      <MobileRoomView
-        :active-room-id="roomManager.activeRoomId"
-        @room-selected-mobile="roomManager.handleRoomSelectedMobile"
-        @create-room="modalManager.openCreateRoomModal()"
-        @create-room-in-category="handleCreateRoomInCategory"
-        @rename-category="handleRenameCategory"
-        @delete-category="handleDeleteCategory"
-        @move-room="handleMoveRoom"
-        @edit-room="handleEditRoom"
-        @delete-room="handleDeleteRoom"
-      />
-
-      <!-- Main Content Area -->
-      <MainContent
-        ref="mainContentRef"
-        @room-selected="roomManager.handleRoomSelected"
-        @create-room="modalManager.openCreateRoomModal()"
-        @leave-room="roomManager.handleLeaveRoom"
-        @volume-change="roomManager.handleVolumeChange"
-        @nickname-change="callControls.handleNicknameChange"
-        @ping-update="callControls.handlePingUpdate"
-        @request-screen-share="showScreenShareQualityModal = true"
-      />
-
-      <!-- User Sidebar (Desktop + Mobile) -->
-      <UserSidebarWrapper
-        @volume-change="roomManager.handleVolumeChange"
-        @nickname-change="callControls.handleNicknameChange"
-      />
-    </div>
-
-    <!-- Overlays (Error, Loading, Mobile) -->
-    <AppOverlays />
-
-    <!-- Modal Manager -->
-    <ModalManager />
-
-    <!-- Screen Share Quality Modal -->
-    <ScreenShareQualityModal
-      :is-open="showScreenShareQualityModal"
-      @select-quality="handleScreenShareQualitySelected"
-      @cancel="showScreenShareQualityModal = false"
-    />
+    </template>
   </div>
 </template>
 
@@ -74,6 +81,8 @@ import {
 } from '@/components/layout'
 import ModalManager from '@/components/ModalManager.vue'
 import ScreenShareQualityModal from '@/components/ScreenShareQualityModal.vue'
+import AuthView from '@/views/AuthView.vue'
+import { useUserStore } from '@/stores'
 import { useUserSession, useRoomManager, useCategoryManager, useCallControls, useModalManager } from '@/composables'
 import { useWebSocketHandlers } from '@/composables'
 
@@ -81,7 +90,8 @@ import { useWebSocketHandlers } from '@/composables'
 useUserSession()
 useWebSocketHandlers()
 
-// Get managers
+// Get stores and managers
+const userStore = useUserStore()
 const roomManager = useRoomManager()
 const categoryManager = useCategoryManager()
 const callControls = useCallControls()
@@ -124,10 +134,12 @@ const handleScreenShareQualitySelected = (quality: string, shareAudio: boolean) 
   mainContentRef.value?.voiceCallViewRef?.startScreenShare(quality, shareAudio)
 }
 
-// Initialize data on mount
+// Initialize data on mount (only if authenticated)
 onMounted(async () => {
-  await roomManager.loadRooms()
-  await categoryManager.loadCategories()
+  if (userStore.hasCompletedAuth) {
+    await roomManager.loadRooms()
+    await categoryManager.loadCategories()
+  }
 })
 </script>
 

@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import Icons from 'unplugin-icons/vite'
 import { resolve } from 'path'
 import { readFileSync } from 'fs'
 
@@ -8,7 +9,13 @@ const backendUrl = process.env.VITE_BACKEND_URL || 'http://localhost:8080'
 const backendWsUrl = backendUrl.replace('http://', 'ws://').replace('https://', 'wss://')
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [
+    vue(),
+    Icons({
+      compiler: 'vue3',
+      autoInstall: true
+    })
+  ],
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),

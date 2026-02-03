@@ -1,7 +1,17 @@
 <template>
   <div class="relative" :style="containerStyle">
-    <!-- Avatar Circle -->
+    <!-- Profile Image Avatar -->
+    <img
+      v-if="avatarUrl && !imageError"
+      :src="avatarUrl"
+      :alt="nickname"
+      class="rounded-full object-cover"
+      :style="avatarStyle"
+      @error="handleImageError"
+    />
+    <!-- Initial Avatar Circle (fallback) -->
     <div
+      v-else
       class="rounded-full flex items-center justify-center font-medium"
       :class="avatarClasses"
       :style="avatarStyle"
@@ -19,7 +29,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 type UserStatus = 'online' | 'away' | 'dnd' | 'offline'
 
@@ -29,14 +39,22 @@ interface Props {
   size?: number
   showStatus?: boolean
   bgColor?: string
+  avatarUrl?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   status: 'online',
   size: 32,
   showStatus: true,
-  bgColor: 'bg-indigo-500'
+  bgColor: 'bg-indigo-500',
+  avatarUrl: undefined
 })
+
+const imageError = ref(false)
+
+const handleImageError = () => {
+  imageError.value = true
+}
 
 const initial = computed(() => {
   return props.nickname.charAt(0).toUpperCase()

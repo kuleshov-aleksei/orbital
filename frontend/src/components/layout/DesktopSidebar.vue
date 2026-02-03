@@ -20,11 +20,13 @@
       v-model:model-value-screen-sharing="callStore.isScreenSharing"
       :nickname="userStore.nickname"
       :user-id="userStore.userId"
+      :avatar-url="userStore.avatarUrl"
       :is-in-call="roomStore.isInRoom"
       :room-name="roomStore.activeRoomName"
       :ping="appStore.connectionPing"
       :connection-quality="appStore.connectionQuality"
       @start-screen-share="$emit('start-screen-share')"
+      @auth-required="$emit('auth-required')"
       @leave-room="$emit('leave-room')"
     />
   </div>
@@ -49,6 +51,7 @@ defineEmits<{
   (e: 'edit-room', payload: { roomId: string, roomName: string, maxUsers: number }): void
   (e: 'delete-room', payload: { roomId: string, roomName: string, userCount: number }): void
   (e: 'start-screen-share'): void
+  (e: 'auth-required'): void
   (e: 'leave-room'): void
 }>()
 
