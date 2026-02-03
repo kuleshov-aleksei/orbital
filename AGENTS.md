@@ -68,6 +68,10 @@ The project uses a Makefile for common operations:
 - `make docker-build` - Build Docker images
 - `make docker-up` - Run with Docker Compose
 
+## CRITICAL
+
+There are proper build command: `make build`. **DO NOT TRY TO BUILD FRONTEND AND BACKEND MANUALLY** USING go build and npm build
+
 ## Deployment
 
 - Single binary backend deployment

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/orbital/internal/models"
@@ -134,7 +135,7 @@ func (h *AuthHandler) handleCallback(w http.ResponseWriter, r *http.Request, pro
 	}
 
 	// Redirect to frontend with token (derive frontend URL from request origin or referer)
-	frontendURL := h.getFrontendURL(r)
+	frontendURL := strings.TrimSuffix(h.getFrontendURL(r), "/")
 	redirectURL := frontendURL + "/auth/callback/?token=" + token + "&expires=" + expiry.Format(time.RFC3339)
 	http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 }
