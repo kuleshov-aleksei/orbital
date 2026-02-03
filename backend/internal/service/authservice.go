@@ -232,8 +232,8 @@ func (s *AuthService) CreateOrUpdateUser(oauthInfo *models.OAuthUserInfo) (*mode
 	now := time.Now()
 
 	if existingUser != nil {
-		// Update existing user
-		existingUser.Nickname = oauthInfo.Nickname
+		// Update existing user - preserve custom nickname, only update oauth_nickname
+		existingUser.OAuthNickname = oauthInfo.Nickname
 		existingUser.Email = oauthInfo.Email
 		existingUser.AvatarURL = oauthInfo.AvatarURL
 		existingUser.LastSeen = now
@@ -244,18 +244,19 @@ func (s *AuthService) CreateOrUpdateUser(oauthInfo *models.OAuthUserInfo) (*mode
 		return existingUser, nil
 	}
 
-	// Create new user
+	// Create new user - set both nickname and oauth_nickname to OAuth value
 	user := &models.User{
-		ID:           generateUserID(),
-		Nickname:     oauthInfo.Nickname,
-		Status:       "online",
-		CreatedAt:    now,
-		LastSeen:     now,
-		AuthProvider: oauthInfo.Provider,
-		ProviderID:   oauthInfo.ID,
-		Email:        oauthInfo.Email,
-		AvatarURL:    oauthInfo.AvatarURL,
-		IsGuest:      false,
+		ID:            generateUserID(),
+		Nickname:      oauthInfo.Nickname,
+		OAuthNickname: oauthInfo.Nickname,
+		Status:        "online",
+		CreatedAt:     now,
+		LastSeen:      now,
+		AuthProvider:  oauthInfo.Provider,
+		ProviderID:    oauthInfo.ID,
+		Email:         oauthInfo.Email,
+		AvatarURL:     oauthInfo.AvatarURL,
+		IsGuest:       false,
 	}
 
 	if err := s.userRepo.Create(user); err != nil {

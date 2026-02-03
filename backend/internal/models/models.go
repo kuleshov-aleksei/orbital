@@ -15,19 +15,20 @@ const (
 
 // User represents a user in the system
 type User struct {
-	ID           string       `json:"id"`
-	Nickname     string       `json:"nickname"`
-	Status       string       `json:"status"` // online, away, dnd
-	IsSpeaking   bool         `json:"is_speaking"`
-	IsMuted      bool         `json:"is_muted"`
-	IsDeafened   bool         `json:"is_deafened"`
-	CreatedAt    time.Time    `json:"created_at"`
-	LastSeen     time.Time    `json:"last_seen"`
-	AuthProvider AuthProvider `json:"auth_provider"`
-	ProviderID   string       `json:"provider_id,omitempty"`
-	Email        string       `json:"email,omitempty"`
-	AvatarURL    string       `json:"avatar_url,omitempty"`
-	IsGuest      bool         `json:"is_guest"`
+	ID            string       `json:"id"`
+	Nickname      string       `json:"nickname"`
+	OAuthNickname string       `json:"-"`      // Original OAuth nickname, not exposed to frontend
+	Status        string       `json:"status"` // online, away, dnd
+	IsSpeaking    bool         `json:"is_speaking"`
+	IsMuted       bool         `json:"is_muted"`
+	IsDeafened    bool         `json:"is_deafened"`
+	CreatedAt     time.Time    `json:"created_at"`
+	LastSeen      time.Time    `json:"last_seen"`
+	AuthProvider  AuthProvider `json:"auth_provider"`
+	ProviderID    string       `json:"provider_id,omitempty"`
+	Email         string       `json:"email,omitempty"`
+	AvatarURL     string       `json:"avatar_url,omitempty"`
+	IsGuest       bool         `json:"is_guest"`
 }
 
 // Room represents a voice room

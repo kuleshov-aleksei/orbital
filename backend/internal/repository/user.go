@@ -21,9 +21,9 @@ func NewUserRepository(db *storage.DB) *UserRepository {
 // Create inserts a new user into the database
 func (r *UserRepository) Create(user *models.User) error {
 	_, err := r.db.Exec(
-		`INSERT INTO users (id, nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest) 
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		user.ID, user.Nickname, user.CreatedAt, user.LastSeen,
+		`INSERT INTO users (id, nickname, oauth_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest) 
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		user.ID, user.Nickname, user.OAuthNickname, user.CreatedAt, user.LastSeen,
 		user.AuthProvider, user.ProviderID, user.Email, user.AvatarURL, user.IsGuest,
 	)
 	return err
@@ -34,13 +34,14 @@ func scanUser(scanner interface {
 	Scan(dest ...interface{}) error
 }) (*models.User, error) {
 	user := &models.User{}
-	var providerID, email, avatarURL sql.NullString
+	var providerID, email, avatarURL, oauthNickname sql.NullString
 	var authProvider sql.NullString
 	var isGuest sql.NullBool
 
 	err := scanner.Scan(
 		&user.ID,
 		&user.Nickname,
+		&oauthNickname,
 		&user.CreatedAt,
 		&user.LastSeen,
 		&authProvider,
@@ -68,6 +69,9 @@ func scanUser(scanner interface {
 	if avatarURL.Valid {
 		user.AvatarURL = avatarURL.String
 	}
+	if oauthNickname.Valid {
+		user.OAuthNickname = oauthNickname.String
+	}
 	if isGuest.Valid {
 		user.IsGuest = isGuest.Bool
 	} else {
@@ -80,7 +84,7 @@ func scanUser(scanner interface {
 // GetByID retrieves a user by ID
 func (r *UserRepository) GetByID(id string) (*models.User, error) {
 	user, err := scanUser(r.db.QueryRow(
-		`SELECT id, nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest 
+		`SELECT id, nickname, oauth_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest 
 		 FROM users WHERE id = ?`,
 		id,
 	))
@@ -102,7 +106,7 @@ func (r *UserRepository) GetByProviderID(provider string, providerID string) (*m
 	}
 
 	user, err := scanUser(r.db.QueryRow(
-		`SELECT id, nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest 
+		`SELECT id, nickname, oauth_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest 
 		 FROM users WHERE auth_provider = ? AND provider_id = ?`,
 		provider, providerID,
 	))
@@ -120,8 +124,8 @@ func (r *UserRepository) GetByProviderID(provider string, providerID string) (*m
 // Update updates a user's information
 func (r *UserRepository) Update(user *models.User) error {
 	_, err := r.db.Exec(
-		`UPDATE users SET nickname = ?, last_seen = ?, email = ?, avatar_url = ? WHERE id = ?`,
-		user.Nickname, user.LastSeen, user.Email, user.AvatarURL, user.ID,
+		`UPDATE users SET nickname = ?, oauth_nickname = ?, last_seen = ?, email = ?, avatar_url = ? WHERE id = ?`,
+		user.Nickname, user.OAuthNickname, user.LastSeen, user.Email, user.AvatarURL, user.ID,
 	)
 	return err
 }
@@ -143,7 +147,7 @@ func (r *UserRepository) Delete(id string) error {
 
 // GetAll retrieves all users from the database
 func (r *UserRepository) GetAll() ([]*models.User, error) {
-	rows, err := r.db.Query(`SELECT id, nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest FROM users`)
+	rows, err := r.db.Query(`SELECT id, nickname, oauth_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest FROM users`)
 	if err != nil {
 		return nil, err
 	}
