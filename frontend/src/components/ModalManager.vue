@@ -49,8 +49,8 @@
     @confirm="handleDeleteCategory"
   />
 
-  <!-- User Settings Modal -->
-  <UserAudioSettingsModal v-if="modalStore.isUserSettingsModal" />
+  <!-- Settings Modal -->
+  <SettingsModal v-if="modalStore.isUserSettingsModal" />
 </template>
 
 <script setup lang="ts">
@@ -61,7 +61,7 @@ import EditRoomModal from '@/components/EditRoomModal.vue'
 import ConfirmDeleteRoomModal from '@/components/ConfirmDeleteRoomModal.vue'
 import CategoryModal from '@/components/CategoryModal.vue'
 import ConfirmDeleteCategoryModal from '@/components/ConfirmDeleteCategoryModal.vue'
-import UserAudioSettingsModal from '@/components/UserAudioSettingsModal.vue'
+import SettingsModal from '@/components/settings/SettingsModal.vue'
 
 const modalStore = useModalStore()
 const categoryStore = useCategoryStore()
