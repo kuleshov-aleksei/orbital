@@ -119,6 +119,7 @@
 import { ref, onMounted, onUnmounted, computed, nextTick, useTemplateRef } from 'vue'
 import { PhMicrophoneSlash, PhSpeakerHigh } from '@phosphor-icons/vue'
 import UserAvatar from '@/components/UserAvatar.vue'
+import { useUserStore } from '@/stores'
 
 interface User {
   id: string
@@ -140,8 +141,10 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   'volume-change': [userId: string, volume: number]
-  'nickname-change': [userId: string, nickname: string]
 }>()
+
+// Initialize UserStore
+const userStore = useUserStore()
 
 const showMenu = ref(false)
 const volume = ref(props.initialVolume)
@@ -151,7 +154,7 @@ const nicknameInput = useTemplateRef<HTMLInputElement>('nicknameInput')
 const menuPosition = { x: 0, y: 0 }
 
 // Check if this is the current user (for nickname editing)
-const currentUserId = localStorage.getItem('orbital_user_id')
+const currentUserId = userStore.userId
 const isCurrentUser = computed(() => props.user.id === currentUserId)
 
 const showContextMenu = (event: MouseEvent) => {
@@ -198,8 +201,7 @@ const saveNickname = () => {
   
   const trimmedNickname = editingNickname.value.trim()
   if (trimmedNickname && trimmedNickname !== props.user.nickname) {
-    emit('nickname-change', props.user.id, trimmedNickname)
-    localStorage.setItem('orbital_user_nickname', trimmedNickname)
+    userStore.updateNickname(trimmedNickname)
   }
   isEditingNickname.value = false
 }

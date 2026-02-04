@@ -26,6 +26,12 @@ export function useRoomManager() {
   const joinRoom = async (roomId: string) => {
     const userId = userStore.userId
     
+    if (!userId) {
+      console.error('Cannot join room: no user ID available')
+      appStore.setError('Please authenticate before joining a room')
+      return
+    }
+    
     // Disconnect existing connection if any
     wsService.disconnect()
     

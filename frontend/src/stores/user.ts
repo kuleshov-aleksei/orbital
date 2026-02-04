@@ -17,9 +17,11 @@ export const useUserStore = defineStore('user', () => {
   const currentUser = ref<UserSession | null>(null)
   const hasCompletedAuth = ref(false)
   const token = ref<string | null>(null)
+  const nicknameUpdateStatus = ref<'idle' | 'pending' | 'success' | 'error'>('idle')
+  const nicknameUpdateError = ref<string | null>(null)
   
-  const userId = computed(() => currentUser.value?.id || '')
-  const nickname = computed(() => currentUser.value?.nickname || 'User')
+  const userId = computed(() => currentUser.value?.id ?? '')
+  const nickname = computed(() => currentUser.value?.nickname ?? 'User')
   const isAuthenticated = computed(() => !!currentUser.value && !!token.value)
   const authProvider = computed(() => currentUser.value?.authProvider || 'guest')
   const isLoggedIn = computed(() => authProvider.value !== 'guest')
@@ -28,6 +30,14 @@ export const useUserStore = defineStore('user', () => {
   const avatarUrl = computed(() => currentUser.value?.avatarUrl)
 
   function setUser(user: UserSession, authToken?: string) {
+    // Validate user object
+    if (!user.id || !user.nickname || !user.authProvider || typeof user.isGuest !== 'boolean') {
+      console.error('Invalid user object provided:', user)
+      throw new Error('Invalid user object: missing required fields')
+    }
+
+    console.log('Setting user:', { id: user.id, nickname: user.nickname, authProvider: user.authProvider, isGuest: user.isGuest })
+    
     currentUser.value = user
     if (authToken) {
       token.value = authToken
@@ -35,8 +45,8 @@ export const useUserStore = defineStore('user', () => {
     }
     localStorage.setItem('orbital_user_id', user.id)
     localStorage.setItem('orbital_user_nickname', user.nickname)
-    localStorage.setItem('orbital_auth_provider', user.authProvider)
-    localStorage.setItem('orbital_is_guest', String(user.isGuest))
+    localStorage.setItem('orbital_user_auth_provider', user.authProvider)
+    localStorage.setItem('orbital_user_is_guest', String(user.isGuest))
     if (user.email) {
       localStorage.setItem('orbital_user_email', user.email)
     }
@@ -45,7 +55,49 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
-  function updateNickname(newNickname: string) {
+  async function updateNickname(newNickname: string) {
+    if (!currentUser.value || !currentUser.value.id) {
+      console.error('Cannot update nickname: no current user or user ID missing')
+      return
+    }
+    
+    nicknameUpdateStatus.value = 'pending'
+    nicknameUpdateError.value = null
+
+    try {
+      // Update local state immediately for responsive UI
+      const oldNickname = currentUser.value.nickname
+      currentUser.value.nickname = newNickname
+      localStorage.setItem('orbital_user_nickname', newNickname)
+
+      // Send update to server via WebSocket (real-time)
+      const { wsService } = await import('@/services/websocket')
+      console.log('Sending nickname change:', { userId: currentUser.value.id, newNickname })
+      wsService.changeNickname(currentUser.value.id, newNickname)
+      
+      nicknameUpdateStatus.value = 'success'
+    } catch (error) {
+      console.error('Failed to update nickname:', error)
+      nicknameUpdateError.value = 'Failed to update nickname. Please try again.'
+      nicknameUpdateStatus.value = 'error'
+      
+      // Revert local change on failure
+      if (currentUser.value) {
+        currentUser.value.nickname = localStorage.getItem('orbital_user_nickname') || 'User'
+      }
+      throw error
+    }
+  }
+
+  // Handle nickname updates from other users (received via WebSocket)
+  function updateUserNickname(userId: string, nickname: string) {
+    // This would be called by WebSocket handlers when other users change their nicknames
+    // For now, this is mainly used by RoomStore for updating user lists
+    // Could emit an event or use a shared user state store in the future
+    console.log(`User ${userId} updated nickname to ${nickname}`)
+  }
+
+  function updateNicknameLocally(newNickname: string) {
     if (currentUser.value) {
       currentUser.value.nickname = newNickname
       localStorage.setItem('orbital_user_nickname', newNickname)
@@ -56,8 +108,8 @@ export const useUserStore = defineStore('user', () => {
     const storedToken = localStorage.getItem('orbital_auth_token')
     const id = localStorage.getItem('orbital_user_id')
     const nickname = localStorage.getItem('orbital_user_nickname')
-    const authProvider = localStorage.getItem('orbital_auth_provider') as AuthProvider | null
-    const isGuestStored = localStorage.getItem('orbital_is_guest')
+    const authProvider = localStorage.getItem('orbital_user_auth_provider') as AuthProvider | null
+    const isGuestStored = localStorage.getItem('orbital_user_is_guest')
     const hasCompletedAuthValue = localStorage.getItem('orbital_has_completed_auth')
     
     hasCompletedAuth.value = hasCompletedAuthValue === 'true'
@@ -104,11 +156,11 @@ export const useUserStore = defineStore('user', () => {
     clearAuthToken()
     localStorage.removeItem('orbital_user_id')
     localStorage.removeItem('orbital_user_nickname')
-    localStorage.removeItem('orbital_auth_provider')
+    localStorage.removeItem('orbital_user_auth_provider')
     localStorage.removeItem('orbital_user_email')
     localStorage.removeItem('orbital_user_avatar')
     localStorage.removeItem('orbital_has_completed_auth')
-    localStorage.removeItem('orbital_is_guest')
+    localStorage.removeItem('orbital_user_is_guest')
   }
 
   async function loginWithProvider(provider: 'discord' | 'google') {
@@ -168,8 +220,12 @@ export const useUserStore = defineStore('user', () => {
     isLoggedIn,
     isGuest,
     hasCompletedAuth,
+    nicknameUpdateStatus,
+    nicknameUpdateError,
     setUser,
     updateNickname,
+    updateNicknameLocally,
+    updateUserNickname,
     loadUserFromStorage,
     clearUser,
     loginWithProvider,
