@@ -5,8 +5,10 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/orbital/internal/config"
 	"github.com/orbital/internal/models"
 	"github.com/orbital/internal/service"
 )
@@ -17,32 +19,41 @@ type Hub struct {
 	roomClients map[string]map[*Client]bool // room_id -> clients
 	roomService *service.RoomService
 	authService *service.AuthService
+	cfg         *config.Config
 	upgrader    websocket.Upgrader
 	mu          sync.RWMutex
 }
 
 // Client represents a WebSocket client
 type Client struct {
-	hub    *Hub
-	conn   *websocket.Conn
-	send   chan []byte
-	roomID string
-	userID string
+	hub          *Hub
+	conn         *websocket.Conn
+	send         chan []byte
+	roomID       string
+	userID       string
+	lastPingTime time.Time
+	mu           sync.RWMutex
 }
 
 // NewHub creates a new WebSocket hub
-func NewHub(roomService *service.RoomService, authService *service.AuthService) *Hub {
-	return &Hub{
+func NewHub(roomService *service.RoomService, authService *service.AuthService, cfg *config.Config) *Hub {
+	hub := &Hub{
 		clients:     make(map[*Client]bool),
 		roomClients: make(map[string]map[*Client]bool),
 		roomService: roomService,
 		authService: authService,
+		cfg:         cfg,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				return true // Allow all origins for development
 			},
 		},
 	}
+
+	// Start the ping monitor goroutine
+	go hub.startPingMonitor()
+
+	return hub
 }
 
 // HandleWebSocket handles WebSocket connections
@@ -54,10 +65,11 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 	}
 
 	client := &Client{
-		hub:    h,
-		conn:   conn,
-		send:   make(chan []byte, 256),
-		roomID: roomID,
+		hub:          h,
+		conn:         conn,
+		send:         make(chan []byte, 256),
+		roomID:       roomID,
+		lastPingTime: time.Now(),
 	}
 
 	// Extract and validate JWT token if auth service is available
@@ -70,8 +82,10 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 				conn.Close()
 				return
 			}
+			client.mu.Lock()
 			client.userID = claims.UserID
-			log.Printf("WebSocket client authenticated with userID: %s", client.userID)
+			client.mu.Unlock()
+			log.Printf("WebSocket client authenticated with userID: %s", claims.UserID)
 		}
 	}
 
@@ -84,18 +98,18 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 			h.roomClients[roomID] = make(map[*Client]bool)
 		}
 		h.roomClients[roomID][client] = true
+		client.mu.RLock()
+		userID := client.userID
+		client.mu.RUnlock()
+		log.Printf("WebSocket client connected to room %s (user: %s, total clients: %d)", roomID, userID, len(h.clients))
+	} else {
+		log.Printf("WebSocket client connected for global broadcasts (total clients: %d)", len(h.clients))
 	}
 	h.mu.Unlock()
 
 	// Start goroutines for this client
 	go client.writePump()
 	go client.readPump()
-
-	if roomID != "" {
-		log.Printf("WebSocket client connected to room %s", roomID)
-	} else {
-		log.Printf("WebSocket client connected for global broadcasts")
-	}
 }
 
 // HandleGlobalWebSocket handles WebSocket connections for global broadcasts (not room-specific)
@@ -214,12 +228,15 @@ func (h *Hub) SendToUser(roomID string, userID string, message interface{}) {
 // readPump handles messages from the WebSocket connection
 func (c *Client) readPump() {
 	defer func() {
+		// Remove from hub's client maps, but DO NOT clean up room state
+		// Room cleanup only happens on ping timeout, allowing time for reconnection
 		c.hub.mu.Lock()
 		delete(c.hub.clients, c)
 		if c.hub.roomClients[c.roomID] != nil {
 			delete(c.hub.roomClients[c.roomID], c)
 		}
 		c.hub.mu.Unlock()
+
 		c.conn.Close()
 	}()
 
@@ -299,7 +316,11 @@ func (c *Client) handleJoinRoom(data interface{}) {
 	jsonData, _ := json.Marshal(data)
 	json.Unmarshal(jsonData, &req)
 
+	c.mu.Lock()
 	c.userID = req.UserID
+	c.lastPingTime = time.Now() // Reset ping time on join to prevent immediate timeout
+	c.mu.Unlock()
+
 	_, _, err := c.hub.roomService.JoinRoom(c.roomID, req.UserID, req.Nickname)
 	if err != nil {
 		log.Printf("Error joining room: %v", err)
@@ -324,22 +345,27 @@ func (c *Client) handleJoinRoom(data interface{}) {
 
 // handleLeaveRoom handles user leaving a room
 func (c *Client) handleLeaveRoom(data interface{}) {
-	c.hub.roomService.LeaveRoom(c.roomID, c.userID)
+	c.mu.RLock()
+	userID := c.userID
+	roomID := c.roomID
+	c.mu.RUnlock()
+
+	c.hub.roomService.LeaveRoom(roomID, userID)
 
 	// Broadcast user left message
 	leaveMessage := models.WebSocketMessage{
 		Type: "user_left",
-		Data: map[string]string{"user_id": c.userID},
+		Data: map[string]string{"user_id": userID},
 	}
-	c.hub.BroadcastToRoom(c.roomID, leaveMessage)
+	c.hub.BroadcastToRoom(roomID, leaveMessage)
 
 	// Broadcast updated user list to all remaining users
-	users := c.hub.roomService.GetRoomUsers(c.roomID)
+	users := c.hub.roomService.GetRoomUsers(roomID)
 	usersUpdate := models.WebSocketMessage{
 		Type: "room_users",
 		Data: users,
 	}
-	c.hub.BroadcastToRoom(c.roomID, usersUpdate)
+	c.hub.BroadcastToRoom(roomID, usersUpdate)
 }
 
 // handleICECandidate handles WebRTC ICE candidates
@@ -598,6 +624,18 @@ func (c *Client) handlePing(data interface{}) {
 	jsonData, _ := json.Marshal(data)
 	json.Unmarshal(jsonData, &pingData)
 
+	// Update last ping time
+	c.mu.Lock()
+	c.lastPingTime = time.Now()
+	userID := c.userID
+	roomID := c.roomID
+	c.mu.Unlock()
+
+	// Update ping time in room service (this is what actually matters for timeout detection)
+	if roomID != "" && userID != "" {
+		c.hub.roomService.UpdateUserPingTime(roomID, userID)
+	}
+
 	// Send pong response back to the client with the same timestamp
 	pongMessage := models.WebSocketMessage{
 		Type: "pong",
@@ -612,4 +650,105 @@ func (c *Client) handlePing(data interface{}) {
 func marshalMessage(message interface{}) []byte {
 	data, _ := json.Marshal(message)
 	return data
+}
+
+// startPingMonitor periodically checks for clients that haven't sent pings within the timeout period
+func (h *Hub) startPingMonitor() {
+	// Safety check for config
+	if h.cfg == nil {
+		log.Printf("ERROR: Ping monitor cannot start - config is nil")
+		return
+	}
+
+	log.Printf("Starting ping monitor (timeout: %v, check interval: %v)",
+		h.cfg.WebSocket.PingTimeout, h.cfg.WebSocket.PingCheckInterval)
+
+	ticker := time.NewTicker(h.cfg.WebSocket.PingCheckInterval)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		h.checkPingTimeouts()
+	}
+}
+
+// checkPingTimeouts checks all room members for ping timeouts and removes timed-out users
+func (h *Hub) checkPingTimeouts() {
+	if h.cfg == nil {
+		log.Printf("ERROR: checkPingTimeouts called with nil config")
+		return
+	}
+
+	timeout := h.cfg.WebSocket.PingTimeout
+	if timeout == 0 {
+		log.Printf("ERROR: Ping timeout is 0, using default 30s")
+		timeout = 30 * time.Second
+	}
+
+	// Check for timed-out users using room service (this tracks members, not just connected clients)
+	timedOutUsers := h.roomService.CheckPingTimeouts(timeout)
+
+	if len(timedOutUsers) > 0 {
+		log.Printf("Ping monitor: found %d timed-out users (timeout: %v)", len(timedOutUsers), timeout)
+	}
+
+	// Remove each timed-out user
+	for _, user := range timedOutUsers {
+		log.Printf("Ping timeout for user %s in room %s - removing from room", user.UserID, user.RoomID)
+		h.disconnectUserDueToTimeout(user.RoomID, user.UserID)
+	}
+}
+
+// disconnectUserDueToTimeout removes a user from a room due to ping timeout
+func (h *Hub) disconnectUserDueToTimeout(roomID, userID string) {
+	if userID == "" {
+		log.Printf("WARNING: disconnectUserDueToTimeout called with empty userID for room %s", roomID)
+		return
+	}
+
+	log.Printf("Disconnecting user %s from room %s due to ping timeout", userID, roomID)
+
+	// Get user info before removing them from the room
+	roomUsers := h.roomService.GetRoomUsers(roomID)
+	var leftUser interface{}
+	for _, u := range roomUsers {
+		if u.ID == userID {
+			leftUser = u
+			break
+		}
+	}
+
+	// Remove user from room service
+	h.roomService.LeaveRoom(roomID, userID)
+
+	// Broadcast user_left message globally
+	leaveMessage := models.WebSocketMessage{
+		Type: "user_left",
+		Data: map[string]string{
+			"user_id": userID,
+			"room_id": roomID,
+		},
+	}
+	h.BroadcastToAll(leaveMessage)
+
+	// Broadcast room_user_left message globally (for room list updates)
+	if leftUser != nil {
+		roomUserLeftMessage := models.WebSocketMessage{
+			Type: "room_user_left",
+			Data: map[string]interface{}{
+				"room_id": roomID,
+				"user":    leftUser,
+			},
+		}
+		h.BroadcastToAll(roomUserLeftMessage)
+	}
+
+	// Broadcast updated room users to the room
+	users := h.roomService.GetRoomUsers(roomID)
+	usersUpdate := models.WebSocketMessage{
+		Type: "room_users",
+		Data: users,
+	}
+	h.BroadcastToRoom(roomID, usersUpdate)
+
+	log.Printf("User %s successfully removed from room %s due to ping timeout", userID, roomID)
 }

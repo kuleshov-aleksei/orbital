@@ -256,15 +256,17 @@ func (rs *RoomService) JoinRoom(roomID, userID, nickname string) (*models.User, 
 	}
 
 	if member == nil {
+		now := time.Now()
 		// Create new member only if doesn't exist
 		member = &models.RoomMember{
-			RoomID:     roomID,
-			UserID:     userID,
-			JoinedAt:   time.Now(),
-			Role:       "member",
-			IsSpeaking: false,
-			IsMuted:    false,
-			IsDeafened: false,
+			RoomID:       roomID,
+			UserID:       userID,
+			JoinedAt:     now,
+			Role:         "member",
+			IsSpeaking:   false,
+			IsMuted:      false,
+			IsDeafened:   false,
+			LastPingTime: now,
 		}
 
 		if rs.members[roomID] == nil {
@@ -470,6 +472,50 @@ func (rs *RoomService) UpdateUserNickname(roomID, userID, nickname string) error
 	}
 
 	return &RoomError{Message: "User not found"}
+}
+
+// UpdateUserPingTime updates user's last ping time in a room
+func (rs *RoomService) UpdateUserPingTime(roomID, userID string) {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+
+	if rs.members[roomID] != nil {
+		if member, exists := rs.members[roomID][userID]; exists {
+			member.LastPingTime = time.Now()
+		}
+	}
+
+	if user, exists := rs.users[userID]; exists {
+		user.LastSeen = time.Now()
+	}
+}
+
+// CheckPingTimeouts checks for users who haven't pinged within timeout and returns them
+func (rs *RoomService) CheckPingTimeouts(timeout time.Duration) []struct {
+	RoomID string
+	UserID string
+} {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+
+	now := time.Now()
+	timedOutUsers := make([]struct {
+		RoomID string
+		UserID string
+	}, 0)
+
+	for roomID, members := range rs.members {
+		for userID, member := range members {
+			if now.Sub(member.LastPingTime) > timeout {
+				timedOutUsers = append(timedOutUsers, struct {
+					RoomID string
+					UserID string
+				}{RoomID: roomID, UserID: userID})
+			}
+		}
+	}
+
+	return timedOutUsers
 }
 
 // UpdateRoomCategory updates a room's category

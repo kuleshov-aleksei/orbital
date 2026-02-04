@@ -10,15 +10,22 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// WebSocketConfig holds WebSocket-specific configuration
+type WebSocketConfig struct {
+	PingTimeout       time.Duration `yaml:"ping_timeout"`
+	PingCheckInterval time.Duration `yaml:"ping_check_interval"`
+}
+
 // Config holds all application configuration
 type Config struct {
-	Server   ServerConfig   `yaml:"server"`
-	TURN     TURNConfig     `yaml:"turn"`
-	Room     RoomSettings   `yaml:"room"`
-	Security SecurityConfig `yaml:"security"`
-	Logging  LoggingConfig  `yaml:"logging"`
-	Database DatabaseConfig `yaml:"database"`
-	Auth     AuthConfig     `yaml:"auth"`
+	Server    ServerConfig    `yaml:"server"`
+	TURN      TURNConfig      `yaml:"turn"`
+	Room      RoomSettings    `yaml:"room"`
+	Security  SecurityConfig  `yaml:"security"`
+	Logging   LoggingConfig   `yaml:"logging"`
+	Database  DatabaseConfig  `yaml:"database"`
+	Auth      AuthConfig      `yaml:"auth"`
+	WebSocket WebSocketConfig `yaml:"websocket"`
 }
 
 // AuthConfig holds OAuth and JWT configuration
@@ -120,6 +127,10 @@ func DefaultConfig() *Config {
 				ClientSecret: "",
 				RedirectURL:  "http://localhost:8080/api/auth/google/callback",
 			},
+		},
+		WebSocket: WebSocketConfig{
+			PingTimeout:       30 * time.Second,
+			PingCheckInterval: 10 * time.Second,
 		},
 	}
 }
@@ -259,6 +270,18 @@ func (c *Config) loadFromEnv() {
 	}
 	if v := os.Getenv("GOOGLE_REDIRECT_URL"); v != "" {
 		c.Auth.Google.RedirectURL = v
+	}
+
+	// WebSocket config
+	if v := os.Getenv("WS_PING_TIMEOUT"); v != "" {
+		if timeout, err := time.ParseDuration(v); err == nil {
+			c.WebSocket.PingTimeout = timeout
+		}
+	}
+	if v := os.Getenv("WS_PING_CHECK_INTERVAL"); v != "" {
+		if interval, err := time.ParseDuration(v); err == nil {
+			c.WebSocket.PingCheckInterval = interval
+		}
 	}
 }
 

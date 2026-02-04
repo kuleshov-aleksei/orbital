@@ -53,6 +53,7 @@ type RoomMember struct {
 	IsDeafened         bool      `json:"is_deafened"`
 	IsScreenSharing    bool      `json:"is_screen_sharing"`
 	ScreenShareQuality string    `json:"screen_share_quality"`
+	LastPingTime       time.Time `json:"-"` // Not exposed to frontend, used for timeout detection
 }
 
 // WebSocketMessage represents a WebSocket message

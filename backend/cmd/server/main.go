@@ -95,7 +95,7 @@ func main() {
 	// Initialize auth service
 	authService := service.NewAuthService(cfg.GetAuthConfig(), userRepo)
 
-	wsHub := websocket.NewHub(roomService, authService)
+	wsHub := websocket.NewHub(roomService, authService, cfg)
 
 	// Initialize handlers with config
 	roomHandler := handlers.NewRoomHandler(roomService, categoryService, wsHub)
