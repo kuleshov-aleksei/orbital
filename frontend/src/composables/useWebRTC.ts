@@ -253,6 +253,10 @@ export function useWebRTC(options: UseWebRTCOptions) {
           clearTimeout(reconnectionTimers.value.get(userId)!)
           reconnectionTimers.value.delete(userId)
         }
+        // Clear reconnection state to prevent interference with future reconnections
+        reconnectionInProgress.value.delete(userId)
+        reconnectionHandshakeState.value.set(userId, 'none')
+        reconnectionRequestTime.value.delete(userId)
         webRTCStatsCollector.startCollection(userId, peerConnection)
         console.log(`📊 Started stats collection for ${userId}`)
       } else if (state === 'failed') {
@@ -348,6 +352,13 @@ export function useWebRTC(options: UseWebRTCOptions) {
     // Check if reconnection is already in progress for this user
     if (reconnectionInProgress.value.get(userId)) {
       console.log(`⏸️ Reconnection already in progress for ${userId}`)
+      return
+    }
+
+    // Check if already connected - no need to reconnect
+    const existingConnection = peerConnections.value.get(userId)
+    if (existingConnection && existingConnection.connectionState === 'connected') {
+      console.log(`⏸️ Already connected to ${userId}, skipping reconnection`)
       return
     }
 
@@ -1025,11 +1036,11 @@ export function useWebRTC(options: UseWebRTCOptions) {
         // Clear our request
         reconnectionHandshakeState.value.set(user_id, 'none')
         reconnectionRequestTime.value.delete(user_id)
-        if (reconnectionTimers.value.has(userId)) {
-          clearTimeout(reconnectionTimers.value.get(userId)!)
-          reconnectionTimers.value.delete(userId)
+        if (reconnectionTimers.value.has(user_id)) {
+          clearTimeout(reconnectionTimers.value.get(user_id)!)
+          reconnectionTimers.value.delete(user_id)
         }
-        reconnectionInProgress.value.delete(userId)
+        reconnectionInProgress.value.delete(user_id)
       } else {
         // Same timestamp (extremely unlikely) - tie-break with user ID
         if (getCurrentUserId() < user_id) {
@@ -1074,10 +1085,6 @@ export function useWebRTC(options: UseWebRTCOptions) {
     try {
       // Refresh TURN credentials
       await fetchTURNConfig()
-      
-      // Increment retry counter
-      const currentRetries = peerConnectionRetries.value.get(user_id) || 0
-      peerConnectionRetries.value.set(user_id, currentRetries + 1)
       
       // Create and send offer
       await createOfferForUser(user_id)
