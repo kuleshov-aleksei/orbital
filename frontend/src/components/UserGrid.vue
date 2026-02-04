@@ -14,6 +14,7 @@
           :user-nickname="user.nickname || 'Unknown'"
           :stream="remoteStreams.get(user.id)"
           :connection-state="peerConnectionStates.get(user.id)"
+          :connection-retry-count="peerConnectionRetries.get(user.id) || 0"
           :initial-volume="remoteStreamVolumes.get(user.id) || 80"
           :is-deafened="isDeafened"
           :is-screen-sharing="userScreenShareStates.get(user.id)?.isSharing || false"
@@ -39,6 +40,7 @@ interface Props {
   users: User[]
   remoteStreams: Map<string, MediaStream>
   peerConnectionStates: Map<string, string>
+  peerConnectionRetries: Map<string, number>
   remoteStreamVolumes: Map<string, number>
   userScreenShareStates: Map<string, ScreenShareState>
   peerConnections: Map<string, RTCPeerConnection>

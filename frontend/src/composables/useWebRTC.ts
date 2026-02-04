@@ -43,6 +43,8 @@ export function useWebRTC(options: UseWebRTCOptions) {
   const peerConnectionRetries = ref<Map<string, number>>(new Map())
   const pendingIceCandidates = ref<Map<string, RTCIceCandidateInit[]>>(new Map())
   const currentUserJoinTime = ref<number>(0)
+  const reconnectionTimers = ref<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+  const reconnectionInProgress = ref<Map<string, boolean>>(new Map())
 
   // Screen sharing state
   const isScreenSharing = ref(false)
@@ -67,8 +69,6 @@ export function useWebRTC(options: UseWebRTCOptions) {
 
   // Used to avoid getUserMedia races during offer/answer handling
   let localStreamPromise: Promise<MediaStream | null> | null = null
-
-  const maxRetries = 3
 
   // Debug logging helper
   const addDebugLog = (message: string, level: 'info' | 'warning' | 'error' = 'info', userId?: string) => {
@@ -242,6 +242,11 @@ export function useWebRTC(options: UseWebRTCOptions) {
       if (state === 'connected') {
         console.log(`✅ Successfully connected to ${userId}`)
         peerConnectionRetries.value.set(userId, 0)
+        // Clear any pending reconnection timer on successful connection
+        if (reconnectionTimers.value.has(userId)) {
+          clearTimeout(reconnectionTimers.value.get(userId)!)
+          reconnectionTimers.value.delete(userId)
+        }
         webRTCStatsCollector.startCollection(userId, peerConnection)
         console.log(`📊 Started stats collection for ${userId}`)
       } else if (state === 'failed') {
@@ -320,41 +325,80 @@ export function useWebRTC(options: UseWebRTCOptions) {
     }
   }
 
+  // Schedule reconnection with exponential backoff
+  const scheduleReconnection = async (userId: string) => {
+    if (!currentRoomUsers.value.has(userId)) {
+      console.log(`🧹 User ${userId} left room, cleaning up`)
+      cleanupPeerConnection(userId)
+      return
+    }
+
+    // Check if WebSocket is connected
+    if (!wsService.isConnected()) {
+      console.log(`⏸️ WebSocket not connected, skipping reconnection to ${userId}`)
+      return
+    }
+
+    // Check if reconnection is already in progress for this user
+    if (reconnectionInProgress.value.get(userId)) {
+      console.log(`⏸️ Reconnection already in progress for ${userId}`)
+      return
+    }
+
+    const currentRetries = peerConnectionRetries.value.get(userId) || 0
+    const baseDelay = 200 // Start with 200ms
+    const maxDelay = 3200 // Cap at 3.2 seconds
+    const delay = Math.min(baseDelay * Math.pow(2, currentRetries), maxDelay)
+
+    console.log(`🔄 Scheduling reconnection to ${userId} (attempt ${currentRetries + 1}, delay: ${delay}ms)`)
+
+    // Clear any existing timer
+    if (reconnectionTimers.value.has(userId)) {
+      clearTimeout(reconnectionTimers.value.get(userId)!)
+    }
+
+    const timer = setTimeout(async () => {
+      if (!currentRoomUsers.value.has(userId)) {
+        console.log(`🧹 User ${userId} left room during reconnection delay`)
+        return
+      }
+
+      // Check WebSocket again before attempting reconnection
+      if (!wsService.isConnected()) {
+        console.log(`⏸️ WebSocket not connected, aborting reconnection to ${userId}`)
+        return
+      }
+
+      // Mark reconnection as in progress
+      reconnectionInProgress.value.set(userId, true)
+
+      try {
+        // Refresh TURN credentials before reconnection
+        console.log(`🔄 Refreshing TURN credentials before reconnection to ${userId}`)
+        await fetchTURNConfig()
+
+        peerConnectionRetries.value.set(userId, currentRetries + 1)
+        cleanupPeerConnection(userId)
+        await createOfferForUser(userId)
+      } catch (error) {
+        console.error(`❌ Error during reconnection to ${userId}:`, error)
+      } finally {
+        // Mark reconnection as complete
+        reconnectionInProgress.value.delete(userId)
+      }
+    }, delay)
+
+    reconnectionTimers.value.set(userId, timer)
+  }
+
   // Handle connection failure with retry logic
   const handleConnectionFailure = (userId: string) => {
-    const currentRetries = peerConnectionRetries.value.get(userId) || 0
-
-    if (currentRetries < maxRetries) {
-      console.log(`🔄 Retrying connection to ${userId} (${currentRetries + 1}/${maxRetries})`)
-      peerConnectionRetries.value.set(userId, currentRetries + 1)
-
-      cleanupPeerConnection(userId)
-
-      const delay = Math.pow(2, currentRetries) * 1000
-      setTimeout(() => {
-        if (currentRoomUsers.value.has(userId)) {
-          createOfferForUser(userId)
-        }
-      }, delay)
-    } else {
-      console.error(`❌ Max retries reached for ${userId}, giving up`)
-      cleanupPeerConnection(userId)
-    }
+    scheduleReconnection(userId)
   }
 
   // Handle connection disconnection
   const handleConnectionDisconnection = (userId: string) => {
-    if (currentRoomUsers.value.has(userId)) {
-      console.log(`🔄 User ${userId} still in room, attempting reconnection`)
-      setTimeout(() => {
-        if (currentRoomUsers.value.has(userId)) {
-          createOfferForUser(userId)
-        }
-      }, 2000)
-    } else {
-      console.log(`🧹 User ${userId} left room, cleaning up`)
-      cleanupPeerConnection(userId)
-    }
+    scheduleReconnection(userId)
   }
 
   // Cleanup peer connection
@@ -375,11 +419,28 @@ export function useWebRTC(options: UseWebRTCOptions) {
         audioElement.remove()
       }
 
+      // Clear any pending reconnection timer
+      if (reconnectionTimers.value.has(userId)) {
+        clearTimeout(reconnectionTimers.value.get(userId)!)
+        reconnectionTimers.value.delete(userId)
+      }
+
+      // Clear pending ICE candidates for this user
+      if (pendingIceCandidates.value.has(userId)) {
+        pendingIceCandidates.value.delete(userId)
+        console.log(`🧊 Cleared pending ICE candidates for ${userId}`)
+      }
+
+      // Clear reconnection in progress flag
+      reconnectionInProgress.value.delete(userId)
+
       remoteStreams.value.delete(userId)
       remoteStreamMutes.value.delete(userId)
       peerConnectionStates.value.delete(userId)
-      peerConnectionRetries.value.delete(userId)
-      currentRoomUsers.value.delete(userId)
+      // Note: We intentionally do NOT delete from currentRoomUsers here
+      // This allows reconnection attempts to continue as long as the user
+      // is still in the room according to the server. currentRoomUsers
+      // is managed by handleRoomUsers and handleUserLeft only.
 
       console.log(`✅ Cleaned up peer connection and audio for ${userId}`)
     } catch (error) {
@@ -492,6 +553,11 @@ export function useWebRTC(options: UseWebRTCOptions) {
       let peerConnection = peerConnections.value.get(user_id)
       if (!peerConnection) {
         console.log(`🔗 Creating new peer connection for ${user_id}`)
+        peerConnection = await createPeerConnection(user_id)
+      } else if (peerConnection.connectionState === 'failed' || peerConnection.connectionState === 'closed') {
+        console.log(`🔄 Closing failed peer connection for ${user_id} and creating new one`)
+        peerConnection.close()
+        peerConnections.value.delete(user_id)
         peerConnection = await createPeerConnection(user_id)
       } else if (ensuredStream) {
         const hasAudioSender = peerConnection.getSenders().some((s) => s.track?.kind === 'audio')
@@ -653,6 +719,10 @@ export function useWebRTC(options: UseWebRTCOptions) {
     leftUserIds.forEach(userId => {
       console.log(`👋 User ${userId} left room, cleaning up connection`)
       cleanupPeerConnection(userId)
+      // Actually remove from room users list and clear retry count
+      currentRoomUsers.value.delete(userId)
+      peerConnectionRetries.value.delete(userId)
+      reconnectionInProgress.value.delete(userId)
     })
   }
 
@@ -661,6 +731,10 @@ export function useWebRTC(options: UseWebRTCOptions) {
     const { user_id } = data
     console.log(`User left: ${user_id}`)
     cleanupPeerConnection(user_id)
+    // Actually remove from room users list and clear retry count
+    currentRoomUsers.value.delete(user_id)
+    peerConnectionRetries.value.delete(user_id)
+    reconnectionInProgress.value.delete(user_id)
   }
 
   // Handle mute toggle from AudioStream
@@ -1136,6 +1210,13 @@ export function useWebRTC(options: UseWebRTCOptions) {
       cleanupPeerConnection(userId)
     })
 
+    // Clear all reconnection timers
+    reconnectionTimers.value.forEach((timer) => {
+      clearTimeout(timer)
+    })
+    reconnectionTimers.value.clear()
+    reconnectionInProgress.value.clear()
+
     // Clean up statistics collection
     webRTCStatsCollector.cleanup()
 
@@ -1230,6 +1311,7 @@ export function useWebRTC(options: UseWebRTCOptions) {
     remoteScreenStreams,
     userScreenShareStates,
     currentPing,
+    peerConnectionRetries,
 
     // Computed
     screenShareData,

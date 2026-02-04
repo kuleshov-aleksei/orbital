@@ -73,6 +73,8 @@ export type WebSocketMessageType =
   | 'category_deleted'
   | 'room_updated'
   | 'room_deleted'
+  | 'ping'
+  | 'pong'
 
 export interface WebSocketMessage {
   type: WebSocketMessageType
