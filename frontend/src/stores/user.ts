@@ -66,7 +66,6 @@ export const useUserStore = defineStore('user', () => {
 
     try {
       // Update local state immediately for responsive UI
-      const oldNickname = currentUser.value.nickname
       currentUser.value.nickname = newNickname
       localStorage.setItem('orbital_user_nickname', newNickname)
 

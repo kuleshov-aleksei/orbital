@@ -41,13 +41,12 @@
           @room-selected="roomManager.handleRoomSelected"
           @create-room="modalManager.openCreateRoomModal()"
           @leave-room="roomManager.handleLeaveRoom"
-          @volume-change="roomManager.handleVolumeChange"
           @ping-update="callControls.handlePingUpdate"
           @request-screen-share="showScreenShareQualityModal = true"
         />
 
         <!-- User Sidebar (Desktop + Mobile) -->
-        <UserSidebarWrapper @volume-change="roomManager.handleVolumeChange"
+        <UserSidebarWrapper
         />
       </div>
 

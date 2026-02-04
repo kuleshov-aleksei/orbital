@@ -39,7 +39,6 @@
         :is-visible="isUserGridVisible"
         :screen-share-count="screenShareData.length"
         :peer-connections="peerConnections"
-        @volume-change="handleVolumeChange"
         @mute-toggle="handleMuteToggle"
         @audio-level="handleAudioLevel"
       />
@@ -101,7 +100,6 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   'leave-room': []
-  'volume-change': [userId: string, volume: number]
   'show-room-list': []
   'toggle-user-sidebar': []
   'update:modelValueMuted': [value: boolean]
@@ -153,9 +151,6 @@ const {
   roomName: props.roomName,
   users: props.users,
   remoteStreamVolumes: props.remoteStreamVolumes,
-  onVolumeChange: (userId: string, volume: number) => {
-    emit('volume-change', userId, volume)
-  },
   onPingUpdate: (ping: number, quality: 'excellent' | 'good' | 'fair' | 'poor') => {
     emit('ping-update', ping, quality)
   },
@@ -243,10 +238,7 @@ watch(() => props.roomId, (newRoomId) => {
 }, { immediate: true })
 
 // Event handlers
-const handleVolumeChange = (userId: string, volume: number) => {
-  console.log(`🔊 Volume changed for user ${userId}: ${volume}`)
-  emit('volume-change', userId, volume)
-}
+
 
 // Start screen share wrapper - called by parent (AppLayout)
 const startScreenShareWithQuality = async (quality: string, shareAudio: boolean) => {

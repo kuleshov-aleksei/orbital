@@ -24,6 +24,10 @@ export const useRoomStore = defineStore('room', () => {
     rooms.value.find(r => r.id === roomId)
   )
 
+  const getUserVolume = computed(() => (userId: string) => 
+    remoteStreamVolumes.value.get(userId) ?? 80
+  )
+
   // Actions
   function setRooms(newRooms: Room[]) {
     rooms.value = newRooms
@@ -143,7 +147,16 @@ export const useRoomStore = defineStore('room', () => {
   }
 
   function setUserVolume(userId: string, volume: number) {
-    remoteStreamVolumes.value.set(userId, volume)
+    // Clamp volume to valid range
+    const clampedVolume = Math.max(0, Math.min(100, volume))
+    remoteStreamVolumes.value.set(userId, clampedVolume)
+    
+    // Log for debugging
+    console.log(`Volume updated: User ${userId} → ${clampedVolume}%`)
+  }
+
+  function clearUserVolume(userId: string) {
+    remoteStreamVolumes.value.delete(userId)
   }
 
   function updateCurrentRoomUser(userId: string, updates: Partial<User>) {
@@ -176,6 +189,8 @@ export const useRoomStore = defineStore('room', () => {
     addUserToRoom,
     removeUserFromRoom,
     setUserVolume,
+    clearUserVolume,
+    getUserVolume,
     updateCurrentRoomUser
   }
 })

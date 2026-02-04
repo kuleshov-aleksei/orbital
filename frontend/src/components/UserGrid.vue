@@ -19,7 +19,6 @@
           :is-screen-sharing="userScreenShareStates.get(user.id)?.isSharing || false"
           :screen-share-quality="userScreenShareStates.get(user.id)?.quality"
           :peer-connection="peerConnections.get(user.id)"
-          @volume-change="(userId, volume) => $emit('volume-change', userId, volume)"
           @mute-toggle="(userId, isMuted) => $emit('mute-toggle', userId, isMuted)"
           @audio-level="(userId, level, isSpeaking) => $emit('audio-level', userId, level, isSpeaking)"
         />
@@ -51,7 +50,6 @@ interface Props {
 defineProps<Props>()
 
 defineEmits<{
-  'volume-change': [userId: string, volume: number]
   'mute-toggle': [userId: string, isMuted: boolean]
   'audio-level': [userId: string, level: number, isSpeaking: boolean]
 }>()

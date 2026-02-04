@@ -184,10 +184,6 @@ export function useRoomManager() {
     }
   }
 
-  const handleVolumeChange = (userId: string, volume: number) => {
-    roomStore.setUserVolume(userId, volume)
-  }
-
   return {
     rooms: roomStore.rooms,
     activeRoomId: roomStore.activeRoomId,
@@ -204,7 +200,6 @@ export function useRoomManager() {
     createRoom,
     updateRoom,
     moveRoomToCategory,
-    deleteRoom,
-    handleVolumeChange
+    deleteRoom
   }
 }

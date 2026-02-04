@@ -21,7 +21,6 @@
       :remote-stream-volumes="roomStore.remoteStreamVolumes"
       :is-mobile="appStore.isMobile"
       @leave-room="$emit('leave-room')"
-      @volume-change="$emit('volume-change', $event)"
       @show-room-list="appStore.showRoomsView()"
       @toggle-user-sidebar="appStore.toggleMobileUserSidebar()"
       @ping-update="$emit('ping-update', $event)"
@@ -40,7 +39,6 @@ defineEmits<{
   (e: 'room-selected', roomId: string): void
   (e: 'create-room'): void
   (e: 'leave-room'): void
-  (e: 'volume-change', payload: { userId: string, volume: number }): void
   (e: 'ping-update', payload: { ping: number, quality: 'excellent' | 'good' | 'fair' | 'poor' }): void
   (e: 'request-screen-share'): void
 }>()

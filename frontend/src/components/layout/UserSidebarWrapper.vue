@@ -6,7 +6,6 @@
     :users="roomStore.currentRoomUsers"
     :user-count="roomStore.currentRoomUsers.length"
     :initial-volumes="roomStore.remoteStreamVolumes"
-    @volume-change="$emit('volume-change', $event)"
   />
 
   <!-- Mobile User Sidebar Overlay -->
@@ -25,17 +24,12 @@
     :user-count="roomStore.currentRoomUsers.length"
     :initial-volumes="roomStore.remoteStreamVolumes"
     @close-mobile-sidebar="appStore.closeMobileUserSidebar()"
-    @volume-change="$emit('volume-change', $event)"
   />
 </template>
 
 <script setup lang="ts">
 import { useRoomStore, useAppStore } from '@/stores'
 import UserSidebar from '@/components/UserSidebar.vue'
-
-defineEmits<{
-  (e: 'volume-change', payload: { userId: string, volume: number }): void
-}>()
 
 const roomStore = useRoomStore()
 const appStore = useAppStore()

@@ -133,12 +133,12 @@
           <PhSpeakerHigh class="w-4 h-4 text-gray-400" />
 
           <input
-            v-model="volume"
+            :value="volume"
             type="range"
             min="0"
             max="100"
             class="flex-1 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer"
-            @input="updateVolume"
+            @input="handleVolumeInput"
           />
         </div>
       </div>
@@ -163,6 +163,7 @@
     PhInfo
   } from '@phosphor-icons/vue'
   import { analyzeICEConnection } from '@/services/webrtc-stats'
+  import { useRoomStore } from '@/stores'
   import type { ScreenShareQuality, ICEConnectionType } from '@/types'
 
    interface Props {
@@ -186,15 +187,17 @@
      peerConnection: undefined
    })
 
-const emit = defineEmits<{
-  'volume-change': [userId: string, volume: number]
+ const emit = defineEmits<{
   'mute-toggle': [userId: string, isMuted: boolean]
   'audio-level': [userId: string, level: number, isSpeaking: boolean]
-}>()
+ }>()
+
+ // Initialize RoomStore for volume management
+ const roomStore = useRoomStore()
 
  // Reactive state
  const audioElement = useTemplateRef<HTMLAudioElement>('audioElement')
- const volume = ref(props.initialVolume)
+ const volume = computed(() => roomStore.getUserVolume(props.userId))
  const isMuted = ref(false)
  const audioLevel = ref(0)
  const audioContext = ref<AudioContext | null>(null)
@@ -284,12 +287,19 @@ const emit = defineEmits<{
  }
 
  // Update volume of audio element
- const updateVolume = () => {
-   if (audioElement.value) {
-     audioElement.value.volume = volume.value / 100
-   }
-   emit('volume-change', props.userId, volume.value)
- }
+ const updateVolume = (newVolume: number) => {
+    roomStore.setUserVolume(props.userId, newVolume)
+    
+    if (audioElement.value) {
+      audioElement.value.volume = newVolume / 100
+    }
+  }
+
+  const handleVolumeInput = (event: Event) => {
+    const target = event.target as HTMLInputElement
+    const newVolume = parseInt(target.value)
+    updateVolume(newVolume)
+  }
 
  // Context menu functions
  const showContextMenu = (event: MouseEvent) => {
@@ -387,8 +397,12 @@ const emit = defineEmits<{
     }
   }, { immediate: true })
 
-  // Watch for volume changes
-  watch(volume, updateVolume)
+   // Watch for volume changes from store
+   watch(volume, (newVolume) => {
+     if (audioElement.value) {
+       audioElement.value.volume = newVolume / 100
+     }
+   })
 
    // Watch for deafen state changes
    watch(() => props.isDeafened, (newDeafened) => {
