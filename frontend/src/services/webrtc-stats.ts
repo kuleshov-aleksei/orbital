@@ -437,7 +437,7 @@ export async function analyzeICEConnection(
     }
     
     if (relayProtocol) {
-      result.relayProtocol = relayProtocol as 'udp' | 'tcp' | 'tls'
+      result.relayProtocol = relayProtocol
     }
     
     return result

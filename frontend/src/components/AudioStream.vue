@@ -376,8 +376,8 @@
      // Create Web Audio API context
      audioContext.value = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
      
-     const source = audioContext.value!.createMediaStreamSource(props.stream)
-     analyser.value = audioContext.value!.createAnalyser()
+     const source = audioContext.value.createMediaStreamSource(props.stream)
+     analyser.value = audioContext.value.createAnalyser()
      analyser.value.fftSize = 256
      
      source.connect(analyser.value)

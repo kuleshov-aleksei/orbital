@@ -250,7 +250,7 @@ export function useWebRTC(options: UseWebRTCOptions) {
         peerConnectionRetries.value.set(userId, 0)
         // Clear any pending reconnection timer on successful connection
         if (reconnectionTimers.value.has(userId)) {
-          clearTimeout(reconnectionTimers.value.get(userId)!)
+          clearTimeout(reconnectionTimers.value.get(userId))
           reconnectionTimers.value.delete(userId)
         }
         // Clear reconnection state to prevent interference with future reconnections
@@ -371,7 +371,7 @@ export function useWebRTC(options: UseWebRTCOptions) {
 
     // Clear any existing timer
     if (reconnectionTimers.value.has(userId)) {
-      clearTimeout(reconnectionTimers.value.get(userId)!)
+      clearTimeout(reconnectionTimers.value.get(userId))
     }
 
     const timer = setTimeout(async () => {
@@ -441,7 +441,7 @@ export function useWebRTC(options: UseWebRTCOptions) {
 
       // Clear any pending reconnection timer
       if (reconnectionTimers.value.has(userId)) {
-        clearTimeout(reconnectionTimers.value.get(userId)!)
+        clearTimeout(reconnectionTimers.value.get(userId))
         reconnectionTimers.value.delete(userId)
       }
 
@@ -1037,7 +1037,7 @@ export function useWebRTC(options: UseWebRTCOptions) {
         reconnectionHandshakeState.value.set(user_id, 'none')
         reconnectionRequestTime.value.delete(user_id)
         if (reconnectionTimers.value.has(user_id)) {
-          clearTimeout(reconnectionTimers.value.get(user_id)!)
+          clearTimeout(reconnectionTimers.value.get(user_id))
           reconnectionTimers.value.delete(user_id)
         }
         reconnectionInProgress.value.delete(user_id)
