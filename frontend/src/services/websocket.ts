@@ -129,7 +129,10 @@ export class WebSocketService {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       const message: WebSocketMessage = { type, data }
       this.ws.send(JSON.stringify(message))
-      console.log('Sent WebSocket message:', message)
+
+      if (message.type !== 'ping') {
+        console.log('Sent WebSocket message:', message)
+      }
     } else {
       console.warn('WebSocket not connected, cannot send message:', { type, data })
     }
@@ -232,7 +235,9 @@ export class WebSocketService {
   private handleMessage(event: MessageEvent): void {
     try {
       const message: WebSocketMessage = JSON.parse(event.data)
-      console.log('Received WebSocket message:', message)
+      if (message.type !== 'pong') {
+        console.log('Received WebSocket message:', message)
+      }
 
       // Route message to appropriate callbacks
       const callbacks = this.callbacks.get(message.type)

@@ -302,6 +302,10 @@ func (c *Client) handleMessage(message models.WebSocketMessage) {
 		c.handleScreenShareStop(message.Data)
 	case "ping":
 		c.handlePing(message.Data)
+	case "reconnect_request":
+		c.handleReconnectRequest(message.Data)
+	case "reconnect_ready":
+		c.handleReconnectReady(message.Data)
 	case "room_created":
 		// This is a broadcast message, no action needed on receive
 		log.Printf("Received room_created broadcast")
@@ -437,6 +441,38 @@ func (c *Client) handleSDPAnswer(data interface{}) {
 			Data: data,
 		}
 		c.hub.BroadcastToRoom(c.roomID, answerMessage)
+	}
+}
+
+// handleReconnectRequest handles reconnection handshake step 1/3
+func (c *Client) handleReconnectRequest(data interface{}) {
+	var requestData map[string]interface{}
+	jsonData, _ := json.Marshal(data)
+	json.Unmarshal(jsonData, &requestData)
+
+	if targetUserID, ok := requestData["target_user_id"].(string); ok && targetUserID != "" {
+		log.Printf("Reconnection request from %s to %s", c.userID, targetUserID)
+		requestMessage := models.WebSocketMessage{
+			Type: "reconnect_request",
+			Data: data,
+		}
+		c.hub.SendToUser(c.roomID, targetUserID, requestMessage)
+	}
+}
+
+// handleReconnectReady handles reconnection handshake step 2/3
+func (c *Client) handleReconnectReady(data interface{}) {
+	var readyData map[string]interface{}
+	jsonData, _ := json.Marshal(data)
+	json.Unmarshal(jsonData, &readyData)
+
+	if targetUserID, ok := readyData["target_user_id"].(string); ok && targetUserID != "" {
+		log.Printf("Reconnection ready from %s to %s", c.userID, targetUserID)
+		readyMessage := models.WebSocketMessage{
+			Type: "reconnect_ready",
+			Data: data,
+		}
+		c.hub.SendToUser(c.roomID, targetUserID, readyMessage)
 	}
 }
 

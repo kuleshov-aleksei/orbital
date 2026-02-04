@@ -18,6 +18,8 @@
 
             <span v-else-if="connectionState === 'connecting'" class="text-yellow-400">Connecting...</span>
 
+            <span v-else-if="connectionRetryCount > 0" class="text-yellow-400">Reconnecting ({{ connectionRetryCount }})...</span>
+
             <span v-else class="text-gray-400">{{ connectionState || 'Unknown' }}</span>
           </div>
         </div>
@@ -171,6 +173,7 @@
      userNickname: string
      stream: MediaStream | null
      connectionState?: string
+     connectionRetryCount?: number
      initialVolume?: number
      isDeafened?: boolean
      isScreenSharing?: boolean
@@ -180,6 +183,7 @@
 
    const props = withDefaults(defineProps<Props>(), {
      connectionState: 'disconnected',
+     connectionRetryCount: 0,
      initialVolume: 80,
      isDeafened: false,
      isScreenSharing: false,

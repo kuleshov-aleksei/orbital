@@ -33,6 +33,7 @@
         :users="users"
         :remote-streams="remoteStreams"
         :peer-connection-states="peerConnectionStates"
+        :peer-connection-retries="peerConnectionRetries"
         :remote-stream-volumes="props.remoteStreamVolumes"
         :user-screen-share-states="userScreenShareStates"
         :is-deafened="isDeafened"
@@ -134,6 +135,7 @@ const {
   remoteStreams,
   peerConnections,
   peerConnectionStates,
+  peerConnectionRetries,
   isScreenSharing,
   userScreenShareStates,
   screenShareData,
