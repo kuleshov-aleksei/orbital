@@ -45,6 +45,12 @@ export function useWebRTC(options: UseWebRTCOptions) {
   const currentUserJoinTime = ref<number>(0)
   const reconnectionTimers = ref<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   const reconnectionInProgress = ref<Map<string, boolean>>(new Map())
+  
+  // 3-way handshake reconnection state
+  // 'none' | 'request_sent' | 'ready_received' - tracks where we are in the handshake
+  const reconnectionHandshakeState = ref<Map<string, 'none' | 'request_sent' | 'ready_received'>>(new Map())
+  // Timestamp of when we sent reconnect_request (for tie-breaking in race condition)
+  const reconnectionRequestTime = ref<Map<string, number>>(new Map())
 
   // Screen sharing state
   const isScreenSharing = ref(false)
@@ -373,18 +379,21 @@ export function useWebRTC(options: UseWebRTCOptions) {
       reconnectionInProgress.value.set(userId, true)
 
       try {
-        // Refresh TURN credentials before reconnection
-        console.log(`🔄 Refreshing TURN credentials before reconnection to ${userId}`)
-        await fetchTURNConfig()
-
-        peerConnectionRetries.value.set(userId, currentRetries + 1)
-        cleanupPeerConnection(userId)
-        await createOfferForUser(userId)
+        // Step 1: Send reconnect_request to initiate 3-way handshake
+        console.log(`🔄 Step 1/3: Sending reconnect_request to ${userId}`)
+        const requestTime = Date.now()
+        reconnectionRequestTime.value.set(userId, requestTime)
+        reconnectionHandshakeState.value.set(userId, 'request_sent')
+        
+        wsService.sendMessage('reconnect_request', {
+          target_user_id: userId,
+          user_id: getCurrentUserId(),
+          request_time: requestTime
+        })
       } catch (error) {
         console.error(`❌ Error during reconnection to ${userId}:`, error)
-      } finally {
-        // Mark reconnection as complete
         reconnectionInProgress.value.delete(userId)
+        reconnectionHandshakeState.value.set(userId, 'none')
       }
     }, delay)
 
@@ -433,6 +442,10 @@ export function useWebRTC(options: UseWebRTCOptions) {
 
       // Clear reconnection in progress flag
       reconnectionInProgress.value.delete(userId)
+      
+      // Clear handshake state
+      reconnectionHandshakeState.value.delete(userId)
+      reconnectionRequestTime.value.delete(userId)
 
       remoteStreams.value.delete(userId)
       remoteStreamMutes.value.delete(userId)
@@ -989,6 +1002,97 @@ export function useWebRTC(options: UseWebRTCOptions) {
     // TODO: Handle speaking status updates if needed
   }
 
+  // Handle reconnection handshake request (Step 1/3)
+  const onReconnectRequestMessage = (message: WebSocketMessage) => {
+    const data = message.data as { user_id: string; target_user_id: string; request_time: number }
+    const { user_id, request_time } = data
+    
+    console.log(`📨 Received reconnect_request from ${user_id} at ${request_time}`)
+    
+    // Check if we also sent a request (race condition)
+    const ourRequestTime = reconnectionRequestTime.value.get(user_id)
+    const ourState = reconnectionHandshakeState.value.get(user_id) || 'none'
+    
+    if (ourState === 'request_sent' && ourRequestTime) {
+      // Both sides sent request simultaneously - tie-breaker needed
+      if (ourRequestTime < request_time) {
+        // We sent first, we win - ignore their request and wait for their ready
+        console.log(`🤝 Race condition: We sent first (${ourRequestTime} < ${request_time}), waiting for their ready`)
+        return
+      } else if (ourRequestTime > request_time) {
+        // They sent first, they win - abort our request and respond to theirs
+        console.log(`🤝 Race condition: They sent first (${request_time} < ${ourRequestTime}), aborting our request and responding`)
+        // Clear our request
+        reconnectionHandshakeState.value.set(user_id, 'none')
+        reconnectionRequestTime.value.delete(user_id)
+        if (reconnectionTimers.value.has(userId)) {
+          clearTimeout(reconnectionTimers.value.get(userId)!)
+          reconnectionTimers.value.delete(userId)
+        }
+        reconnectionInProgress.value.delete(userId)
+      } else {
+        // Same timestamp (extremely unlikely) - tie-break with user ID
+        if (getCurrentUserId() < user_id) {
+          console.log(`🤝 Race condition: Same timestamp, we win by user ID`)
+          return
+        } else {
+          console.log(`🤝 Race condition: Same timestamp, they win by user ID`)
+          reconnectionHandshakeState.value.set(user_id, 'none')
+          reconnectionRequestTime.value.delete(user_id)
+        }
+      }
+    }
+    
+    // Step 2: Clean up and send reconnect_ready
+    console.log(`🔄 Step 2/3: Cleaning up and sending reconnect_ready to ${user_id}`)
+    cleanupPeerConnection(user_id)
+    
+    wsService.sendMessage('reconnect_ready', {
+      target_user_id: user_id,
+      user_id: getCurrentUserId()
+    })
+  }
+
+  // Handle reconnection handshake ready (Step 2/3)
+  const onReconnectReadyMessage = async (message: WebSocketMessage) => {
+    const data = message.data as { user_id: string; target_user_id: string }
+    const { user_id } = data
+    
+    console.log(`📨 Received reconnect_ready from ${user_id}`)
+    
+    // Verify we're in the right state
+    const currentState = reconnectionHandshakeState.value.get(user_id)
+    if (currentState !== 'request_sent') {
+      console.log(`⚠️ Unexpected reconnect_ready from ${user_id} (state: ${currentState}), ignoring`)
+      return
+    }
+    
+    // Step 3: Create offer with fresh TURN credentials
+    console.log(`🔄 Step 3/3: Creating offer for ${user_id}`)
+    reconnectionHandshakeState.value.set(user_id, 'ready_received')
+    
+    try {
+      // Refresh TURN credentials
+      await fetchTURNConfig()
+      
+      // Increment retry counter
+      const currentRetries = peerConnectionRetries.value.get(user_id) || 0
+      peerConnectionRetries.value.set(user_id, currentRetries + 1)
+      
+      // Create and send offer
+      await createOfferForUser(user_id)
+      
+      console.log(`✅ Reconnection handshake completed for ${user_id}`)
+    } catch (error) {
+      console.error(`❌ Error creating offer during reconnection to ${user_id}:`, error)
+    } finally {
+      // Reset handshake state
+      reconnectionHandshakeState.value.set(user_id, 'none')
+      reconnectionRequestTime.value.delete(user_id)
+      reconnectionInProgress.value.delete(user_id)
+    }
+  }
+
   const onScreenShareStartMessage = (message: WebSocketMessage) => {
     console.log('📨 Received screen_share_start message:', message)
     handleScreenShareStart(message.data as ScreenShareData)
@@ -1178,6 +1282,8 @@ export function useWebRTC(options: UseWebRTCOptions) {
     wsService.on('screen_share_start', onScreenShareStartMessage)
     wsService.on('screen_share_stop', onScreenShareStopMessage)
     wsService.on('pong', onPongMessage)
+    wsService.on('reconnect_request', onReconnectRequestMessage)
+    wsService.on('reconnect_ready', onReconnectReadyMessage)
 
     // Initialize WebRTC
     await initializeWebRTC()
@@ -1204,6 +1310,8 @@ export function useWebRTC(options: UseWebRTCOptions) {
     wsService.off('screen_share_start', onScreenShareStartMessage)
     wsService.off('screen_share_stop', onScreenShareStopMessage)
     wsService.off('pong', onPongMessage)
+    wsService.off('reconnect_request', onReconnectRequestMessage)
+    wsService.off('reconnect_ready', onReconnectReadyMessage)
 
     // Clean up all peer connections
     peerConnections.value.forEach((connection, userId) => {
@@ -1216,6 +1324,8 @@ export function useWebRTC(options: UseWebRTCOptions) {
     })
     reconnectionTimers.value.clear()
     reconnectionInProgress.value.clear()
+    reconnectionHandshakeState.value.clear()
+    reconnectionRequestTime.value.clear()
 
     // Clean up statistics collection
     webRTCStatsCollector.cleanup()
