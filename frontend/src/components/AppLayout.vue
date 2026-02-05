@@ -127,7 +127,10 @@ const handleDeleteRoom = (payload: { roomId: string, roomName: string, userCount
 
 const handleScreenShareQualitySelected = (quality: string, shareAudio: boolean) => {
   showScreenShareQualityModal.value = false
-  mainContentRef.value?.voiceCallViewRef?.startScreenShare(quality, shareAudio)
+  const voiceCallView = mainContentRef.value?.voiceCallViewRef
+  if (voiceCallView && 'startScreenShare' in voiceCallView) {
+    void voiceCallView.startScreenShare(quality, shareAudio)
+  }
 }
 
 // Initialize data on mount (only if authenticated)

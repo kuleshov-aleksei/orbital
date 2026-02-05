@@ -10,13 +10,13 @@ export function useWebSocketHandlers() {
 
   const setupWebSocketListeners = () => {
     // Room users updates
-    wsService.on('room_users', (message: WebSocketMessage) => {
-      roomStore.setCurrentRoomUsers(message.data as User[])
+    wsService.on('room_users', (message: WebSocketMessage<User[]>) => {
+      roomStore.setCurrentRoomUsers(message.data)
     })
 
     // Speaking status updates
-    wsService.on('speaking_status', (message: WebSocketMessage) => {
-      const statusData = message.data as { user_id: string; is_speaking: boolean; is_muted?: boolean }
+    wsService.on('speaking_status', (message: WebSocketMessage<{ user_id: string; is_speaking: boolean; is_muted?: boolean }>) => {
+      const statusData = message.data
       roomStore.updateCurrentRoomUser(statusData.user_id, { 
         is_speaking: statusData.is_speaking,
         is_muted: statusData.is_muted
@@ -28,37 +28,37 @@ export function useWebSocketHandlers() {
     })
 
     // Mute status updates
-    wsService.on('mute_status', (message: WebSocketMessage) => {
-      const statusData = message.data as { user_id: string; is_muted: boolean }
+    wsService.on('mute_status', (message: WebSocketMessage<{ user_id: string; is_muted: boolean }>) => {
+      const statusData = message.data
       roomStore.updateCurrentRoomUser(statusData.user_id, { is_muted: statusData.is_muted })
       roomStore.updateUserStatus(statusData.user_id, { is_muted: statusData.is_muted })
     })
 
     // Deafen status updates
-    wsService.on('deafen_status', (message: WebSocketMessage) => {
-      const statusData = message.data as { user_id: string; is_deafened: boolean }
+    wsService.on('deafen_status', (message: WebSocketMessage<{ user_id: string; is_deafened: boolean }>) => {
+      const statusData = message.data
       console.log('Room deafen_status received:', statusData)
       roomStore.updateCurrentRoomUser(statusData.user_id, { is_deafened: statusData.is_deafened })
       roomStore.updateUserStatus(statusData.user_id, { is_deafened: statusData.is_deafened })
     })
 
     // Screen share start
-    wsService.on('screen_share_start', (message: WebSocketMessage) => {
-      const shareData = message.data as { user_id: string; quality: string }
+    wsService.on('screen_share_start', (message: WebSocketMessage<{ user_id: string; quality: string }>) => {
+      const shareData = message.data
       roomStore.updateCurrentRoomUser(shareData.user_id, { is_screen_sharing: true, screen_share_quality: shareData.quality })
       roomStore.updateUserStatus(shareData.user_id, { is_screen_sharing: true })
     })
 
     // Screen share stop
-    wsService.on('screen_share_stop', (message: WebSocketMessage) => {
-      const stopData = message.data as { user_id: string }
+    wsService.on('screen_share_stop', (message: WebSocketMessage<{ user_id: string }>) => {
+      const stopData = message.data
       roomStore.updateCurrentRoomUser(stopData.user_id, { is_screen_sharing: false })
       roomStore.updateUserStatus(stopData.user_id, { is_screen_sharing: false })
     })
 
     // Nickname change updates
-    wsService.on('nickname_change', (message: WebSocketMessage) => {
-      const nicknameData = message.data as { user_id: string; nickname: string }
+    wsService.on('nickname_change', (message: WebSocketMessage<{ user_id: string; nickname: string }>) => {
+      const nicknameData = message.data
       roomStore.updateCurrentRoomUser(nicknameData.user_id, { nickname: nicknameData.nickname })
       roomStore.updateUserNickname(nicknameData.user_id, nicknameData.nickname)
     })
@@ -77,71 +77,71 @@ export function useWebSocketHandlers() {
 
   const setupGlobalWebSocketListeners = () => {
     // Room creation
-    wsService.onGlobal('room_created', (message: WebSocketMessage) => {
-      const newRoom = message.data as Room
+    wsService.onGlobal('room_created', (message: WebSocketMessage<Room>) => {
+      const newRoom = message.data
       console.log('Received room_created event:', newRoom)
       roomStore.addRoom(newRoom)
       console.log('Added new room to list:', newRoom.name)
     })
 
     // Global status updates
-    wsService.onGlobal('speaking_status', (message: WebSocketMessage) => {
-      const statusData = message.data as { user_id: string; is_speaking: boolean; is_muted?: boolean }
+    wsService.onGlobal('speaking_status', (message: WebSocketMessage<{ user_id: string; is_speaking: boolean; is_muted?: boolean }>) => {
+      const statusData = message.data
       roomStore.updateUserStatus(statusData.user_id, {
         is_speaking: statusData.is_speaking,
         is_muted: statusData.is_muted
       })
     })
 
-    wsService.onGlobal('mute_status', (message: WebSocketMessage) => {
-      const statusData = message.data as { user_id: string; is_muted: boolean }
+    wsService.onGlobal('mute_status', (message: WebSocketMessage<{ user_id: string; is_muted: boolean }>) => {
+      const statusData = message.data
       roomStore.updateUserStatus(statusData.user_id, { is_muted: statusData.is_muted })
     })
 
-    wsService.onGlobal('deafen_status', (message: WebSocketMessage) => {
-      const statusData = message.data as { user_id: string; is_deafened: boolean }
+    wsService.onGlobal('deafen_status', (message: WebSocketMessage<{ user_id: string; is_deafened: boolean }>) => {
+      const statusData = message.data
       console.log('Global deafen_status received:', statusData)
       roomStore.updateUserStatus(statusData.user_id, { is_deafened: statusData.is_deafened })
     })
 
     // Screen share updates for sidebar
-    wsService.onGlobal('screen_share_start', (message: WebSocketMessage) => {
-      const shareData = message.data as { user_id: string; quality: string }
+    wsService.onGlobal('screen_share_start', (message: WebSocketMessage<{ user_id: string; quality: string }>) => {
+      const shareData = message.data
       roomStore.updateUserStatus(shareData.user_id, { is_screen_sharing: true })
     })
 
-    wsService.onGlobal('screen_share_stop', (message: WebSocketMessage) => {
-      const stopData = message.data as { user_id: string }
+    wsService.onGlobal('screen_share_stop', (message: WebSocketMessage<{ user_id: string }>) => {
+      const stopData = message.data
       roomStore.updateUserStatus(stopData.user_id, { is_screen_sharing: false })
     })
 
     // Nickname changes
-    wsService.onGlobal('nickname_change', (message: WebSocketMessage) => {
-      const nicknameData = message.data as { user_id: string; nickname: string }
+    wsService.onGlobal('nickname_change', (message: WebSocketMessage<{ user_id: string; nickname: string }>) => {
+      const nicknameData = message.data
       roomStore.updateUserNickname(nicknameData.user_id, nicknameData.nickname)
     })
 
     // Room user joined
-    wsService.onGlobal('room_user_joined', (message: WebSocketMessage) => {
-      const data = message.data as { room_id: string; user: User }
+    wsService.onGlobal('room_user_joined', (message: WebSocketMessage<{ room_id: string; user: User }>) => {
+      const data = message.data
       roomStore.addUserToRoom(data.room_id, data.user)
     })
 
     // Room user left
-    wsService.onGlobal('room_user_left', (message: WebSocketMessage) => {
-      const data = message.data as { room_id: string; user: User }
+    wsService.onGlobal('room_user_left', (message: WebSocketMessage<{ room_id: string; user: User }>) => {
+      const data = message.data
       roomStore.removeUserFromRoom(data.room_id, data.user.id)
     })
 
     // Category events
-    wsService.onGlobal('category_created', (message: WebSocketMessage) => {
-      const newCategory = message.data as Category
+    wsService.onGlobal('category_created', (message: WebSocketMessage<Category>) => {
+      const newCategory = message.data
       console.log('Received category_created event:', newCategory)
       categoryStore.addCategory(newCategory)
     })
 
-    wsService.onGlobal('category_renamed', (message: WebSocketMessage) => {
-      const updatedCategory = message.data as Category
+    wsService.onGlobal('category_renamed', (message: WebSocketMessage<Category>) => {
+      const updatedCategory = message.data
       console.log('Received category_renamed event:', updatedCategory)
       const oldCategory = categoryStore.getCategoryById(updatedCategory.id)
       if (oldCategory) {
@@ -150,13 +150,13 @@ export function useWebSocketHandlers() {
       }
     })
 
-    wsService.onGlobal('category_deleted', (message: WebSocketMessage) => {
-      const data = message.data as { 
-        category_id: string
-        deleted_rooms: boolean
-        migrated_rooms: string[]
-        target_category_id: string 
-      }
+    wsService.onGlobal('category_deleted', (message: WebSocketMessage<{ 
+      category_id: string
+      deleted_rooms: boolean
+      migrated_rooms: string[]
+      target_category_id: string 
+    }>) => {
+      const data = message.data
       console.log('Received category_deleted event:', data)
       const deletedCategory = categoryStore.getCategoryById(data.category_id)
       
@@ -167,16 +167,16 @@ export function useWebSocketHandlers() {
     })
 
     // Room updates
-    wsService.onGlobal('room_updated', (message: WebSocketMessage) => {
-      const data = message.data as { room_id: string; room: Room; old_category: string }
+    wsService.onGlobal('room_updated', (message: WebSocketMessage<{ room_id: string; room: Room; old_category: string }>) => {
+      const data = message.data
       console.log('Received room_updated event:', data)
       roomStore.updateRoom(data.room_id, data.room)
       console.log('Updated room:', data.room.name)
     })
 
     // Room deletion
-    wsService.onGlobal('room_deleted', (message: WebSocketMessage) => {
-      const data = message.data as { room_id: string; category: string }
+    wsService.onGlobal('room_deleted', (message: WebSocketMessage<{ room_id: string; category: string }>) => {
+      const data = message.data
       console.log('Received room_deleted event:', data)
       roomStore.removeRoom(data.room_id)
       console.log('Deleted room:', data.room_id)
@@ -212,7 +212,7 @@ export function useWebSocketHandlers() {
   onMounted(() => {
     setupWebSocketListeners()
     setupGlobalWebSocketListeners()
-    connectGlobalWebSocket()
+    void connectGlobalWebSocket()
   })
 
   onUnmounted(() => {

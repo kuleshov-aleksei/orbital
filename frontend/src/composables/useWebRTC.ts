@@ -197,7 +197,7 @@ export function useWebRTC(options: UseWebRTCOptions) {
   }
 
   // Create peer connection for a user
-  const createPeerConnection = async (userId: string): Promise<RTCPeerConnection> => {
+  const createPeerConnection = (userId: string): RTCPeerConnection => {
     const configuration: RTCConfiguration = {
       iceServers: iceServers.value
     }
@@ -336,7 +336,7 @@ export function useWebRTC(options: UseWebRTCOptions) {
   }
 
   // Schedule reconnection with exponential backoff
-  const scheduleReconnection = async (userId: string) => {
+  const scheduleReconnection = (userId: string) => {
     if (!currentRoomUsers.value.has(userId)) {
       console.log(`🧹 User ${userId} left room, cleaning up`)
       cleanupPeerConnection(userId)
@@ -725,7 +725,7 @@ export function useWebRTC(options: UseWebRTCOptions) {
       if (shouldCreateOffer) {
         console.log(`🔗 Creating connection with newer user ${user.id} (${userNickname})`)
         addDebugLog(`Creating connection with newer user ${user.id}`, 'info', user.id)
-        createOfferForUser(user.id)
+        void createOfferForUser(user.id)
         updateConnectionState(user.id, 'connecting')
       } else if (alreadyConnected) {
         console.log(`✅ Connection to ${user.id} already exists`)
@@ -987,17 +987,17 @@ export function useWebRTC(options: UseWebRTCOptions) {
   // WebSocket message handlers (must be stable references)
   const onIceCandidateMessage = (message: WebSocketMessage) => {
     console.log('📨 Received ice_candidate message:', message)
-    handleIceCandidate(message.data as { user_id: string; candidate: RTCIceCandidateInit })
+    void handleIceCandidate(message.data as { user_id: string; candidate: RTCIceCandidateInit })
   }
 
   const onSdpOfferMessage = (message: WebSocketMessage) => {
     console.log('📨 Received sdp_offer message:', message)
     addDebugLog('WebSocket received sdp_offer', 'info')
-    handleSdpOffer(message.data as { user_id: string; sdp: RTCSessionDescriptionInit })
+    void handleSdpOffer(message.data as { user_id: string; sdp: RTCSessionDescriptionInit })
   }
 
   const onSdpAnswerMessage = (message: WebSocketMessage) => {
-    handleSdpAnswer(message.data as { user_id: string; sdp: RTCSessionDescriptionInit })
+    void handleSdpAnswer(message.data as { user_id: string; sdp: RTCSessionDescriptionInit })
   }
 
   const onRoomUsersMessage = (message: WebSocketMessage) => {
@@ -1065,7 +1065,7 @@ export function useWebRTC(options: UseWebRTCOptions) {
   }
 
   // Handle reconnection handshake ready (Step 2/3)
-  const onReconnectReadyMessage = async (message: WebSocketMessage) => {
+  const onReconnectReadyMessage = (message: WebSocketMessage) => {
     const data = message.data as { user_id: string; target_user_id: string }
     const { user_id } = data
     
@@ -1082,22 +1082,25 @@ export function useWebRTC(options: UseWebRTCOptions) {
     console.log(`🔄 Step 3/3: Creating offer for ${user_id}`)
     reconnectionHandshakeState.value.set(user_id, 'ready_received')
     
-    try {
-      // Refresh TURN credentials
-      await fetchTURNConfig()
-      
-      // Create and send offer
-      await createOfferForUser(user_id)
-      
-      console.log(`✅ Reconnection handshake completed for ${user_id}`)
-    } catch (error) {
-      console.error(`❌ Error creating offer during reconnection to ${user_id}:`, error)
-    } finally {
-      // Reset handshake state
-      reconnectionHandshakeState.value.set(user_id, 'none')
-      reconnectionRequestTime.value.delete(user_id)
-      reconnectionInProgress.value.delete(user_id)
-    }
+    // Handle async operations
+    void (async () => {
+      try {
+        // Refresh TURN credentials
+        await fetchTURNConfig()
+        
+        // Create and send offer
+        await createOfferForUser(user_id)
+        
+        console.log(`✅ Reconnection handshake completed for ${user_id}`)
+      } catch (error) {
+        console.error(`❌ Error creating offer during reconnection to ${user_id}:`, error)
+      } finally {
+        // Reset handshake state
+        reconnectionHandshakeState.value.set(user_id, 'none')
+        reconnectionRequestTime.value.delete(user_id)
+        reconnectionInProgress.value.delete(user_id)
+      }
+    })()
   }
 
   const onScreenShareStartMessage = (message: WebSocketMessage) => {

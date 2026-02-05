@@ -281,8 +281,8 @@ const formatConstraintValue = (value: unknown): string => {
   // Handle constraint objects like { ideal: 48000 } or { exact: 48000 }
   if (typeof value === 'object' && value !== null) {
     const obj = value as Record<string, unknown>
-    if ('ideal' in obj) return `ideal: ${obj.ideal}`
-    if ('exact' in obj) return `exact: ${obj.exact}`
+    if ('ideal' in obj) return `ideal: ${String(obj.ideal)}`
+    if ('exact' in obj) return `exact: ${String(obj.exact)}`
     return JSON.stringify(value)
   }
   

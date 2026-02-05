@@ -196,12 +196,12 @@ const startEditingNickname = () => {
   })
 }
 
-const saveNickname = () => {
+const saveNickname = async () => {
   if (!isCurrentUser.value) return
   
   const trimmedNickname = editingNickname.value.trim()
   if (trimmedNickname && trimmedNickname !== props.user.nickname) {
-    userStore.updateNickname(trimmedNickname)
+    await userStore.updateNickname(trimmedNickname)
   }
   isEditingNickname.value = false
 }

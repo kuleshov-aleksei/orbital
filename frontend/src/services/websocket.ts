@@ -1,7 +1,7 @@
 import { WebSocketMessage } from '@/types'
 import { getAuthToken } from './api'
 
-export type MessageCallback = (message: WebSocketMessage) => void
+export type MessageCallback<T = unknown> = (message: WebSocketMessage<T>) => void
 export type ConnectionCallback = () => void
 export type DisconnectionCallback = (event: CloseEvent) => void
 

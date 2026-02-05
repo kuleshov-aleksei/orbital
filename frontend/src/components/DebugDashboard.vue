@@ -181,7 +181,7 @@ const connectionIssues = computed(() => {
       })
     })
   } catch (error) {
-    console.warn('Error computing connection issues:', error)
+    console.warn('Error computing connection issues:', error instanceof Error ? error.message : String(error))
   }
   
   return issues
@@ -206,7 +206,7 @@ const onTabChange = (tabId: string) => {
   try {
     activeTab.value = tabId as typeof activeTab.value
   } catch (error) {
-    console.error('Error switching tab:', error)
+    console.error('Error switching tab:', error instanceof Error ? error.message : String(error))
     addLog('Failed to switch tab', 'error')
   }
 }
@@ -269,7 +269,7 @@ const updateNetworkInfo = () => {
     
     networkInfo.value = info
   } catch (error) {
-    console.warn('Error updating network info:', error)
+    console.warn('Error updating network info:', error instanceof Error ? error.message : String(error))
   }
 }
 
@@ -306,7 +306,7 @@ defineExpose({
 onMounted(() => {
   // Update network info periodically
   updateInterval.value = window.setInterval(() => {
-    updateNetworkInfo()
+    void updateNetworkInfo()
   }, 2000)
   
   // Add initial log

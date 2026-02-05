@@ -38,40 +38,42 @@ export class WebRTCStatsCollector {
       let bytesSent = 0
       let jitter = 0
       let roundTripTime = 0
-      let uploadBandwidth = 0
+      const uploadBandwidth = 0
       const downloadBandwidth = 0
       let audioLevel = 0
       const connectionState = peerConnection.connectionState
 
-      stats.forEach(report => {
+      stats.forEach((report: RTCStatsReport[keyof RTCStatsReport]) => {
         switch (report.type) {
-          case 'inbound-rtp':
-            if (report.mediaType === 'audio') {
-              packetsLost = report.packetsLost || 0
-              packetsReceived = report.packetsReceived || 0
-              bytesReceived = report.bytesReceived || 0
-              jitter = report.jitter || 0
-              audioLevel = (report.audioLevel || 0) * 127 // Convert to 0-127 range
+          case 'inbound-rtp': {
+            const inboundReport = report as RTCInboundRtpStreamStats
+            if (inboundReport.mediaType === 'audio') {
+              packetsLost = inboundReport.packetsLost || 0
+              packetsReceived = inboundReport.packetsReceived || 0
+              bytesReceived = inboundReport.bytesReceived || 0
+              jitter = inboundReport.jitter || 0
+              audioLevel = (inboundReport.audioLevel || 0) * 127 // Convert to 0-127 range
             }
             break
-            
-          case 'outbound-rtp':
-            if (report.mediaType === 'audio') {
-              packetsSent = report.packetsSent || 0
-              bytesSent = report.bytesSent || 0
-              // Calculate bandwidth from bitrate if available
-              if (report.bitrate) {
-                uploadBandwidth = report.bitrate / 1000 // Convert to kbps
-              }
+          }
+
+          case 'outbound-rtp': {
+            const outboundReport = report as RTCOutboundRtpStreamStats
+            if (outboundReport.mediaType === 'audio') {
+              packetsSent = outboundReport.packetsSent || 0
+              bytesSent = outboundReport.bytesSent || 0
             }
             break
-            
-          case 'remote-inbound-rtp':
-            if (report.mediaType === 'audio') {
-              roundTripTime = report.roundTripTime || 0
+          }
+
+          case 'remote-inbound-rtp': {
+            const remoteInboundReport = report as RTCRemoteInboundRtpStreamStats
+            if (remoteInboundReport.mediaType === 'audio') {
+              roundTripTime = remoteInboundReport.roundTripTime || 0
             }
             break
-            
+          }
+
           case 'transport':
             // Additional transport stats can be collected here
             break
@@ -348,20 +350,24 @@ export async function analyzeICEConnection(
     let selectedPair: RTCStatsReport[keyof RTCStatsReport] | null = null
     let transport: RTCStatsReport[keyof RTCStatsReport] | null = null
     
-    stats.forEach((report) => {
+    stats.forEach((report: RTCStatsReport[keyof RTCStatsReport]) => {
       // Store local/remote candidate stats
       if (report.type === 'local-candidate' || report.type === 'remote-candidate') {
-        candidates.set(report.id, report)
+        const candidateReport = report as RTCIceCandidateStats
+        candidates.set(candidateReport.id, candidateReport)
       }
-      
+
       // Find selected candidate pair
-      if (report.type === 'candidate-pair' && report.selected) {
-        selectedPair = report
+      if (report.type === 'candidate-pair') {
+        const pairReport = report as RTCIceCandidatePairStats
+        if (pairReport.selected) {
+          selectedPair = pairReport
+        }
       }
-      
+
       // Find transport (may contain selected candidate pair reference)
       if (report.type === 'transport') {
-        transport = report
+        transport = report as RTCTransportStats
       }
     })
     
@@ -382,32 +388,33 @@ export async function analyzeICEConnection(
         remoteType: 'unknown'
       }
     }
-    
+
     // Get the local and remote candidates from the selected pair
-    const localCandidate = selectedPair.localCandidateId 
-      ? candidates.get(selectedPair.localCandidateId) 
-      : null
-    const remoteCandidate = selectedPair.remoteCandidateId 
-      ? candidates.get(selectedPair.remoteCandidateId) 
-      : null
-    
+    const pairStats = selectedPair as RTCIceCandidatePairStats
+    const localCandidate = pairStats.localCandidateId
+      ? candidates.get(pairStats.localCandidateId) as RTCIceCandidateStats | undefined
+      : undefined
+    const remoteCandidate = pairStats.remoteCandidateId
+      ? candidates.get(pairStats.remoteCandidateId) as RTCIceCandidateStats | undefined
+      : undefined
+
     if (!localCandidate) {
       return {
         type: 'unknown',
         usingTURN: false,
         localType: 'unknown',
-        remoteType: remoteCandidate?.candidateType || 'unknown'
+        remoteType: remoteCandidate?.candidateType ?? 'unknown'
       }
     }
-    
-    const localType = localCandidate.candidateType || 'unknown'
-    const remoteType = remoteCandidate?.candidateType || 'unknown'
-    
+
+    const localType = localCandidate.candidateType ?? 'unknown'
+    const remoteType = remoteCandidate?.candidateType ?? 'unknown'
+
     // Determine connection type based on local candidate
     let connectionType: ICEConnectionType['type']
     let usingTURN = false
     let relayProtocol: ICEConnectionType['relayProtocol']
-    
+
     switch (localType) {
       case 'host':
         connectionType = 'host'
@@ -421,8 +428,8 @@ export async function analyzeICEConnection(
         connectionType = 'relay'
         usingTURN = true
         // Determine relay protocol from local candidate
-        relayProtocol = localCandidate.relayProtocol || 
-                       localCandidate.protocol || 'udp'
+        relayProtocol = (localCandidate).relayProtocol ??
+                       localCandidate.protocol ?? 'udp'
         break
       default:
         connectionType = 'unknown'

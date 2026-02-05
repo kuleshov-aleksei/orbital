@@ -276,10 +276,10 @@
    // Update immediately (don't wait for interval)
    await updateConnectionInfo()
    
-   // Then poll every 3 seconds
-   connectionInfoInterval.value = window.setInterval(() => {
-     updateConnectionInfo()
-   }, 3000)
+    // Then poll every 3 seconds
+    connectionInfoInterval.value = window.setInterval(() => {
+      void updateConnectionInfo()
+    }, 3000)
  }
 
  // Stop polling
@@ -394,7 +394,7 @@
     if (newStream && audioElement.value) {
       console.log(`🎵 Setting stream for user ${props.userId}:`, newStream)
       audioElement.value.srcObject = newStream
-      audioElement.value.play().catch(error => {
+      void audioElement.value.play().catch((error: Error) => {
         console.warn(`Audio play failed for user ${props.userId}:`, error)
       })
       setupAudioAnalysis()

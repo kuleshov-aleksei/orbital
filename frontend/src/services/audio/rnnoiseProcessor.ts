@@ -7,6 +7,11 @@ import rnnoiseWasmPath from '@sapphi-red/web-noise-suppressor/rnnoise.wasm?url'
 import rnnoiseSimdWasmPath from '@sapphi-red/web-noise-suppressor/rnnoise_simd.wasm?url'
 import rnnoiseWorkletPath from '@sapphi-red/web-noise-suppressor/rnnoiseWorklet.js?url'
 
+// Type assertions for imported URLs
+const wasmPath = rnnoiseWasmPath as string
+const simdWasmPath = rnnoiseSimdWasmPath as string
+const workletPath = rnnoiseWorkletPath as string
+
 /**
  * RNNoise Processor
  * High-quality ML-based noise suppression, requires 48kHz sample rate
@@ -26,8 +31,8 @@ export class RNNoiseProcessor extends WebNoiseSuppressorProcessor {
     try {
       this.wasmBinary = await loadRnnoise(
         {
-          url: rnnoiseWasmPath,
-          simdUrl: rnnoiseSimdWasmPath,
+          url: wasmPath,
+          simdUrl: simdWasmPath,
         },
         { credentials: 'same-origin' }
       )
@@ -53,7 +58,7 @@ export class RNNoiseProcessor extends WebNoiseSuppressorProcessor {
     })
 
     // Add the worklet module
-    await this.audioContext.audioWorklet.addModule(rnnoiseWorkletPath)
+    await this.audioContext.audioWorklet.addModule(workletPath)
 
     // Create source from stream
     const source = this.audioContext.createMediaStreamSource(stream)

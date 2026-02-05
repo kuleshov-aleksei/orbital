@@ -449,6 +449,6 @@ async function handleLogout() {
 onMounted(() => {
   audioStore.loadSettings()
   selectedAlgorithm.value = audioStore.noiseSuppressionAlgorithm
-  checkMicrophoneSupport()
+  void checkMicrophoneSupport()
 })
 </script>

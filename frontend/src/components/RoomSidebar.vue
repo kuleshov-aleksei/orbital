@@ -246,7 +246,7 @@ const categorizedRooms = computed(() => {
     const categoryId = room.category
     // Look up category name from the categories list
     const category = categories.value?.find((c) => c.id === categoryId)
-    const categoryName = category?.name || room.categoryName || categoryId
+    const categoryName = category?.name || room.category_name || categoryId
 
     if (!categoryRoomMap.has(categoryId)) {
       categoryRoomMap.set(categoryId, { id: categoryId, name: categoryName, rooms: [] })

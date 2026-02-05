@@ -5,9 +5,9 @@ import { generateUserId, generateNickname } from '@/services/api'
 export function useUserSession() {
   const userStore = useUserStore()
 
-  const initializeUser = () => {
+  const initializeUser = async () => {
     // Try to load from localStorage first
-    const existingUser = userStore.loadUserFromStorage()
+    const existingUser = await userStore.loadUserFromStorage()
     
     if (!existingUser) {
       // Create new user if none exists
@@ -24,20 +24,20 @@ export function useUserSession() {
     return userStore.userId
   }
 
-  const getCurrentUserId = (): string => {
+  const getCurrentUserId = async (): Promise<string> => {
     if (!userStore.isAuthenticated) {
-      return initializeUser()
+      return await initializeUser()
     }
     return userStore.userId
   }
 
-  const updateNickname = (nickname: string) => {
-    userStore.updateNickname(nickname)
+  const updateNickname = async (nickname: string) => {
+    await userStore.updateNickname(nickname)
   }
 
   // Auto-initialize on mount
   onMounted(() => {
-    initializeUser()
+    void initializeUser()
   })
 
   return {

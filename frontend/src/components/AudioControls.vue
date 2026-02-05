@@ -94,7 +94,10 @@ const toggleSettings = () => {
 
 // Confirm screen share start (called by parent after quality selection)
 const confirmStartScreenShare = (quality: ScreenShareQuality, hasAudio: boolean) => {
-  screenShareButtonRef.value?.confirmStartScreenShare(quality, hasAudio)
+  const button = screenShareButtonRef.value
+  if (button && 'confirmStartScreenShare' in button) {
+    button.confirmStartScreenShare(quality, hasAudio)
+  }
 }
 
 // Expose for parent component
