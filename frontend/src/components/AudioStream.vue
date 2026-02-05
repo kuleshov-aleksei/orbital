@@ -1,20 +1,33 @@
 <template>
   <div 
-    class="audio-stream relative bg-gray-800 rounded-lg p-3 border border-gray-600"
+    class="audio-stream relative rounded-lg p-3 border-2"
+    :class="isCurrentUser ? 'bg-indigo-900/30 border-indigo-500' : 'bg-gray-800 border-gray-600'"
     @contextmenu="showContextMenu"
   >
     <!-- User Info Header -->
     <div class="flex items-center justify-between mb-3">
       <div class="flex items-center">
-        <div class="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-sm font-bold text-white mr-3">
+        <div 
+          class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white mr-3"
+          :class="isCurrentUser ? 'bg-indigo-500' : 'bg-indigo-600'"
+        >
           {{ userNickname.charAt(0).toUpperCase() }}
         </div>
 
         <div>
-          <div class="text-white font-medium">{{ userNickname }}</div>
+          <div class="text-white font-medium flex items-center gap-2">
+            {{ userNickname }}
+          </div>
 
           <div class="text-xs text-gray-400">
-            <span v-if="connectionState === 'connected'" class="text-green-400">Connected</span>
+            <span 
+              v-if="isCurrentUser" 
+              class="text-xs px-2 py-0.5 bg-indigo-500 text-white rounded-full"
+            >
+              You
+            </span>
+
+            <span v-else-if="connectionState === 'connected'" class="text-green-400">Connected</span>
 
             <span v-else-if="connectionState === 'connecting'" class="text-yellow-400">Connecting...</span>
 
@@ -179,6 +192,7 @@
      isScreenSharing?: boolean
      screenShareQuality?: ScreenShareQuality
      peerConnection?: RTCPeerConnection
+     isCurrentUser?: boolean
    }
 
    const props = withDefaults(defineProps<Props>(), {
@@ -188,7 +202,8 @@
      isDeafened: false,
      isScreenSharing: false,
      screenShareQuality: '1080p30',
-     peerConnection: undefined
+     peerConnection: undefined,
+     isCurrentUser: false
    })
 
  const emit = defineEmits<{

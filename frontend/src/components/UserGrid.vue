@@ -20,6 +20,7 @@
           :is-screen-sharing="userScreenShareStates.get(user.id)?.isSharing || false"
           :screen-share-quality="userScreenShareStates.get(user.id)?.quality"
           :peer-connection="peerConnections.get(user.id)"
+          :is-current-user="user.id === currentUserId"
           @mute-toggle="(userId, isMuted) => $emit('mute-toggle', userId, isMuted)"
           @audio-level="(userId, level, isSpeaking) => $emit('audio-level', userId, level, isSpeaking)"
         />
@@ -32,8 +33,10 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import AudioStream from '@/components/AudioStream.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import { useUserStore } from '@/stores'
 import type { User, ScreenShareState } from '@/types'
 
 interface Props {
@@ -55,4 +58,9 @@ defineEmits<{
   'mute-toggle': [userId: string, isMuted: boolean]
   'audio-level': [userId: string, level: number, isSpeaking: boolean]
 }>()
+
+const userStore = useUserStore()
+
+const currentUserId = computed(() => userStore.userId)
+
 </script>
