@@ -1,6 +1,10 @@
 <template>
   <div class="debug-dashboard">
-    <DebugToggle :is-visible="isVisible" @toggle="toggleDashboard" />
+    <DebugToggle
+      v-if="!hideToggleButton"
+      :is-visible="isVisible"
+      @toggle="toggleDashboard"
+    />
 
     <!-- Debug Panel -->
     <Transition name="slide-up">
@@ -57,12 +61,31 @@ interface Props {
   localStream?: MediaStream | null
   localScreenShares?: ScreenShareDebugInfo[]
   remoteScreenShares?: ScreenShareDebugInfo[]
+  modelValueVisible?: boolean
+  hideToggleButton?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  modelValueVisible: undefined,
+  hideToggleButton: false
+})
 
-// Component state
-const isVisible = ref(false)
+const emit = defineEmits<{
+  'update:modelValueVisible': [value: boolean]
+}>()
+
+// Component state - use v-model if provided, otherwise internal state
+const internalVisible = ref(false)
+const isVisible = computed({
+  get: () => props.modelValueVisible !== undefined ? props.modelValueVisible : internalVisible.value,
+  set: (value) => {
+    if (props.modelValueVisible !== undefined) {
+      emit('update:modelValueVisible', value)
+    } else {
+      internalVisible.value = value
+    }
+  }
+})
 const activeTab = ref<'metrics' | 'network' | 'screen-share' | 'logs' | 'issues' | 'ice-candidates' | 'audio'>('metrics')
 const connectionLogs = ref<ConnectionLog[]>([])
 const networkInfo = ref<Map<string, DebugInfo>>(new Map())
@@ -294,12 +317,11 @@ const clearLogs = () => {
   connectionLogs.value = []
 }
 
-
-
-// Expose methods to parent components
+// Expose methods for external control
 defineExpose({
   addLog,
-  clearLogs
+  clearLogs,
+  toggleDashboard
 })
 
 // Lifecycle

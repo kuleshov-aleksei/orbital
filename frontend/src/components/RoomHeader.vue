@@ -106,17 +106,13 @@
           <span class="text-sm">{{ userCount }}</span>
         </button>
         
-        <!-- Desktop: Connection Status and Settings -->
+        <!-- Desktop: Connection Status -->
         <template v-if="!isMobile">
           <div class="flex items-center text-sm">
             <div class="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
 
             <span class="text-gray-300">Connected</span>
           </div>
-          
-          <button type="button" class="p-2 text-gray-400 hover:text-white transition-colors duration-200">
-            <PhGearSix class="w-5 h-5" />
-          </button>
         </template>
       </div>
     </div>
@@ -126,7 +122,6 @@
 <script setup lang="ts">
 import {
   PhArrowLeft,
-  PhGearSix,
   PhUsers,
   PhMonitorPlay,
   PhGridFour,

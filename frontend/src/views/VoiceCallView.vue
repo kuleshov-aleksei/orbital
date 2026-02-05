@@ -51,6 +51,7 @@
             v-model:model-value-muted="isMuted"
             v-model:model-value-deafened="isDeafened"
             v-model:model-value-screen-sharing="isScreenSharing"
+            v-model:model-value-debug-visible="appStore.isDebugVisible"
             @start-screen-share="$emit('request-screen-share')"
             @leave-room="$emit('leave-room')"
           />
@@ -60,6 +61,8 @@
       <!-- Debug Dashboard -->
       <DebugDashboard
         ref="debugDashboardRef"
+        v-model:model-value-visible="appStore.isDebugVisible"
+        hide-toggle-button
         :users="props.users"
         :peer-connections="peerConnections"
         :get-connection-quality="getConnectionQuality"
@@ -78,7 +81,7 @@ import DebugDashboard from '@/components/DebugDashboard.vue'
  import ScreenShareArea from '@/components/ScreenShareArea.vue'
   import UserGrid from '@/components/UserGrid.vue'
  import { useWebRTC } from '@/composables'
-import { useAudioSettingsStore, useCallStore } from '@/stores'
+import { useAppStore, useAudioSettingsStore, useCallStore } from '@/stores'
  import type { User, ScreenShareQuality } from '@/types'
 
 interface Props {
@@ -128,6 +131,7 @@ const onDebugLog = (message: string, level: 'info' | 'warning' | 'error' = 'info
 const audioSettingsStore = useAudioSettingsStore()
 
 // Stores
+const appStore = useAppStore()
 const callStore = useCallStore()
 
 // Initialize WebRTC composable - destructure for template reactivity

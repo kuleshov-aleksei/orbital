@@ -16,6 +16,9 @@ export const useAppStore = defineStore('app', () => {
   // Connection state
   const connectionPing = ref(0)
   const connectionQuality = ref<ConnectionQuality>('excellent')
+  
+  // Debug state
+  const isDebugVisible = ref(false)
 
   // Getters
   const hasError = computed(() => !!errorMessage.value)
@@ -86,6 +89,14 @@ export const useAppStore = defineStore('app', () => {
     connectionQuality.value = quality
   }
 
+  function toggleDebugVisible() {
+    isDebugVisible.value = !isDebugVisible.value
+  }
+
+  function setDebugVisible(visible: boolean) {
+    isDebugVisible.value = visible
+  }
+
   return {
     isLoading,
     errorMessage,
@@ -95,6 +106,7 @@ export const useAppStore = defineStore('app', () => {
     mobileSidebarOpen,
     connectionPing,
     connectionQuality,
+    isDebugVisible,
     hasError,
     isRoomView,
     isRoomsView,
@@ -112,6 +124,8 @@ export const useAppStore = defineStore('app', () => {
     closeAllMobileSidebars,
     setConnectionPing,
     setConnectionQuality,
-    updateConnectionStatus
+    updateConnectionStatus,
+    toggleDebugVisible,
+    setDebugVisible
   }
 })
