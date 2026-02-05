@@ -48,7 +48,7 @@ onMounted(async () => {
       error.value = 'No authentication token received'
       statusMessage.value = 'Authentication failed'
       setTimeout(() => {
-        router.push('/')
+        void router.push('/')
       }, 3000)
       return
     }
@@ -78,7 +78,7 @@ onMounted(async () => {
     // Redirect to home
     statusMessage.value = 'Welcome!'
     setTimeout(() => {
-      router.push('/')
+      void router.push('/')
     }, 500)
     
   } catch (err) {
@@ -89,7 +89,7 @@ onMounted(async () => {
     setAuthToken(null)
     
     setTimeout(() => {
-      router.push('/')
+      void router.push('/')
     }, 3000)
   }
 })

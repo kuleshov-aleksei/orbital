@@ -29,7 +29,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, type Component } from 'vue'
 import { webRTCStatsCollector } from '@/services/webrtc-stats'
 import type { ConnectionQuality, DebugInfo, ConnectionLog, ScreenShareQuality } from '@/types'
 import DebugToggle from './debug/DebugToggle.vue'
@@ -83,7 +83,7 @@ const tabs = [
 const allStats = computed(() => webRTCStatsCollector.getAllPeerStats())
 const allOutgoingIceCandidates = computed(() => webRTCStatsCollector.getAllOutgoingIceCandidates())
 
-const currentTabComponent = computed(() => {
+const currentTabComponent = computed<Component | null>(() => {
   switch (activeTab.value) {
     case 'ice-candidates': return IceCandidatesTab
     case 'metrics': return MetricsTab

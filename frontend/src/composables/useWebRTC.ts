@@ -477,7 +477,7 @@ export function useWebRTC(options: UseWebRTCOptions) {
     try {
       addDebugLog(`Starting createOfferForUser for ${userId}`, 'info', userId)
       await ensureLocalStream()
-      const peerConnection = await createPeerConnection(userId)
+      const peerConnection = createPeerConnection(userId)
       const offer = await peerConnection.createOffer()
       await peerConnection.setLocalDescription(offer)
 
@@ -577,12 +577,12 @@ export function useWebRTC(options: UseWebRTCOptions) {
       let peerConnection = peerConnections.value.get(user_id)
       if (!peerConnection) {
         console.log(`🔗 Creating new peer connection for ${user_id}`)
-        peerConnection = await createPeerConnection(user_id)
+        peerConnection = createPeerConnection(user_id)
       } else if (peerConnection.connectionState === 'failed' || peerConnection.connectionState === 'closed') {
         console.log(`🔄 Closing failed peer connection for ${user_id} and creating new one`)
         peerConnection.close()
         peerConnections.value.delete(user_id)
-        peerConnection = await createPeerConnection(user_id)
+        peerConnection = createPeerConnection(user_id)
       } else if (ensuredStream) {
         const hasAudioSender = peerConnection.getSenders().some((s) => s.track?.kind === 'audio')
         if (!hasAudioSender) {

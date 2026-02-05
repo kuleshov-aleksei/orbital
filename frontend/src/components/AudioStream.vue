@@ -418,7 +418,7 @@
     // Watch for connection state changes to start/stop polling
     watch(() => props.connectionState, (newState, oldState) => {
       if (newState === 'connected' && oldState !== 'connected') {
-        startConnectionInfoPolling()
+        void startConnectionInfoPolling()
       } else if (newState !== 'connected') {
         stopConnectionInfoPolling()
         connectionInfo.value = null
@@ -440,7 +440,7 @@
 
     // Lifecycle hooks
     onMounted(() => {
-      nextTick(() => {
+      void nextTick(() => {
         if (audioElement.value) {
           updateVolume()
           // Apply initial deafen state
@@ -453,7 +453,7 @@
       // Check if already connected when component mounts
       // (handles race condition where connectionState is already 'connected')
       if (props.connectionState === 'connected') {
-        startConnectionInfoPolling()
+        void startConnectionInfoPolling()
       }
 
       // Add document event listeners for context menu
@@ -467,7 +467,7 @@
      }
      
      if (audioContext.value) {
-       audioContext.value.close()
+       void audioContext.value.close()
      }
 
      // Clean up connection info polling

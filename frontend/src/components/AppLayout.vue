@@ -113,8 +113,8 @@ const handleDeleteCategory = (payload: { categoryId: string, categoryName: strin
   modalManager.openDeleteCategoryModal(payload.categoryId, payload.categoryName, roomCount)
 }
 
-const handleMoveRoom = (payload: { roomId: string, targetCategoryId: string }) => {
-  roomManager.moveRoomToCategory(payload.roomId, payload.targetCategoryId)
+const handleMoveRoom = async (payload: { roomId: string, targetCategoryId: string }) => {
+  await roomManager.moveRoomToCategory(payload.roomId, payload.targetCategoryId)
 }
 
 const handleEditRoom = (payload: { roomId: string, roomName: string, maxUsers: number }) => {
@@ -125,11 +125,12 @@ const handleDeleteRoom = (payload: { roomId: string, roomName: string, userCount
   modalManager.openDeleteRoomModal(payload.roomId, payload.roomName, payload.userCount)
 }
 
-const handleScreenShareQualitySelected = (quality: string, shareAudio: boolean) => {
+const handleScreenShareQualitySelected = async (quality: string, shareAudio: boolean) => {
   showScreenShareQualityModal.value = false
-  const voiceCallView = mainContentRef.value?.voiceCallViewRef
-  if (voiceCallView && 'startScreenShare' in voiceCallView) {
-    void voiceCallView.startScreenShare(quality, shareAudio)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const voiceCallView = (mainContentRef.value as any)?.voiceCallViewRef
+  if (voiceCallView && typeof voiceCallView.startScreenShare === 'function') {
+    await voiceCallView.startScreenShare(quality, shareAudio)
   }
 }
 

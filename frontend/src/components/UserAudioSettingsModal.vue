@@ -430,12 +430,12 @@ async function checkMicrophoneSupport() {
 }
 
 // Auth methods
-async function handleLoginWithDiscord() {
-  await userStore.loginWithProvider('discord')
+function handleLoginWithDiscord() {
+  userStore.loginWithProvider('discord')
 }
 
-async function handleLoginWithGoogle() {
-  await userStore.loginWithProvider('google')
+function handleLoginWithGoogle() {
+  userStore.loginWithProvider('google')
 }
 
 async function handleLogout() {

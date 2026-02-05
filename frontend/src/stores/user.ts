@@ -162,12 +162,12 @@ export const useUserStore = defineStore('user', () => {
     localStorage.removeItem('orbital_user_is_guest')
   }
 
-  async function loginWithProvider(provider: 'discord' | 'google') {
+  function loginWithProvider(provider: 'discord' | 'google') {
     // Redirect to OAuth provider
     if (provider === 'discord') {
-      await apiService.initiateDiscordLogin()
+      apiService.initiateDiscordLogin()
     } else if (provider === 'google') {
-      await apiService.initiateGoogleLogin()
+      apiService.initiateGoogleLogin()
     }
   }
 

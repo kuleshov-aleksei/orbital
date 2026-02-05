@@ -190,7 +190,7 @@ const startEditingNickname = () => {
   isEditingNickname.value = true
   editingNickname.value = props.user.nickname
   
-  nextTick(() => {
+  void nextTick(() => {
     nicknameInput.value?.focus()
     nicknameInput.value?.select()
   })

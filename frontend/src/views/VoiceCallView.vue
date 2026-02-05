@@ -118,8 +118,10 @@ const audioControlsRef = useTemplateRef<InstanceType<typeof AudioControls>>('aud
 
 // Debug logging callback
 const onDebugLog = (message: string, level: 'info' | 'warning' | 'error' = 'info', userId?: string) => {
-  if (debugDashboardRef.value && debugDashboardRef.value.addLog) {
-    debugDashboardRef.value.addLog(message, level, userId)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dashboard = debugDashboardRef.value as any
+  if (dashboard && typeof dashboard.addLog === 'function') {
+    dashboard.addLog(message, level, userId)
   }
 }
 
@@ -248,7 +250,11 @@ const startScreenShareWithQuality = async (quality: string, shareAudio: boolean)
     // Start the actual WebRTC screen share
     await startScreenShare(quality as ScreenShareQuality, shareAudio)
     // Tell AudioControls to update state and send WebSocket message
-    audioControlsRef.value?.confirmStartScreenShare(quality as ScreenShareQuality, shareAudio)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const audioControls = audioControlsRef.value as any
+    if (audioControls && typeof audioControls.confirmStartScreenShare === 'function') {
+      await audioControls.confirmStartScreenShare(quality as ScreenShareQuality, shareAudio)
+    }
   } catch (error) {
     console.error('Failed to start screen share:', error)
     onDebugLog(`Failed to start screen share: ${(error as Error).message}`, 'error')

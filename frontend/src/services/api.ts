@@ -77,7 +77,7 @@ async function apiRequest<T>(
       throw new Error(`API Error: ${response.status} - ${errorText}`)
     }
 
-    return await response.json()
+    return (await response.json()) as T
   } catch (error) {
     console.error(`API request failed to ${endpoint}:`, error)
     throw error
