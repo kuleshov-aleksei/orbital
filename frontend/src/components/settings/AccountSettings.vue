@@ -16,12 +16,62 @@
           class="flex-shrink-0"
         />
 
-        <div class="flex-1 min-w-0">
-          <div class="font-medium text-white truncate">{{ userStore.nickname }}</div>
+        <div class="flex-1 min-w-0 min-h-24">
+          <!-- Nickname Display / Edit Mode -->
+          <div v-if="!isEditingNickname" class="flex items-center gap-2 h-full">
+            <div class="font-medium text-white truncate">{{ userStore.nickname }}</div>
+
+            <button
+              type="button"
+              class="p-1 text-gray-400 hover:text-white transition-colors"
+              title="Edit nickname"
+              @click="startEditingNickname"
+            >
+              <PhPencil class="w-4 h-4" />
+            </button>
+          </div>
+
+          <!-- Nickname Edit Mode -->
+          <div v-else class="space-y-2">
+            <input
+              ref="nicknameInput"
+              v-model="editedNickname"
+              type="text"
+              maxlength="32"
+              placeholder="Enter nickname"
+              class="w-full px-3 py-1.5 bg-gray-600 border border-gray-500 rounded text-white text-sm focus:outline-none focus:border-indigo-500"
+              @keyup.enter="saveNickname"
+              @keyup.esc="cancelEditingNickname"
+            />
+
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                :disabled="isSaving || !editedNickname.trim()"
+                class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-xs rounded transition-colors"
+                @click="saveNickname"
+              >
+                <span v-if="isSaving">Saving...</span>
+
+                <span v-else>Save</span>
+              </button>
+
+              <button
+                type="button"
+                :disabled="isSaving"
+                class="px-3 py-1 bg-gray-600 hover:bg-gray-500 disabled:cursor-not-allowed text-white text-xs rounded transition-colors"
+                @click="cancelEditingNickname"
+              >
+                Cancel
+              </button>
+            </div>
+
+            <div v-if="errorMessage" class="text-xs text-red-400">{{ errorMessage }}</div>
+          </div>
 
           <div v-if="userStore.email" class="text-sm text-gray-400 truncate">{{ userStore.email }}</div>
 
-          <div class="flex items-center gap-2 mt-1">
+          <div v-if="!isEditingNickname" class="flex items-center gap-2 mt-1">
             <!-- Guest Badge -->
             <span v-if="userStore.isGuest" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-600 text-gray-300">
               <PhUser class="w-3 h-3 mr-1" />
@@ -87,12 +137,14 @@
 </template>
 
 <script setup lang="ts">
+import { ref, nextTick, useTemplateRef } from 'vue'
 import { useUserStore } from '@/stores'
 import UserAvatar from '@/components/UserAvatar.vue'
 import {
   PhUser,
   PhSignOut,
-  PhCheckCircle
+  PhCheckCircle,
+  PhPencil
 } from '@phosphor-icons/vue'
 import DiscordIcon from '~icons/simple-icons/discord'
 import GoogleIcon from '~icons/logos/google-icon'
@@ -102,6 +154,61 @@ const emit = defineEmits<{
 }>()
 
 const userStore = useUserStore()
+
+// Nickname editing state
+const isEditingNickname = ref(false)
+const editedNickname = ref('')
+const isSaving = ref(false)
+const errorMessage = ref('')
+const nicknameInput = useTemplateRef<HTMLInputElement>('nicknameInput')
+
+function startEditingNickname() {
+  editedNickname.value = userStore.nickname
+  isEditingNickname.value = true
+  errorMessage.value = ''
+  void nextTick(() => {
+    nicknameInput.value?.focus()
+    nicknameInput.value?.select()
+  })
+}
+
+function cancelEditingNickname() {
+  isEditingNickname.value = false
+  editedNickname.value = ''
+  errorMessage.value = ''
+}
+
+async function saveNickname() {
+  const trimmedNickname = editedNickname.value.trim()
+
+  if (!trimmedNickname) {
+    errorMessage.value = 'Nickname cannot be empty'
+    return
+  }
+
+  if (trimmedNickname === userStore.nickname) {
+    cancelEditingNickname()
+    return
+  }
+
+  if (trimmedNickname.length > 32) {
+    errorMessage.value = 'Nickname must be 32 characters or less'
+    return
+  }
+
+  isSaving.value = true
+  errorMessage.value = ''
+
+  try {
+    await userStore.updateNickname(trimmedNickname)
+    isEditingNickname.value = false
+    editedNickname.value = ''
+  } catch {
+    errorMessage.value = userStore.nicknameUpdateError || 'Failed to update nickname'
+  } finally {
+    isSaving.value = false
+  }
+}
 
 function handleLoginWithDiscord() {
   userStore.loginWithProvider('discord')
