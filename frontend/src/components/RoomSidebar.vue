@@ -2,7 +2,7 @@
   <div
      class="room-sidebar"
      :class="{
-       'w-60 bg-gray-800 flex flex-col': !isMobileView,
+        'w-72 bg-gray-800 flex flex-col min-h-0': !isMobileView,
        'flex-1 flex flex-col bg-gray-900': isMobileView,
        'fixed lg:relative inset-y-0 left-0 z-40 transform -translate-x-full lg:translate-x-0 transition-transform duration-300': !isMobileView,
        'translate-x-0': !isHidden && !isMobileView
@@ -20,7 +20,7 @@
     </div>
 
     <!-- Room Categories and List -->
-    <div class="flex-1 overflow-y-auto">
+    <div class="flex-1 overflow-y-auto min-h-0">
       <div v-for="category in categorizedRooms" :key="category.id" class="mb-4">
         <div class="px-2 py-1">
           <div
@@ -246,7 +246,7 @@ const categorizedRooms = computed(() => {
     const categoryId = room.category
     // Look up category name from the categories list
     const category = categories.value?.find((c) => c.id === categoryId)
-    const categoryName = category?.name || room.categoryName || categoryId
+    const categoryName = category?.name || room.category_name || categoryId
 
     if (!categoryRoomMap.has(categoryId)) {
       categoryRoomMap.set(categoryId, { id: categoryId, name: categoryName, rooms: [] })

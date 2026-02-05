@@ -75,7 +75,7 @@ export abstract class WebNoiseSuppressorProcessor implements AudioWorkletProcess
       this.workletNode = null
     }
     if (this.audioContext) {
-      this.audioContext.close()
+      void this.audioContext.close()
       this.audioContext = null
     }
     this.wasmBinary = null

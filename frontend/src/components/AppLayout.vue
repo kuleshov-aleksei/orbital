@@ -113,8 +113,8 @@ const handleDeleteCategory = (payload: { categoryId: string, categoryName: strin
   modalManager.openDeleteCategoryModal(payload.categoryId, payload.categoryName, roomCount)
 }
 
-const handleMoveRoom = (payload: { roomId: string, targetCategoryId: string }) => {
-  roomManager.moveRoomToCategory(payload.roomId, payload.targetCategoryId)
+const handleMoveRoom = async (payload: { roomId: string, targetCategoryId: string }) => {
+  await roomManager.moveRoomToCategory(payload.roomId, payload.targetCategoryId)
 }
 
 const handleEditRoom = (payload: { roomId: string, roomName: string, maxUsers: number }) => {
@@ -125,9 +125,13 @@ const handleDeleteRoom = (payload: { roomId: string, roomName: string, userCount
   modalManager.openDeleteRoomModal(payload.roomId, payload.roomName, payload.userCount)
 }
 
-const handleScreenShareQualitySelected = (quality: string, shareAudio: boolean) => {
+const handleScreenShareQualitySelected = async (quality: string, shareAudio: boolean) => {
   showScreenShareQualityModal.value = false
-  mainContentRef.value?.voiceCallViewRef?.startScreenShare(quality, shareAudio)
+  /* eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
+  const voiceCallView = mainContentRef.value?.voiceCallViewRef as { startScreenShare?: (quality: string, shareAudio: boolean) => Promise<void> } | undefined
+  if (voiceCallView?.startScreenShare) {
+    await voiceCallView.startScreenShare(quality, shareAudio)
+  }
 }
 
 // Initialize data on mount (only if authenticated)

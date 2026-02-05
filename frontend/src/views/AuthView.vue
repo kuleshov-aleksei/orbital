@@ -92,15 +92,15 @@ import GoogleIcon from '~icons/logos/google-icon'
 
 const userStore = useUserStore()
 
-const handleLoginWithDiscord = async () => {
-  await userStore.loginWithProvider('discord')
+const handleLoginWithDiscord = () => {
+  userStore.loginWithProvider('discord')
 }
 
-const handleLoginWithGoogle = async () => {
-  await userStore.loginWithProvider('google')
+const handleLoginWithGoogle = () => {
+  userStore.loginWithProvider('google')
 }
 
-const handleLoginWithGosuslugi = async () => {
+const handleLoginWithGosuslugi = () => {
   window.location.href = `https://www.youtube.com/watch?v=dQw4w9WgXcQ`
 }
 

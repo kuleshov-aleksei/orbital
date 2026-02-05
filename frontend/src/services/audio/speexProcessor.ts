@@ -6,6 +6,10 @@ import type { NoiseSuppressionAlgorithm } from '@/types/audio'
 import speexWasmPath from '@sapphi-red/web-noise-suppressor/speex.wasm?url'
 import speexWorkletPath from '@sapphi-red/web-noise-suppressor/speexWorklet.js?url'
 
+// Type assertions for imported URLs
+const wasmPath = speexWasmPath as string
+const workletPath = speexWorkletPath as string
+
 /**
  * Speex Processor
  * Fast CPU-efficient noise suppression
@@ -25,7 +29,7 @@ export class SpeexProcessor extends WebNoiseSuppressorProcessor {
     try {
       this.wasmBinary = await loadSpeex(
         {
-          url: speexWasmPath,
+          url: wasmPath,
         },
         { credentials: 'same-origin' }
       )
@@ -49,7 +53,7 @@ export class SpeexProcessor extends WebNoiseSuppressorProcessor {
     this.audioContext = new AudioContext()
 
     // Add the worklet module
-    await this.audioContext.audioWorklet.addModule(speexWorkletPath)
+    await this.audioContext.audioWorklet.addModule(workletPath)
 
     // Create source from stream
     const source = this.audioContext.createMediaStreamSource(stream)

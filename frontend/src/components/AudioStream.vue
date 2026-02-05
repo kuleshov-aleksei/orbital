@@ -276,10 +276,10 @@
    // Update immediately (don't wait for interval)
    await updateConnectionInfo()
    
-   // Then poll every 3 seconds
-   connectionInfoInterval.value = window.setInterval(() => {
-     updateConnectionInfo()
-   }, 3000)
+    // Then poll every 3 seconds
+    connectionInfoInterval.value = window.setInterval(() => {
+      void updateConnectionInfo()
+    }, 3000)
  }
 
  // Stop polling
@@ -376,8 +376,8 @@
      // Create Web Audio API context
      audioContext.value = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
      
-     const source = audioContext.value!.createMediaStreamSource(props.stream)
-     analyser.value = audioContext.value!.createAnalyser()
+     const source = audioContext.value.createMediaStreamSource(props.stream)
+     analyser.value = audioContext.value.createAnalyser()
      analyser.value.fftSize = 256
      
      source.connect(analyser.value)
@@ -394,7 +394,7 @@
     if (newStream && audioElement.value) {
       console.log(`🎵 Setting stream for user ${props.userId}:`, newStream)
       audioElement.value.srcObject = newStream
-      audioElement.value.play().catch(error => {
+      void audioElement.value.play().catch((error: Error) => {
         console.warn(`Audio play failed for user ${props.userId}:`, error)
       })
       setupAudioAnalysis()
@@ -418,7 +418,7 @@
     // Watch for connection state changes to start/stop polling
     watch(() => props.connectionState, (newState, oldState) => {
       if (newState === 'connected' && oldState !== 'connected') {
-        startConnectionInfoPolling()
+        void startConnectionInfoPolling()
       } else if (newState !== 'connected') {
         stopConnectionInfoPolling()
         connectionInfo.value = null
@@ -440,7 +440,7 @@
 
     // Lifecycle hooks
     onMounted(() => {
-      nextTick(() => {
+      void nextTick(() => {
         if (audioElement.value) {
           updateVolume()
           // Apply initial deafen state
@@ -453,7 +453,7 @@
       // Check if already connected when component mounts
       // (handles race condition where connectionState is already 'connected')
       if (props.connectionState === 'connected') {
-        startConnectionInfoPolling()
+        void startConnectionInfoPolling()
       }
 
       // Add document event listeners for context menu
@@ -467,7 +467,7 @@
      }
      
      if (audioContext.value) {
-       audioContext.value.close()
+       void audioContext.value.close()
      }
 
      // Clean up connection info polling

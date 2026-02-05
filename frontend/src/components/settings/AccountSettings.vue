@@ -103,12 +103,12 @@ const emit = defineEmits<{
 
 const userStore = useUserStore()
 
-async function handleLoginWithDiscord() {
-  await userStore.loginWithProvider('discord')
+function handleLoginWithDiscord() {
+  userStore.loginWithProvider('discord')
 }
 
-async function handleLoginWithGoogle() {
-  await userStore.loginWithProvider('google')
+function handleLoginWithGoogle() {
+  userStore.loginWithProvider('google')
 }
 
 async function handleLogout() {

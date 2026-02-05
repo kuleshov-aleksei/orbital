@@ -17,7 +17,7 @@ const saveToStorage = (key: string, value: boolean) => {
 const loadFromStorage = (key: string, defaultValue: boolean): boolean => {
   try {
     const stored = localStorage.getItem(key)
-    return stored !== null ? JSON.parse(stored) : defaultValue
+    return stored !== null ? (JSON.parse(stored) as boolean) : defaultValue
   } catch (e) {
     console.warn('Failed to load preference from localStorage:', e)
     return defaultValue

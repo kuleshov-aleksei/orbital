@@ -77,7 +77,7 @@ async function apiRequest<T>(
       throw new Error(`API Error: ${response.status} - ${errorText}`)
     }
 
-    return await response.json()
+    return (await response.json()) as T
   } catch (error) {
     console.error(`API request failed to ${endpoint}:`, error)
     throw error
@@ -179,12 +179,12 @@ export const apiService = {
   },
 
   // Auth API calls
-  async initiateDiscordLogin(): Promise<void> {
+  initiateDiscordLogin(): void {
     // Redirect to Discord OAuth endpoint
     window.location.href = `${API_BASE}/auth/discord/login`
   },
 
-  async initiateGoogleLogin(): Promise<void> {
+  initiateGoogleLogin(): void {
     // Redirect to Google OAuth endpoint
     window.location.href = `${API_BASE}/auth/google/login`
   },

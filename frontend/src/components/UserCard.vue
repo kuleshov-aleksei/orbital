@@ -190,18 +190,18 @@ const startEditingNickname = () => {
   isEditingNickname.value = true
   editingNickname.value = props.user.nickname
   
-  nextTick(() => {
+  void nextTick(() => {
     nicknameInput.value?.focus()
     nicknameInput.value?.select()
   })
 }
 
-const saveNickname = () => {
+const saveNickname = async () => {
   if (!isCurrentUser.value) return
   
   const trimmedNickname = editingNickname.value.trim()
   if (trimmedNickname && trimmedNickname !== props.user.nickname) {
-    userStore.updateNickname(trimmedNickname)
+    await userStore.updateNickname(trimmedNickname)
   }
   isEditingNickname.value = false
 }

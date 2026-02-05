@@ -277,16 +277,22 @@ const formatConstraintValue = (value: unknown): string => {
   if (value === true) return 'true'
   if (value === false) return 'false'
   if (value === undefined || value === null) return 'Not set'
-  
+
   // Handle constraint objects like { ideal: 48000 } or { exact: 48000 }
   if (typeof value === 'object' && value !== null) {
     const obj = value as Record<string, unknown>
-    if ('ideal' in obj) return `ideal: ${obj.ideal}`
-    if ('exact' in obj) return `exact: ${obj.exact}`
+    if ('ideal' in obj) return `ideal: ${String(obj.ideal)}`
+    if ('exact' in obj) return `exact: ${String(obj.exact)}`
     return JSON.stringify(value)
   }
-  
-  return String(value)
+
+  // Handle primitive types
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'bigint' || typeof value === 'boolean') {
+    return String(value)
+  }
+
+  // Handle symbols and functions
+  return '[object Object]'
 }
 
 const formatSampleRate = (rate: number | undefined): string => {

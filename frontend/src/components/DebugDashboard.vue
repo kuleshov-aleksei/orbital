@@ -29,7 +29,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, type Component } from 'vue'
 import { webRTCStatsCollector } from '@/services/webrtc-stats'
 import type { ConnectionQuality, DebugInfo, ConnectionLog, ScreenShareQuality } from '@/types'
 import DebugToggle from './debug/DebugToggle.vue'
@@ -83,15 +83,15 @@ const tabs = [
 const allStats = computed(() => webRTCStatsCollector.getAllPeerStats())
 const allOutgoingIceCandidates = computed(() => webRTCStatsCollector.getAllOutgoingIceCandidates())
 
-const currentTabComponent = computed(() => {
+const currentTabComponent = computed<Component | null>(() => {
   switch (activeTab.value) {
-    case 'ice-candidates': return IceCandidatesTab
-    case 'metrics': return MetricsTab
-    case 'network': return NetworkTab
-    case 'audio': return AudioTab
-    case 'screen-share': return ScreenShareTab
-    case 'logs': return LogsTab
-    case 'issues': return IssuesTab
+    case 'ice-candidates': return IceCandidatesTab as Component
+    case 'metrics': return MetricsTab as Component
+    case 'network': return NetworkTab as Component
+    case 'audio': return AudioTab as Component
+    case 'screen-share': return ScreenShareTab as Component
+    case 'logs': return LogsTab as Component
+    case 'issues': return IssuesTab as Component
     default: return null
   }
 })
@@ -181,7 +181,7 @@ const connectionIssues = computed(() => {
       })
     })
   } catch (error) {
-    console.warn('Error computing connection issues:', error)
+    console.warn('Error computing connection issues:', error instanceof Error ? error.message : String(error))
   }
   
   return issues
@@ -206,7 +206,7 @@ const onTabChange = (tabId: string) => {
   try {
     activeTab.value = tabId as typeof activeTab.value
   } catch (error) {
-    console.error('Error switching tab:', error)
+    console.error('Error switching tab:', error instanceof Error ? error.message : String(error))
     addLog('Failed to switch tab', 'error')
   }
 }
@@ -269,7 +269,7 @@ const updateNetworkInfo = () => {
     
     networkInfo.value = info
   } catch (error) {
-    console.warn('Error updating network info:', error)
+    console.warn('Error updating network info:', error instanceof Error ? error.message : String(error))
   }
 }
 
@@ -306,7 +306,7 @@ defineExpose({
 onMounted(() => {
   // Update network info periodically
   updateInterval.value = window.setInterval(() => {
-    updateNetworkInfo()
+    void updateNetworkInfo()
   }, 2000)
   
   // Add initial log
