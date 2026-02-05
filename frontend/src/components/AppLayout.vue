@@ -67,7 +67,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, useTemplateRef } from 'vue'
+import { onMounted, ref, useTemplateRef, watch } from 'vue'
 import { 
   DesktopSidebar, 
   MobileRoomView, 
@@ -137,6 +137,14 @@ const handleScreenShareQualitySelected = async (quality: string, shareAudio: boo
 // Initialize data on mount (only if authenticated)
 onMounted(async () => {
   if (userStore.hasCompletedAuth) {
+    await roomManager.loadRooms()
+    await categoryManager.loadCategories()
+  }
+})
+
+// Watch for auth completion and load rooms when user completes auth (e.g., guest login)
+watch(() => userStore.hasCompletedAuth, async (hasCompleted) => {
+  if (hasCompleted) {
     await roomManager.loadRooms()
     await categoryManager.loadCategories()
   }
