@@ -4,13 +4,23 @@
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-sm font-medium text-white">Connection Logs</h3>
 
-        <button
-          type="button"
-          class="px-3 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors"
-          @click="$emit('clearLogs')"
-        >
-          Clear Logs
-        </button>
+        <div class="flex items-center space-x-2">
+          <button
+            type="button"
+            class="px-3 py-1 text-xs bg-gray-600 hover:bg-gray-500 text-white rounded-md transition-colors"
+            @click="copyLogs"
+          >
+            Copy All
+          </button>
+
+          <button
+            type="button"
+            class="px-3 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors"
+            @click="$emit('clearLogs')"
+          >
+            Clear Logs
+          </button>
+        </div>
       </div>
       
       <div class="space-y-2 max-h-96 overflow-y-auto">
@@ -38,7 +48,7 @@ interface Props {
   logs: ConnectionLog[]
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 
 defineEmits<{
   clearLogs: []
@@ -54,5 +64,20 @@ const getLogStyle = (level: 'info' | 'warning' | 'error'): string => {
 
 const formatTime = (timestamp: Date): string => {
   return timestamp.toLocaleTimeString()
+}
+
+const copyLogs = (): void => {
+  const logsText = props.logs.map((log: ConnectionLog) => {
+    const time = formatTime(log.timestamp)
+    const user = log.userId || 'System'
+    return `[${time}] [${user}] ${log.message}`
+  }).join('\n')
+
+  void navigator.clipboard.writeText(logsText).then(() => {
+    // Could add a toast notification here
+    console.log('Logs copied to clipboard')
+  }).catch((err: Error) => {
+    console.error('Failed to copy logs:', err)
+  })
 }
 </script>
