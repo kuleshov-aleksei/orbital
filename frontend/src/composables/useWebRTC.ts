@@ -374,7 +374,7 @@ export function useWebRTC(options: UseWebRTCOptions) {
       clearTimeout(reconnectionTimers.value.get(userId))
     }
 
-    const timer = setTimeout(async () => {
+    const timer = setTimeout(() => {
       if (!currentRoomUsers.value.has(userId)) {
         console.log(`🧹 User ${userId} left room during reconnection delay`)
         return

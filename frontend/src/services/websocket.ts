@@ -67,7 +67,7 @@ export class WebSocketService {
         }
 
       } catch (error) {
-        reject(error)
+        reject(error instanceof Error ? error : new Error(String(error)))
       }
     })
   }
@@ -78,9 +78,9 @@ export class WebSocketService {
       try {
         const wsUrl = this.getGlobalWebSocketUrl()
         console.log(`Connecting to global WebSocket: ${wsUrl}`)
-        
+
         this.globalWs = new WebSocket(wsUrl)
-        
+
         this.globalWs.onopen = (event) => {
           console.log('Global WebSocket connected:', event)
           this.notifyGlobalConnectionCallbacks()
@@ -102,7 +102,7 @@ export class WebSocketService {
         }
 
       } catch (error) {
-        reject(error)
+        reject(error instanceof Error ? error : new Error(String(error)))
       }
     })
   }
@@ -232,9 +232,9 @@ export class WebSocketService {
     return token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl
   }
 
-  private handleMessage(event: MessageEvent): void {
+  private handleMessage(event: MessageEvent<unknown>): void {
     try {
-      const message: WebSocketMessage = JSON.parse(event.data)
+      const message = JSON.parse(event.data as string) as WebSocketMessage
       if (message.type !== 'pong') {
         console.log('Received WebSocket message:', message)
       }
@@ -311,9 +311,9 @@ export class WebSocketService {
     }, this.reconnectDelay * this.reconnectAttempts)
   }
 
-  private handleGlobalMessage(event: MessageEvent): void {
+  private handleGlobalMessage(event: MessageEvent<unknown>): void {
     try {
-      const message: WebSocketMessage = JSON.parse(event.data)
+      const message = JSON.parse(event.data as string) as WebSocketMessage
       console.log('Received global WebSocket message:', message)
 
       // Route message to appropriate global callbacks

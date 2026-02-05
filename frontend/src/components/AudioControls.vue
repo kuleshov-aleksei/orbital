@@ -94,9 +94,8 @@ const toggleSettings = () => {
 
 // Confirm screen share start (called by parent after quality selection)
 const confirmStartScreenShare = async (quality: ScreenShareQuality, hasAudio: boolean) => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const button = screenShareButtonRef.value as any
-  if (button && typeof button.confirmStartScreenShare === 'function') {
+  const button = screenShareButtonRef.value as unknown as { confirmStartScreenShare?: (quality: ScreenShareQuality, hasAudio: boolean) => Promise<void> } | null
+  if (button?.confirmStartScreenShare) {
     await button.confirmStartScreenShare(quality, hasAudio)
   }
 }

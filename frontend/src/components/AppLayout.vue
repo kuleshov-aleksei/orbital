@@ -127,9 +127,9 @@ const handleDeleteRoom = (payload: { roomId: string, roomName: string, userCount
 
 const handleScreenShareQualitySelected = async (quality: string, shareAudio: boolean) => {
   showScreenShareQualityModal.value = false
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const voiceCallView = (mainContentRef.value as any)?.voiceCallViewRef
-  if (voiceCallView && typeof voiceCallView.startScreenShare === 'function') {
+  /* eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
+  const voiceCallView = mainContentRef.value?.voiceCallViewRef as { startScreenShare?: (quality: string, shareAudio: boolean) => Promise<void> } | undefined
+  if (voiceCallView?.startScreenShare) {
     await voiceCallView.startScreenShare(quality, shareAudio)
   }
 }

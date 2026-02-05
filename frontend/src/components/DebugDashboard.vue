@@ -85,13 +85,13 @@ const allOutgoingIceCandidates = computed(() => webRTCStatsCollector.getAllOutgo
 
 const currentTabComponent = computed<Component | null>(() => {
   switch (activeTab.value) {
-    case 'ice-candidates': return IceCandidatesTab
-    case 'metrics': return MetricsTab
-    case 'network': return NetworkTab
-    case 'audio': return AudioTab
-    case 'screen-share': return ScreenShareTab
-    case 'logs': return LogsTab
-    case 'issues': return IssuesTab
+    case 'ice-candidates': return IceCandidatesTab as Component
+    case 'metrics': return MetricsTab as Component
+    case 'network': return NetworkTab as Component
+    case 'audio': return AudioTab as Component
+    case 'screen-share': return ScreenShareTab as Component
+    case 'logs': return LogsTab as Component
+    case 'issues': return IssuesTab as Component
     default: return null
   }
 })

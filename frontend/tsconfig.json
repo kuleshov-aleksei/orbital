@@ -20,9 +20,9 @@
       "@/*": ["src/*"]
     },
     "types": [
-      "unplugin-icons/types/vue"
+      "unplugin-icons/types/vue",
+      "webrtc"
     ]
   },
-  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue"]
 }
