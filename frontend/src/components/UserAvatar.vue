@@ -9,15 +9,14 @@
       :style="avatarStyle"
       @error="handleImageError"
     />
-    <!-- Initial Avatar Circle (fallback) -->
-    <div
+    <!-- Generated Avatar (fallback) -->
+    <Avatar
       v-else
-      class="rounded-full flex items-center justify-center font-medium"
-      :class="avatarClasses"
-      :style="avatarStyle"
-    >
-      {{ initial }}
-    </div>
+      :name="nickname"
+      :colors="avatarColors"
+      variant="beam"
+      :size="size"
+    />
     <!-- Status Indicator -->
     <div
       v-if="showStatus"
@@ -30,6 +29,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import Avatar from 'vue-boring-avatars'
 
 type UserStatus = 'online' | 'away' | 'dnd' | 'offline'
 
@@ -56,13 +56,8 @@ const handleImageError = () => {
   imageError.value = true
 }
 
-const initial = computed(() => {
-  return props.nickname.charAt(0).toUpperCase()
-})
-
-const avatarClasses = computed(() => {
-  return props.bgColor
-})
+// Pleasant color palette for generated avatars
+const avatarColors = ['#E8F5E9', '#C8E6C9', '#A5D6A7', '#81C784', '#66BB6A']
 
 const avatarStyle = computed(() => {
   return {
