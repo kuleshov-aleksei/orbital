@@ -1,5 +1,5 @@
 <template>
-  <div class="hidden lg:flex flex-col w-60 bg-gray-800">
+  <div class="hidden lg:flex flex-col w-72 bg-gray-800 min-h-0">
     <RoomSidebar
       class="flex-1"
       :active-room-id="activeRoomId"
