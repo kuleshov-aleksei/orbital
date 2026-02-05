@@ -43,22 +43,8 @@ class="user-sidebar w-60 lg:w-60 bg-gray-800 flex flex-col fixed lg:relative ins
       />
     </div>
 
-    <!-- User Controls -->
-    <div class="p-3 border-t border-gray-700">
-      <div class="space-y-2">
-        <button type="button" class="w-full flex items-center justify-center px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors duration-200">
-        <PhVideoCamera class="w-4 h-4 mr-2" />
-
-          <span class="text-sm font-medium">Start Video</span>
-        </button>
-        
-        <button type="button" class="w-full flex items-center justify-center px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors duration-200">
-        <PhMonitorPlay class="w-4 h-4 mr-2" />
-
-          <span class="text-sm font-medium">Share Screen</span>
-        </button>
-      </div>
-    </div>
+    <!-- User Controls - Placeholder buttons removed as they are not yet functional -->
+    <!-- Future: Video and screen sharing controls will be added here -->
   </div>
 </template>
 
@@ -66,11 +52,9 @@ class="user-sidebar w-60 lg:w-60 bg-gray-800 flex flex-col fixed lg:relative ins
  import { computed } from 'vue'
  import UserCard from '@/components/UserCard.vue'
  import { 
-   PhCross, 
-   PhDotsThree, 
-   PhVideoCamera, 
-   PhMonitorPlay 
- } from '@phosphor-icons/vue'
+    PhCross, 
+    PhDotsThree
+  } from '@phosphor-icons/vue'
 
 interface User {
   id: string

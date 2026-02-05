@@ -23,28 +23,28 @@
           v-for="room in rooms"
           :key="room.id"
           :data-testid="`room-card-${room.id}`"
-          class="room-browser-card bg-gray-800 rounded-lg p-6 hover:bg-gray-700 transition-all duration-200 cursor-pointer border border-gray-700 hover:border-indigo-500"
+          class="room-browser-card bg-gray-800 rounded-lg p-4 hover:bg-gray-700 transition-all duration-200 cursor-pointer border border-gray-700 hover:border-indigo-500"
           @click="$emit('room-selected', room.id)"
         >
-          <div class="flex items-center justify-between mb-4">
-            <div class="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center">
-              <PhFolderSimpleUser class="w-6 h-6 text-white" />
+          <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center">
+              <PhFolderSimpleUser class="w-5 h-5 text-white" />
             </div>
 
             <div class="text-right">
-              <div class="text-sm text-gray-400">{{ room.category }}</div>
+              <div class="text-xs text-gray-400">{{ room.category_name || room.category }}</div>
             </div>
           </div>
-          
-          <h3 class="text-lg font-semibold text-white mb-2">{{ room.name }}</h3>
-          
+
+          <h3 class="text-base font-semibold text-white mb-2">{{ room.name }}</h3>
+
           <div class="flex items-center justify-between text-sm">
-            <div class="flex items-center text-gray-400">
-              <PhFolderSimpleUser class="w-4 h-4 mr-1" />
+            <div class="flex items-center text-gray-400 text-xs">
+              <PhFolderSimpleUser class="w-3 h-3 mr-1" />
               {{ room.user_count }}/{{ room.max_users }}
             </div>
 
-            <button type="button" class="text-indigo-400 hover:text-indigo-300 font-medium">
+            <button type="button" class="text-indigo-400 hover:text-indigo-300 font-medium text-sm">
               Join →
             </button>
           </div>

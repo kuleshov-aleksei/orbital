@@ -25,9 +25,11 @@
 
       <!-- Room Info -->
       <div class="flex-1 min-w-0">
-        <div class="font-medium text-sm truncate">{{ room.name }}</div>
+        <div class="flex items-center justify-between">
+          <div class="font-medium text-sm truncate">{{ room.name }}</div>
 
-        <div class="text-xs opacity-75">{{ room.user_count }}/{{ room.max_users }} users</div>
+          <div class="text-xs opacity-75 ml-2 flex-shrink-0">{{ room.user_count }}/{{ room.max_users }}</div>
+        </div>
       </div>
     </div>
 
