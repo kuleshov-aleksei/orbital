@@ -2,17 +2,24 @@
 
 A simple yet powerful voice communication platform for 5-10 people. Similar to Discord but built for simplicity.
 
+## AI Disclaimer
+
+This project is built by AI (like 99.99%). AI is not perfect, but this application was built in 2 weeks and it does its job. I just do not want to waste 6 months handcrafting artisinal code. If you have any problems with this approach - it is not my problem.
+
 ## Features
 
 - **Voice Rooms** - Create and join voice rooms with up to 10 participants
 - **WebRTC Communication** - Direct low-latency peer-to-peer voice communication
+- **TURN server support (required)** - Allows user to connect to calls behind NAT
 - **Screen Sharing** - Share your screen with quality options (720p, 1080p, source)
 - **Advanced Audio Processing**
   - Multiple noise suppression algorithms (Browser Native, RNNoise, Speex)
   - Echo cancellation
   - Automatic gain control
 - **Real-time Debug Dashboard** - Monitor connection quality, audio settings, and network stats
+- **OAuth authentication** - Backend does not store authentication data - thats by design. So the only options to auth are using OAuth2 Google and Discord.
 - **Simple Deployment** - Single binary backend with Docker support
+- **Persistence** - Backend stores data in sqlite database. Easy management, easy deployment, easy life
 
 ## Tech Stack
 
@@ -38,6 +45,9 @@ make build
 # Run development servers
 make dev
 
+# Run development server on 0.0.0.0
+make dev-public
+
 # Build and run with Docker
 make docker-up
 ```
@@ -53,31 +63,12 @@ make docker-up
 - `make install` - Install all dependencies
 - `make build` - Build frontend and backend
 - `make dev` - Run development servers
+- `make dev-public` - Run development servers on 0.0.0.0 address
 - `make lint` - Run linters for both frontend and backend
 - `make test` - Run test suite
 - `make docker-build` - Build Docker images
 - `make docker-up` - Run with Docker Compose
 - `make clean` - Clean build artifacts
-
-## Project Structure
-
-```
-orbital/
-├── frontend/          # Vue.js frontend
-│   ├── src/
-│   │   ├── components/    # Vue components
-│   │   ├── composables/   # Vue composables (useWebRTC, etc.)
-│   │   ├── services/      # Audio processing, WebSocket, WebRTC
-│   │   └── stores/        # Pinia stores
-├── backend/           # Go backend
-│   ├── cmd/           # Application entry points
-│   ├── internal/      # Internal packages
-│   └── pkg/           # Public packages
-├── docker/           # Docker configurations
-├── scripts/          # Build and utility scripts
-├── Makefile          # Build commands
-└── AGENTS.md         # Development guidelines
-```
 
 ## Audio Processing
 
@@ -88,7 +79,3 @@ The Orbital supports multiple noise suppression algorithms:
 - **Speex** - Fast CPU-efficient noise suppression
 
 Audio settings can be changed in real-time during calls via the User Settings modal.
-
-## License
-
-MIT

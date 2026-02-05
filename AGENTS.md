@@ -13,6 +13,27 @@ The Orbital is a voice chat web application for 5-10 people using WebRTC technol
 - **Communication**: WebSockets + REST API
 - **Deployment**: Docker + Docker Compose
 
+## Project Structure
+
+```
+orbital/
+├── frontend/          # Vue.js frontend
+│   ├── src/
+│   │   ├── components/    # Vue components
+│   │   ├── composables/   # Vue composables (useWebRTC, etc.)
+│   │   ├── services/      # Audio processing, WebSocket, WebRTC
+│   │   └── stores/        # Pinia stores
+├── backend/           # Go backend
+│   ├── cmd/           # Application entry points
+│   ├── internal/      # Internal packages
+│   └── pkg/           # Public packages
+├── docker/           # Docker configurations
+├── scripts/          # Build and utility scripts
+├── Makefile          # Build commands
+└── AGENTS.md         # Development guidelines
+```
+
+
 ## Development Guidelines
 
 ### Frontend Development
@@ -63,6 +84,7 @@ The project uses a Makefile for common operations:
 - `make install` - Install dependencies
 - `make build` - Build frontend and backend
 - `make dev` - Start development servers
+- `make dev-public` - Start development servers on 0.0.0.0
 - `make lint` - Run code quality checks
 - `make test` - Run tests
 - `make docker-build` - Build Docker images
