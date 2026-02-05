@@ -217,9 +217,9 @@ const { activeRoomId, isMobileView = false } = defineProps<Props>()
 const emit = defineEmits<{
   'room-selected': [roomId: string]
   'create-room': []
-  'create-room-in-category': [categoryId: string, categoryName: string]
-  'rename-category': [categoryId: string, currentName: string]
-  'delete-category': [categoryId: string, categoryName: string]
+  'create-room-in-category': [payload: { categoryId: string, categoryName: string }]
+  'rename-category': [payload: { categoryId: string, categoryName: string }]
+  'delete-category': [payload: { categoryId: string, categoryName: string }]
   'move-room': [payload: { roomId: string, targetCategoryId: string }]
   'edit-room': [payload: { roomId: string, roomName: string, maxUsers: number }]
   'delete-room': [payload: { roomId: string, roomName: string, userCount: number }]
@@ -306,7 +306,7 @@ const handleCreateRoomInCategory = () => {
   if (contextMenu.value.category) {
     // Use the category ID and name directly from the context menu
     // categorizedRooms now properly stores the category ID from room.category
-    emit('create-room-in-category', contextMenu.value.category.id, contextMenu.value.category.name)
+    emit('create-room-in-category', { categoryId: contextMenu.value.category.id, categoryName: contextMenu.value.category.name })
   }
   closeContextMenu()
 }
@@ -314,7 +314,7 @@ const handleCreateRoomInCategory = () => {
 const handleRenameCategory = () => {
   if (contextMenu.value.category) {
     // Use the category ID and name directly from the context menu
-    emit('rename-category', contextMenu.value.category.id, contextMenu.value.category.name)
+    emit('rename-category', { categoryId: contextMenu.value.category.id, categoryName: contextMenu.value.category.name })
   }
   closeContextMenu()
 }
@@ -322,7 +322,7 @@ const handleRenameCategory = () => {
 const handleDeleteCategory = () => {
   if (contextMenu.value.category) {
     // Use the category ID and name directly from the context menu
-    emit('delete-category', contextMenu.value.category.id, contextMenu.value.category.name)
+    emit('delete-category', { categoryId: contextMenu.value.category.id, categoryName: contextMenu.value.category.name })
   }
   closeContextMenu()
 }
