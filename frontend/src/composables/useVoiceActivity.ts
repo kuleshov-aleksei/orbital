@@ -14,7 +14,7 @@ export interface UseVoiceActivityOptions {
 }
 
 export function useVoiceActivity(options: UseVoiceActivityOptions) {
-  const { stream, isMuted, speakingThreshold = 0.05, updateInterval = 100 } = options
+  const { stream, isMuted, speakingThreshold = 0.05, updateInterval = 200 } = options
 
   // Reactive state
   const audioLevel = ref(0)
@@ -46,7 +46,8 @@ export function useVoiceActivity(options: UseVoiceActivityOptions) {
     const rms = Math.sqrt(sum / dataArray.length)
 
     // Apply some smoothing
-    audioLevel.value = audioLevel.value * 0.7 + rms * 0.3
+    //audioLevel.value = audioLevel.value * 0.7 + rms * 0.3
+    audioLevel.value = rms
   }
 
   // Animation loop with throttling
@@ -56,7 +57,9 @@ export function useVoiceActivity(options: UseVoiceActivityOptions) {
       lastUpdateTime.value = currentTime
     }
 
-    animationId.value = requestAnimationFrame(animate)
+    setTimeout(() => {
+      animationId.value = requestAnimationFrame(animate)
+    }, updateInterval)
   }
 
   // Setup audio analysis
