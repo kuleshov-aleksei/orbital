@@ -52,7 +52,6 @@ declare module 'vue' {
     ScreenShareTab: typeof import('./src/components/debug/ScreenShareTab.vue')['default']
     ScreenStream: typeof import('./src/components/ScreenStream.vue')['default']
     ThumbnailStream: typeof import('./src/components/ThumbnailStream.vue')['default']
-    UserAudioSettingsModal: typeof import('./src/components/UserAudioSettingsModal.vue')['default']
     UserAvatar: typeof import('./src/components/UserAvatar.vue')['default']
     UserCard: typeof import('./src/components/UserCard.vue')['default']
     UserControlPanel: typeof import('./src/components/UserControlPanel.vue')['default']

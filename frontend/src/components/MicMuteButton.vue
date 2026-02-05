@@ -1,19 +1,27 @@
 <template>
   <button
     type="button"
-    class="control-button"
+    class="control-button relative"
     :class="[
       sizeClasses,
       isMuted
         ? 'bg-red-600 hover:bg-red-700 text-white'
-        : 'bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white'
+        : isSpeaking
+          ? 'bg-green-600 hover:bg-green-700 text-white'
+          : 'bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white'
     ]"
     :title="isMuted ? 'Unmute' : 'Mute'"
     @click="toggleMute"
   >
-    <PhMicrophoneSlash v-if="isMuted" :class="iconClasses" />
+    <PhMicrophoneSlash v-if="isMuted" :class="[iconClasses, isSpeaking && !isMuted ? 'animate-pulse' : '']" />
 
-    <PhMicrophone v-else :class="iconClasses" />
+    <PhMicrophone v-else :class="[iconClasses, isSpeaking ? 'animate-pulse' : '']" />
+
+    <!-- Pulsating ring when speaking -->
+    <span
+      v-if="isSpeaking && !isMuted"
+      class="absolute inset-0 rounded-full animate-ping bg-green-400 opacity-30"
+    />
   </button>
 </template>
 
@@ -26,10 +34,12 @@ import { wsService } from '@/services/websocket'
 interface Props {
   modelValue: boolean
   size?: 'sm' | 'md' | 'lg'
+  isSpeaking?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  size: 'md'
+  size: 'md',
+  isSpeaking: false
 })
 
 const emit = defineEmits<{

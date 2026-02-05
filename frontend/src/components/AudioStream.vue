@@ -193,6 +193,7 @@
      screenShareQuality?: ScreenShareQuality
      peerConnection?: RTCPeerConnection
      isCurrentUser?: boolean
+     externalAudioLevel?: number
    }
 
    const props = withDefaults(defineProps<Props>(), {
@@ -203,7 +204,8 @@
      isScreenSharing: false,
      screenShareQuality: '1080p30',
      peerConnection: undefined,
-     isCurrentUser: false
+     isCurrentUser: false,
+     externalAudioLevel: 0
    })
 
  const emit = defineEmits<{
@@ -218,7 +220,7 @@
  const audioElement = useTemplateRef<HTMLAudioElement>('audioElement')
  const volume = computed(() => roomStore.getUserVolume(props.userId))
  const isMuted = ref(false)
- const audioLevel = ref(0)
+ const analyzedAudioLevel = ref(0)
  const audioContext = ref<AudioContext | null>(null)
  const analyser = ref<AnalyserNode | null>(null)
  const animationId = ref<number | null>(null)
@@ -228,6 +230,13 @@
  const connectionInfoInterval = ref<number | null>(null)
 
  // Computed properties
+ // Use external audio level for current user, analyzed level for remote users
+ const audioLevel = computed(() => {
+   if (props.isCurrentUser) {
+     return props.externalAudioLevel
+   }
+   return analyzedAudioLevel.value
+ })
  const isSpeaking = computed(() => audioLevel.value > 0.1) // Threshold for speaking detection
 
  // Connection display info
@@ -368,7 +377,7 @@
    const average = sum / dataArray.length
    const normalizedLevel = average / 255 // Normalize to 0-1
 
-   audioLevel.value = normalizedLevel
+   analyzedAudioLevel.value = normalizedLevel
  }
 
   // Animation loop for audio level visualization

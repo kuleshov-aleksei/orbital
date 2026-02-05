@@ -209,6 +209,7 @@ const audioStore = useAudioSettingsStore()
 // Local state
 const selectedAlgorithm = ref<NoiseSuppressionAlgorithm>('browser-native')
 const supports48kHz = ref<boolean | null>(null)
+const isCheckingMicrophone = ref(false)
 
 // Computed
 const noiseSuppressionEnabled = computed(() => audioStore.noiseSuppressionEnabled)
@@ -262,9 +263,24 @@ function clearWASMError() {
   audioStore.clearWASMError()
 }
 
+async function checkMicrophoneSupport() {
+  if (isCheckingMicrophone.value) return
+  isCheckingMicrophone.value = true
+
+  try {
+    supports48kHz.value = await audioStore.checkMicrophone48kHzSupport()
+  } catch (error) {
+    console.error('Error checking microphone support:', error)
+    supports48kHz.value = false
+  } finally {
+    isCheckingMicrophone.value = false
+  }
+}
+
 // Load settings on mount
 onMounted(() => {
   audioStore.loadSettings()
   selectedAlgorithm.value = audioStore.noiseSuppressionAlgorithm
+  void checkMicrophoneSupport()
 })
 </script>

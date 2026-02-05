@@ -2,7 +2,7 @@
   <div class="audio-controls">
     <div class="flex items-center justify-center space-x-4">
       <!-- Mute/Unmute -->
-      <MicMuteButton v-model="isMuted" size="lg" />
+      <MicMuteButton v-model="isMuted" :is-speaking="isSpeaking" size="lg" />
 
       <!-- Deafen/Undeafen -->
       <AudioDeafenButton v-model="isDeafened" size="lg" />
@@ -54,13 +54,15 @@ interface Props {
   modelValueDeafened?: boolean
   modelValueScreenSharing?: boolean
   modelValueDebugVisible?: boolean
+  isSpeaking?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   modelValueMuted: false,
   modelValueDeafened: false,
   modelValueScreenSharing: false,
-  modelValueDebugVisible: false
+  modelValueDebugVisible: false,
+  isSpeaking: false
 })
 
 const emit = defineEmits<{

@@ -40,6 +40,7 @@
         :is-visible="isUserGridVisible"
         :screen-share-count="screenShareData.length"
         :peer-connections="peerConnections"
+        :current-user-audio-level="audioLevel"
         @mute-toggle="handleMuteToggle"
         @audio-level="handleAudioLevel"
       />
@@ -52,6 +53,7 @@
             v-model:model-value-deafened="isDeafened"
             v-model:model-value-screen-sharing="isScreenSharing"
             v-model:model-value-debug-visible="appStore.isDebugVisible"
+            :is-speaking="isSpeaking"
             @start-screen-share="$emit('request-screen-share')"
             @leave-room="$emit('leave-room')"
           />
@@ -74,15 +76,15 @@
 </template>
 
  <script setup lang="ts">
- import { computed, ref, useTemplateRef, watch } from 'vue'
- import AudioControls from '@/components/AudioControls.vue'
+import { computed, ref, useTemplateRef, watch } from 'vue'
+import AudioControls from '@/components/AudioControls.vue'
 import DebugDashboard from '@/components/DebugDashboard.vue'
- import RoomHeader from '@/components/RoomHeader.vue'
- import ScreenShareArea from '@/components/ScreenShareArea.vue'
-  import UserGrid from '@/components/UserGrid.vue'
- import { useWebRTC } from '@/composables'
+import RoomHeader from '@/components/RoomHeader.vue'
+import ScreenShareArea from '@/components/ScreenShareArea.vue'
+import UserGrid from '@/components/UserGrid.vue'
+import { useWebRTC, useVoiceActivity } from '@/composables'
 import { useAppStore, useAudioSettingsStore, useCallStore } from '@/stores'
- import type { User, ScreenShareQuality } from '@/types'
+import type { User, ScreenShareQuality } from '@/types'
 
 interface Props {
   roomId: string
@@ -162,6 +164,12 @@ const {
     emit('ping-update', ping, quality)
   },
   onDebugLog
+})
+
+// Voice Activity Detection for local user
+const { audioLevel, isSpeaking } = useVoiceActivity({
+  stream: localStream,
+  isMuted: computed(() => props.modelValueMuted)
 })
 
 // Computed properties for v-model support

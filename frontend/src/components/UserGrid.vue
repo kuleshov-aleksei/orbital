@@ -21,6 +21,7 @@
           :screen-share-quality="userScreenShareStates.get(user.id)?.quality"
           :peer-connection="peerConnections.get(user.id)"
           :is-current-user="user.id === currentUserId"
+          :external-audio-level="user.id === currentUserId ? currentUserAudioLevel : undefined"
           @mute-toggle="(userId, isMuted) => $emit('mute-toggle', userId, isMuted)"
           @audio-level="(userId, level, isSpeaking) => $emit('audio-level', userId, level, isSpeaking)"
         />
@@ -50,6 +51,7 @@ interface Props {
   isDeafened: boolean
   isVisible: boolean
   screenShareCount: number
+  currentUserAudioLevel?: number
 }
 
 defineProps<Props>()
