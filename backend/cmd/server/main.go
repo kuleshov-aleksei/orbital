@@ -127,16 +127,16 @@ func main() {
 	// TURN server configuration route
 	r.HandleFunc("/api/turn-config", turnHandler.GetTURNConfig).Methods("GET")
 
-	// Room routes
+	// Room routes - ORDER MATTERS: more specific routes must come before parameterized routes
 	r.HandleFunc("/api/rooms", roomHandler.CreateRoom).Methods("POST")
 	r.HandleFunc("/api/rooms", roomHandler.GetRooms).Methods("GET")
+	r.HandleFunc("/api/rooms/order", roomHandler.UpdateRoomOrder).Methods("PUT")
 	r.HandleFunc("/api/rooms/{id}", roomHandler.GetRoom).Methods("GET")
 	r.HandleFunc("/api/rooms/{id}", roomHandler.UpdateRoom).Methods("PUT")
 	r.HandleFunc("/api/rooms/{id}", roomHandler.DeleteRoom).Methods("DELETE")
 	r.HandleFunc("/api/rooms/{id}/users", roomHandler.GetRoomUsers).Methods("GET")
 	r.HandleFunc("/api/rooms/{id}/join", roomHandler.JoinRoom).Methods("POST")
 	r.HandleFunc("/api/rooms/{id}/leave", roomHandler.LeaveRoom).Methods("POST")
-	r.HandleFunc("/api/rooms/order", roomHandler.UpdateRoomOrder).Methods("PUT")
 
 	// Category routes - ORDER MATTERS: more specific routes must come before parameterized routes
 	// Use PathPrefix for the reorder endpoint to ensure it matches first
