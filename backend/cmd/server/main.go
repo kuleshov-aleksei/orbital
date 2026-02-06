@@ -9,13 +9,13 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
-	"github.com/orbital/internal/config"
-	"github.com/orbital/internal/handlers"
-	"github.com/orbital/internal/repository"
-	"github.com/orbital/internal/service"
-	"github.com/orbital/internal/storage"
-	"github.com/orbital/internal/version"
-	"github.com/orbital/internal/websocket"
+	"github.com/kuleshov-aleksei/orbital/internal/config"
+	"github.com/kuleshov-aleksei/orbital/internal/handlers"
+	"github.com/kuleshov-aleksei/orbital/internal/repository"
+	"github.com/kuleshov-aleksei/orbital/internal/service"
+	"github.com/kuleshov-aleksei/orbital/internal/storage"
+	"github.com/kuleshov-aleksei/orbital/internal/version"
+	"github.com/kuleshov-aleksei/orbital/internal/websocket"
 )
 
 func main() {
