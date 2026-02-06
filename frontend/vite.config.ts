@@ -7,8 +7,12 @@ import { readFileSync } from 'fs'
 const isHttps = process.env.VITE_HTTPS === 'true'
 const backendUrl = process.env.VITE_BACKEND_URL || 'http://localhost:8080'
 const backendWsUrl = backendUrl.replace('http://', 'ws://').replace('https://', 'wss://')
+const appVersion = process.env.VITE_APP_VERSION || 'dev-unknown'
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+  },
   plugins: [
     vue(),
     Icons({

@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/orbital/internal/config"
+	"github.com/kuleshov-aleksei/orbital/internal/config"
 )
 
 // TURNHandler handles TURN server configuration requests

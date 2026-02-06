@@ -8,10 +8,10 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/orbital/internal/config"
-	"github.com/orbital/internal/models"
-	"github.com/orbital/internal/service"
-	"github.com/orbital/internal/websocket"
+	"github.com/kuleshov-aleksei/orbital/internal/config"
+	"github.com/kuleshov-aleksei/orbital/internal/models"
+	"github.com/kuleshov-aleksei/orbital/internal/service"
+	"github.com/kuleshov-aleksei/orbital/internal/websocket"
 )
 
 // RoomHandler handles room-related HTTP requests

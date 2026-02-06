@@ -5,9 +5,9 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/orbital/internal/models"
-	"github.com/orbital/internal/service"
-	"github.com/orbital/internal/websocket"
+	"github.com/kuleshov-aleksei/orbital/internal/models"
+	"github.com/kuleshov-aleksei/orbital/internal/service"
+	"github.com/kuleshov-aleksei/orbital/internal/websocket"
 )
 
 // CategoryHandler handles category-related HTTP requests

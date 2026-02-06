@@ -1,4 +1,4 @@
-module github.com/orbital
+module github.com/kuleshov-aleksei/orbital
 
 go 1.23.0
 

@@ -21,12 +21,16 @@ install:
 	@echo "Installing backend dependencies..."
 	cd backend && go mod download
 
+# Get version from git tag + commit
+VERSION := $(shell ./scripts/version.sh 2>/dev/null || echo "dev-unknown")
+
 # Build everything
 build:
+	@echo "Building version: $(VERSION)"
 	@echo "Building frontend..."
-	cd frontend && npm run build
+	cd frontend && VITE_APP_VERSION=$(VERSION) npm run build
 	@echo "Building backend..."
-	cd backend && go build -o ../bin/orbital ./cmd/server
+	cd backend && go build -ldflags "-X github.com/kuleshov-aleksei/orbital/internal/version.Version=$(VERSION)" -o ../bin/orbital ./cmd/server
 
 # Run development servers
 dev:
@@ -103,13 +107,13 @@ clean:
 
 # Docker commands
 docker-build:
-	@echo "Building Docker images..."
-	docker build -t orbital-frontend -f docker/Dockerfile.frontend .
-	docker build -t orbital-backend -f docker/Dockerfile.backend .
+	@echo "Building Docker images with version: $(VERSION)..."
+	docker build --build-arg VERSION=$(VERSION) -t orbital-frontend -f docker/Dockerfile.frontend .
+	docker build --build-arg VERSION=$(VERSION) -t orbital-backend -f docker/Dockerfile.backend .
 
 docker-up:
-	@echo "Starting with Docker Compose..."
-	docker-compose -f docker/docker-compose.yml up
+	@echo "Starting with Docker Compose (version: $(VERSION))..."
+	VERSION=$(VERSION) docker-compose -f docker/docker-compose.yml up
 
 docker-down:
 	@echo "Stopping Docker Compose..."

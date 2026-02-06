@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/orbital/internal/models"
-	"github.com/orbital/internal/storage"
+	"github.com/kuleshov-aleksei/orbital/internal/models"
+	"github.com/kuleshov-aleksei/orbital/internal/storage"
 )
 
 // UserRepository handles database operations for users

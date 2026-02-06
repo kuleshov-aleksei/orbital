@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/orbital/internal/models"
-	"github.com/orbital/internal/repository"
+	"github.com/kuleshov-aleksei/orbital/internal/models"
+	"github.com/kuleshov-aleksei/orbital/internal/repository"
 )
 
 // RoomService manages rooms and users

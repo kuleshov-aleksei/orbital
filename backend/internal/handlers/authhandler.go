@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/orbital/internal/models"
-	"github.com/orbital/internal/service"
+	"github.com/kuleshov-aleksei/orbital/internal/models"
+	"github.com/kuleshov-aleksei/orbital/internal/service"
 )
 
 // AuthHandler handles authentication-related HTTP requests
