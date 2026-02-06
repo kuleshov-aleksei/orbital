@@ -44,7 +44,7 @@
         <div v-show="expandedCategories.has(category.name)" class="px-2">
           <!-- Drop zone before first room -->
           <div
-            v-if="draggedRoom && draggedRoom.category === category.id"
+            v-if="draggedRoom"
             class="h-2 rounded transition-all duration-200"
             :class="{
               'bg-indigo-500/50 h-8': activeDropZone?.categoryId === category.id && activeDropZone?.position === 'before-first'
@@ -64,7 +64,7 @@
             
             <!-- Drop zone between rooms -->
             <div
-              v-if="draggedRoom && draggedRoom.category === category.id && index < category.rooms.length - 1"
+              v-if="draggedRoom && index < category.rooms.length - 1"
               class="h-2 rounded transition-all duration-200"
               :class="{
                 'bg-indigo-500/50 h-8': activeDropZone?.categoryId === category.id && activeDropZone?.position === index
@@ -75,7 +75,7 @@
           
           <!-- Drop zone after last room -->
           <div
-            v-if="draggedRoom && draggedRoom.category === category.id"
+            v-if="draggedRoom"
             class="h-2 rounded transition-all duration-200"
             :class="{
               'bg-indigo-500/50 h-8': activeDropZone?.categoryId === category.id && activeDropZone?.position === 'after-last'
@@ -553,35 +553,39 @@ const handleDragEnd = () => {
 // Handle drag over drop zones
 const handleDropZoneDragOver = (event: DragEvent, categoryId: string, position: number | 'before-first' | 'after-last') => {
   event.preventDefault()
-  
+
   if (!draggedRoom.value) return
-  
-  // Only show drop zones for reordering in the same category
-  if (draggedRoom.value.category === categoryId) {
-    activeDropZone.value = { categoryId, position }
-    event.dataTransfer!.dropEffect = 'move'
-  }
+
+  // Show drop zones for all categories
+  activeDropZone.value = { categoryId, position }
+  event.dataTransfer!.dropEffect = 'move'
 }
 
 // Handle drop on drop zones
 const handleDropZoneDrop = async (event: DragEvent, categoryId: string, targetIndex: number) => {
   event.preventDefault()
   event.stopPropagation()
-  
+
   if (!draggedRoom.value) {
     handleDragEnd()
     return
   }
-  
+
   const sourceRoom = draggedRoom.value
-  
+  const isSameCategory = sourceRoom.category === categoryId
+
   try {
-    // Reordering within the same category
-    await reorderRoomsInCategory(categoryId, sourceRoom, targetIndex)
+    if (isSameCategory) {
+      // Reordering within the same category
+      await reorderRoomsInCategory(categoryId, sourceRoom, targetIndex)
+    } else {
+      // Moving to a different category at a specific position
+      await moveRoomToCategoryAtPosition(sourceRoom, categoryId, targetIndex)
+    }
   } catch (error) {
     console.error('Failed to update room order:', error)
   }
-  
+
   handleDragEnd()
 }
 
@@ -657,22 +661,53 @@ const moveRoomToCategory = async (room: Room, targetCategoryId: string) => {
   // Find the highest sort_order in the target category
   const targetCategoryRooms = rooms.value.filter(r => r.category === targetCategoryId)
   const maxSortOrder = targetCategoryRooms.reduce((max, r) => Math.max(max, r.sort_order || 0), 0)
-  
+
   // Update room category via existing API
   await apiService.updateRoom(room.id, { category: targetCategoryId })
-  
+
   // Update sort order in new category
   const updates: Record<string, number> = {
     [room.id]: maxSortOrder + 1
   }
-  
+
   // Update local state
   roomStore.moveRoomToCategory(room.id, targetCategoryId)
   roomStore.reorderRooms(updates)
-  
+
   // Update backend sort order
   await apiService.updateRoomOrder(updates)
-  
+
+  // Emit event for parent component
+  emit('move-room', { roomId: room.id, targetCategoryId })
+}
+
+// Move room to a different category at a specific position
+const moveRoomToCategoryAtPosition = async (room: Room, targetCategoryId: string, targetIndex: number) => {
+  // Get all rooms in the target category
+  const targetCategoryRooms = rooms.value
+    .filter(r => r.category === targetCategoryId)
+    .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+
+  // Update room category via existing API
+  await apiService.updateRoom(room.id, { category: targetCategoryId })
+
+  // Insert the room at the target position
+  const roomCopy = { ...room, category: targetCategoryId }
+  targetCategoryRooms.splice(targetIndex, 0, roomCopy)
+
+  // Reassign sort orders for all rooms in the target category
+  const updates: Record<string, number> = {}
+  targetCategoryRooms.forEach((r, index) => {
+    updates[r.id] = index + 1
+  })
+
+  // Update local state
+  roomStore.moveRoomToCategory(room.id, targetCategoryId)
+  roomStore.reorderRooms(updates)
+
+  // Update backend sort order
+  await apiService.updateRoomOrder(updates)
+
   // Emit event for parent component
   emit('move-room', { roomId: room.id, targetCategoryId })
 }
