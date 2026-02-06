@@ -4,7 +4,7 @@ A simple yet powerful voice communication platform for 5-10 people. Similar to D
 
 ## AI Disclaimer
 
-This project is built by AI (like 99.99%). AI is not perfect, but this application was built in 2 weeks and it does its job. I just do not want to waste 6 months handcrafting artisinal code. If you have any problems with this approach - it is not my problem.
+This project is built by AI (like 99.99%). AI is not perfect, but this application was built in 2 weeks and it does its job. I just do not want to waste 6 months handcrafting artisinal code
 
 ## Features
 
@@ -45,6 +45,9 @@ make build
 # Run development servers
 make dev
 
+# Run development servers using build artifacts
+make run-built
+
 # Run development server on 0.0.0.0
 make dev-public
 
@@ -63,6 +66,7 @@ make docker-up
 - `make install` - Install all dependencies
 - `make build` - Build frontend and backend
 - `make dev` - Run development servers
+- `make run-build` - Run build artifacts
 - `make dev-public` - Run development servers on 0.0.0.0 address
 - `make lint` - Run linters for both frontend and backend
 - `make test` - Run test suite
