@@ -3,8 +3,8 @@ package repository
 import (
 	"database/sql"
 
-	"github.com/orbital/internal/models"
-	"github.com/orbital/internal/storage"
+	"github.com/kuleshov-aleksei/orbital/internal/models"
+	"github.com/kuleshov-aleksei/orbital/internal/storage"
 )
 
 // RoomRepository handles database operations for rooms

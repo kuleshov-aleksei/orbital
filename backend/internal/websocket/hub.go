@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/orbital/internal/config"
-	"github.com/orbital/internal/models"
-	"github.com/orbital/internal/service"
+	"github.com/kuleshov-aleksei/orbital/internal/config"
+	"github.com/kuleshov-aleksei/orbital/internal/models"
+	"github.com/kuleshov-aleksei/orbital/internal/service"
 )
 
 // Hub manages WebSocket connections

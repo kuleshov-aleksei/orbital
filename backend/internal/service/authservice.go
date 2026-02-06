@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/orbital/internal/config"
-	"github.com/orbital/internal/models"
-	"github.com/orbital/internal/repository"
+	"github.com/kuleshov-aleksei/orbital/internal/config"
+	"github.com/kuleshov-aleksei/orbital/internal/models"
+	"github.com/kuleshov-aleksei/orbital/internal/repository"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )

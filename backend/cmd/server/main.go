@@ -9,12 +9,13 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
-	"github.com/orbital/internal/config"
-	"github.com/orbital/internal/handlers"
-	"github.com/orbital/internal/repository"
-	"github.com/orbital/internal/service"
-	"github.com/orbital/internal/storage"
-	"github.com/orbital/internal/websocket"
+	"github.com/kuleshov-aleksei/orbital/internal/config"
+	"github.com/kuleshov-aleksei/orbital/internal/handlers"
+	"github.com/kuleshov-aleksei/orbital/internal/repository"
+	"github.com/kuleshov-aleksei/orbital/internal/service"
+	"github.com/kuleshov-aleksei/orbital/internal/storage"
+	"github.com/kuleshov-aleksei/orbital/internal/version"
+	"github.com/kuleshov-aleksei/orbital/internal/websocket"
 )
 
 func main() {
@@ -113,6 +114,7 @@ func main() {
 
 	// API routes
 	r.HandleFunc("/api/health", healthHandler).Methods("GET")
+	r.HandleFunc("/api/version", versionHandler).Methods("GET")
 
 	// Auth routes
 	r.HandleFunc("/api/auth/discord/login", authHandler.DiscordLogin).Methods("GET")
@@ -198,7 +200,15 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{
 		"status":  "ok",
 		"service": "orbital-backend",
-		"version": "1.0.0",
+		"version": version.GetVersion(),
+	})
+}
+
+func versionHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{
+		"version": version.GetVersion(),
 	})
 }
 

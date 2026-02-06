@@ -62,25 +62,33 @@
         @select-quality="handleScreenShareQualitySelected"
         @cancel="showScreenShareQualityModal = false"
       />
+
+      <!-- Update Notification -->
+      <UpdateNotification
+        :visible="showUpdateNotification"
+        @reload="handleReload"
+      />
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, useTemplateRef, watch } from 'vue'
-import { 
-  DesktopSidebar, 
-  MobileRoomView, 
-  MainContent, 
-  UserSidebarWrapper, 
-  AppOverlays 
+import { onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue'
+import {
+  DesktopSidebar,
+  MobileRoomView,
+  MainContent,
+  UserSidebarWrapper,
+  AppOverlays
 } from '@/components/layout'
 import ModalManager from '@/components/ModalManager.vue'
 import ScreenShareQualityModal from '@/components/ScreenShareQualityModal.vue'
+import UpdateNotification from '@/components/UpdateNotification.vue'
 import AuthView from '@/views/AuthView.vue'
-import { useUserStore } from '@/stores'
+import { useRoomStore, useUserStore } from '@/stores'
 import { useUserSession, useRoomManager, useCategoryManager, useCallControls, useModalManager } from '@/composables'
 import { useWebSocketHandlers } from '@/composables'
+import { createVersionChecker } from '@/services/version'
 
 // Initialize composables (auto-initialize on mount)
 useUserSession()
@@ -88,10 +96,32 @@ useWebSocketHandlers()
 
 // Get stores and managers
 const userStore = useUserStore()
+const roomStore = useRoomStore()
 const roomManager = useRoomManager()
 const categoryManager = useCategoryManager()
 const callControls = useCallControls()
 const modalManager = useModalManager()
+
+// Version checker state
+const showUpdateNotification = ref(false)
+let versionChecker: ReturnType<typeof createVersionChecker> | null = null
+
+// Handle update availability
+const handleUpdateAvailable = (isInCall: boolean) => {
+  if (isInCall) {
+    // Show notification banner when in call
+    showUpdateNotification.value = true
+  } else {
+    // Auto-reload when not in call
+    console.log('[Update] Auto-reloading to apply update...')
+    window.location.reload()
+  }
+}
+
+// Handle reload button click
+const handleReload = () => {
+  window.location.reload()
+}
 
 // Template refs
 const mainContentRef = useTemplateRef<InstanceType<typeof MainContent>>('mainContentRef')
@@ -140,6 +170,18 @@ onMounted(async () => {
     await roomManager.loadRooms()
     await categoryManager.loadCategories()
   }
+
+  // Start version checker
+  versionChecker = createVersionChecker(
+    handleUpdateAvailable,
+    () => roomStore.isInRoom
+  )
+  versionChecker.start()
+})
+
+// Cleanup on unmount
+onUnmounted(() => {
+  versionChecker?.stop()
 })
 
 // Watch for auth completion and load rooms when user completes auth (e.g., guest login)
