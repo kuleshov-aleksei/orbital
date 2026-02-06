@@ -42,20 +42,46 @@
         </div>
 
         <div v-show="expandedCategories.has(category.name)" class="px-2">
-          <RoomCard
-            v-for="(room, index) in getSortedRooms(category.rooms)"
-            :key="room.id"
-            :room="room"
-            :is-active="room.id === activeRoomId"
-            :is-dragging="draggedRoom?.id === room.id"
-            @click="$emit('room-selected', room.id)"
-            @show-context-menu="showRoomContextMenu"
-            @dragstart="handleDragStart($event, room, category.id)"
-            @dragend="handleDragEnd"
-            @dragover="handleDragOver($event, room, category.id, index)"
-            @drop="handleDrop($event, room, category.id, index)"
-            @dragenter="handleDragEnter($event, room, category.id)"
-            @dragleave="handleDragLeave" />
+          <!-- Drop zone before first room -->
+          <div
+            v-if="draggedRoom && draggedRoom.category === category.id"
+            class="h-2 rounded transition-all duration-200"
+            :class="{
+              'bg-indigo-500/50 h-8': activeDropZone?.categoryId === category.id && activeDropZone?.position === 'before-first'
+            }"
+            @dragover.prevent="handleDropZoneDragOver($event, category.id, 'before-first')"
+            @drop="handleDropZoneDrop($event, category.id, 0)" />
+          
+          <template v-for="(room, index) in category.rooms" :key="room.id">
+            <RoomCard
+              :room="room"
+              :is-active="room.id === activeRoomId"
+              :is-dragging="draggedRoom?.id === room.id"
+              @click="$emit('room-selected', room.id)"
+              @show-context-menu="showRoomContextMenu"
+              @dragstart="handleDragStart($event, room, category.id)"
+              @dragend="handleDragEnd" />
+            
+            <!-- Drop zone between rooms -->
+            <div
+              v-if="draggedRoom && draggedRoom.category === category.id && index < category.rooms.length - 1"
+              class="h-2 rounded transition-all duration-200"
+              :class="{
+                'bg-indigo-500/50 h-8': activeDropZone?.categoryId === category.id && activeDropZone?.position === index
+              }"
+              @dragover.prevent="handleDropZoneDragOver($event, category.id, index)"
+              @drop="handleDropZoneDrop($event, category.id, index + 1)" />
+          </template>
+          
+          <!-- Drop zone after last room -->
+          <div
+            v-if="draggedRoom && draggedRoom.category === category.id"
+            class="h-2 rounded transition-all duration-200"
+            :class="{
+              'bg-indigo-500/50 h-8': activeDropZone?.categoryId === category.id && activeDropZone?.position === 'after-last'
+            }"
+            @dragover.prevent="handleDropZoneDragOver($event, category.id, 'after-last')"
+            @drop="handleDropZoneDrop($event, category.id, category.rooms.length)" />
           
           <!-- Drop zone at the end of category -->
           <div
@@ -491,14 +517,9 @@ const handleDeleteRoom = () => {
 
 // Drag and Drop State
 const draggedRoom = ref<Room | null>(null)
-const dragOverRoom = ref<Room | null>(null)
 const dragOverCategory = ref<string | null>(null)
 const dragSourceCategory = ref<string | null>(null)
-
-// Get sorted rooms for a category
-const getSortedRooms = (categoryRooms: Room[]) => {
-  return [...categoryRooms].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
-}
+const activeDropZone = ref<{ categoryId: string; position: number | 'before-first' | 'after-last' } | null>(null)
 
 // Drag Start - when user starts dragging a room
 const handleDragStart = (event: DragEvent, room: Room, categoryId: string) => {
@@ -524,58 +545,39 @@ const handleDragStart = (event: DragEvent, room: Room, categoryId: string) => {
 // Drag End - cleanup after drag ends
 const handleDragEnd = () => {
   draggedRoom.value = null
-  dragOverRoom.value = null
   dragOverCategory.value = null
   dragSourceCategory.value = null
+  activeDropZone.value = null
 }
 
-// Drag Over - when dragging over a room (for reordering within same category)
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const handleDragOver = (event: DragEvent, room: Room, categoryId: string, index: number) => {
+// Handle drag over drop zones
+const handleDropZoneDragOver = (event: DragEvent, categoryId: string, position: number | 'before-first' | 'after-last') => {
   event.preventDefault()
-
-  if (!draggedRoom.value || draggedRoom.value.id === room.id) return
-
-  dragOverRoom.value = room
-
-  // Only allow reordering if in the same category
+  
+  if (!draggedRoom.value) return
+  
+  // Only show drop zones for reordering in the same category
   if (draggedRoom.value.category === categoryId) {
+    activeDropZone.value = { categoryId, position }
     event.dataTransfer!.dropEffect = 'move'
   }
 }
 
-// Drag Enter
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const handleDragEnter = (event: DragEvent, room: Room, categoryId: string) => {
-  event.preventDefault()
-}
-
-// Drag Leave
-const handleDragLeave = () => {
-  dragOverRoom.value = null
-}
-
-// Drop - handle the actual drop action
-const handleDrop = async (event: DragEvent, targetRoom: Room, categoryId: string, targetIndex: number) => {
+// Handle drop on drop zones
+const handleDropZoneDrop = async (event: DragEvent, categoryId: string, targetIndex: number) => {
   event.preventDefault()
   event.stopPropagation()
   
-  if (!draggedRoom.value || draggedRoom.value.id === targetRoom.id) {
+  if (!draggedRoom.value) {
     handleDragEnd()
     return
   }
   
   const sourceRoom = draggedRoom.value
-  const isSameCategory = sourceRoom.category === categoryId
   
   try {
-    if (isSameCategory) {
-      // Reordering within the same category
-      await reorderRoomsInCategory(categoryId, sourceRoom, targetRoom, targetIndex)
-    } else {
-      // Moving to a different category
-      await moveRoomToCategory(sourceRoom, categoryId)
-    }
+    // Reordering within the same category
+    await reorderRoomsInCategory(categoryId, sourceRoom, targetIndex)
   } catch (error) {
     console.error('Failed to update room order:', error)
   }
@@ -612,29 +614,40 @@ const handleCategoryDrop = async (event: DragEvent, categoryId: string) => {
 }
 
 // Reorder rooms within the same category
-const reorderRoomsInCategory = async (categoryId: string, sourceRoom: Room, targetRoom: Room, targetIndex: number) => {
+const reorderRoomsInCategory = async (categoryId: string, sourceRoom: Room, targetIndex: number) => {
   // Get all rooms in this category
   const categoryRooms = rooms.value
     .filter(r => r.category === categoryId)
     .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
-  
+
   const sourceIndex = categoryRooms.findIndex(r => r.id === sourceRoom.id)
   if (sourceIndex === -1) return
-  
+
+  // If dropping at the same position, do nothing
+  if (sourceIndex === targetIndex || sourceIndex === targetIndex - 1) {
+    return
+  }
+
   // Reorder the array
   const [movedRoom] = categoryRooms.splice(sourceIndex, 1)
-  const adjustedTargetIndex = sourceIndex < targetIndex ? targetIndex - 1 : targetIndex
+
+  // Adjust target index if moving down
+  let adjustedTargetIndex = targetIndex
+  if (sourceIndex < targetIndex) {
+    adjustedTargetIndex = targetIndex - 1
+  }
+
   categoryRooms.splice(adjustedTargetIndex, 0, movedRoom)
-  
+
   // Assign new sort orders
   const updates: Record<string, number> = {}
   categoryRooms.forEach((room, index) => {
     updates[room.id] = index + 1
   })
-  
+
   // Update local state immediately for responsiveness
   roomStore.reorderRooms(updates)
-  
+
   // Update backend
   await apiService.updateRoomOrder(updates)
 }
