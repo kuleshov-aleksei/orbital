@@ -1,4 +1,4 @@
-.PHONY: help install build dev dev-public lint test clean docker-build docker-up certs
+.PHONY: help install build dev dev-public lint test clean docker-build docker-up certs run-built
 
 # Default target
 help:
@@ -13,6 +13,7 @@ help:
 	@echo "  clean        - Clean build artifacts"
 	@echo "  docker-build - Build Docker images"
 	@echo "  docker-up    - Run with Docker Compose"
+	@echo "  run-built    - Run production build locally (nginx + binary, no Docker)"
 
 # Install dependencies
 install:
@@ -118,3 +119,40 @@ docker-up:
 docker-down:
 	@echo "Stopping Docker Compose..."
 	docker-compose -f docker/docker-compose.yml down
+
+# Run production build locally with nginx (no Docker)
+# Requires: build target to be run first, nginx installed
+run-built:
+	@if [ ! -f bin/orbital ]; then \
+		echo "Error: Backend binary not found. Run 'make build' first."; \
+		exit 1; \
+	fi
+	@if [ ! -d frontend/dist ]; then \
+		echo "Error: Frontend dist not found. Run 'make build' first."; \
+		exit 1; \
+	fi
+	@echo "Starting production build locally..."
+	@echo "App will be available at: http://localhost:3000"
+	@echo "Press Ctrl+C to stop"
+	@echo ""
+	# Generate temporary nginx config with correct paths
+	@sed "s|ROOT_PLACEHOLDER|$(PWD)/frontend/dist|g" docker/nginx-local.conf > /tmp/orbital-nginx.conf
+	# Ensure nginx can write its logs and PID file
+	@mkdir -p /tmp/orbital-logs
+	@bash -c ' \
+		cd bin && ./orbital & \
+		BACKEND_PID=$$!; \
+		sleep 2; \
+		nginx -c /tmp/orbital-nginx.conf -g "daemon off;" & \
+		NGINX_PID=$$!; \
+		cleanup() { \
+			echo ""; \
+			echo "Shutting down..."; \
+			kill $$BACKEND_PID $$NGINX_PID 2>/dev/null; \
+			rm -rf /tmp/orbital-nginx.conf /tmp/orbital-nginx.pid /tmp/orbital-logs; \
+			wait $$BACKEND_PID $$NGINX_PID 2>/dev/null; \
+			exit 0; \
+		}; \
+		trap cleanup INT TERM EXIT; \
+		wait $$BACKEND_PID $$NGINX_PID \
+	'
