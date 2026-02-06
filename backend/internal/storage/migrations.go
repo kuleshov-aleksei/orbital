@@ -64,6 +64,12 @@ CREATE INDEX IF NOT EXISTS idx_users_provider ON users(auth_provider, provider_i
 		SQL: `ALTER TABLE users ADD COLUMN oauth_nickname TEXT;
 UPDATE users SET oauth_nickname = nickname WHERE auth_provider != 'guest';`,
 	},
+	{
+		Version: 6,
+		Name:    "add_sort_order_to_rooms",
+		SQL: `ALTER TABLE rooms ADD COLUMN sort_order INTEGER DEFAULT 0;
+CREATE INDEX IF NOT EXISTS idx_rooms_sort_order ON rooms(category_id, sort_order);`,
+	},
 }
 
 // RunMigrations runs all pending migrations

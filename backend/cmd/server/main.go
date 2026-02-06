@@ -136,6 +136,7 @@ func main() {
 	r.HandleFunc("/api/rooms/{id}/users", roomHandler.GetRoomUsers).Methods("GET")
 	r.HandleFunc("/api/rooms/{id}/join", roomHandler.JoinRoom).Methods("POST")
 	r.HandleFunc("/api/rooms/{id}/leave", roomHandler.LeaveRoom).Methods("POST")
+	r.HandleFunc("/api/rooms/order", roomHandler.UpdateRoomOrder).Methods("PUT")
 
 	// Category routes
 	r.HandleFunc("/api/categories", categoryHandler.GetCategories).Methods("GET")

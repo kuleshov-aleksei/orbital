@@ -141,6 +141,14 @@ export const apiService = {
     return apiRequest<User[]>(`/rooms/${roomId}/users`)
   },
 
+  // Update room order for drag-and-drop
+  async updateRoomOrder(orders: Record<string, number>): Promise<{ status: string }> {
+    return apiRequest<{ status: string }>('/rooms/order', {
+      method: 'PUT',
+      body: JSON.stringify({ orders }),
+    })
+  },
+
   // Health check
   async healthCheck(): Promise<{ status: string; service: string; version: string }> {
     return apiRequest<{ status: string; service: string; version: string }>('/health')

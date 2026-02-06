@@ -20,8 +20,8 @@ func NewRoomRepository(db *storage.DB) *RoomRepository {
 // Create inserts a new room into the database
 func (r *RoomRepository) Create(room *models.Room) error {
 	_, err := r.db.Exec(
-		`INSERT INTO rooms (id, name, owner_id, max_users, created_at, category_id) VALUES (?, ?, ?, ?, ?, ?)`,
-		room.ID, room.Name, room.OwnerID, room.MaxUsers, room.CreatedAt, room.Category,
+		`INSERT INTO rooms (id, name, owner_id, max_users, created_at, category_id, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		room.ID, room.Name, room.OwnerID, room.MaxUsers, room.CreatedAt, room.Category, room.SortOrder,
 	)
 	return err
 }
@@ -33,9 +33,9 @@ func (r *RoomRepository) GetByID(id string) (*models.Room, error) {
 	var categoryID sql.NullString
 
 	err := r.db.QueryRow(
-		`SELECT id, name, owner_id, max_users, created_at, category_id FROM rooms WHERE id = ?`,
+		`SELECT id, name, owner_id, max_users, created_at, category_id, sort_order FROM rooms WHERE id = ?`,
 		id,
-	).Scan(&room.ID, &room.Name, &ownerID, &room.MaxUsers, &room.CreatedAt, &categoryID)
+	).Scan(&room.ID, &room.Name, &ownerID, &room.MaxUsers, &room.CreatedAt, &categoryID, &room.SortOrder)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -57,8 +57,8 @@ func (r *RoomRepository) GetByID(id string) (*models.Room, error) {
 // Update updates a room's information
 func (r *RoomRepository) Update(room *models.Room) error {
 	_, err := r.db.Exec(
-		`UPDATE rooms SET name = ?, owner_id = ?, max_users = ?, category_id = ? WHERE id = ?`,
-		room.Name, room.OwnerID, room.MaxUsers, room.Category, room.ID,
+		`UPDATE rooms SET name = ?, owner_id = ?, max_users = ?, category_id = ?, sort_order = ? WHERE id = ?`,
+		room.Name, room.OwnerID, room.MaxUsers, room.Category, room.SortOrder, room.ID,
 	)
 	return err
 }
@@ -69,9 +69,9 @@ func (r *RoomRepository) Delete(id string) error {
 	return err
 }
 
-// GetAll retrieves all rooms from the database
+// GetAll retrieves all rooms from the database ordered by sort_order
 func (r *RoomRepository) GetAll() ([]*models.Room, error) {
-	rows, err := r.db.Query(`SELECT id, name, owner_id, max_users, created_at, category_id FROM rooms`)
+	rows, err := r.db.Query(`SELECT id, name, owner_id, max_users, created_at, category_id, sort_order FROM rooms ORDER BY sort_order ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +83,7 @@ func (r *RoomRepository) GetAll() ([]*models.Room, error) {
 		var ownerID sql.NullString
 		var categoryID sql.NullString
 
-		err := rows.Scan(&room.ID, &room.Name, &ownerID, &room.MaxUsers, &room.CreatedAt, &categoryID)
+		err := rows.Scan(&room.ID, &room.Name, &ownerID, &room.MaxUsers, &room.CreatedAt, &categoryID, &room.SortOrder)
 		if err != nil {
 			return nil, err
 		}
@@ -101,10 +101,10 @@ func (r *RoomRepository) GetAll() ([]*models.Room, error) {
 	return rooms, rows.Err()
 }
 
-// GetByCategory retrieves all rooms in a specific category
+// GetByCategory retrieves all rooms in a specific category ordered by sort_order
 func (r *RoomRepository) GetByCategory(categoryID string) ([]*models.Room, error) {
 	rows, err := r.db.Query(
-		`SELECT id, name, owner_id, max_users, created_at, category_id FROM rooms WHERE category_id = ?`,
+		`SELECT id, name, owner_id, max_users, created_at, category_id, sort_order FROM rooms WHERE category_id = ? ORDER BY sort_order ASC`,
 		categoryID,
 	)
 	if err != nil {
@@ -118,7 +118,7 @@ func (r *RoomRepository) GetByCategory(categoryID string) ([]*models.Room, error
 		var ownerID sql.NullString
 		var catID sql.NullString
 
-		err := rows.Scan(&room.ID, &room.Name, &ownerID, &room.MaxUsers, &room.CreatedAt, &catID)
+		err := rows.Scan(&room.ID, &room.Name, &ownerID, &room.MaxUsers, &room.CreatedAt, &catID, &room.SortOrder)
 		if err != nil {
 			return nil, err
 		}
@@ -143,4 +143,29 @@ func (r *RoomRepository) UpdateCategory(oldCategoryID, newCategoryID string) err
 		newCategoryID, oldCategoryID,
 	)
 	return err
+}
+
+// UpdateSortOrder updates the sort order of a specific room
+func (r *RoomRepository) UpdateSortOrder(roomID string, sortOrder int) error {
+	_, err := r.db.Exec(
+		`UPDATE rooms SET sort_order = ? WHERE id = ?`,
+		sortOrder, roomID,
+	)
+	return err
+}
+
+// UpdateSortOrders updates the sort order of multiple rooms in a transaction
+func (r *RoomRepository) UpdateSortOrders(updates map[string]int) error {
+	return r.db.Transaction(func(tx *sql.Tx) error {
+		for roomID, sortOrder := range updates {
+			_, err := tx.Exec(
+				`UPDATE rooms SET sort_order = ? WHERE id = ?`,
+				sortOrder, roomID,
+			)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }

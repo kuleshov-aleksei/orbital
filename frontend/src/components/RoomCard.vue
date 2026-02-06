@@ -3,10 +3,18 @@
     class="room-card px-2 py-2 mb-1 rounded-lg cursor-pointer transition-all duration-200"
     :class="{
       'bg-indigo-600 text-white': isActive,
-      'bg-gray-700 hover:bg-gray-600 text-gray-200': !isActive
+      'bg-gray-700 hover:bg-gray-600 text-gray-200': !isActive,
+      'opacity-50': isDragging
     }"
+    draggable="true"
     @click="$emit('click')"
     @contextmenu.prevent="showContextMenu"
+    @dragstart="$emit('dragstart', $event)"
+    @dragend="$emit('dragend', $event)"
+    @dragover.prevent="$emit('dragover', $event)"
+    @drop="$emit('drop', $event)"
+    @dragenter.prevent="$emit('dragenter', $event)"
+    @dragleave="$emit('dragleave', $event)"
   >
     <!-- Room Header -->
     <div class="flex items-center">
@@ -83,18 +91,26 @@ interface Room {
   user_count: number
   max_users: number
   category: string
+  sort_order: number
   users?: RoomPreviewUser[]
 }
 
 interface Props {
   room: Room
   isActive: boolean
+  isDragging?: boolean
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<{
   click: []
   'show-context-menu': [event: MouseEvent, room: Room]
+  dragstart: [event: DragEvent]
+  dragend: [event: DragEvent]
+  dragover: [event: DragEvent]
+  drop: [event: DragEvent]
+  dragenter: [event: DragEvent]
+  dragleave: [event: DragEvent]
 }>()
 
 const showContextMenu = (event: MouseEvent) => {

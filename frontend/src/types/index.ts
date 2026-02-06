@@ -6,6 +6,7 @@ export interface Room {
   max_users: number
   category: string  // Category ID
   category_name?: string  // Category name for display
+  sort_order: number  // Order within category for drag-and-drop
   users?: RoomPreviewUser[]
 }
 

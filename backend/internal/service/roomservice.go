@@ -91,6 +91,15 @@ func (rs *RoomService) CreateRoom(name, category string, maxUsers int) (*models.
 	defer rs.mu.Unlock()
 
 	roomID := generateID()
+
+	// Calculate next sort order for this category
+	maxSortOrder := 0
+	for _, r := range rs.rooms {
+		if r.Category == category && r.SortOrder > maxSortOrder {
+			maxSortOrder = r.SortOrder
+		}
+	}
+
 	room := &models.Room{
 		ID:        roomID,
 		Name:      name,
@@ -98,6 +107,7 @@ func (rs *RoomService) CreateRoom(name, category string, maxUsers int) (*models.
 		MaxUsers:  maxUsers,
 		CreatedAt: time.Now(),
 		Category:  category,
+		SortOrder: maxSortOrder + 1,
 	}
 
 	// Save to database first
@@ -144,6 +154,7 @@ func (rs *RoomService) GetRoomsWithPreview() []models.RoomPreview {
 			UserCount: rs.getRoomUserCount(room.ID),
 			CreatedAt: room.CreatedAt,
 			Category:  room.Category,
+			SortOrder: room.SortOrder,
 			Users:     rs.getRoomPreviewUsers(room.ID),
 		}
 
@@ -582,6 +593,28 @@ func (rs *RoomService) GetRoomsByCategory(categoryID string) []*models.Room {
 	}
 
 	return rooms
+}
+
+// UpdateRoomSortOrder updates the sort order of rooms
+func (rs *RoomService) UpdateRoomSortOrder(roomOrders map[string]int) error {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+
+	// Update in-memory rooms
+	for roomID, sortOrder := range roomOrders {
+		if room, exists := rs.rooms[roomID]; exists {
+			room.SortOrder = sortOrder
+		}
+	}
+
+	// Update in database
+	if rs.roomRepo != nil {
+		if err := rs.roomRepo.UpdateSortOrders(roomOrders); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // DeleteRoom removes a room completely

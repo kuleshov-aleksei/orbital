@@ -321,6 +321,42 @@ func (h *RoomHandler) DeleteRoom(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }
 
+// UpdateRoomOrder handles PUT /api/rooms/order
+func (h *RoomHandler) UpdateRoomOrder(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Orders map[string]int `json:"orders"` // room_id -> sort_order
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate request
+	if len(req.Orders) == 0 {
+		http.Error(w, "No room orders provided", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.roomService.UpdateRoomSortOrder(req.Orders); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Broadcast room order update to all connected clients
+	if h.wsHub != nil {
+		roomOrderUpdatedMessage := map[string]interface{}{
+			"type": "room_order_updated",
+			"data": map[string]interface{}{
+				"orders": req.Orders,
+			},
+		}
+		h.wsHub.BroadcastToAll(roomOrderUpdatedMessage)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+}
+
 // generateUserID generates a unique user ID
 func generateUserID() string {
 	bytes := make([]byte, 16)

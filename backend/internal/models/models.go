@@ -40,6 +40,7 @@ type Room struct {
 	UserCount int       `json:"user_count"`
 	CreatedAt time.Time `json:"created_at"`
 	Category  string    `json:"category"`
+	SortOrder int       `json:"sort_order"`
 }
 
 // RoomMember represents a user in a room
@@ -122,6 +123,7 @@ type RoomPreview struct {
 	CreatedAt    time.Time         `json:"created_at"`
 	Category     string            `json:"category"`
 	CategoryName string            `json:"category_name"`
+	SortOrder    int               `json:"sort_order"`
 	Users        []RoomPreviewUser `json:"users"`
 }
 

@@ -43,12 +43,28 @@
 
         <div v-show="expandedCategories.has(category.name)" class="px-2">
           <RoomCard
-            v-for="room in category.rooms"
+            v-for="(room, index) in getSortedRooms(category.rooms)"
             :key="room.id"
             :room="room"
             :is-active="room.id === activeRoomId"
+            :is-dragging="draggedRoom?.id === room.id"
             @click="$emit('room-selected', room.id)"
-            @show-context-menu="showRoomContextMenu" />
+            @show-context-menu="showRoomContextMenu"
+            @dragstart="handleDragStart($event, room, category.id)"
+            @dragend="handleDragEnd"
+            @dragover="handleDragOver($event, room, category.id, index)"
+            @drop="handleDrop($event, room, category.id, index)"
+            @dragenter="handleDragEnter($event, room, category.id)"
+            @dragleave="handleDragLeave" />
+          
+          <!-- Drop zone at the end of category -->
+          <div
+            v-if="draggedRoom && draggedRoom.category !== category.id"
+            class="h-8 rounded-lg border-2 border-dashed border-indigo-400 bg-indigo-500/10 flex items-center justify-center text-xs text-indigo-300"
+            @dragover.prevent="handleCategoryDragOver($event, category.id)"
+            @drop="handleCategoryDrop($event, category.id)">
+            Drop here to move to {{ category.name }}
+          </div>
         </div>
       </div>
     </div>
@@ -199,6 +215,7 @@ import { storeToRefs } from 'pinia'
 import RoomCard from '@/components/RoomCard.vue'
 import { PhCaretDown, PhPlus, PhDotsThree, PhPencil, PhTrash, PhArrowsLeftRight } from '@phosphor-icons/vue'
 import { useRoomStore, useCategoryStore } from '@/stores'
+import { apiService } from '@/services/api'
 import type { Room } from '@/types'
 
 interface CategorizedRoom {
@@ -224,6 +241,7 @@ const emit = defineEmits<{
   'edit-room': [payload: { roomId: string, roomName: string, maxUsers: number }]
   'delete-room': [payload: { roomId: string, roomName: string, userCount: number }]
   'close-mobile-sidebar': []
+  'room-order-updated': [payload: { orders: Record<string, number> }]
 }>()
 // Use stores directly for reactivity
 const roomStore = useRoomStore()
@@ -254,8 +272,10 @@ const categorizedRooms = computed(() => {
     categoryRoomMap.get(categoryId)!.rooms.push(room)
   })
 
-  // Convert to array format and expand all categories by default
+  // Convert to array format, sort rooms by sort_order, and expand all categories by default
   categoryRoomMap.forEach((categoryData) => {
+    // Sort rooms by sort_order
+    categoryData.rooms.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
     result.push(categoryData)
     expandedCategories.value.add(categoryData.name)
   })
@@ -467,5 +487,180 @@ const handleDeleteRoom = () => {
     })
   }
   closeRoomContextMenu()
+}
+
+// Drag and Drop State
+const draggedRoom = ref<Room | null>(null)
+const dragOverRoom = ref<Room | null>(null)
+const dragOverCategory = ref<string | null>(null)
+const dragSourceCategory = ref<string | null>(null)
+
+// Get sorted rooms for a category
+const getSortedRooms = (categoryRooms: Room[]) => {
+  return [...categoryRooms].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+}
+
+// Drag Start - when user starts dragging a room
+const handleDragStart = (event: DragEvent, room: Room, categoryId: string) => {
+  draggedRoom.value = room
+  dragSourceCategory.value = categoryId
+  
+  // Set drag data
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', room.id)
+    
+    // Set a custom drag image if needed
+    const target = event.target as HTMLElement
+    if (target) {
+      event.dataTransfer.setDragImage(target, 0, 0)
+    }
+  }
+  
+  // Close any open context menus
+  closeAllContextMenus()
+}
+
+// Drag End - cleanup after drag ends
+const handleDragEnd = () => {
+  draggedRoom.value = null
+  dragOverRoom.value = null
+  dragOverCategory.value = null
+  dragSourceCategory.value = null
+}
+
+// Drag Over - when dragging over a room (for reordering within same category)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const handleDragOver = (event: DragEvent, room: Room, categoryId: string, index: number) => {
+  event.preventDefault()
+
+  if (!draggedRoom.value || draggedRoom.value.id === room.id) return
+
+  dragOverRoom.value = room
+
+  // Only allow reordering if in the same category
+  if (draggedRoom.value.category === categoryId) {
+    event.dataTransfer!.dropEffect = 'move'
+  }
+}
+
+// Drag Enter
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const handleDragEnter = (event: DragEvent, room: Room, categoryId: string) => {
+  event.preventDefault()
+}
+
+// Drag Leave
+const handleDragLeave = () => {
+  dragOverRoom.value = null
+}
+
+// Drop - handle the actual drop action
+const handleDrop = async (event: DragEvent, targetRoom: Room, categoryId: string, targetIndex: number) => {
+  event.preventDefault()
+  event.stopPropagation()
+  
+  if (!draggedRoom.value || draggedRoom.value.id === targetRoom.id) {
+    handleDragEnd()
+    return
+  }
+  
+  const sourceRoom = draggedRoom.value
+  const isSameCategory = sourceRoom.category === categoryId
+  
+  try {
+    if (isSameCategory) {
+      // Reordering within the same category
+      await reorderRoomsInCategory(categoryId, sourceRoom, targetRoom, targetIndex)
+    } else {
+      // Moving to a different category
+      await moveRoomToCategory(sourceRoom, categoryId)
+    }
+  } catch (error) {
+    console.error('Failed to update room order:', error)
+  }
+  
+  handleDragEnd()
+}
+
+// Handle drag over category drop zone
+const handleCategoryDragOver = (event: DragEvent, categoryId: string) => {
+  event.preventDefault()
+  dragOverCategory.value = categoryId
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move'
+  }
+}
+
+// Handle drop on category drop zone
+const handleCategoryDrop = async (event: DragEvent, categoryId: string) => {
+  event.preventDefault()
+  event.stopPropagation()
+  
+  if (!draggedRoom.value || draggedRoom.value.category === categoryId) {
+    handleDragEnd()
+    return
+  }
+  
+  try {
+    await moveRoomToCategory(draggedRoom.value, categoryId)
+  } catch (error) {
+    console.error('Failed to move room to category:', error)
+  }
+  
+  handleDragEnd()
+}
+
+// Reorder rooms within the same category
+const reorderRoomsInCategory = async (categoryId: string, sourceRoom: Room, targetRoom: Room, targetIndex: number) => {
+  // Get all rooms in this category
+  const categoryRooms = rooms.value
+    .filter(r => r.category === categoryId)
+    .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+  
+  const sourceIndex = categoryRooms.findIndex(r => r.id === sourceRoom.id)
+  if (sourceIndex === -1) return
+  
+  // Reorder the array
+  const [movedRoom] = categoryRooms.splice(sourceIndex, 1)
+  const adjustedTargetIndex = sourceIndex < targetIndex ? targetIndex - 1 : targetIndex
+  categoryRooms.splice(adjustedTargetIndex, 0, movedRoom)
+  
+  // Assign new sort orders
+  const updates: Record<string, number> = {}
+  categoryRooms.forEach((room, index) => {
+    updates[room.id] = index + 1
+  })
+  
+  // Update local state immediately for responsiveness
+  roomStore.reorderRooms(updates)
+  
+  // Update backend
+  await apiService.updateRoomOrder(updates)
+}
+
+// Move room to a different category
+const moveRoomToCategory = async (room: Room, targetCategoryId: string) => {
+  // Find the highest sort_order in the target category
+  const targetCategoryRooms = rooms.value.filter(r => r.category === targetCategoryId)
+  const maxSortOrder = targetCategoryRooms.reduce((max, r) => Math.max(max, r.sort_order || 0), 0)
+  
+  // Update room category via existing API
+  await apiService.updateRoom(room.id, { category: targetCategoryId })
+  
+  // Update sort order in new category
+  const updates: Record<string, number> = {
+    [room.id]: maxSortOrder + 1
+  }
+  
+  // Update local state
+  roomStore.moveRoomToCategory(room.id, targetCategoryId)
+  roomStore.reorderRooms(updates)
+  
+  // Update backend sort order
+  await apiService.updateRoomOrder(updates)
+  
+  // Emit event for parent component
+  emit('move-room', { roomId: room.id, targetCategoryId })
 }
 </script>

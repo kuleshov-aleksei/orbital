@@ -169,6 +169,38 @@ export const useRoomStore = defineStore('room', () => {
     }
   }
 
+  function reorderRooms(roomOrders: Record<string, number>) {
+    // Update sort_order for each room
+    rooms.value = rooms.value.map(room => {
+      if (roomOrders[room.id] !== undefined) {
+        return { ...room, sort_order: roomOrders[room.id] }
+      }
+      return room
+    })
+  }
+
+  function moveRoomToCategory(roomId: string, targetCategoryId: string) {
+    const index = rooms.value.findIndex(r => r.id === roomId)
+    if (index !== -1) {
+      const room = rooms.value[index]
+      const oldCategory = room.category
+      
+      // Find the highest sort_order in the target category
+      const maxSortOrder = rooms.value
+        .filter(r => r.category === targetCategoryId)
+        .reduce((max, r) => Math.max(max, r.sort_order || 0), 0)
+      
+      rooms.value[index] = { 
+        ...room, 
+        category: targetCategoryId,
+        sort_order: maxSortOrder + 1
+      }
+      
+      return { room, oldCategory }
+    }
+    return null
+  }
+
   return {
     rooms,
     activeRoomId,
@@ -191,6 +223,8 @@ export const useRoomStore = defineStore('room', () => {
     setUserVolume,
     clearUserVolume,
     getUserVolume,
-    updateCurrentRoomUser
+    updateCurrentRoomUser,
+    reorderRooms,
+    moveRoomToCategory
   }
 })
