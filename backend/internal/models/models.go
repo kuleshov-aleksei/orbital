@@ -149,6 +149,7 @@ type Category struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"created_at"`
+	SortOrder int       `json:"sort_order"`
 }
 
 // CreateCategoryRequest represents a request to create a new category

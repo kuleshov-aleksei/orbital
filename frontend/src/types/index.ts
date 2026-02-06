@@ -120,6 +120,7 @@ export interface Category {
   id: string
   name: string
   created_at: string
+  sort_order: number
 }
 
 // Create category data

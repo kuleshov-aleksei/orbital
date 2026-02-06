@@ -189,3 +189,39 @@ func (h *CategoryHandler) DeleteCategory(w http.ResponseWriter, r *http.Request)
 		"status": "success",
 	})
 }
+
+// UpdateCategoryOrder handles PUT /api/categories/reorder
+func (h *CategoryHandler) UpdateCategoryOrder(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Orders map[string]int `json:"orders"` // category_id -> sort_order
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate request
+	if len(req.Orders) == 0 {
+		http.Error(w, "No category orders provided", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.categoryService.UpdateCategorySortOrder(req.Orders); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Broadcast category order update to all connected clients
+	if h.wsHub != nil {
+		categoryOrderUpdatedMessage := map[string]interface{}{
+			"type": "category_order_updated",
+			"data": map[string]interface{}{
+				"orders": req.Orders,
+			},
+		}
+		h.wsHub.BroadcastToAll(categoryOrderUpdatedMessage)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+}

@@ -46,6 +46,16 @@ export const useCategoryStore = defineStore('category', () => {
     }
   }
 
+  function reorderCategories(categoryOrders: Record<string, number>) {
+    // Update sort_order for each category
+    categories.value = categories.value.map(category => {
+      if (categoryOrders[category.id] !== undefined) {
+        return { ...category, sort_order: categoryOrders[category.id] }
+      }
+      return category
+    })
+  }
+
   return {
     categories,
     generalCategoryId,
@@ -54,6 +64,7 @@ export const useCategoryStore = defineStore('category', () => {
     setCategories,
     addCategory,
     updateCategory,
-    removeCategory
+    removeCategory,
+    reorderCategories
   }
 })

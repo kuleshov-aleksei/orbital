@@ -180,6 +180,14 @@ export const apiService = {
     })
   },
 
+  // Update category order for drag-and-drop
+  async updateCategoryOrder(orders: Record<string, number>): Promise<{ status: string }> {
+    return apiRequest<{ status: string }>('/categories/reorder', {
+      method: 'PUT',
+      body: JSON.stringify({ orders }),
+    })
+  },
+
   // Get TURN server configuration for WebRTC
   async getTurnConfig(userId?: string): Promise<TURNConfigResponse> {
     const endpoint = userId ? `/turn-config?user_id=${userId}` : '/turn-config'

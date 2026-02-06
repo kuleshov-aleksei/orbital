@@ -138,7 +138,11 @@ func main() {
 	r.HandleFunc("/api/rooms/{id}/leave", roomHandler.LeaveRoom).Methods("POST")
 	r.HandleFunc("/api/rooms/order", roomHandler.UpdateRoomOrder).Methods("PUT")
 
-	// Category routes
+	// Category routes - ORDER MATTERS: more specific routes must come before parameterized routes
+	// Use PathPrefix for the reorder endpoint to ensure it matches first
+	reorderPath := r.PathPrefix("/api/categories/reorder").Subrouter()
+	reorderPath.HandleFunc("", categoryHandler.UpdateCategoryOrder).Methods("PUT")
+
 	r.HandleFunc("/api/categories", categoryHandler.GetCategories).Methods("GET")
 	r.HandleFunc("/api/categories", categoryHandler.CreateCategory).Methods("POST")
 	r.HandleFunc("/api/categories/{id}", categoryHandler.RenameCategory).Methods("PUT")

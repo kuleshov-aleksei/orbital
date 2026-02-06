@@ -52,6 +52,7 @@ func (cs *CategoryService) LoadFromDB() error {
 			ID:        generalID,
 			Name:      "general",
 			CreatedAt: time.Now(),
+			SortOrder: 1,
 		}
 
 		// Save to database
@@ -82,6 +83,7 @@ func (cs *CategoryService) Reset() {
 		ID:        generalID,
 		Name:      "general",
 		CreatedAt: time.Now(),
+		SortOrder: 1,
 	}
 }
 
@@ -100,11 +102,20 @@ func (cs *CategoryService) CreateCategory(name string) (*models.Category, error)
 	cs.mu.Lock()
 	defer cs.mu.Unlock()
 
+	// Calculate next sort order
+	maxSortOrder := 0
+	for _, cat := range cs.categories {
+		if cat.SortOrder > maxSortOrder {
+			maxSortOrder = cat.SortOrder
+		}
+	}
+
 	categoryID := generateID()
 	category := &models.Category{
 		ID:        categoryID,
 		Name:      name,
 		CreatedAt: time.Now(),
+		SortOrder: maxSortOrder + 1,
 	}
 
 	// Save to database first
@@ -242,4 +253,26 @@ func (cs *CategoryService) GetGeneralCategoryID() string {
 	}
 
 	return ""
+}
+
+// UpdateCategorySortOrder updates the sort order of categories
+func (cs *CategoryService) UpdateCategorySortOrder(categoryOrders map[string]int) error {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+
+	// Update in-memory categories
+	for categoryID, sortOrder := range categoryOrders {
+		if category, exists := cs.categories[categoryID]; exists {
+			category.SortOrder = sortOrder
+		}
+	}
+
+	// Update in database
+	if cs.repo != nil {
+		if err := cs.repo.UpdateSortOrders(categoryOrders); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

@@ -167,6 +167,14 @@ export function useWebSocketHandlers() {
       }
     })
 
+    // Category order updated
+    wsService.onGlobal('category_order_updated', (message) => {
+      const data = message.data as { orders: Record<string, number> }
+      console.log('Received category_order_updated event:', data)
+      categoryStore.reorderCategories(data.orders)
+      console.log('Updated category order')
+    })
+
     // Room updates
     wsService.onGlobal('room_updated', (message) => {
       const data = message.data as { room_id: string; room: Room; old_category: string }

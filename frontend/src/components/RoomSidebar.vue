@@ -21,25 +21,42 @@
 
     <!-- Room Categories and List -->
     <div class="flex-1 overflow-y-auto min-h-0">
-      <div v-for="category in categorizedRooms" :key="category.id" class="mb-4">
-        <div class="px-2 py-1">
-          <div
-            class="w-full flex items-center justify-between px-2 py-1 text-xs font-medium text-gray-400 hover:text-gray-200 transition-colors duration-200 cursor-pointer group"
-            @click="toggleCategory(category.name)"
-            @contextmenu.prevent="showContextMenu($event, category)">
-            <span>{{ category.name }}</span>
+      <!-- Drop zone before first category -->
+      <div
+        v-if="draggedCategory"
+        class="h-2 rounded transition-all duration-200"
+        :class="{
+          'bg-purple-500/50 h-4': activeCategoryDropZone?.position === 'before-first'
+        }"
+        @dragover.prevent="handleCategoryDropZoneDragOver($event, 'before-first')"
+        @drop="handleCategoryDropZoneDrop($event, 0)" />
+      
+      <template v-for="(category, categoryIndex) in categorizedRooms" :key="category.id">
+        <div class="mb-4">
+          <div class="px-2 py-1">
+            <div
+              class="w-full flex items-center justify-between px-2 py-1 text-xs font-medium text-gray-400 hover:text-gray-200 transition-colors duration-200 cursor-pointer group"
+              :class="{
+                'ring-2 ring-purple-400 ring-offset-2 ring-offset-gray-800': draggedCategory && draggedCategory.id === category.id
+              }"
+              draggable="true"
+              @click="toggleCategory(category.name)"
+              @contextmenu.prevent="showContextMenu($event, category)"
+              @dragstart="handleCategoryDragStart($event, category)"
+              @dragend="handleCategoryDragEnd">
+              <span>{{ category.name }}</span>
 
-            <div class="flex items-center gap-1">
-              <PhDotsThree
-                class="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity"
-                @click.stop="showContextMenu($event, category)" />
+              <div class="flex items-center gap-1">
+                <PhDotsThree
+                  class="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity"
+                  @click.stop="showContextMenu($event, category)" />
 
-              <PhCaretDown
-                class="w-3 h-3 transition-transform duration-200"
-                :class="{ 'rotate-180': expandedCategories.has(category.name) }" />
+                <PhCaretDown
+                  class="w-3 h-3 transition-transform duration-200"
+                  :class="{ 'rotate-180': expandedCategories.has(category.name) }" />
+              </div>
             </div>
           </div>
-        </div>
 
         <div v-show="expandedCategories.has(category.name)" class="px-2">
           <!-- Drop zone before first room -->
@@ -92,7 +109,29 @@
             Drop here to move to {{ category.name }}
           </div>
         </div>
-      </div>
+        
+        </div>
+        
+        <!-- Drop zone between categories -->
+        <div
+          v-if="draggedCategory && categoryIndex < categorizedRooms.length - 1"
+          class="h-2 rounded transition-all duration-200"
+          :class="{
+            'bg-purple-500/50 h-4': activeCategoryDropZone?.position === categoryIndex
+          }"
+          @dragover.prevent="handleCategoryDropZoneDragOver($event, categoryIndex)"
+          @drop="handleCategoryDropZoneDrop($event, categoryIndex + 1)" />
+      </template>
+      
+      <!-- Drop zone after last category -->
+      <div
+        v-if="draggedCategory"
+        class="h-2 rounded transition-all duration-200"
+        :class="{
+          'bg-purple-500/50 h-4': activeCategoryDropZone?.position === 'after-last'
+        }"
+        @dragover.prevent="handleCategoryDropZoneDragOver($event, 'after-last')"
+        @drop="handleCategoryDropZoneDrop($event, categorizedRooms.length)" />
     </div>
 
     <!-- Create Room Button -->
@@ -242,7 +281,7 @@ import RoomCard from '@/components/RoomCard.vue'
 import { PhCaretDown, PhPlus, PhDotsThree, PhPencil, PhTrash, PhArrowsLeftRight } from '@phosphor-icons/vue'
 import { useRoomStore, useCategoryStore } from '@/stores'
 import { apiService } from '@/services/api'
-import type { Room } from '@/types'
+import type { Room, Category } from '@/types'
 
 interface CategorizedRoom {
   id: string
@@ -313,6 +352,13 @@ const categorizedRooms = computed(() => {
       result.push({ id: category.id, name: category.name, rooms: [] })
       expandedCategories.value.add(category.name)
     }
+  })
+
+  // Sort categories by sort_order
+  result.sort((a, b) => {
+    const catA = categories.value?.find(c => c.id === a.id)
+    const catB = categories.value?.find(c => c.id === b.id)
+    return (catA?.sort_order || 0) - (catB?.sort_order || 0)
   })
 
   return result
@@ -521,6 +567,10 @@ const dragOverCategory = ref<string | null>(null)
 const dragSourceCategory = ref<string | null>(null)
 const activeDropZone = ref<{ categoryId: string; position: number | 'before-first' | 'after-last' } | null>(null)
 
+// Category Drag and Drop State
+const draggedCategory = ref<Category | null>(null)
+const activeCategoryDropZone = ref<{ position: number | 'before-first' | 'after-last' } | null>(null)
+
 // Drag Start - when user starts dragging a room
 const handleDragStart = (event: DragEvent, room: Room, categoryId: string) => {
   draggedRoom.value = room
@@ -710,5 +760,113 @@ const moveRoomToCategoryAtPosition = async (room: Room, targetCategoryId: string
 
   // Emit event for parent component
   emit('move-room', { roomId: room.id, targetCategoryId })
+}
+
+// Category Drag and Drop Functions
+// Category Drag Start - when user starts dragging a category header
+const handleCategoryDragStart = (event: DragEvent, category: Category) => {
+  draggedCategory.value = category
+
+  // Set drag data
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', category.id)
+
+    // Set a custom drag image
+    const target = event.target as HTMLElement
+    if (target) {
+      event.dataTransfer.setDragImage(target, 0, 0)
+    }
+  }
+
+  // Close any open context menus
+  closeAllContextMenus()
+}
+
+// Category Drag End - cleanup after drag ends
+const handleCategoryDragEnd = () => {
+  draggedCategory.value = null
+  activeCategoryDropZone.value = null
+}
+
+// Handle drag over category drop zones
+const handleCategoryDropZoneDragOver = (event: DragEvent, position: number | 'before-first' | 'after-last') => {
+  event.preventDefault()
+
+  if (!draggedCategory.value) return
+
+  activeCategoryDropZone.value = { position }
+  event.dataTransfer!.dropEffect = 'move'
+}
+
+// Handle drop on category drop zones
+const handleCategoryDropZoneDrop = async (event: DragEvent, targetIndex: number) => {
+  event.preventDefault()
+  event.stopPropagation()
+
+  if (!draggedCategory.value) {
+    handleCategoryDragEnd()
+    return
+  }
+
+  const sourceCategory = draggedCategory.value
+
+  try {
+    await reorderCategories(sourceCategory, targetIndex)
+  } catch (error) {
+    console.error('Failed to update category order:', error)
+  } finally {
+    // Always clear drag state after reordering completes
+    handleCategoryDragEnd()
+  }
+}
+
+// Reorder categories
+const reorderCategories = async (sourceCategory: Category, targetIndex: number) => {
+  
+  // Get all categories sorted by sort_order
+  const sortedCategories = [...categories.value].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+
+  const sourceIndex = sortedCategories.findIndex(c => c.id === sourceCategory.id)
+  if (sourceIndex === -1) {
+    console.error('Source category not found:', sourceCategory.id)
+    return
+  }
+
+  // If dropping at the same position, do nothing
+  if (sourceIndex === targetIndex || sourceIndex === targetIndex - 1) {
+    console.log('Dropping at same position, skipping')
+    return
+  }
+
+  // Reorder the array
+  const [movedCategory] = sortedCategories.splice(sourceIndex, 1)
+  console.log('Moved category:', movedCategory.name)
+
+  // Adjust target index if moving down
+  let adjustedTargetIndex = targetIndex
+  if (sourceIndex < targetIndex) {
+    adjustedTargetIndex = targetIndex - 1
+  }
+
+  sortedCategories.splice(adjustedTargetIndex, 0, movedCategory)
+
+  // Assign new sort orders
+  const updates: Record<string, number> = {}
+  sortedCategories.forEach((category, index) => {
+    updates[category.id] = index + 1
+  })
+
+  // Create a new sorted categories array for immediate UI update
+  const newCategoriesOrder = sortedCategories.map((cat, index) => ({
+    ...cat,
+    sort_order: index + 1
+  }))
+
+  // Update local state immediately for responsiveness
+  categoryStore.setCategories(newCategoriesOrder)
+
+  // Update backend
+  await apiService.updateCategoryOrder(updates)
 }
 </script>

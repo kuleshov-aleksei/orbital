@@ -70,6 +70,12 @@ UPDATE users SET oauth_nickname = nickname WHERE auth_provider != 'guest';`,
 		SQL: `ALTER TABLE rooms ADD COLUMN sort_order INTEGER DEFAULT 0;
 CREATE INDEX IF NOT EXISTS idx_rooms_sort_order ON rooms(category_id, sort_order);`,
 	},
+	{
+		Version: 7,
+		Name:    "add_sort_order_to_categories",
+		SQL: `ALTER TABLE categories ADD COLUMN sort_order INTEGER DEFAULT 0;
+CREATE INDEX IF NOT EXISTS idx_categories_sort_order ON categories(sort_order);`,
+	},
 }
 
 // RunMigrations runs all pending migrations
