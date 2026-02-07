@@ -104,6 +104,48 @@
           />
         </div>
       </div>
+
+      <!-- Role Management - Only for super_admin -->
+      <template v-if="isSuperAdmin && !isCurrentUser">
+        <div class="border-t border-gray-600 my-1"></div>
+
+        <!-- Promote to Admin - shown for regular users -->
+        <button
+          v-if="canPromote"
+          type="button"
+          class="w-full px-3 py-2 text-left text-sm text-indigo-400 hover:bg-gray-700 hover:text-indigo-300 transition-colors flex items-center gap-2"
+          :disabled="promoting"
+          @click="handlePromote"
+        >
+          <PhUserPlus class="w-4 h-4" />
+
+          <span>{{ promoting ? 'Promoting...' : 'Make Admin' }}</span>
+        </button>
+
+        <!-- Demote to User - shown for admins -->
+        <button
+          v-if="canDemote"
+          type="button"
+          class="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors flex items-center gap-2"
+          :disabled="demoting"
+          @click="handleDemote"
+        >
+          <PhUserMinus class="w-4 h-4" />
+
+          <span>{{ demoting ? 'Demoting...' : 'Remove Admin' }}</span>
+        </button>
+
+        <!-- Super Admin indicator - shown for super_admins (disabled) -->
+        <div
+          v-if="targetUserIsSuperAdmin"
+          class="px-3 py-2 text-sm text-purple-400 flex items-center gap-2 cursor-not-allowed opacity-60"
+          title="Cannot modify super admin"
+        >
+          <PhCrown class="w-4 h-4" />
+
+          <span>Super Admin</span>
+        </div>
+      </template>
     </div>
 
     <!-- Click outside to close menu -->
@@ -117,9 +159,10 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, nextTick, useTemplateRef } from 'vue'
-import { PhMicrophoneSlash, PhSpeakerHigh } from '@phosphor-icons/vue'
+import { PhMicrophoneSlash, PhSpeakerHigh, PhUserPlus, PhUserMinus, PhCrown } from '@phosphor-icons/vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { useUserStore } from '@/stores'
+import { apiService } from '@/services/api'
 
 interface User {
   id: string
@@ -128,6 +171,7 @@ interface User {
   is_muted: boolean
   is_deafened: boolean
   status: 'online' | 'away' | 'dnd'
+  role?: 'guest' | 'user' | 'admin' | 'super_admin'
 }
 
 interface Props {
@@ -152,10 +196,20 @@ const isEditingNickname = ref(false)
 const editingNickname = ref('')
 const nicknameInput = useTemplateRef<HTMLInputElement>('nicknameInput')
 const menuPosition = { x: 0, y: 0 }
+const promoting = ref(false)
+const demoting = ref(false)
 
 // Check if this is the current user (for nickname editing)
 const currentUserId = userStore.userId
 const isCurrentUser = computed(() => props.user.id === currentUserId)
+
+// Role management computed properties
+const isSuperAdmin = computed(() => userStore.isSuperAdmin)
+const targetUserIsSuperAdmin = computed(() => props.user.role === 'super_admin')
+const targetUserIsAdmin = computed(() => props.user.role === 'admin')
+const targetUserIsRegularUser = computed(() => props.user.role === 'user')
+const canPromote = computed(() => isSuperAdmin.value && targetUserIsRegularUser.value)
+const canDemote = computed(() => isSuperAdmin.value && targetUserIsAdmin.value)
 
 const showContextMenu = (event: MouseEvent) => {
   event.preventDefault()
@@ -209,6 +263,33 @@ const saveNickname = async () => {
 const cancelEdit = () => {
   isEditingNickname.value = false
   editingNickname.value = props.user.nickname
+}
+
+// Role management methods
+const handlePromote = async () => {
+  if (!canPromote.value) return
+  promoting.value = true
+  try {
+    await apiService.promoteUser(props.user.id)
+    hideContextMenu()
+  } catch (error) {
+    console.error('Failed to promote user:', error)
+  } finally {
+    promoting.value = false
+  }
+}
+
+const handleDemote = async () => {
+  if (!canDemote.value) return
+  demoting.value = true
+  try {
+    await apiService.demoteUser(props.user.id)
+    hideContextMenu()
+  } catch (error) {
+    console.error('Failed to demote user:', error)
+  } finally {
+    demoting.value = false
+  }
 }
 
 // Close menu on escape key or document click

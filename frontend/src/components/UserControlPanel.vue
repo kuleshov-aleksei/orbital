@@ -97,7 +97,7 @@ import UserAvatar from '@/components/UserAvatar.vue'
 import MicMuteButton from '@/components/MicMuteButton.vue'
 import AudioDeafenButton from '@/components/AudioDeafenButton.vue'
 import ScreenShareButton from '@/components/ScreenShareButton.vue'
-import { useModalStore } from '@/stores/modal'
+import { useModalStore } from '@/stores'
 import {
   PhSignOut,
   PhGearSix

@@ -7,6 +7,7 @@
         <h2 class="text-2xl font-semibold text-white">Available Rooms</h2>
 
         <button
+          v-if="isAdmin"
           type="button"
           data-testid="create-room-welcome"
           class="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors duration-200"
@@ -62,6 +63,7 @@
         <p class="text-gray-400 mb-6">Be the first to create a room and start chatting!</p>
 
         <button
+          v-if="isAdmin"
           type="button"
           data-testid="create-room-empty"
           class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors duration-200"
@@ -69,6 +71,10 @@
         >
           Create First Room
         </button>
+
+        <p v-else class="text-gray-500 text-sm">
+          Ask an admin to create a room
+        </p>
       </div>
     </div>
 
@@ -77,11 +83,11 @@
 
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
-import { useRoomStore } from '@/stores'
-import { 
-    PhPlus, 
-    PhFolderSimpleUser, 
-    PhMagnifyingGlass 
+import { useRoomStore, useUserStore } from '@/stores'
+import {
+    PhPlus,
+    PhFolderSimpleUser,
+    PhMagnifyingGlass
   } from '@phosphor-icons/vue'
 
 defineEmits<{
@@ -90,6 +96,8 @@ defineEmits<{
 }>()
 // Use store directly for reactivity
 const roomStore = useRoomStore()
+const userStore = useUserStore()
 const { rooms } = storeToRefs(roomStore)
+const { isAdmin } = storeToRefs(userStore)
 
 </script>

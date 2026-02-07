@@ -93,8 +93,9 @@ func main() {
 
 	roomService.SetCategoryService(categoryService)
 
-	// Initialize auth service
+	// Initialize auth service and role service
 	authService := service.NewAuthService(cfg.GetAuthConfig(), userRepo)
+	roleService := service.NewRoleService(userRepo)
 
 	wsHub := websocket.NewHub(roomService, authService, cfg)
 
@@ -102,7 +103,8 @@ func main() {
 	roomHandler := handlers.NewRoomHandler(roomService, categoryService, wsHub)
 	categoryHandler := handlers.NewCategoryHandler(categoryService, roomService, wsHub)
 	turnHandler := handlers.NewTURNHandler(cfg)
-	authHandler := handlers.NewAuthHandler(authService, cfg.Server.ExternalURL)
+	authHandler := handlers.NewAuthHandler(authService, roleService, cfg.Server.ExternalURL)
+	adminHandler := handlers.NewAdminHandler(roleService, userRepo)
 
 	// Setup router
 	r := mux.NewRouter()
@@ -129,26 +131,42 @@ func main() {
 	// TURN server configuration route
 	r.HandleFunc("/api/turn-config", turnHandler.GetTURNConfig).Methods("GET")
 
-	// Room routes - ORDER MATTERS: more specific routes must come before parameterized routes
-	r.HandleFunc("/api/rooms", roomHandler.CreateRoom).Methods("POST")
+	// Public room routes (no auth required)
 	r.HandleFunc("/api/rooms", roomHandler.GetRooms).Methods("GET")
-	r.HandleFunc("/api/rooms/order", roomHandler.UpdateRoomOrder).Methods("PUT")
 	r.HandleFunc("/api/rooms/{id}", roomHandler.GetRoom).Methods("GET")
-	r.HandleFunc("/api/rooms/{id}", roomHandler.UpdateRoom).Methods("PUT")
-	r.HandleFunc("/api/rooms/{id}", roomHandler.DeleteRoom).Methods("DELETE")
 	r.HandleFunc("/api/rooms/{id}/users", roomHandler.GetRoomUsers).Methods("GET")
 	r.HandleFunc("/api/rooms/{id}/join", roomHandler.JoinRoom).Methods("POST")
 	r.HandleFunc("/api/rooms/{id}/leave", roomHandler.LeaveRoom).Methods("POST")
 
-	// Category routes - ORDER MATTERS: more specific routes must come before parameterized routes
-	// Use PathPrefix for the reorder endpoint to ensure it matches first
-	reorderPath := r.PathPrefix("/api/categories/reorder").Subrouter()
-	reorderPath.HandleFunc("", categoryHandler.UpdateCategoryOrder).Methods("PUT")
+	// Admin-only room routes
+	adminRoomRouter := r.PathPrefix("/api").Subrouter()
+	adminRoomRouter.Use(authHandler.AuthMiddleware)
+	adminRoomRouter.Use(authHandler.RequireAdmin)
+	adminRoomRouter.HandleFunc("/rooms", roomHandler.CreateRoom).Methods("POST")
+	adminRoomRouter.HandleFunc("/rooms/order", roomHandler.UpdateRoomOrder).Methods("PUT")
+	adminRoomRouter.HandleFunc("/rooms/{id}", roomHandler.UpdateRoom).Methods("PUT")
+	adminRoomRouter.HandleFunc("/rooms/{id}", roomHandler.DeleteRoom).Methods("DELETE")
 
+	// Public category routes
 	r.HandleFunc("/api/categories", categoryHandler.GetCategories).Methods("GET")
-	r.HandleFunc("/api/categories", categoryHandler.CreateCategory).Methods("POST")
-	r.HandleFunc("/api/categories/{id}", categoryHandler.RenameCategory).Methods("PUT")
-	r.HandleFunc("/api/categories/{id}", categoryHandler.DeleteCategory).Methods("DELETE")
+
+	// Admin-only category routes
+	adminCategoryRouter := r.PathPrefix("/api").Subrouter()
+	adminCategoryRouter.Use(authHandler.AuthMiddleware)
+	adminCategoryRouter.Use(authHandler.RequireAdmin)
+	adminCategoryRouter.HandleFunc("/categories", categoryHandler.CreateCategory).Methods("POST")
+	adminCategoryRouter.HandleFunc("/categories/reorder", categoryHandler.UpdateCategoryOrder).Methods("PUT")
+	adminCategoryRouter.HandleFunc("/categories/{id}", categoryHandler.RenameCategory).Methods("PUT")
+	adminCategoryRouter.HandleFunc("/categories/{id}", categoryHandler.DeleteCategory).Methods("DELETE")
+
+	// Admin management routes (super_admin only)
+	superAdminRouter := r.PathPrefix("/api/admin").Subrouter()
+	superAdminRouter.Use(authHandler.AuthMiddleware)
+	superAdminRouter.Use(authHandler.RequireSuperAdmin)
+	superAdminRouter.HandleFunc("/users", adminHandler.ListUsers).Methods("GET")
+	superAdminRouter.HandleFunc("/users/{id}/role", adminHandler.GetUserRole).Methods("GET")
+	superAdminRouter.HandleFunc("/users/{id}/promote", adminHandler.PromoteUser).Methods("POST")
+	superAdminRouter.HandleFunc("/users/{id}/demote", adminHandler.DemoteUser).Methods("POST")
 
 	// Test-only routes (guarded to avoid accidental use).
 	// Allowed when either ORBITAL_E2E=1 is set OR the request explicitly opts in.

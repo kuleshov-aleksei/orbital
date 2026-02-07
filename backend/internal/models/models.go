@@ -13,12 +13,20 @@ const (
 	AuthProviderGoogle  AuthProvider = "google"
 )
 
+// Role constants for user roles
+const (
+	RoleGuest      = "guest"
+	RoleUser       = "user"
+	RoleAdmin      = "admin"
+	RoleSuperAdmin = "super_admin"
+)
+
 // User represents a user in the system
 type User struct {
 	ID            string       `json:"id"`
 	Nickname      string       `json:"nickname"`
-	OAuthNickname string       `json:"-"`      // Original OAuth nickname, not exposed to frontend
-	Status        string       `json:"status"` // online, away, dnd
+	OAuthNickname string       `json:"oauth_nickname,omitempty"` // Original OAuth nickname
+	Status        string       `json:"status"`                   // online, away, dnd
 	IsSpeaking    bool         `json:"is_speaking"`
 	IsMuted       bool         `json:"is_muted"`
 	IsDeafened    bool         `json:"is_deafened"`
@@ -29,6 +37,7 @@ type User struct {
 	Email         string       `json:"email,omitempty"`
 	AvatarURL     string       `json:"avatar_url,omitempty"`
 	IsGuest       bool         `json:"is_guest"`
+	Role          string       `json:"role"` // guest, user, admin, super_admin
 }
 
 // Room represents a voice room
@@ -176,6 +185,7 @@ type JWTClaims struct {
 	Email        string       `json:"email,omitempty"`
 	AvatarURL    string       `json:"avatar_url,omitempty"`
 	IsGuest      bool         `json:"is_guest"`
+	Role         string       `json:"role"`
 }
 
 // AuthResponse represents the response after successful authentication

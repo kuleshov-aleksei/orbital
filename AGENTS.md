@@ -107,3 +107,9 @@ There are proper build command: `make build`. **DO NOT TRY TO BUILD FRONTEND AND
 2. **Single Binary** - Backend compiles to one executable
 3. **Browser Native** - Use WebRTC without plugins
 4. **Clean Code** - Maintainable and readable codebase
+
+## Restrictions
+
+THIS PART IS VERY IMPORTANT! NEVER SKIP IT
+
+- Agents are not allowed to make git commits

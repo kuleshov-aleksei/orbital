@@ -38,6 +38,7 @@ The Orbital implements a hierarchical role system:
 | Action | Guest | User | Admin | Super Admin |
 |--------|-------|------|-------|-------------|
 | Join rooms | ✅ | ✅ | ✅ | ✅ |
+| Share screen | ❌ | ✅ | ✅ | ✅ |
 | Create rooms | ❌ | ❌ | ✅ | ✅ |
 | Update rooms | ❌ | ❌ | ✅ | ✅ |
 | Delete rooms | ❌ | ❌ | ✅ | ✅ |
@@ -50,7 +51,6 @@ The Orbital implements a hierarchical role system:
 **Notes:**
 - The first user to log in via OAuth automatically becomes Super Admin
 - Super Admin cannot demote themselves (prevents accidental lockout)
-- Room ownership has been removed - all rooms are managed collectively by admins
 
 ## Tech Stack
 

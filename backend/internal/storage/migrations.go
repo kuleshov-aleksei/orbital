@@ -76,6 +76,14 @@ CREATE INDEX IF NOT EXISTS idx_rooms_sort_order ON rooms(category_id, sort_order
 		SQL: `ALTER TABLE categories ADD COLUMN sort_order INTEGER DEFAULT 0;
 CREATE INDEX IF NOT EXISTS idx_categories_sort_order ON categories(sort_order);`,
 	},
+	{
+		Version: 8,
+		Name:    "add_role_to_users",
+		SQL: `ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'guest';
+UPDATE users SET role = 'user' WHERE is_guest = 0;
+UPDATE users SET role = 'guest' WHERE is_guest = 1;
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);`,
+	},
 }
 
 // RunMigrations runs all pending migrations

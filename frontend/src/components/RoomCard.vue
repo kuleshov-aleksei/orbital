@@ -6,7 +6,7 @@
       'bg-gray-700 hover:bg-gray-600 text-gray-200': !isActive,
       'opacity-50': isDragging
     }"
-    draggable="true"
+    v-bind="isDraggable ? { draggable: true } : {}"
     @click="$emit('click')"
     @contextmenu.prevent="showContextMenu"
     @dragstart="$emit('dragstart', $event)"
@@ -99,9 +99,12 @@ interface Props {
   room: Room
   isActive: boolean
   isDragging?: boolean
+  isDraggable?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  isDraggable: true
+})
 const emit = defineEmits<{
   click: []
   'show-context-menu': [event: MouseEvent, room: Room]

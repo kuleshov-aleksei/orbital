@@ -11,6 +11,7 @@ export interface UserSession {
   email?: string
   avatarUrl?: string
   isGuest: boolean
+  role: 'guest' | 'user' | 'admin' | 'super_admin'
 }
 
 export const useUserStore = defineStore('user', () => {
@@ -28,6 +29,9 @@ export const useUserStore = defineStore('user', () => {
   const isGuest = computed(() => authProvider.value === 'guest' || currentUser.value?.isGuest === true)
   const email = computed(() => currentUser.value?.email)
   const avatarUrl = computed(() => currentUser.value?.avatarUrl)
+  const role = computed(() => currentUser.value?.role || 'guest')
+  const isAdmin = computed(() => role.value === 'admin' || role.value === 'super_admin')
+  const isSuperAdmin = computed(() => role.value === 'super_admin')
 
   function setUser(user: UserSession, authToken?: string) {
     // Validate user object
@@ -36,7 +40,7 @@ export const useUserStore = defineStore('user', () => {
       throw new Error('Invalid user object: missing required fields')
     }
 
-    console.log('Setting user:', { id: user.id, nickname: user.nickname, authProvider: user.authProvider, isGuest: user.isGuest })
+    console.log('Setting user:', { id: user.id, nickname: user.nickname, authProvider: user.authProvider, isGuest: user.isGuest, role: user.role })
     
     currentUser.value = user
     if (authToken) {
@@ -47,6 +51,7 @@ export const useUserStore = defineStore('user', () => {
     localStorage.setItem('orbital_user_nickname', user.nickname)
     localStorage.setItem('orbital_user_auth_provider', user.authProvider)
     localStorage.setItem('orbital_user_is_guest', String(user.isGuest))
+    localStorage.setItem('orbital_user_role', user.role)
     if (user.email) {
       localStorage.setItem('orbital_user_email', user.email)
     }
@@ -123,6 +128,7 @@ export const useUserStore = defineStore('user', () => {
         nickname, 
         authProvider,
         isGuest: isGuestStored === 'true',
+        role: (localStorage.getItem('orbital_user_role') as UserSession['role']) || 'guest',
         email: localStorage.getItem('orbital_user_email') || undefined,
         avatarUrl: localStorage.getItem('orbital_user_avatar') || undefined
       }
@@ -135,6 +141,8 @@ export const useUserStore = defineStore('user', () => {
         user.email = freshUser.email
         user.avatarUrl = freshUser.avatar_url
         user.nickname = freshUser.nickname
+        user.role = freshUser.role
+        localStorage.setItem('orbital_user_role', freshUser.role)
         currentUser.value = { ...user }
       } catch {
         // Token might be expired, clear everything
@@ -160,6 +168,7 @@ export const useUserStore = defineStore('user', () => {
     localStorage.removeItem('orbital_user_avatar')
     localStorage.removeItem('orbital_has_completed_auth')
     localStorage.removeItem('orbital_user_is_guest')
+    localStorage.removeItem('orbital_user_role')
   }
 
   function loginWithProvider(provider: 'discord' | 'google') {
@@ -179,6 +188,7 @@ export const useUserStore = defineStore('user', () => {
         nickname: response.user.nickname,
         authProvider: 'guest',
         isGuest: true,
+        role: response.user.role || 'guest',
         email: response.user.email,
         avatarUrl: response.user.avatar_url
       }
@@ -218,6 +228,9 @@ export const useUserStore = defineStore('user', () => {
     isAuthenticated,
     isLoggedIn,
     isGuest,
+    role,
+    isAdmin,
+    isSuperAdmin,
     hasCompletedAuth,
     nicknameUpdateStatus,
     nicknameUpdateError,

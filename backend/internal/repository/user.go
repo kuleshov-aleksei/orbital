@@ -21,10 +21,10 @@ func NewUserRepository(db *storage.DB) *UserRepository {
 // Create inserts a new user into the database
 func (r *UserRepository) Create(user *models.User) error {
 	_, err := r.db.Exec(
-		`INSERT INTO users (id, nickname, oauth_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest) 
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO users (id, nickname, oauth_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role) 
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		user.ID, user.Nickname, user.OAuthNickname, user.CreatedAt, user.LastSeen,
-		user.AuthProvider, user.ProviderID, user.Email, user.AvatarURL, user.IsGuest,
+		user.AuthProvider, user.ProviderID, user.Email, user.AvatarURL, user.IsGuest, user.Role,
 	)
 	return err
 }
@@ -34,7 +34,7 @@ func scanUser(scanner interface {
 	Scan(dest ...interface{}) error
 }) (*models.User, error) {
 	user := &models.User{}
-	var providerID, email, avatarURL, oauthNickname sql.NullString
+	var providerID, email, avatarURL, oauthNickname, role sql.NullString
 	var authProvider sql.NullString
 	var isGuest sql.NullBool
 
@@ -49,6 +49,7 @@ func scanUser(scanner interface {
 		&email,
 		&avatarURL,
 		&isGuest,
+		&role,
 	)
 	if err != nil {
 		return nil, err
@@ -77,6 +78,11 @@ func scanUser(scanner interface {
 	} else {
 		user.IsGuest = true // Default to guest for old users
 	}
+	if role.Valid {
+		user.Role = role.String
+	} else {
+		user.Role = models.RoleGuest // Default to guest for old users
+	}
 
 	return user, nil
 }
@@ -84,7 +90,7 @@ func scanUser(scanner interface {
 // GetByID retrieves a user by ID
 func (r *UserRepository) GetByID(id string) (*models.User, error) {
 	user, err := scanUser(r.db.QueryRow(
-		`SELECT id, nickname, oauth_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest 
+		`SELECT id, nickname, oauth_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role 
 		 FROM users WHERE id = ?`,
 		id,
 	))
@@ -106,7 +112,7 @@ func (r *UserRepository) GetByProviderID(provider string, providerID string) (*m
 	}
 
 	user, err := scanUser(r.db.QueryRow(
-		`SELECT id, nickname, oauth_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest 
+		`SELECT id, nickname, oauth_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role 
 		 FROM users WHERE auth_provider = ? AND provider_id = ?`,
 		provider, providerID,
 	))
@@ -147,7 +153,7 @@ func (r *UserRepository) Delete(id string) error {
 
 // GetAll retrieves all users from the database
 func (r *UserRepository) GetAll() ([]*models.User, error) {
-	rows, err := r.db.Query(`SELECT id, nickname, oauth_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest FROM users`)
+	rows, err := r.db.Query(`SELECT id, nickname, oauth_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role FROM users`)
 	if err != nil {
 		return nil, err
 	}
@@ -163,4 +169,26 @@ func (r *UserRepository) GetAll() ([]*models.User, error) {
 	}
 
 	return users, rows.Err()
+}
+
+// UpdateRole updates a user's role
+func (r *UserRepository) UpdateRole(userID string, role string) error {
+	_, err := r.db.Exec(
+		`UPDATE users SET role = ? WHERE id = ?`,
+		role, userID,
+	)
+	return err
+}
+
+// HasSuperAdmin checks if any super_admin exists in the system
+func (r *UserRepository) HasSuperAdmin() (bool, error) {
+	var count int
+	err := r.db.QueryRow(
+		`SELECT COUNT(*) FROM users WHERE role = ?`,
+		models.RoleSuperAdmin,
+	).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }

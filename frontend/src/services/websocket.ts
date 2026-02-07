@@ -138,9 +138,23 @@ export class WebSocketService {
     }
   }
 
-  // Send nickname change message
+  // Send message to global WebSocket
+  sendGlobalMessage(type: WebSocketMessage['type'], data: unknown): void {
+    if (this.globalWs && this.globalWs.readyState === WebSocket.OPEN) {
+      const message: WebSocketMessage = { type, data }
+      this.globalWs.send(JSON.stringify(message))
+
+      if (message.type !== 'ping') {
+        console.log('Sent global WebSocket message:', message)
+      }
+    } else {
+      console.warn('Global WebSocket not connected, cannot send message:', { type, data })
+    }
+  }
+
+  // Send nickname change message via global WebSocket
   changeNickname(userId: string, nickname: string): void {
-    this.sendMessage('nickname_change', {
+    this.sendGlobalMessage('nickname_change', {
       user_id: userId,
       nickname: nickname
     })

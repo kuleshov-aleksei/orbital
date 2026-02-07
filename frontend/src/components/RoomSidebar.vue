@@ -36,10 +36,10 @@
           <div class="px-2 py-1">
             <div
               class="w-full flex items-center justify-between px-2 py-1 text-xs font-medium text-gray-400 hover:text-gray-200 transition-colors duration-200 cursor-pointer group"
-              :class="{
+               :class="{
                 'ring-2 ring-purple-400 ring-offset-2 ring-offset-gray-800': draggedCategory && draggedCategory.id === category.id
               }"
-              draggable="true"
+              v-bind="isAdmin ? { draggable: true } : {}"
               @click="toggleCategory(category.name)"
               @contextmenu.prevent="showContextMenu($event, category)"
               @dragstart="handleCategoryDragStart($event, category)"
@@ -74,6 +74,7 @@
               :room="room"
               :is-active="room.id === activeRoomId"
               :is-dragging="draggedRoom?.id === room.id"
+              :is-draggable="isAdmin"
               @click="$emit('room-selected', room.id)"
               @show-context-menu="showRoomContextMenu"
               @dragstart="handleDragStart($event, room, category.id)"
@@ -134,8 +135,8 @@
         @drop="handleCategoryDropZoneDrop($event, categorizedRooms.length)" />
     </div>
 
-    <!-- Create Room Button -->
-    <div class="p-3 border-t border-gray-700">
+    <!-- Create Room Button - Only for admins -->
+    <div v-if="isAdmin" class="p-3 border-t border-gray-700">
       <button
         type="button"
         data-testid="create-room-sidebar"
@@ -154,6 +155,7 @@
       :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"
       @click.stop>
       <button
+        v-if="isAdmin"
         type="button"
         class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
         @click="handleCreateRoomInCategory">
@@ -165,6 +167,7 @@
       </button>
 
       <button
+        v-if="isAdmin"
         type="button"
         class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
         @click="handleRenameCategory">
@@ -175,9 +178,10 @@
         </div>
       </button>
 
-      <div class="border-t border-gray-700 my-1"></div>
+      <div v-if="isAdmin" class="border-t border-gray-700 my-1"></div>
 
       <button
+        v-if="isAdmin"
         type="button"
         class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-gray-700 hover:text-red-300 transition-colors"
         @click="handleDeleteCategory">
@@ -187,6 +191,10 @@
           <span>Delete</span>
         </div>
       </button>
+
+      <div v-if="!isAdmin" class="px-4 py-2 text-sm text-gray-500">
+        No actions available
+      </div>
     </div>
 
     <!-- Room Context Menu -->
@@ -195,8 +203,8 @@
       class="fixed bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-[9999] py-1 min-w-[200px]"
       :style="{ top: roomContextMenu.y + 'px', left: roomContextMenu.x + 'px' }"
       @click.stop>
-      <!-- Move to Category - With Submenu -->
-      <div class="relative group">
+      <!-- Move to Category - With Submenu (admin only) -->
+      <div v-if="isAdmin" class="relative group">
         <button
           type="button"
           class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors flex items-center justify-between"
@@ -241,6 +249,7 @@
       </div>
 
       <button
+        v-if="isAdmin"
         type="button"
         class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
         @click="handleEditRoom">
@@ -251,9 +260,10 @@
         </div>
       </button>
 
-      <div class="border-t border-gray-700 my-1"></div>
+      <div v-if="isAdmin" class="border-t border-gray-700 my-1"></div>
 
       <button
+        v-if="isAdmin"
         type="button"
         class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-gray-700 hover:text-red-300 transition-colors"
         @click="handleDeleteRoom">
@@ -263,6 +273,10 @@
           <span>Delete</span>
         </div>
       </button>
+
+      <div v-if="!isAdmin" class="px-4 py-2 text-sm text-gray-500">
+        No actions available
+      </div>
     </div>
 
     <!-- Click outside to close context menu -->
@@ -279,7 +293,7 @@ import { ref, computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import RoomCard from '@/components/RoomCard.vue'
 import { PhCaretDown, PhPlus, PhDotsThree, PhPencil, PhTrash, PhArrowsLeftRight } from '@phosphor-icons/vue'
-import { useRoomStore, useCategoryStore } from '@/stores'
+import { useRoomStore, useCategoryStore, useUserStore } from '@/stores'
 import { apiService } from '@/services/api'
 import type { Room, Category } from '@/types'
 
@@ -311,8 +325,10 @@ const emit = defineEmits<{
 // Use stores directly for reactivity
 const roomStore = useRoomStore()
 const categoryStore = useCategoryStore()
+const userStore = useUserStore()
 const { rooms } = storeToRefs(roomStore)
 const { categories } = storeToRefs(categoryStore)
+const { isAdmin } = storeToRefs(userStore)
 
 const isHidden = computed(() => {
   return !rooms.value || rooms.value.length === 0

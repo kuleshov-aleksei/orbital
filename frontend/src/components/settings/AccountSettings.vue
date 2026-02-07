@@ -120,8 +120,28 @@
       </button>
     </div>
 
+    <!-- Admin Panel Button - Only for super admins -->
+    <div v-if="userStore.isSuperAdmin" class="pt-2 border-t border-gray-600 mt-4">
+      <router-link
+        v-slot="{ navigate }"
+        to="/admin"
+        custom
+      >
+        <button
+          type="button"
+          class="w-full flex items-center justify-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors duration-200 text-sm font-medium"
+          @click="navigate"
+        >
+          <PhShield class="w-4 h-4 mr-2" />
+          Admin Panel
+        </button>
+      </router-link>
+
+      <p class="text-xs text-gray-500 mt-2 text-center">Manage users and system settings.</p>
+    </div>
+
     <!-- Logout Button for Logged In Users -->
-    <div v-else class="pt-2">
+    <div v-if="!userStore.isGuest" class="pt-2" :class="userStore.isSuperAdmin ? 'mt-4' : 'border-t border-gray-600 mt-4'">
       <button
         type="button"
         class="w-full flex items-center justify-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors duration-200 text-sm font-medium"
@@ -144,7 +164,8 @@ import {
   PhUser,
   PhSignOut,
   PhCheckCircle,
-  PhPencil
+  PhPencil,
+  PhShield
 } from '@phosphor-icons/vue'
 import DiscordIcon from '~icons/simple-icons/discord'
 import GoogleIcon from '~icons/logos/google-icon'
