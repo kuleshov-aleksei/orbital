@@ -20,6 +20,37 @@ This project is built by AI (like 99.99%). AI is not perfect, but this applicati
 - **OAuth authentication** - Backend does not store authentication data - thats by design. So the only options to auth are using OAuth2 Google and Discord.
 - **Simple Deployment** - Single binary backend with Docker support
 - **Persistence** - Backend stores data in sqlite database. Easy management, easy deployment, easy life
+- **Role-Based Access Control** - Granular permissions for different user types
+
+## Role-Based Access Control
+
+The Orbital implements a hierarchical role system:
+
+| Role | Description |
+|------|-------------|
+| **Guest** | Unauthenticated users who can only join rooms |
+| **User** | Authenticated users via OAuth (Discord/Google) |
+| **Admin** | Can create, edit, and delete rooms and categories |
+| **Super Admin** | Can promote/demote users to/from admin role |
+
+### Permission Matrix
+
+| Action | Guest | User | Admin | Super Admin |
+|--------|-------|------|-------|-------------|
+| Join rooms | ✅ | ✅ | ✅ | ✅ |
+| Create rooms | ❌ | ❌ | ✅ | ✅ |
+| Update rooms | ❌ | ❌ | ✅ | ✅ |
+| Delete rooms | ❌ | ❌ | ✅ | ✅ |
+| Create categories | ❌ | ❌ | ✅ | ✅ |
+| Delete categories | ❌ | ❌ | ✅ | ✅ |
+| Reorder rooms/categories | ❌ | ❌ | ✅ | ✅ |
+| Promote users to admin | ❌ | ❌ | ❌ | ✅ |
+| Demote admins to user | ❌ | ❌ | ❌ | ✅ |
+
+**Notes:**
+- The first user to log in via OAuth automatically becomes Super Admin
+- Super Admin cannot demote themselves (prevents accidental lockout)
+- Room ownership has been removed - all rooms are managed collectively by admins
 
 ## Tech Stack
 
