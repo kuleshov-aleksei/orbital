@@ -34,6 +34,7 @@ export type ScreenShareQuality =
 export interface User {
   id: string
   nickname: string
+  oauth_nickname?: string
   is_speaking?: boolean
   is_muted?: boolean
   is_deafened?: boolean
@@ -46,6 +47,7 @@ export interface User {
   avatar_url?: string
   created_at?: string
   last_seen?: string
+  role: 'guest' | 'user' | 'admin' | 'super_admin'
 }
 
 // RoomUser interface - user with room-specific information

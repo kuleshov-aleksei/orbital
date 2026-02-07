@@ -257,6 +257,7 @@ func (s *AuthService) CreateOrUpdateUser(oauthInfo *models.OAuthUserInfo) (*mode
 		Email:         oauthInfo.Email,
 		AvatarURL:     oauthInfo.AvatarURL,
 		IsGuest:       false,
+		Role:          models.RoleUser,
 	}
 
 	if err := s.userRepo.Create(user); err != nil {
@@ -279,6 +280,7 @@ func (s *AuthService) CreateGuestUser() (*models.User, error) {
 		LastSeen:     now,
 		AuthProvider: models.AuthProviderGuest,
 		IsGuest:      true,
+		Role:         models.RoleGuest,
 	}
 
 	if err := s.userRepo.Create(user); err != nil {
@@ -299,6 +301,7 @@ func (s *AuthService) GenerateJWT(user *models.User) (string, time.Time, error) 
 		"email":         user.Email,
 		"avatar_url":    user.AvatarURL,
 		"is_guest":      user.IsGuest,
+		"role":          user.Role,
 		"exp":           expiry.Unix(),
 		"iat":           time.Now().Unix(),
 	}
@@ -354,6 +357,9 @@ func (s *AuthService) ValidateJWT(tokenString string) (*models.JWTClaims, error)
 	}
 	if isGuest, ok := claims["is_guest"].(bool); ok {
 		jwtClaims.IsGuest = isGuest
+	}
+	if role, ok := claims["role"].(string); ok {
+		jwtClaims.Role = role
 	}
 
 	return jwtClaims, nil

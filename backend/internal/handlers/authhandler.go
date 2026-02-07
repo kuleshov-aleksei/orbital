@@ -14,13 +14,15 @@ import (
 // AuthHandler handles authentication-related HTTP requests
 type AuthHandler struct {
 	authService *service.AuthService
+	roleService *service.RoleService
 	externalURL string
 }
 
 // NewAuthHandler creates a new auth handler
-func NewAuthHandler(authService *service.AuthService, externalURL string) *AuthHandler {
+func NewAuthHandler(authService *service.AuthService, roleService *service.RoleService, externalURL string) *AuthHandler {
 	return &AuthHandler{
 		authService: authService,
+		roleService: roleService,
 		externalURL: externalURL,
 	}
 }
@@ -127,6 +129,20 @@ func (h *AuthHandler) handleCallback(w http.ResponseWriter, r *http.Request, pro
 		return
 	}
 
+	// Check if this user should be made super_admin (first non-guest user)
+	if err := h.roleService.AssignSuperAdminIfFirst(user.ID); err != nil {
+		// Log error but don't fail the login
+		// The user will just have default 'user' role
+		// We can't log here without a logger, but we'll continue
+	}
+
+	// Refresh user data in case role was changed
+	user, err = h.authService.GetUserByID(user.ID)
+	if err != nil {
+		http.Error(w, "Failed to get user: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	// Generate JWT token
 	token, expiry, err := h.authService.GenerateJWT(user)
 	if err != nil {
@@ -224,6 +240,44 @@ func (h *AuthHandler) AuthMiddleware(next http.Handler) http.Handler {
 		ctx := r.Context()
 		ctx = context.WithValue(ctx, "user", claims)
 		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// RequireAdmin creates a middleware that requires admin or super_admin role
+func (h *AuthHandler) RequireAdmin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := r.Context().Value("user").(*models.JWTClaims)
+		if !ok || claims == nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		// Check if user is admin or super_admin
+		if claims.Role != models.RoleAdmin && claims.Role != models.RoleSuperAdmin {
+			http.Error(w, "Admin access required", http.StatusForbidden)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// RequireSuperAdmin creates a middleware that requires super_admin role
+func (h *AuthHandler) RequireSuperAdmin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := r.Context().Value("user").(*models.JWTClaims)
+		if !ok || claims == nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		// Check if user is super_admin
+		if claims.Role != models.RoleSuperAdmin {
+			http.Error(w, "Super admin access required", http.StatusForbidden)
+			return
+		}
+
+		next.ServeHTTP(w, r)
 	})
 }
 

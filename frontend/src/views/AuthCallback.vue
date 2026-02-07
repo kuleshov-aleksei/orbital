@@ -68,6 +68,7 @@ onMounted(async () => {
       nickname: user.nickname,
       authProvider: user.auth_provider as AuthProvider,
       isGuest: user.is_guest,
+      role: user.role,
       email: user.email,
       avatarUrl: user.avatar_url
     }

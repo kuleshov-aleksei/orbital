@@ -230,6 +230,27 @@ export const apiService = {
   async getAuthStatus(): Promise<AuthStatus> {
     return apiRequest<AuthStatus>('/auth/status')
   },
+
+  // Admin API calls
+  async getUsers(): Promise<User[]> {
+    return apiRequest<User[]>('/admin/users')
+  },
+
+  async getUserRole(userId: string): Promise<{ role: string }> {
+    return apiRequest<{ role: string }>(`/admin/users/${userId}/role`)
+  },
+
+  async promoteUser(userId: string): Promise<{ status: string; message: string }> {
+    return apiRequest<{ status: string; message: string }>(`/admin/users/${userId}/promote`, {
+      method: 'POST',
+    })
+  },
+
+  async demoteUser(userId: string): Promise<{ status: string; message: string }> {
+    return apiRequest<{ status: string; message: string }>(`/admin/users/${userId}/demote`, {
+      method: 'POST',
+    })
+  },
 }
 
 // Utility functions
