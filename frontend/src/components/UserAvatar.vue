@@ -6,6 +6,7 @@
       :src="avatarUrl"
       :alt="nickname"
       class="rounded-full object-cover"
+      :class="{ 'grayscale': grayscale }"
       :style="avatarStyle"
       @error="handleImageError"
     />
@@ -16,6 +17,7 @@
       :colors="avatarColors"
       variant="beam"
       :size="size"
+      :class="{ 'grayscale': grayscale }"
     />
     <!-- Status Indicator -->
     <div
@@ -40,6 +42,7 @@ interface Props {
   showStatus?: boolean
   bgColor?: string
   avatarUrl?: string
+  grayscale?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -47,7 +50,8 @@ const props = withDefaults(defineProps<Props>(), {
   size: 32,
   showStatus: true,
   bgColor: 'bg-indigo-500',
-  avatarUrl: undefined
+  avatarUrl: undefined,
+  grayscale: false
 })
 
 const imageError = ref(false)

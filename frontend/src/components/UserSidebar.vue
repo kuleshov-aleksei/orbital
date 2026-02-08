@@ -60,6 +60,7 @@
           :nickname="user.nickname"
           :size="28"
           :show-status="false"
+          :grayscale="!user.is_online"
         />
         <!-- Speaking indicator ring -->
         <div

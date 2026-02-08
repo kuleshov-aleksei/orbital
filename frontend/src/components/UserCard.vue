@@ -9,6 +9,7 @@
       :nickname="user.nickname"
       :status="userStatus"
       :size="32"
+      :grayscale="!user.is_online"
       class="mr-3"
     />
 
