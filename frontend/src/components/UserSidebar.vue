@@ -3,18 +3,6 @@
     class="user-sidebar flex flex-col fixed lg:relative inset-y-0 right-0 z-40 lg:z-auto transition-all duration-300 bg-gray-800"
     data-testid="user-sidebar"
     :class="sidebarClasses">
-    <!-- Collapse Toggle Button (always visible) -->
-    <button
-      type="button"
-      class="absolute left-0 top-4 -translate-x-full bg-gray-700 hover:bg-gray-600 text-gray-300 p-2 rounded-l-lg shadow-lg transition-colors z-50 hidden lg:flex items-center justify-center w-8 h-12"
-      :title="isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
-      @click="toggleCollapse"
-    >
-      <PhCaretDoubleLeft v-if="!isCollapsed" class="w-4 h-4" />
-
-      <PhCaretDoubleRight v-else class="w-4 h-4" />
-    </button>
-
     <!-- Mobile Close Button -->
     <div class="lg:hidden flex items-center justify-between p-4 border-b border-gray-700">
       <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">
@@ -31,17 +19,20 @@
     </div>
 
     <!-- Desktop Header -->
-    <div class="hidden lg:flex items-center justify-between p-4 border-b border-gray-700" :class="{ 'justify-center': isCollapsed }">
+    <div class="hidden lg:flex items-center justify-between p-3 border-b border-gray-700" :class="{ 'justify-center': isCollapsed }">
       <h2 v-if="!isCollapsed" class="text-sm font-semibold text-gray-300 uppercase tracking-wider">
         Users — {{ userCount }}
       </h2>
       
-      <button 
-        v-if="!isCollapsed"
-        type="button" 
-        class="text-gray-400 hover:text-gray-200 transition-colors duration-200"
+      <!-- Toggle Button - Integrated into header -->
+      <button
+        type="button"
+        class="flex items-center justify-center w-7 h-7 rounded-md bg-gray-700/50 hover:bg-gray-600 text-gray-400 hover:text-gray-200 transition-all duration-200"
+        :class="{ 'rotate-180': !isCollapsed }"
+        :title="isCollapsed ? 'Expand' : 'Collapse'"
+        @click="toggleCollapse"
       >
-        <PhDotsThree class="w-4 h-4" />
+        <PhCaretDoubleRight class="w-3.5 h-3.5" />
       </button>
     </div>
 
