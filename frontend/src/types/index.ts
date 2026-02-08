@@ -21,6 +21,15 @@ export interface RoomPreviewUser {
   is_screen_sharing?: boolean
 }
 
+// PublicUser interface - limited user data for global user list
+export interface PublicUser {
+  id: string
+  nickname: string
+  avatar_url?: string
+  role: 'guest' | 'user' | 'admin' | 'super_admin'
+  is_online: boolean
+}
+
 // Screen sharing quality options
 export type ScreenShareQuality =
   | 'source'

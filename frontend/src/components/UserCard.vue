@@ -7,8 +7,9 @@
     <!-- User Avatar -->
     <UserAvatar
       :nickname="user.nickname"
-      :status="user.status"
+      :status="userStatus"
       :size="32"
+      :grayscale="!user.is_online"
       class="mr-3"
     />
 
@@ -17,6 +18,7 @@
       <div 
         v-if="!isEditingNickname"
         class="font-medium text-sm truncate cursor-pointer hover:text-indigo-400 transition-colors"
+        :class="{ 'text-gray-500': !user.is_online }"
         :title="isCurrentUser ? 'Click to edit nickname' : ''"
         @click="startEditingNickname"
       >
@@ -47,6 +49,10 @@
         <span v-else-if="user.status === 'away'">Away</span>
 
         <span v-else-if="user.status === 'dnd'">Do Not Disturb</span>
+
+        <span v-else-if="user.is_online === true">Online</span>
+
+        <span v-else-if="user.is_online === false">Offline</span>
 
         <span v-else>Online</span>
       </div>
@@ -167,10 +173,11 @@ import { apiService } from '@/services/api'
 interface User {
   id: string
   nickname: string
-  is_speaking: boolean
-  is_muted: boolean
-  is_deafened: boolean
-  status: 'online' | 'away' | 'dnd'
+  is_speaking?: boolean
+  is_muted?: boolean
+  is_deafened?: boolean
+  is_online?: boolean
+  status?: 'online' | 'away' | 'dnd'
   role?: 'guest' | 'user' | 'admin' | 'super_admin'
 }
 
@@ -198,6 +205,20 @@ const nicknameInput = useTemplateRef<HTMLInputElement>('nicknameInput')
 const menuPosition = { x: 0, y: 0 }
 const promoting = ref(false)
 const demoting = ref(false)
+
+// Compute user status based on both status field and is_online
+const userStatus = computed(() => {
+  // If user is explicitly offline, return 'offline'
+  if (props.user.is_online === false) {
+    return 'offline'
+  }
+  // If user has a specific status (away, dnd), use it
+  if (props.user.status) {
+    return props.user.status
+  }
+  // Default to online if is_online is true or undefined
+  return 'online'
+})
 
 // Check if this is the current user (for nickname editing)
 const currentUserId = userStore.userId

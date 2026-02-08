@@ -1,4 +1,4 @@
-import { Room, User, CreateRoomData, UpdateRoomData, Category, CreateCategoryData, RenameCategoryData, DeleteCategoryData } from '@/types'
+import { Room, User, CreateRoomData, UpdateRoomData, Category, CreateCategoryData, RenameCategoryData, DeleteCategoryData, PublicUser } from '@/types'
 
 const API_BASE = '/api'
 
@@ -250,6 +250,11 @@ export const apiService = {
     return apiRequest<{ status: string; message: string }>(`/admin/users/${userId}/demote`, {
       method: 'POST',
     })
+  },
+
+  // Get all users (public information only)
+  async getAllUsers(): Promise<PublicUser[]> {
+    return apiRequest<PublicUser[]>('/users')
   },
 }
 

@@ -105,6 +105,7 @@ func main() {
 	turnHandler := handlers.NewTURNHandler(cfg)
 	authHandler := handlers.NewAuthHandler(authService, roleService, cfg.Server.ExternalURL)
 	adminHandler := handlers.NewAdminHandler(roleService, userRepo)
+	usersHandler := handlers.NewUsersHandler(userRepo)
 
 	// Setup router
 	r := mux.NewRouter()
@@ -127,6 +128,9 @@ func main() {
 	r.HandleFunc("/api/auth/logout", authHandler.Logout).Methods("POST")
 	r.Handle("/api/auth/me", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.GetCurrentUser))).Methods("GET")
 	r.HandleFunc("/api/auth/status", authHandler.GetAuthStatus).Methods("GET")
+
+	// Users route (public)
+	r.HandleFunc("/api/users", usersHandler.GetAllUsers).Methods("GET")
 
 	// TURN server configuration route
 	r.HandleFunc("/api/turn-config", turnHandler.GetTURNConfig).Methods("GET")

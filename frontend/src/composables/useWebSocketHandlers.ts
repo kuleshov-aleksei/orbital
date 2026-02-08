@@ -1,12 +1,13 @@
-import { onMounted, onUnmounted } from 'vue'
-import { useRoomStore, useCategoryStore, useAppStore } from '@/stores'
+import { onMounted, onUnmounted, watch } from 'vue'
+import { useRoomStore, useCategoryStore, useAppStore, useUsersStore, useUserStore } from '@/stores'
 import { wsService } from '@/services/websocket'
-import type { User, Room, Category } from '@/types'
+import type { User, Room, Category, PublicUser } from '@/types'
 
 export function useWebSocketHandlers() {
   const roomStore = useRoomStore()
   const categoryStore = useCategoryStore()
   const appStore = useAppStore()
+  const usersStore = useUsersStore()
 
   const setupWebSocketListeners = () => {
     // Room users updates
@@ -77,6 +78,34 @@ export function useWebSocketHandlers() {
   }
 
   const setupGlobalWebSocketListeners = () => {
+    // Global user list - initial list of all users
+    wsService.onGlobal('user_list', (message) => {
+      const data = message.data as PublicUser[]
+      console.log('Received user_list event:', data.length, 'users')
+      usersStore.setUsers(data)
+    })
+
+    // User joined platform
+    wsService.onGlobal('user_joined', (message) => {
+      const data = message.data as PublicUser
+      console.log('Received user_joined event:', data.nickname)
+      usersStore.addUser(data)
+    })
+
+    // User left platform
+    wsService.onGlobal('user_left', (message) => {
+      const data = message.data as PublicUser
+      console.log('Received user_left event:', data.id)
+      usersStore.removeUser(data.id)
+    })
+
+    // User data updated
+    wsService.onGlobal('user_update', (message) => {
+      const data = message.data as PublicUser
+      console.log('Received user_update event:', data.nickname)
+      usersStore.updateUser(data)
+    })
+
     // Room creation
     wsService.onGlobal('room_created', (message) => {
       const newRoom = message.data as Room
@@ -120,6 +149,7 @@ export function useWebSocketHandlers() {
     wsService.onGlobal('nickname_change', (message) => {
       const data = message.data as { user_id: string; nickname: string }
       roomStore.updateUserNickname(data.user_id, data.nickname)
+      usersStore.updateUserNickname(data.user_id, data.nickname)
     })
 
     // Room user joined
@@ -202,10 +232,22 @@ export function useWebSocketHandlers() {
     // Connection events
     wsService.onGlobalConnection(() => {
       console.log('Global WebSocket connected')
+      // Start sending pings to keep connection alive and trigger periodic user list updates
+      startGlobalPing()
     })
 
     wsService.onGlobalDisconnection((event) => {
       console.log('Global WebSocket disconnected:', event)
+      stopGlobalPing()
+    })
+
+    // Pong response (for latency tracking)
+    wsService.onGlobal('pong', (message) => {
+      const data = message.data as { timestamp: number }
+      const latency = Date.now() - data.timestamp
+      if (latency > 1000) {
+        console.log(`Global WebSocket latency: ${latency}ms`)
+      }
     })
   }
 
@@ -217,6 +259,51 @@ export function useWebSocketHandlers() {
     }
   }
 
+  // Watch for token changes to reconnect WebSocket with new auth
+  const userStore = useUserStore()
+  watch(() => userStore.token, async (newToken, oldToken) => {
+    // Only reconnect if:
+    // 1. We have a new token
+    // 2. We had an old token (not initial load)
+    // 3. The tokens are actually different
+    // This prevents reconnection when the same tab loads the token from localStorage
+    if (newToken && oldToken && newToken !== oldToken) {
+      console.log('Auth token changed, reconnecting global WebSocket')
+      // Wait for disconnect to complete before reconnecting to avoid race conditions
+      await wsService.disconnectGlobal()
+      await connectGlobalWebSocket()
+    }
+  })
+
+  // Global ping interval (30 seconds)
+  const GLOBAL_PING_INTERVAL = 30000
+  let globalPingInterval: ReturnType<typeof setInterval> | null = null
+
+  const sendGlobalPing = () => {
+    if (wsService.isGlobalConnected()) {
+      wsService.sendGlobalMessage('ping', {
+        user_id: userStore.userId,
+        timestamp: Date.now()
+      })
+    }
+  }
+
+  const startGlobalPing = () => {
+    if (globalPingInterval) {
+      clearInterval(globalPingInterval)
+    }
+    globalPingInterval = setInterval(sendGlobalPing, GLOBAL_PING_INTERVAL)
+    // Send initial ping immediately
+    sendGlobalPing()
+  }
+
+  const stopGlobalPing = () => {
+    if (globalPingInterval) {
+      clearInterval(globalPingInterval)
+      globalPingInterval = null
+    }
+  }
+
   // Auto-initialize on mount
   onMounted(() => {
     setupWebSocketListeners()
@@ -225,8 +312,9 @@ export function useWebSocketHandlers() {
   })
 
   onUnmounted(() => {
+    stopGlobalPing()
     wsService.disconnect()
-    wsService.disconnectGlobal()
+    void wsService.disconnectGlobal()
   })
 
   return {

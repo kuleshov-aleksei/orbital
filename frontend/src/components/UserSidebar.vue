@@ -1,15 +1,12 @@
 <template>
   <div
-class="user-sidebar w-60 lg:w-60 bg-gray-800 flex flex-col fixed lg:relative inset-y-0 right-0 z-40 lg:z-auto transform lg:translate-x-0 transition-transform duration-300"
-       data-testid="user-sidebar"
-       :class="{ 
-         'translate-x-full': !isVisible,
-         'translate-x-0': isVisible
-       }">
+    class="user-sidebar flex flex-col fixed lg:relative inset-y-0 right-0 z-40 lg:z-auto transition-all duration-300 bg-gray-800"
+    data-testid="user-sidebar"
+    :class="sidebarClasses">
     <!-- Mobile Close Button -->
     <div class="lg:hidden flex items-center justify-between p-4 border-b border-gray-700">
       <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">
-        In Room — {{ userCount }}
+        Users — {{ userCount }}
       </h2>
 
       <button
@@ -22,18 +19,25 @@ class="user-sidebar w-60 lg:w-60 bg-gray-800 flex flex-col fixed lg:relative ins
     </div>
 
     <!-- Desktop Header -->
-    <div class="hidden lg:flex items-center justify-between p-4 border-b border-gray-700">
-      <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">
-        In Room — {{ userCount }}
+    <div class="hidden lg:flex items-center justify-between p-3 border-b border-gray-700" :class="{ 'justify-center': isCollapsed }">
+      <h2 v-if="!isCollapsed" class="text-sm font-semibold text-gray-300 uppercase tracking-wider">
+        Users — {{ userCount }}
       </h2>
-
-      <button type="button" class="text-gray-400 hover:text-gray-200 transition-colors duration-200">
-        <PhDotsThree class="w-4 h-4" />
+      
+      <!-- Toggle Button - Integrated into header -->
+      <button
+        type="button"
+        class="flex items-center justify-center w-7 h-7 rounded-md bg-gray-700/50 hover:bg-gray-600 text-gray-400 hover:text-gray-200 transition-all duration-200"
+        :class="{ 'rotate-180': !isCollapsed }"
+        :title="isCollapsed ? 'Expand' : 'Collapse'"
+        @click="toggleCollapse"
+      >
+        <PhCaretDoubleRight class="w-3.5 h-3.5" />
       </button>
     </div>
 
-    <!-- User List -->
-    <div class="flex-1 overflow-y-auto p-2" data-testid="user-list">
+    <!-- User List (hidden when collapsed) -->
+    <div v-if="!isCollapsed" class="flex-1 overflow-y-auto p-2" data-testid="user-list">
       <UserCard
         v-for="user in users"
         :key="user.id"
@@ -43,26 +47,57 @@ class="user-sidebar w-60 lg:w-60 bg-gray-800 flex flex-col fixed lg:relative ins
       />
     </div>
 
-    <!-- User Controls - Placeholder buttons removed as they are not yet functional -->
-    <!-- Future: Video and screen sharing controls will be added here -->
+    <!-- Collapsed state - show compact user avatars -->
+    <div v-else class="flex-1 overflow-y-auto py-2 px-1 flex flex-col items-center gap-2">
+      <!-- Show first 15 users (to prevent overcrowding) -->
+      <div
+        v-for="user in displayedUsers"
+        :key="user.id"
+        class="relative group cursor-pointer"
+        :title="user.nickname"
+      >
+        <UserAvatar
+          :nickname="user.nickname"
+          :size="28"
+          :show-status="false"
+          :grayscale="!user.is_online"
+        />
+        <!-- Speaking indicator ring -->
+        <div
+          v-if="user.is_speaking"
+          class="absolute inset-0 rounded-full ring-2 ring-green-400 ring-offset-2 ring-offset-gray-800"
+        ></div>
+      </div>
+      <!-- Show "+X" if there are more users -->
+      <div
+        v-if="remainingUsersCount > 0"
+        class="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center text-xs font-medium text-gray-400 hover:bg-gray-600 hover:text-gray-200 transition-colors cursor-pointer"
+        :title="`${remainingUsersCount} more users`"
+        @click="toggleCollapse"
+      >
+        +{{ remainingUsersCount }}
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
  import { computed } from 'vue'
  import UserCard from '@/components/UserCard.vue'
+ import UserAvatar from '@/components/UserAvatar.vue'
  import { 
     PhCross, 
-    PhDotsThree
+    PhCaretDoubleRight
   } from '@phosphor-icons/vue'
 
 interface User {
   id: string
   nickname: string
-  is_speaking: boolean
-  is_muted: boolean
-  is_deafened: boolean
-  status: 'online' | 'away' | 'dnd'
+  is_speaking?: boolean
+  is_muted?: boolean
+  is_deafened?: boolean
+  is_online: boolean
+  status?: 'online' | 'away' | 'dnd'
 }
 
 interface Props {
@@ -70,10 +105,12 @@ interface Props {
   userCount: number
   initialVolumes?: Map<string, number>
   isOpen?: boolean
+  collapsed?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  initialVolumes: () => new Map()
+  initialVolumes: () => new Map(),
+  collapsed: false
   // isOpen has no default - when undefined, sidebar controls itself (desktop mode)
   // when provided, parent controls visibility (mobile mode)
 })
@@ -81,6 +118,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   'close-mobile-sidebar': []
   'volume-change': [userId: string, volume: number]
+  'update:collapsed': [value: boolean]
 }>()
 
 // Visibility logic:
@@ -95,6 +133,57 @@ const isVisible = computed(() => {
   return props.userCount > 0
 })
 
+const isCollapsed = computed({
+  get: () => props.collapsed,
+  set: (value) => emit('update:collapsed', value)
+})
+
+// Compute sidebar classes - mobile uses transform, desktop doesn't
+const sidebarClasses = computed(() => {
+  const classes = []
+  
+  // Width classes
+  if (isCollapsed.value) {
+    classes.push('w-12', 'lg:w-12')
+  } else {
+    classes.push('w-60', 'lg:w-60')
+  }
+  
+  // Transform classes - only for mobile (fixed positioning)
+  // On desktop (lg), sidebar is always visible (relative positioning)
+  if (!isCollapsed.value) {
+    if (!isVisible.value) {
+      classes.push('translate-x-full') // Mobile: hidden off-screen
+    } else {
+      classes.push('translate-x-0') // Mobile: visible
+    }
+  } else {
+    classes.push('translate-x-0') // Collapsed: always visible
+  }
+  
+  // Desktop always visible (override any transform)
+  classes.push('lg:translate-x-0', 'lg:relative')
+  
+  return classes.join(' ')
+})
+
+const toggleCollapse = () => {
+  isCollapsed.value = !isCollapsed.value
+}
+
+// Maximum number of avatars to show in collapsed mode
+const MAX_COLLAPSED_AVATARS = 15
+
+// Users to display in collapsed sidebar (limited to prevent overcrowding)
+const displayedUsers = computed(() => {
+  return props.users.slice(0, MAX_COLLAPSED_AVATARS)
+})
+
+// Count of remaining users not shown
+const remainingUsersCount = computed(() => {
+  return Math.max(0, props.users.length - MAX_COLLAPSED_AVATARS)
+})
+
 const getInitialVolume = (userId: string) => {
   return props.initialVolumes.get(userId) || 80
 }
@@ -102,6 +191,4 @@ const getInitialVolume = (userId: string) => {
 const handleVolumeChange = (userId: string, volume: number) => {
   emit('volume-change', userId, volume)
 }
-
-
 </script>
