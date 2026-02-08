@@ -47,14 +47,34 @@
       />
     </div>
 
-    <!-- Collapsed state - show user count icon -->
-    <div v-else class="flex-1 flex flex-col items-center pt-4">
-      <div class="relative">
-        <div class="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-xs font-bold text-gray-300">
-          {{ userCount }}
-        </div>
-
-        <div class="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-gray-800"></div>
+    <!-- Collapsed state - show compact user avatars -->
+    <div v-else class="flex-1 overflow-y-auto py-2 px-1 flex flex-col items-center gap-2">
+      <!-- Show first 15 users (to prevent overcrowding) -->
+      <div
+        v-for="user in displayedUsers"
+        :key="user.id"
+        class="relative group cursor-pointer"
+        :title="user.nickname"
+      >
+        <UserAvatar
+          :nickname="user.nickname"
+          :size="28"
+          :show-status="false"
+        />
+        <!-- Speaking indicator ring -->
+        <div
+          v-if="user.is_speaking"
+          class="absolute inset-0 rounded-full ring-2 ring-green-400 ring-offset-2 ring-offset-gray-800"
+        ></div>
+      </div>
+      <!-- Show "+X" if there are more users -->
+      <div
+        v-if="remainingUsersCount > 0"
+        class="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center text-xs font-medium text-gray-400 hover:bg-gray-600 hover:text-gray-200 transition-colors cursor-pointer"
+        :title="`${remainingUsersCount} more users`"
+        @click="toggleCollapse"
+      >
+        +{{ remainingUsersCount }}
       </div>
     </div>
   </div>
@@ -63,10 +83,9 @@
 <script setup lang="ts">
  import { computed } from 'vue'
  import UserCard from '@/components/UserCard.vue'
+ import UserAvatar from '@/components/UserAvatar.vue'
  import { 
     PhCross, 
-    PhDotsThree,
-    PhCaretDoubleLeft,
     PhCaretDoubleRight
   } from '@phosphor-icons/vue'
 
@@ -150,6 +169,19 @@ const sidebarClasses = computed(() => {
 const toggleCollapse = () => {
   isCollapsed.value = !isCollapsed.value
 }
+
+// Maximum number of avatars to show in collapsed mode
+const MAX_COLLAPSED_AVATARS = 15
+
+// Users to display in collapsed sidebar (limited to prevent overcrowding)
+const displayedUsers = computed(() => {
+  return props.users.slice(0, MAX_COLLAPSED_AVATARS)
+})
+
+// Count of remaining users not shown
+const remainingUsersCount = computed(() => {
+  return Math.max(0, props.users.length - MAX_COLLAPSED_AVATARS)
+})
 
 const getInitialVolume = (userId: string) => {
   return props.initialVolumes.get(userId) || 80
