@@ -852,6 +852,7 @@ func marshalMessage(message interface{}) []byte {
 }
 
 // startPingMonitor periodically checks for clients that haven't sent pings within the timeout period
+// and broadcasts user list every 30 seconds
 func (h *Hub) startPingMonitor() {
 	// Safety check for config
 	if h.cfg == nil {
@@ -862,15 +863,38 @@ func (h *Hub) startPingMonitor() {
 	log.Printf("Starting ping monitor (timeout: %v, check interval: %v)",
 		h.cfg.WebSocket.PingTimeout, h.cfg.WebSocket.PingCheckInterval)
 
-	ticker := time.NewTicker(h.cfg.WebSocket.PingCheckInterval)
-	defer ticker.Stop()
+	checkTicker := time.NewTicker(h.cfg.WebSocket.PingCheckInterval)
+	defer checkTicker.Stop()
 
-	for range ticker.C {
-		h.checkPingTimeouts()
+	// Broadcast user list every 30 seconds
+	broadcastTicker := time.NewTicker(30 * time.Second)
+	defer broadcastTicker.Stop()
+
+	for {
+		select {
+		case <-checkTicker.C:
+			h.checkPingTimeouts()
+		case <-broadcastTicker.C:
+			h.broadcastUserList()
+		}
 	}
 }
 
-// checkPingTimeouts checks all room members for ping timeouts and removes timed-out users
+// broadcastUserList sends the current connected users list to all clients
+func (h *Hub) broadcastUserList() {
+	h.mu.RLock()
+	users := h.GetConnectedUsers()
+	h.mu.RUnlock()
+
+	userListMessage := models.WebSocketMessage{
+		Type: models.MessageTypeUserList,
+		Data: users,
+	}
+
+	h.BroadcastToAll(userListMessage)
+}
+
+// checkPingTimeouts checks all room members and global clients for ping timeouts
 func (h *Hub) checkPingTimeouts() {
 	if h.cfg == nil {
 		log.Printf("ERROR: checkPingTimeouts called with nil config")
@@ -890,10 +914,61 @@ func (h *Hub) checkPingTimeouts() {
 		log.Printf("Ping monitor: found %d timed-out users (timeout: %v)", len(timedOutUsers), timeout)
 	}
 
-	// Remove each timed-out user
+	// Remove each timed-out user from rooms
 	for _, user := range timedOutUsers {
 		log.Printf("Ping timeout for user %s in room %s - removing from room", user.UserID, user.RoomID)
 		h.disconnectUserDueToTimeout(user.RoomID, user.UserID)
+	}
+
+	// Check global clients for ping timeouts (clients not in any room)
+	h.checkGlobalPingTimeouts(timeout)
+}
+
+// checkGlobalPingTimeouts checks global WebSocket clients and removes timed-out users
+func (h *Hub) checkGlobalPingTimeouts(timeout time.Duration) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	now := time.Now()
+	timedOutClients := make([]*Client, 0)
+
+	for client := range h.clients {
+		client.mu.RLock()
+		lastPing := client.lastPingTime
+		userID := client.userID
+		client.mu.RUnlock()
+
+		// Skip clients without userID (not authenticated)
+		if userID == "" {
+			continue
+		}
+
+		// Check if client hasn't pinged within timeout
+		if now.Sub(lastPing) > timeout {
+			timedOutClients = append(timedOutClients, client)
+		}
+	}
+
+	// Remove timed-out clients
+	for _, client := range timedOutClients {
+		client.mu.RLock()
+		userID := client.userID
+		client.mu.RUnlock()
+
+		log.Printf("Global ping timeout for user %s - removing from connected users", userID)
+
+		// Remove from connected users map
+		if userID != "" {
+			h.RemoveConnectedUser(userID)
+		}
+
+		// Clean up client connection
+		close(client.send)
+		delete(h.clients, client)
+		if h.roomClients[client.roomID] != nil {
+			delete(h.roomClients[client.roomID], client)
+		}
+		client.conn.Close()
 	}
 }
 

@@ -232,10 +232,22 @@ export function useWebSocketHandlers() {
     // Connection events
     wsService.onGlobalConnection(() => {
       console.log('Global WebSocket connected')
+      // Start sending pings to keep connection alive and trigger periodic user list updates
+      startGlobalPing()
     })
 
     wsService.onGlobalDisconnection((event) => {
       console.log('Global WebSocket disconnected:', event)
+      stopGlobalPing()
+    })
+
+    // Pong response (for latency tracking)
+    wsService.onGlobal('pong', (message) => {
+      const data = message.data as { timestamp: number }
+      const latency = Date.now() - data.timestamp
+      if (latency > 1000) {
+        console.log(`Global WebSocket latency: ${latency}ms`)
+      }
     })
   }
 
@@ -257,6 +269,35 @@ export function useWebSocketHandlers() {
     }
   })
 
+  // Global ping interval (30 seconds)
+  const GLOBAL_PING_INTERVAL = 30000
+  let globalPingInterval: ReturnType<typeof setInterval> | null = null
+
+  const sendGlobalPing = () => {
+    if (wsService.isGlobalConnected()) {
+      wsService.sendGlobalMessage('ping', {
+        user_id: userStore.userId,
+        timestamp: Date.now()
+      })
+    }
+  }
+
+  const startGlobalPing = () => {
+    if (globalPingInterval) {
+      clearInterval(globalPingInterval)
+    }
+    globalPingInterval = setInterval(sendGlobalPing, GLOBAL_PING_INTERVAL)
+    // Send initial ping immediately
+    sendGlobalPing()
+  }
+
+  const stopGlobalPing = () => {
+    if (globalPingInterval) {
+      clearInterval(globalPingInterval)
+      globalPingInterval = null
+    }
+  }
+
   // Auto-initialize on mount
   onMounted(() => {
     setupWebSocketListeners()
@@ -265,6 +306,7 @@ export function useWebSocketHandlers() {
   })
 
   onUnmounted(() => {
+    stopGlobalPing()
     wsService.disconnect()
     wsService.disconnectGlobal()
   })
