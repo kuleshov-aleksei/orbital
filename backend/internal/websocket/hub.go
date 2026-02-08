@@ -15,14 +15,15 @@ import (
 
 // Hub manages WebSocket connections
 type Hub struct {
-	clients        map[*Client]bool
-	roomClients    map[string]map[*Client]bool   // room_id -> clients
-	connectedUsers map[string]*models.PublicUser // userID -> PublicUser (for global user list)
-	roomService    *service.RoomService
-	authService    *service.AuthService
-	cfg            *config.Config
-	upgrader       websocket.Upgrader
-	mu             sync.RWMutex
+	clients              map[*Client]bool
+	roomClients          map[string]map[*Client]bool   // room_id -> clients
+	connectedUsers       map[string]*models.PublicUser // userID -> PublicUser (for global user list)
+	userConnectionCounts map[string]int                // userID -> connection count (for multi-tab support)
+	roomService          *service.RoomService
+	authService          *service.AuthService
+	cfg                  *config.Config
+	upgrader             websocket.Upgrader
+	mu                   sync.RWMutex
 }
 
 // Client represents a WebSocket client
@@ -39,12 +40,13 @@ type Client struct {
 // NewHub creates a new WebSocket hub
 func NewHub(roomService *service.RoomService, authService *service.AuthService, cfg *config.Config) *Hub {
 	hub := &Hub{
-		clients:        make(map[*Client]bool),
-		roomClients:    make(map[string]map[*Client]bool),
-		connectedUsers: make(map[string]*models.PublicUser),
-		roomService:    roomService,
-		authService:    authService,
-		cfg:            cfg,
+		clients:              make(map[*Client]bool),
+		roomClients:          make(map[string]map[*Client]bool),
+		connectedUsers:       make(map[string]*models.PublicUser),
+		userConnectionCounts: make(map[string]int),
+		roomService:          roomService,
+		authService:          authService,
+		cfg:                  cfg,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				return true // Allow all origins for development
@@ -260,44 +262,70 @@ func (h *Hub) SendToUser(roomID string, userID string, message interface{}) {
 }
 
 // AddConnectedUser adds a user to the global connected users map
+// Handles multi-tab support by tracking connection count
 func (h *Hub) AddConnectedUser(userID string, user *models.PublicUser) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	// Check if user is already connected (reconnection scenario)
-	wasAlreadyConnected := h.connectedUsers[userID] != nil
+	// Increment connection count for this user
+	h.userConnectionCounts[userID]++
+	connectionCount := h.userConnectionCounts[userID]
 
-	// Mark user as online
-	user.IsOnline = true
-	h.connectedUsers[userID] = user
+	// Only broadcast "user joined" on first connection
+	if connectionCount == 1 {
+		// Mark user as online
+		user.IsOnline = true
+		h.connectedUsers[userID] = user
 
-	if !wasAlreadyConnected {
 		// Broadcast user joined to all clients
 		joinMessage := models.WebSocketMessage{
 			Type: models.MessageTypeUserJoined,
 			Data: user,
 		}
 		h.broadcastToAllInternal(joinMessage)
-		log.Printf("User %s (%s) connected to platform", user.Nickname, userID)
+		log.Printf("User %s (%s) connected to platform (first connection)", user.Nickname, userID)
+	} else {
+		// Update connected user info but don't broadcast (still has other connections)
+		user.IsOnline = true
+		h.connectedUsers[userID] = user
+		log.Printf("User %s (%s) connected additional tab (total connections: %d)", user.Nickname, userID, connectionCount)
 	}
 }
 
 // RemoveConnectedUser removes a user from the global connected users map
+// Handles multi-tab support - only marks offline when all connections are closed
 func (h *Hub) RemoveConnectedUser(userID string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	if user, exists := h.connectedUsers[userID]; exists {
-		delete(h.connectedUsers, userID)
+	// Decrement connection count
+	h.userConnectionCounts[userID]--
+	connectionCount := h.userConnectionCounts[userID]
 
-		// Mark user as offline and broadcast to all clients
-		user.IsOnline = false
-		leaveMessage := models.WebSocketMessage{
-			Type: models.MessageTypeUserLeft,
-			Data: user,
+	// Get user info before potentially removing them
+	user, userExists := h.connectedUsers[userID]
+
+	// Only mark offline and broadcast when count reaches 0
+	if connectionCount <= 0 {
+		// Clean up the count entry
+		delete(h.userConnectionCounts, userID)
+
+		if userExists {
+			delete(h.connectedUsers, userID)
+
+			// Mark user as offline and broadcast to all clients
+			user.IsOnline = false
+			leaveMessage := models.WebSocketMessage{
+				Type: models.MessageTypeUserLeft,
+				Data: user,
+			}
+			h.broadcastToAllInternal(leaveMessage)
+			log.Printf("User %s (%s) disconnected from platform (all connections closed)", user.Nickname, userID)
 		}
-		h.broadcastToAllInternal(leaveMessage)
-		log.Printf("User %s (%s) disconnected from platform", user.Nickname, userID)
+	} else if userExists {
+		log.Printf("User %s (%s) closed one connection (remaining connections: %d)", user.Nickname, userID, connectionCount)
+	} else {
+		log.Printf("User %s closed one connection (remaining connections: %d)", userID, connectionCount)
 	}
 }
 
