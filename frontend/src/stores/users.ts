@@ -43,17 +43,24 @@ export const useUsersStore = defineStore('users', () => {
   // Actions
   async function fetchAllUsers() {
     if (isLoading.value) return
-    
+
     isLoading.value = true
     error.value = null
-    
+
     try {
       const users = await apiService.getAllUsers()
-      // Initially mark all users as offline until WebSocket connects
-      allUsers.value = users.map(user => ({
-        ...user,
-        is_online: false
-      }))
+      // Create a map of existing users to preserve their online status
+      const existingUsersMap = new Map(allUsers.value.map(u => [u.id, u]))
+
+      // Merge new users with existing ones, preserving online status from WebSocket
+      allUsers.value = users.map(user => {
+        const existing = existingUsersMap.get(user.id)
+        return {
+          ...user,
+          // Preserve online status if we already have it from WebSocket
+          is_online: existing?.is_online ?? false
+        }
+      })
     } catch (err) {
       console.error('Failed to fetch users:', err)
       error.value = 'Failed to load users'

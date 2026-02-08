@@ -7,7 +7,7 @@
     <!-- User Avatar -->
     <UserAvatar
       :nickname="user.nickname"
-      :status="user.status"
+      :status="userStatus"
       :size="32"
       class="mr-3"
     />
@@ -204,6 +204,20 @@ const nicknameInput = useTemplateRef<HTMLInputElement>('nicknameInput')
 const menuPosition = { x: 0, y: 0 }
 const promoting = ref(false)
 const demoting = ref(false)
+
+// Compute user status based on both status field and is_online
+const userStatus = computed(() => {
+  // If user is explicitly offline, return 'offline'
+  if (props.user.is_online === false) {
+    return 'offline'
+  }
+  // If user has a specific status (away, dnd), use it
+  if (props.user.status) {
+    return props.user.status
+  }
+  // Default to online if is_online is true or undefined
+  return 'online'
+})
 
 // Check if this is the current user (for nickname editing)
 const currentUserId = userStore.userId
