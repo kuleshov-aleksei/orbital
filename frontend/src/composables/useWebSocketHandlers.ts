@@ -1,5 +1,5 @@
-import { onMounted, onUnmounted } from 'vue'
-import { useRoomStore, useCategoryStore, useAppStore, useUsersStore } from '@/stores'
+import { onMounted, onUnmounted, watch } from 'vue'
+import { useRoomStore, useCategoryStore, useAppStore, useUsersStore, useUserStore } from '@/stores'
 import { wsService } from '@/services/websocket'
 import type { User, Room, Category, PublicUser } from '@/types'
 
@@ -94,9 +94,9 @@ export function useWebSocketHandlers() {
 
     // User left platform
     wsService.onGlobal('user_left', (message) => {
-      const data = message.data as { user_id: string }
-      console.log('Received user_left event:', data.user_id)
-      usersStore.removeUser(data.user_id)
+      const data = message.data as PublicUser
+      console.log('Received user_left event:', data.id)
+      usersStore.removeUser(data.id)
     })
 
     // User data updated
@@ -246,6 +246,16 @@ export function useWebSocketHandlers() {
       console.error('Failed to connect global WebSocket:', error)
     }
   }
+
+  // Watch for token changes to reconnect WebSocket with new auth
+  const userStore = useUserStore()
+  watch(() => userStore.token, (newToken, oldToken) => {
+    if (newToken && newToken !== oldToken) {
+      console.log('Auth token changed, reconnecting global WebSocket')
+      wsService.disconnectGlobal()
+      void connectGlobalWebSocket()
+    }
+  })
 
   // Auto-initialize on mount
   onMounted(() => {

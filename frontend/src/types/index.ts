@@ -27,7 +27,7 @@ export interface PublicUser {
   nickname: string
   avatar_url?: string
   role: 'guest' | 'user' | 'admin' | 'super_admin'
-  is_online?: boolean // placeholder for future online/offline status
+  is_online: boolean
 }
 
 // Screen sharing quality options

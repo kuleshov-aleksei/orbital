@@ -75,6 +75,7 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 	}
 
 	// Extract and validate JWT token if auth service is available
+	var authenticatedUser *models.PublicUser
 	if h.authService != nil {
 		token := r.URL.Query().Get("token")
 		if token != "" {
@@ -89,29 +90,18 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 			client.mu.Unlock()
 			log.Printf("WebSocket client authenticated with userID: %s", claims.UserID)
 
-			// Add user to global connected users list
-			publicUser := &models.PublicUser{
+			// Prepare user data for later broadcast
+			authenticatedUser = &models.PublicUser{
 				ID:        claims.UserID,
 				Nickname:  claims.Nickname,
 				AvatarURL: claims.AvatarURL,
 				Role:      claims.Role,
 			}
-			h.AddConnectedUser(claims.UserID, publicUser)
-
-			// Send initial user list to the newly connected client
-			userListMessage := models.WebSocketMessage{
-				Type: models.MessageTypeUserList,
-				Data: h.GetConnectedUsers(),
-			}
-			select {
-			case client.send <- marshalMessage(userListMessage):
-				log.Printf("Sent user list to newly connected client %s", claims.UserID)
-			default:
-				log.Printf("Failed to send user list to client %s", claims.UserID)
-			}
 		}
 	}
 
+	// Add client to the clients map FIRST (before broadcasting)
+	// This ensures the client will receive broadcasts
 	h.mu.Lock()
 	h.clients[client] = true
 
@@ -126,9 +116,30 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 		client.mu.RUnlock()
 		log.Printf("WebSocket client connected to room %s (user: %s, total clients: %d)", roomID, userID, len(h.clients))
 	} else {
-		log.Printf("WebSocket client connected for global broadcasts (total clients: %d)", len(h.clients))
+		client.mu.RLock()
+		userID := client.userID
+		client.mu.RUnlock()
+		log.Printf("WebSocket client connected for global broadcasts (user: %s, total clients: %d)", userID, len(h.clients))
 	}
 	h.mu.Unlock()
+
+	// Now that client is registered, broadcast if authenticated and send initial data
+	if authenticatedUser != nil {
+		// Broadcast user joined to all clients (including this one)
+		h.AddConnectedUser(client.userID, authenticatedUser)
+
+		// Send initial user list to the newly connected client
+		userListMessage := models.WebSocketMessage{
+			Type: models.MessageTypeUserList,
+			Data: h.GetConnectedUsers(),
+		}
+		select {
+		case client.send <- marshalMessage(userListMessage):
+			log.Printf("Sent user list to newly connected client %s", client.userID)
+		default:
+			log.Printf("Failed to send user list to client %s", client.userID)
+		}
+	}
 
 	// Start goroutines for this client
 	go client.writePump()
@@ -255,6 +266,9 @@ func (h *Hub) AddConnectedUser(userID string, user *models.PublicUser) {
 
 	// Check if user is already connected (reconnection scenario)
 	wasAlreadyConnected := h.connectedUsers[userID] != nil
+
+	// Mark user as online
+	user.IsOnline = true
 	h.connectedUsers[userID] = user
 
 	if !wasAlreadyConnected {
@@ -276,12 +290,11 @@ func (h *Hub) RemoveConnectedUser(userID string) {
 	if user, exists := h.connectedUsers[userID]; exists {
 		delete(h.connectedUsers, userID)
 
-		// Broadcast user left to all clients
+		// Mark user as offline and broadcast to all clients
+		user.IsOnline = false
 		leaveMessage := models.WebSocketMessage{
 			Type: models.MessageTypeUserLeft,
-			Data: map[string]string{
-				"user_id": userID,
-			},
+			Data: user,
 		}
 		h.broadcastToAllInternal(leaveMessage)
 		log.Printf("User %s (%s) disconnected from platform", user.Nickname, userID)
@@ -315,6 +328,8 @@ func (h *Hub) GetConnectedUsers() []*models.PublicUser {
 
 	users := make([]*models.PublicUser, 0, len(h.connectedUsers))
 	for _, user := range h.connectedUsers {
+		// Ensure IsOnline is set to true for all connected users
+		user.IsOnline = true
 		users = append(users, user)
 	}
 	return users

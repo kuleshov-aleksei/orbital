@@ -47,6 +47,7 @@ type PublicUser struct {
 	Nickname  string `json:"nickname"`
 	AvatarURL string `json:"avatar_url,omitempty"`
 	Role      string `json:"role"`
+	IsOnline  bool   `json:"is_online"`
 }
 
 // Room represents a voice room

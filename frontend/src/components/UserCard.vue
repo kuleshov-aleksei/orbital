@@ -17,6 +17,7 @@
       <div 
         v-if="!isEditingNickname"
         class="font-medium text-sm truncate cursor-pointer hover:text-indigo-400 transition-colors"
+        :class="{ 'text-gray-500': !user.is_online }"
         :title="isCurrentUser ? 'Click to edit nickname' : ''"
         @click="startEditingNickname"
       >

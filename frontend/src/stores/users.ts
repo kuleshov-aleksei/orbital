@@ -12,6 +12,17 @@ export const useUsersStore = defineStore('users', () => {
   // Getters
   const userCount = computed(() => allUsers.value.length)
   
+  // Sorted users: online users first, then offline users
+  const sortedUsers = computed(() => {
+    return [...allUsers.value].sort((a, b) => {
+      // Online users come first (true > false, so we invert for descending order)
+      if (a.is_online && !b.is_online) return -1
+      if (!a.is_online && b.is_online) return 1
+      // If both have same online status, sort by nickname
+      return a.nickname.localeCompare(b.nickname)
+    })
+  })
+  
   const usersByRole = computed(() => {
     const grouped: Record<string, PublicUser[]> = {
       guest: [],
@@ -20,7 +31,7 @@ export const useUsersStore = defineStore('users', () => {
       super_admin: []
     }
     
-    allUsers.value.forEach(user => {
+    sortedUsers.value.forEach(user => {
       if (grouped[user.role]) {
         grouped[user.role].push(user)
       }
@@ -38,10 +49,10 @@ export const useUsersStore = defineStore('users', () => {
     
     try {
       const users = await apiService.getAllUsers()
-      // Add placeholder is_online status (always true for now)
+      // Initially mark all users as offline until WebSocket connects
       allUsers.value = users.map(user => ({
         ...user,
-        is_online: true
+        is_online: false
       }))
     } catch (err) {
       console.error('Failed to fetch users:', err)
@@ -55,21 +66,22 @@ export const useUsersStore = defineStore('users', () => {
     // Check if user already exists
     const existingIndex = allUsers.value.findIndex(u => u.id === user.id)
     if (existingIndex === -1) {
-      allUsers.value.push({
-        ...user,
-        is_online: true
-      })
+      // New user - add with online status
+      allUsers.value.push(user)
+    } else {
+      // User exists - update online status
+      allUsers.value[existingIndex].is_online = true
     }
   }
 
   function updateUser(user: PublicUser) {
     const index = allUsers.value.findIndex(u => u.id === user.id)
     if (index !== -1) {
-      // Preserve the is_online status if it exists
-      const existingOnline = allUsers.value[index].is_online
+      // Update existing user, preserving is_online if not provided
+      const currentOnline = allUsers.value[index].is_online
       allUsers.value[index] = {
         ...user,
-        is_online: existingOnline !== undefined ? existingOnline : true
+        is_online: user.is_online !== undefined ? user.is_online : currentOnline
       }
     } else {
       // If user doesn't exist, add them
@@ -80,17 +92,26 @@ export const useUsersStore = defineStore('users', () => {
   function removeUser(userId: string) {
     const index = allUsers.value.findIndex(u => u.id === userId)
     if (index !== -1) {
-      // For now, we don't remove users from the list, just mark them as offline
-      // This allows the sidebar to show all registered users
+      // Mark user as offline instead of removing
       allUsers.value[index].is_online = false
     }
   }
 
   function setUsers(users: PublicUser[]) {
-    allUsers.value = users.map(user => ({
-      ...user,
-      is_online: true
-    }))
+    // Merge with existing users to preserve any users not in the connected list
+    const userMap = new Map(allUsers.value.map(u => [u.id, u]))
+    
+    // Mark all existing users as offline first
+    userMap.forEach(user => {
+      user.is_online = false
+    })
+    
+    // Update with connected users (they come with is_online: true)
+    users.forEach(user => {
+      userMap.set(user.id, user)
+    })
+    
+    allUsers.value = Array.from(userMap.values())
   }
 
   function updateUserNickname(userId: string, nickname: string) {
@@ -107,6 +128,7 @@ export const useUsersStore = defineStore('users', () => {
     error,
     // Getters
     userCount,
+    sortedUsers,
     usersByRole,
     // Actions
     fetchAllUsers,

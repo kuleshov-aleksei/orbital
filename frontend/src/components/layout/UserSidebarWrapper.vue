@@ -4,7 +4,7 @@
     v-if="!appStore.isMobile"
     v-model:collapsed="isCollapsed"
     class="hidden lg:flex"
-    :users="usersStore.allUsers"
+    :users="usersStore.sortedUsers"
     :user-count="usersStore.userCount"
     :initial-volumes="roomStore.remoteStreamVolumes"
   />
@@ -21,7 +21,7 @@
     v-if="appStore.isMobile"
     :is-open="appStore.mobileUserSidebarOpen"
     class="fixed right-0 top-0 h-full w-60 bg-gray-800 z-40"
-    :users="usersStore.allUsers"
+    :users="usersStore.sortedUsers"
     :user-count="usersStore.userCount"
     :initial-volumes="roomStore.remoteStreamVolumes"
     :collapsed="false"

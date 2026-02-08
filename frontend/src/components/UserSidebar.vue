@@ -95,7 +95,7 @@ interface User {
   is_speaking?: boolean
   is_muted?: boolean
   is_deafened?: boolean
-  is_online?: boolean
+  is_online: boolean
   status?: 'online' | 'away' | 'dnd'
 }
 
