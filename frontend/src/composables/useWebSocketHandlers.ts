@@ -261,11 +261,12 @@ export function useWebSocketHandlers() {
 
   // Watch for token changes to reconnect WebSocket with new auth
   const userStore = useUserStore()
-  watch(() => userStore.token, (newToken, oldToken) => {
+  watch(() => userStore.token, async (newToken, oldToken) => {
     if (newToken && newToken !== oldToken) {
       console.log('Auth token changed, reconnecting global WebSocket')
-      wsService.disconnectGlobal()
-      void connectGlobalWebSocket()
+      // Wait for disconnect to complete before reconnecting to avoid race conditions
+      await wsService.disconnectGlobal()
+      await connectGlobalWebSocket()
     }
   })
 
@@ -308,7 +309,7 @@ export function useWebSocketHandlers() {
   onUnmounted(() => {
     stopGlobalPing()
     wsService.disconnect()
-    wsService.disconnectGlobal()
+    void wsService.disconnectGlobal()
   })
 
   return {

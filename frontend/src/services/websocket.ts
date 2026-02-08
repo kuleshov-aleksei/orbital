@@ -19,6 +19,7 @@ export class WebSocketService {
   private reconnectDelay = 1000
   private roomId: string = ''
   private userId: string = ''
+  private globalConnectionPromise: Promise<void> | null = null
 
   constructor() {
     this.setupEventHandlers()
@@ -74,7 +75,19 @@ export class WebSocketService {
 
   // Connect to global WebSocket for broadcasts
   async connectGlobal(): Promise<void> {
-    return new Promise((resolve, reject) => {
+    // If already connecting, return the existing promise
+    if (this.globalConnectionPromise) {
+      console.log('Global WebSocket connection already in progress, waiting...')
+      return this.globalConnectionPromise
+    }
+
+    // If already connected, resolve immediately
+    if (this.isGlobalConnected()) {
+      console.log('Global WebSocket already connected')
+      return Promise.resolve()
+    }
+
+    this.globalConnectionPromise = new Promise((resolve, reject) => {
       try {
         const wsUrl = this.getGlobalWebSocketUrl()
         console.log(`Connecting to global WebSocket: ${wsUrl}`)
@@ -83,12 +96,14 @@ export class WebSocketService {
 
         this.globalWs.onopen = (event) => {
           console.log('Global WebSocket connected:', event)
+          this.globalConnectionPromise = null
           this.notifyGlobalConnectionCallbacks()
           resolve()
         }
 
         this.globalWs.onerror = (error) => {
           console.error('Global WebSocket error:', error)
+          this.globalConnectionPromise = null
           reject(new Error('Global WebSocket connection failed'))
         }
 
@@ -98,13 +113,17 @@ export class WebSocketService {
 
         this.globalWs.onclose = (event) => {
           console.log('Global WebSocket closed:', event)
+          this.globalConnectionPromise = null
           this.notifyGlobalDisconnectionCallbacks(event)
         }
 
       } catch (error) {
+        this.globalConnectionPromise = null
         reject(error instanceof Error ? error : new Error(String(error)))
       }
     })
+
+    return this.globalConnectionPromise
   }
 
   // Disconnect from WebSocket
@@ -117,9 +136,38 @@ export class WebSocketService {
   }
 
   // Disconnect from global WebSocket
-  disconnectGlobal(): void {
+  async disconnectGlobal(): Promise<void> {
+    // If connection is in progress, wait for it to complete or fail
+    if (this.globalConnectionPromise) {
+      try {
+        await this.globalConnectionPromise
+      } catch {
+        // Connection failed, that's fine
+      }
+    }
+
     if (this.globalWs) {
-      this.globalWs.close()
+      // Wait for the close event before resolving
+      await new Promise<void>((resolve) => {
+        if (!this.globalWs || this.globalWs.readyState === WebSocket.CLOSED) {
+          resolve()
+          return
+        }
+
+        const onClose = () => {
+          resolve()
+        }
+
+        this.globalWs.addEventListener('close', onClose, { once: true })
+        this.globalWs.close()
+
+        // Timeout after 1 second to prevent hanging
+        setTimeout(() => {
+          this.globalWs?.removeEventListener('close', onClose)
+          resolve()
+        }, 1000)
+      })
+
       this.globalWs = null
     }
   }
@@ -370,7 +418,7 @@ export class WebSocketService {
     // Handle browser close
     window.addEventListener('beforeunload', () => {
       this.disconnect()
-      this.disconnectGlobal()
+      void this.disconnectGlobal()
     })
   }
 }
