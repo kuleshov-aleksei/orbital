@@ -40,6 +40,15 @@ type User struct {
 	Role          string       `json:"role"` // guest, user, admin, super_admin
 }
 
+// PublicUser represents a user with limited public information
+// Used for global user list to avoid exposing sensitive data
+type PublicUser struct {
+	ID        string `json:"id"`
+	Nickname  string `json:"nickname"`
+	AvatarURL string `json:"avatar_url,omitempty"`
+	Role      string `json:"role"`
+}
+
 // Room represents a voice room
 type Room struct {
 	ID        string    `json:"id"`
@@ -71,6 +80,14 @@ type WebSocketMessage struct {
 	Type string      `json:"type"`
 	Data interface{} `json:"data"`
 }
+
+// WebSocket message types for global user events
+const (
+	MessageTypeUserList   = "user_list"   // Initial list of all users
+	MessageTypeUserJoined = "user_joined" // User connected to platform
+	MessageTypeUserLeft   = "user_left"   // User disconnected from platform
+	MessageTypeUserUpdate = "user_update" // User data updated (nickname, avatar, etc.)
+)
 
 // CreateRoomRequest represents a request to create a room
 type CreateRoomRequest struct {

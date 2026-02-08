@@ -48,6 +48,10 @@
 
         <span v-else-if="user.status === 'dnd'">Do Not Disturb</span>
 
+        <span v-else-if="user.is_online === true">Online</span>
+
+        <span v-else-if="user.is_online === false">Offline</span>
+
         <span v-else>Online</span>
       </div>
     </div>
@@ -167,10 +171,11 @@ import { apiService } from '@/services/api'
 interface User {
   id: string
   nickname: string
-  is_speaking: boolean
-  is_muted: boolean
-  is_deafened: boolean
-  status: 'online' | 'away' | 'dnd'
+  is_speaking?: boolean
+  is_muted?: boolean
+  is_deafened?: boolean
+  is_online?: boolean
+  status?: 'online' | 'away' | 'dnd'
   role?: 'guest' | 'user' | 'admin' | 'super_admin'
 }
 

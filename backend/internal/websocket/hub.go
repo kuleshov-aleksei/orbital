@@ -15,13 +15,14 @@ import (
 
 // Hub manages WebSocket connections
 type Hub struct {
-	clients     map[*Client]bool
-	roomClients map[string]map[*Client]bool // room_id -> clients
-	roomService *service.RoomService
-	authService *service.AuthService
-	cfg         *config.Config
-	upgrader    websocket.Upgrader
-	mu          sync.RWMutex
+	clients        map[*Client]bool
+	roomClients    map[string]map[*Client]bool   // room_id -> clients
+	connectedUsers map[string]*models.PublicUser // userID -> PublicUser (for global user list)
+	roomService    *service.RoomService
+	authService    *service.AuthService
+	cfg            *config.Config
+	upgrader       websocket.Upgrader
+	mu             sync.RWMutex
 }
 
 // Client represents a WebSocket client
@@ -38,11 +39,12 @@ type Client struct {
 // NewHub creates a new WebSocket hub
 func NewHub(roomService *service.RoomService, authService *service.AuthService, cfg *config.Config) *Hub {
 	hub := &Hub{
-		clients:     make(map[*Client]bool),
-		roomClients: make(map[string]map[*Client]bool),
-		roomService: roomService,
-		authService: authService,
-		cfg:         cfg,
+		clients:        make(map[*Client]bool),
+		roomClients:    make(map[string]map[*Client]bool),
+		connectedUsers: make(map[string]*models.PublicUser),
+		roomService:    roomService,
+		authService:    authService,
+		cfg:            cfg,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				return true // Allow all origins for development
@@ -86,6 +88,27 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 			client.userID = claims.UserID
 			client.mu.Unlock()
 			log.Printf("WebSocket client authenticated with userID: %s", claims.UserID)
+
+			// Add user to global connected users list
+			publicUser := &models.PublicUser{
+				ID:        claims.UserID,
+				Nickname:  claims.Nickname,
+				AvatarURL: claims.AvatarURL,
+				Role:      claims.Role,
+			}
+			h.AddConnectedUser(claims.UserID, publicUser)
+
+			// Send initial user list to the newly connected client
+			userListMessage := models.WebSocketMessage{
+				Type: models.MessageTypeUserList,
+				Data: h.GetConnectedUsers(),
+			}
+			select {
+			case client.send <- marshalMessage(userListMessage):
+				log.Printf("Sent user list to newly connected client %s", claims.UserID)
+			default:
+				log.Printf("Failed to send user list to client %s", claims.UserID)
+			}
 		}
 	}
 
@@ -225,9 +248,107 @@ func (h *Hub) SendToUser(roomID string, userID string, message interface{}) {
 	}
 }
 
+// AddConnectedUser adds a user to the global connected users map
+func (h *Hub) AddConnectedUser(userID string, user *models.PublicUser) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	// Check if user is already connected (reconnection scenario)
+	wasAlreadyConnected := h.connectedUsers[userID] != nil
+	h.connectedUsers[userID] = user
+
+	if !wasAlreadyConnected {
+		// Broadcast user joined to all clients
+		joinMessage := models.WebSocketMessage{
+			Type: models.MessageTypeUserJoined,
+			Data: user,
+		}
+		h.broadcastToAllInternal(joinMessage)
+		log.Printf("User %s (%s) connected to platform", user.Nickname, userID)
+	}
+}
+
+// RemoveConnectedUser removes a user from the global connected users map
+func (h *Hub) RemoveConnectedUser(userID string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if user, exists := h.connectedUsers[userID]; exists {
+		delete(h.connectedUsers, userID)
+
+		// Broadcast user left to all clients
+		leaveMessage := models.WebSocketMessage{
+			Type: models.MessageTypeUserLeft,
+			Data: map[string]string{
+				"user_id": userID,
+			},
+		}
+		h.broadcastToAllInternal(leaveMessage)
+		log.Printf("User %s (%s) disconnected from platform", user.Nickname, userID)
+	}
+}
+
+// BroadcastUserUpdate broadcasts a user update to all connected clients
+func (h *Hub) BroadcastUserUpdate(user *models.PublicUser) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	// Update user in connected users map if present
+	if existingUser, exists := h.connectedUsers[user.ID]; exists {
+		existingUser.Nickname = user.Nickname
+		existingUser.AvatarURL = user.AvatarURL
+		existingUser.Role = user.Role
+	}
+
+	// Broadcast update to all clients
+	updateMessage := models.WebSocketMessage{
+		Type: models.MessageTypeUserUpdate,
+		Data: user,
+	}
+	h.broadcastToAllInternal(updateMessage)
+}
+
+// GetConnectedUsers returns a list of all currently connected users
+func (h *Hub) GetConnectedUsers() []*models.PublicUser {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	users := make([]*models.PublicUser, 0, len(h.connectedUsers))
+	for _, user := range h.connectedUsers {
+		users = append(users, user)
+	}
+	return users
+}
+
+// broadcastToAllInternal sends a message to all clients (internal use, caller must hold lock)
+func (h *Hub) broadcastToAllInternal(message interface{}) {
+	data, err := json.Marshal(message)
+	if err != nil {
+		log.Printf("Error marshaling message: %v", err)
+		return
+	}
+
+	for client := range h.clients {
+		select {
+		case client.send <- data:
+		default:
+			close(client.send)
+			delete(h.clients, client)
+			if h.roomClients[client.roomID] != nil {
+				delete(h.roomClients[client.roomID], client)
+			}
+		}
+	}
+}
+
 // readPump handles messages from the WebSocket connection
 func (c *Client) readPump() {
 	defer func() {
+		// Get userID before cleaning up
+		c.mu.RLock()
+		userID := c.userID
+		c.mu.RUnlock()
+
 		// Remove from hub's client maps, but DO NOT clean up room state
 		// Room cleanup only happens on ping timeout, allowing time for reconnection
 		c.hub.mu.Lock()
@@ -236,6 +357,11 @@ func (c *Client) readPump() {
 			delete(c.hub.roomClients[c.roomID], c)
 		}
 		c.hub.mu.Unlock()
+
+		// Remove user from global connected users
+		if userID != "" {
+			c.hub.RemoveConnectedUser(userID)
+		}
 
 		c.conn.Close()
 	}()
@@ -581,6 +707,28 @@ func (c *Client) handleNicknameChange(data interface{}) {
 
 	// Also broadcast globally so users outside room can see updated nickname
 	c.hub.BroadcastToAll(nicknameMessage)
+
+	// Update and broadcast user data change for global user list
+	c.mu.RLock()
+	userID := c.userID
+	c.mu.RUnlock()
+
+	// Get current user data from connected users
+	c.hub.mu.RLock()
+	if user, exists := c.hub.connectedUsers[userID]; exists {
+		user.Nickname = req.Nickname
+		// Create a copy to broadcast
+		updatedUser := &models.PublicUser{
+			ID:        user.ID,
+			Nickname:  user.Nickname,
+			AvatarURL: user.AvatarURL,
+			Role:      user.Role,
+		}
+		c.hub.mu.RUnlock()
+		c.hub.BroadcastUserUpdate(updatedUser)
+	} else {
+		c.hub.mu.RUnlock()
+	}
 }
 
 // handleScreenShareStart handles screen sharing start notifications
