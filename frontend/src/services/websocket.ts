@@ -363,6 +363,12 @@ export class WebSocketService {
       return
     }
 
+    // Don't attempt room reconnection if not in a room
+    if (!this.roomId) {
+      console.log('No active room, skipping room WebSocket reconnection')
+      return
+    }
+
     this.reconnectAttempts++
     console.log(`Attempting to reconnect... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`)
 
@@ -402,7 +408,7 @@ export class WebSocketService {
         console.log('Page hidden, WebSocket still connected')
       } else {
         // Page is visible, check connection
-        if (!this.isConnected()) {
+        if (!this.isConnected() && this.roomId) {
           console.log('Page visible, attempting to reconnect')
           this.attemptReconnect()
         }

@@ -262,7 +262,12 @@ export function useWebSocketHandlers() {
   // Watch for token changes to reconnect WebSocket with new auth
   const userStore = useUserStore()
   watch(() => userStore.token, async (newToken, oldToken) => {
-    if (newToken && newToken !== oldToken) {
+    // Only reconnect if:
+    // 1. We have a new token
+    // 2. We had an old token (not initial load)
+    // 3. The tokens are actually different
+    // This prevents reconnection when the same tab loads the token from localStorage
+    if (newToken && oldToken && newToken !== oldToken) {
       console.log('Auth token changed, reconnecting global WebSocket')
       // Wait for disconnect to complete before reconnecting to avoid race conditions
       await wsService.disconnectGlobal()
