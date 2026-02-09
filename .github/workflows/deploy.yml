@@ -1,0 +1,80 @@
+name: Deploy to Production
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    
+    steps:
+      - name: Extract version from tag
+        id: get_version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Deploying version: $VERSION"
+      
+      - name: Checkout repository to deployment directory
+        run: |
+          # Create deployment directory if it doesn't exist
+          mkdir -p /opt/orbital
+          
+          # Check if it's already a git repo
+          if [ -d "/opt/orbital/.git" ]; then
+            cd /opt/orbital
+            git fetch origin
+            git checkout ${GITHUB_REF#refs/tags/}
+          else
+            # Clone fresh
+            git clone https://github.com/${{ github.repository }}.git /opt/orbital
+            cd /opt/orbital
+            git checkout ${GITHUB_REF#refs/tags/}
+          fi
+      
+      - name: Ensure configuration files exist
+        run: |
+          cd /opt/orbital/docker
+          
+          # Create docker-data directory structure
+          mkdir -p docker-data/configs
+          mkdir -p docker-data/data
+          
+          # Copy default configs if they don't exist
+          if [ ! -f docker-data/configs/nginx.conf ]; then
+            cp docker/nginx.conf docker-data/configs/nginx.conf
+            echo "Created default nginx.conf"
+          fi
+          
+          if [ ! -f docker-data/configs/turnserver.conf ]; then
+            cp docker/turnserver.conf docker-data/configs/turnserver.conf
+            echo "Created default turnserver.conf"
+          fi
+          
+          # Create .env file if it doesn't exist
+          if [ ! -f docker-data/.env ]; then
+            echo "TURN_SECRET=your-shared-secret-change-in-production" > docker-data/.env
+            echo "TURN_URL=turn:localhost:3478" >> docker-data/.env
+            echo "TURN_TLS_URL=turns:localhost:5349" >> docker-data/.env
+            echo "STUN_URLS=stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302" >> docker-data/.env
+            echo "Created default .env file"
+          fi
+      
+      - name: Build and deploy
+        run: |
+          cd /opt/orbital/docker
+          
+          # Build and deploy with docker compose
+          export VERSION=${{ env.VERSION }}
+          docker compose build --no-cache
+          docker compose up -d
+      
+      - name: Cleanup old Docker images
+        run: |
+          # Remove dangling images
+          docker image prune -f
+          
+          echo "Deployment completed successfully!"
+          echo "Version: ${{ env.VERSION }}"

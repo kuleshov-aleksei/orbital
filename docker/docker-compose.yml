@@ -5,12 +5,15 @@ services:
       dockerfile: docker/Dockerfile.frontend
       args:
         - VERSION=${VERSION:-dev-unknown}
+    restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
       - VITE_API_URL=http://localhost:8080
     depends_on:
       - backend
+    networks:
+      - orbital-network
 
   backend:
     build:
@@ -18,30 +21,34 @@ services:
       dockerfile: docker/Dockerfile.backend
       args:
         - VERSION=${VERSION:-dev-unknown}
-    ports:
-      - "8080:8080"
+    restart: unless-stopped
+    env_file:
+      - docker-data/.env
     environment:
       - GIN_MODE=release
       - PORT=8080
-      - TURN_SECRET=${TURN_SECRET:-your-shared-secret-change-in-production}
-      - TURN_URL=turn:localhost:3478
-      - TURN_TLS_URL=turns:localhost:5349
-      - STUN_URLS=stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302
+      - TURN_URL=${TURN_URL:-turn:localhost:3478}
+      - TURN_TLS_URL=${TURN_TLS_URL:-turns:localhost:5349}
+      - STUN_URLS=${STUN_URLS:-stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302}
     depends_on:
       - turn-server
+    networks:
+      - orbital-network
 
   turn-server:
     image: coturn/coturn:latest
+    restart: unless-stopped
     ports:
       - "3478:3478"
       - "3478:3478/udp"
       - "5349:5349"
       - "5349:5349/udp"
       - "49152-65535:49152-65535/udp"
-    environment:
-      - TURN_SECRET=${TURN_SECRET:-your-shared-secret-change-in-production}
+    env_file:
+      - docker-data/.env
     volumes:
-      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - ./docker-data/configs/turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - ./docker-data/data/turn:/var/lib/coturn
     command: >
       sh -c "
         turnserver
@@ -49,13 +56,9 @@ services:
         --use-auth-secret
         --static-auth-secret=$${TURN_SECRET}
       "
+    networks:
+      - orbital-network
 
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - frontend
-      - backend
+networks:
+  orbital-network:
+    driver: bridge
