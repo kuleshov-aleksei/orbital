@@ -10,6 +10,12 @@ jobs:
     runs-on: self-hosted
     
     steps:
+      - name: Checkout repository to deployment directory
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          path: /opt/orbital
+      
       - name: Extract version from tag
         id: get_version
         run: |
@@ -17,22 +23,10 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "Deploying version: $VERSION"
       
-      - name: Checkout repository to deployment directory
+      - name: Checkout specific tag
         run: |
-          # Create deployment directory if it doesn't exist
-          mkdir -p /opt/orbital
-          
-          # Check if it's already a git repo
-          if [ -d "/opt/orbital/.git" ]; then
-            cd /opt/orbital
-            git fetch origin
-            git checkout ${GITHUB_REF#refs/tags/}
-          else
-            # Clone fresh
-            git clone https://github.com/${{ github.repository }}.git /opt/orbital
-            cd /opt/orbital
-            git checkout ${GITHUB_REF#refs/tags/}
-          fi
+          cd /opt/orbital
+          git checkout ${GITHUB_REF#refs/tags/}
       
       - name: Ensure configuration files exist
         run: |
@@ -40,7 +34,7 @@ jobs:
           
           # Create docker-data directory structure
           mkdir -p docker-data/configs
-          mkdir -p docker-data/data
+          mkdir -p docker-data/data/turn
           
           # Copy default configs if they don't exist
           if [ ! -f docker-data/configs/nginx.conf ]; then
@@ -68,6 +62,7 @@ jobs:
           
           # Build and deploy with docker compose
           export VERSION=${{ env.VERSION }}
+          docker compose down
           docker compose build --no-cache
           docker compose up -d
       
