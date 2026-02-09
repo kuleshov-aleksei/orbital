@@ -60,7 +60,7 @@ The Orbital implements a hierarchical role system:
 - WebAssembly for 3rd party noise suppression (RNNoise, Speex)
 
 ### Backend
-- Go 1.21+
+- Go 1.25+
 - WebSockets for signaling
 - REST API for room management
 
