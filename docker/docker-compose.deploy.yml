@@ -1,10 +1,6 @@
 services:
   frontend:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.frontend
-      args:
-        - VERSION=${VERSION:-dev-unknown}
+    image: orbital-frontend:${VERSION}
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -16,14 +12,10 @@ services:
       - orbital-network
 
   backend:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.backend
-      args:
-        - VERSION=${VERSION:-dev-unknown}
+    image: orbital-backend:${VERSION}
     restart: unless-stopped
     env_file:
-      - docker-data/.env
+      - .env
     environment:
       - GIN_MODE=release
       - PORT=8080
@@ -45,10 +37,10 @@ services:
       - "5349:5349/udp"
       - "49152-65535:49152-65535/udp"
     env_file:
-      - docker-data/.env
+      - .env
     volumes:
-      - ./docker-data/configs/turnserver.conf:/etc/coturn/turnserver.conf:ro
-      - ./docker-data/data/turn:/var/lib/coturn
+      - ./configs/turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - ./data/turn:/var/lib/coturn
     command: >
       sh -c "
         turnserver

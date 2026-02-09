@@ -10,64 +10,69 @@ jobs:
     runs-on: self-hosted
     
     steps:
-      - name: Checkout repository to deployment directory
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          path: /opt/orbital
       
-      - name: Extract version from tag
+      - name: Extract version
         id: get_version
         run: |
-          VERSION=${GITHUB_REF#refs/tags/}
+          VERSION=$(./scripts/version.sh)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "Deploying version: $VERSION"
       
-      - name: Checkout specific tag
+      - name: Build Docker images
         run: |
-          cd /opt/orbital
-          git checkout ${GITHUB_REF#refs/tags/}
+          # Build images with version tag
+          docker build --build-arg VERSION=${{ env.VERSION }} -t orbital-frontend:${{ env.VERSION }} -f docker/Dockerfile.frontend .
+          docker build --build-arg VERSION=${{ env.VERSION }} -t orbital-backend:${{ env.VERSION }} -f docker/Dockerfile.backend .
       
-      - name: Ensure configuration files exist
+      - name: Setup deployment directory
         run: |
-          cd /opt/orbital/docker
-          
-          # Create docker-data directory structure
-          mkdir -p docker-data/configs
-          mkdir -p docker-data/data/turn
-          
+          # Create deployment directory structure
+          mkdir -p /opt/orbital/configs
+          mkdir -p /opt/orbital/data/turn
+      
+      - name: Copy default configs
+        run: |
           # Copy default configs if they don't exist
-          if [ ! -f docker-data/configs/nginx.conf ]; then
-            cp docker/nginx.conf docker-data/configs/nginx.conf
+          if [ ! -f /opt/orbital/configs/nginx.conf ]; then
+            cp docker/nginx.conf /opt/orbital/configs/nginx.conf
             echo "Created default nginx.conf"
           fi
           
-          if [ ! -f docker-data/configs/turnserver.conf ]; then
-            cp docker/turnserver.conf docker-data/configs/turnserver.conf
+          if [ ! -f /opt/orbital/configs/turnserver.conf ]; then
+            cp docker/turnserver.conf /opt/orbital/configs/turnserver.conf
             echo "Created default turnserver.conf"
           fi
           
           # Create .env file if it doesn't exist
-          if [ ! -f docker-data/.env ]; then
-            echo "TURN_SECRET=your-shared-secret-change-in-production" > docker-data/.env
-            echo "TURN_URL=turn:localhost:3478" >> docker-data/.env
-            echo "TURN_TLS_URL=turns:localhost:5349" >> docker-data/.env
-            echo "STUN_URLS=stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302" >> docker-data/.env
+          if [ ! -f /opt/orbital/.env ]; then
+            echo "TURN_SECRET=your-shared-secret-change-in-production" > /opt/orbital/.env
+            echo "TURN_URL=turn:localhost:3478" >> /opt/orbital/.env
+            echo "TURN_TLS_URL=turns:localhost:5349" >> /opt/orbital/.env
+            echo "STUN_URLS=stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302" >> /opt/orbital/.env
             echo "Created default .env file"
           fi
       
-      - name: Build and deploy
+      - name: Copy docker-compose file
         run: |
-          cd /opt/orbital/docker
+          # Copy deploy-specific compose file and substitute version
+          sed "s/\${VERSION}/${{ env.VERSION }}/g" docker/docker-compose.deploy.yml > /opt/orbital/docker-compose.yml
+      
+      - name: Deploy
+        run: |
+          cd /opt/orbital
           
-          # Build and deploy with docker compose
-          export VERSION=${{ env.VERSION }}
-          docker compose down
-          docker compose build --no-cache
-          docker compose up -d
+          # Deploy with docker compose
+          docker compose up -d --remove-orphans
       
       - name: Cleanup old Docker images
         run: |
+          # Remove old orbital images except current version
+          docker images --format "table {{.Repository}}:{{.Tag}}" | grep "orbital-" | grep -v "${{ env.VERSION }}" | xargs -r docker rmi || true
+          
           # Remove dangling images
           docker image prune -f
           
