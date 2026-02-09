@@ -28,7 +28,7 @@ services:
       - orbital-network
 
   turn-server:
-    image: coturn/coturn:latest
+    image: coturn/coturn:4.8.0
     restart: unless-stopped
     ports:
       - "3478:3478"
