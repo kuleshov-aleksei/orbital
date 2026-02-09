@@ -1,8 +1,0 @@
-{
-  "devDependencies": {
-    "@iconify-json/simple-icons": "^1.2.69",
-    "@types/node": "^25.2.0",
-    "unplugin-icons": "^23.0.1",
-    "unplugin-vue-components": "^31.0.0"
-  }
-}
