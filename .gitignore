@@ -239,3 +239,8 @@ backend/main
 certs/
 docker/turndata/
 backend/data/orbital.db
+
+docker/docker-data/data/*
+!docker/docker-data/data/.gitkeep
+docker/docker-data/configs/*
+!docker/docker-data/configs/.gitkeep
