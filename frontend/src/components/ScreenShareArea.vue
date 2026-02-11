@@ -1,11 +1,11 @@
 <template>
-  <div class="screen-share-area bg-gray-800 rounded-lg overflow-hidden">
+  <div class="screen-share-area bg-gray-800 rounded-lg overflow-hidden flex flex-col h-full">
     <!-- Screen Share Content -->
-    <div class="p-4">
-      <!-- Focus Layout: Main screen + thumbnails -->
-      <div v-if="props.layout === 'focus'" class="space-y-4">
-        <!-- Main focused screen -->
-        <div v-if="focusedShare">
+    <div class="p-4 flex-1 min-h-0 flex flex-col">
+      <!-- Focus Layout: Main screen (70%) + thumbnail panel (30%) side by side -->
+      <div v-if="props.layout === 'focus'" class="flex flex-row h-full gap-4">
+        <!-- Main focused screen - 70% width -->
+        <div v-if="focusedShare" class="flex-[7] min-w-0 min-h-0">
           <ScreenStream
             :user-id="focusedShare.userId"
             :user-nickname="focusedShare.userNickname"
@@ -15,15 +15,16 @@
             :is-focused="true"
             :show-focus-button="false"
             :is-self-view="focusedShare.isSelfView"
+            class="h-full"
           />
         </div>
         
-        <!-- Thumbnail row for other screens -->
-        <div v-if="thumbnailShares.length > 0" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <!-- Thumbnail panel for other screens - 30% width -->
+        <div v-if="thumbnailShares.length > 0" class="flex-[3] min-w-0 flex flex-col gap-3 overflow-y-auto">
           <div
             v-for="share in thumbnailShares"
             :key="share.userId"
-            class="cursor-pointer border-2 border-gray-600 hover:border-indigo-500 transition-colors rounded-lg overflow-hidden"
+            class="cursor-pointer border-2 border-gray-600 hover:border-indigo-500 transition-colors rounded-lg overflow-hidden flex-shrink-0"
             @click="setFocusedShare(share.userId)"
           >
             <ThumbnailStream
@@ -36,7 +37,7 @@
       </div>
       
       <!-- Grid Layout: All screens side by side -->
-      <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4 h-full">
         <ScreenStream
           v-for="share in screenShares"
           :key="share.userId"
@@ -48,13 +49,14 @@
           :is-focused="false"
           :show-focus-button="screenShares.length > 1"
           :is-self-view="share.isSelfView"
+          class="h-full"
           @make-focused="setFocusedShare(share.userId)"
         />
       </div>
     </div>
     
     <!-- Empty State -->
-    <div v-if="screenShares.length === 0" class="px-4 py-8 text-center">
+    <div v-if="screenShares.length === 0" class="px-4 py-8 text-center flex-1 flex flex-col items-center justify-center">
       <PhMonitorPlay class="w-12 h-12 text-gray-600 mx-auto mb-2" />
 
       <p class="text-gray-400">No active screen shares</p>
@@ -133,6 +135,6 @@ const setFocusedShare = (userId: string) => {
 
 <style scoped>
 .screen-share-area {
-  min-height: 200px;
+  /* Uses flex layout to fit available space */
 }
 </style>

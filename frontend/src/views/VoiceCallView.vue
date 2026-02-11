@@ -16,37 +16,41 @@
     <!-- Screen Share Quality Modal handled by parent -->
 
     <!-- Main Call Area -->
-    <main class="flex-1 flex flex-col min-h-0 overflow-hidden">
-      <!-- Screen Share Area -->
-      <ScreenShareArea
-        v-if="screenShareData.length > 0"
-        :screen-shares="screenShareData"
-        :is-user-grid-visible="isUserGridVisible"
-        :layout="screenShareLayout"
-        class="flex-shrink-0 m-4"
-        @update:layout="screenShareLayout = $event"
-        @toggle-user-grid="isUserGridVisible = !isUserGridVisible"
-      />
+    <main class="relative flex flex-1 flex-col min-h-0 overflow-hidden">
+      <!-- Content Container - allows scrolling if needed, with padding for floating controls -->
+      <div class="flex-1 min-h-0 overflow-auto pb-20">
+        <!-- Screen Share Area -->
+        <ScreenShareArea
+          v-if="screenShareData.length > 0"
+          :screen-shares="screenShareData"
+          :is-user-grid-visible="isUserGridVisible"
+          :layout="screenShareLayout"
+          class="m-4"
+          @update:layout="screenShareLayout = $event"
+          @toggle-user-grid="isUserGridVisible = !isUserGridVisible"
+        />
 
-      <!-- User Grid -->
-      <UserGrid
-        :users="users"
-        :remote-streams="remoteStreams"
-        :peer-connection-states="peerConnectionStates"
-        :peer-connection-retries="peerConnectionRetries"
-        :remote-stream-volumes="props.remoteStreamVolumes"
-        :user-screen-share-states="userScreenShareStates"
-        :is-deafened="isDeafened"
-        :is-visible="isUserGridVisible"
-        :screen-share-count="screenShareData.length"
-        :peer-connections="peerConnections"
-        :current-user-audio-level="audioLevel"
-        @mute-toggle="handleMuteToggle"
-        @audio-level="handleAudioLevel"
-      />
+        <!-- User Grid -->
+        <UserGrid
+          :users="users"
+          :remote-streams="remoteStreams"
+          :peer-connection-states="peerConnectionStates"
+          :peer-connection-retries="peerConnectionRetries"
+          :remote-stream-volumes="props.remoteStreamVolumes"
+          :user-screen-share-states="userScreenShareStates"
+          :is-deafened="isDeafened"
+          :is-visible="isUserGridVisible"
+          :screen-share-count="screenShareData.length"
+          :peer-connections="peerConnections"
+          :current-user-audio-level="audioLevel"
+          @mute-toggle="handleMuteToggle"
+          @audio-level="handleAudioLevel"
+        />
+      </div>
 
-        <!-- Audio Controls -->
-        <div class="bg-gray-800 border-t border-gray-700 px-6 py-4">
+      <!-- Audio Controls - Floating at bottom -->
+      <div class="pointer-events-none absolute bottom-4 left-0 right-0 flex justify-center">
+        <div class="pointer-events-auto rounded-2xl bg-gray-800/60 px-6 py-3 shadow-lg ring-1 ring-white/10 backdrop-blur-sm">
           <AudioControls
             ref="audioControlsRef"
             v-model:model-value-muted="isMuted"
@@ -58,7 +62,8 @@
             @leave-room="$emit('leave-room')"
           />
         </div>
-      </main>
+      </div>
+    </main>
       
       <!-- Debug Dashboard -->
       <DebugDashboard
