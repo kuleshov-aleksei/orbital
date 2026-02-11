@@ -80,7 +80,7 @@ export interface AudioWorkletProcessor extends AudioProcessor {
 export const defaultAudioSettings: AudioSettings = {
   noiseSuppression: {
     enabled: true,
-    algorithm: 'browser-native'
+    algorithm: 'speex'
   },
   echoCancellation: true,
   autoGainControl: true,

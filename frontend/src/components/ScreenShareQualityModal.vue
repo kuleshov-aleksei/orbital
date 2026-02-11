@@ -174,13 +174,13 @@ const qualityOptions: QualityOption[] = [
   }
 ]
 
-const selectedQuality = ref<ScreenShareQuality>('1080p30')
+const selectedQuality = ref<ScreenShareQuality>('source')
 const shareAudio = ref(false)
 
 // Reset to defaults when modal opens
 watch(() => props.isOpen, (isOpen) => {
   if (isOpen) {
-    selectedQuality.value = '1080p30'
+    selectedQuality.value = 'source'
     shareAudio.value = false
   }
 })
