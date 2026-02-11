@@ -62,18 +62,35 @@
         
         <!-- Audio Option -->
         <div class="px-5 py-2 border-t border-gray-700">
-          <label class="flex items-center cursor-pointer">
+          <label 
+            class="flex items-center"
+            :class="{ 'cursor-pointer': isScreenShareAudioSupported, 'cursor-not-allowed opacity-60': !isScreenShareAudioSupported }"
+          >
             <input
               v-model="shareAudio"
               type="checkbox"
-              class="w-4 h-4 rounded border-gray-600 bg-gray-700 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-gray-800"
+              :disabled="!isScreenShareAudioSupported"
+              class="w-4 h-4 rounded border-gray-600 bg-gray-700 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-gray-800 disabled:opacity-50"
             />
 
-            <span class="ml-2 text-sm text-gray-300 flex items-center">
+            <span 
+              class="ml-2 text-sm text-gray-300 flex items-center"
+              :class="{ 'text-gray-500': !isScreenShareAudioSupported }"
+            >
               <PhSpeakerHigh class="w-3.5 h-3.5 mr-1" />
               Share system audio
             </span>
           </label>
+          
+          <!-- Info text for unsupported browsers -->
+          <p 
+            v-if="!isScreenShareAudioSupported" 
+            class="mt-1.5 text-xs text-gray-500 flex items-start"
+          >
+            <PhInfo class="w-3.5 h-3.5 mr-1 flex-shrink-0 mt-0.5" />
+
+            <span>System audio sharing is only available in Chrome and Edge browsers</span>
+          </p>
         </div>
         
         <!-- Actions -->
@@ -102,7 +119,8 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { PhMonitorPlay, PhSpeakerHigh } from '@phosphor-icons/vue'
+import { PhMonitorPlay, PhSpeakerHigh, PhInfo } from '@phosphor-icons/vue'
+import { useScreenShareSupport } from '@/composables/useScreenShareSupport'
 import type { ScreenShareQuality } from '@/types'
 
 interface Props {
@@ -120,6 +138,8 @@ const emit = defineEmits<{
   'select-quality': [quality: ScreenShareQuality, shareAudio: boolean]
   'cancel': []
 }>()
+
+const { isScreenShareAudioSupported } = useScreenShareSupport()
 
 const qualityOptions: QualityOption[] = [
   {

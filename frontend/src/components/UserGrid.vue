@@ -1,6 +1,6 @@
 <template>
   <div
-    v-show="isVisible || screenShareCount === 0"
+    v-show="isVisible"
     class="flex-1 p-4 lg:p-6 overflow-y-auto"
   >
     <div v-if="users.length > 0" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
@@ -9,10 +9,11 @@
         :key="user.id"
         class="relative"
       >
-        <AudioStream
+        <ParticipantCard
           :user-id="user.id"
           :user-nickname="user.nickname || 'Unknown'"
-          :stream="remoteStreams.get(user.id)"
+          :audio-stream="remoteStreams.get(user.id) || null"
+          :screen-share-stream="null"
           :connection-state="peerConnectionStates.get(user.id)"
           :connection-retry-count="peerConnectionRetries.get(user.id) || 0"
           :initial-volume="remoteStreamVolumes.get(user.id) || 80"
@@ -22,6 +23,7 @@
           :peer-connection="peerConnections.get(user.id)"
           :is-current-user="user.id === currentUserId"
           :external-audio-level="user.id === currentUserId ? currentUserAudioLevel : undefined"
+          :force-audio-mode="true"
           @mute-toggle="(userId, isMuted) => $emit('mute-toggle', userId, isMuted)"
           @audio-level="(userId, level, isSpeaking) => $emit('audio-level', userId, level, isSpeaking)"
         />
@@ -35,7 +37,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import AudioStream from '@/components/AudioStream.vue'
+import ParticipantCard from '@/components/ParticipantCard.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { useUserStore } from '@/stores'
 import type { User, ScreenShareState } from '@/types'
@@ -50,7 +52,6 @@ interface Props {
   peerConnections: Map<string, RTCPeerConnection>
   isDeafened: boolean
   isVisible: boolean
-  screenShareCount: number
   currentUserAudioLevel?: number
 }
 

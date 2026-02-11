@@ -1,19 +1,22 @@
 <template>
   <div 
-    class="screen-stream relative bg-gray-900 rounded-lg overflow-hidden border border-gray-600"
+    class="screen-stream relative bg-gray-900 rounded-lg overflow-hidden border border-gray-600 flex flex-col"
     :class="{ 'border-indigo-500 ring-2 ring-indigo-500/50': isFocused }"
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave"
   >
-    <!-- Video Element -->
-    <video
-      :id="`screen-${userId}`"
-      ref="videoElement"
-      class="w-full h-full object-contain bg-black"
-      autoplay
-      playsinline
-      @dblclick="toggleFullscreen"
-    />
+    <!-- Video Container - maintains actual stream aspect ratio within available space -->
+    <div class="relative flex items-center justify-center bg-black w-full h-full"
+    >
+      <video
+        :id="`screen-${userId}`"
+        ref="videoElement"
+        class="w-full h-full object-cover"
+        autoplay
+        playsinline
+        @dblclick="toggleFullscreen"
+        @loadedmetadata="handleVideoMetadata"
+      />
     
     <!-- User Info Overlay -->
     <div class="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/70 to-transparent px-4 py-3">
@@ -92,23 +95,24 @@
       </div>
     </div>
     
-    <!-- Loading State -->
-    <div v-if="!stream" class="absolute inset-0 flex items-center justify-center bg-gray-900">
-      <div class="text-center">
-        <PhSpinner class="w-8 h-8 text-indigo-400 animate-spin mx-auto mb-2" />
+      <!-- Loading State -->
+      <div v-if="!stream" class="absolute inset-0 flex items-center justify-center bg-gray-900">
+        <div class="text-center">
+          <PhSpinner class="w-8 h-8 text-indigo-400 animate-spin mx-auto mb-2" />
 
-        <span class="text-gray-400 text-sm">Connecting...</span>
+          <span class="text-gray-400 text-sm">Connecting...</span>
+        </div>
       </div>
-    </div>
-    
-    <!-- Paused State (for self-view when not hovered) -->
-    <div v-if="isPausedComputed" class="absolute inset-0 flex items-center justify-center bg-gray-900/90 z-10">
-      <div class="text-center">
-        <PhPause class="w-12 h-12 text-gray-400 mx-auto mb-3" />
+      
+      <!-- Paused State (for self-view when not hovered) -->
+      <div v-if="isPausedComputed" class="absolute inset-0 flex items-center justify-center bg-gray-900/90 z-10">
+        <div class="text-center">
+          <PhPause class="w-12 h-12 text-gray-400 mx-auto mb-3" />
 
-        <span class="text-gray-300 text-lg font-medium">Paused</span>
+          <span class="text-gray-300 text-lg font-medium">Paused</span>
 
-        <p class="text-gray-500 text-sm mt-1">Hover to view</p>
+          <p class="text-gray-500 text-sm mt-1">Hover to view</p>
+        </div>
       </div>
     </div>
   </div>
@@ -152,11 +156,24 @@ const videoElement = useTemplateRef<HTMLVideoElement>('videoElement')
 const isFullscreen = ref(false)
 const isPiPActive = ref(false)
 const isHovered = ref(false)
+const videoWidth = ref(1920)
+const videoHeight = ref(1080)
 
 // Self-view pauses when not hovered
 const isPausedComputed = computed(() => {
   return props.isSelfView && !isHovered.value
 })
+
+
+
+// Handle video metadata loaded to get actual dimensions
+const handleVideoMetadata = () => {
+  if (videoElement.value) {
+    videoWidth.value = videoElement.value.videoWidth || 1920
+    videoHeight.value = videoElement.value.videoHeight || 1080
+    console.log(`Screen share dimensions for ${props.userId}: ${videoWidth.value}x${videoHeight.value} (ratio: ${(videoWidth.value / videoHeight.value).toFixed(2)})`)
+  }
+}
 
 const handleMouseEnter = () => {
   isHovered.value = true
@@ -250,6 +267,10 @@ onMounted(() => {
     videoElement.value.play().catch(error => {
       console.warn(`Screen video play failed for user ${props.userId}:`, error)
     })
+    // Check if video already has metadata
+    if (videoElement.value.videoWidth > 0) {
+      handleVideoMetadata()
+    }
   }
   
   document.addEventListener('fullscreenchange', handleFullscreenChange)
@@ -273,6 +294,7 @@ onUnmounted(() => {
 
 <style scoped>
 .screen-stream {
-  aspect-ratio: 16/9;
+  /* Container now uses flex layout to fit available space */
+  min-height: 120px;
 }
 </style>
