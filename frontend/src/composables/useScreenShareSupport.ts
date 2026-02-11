@@ -23,7 +23,31 @@ export function useScreenShareSupport() {
     return true
   })
 
+  /**
+   * Detects if screen sharing audio is supported.
+   * System audio capture via getDisplayMedia is only supported in Chrome and Edge.
+   * Firefox and Safari do not support audio capture with screen sharing.
+   */
+  const isScreenShareAudioSupported = computed(() => {
+    // Audio sharing is only supported in Chrome and Chromium-based browsers (Edge, Opera, Brave)
+    const userAgent = navigator.userAgent.toLowerCase()
+    
+    // Check for Chrome/Chromium (but not Edge, which also uses Chrome in user agent)
+    const isChrome = /chrome/.test(userAgent) && !/edge|edg/.test(userAgent)
+    const isEdge = /edge|edg/.test(userAgent)
+    const isOpera = /opr|opera/.test(userAgent)
+    const isBrave = /brave/.test(userAgent)
+    
+    // Check for browsers that don't support audio
+    const isFirefox = /firefox/.test(userAgent)
+    const isSafari = /safari/.test(userAgent) && !/chrome/.test(userAgent)
+    
+    // Only Chrome and Chromium-based browsers support system audio capture
+    return isChrome || isEdge || isOpera || isBrave
+  })
+
   return {
-    isScreenShareSupported
+    isScreenShareSupported,
+    isScreenShareAudioSupported
   }
 }

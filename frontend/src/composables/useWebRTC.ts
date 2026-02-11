@@ -218,9 +218,9 @@ export function useWebRTC(options: UseWebRTCOptions) {
       })
     }
 
-    // Add screen share video track if active
+    // Add screen share video and audio tracks if active
     if (localScreenStream.value) {
-      localScreenStream.value.getVideoTracks().forEach(track => {
+      localScreenStream.value.getTracks().forEach(track => {
         peerConnection.addTrack(track, localScreenStream.value!)
       })
     }
@@ -848,9 +848,12 @@ export function useWebRTC(options: UseWebRTCOptions) {
 
         for (const [peerUserId, pc] of peerConnections.value.entries()) {
           try {
-            pc.addTrack(track, screenStream)
-            console.log(`🖥️ Added screen share track to peer ${peerUserId}`)
-            addDebugLog(`Added screen share track to peer ${peerUserId}`, 'info', peerUserId)
+            // Add all tracks from screen stream (video and audio if enabled)
+            screenStream.getTracks().forEach(screenTrack => {
+              pc.addTrack(screenTrack, screenStream)
+              console.log(`🖥️ Added screen share ${screenTrack.kind} track to peer ${peerUserId}`)
+              addDebugLog(`Added screen share ${screenTrack.kind} track to peer ${peerUserId}`, 'info', peerUserId)
+            })
 
             console.log(`🔄 Triggering renegotiation for screen share with peer ${peerUserId}`)
             addDebugLog(`Triggering renegotiation for screen share with peer ${peerUserId}`, 'info', peerUserId)
