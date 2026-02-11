@@ -48,20 +48,18 @@
         />
       </div>
 
-      <!-- Audio Controls - Floating at bottom -->
-      <div class="pointer-events-none absolute bottom-4 left-0 right-0 flex justify-center">
-        <div class="pointer-events-auto rounded-2xl bg-gray-800/60 px-6 py-3 shadow-lg ring-1 ring-white/10 backdrop-blur-sm">
-          <AudioControls
-            ref="audioControlsRef"
-            v-model:model-value-muted="isMuted"
-            v-model:model-value-deafened="isDeafened"
-            v-model:model-value-screen-sharing="isScreenSharing"
-            v-model:model-value-debug-visible="appStore.isDebugVisible"
-            :is-speaking="isSpeaking"
-            @start-screen-share="$emit('request-screen-share')"
-            @leave-room="$emit('leave-room')"
-          />
-        </div>
+      <!-- Audio Controls - Fixed at bottom center -->
+      <div class="flex-shrink-0 flex justify-center px-4 py-3 bg-gray-900/80 backdrop-blur-sm border-t border-gray-700/50">
+        <AudioControls
+          ref="audioControlsRef"
+          v-model:model-value-muted="isMuted"
+          v-model:model-value-deafened="isDeafened"
+          v-model:model-value-screen-sharing="isScreenSharing"
+          v-model:model-value-debug-visible="appStore.isDebugVisible"
+          :is-speaking="isSpeaking"
+          @start-screen-share="$emit('request-screen-share')"
+          @leave-room="$emit('leave-room')"
+        />
       </div>
     </main>
       

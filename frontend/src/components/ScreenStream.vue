@@ -12,8 +12,7 @@
       <video
         :id="`screen-${userId}`"
         ref="videoElement"
-        class="max-w-full max-h-full object-contain"
-        :style="aspectRatioStyle"
+        class="w-full h-full object-cover"
         autoplay
         playsinline
         @dblclick="toggleFullscreen"
@@ -166,15 +165,7 @@ const isPausedComputed = computed(() => {
   return props.isSelfView && !isHovered.value
 })
 
-// Calculate aspect ratio from actual video dimensions
-const aspectRatioStyle = computed(() => {
-  // Format as aspect-ratio CSS property with fallback to 16/9
-  return {
-    aspectRatio: `${videoWidth.value} / ${videoHeight.value}`,
-    maxWidth: '100%',
-    maxHeight: '100%'
-  }
-})
+
 
 // Handle video metadata loaded to get actual dimensions
 const handleVideoMetadata = () => {

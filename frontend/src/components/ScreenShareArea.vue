@@ -1,5 +1,5 @@
 <template>
-  <div class="screen-share-area bg-gray-800 rounded-lg overflow-hidden flex flex-col h-full">
+  <div class="screen-share-area bg-gray-800 rounded-lg overflow-hidden flex flex-col" style="max-height: 60vh;">
     <!-- Screen Share Content -->
     <div class="p-4 flex-1 min-h-0 flex flex-col">
       <!-- Focus Layout: Main screen (70%) + thumbnail panel (30%) side by side -->
