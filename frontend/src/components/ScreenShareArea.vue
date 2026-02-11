@@ -37,7 +37,7 @@
             :peer-connection="participant.peerConnection"
             :is-current-user="participant.isCurrentUser"
             :external-audio-level="participant.externalAudioLevel"
-            :force-audio-mode="participant.userId !== focusedShare?.userId && !participant.isScreenSharing"
+            :force-audio-mode="(participant.userId !== focusedShare?.userId && participant.userId + '-self' !== focusedShare?.userId) && !participant.isScreenSharing"
             @card-click="handleParticipantClick(participant.userId)"
             @mute-toggle="$emit('mute-toggle', $event)"
             @audio-level="$emit('audio-level', $event)"
@@ -159,8 +159,14 @@ const focusedShare = computed(() => {
 // Build participant data for all users
 const allParticipants = computed((): ParticipantData[] => {
   return props.users.map(user => {
-    const screenShare = props.screenShares.find(s => s.userId === user.id)
+    // Look for screen share by user id - for current user also check for '-self' suffix (self-view)
+    let screenShare = props.screenShares.find(s => s.userId === user.id)
     const isCurrentUser = user.id === props.currentUserId
+    
+    // For current user, also check for self-view (userId + '-self')
+    if (isCurrentUser && !screenShare) {
+      screenShare = props.screenShares.find(s => s.userId === user.id + '-self')
+    }
     
     return {
       userId: user.id,
@@ -190,9 +196,10 @@ const setFocusedShare = (userId: string) => {
 
 const handleParticipantClick = (userId: string) => {
   // If user has a screen share, focus on it
-  const hasScreenShare = props.screenShares.some(s => s.userId === userId)
-  if (hasScreenShare) {
-    setFocusedShare(userId)
+  // Check for both regular userId and self-view userId (userId + '-self')
+  const screenShare = props.screenShares.find(s => s.userId === userId || s.userId === userId + '-self')
+  if (screenShare) {
+    setFocusedShare(screenShare.userId)
   }
 }
 </script>
