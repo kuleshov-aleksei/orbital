@@ -3,9 +3,9 @@ services:
     image: orbital-frontend:${VERSION}
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "8000:8000"
     environment:
-      - VITE_API_URL=http://localhost:8080
+      - VITE_API_URL=http://localhost:8080/api
     depends_on:
       - backend
     networks:
