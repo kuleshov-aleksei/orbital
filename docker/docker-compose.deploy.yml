@@ -22,6 +22,9 @@ services:
       - TURN_URL=${TURN_URL:-turn:localhost:3478}
       - TURN_TLS_URL=${TURN_TLS_URL:-turns:localhost:5349}
       - STUN_URLS=${STUN_URLS:-stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302}
+      - ROOM_MIN_USERS=2
+      - ROOM_MAX_USERS=6
+      - ROOM_DEFAULT_MAX_USERS=6
     volumes:
       - ./data/backend/:/root/data/
     depends_on:
