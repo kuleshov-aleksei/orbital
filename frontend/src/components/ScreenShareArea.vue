@@ -121,6 +121,7 @@ interface Props {
   isDeafened: boolean
   currentUserAudioLevel?: number
   currentUserId: string
+  currentUserIsSharing?: boolean
 }
 
 const props = defineProps<Props>()
@@ -168,6 +169,11 @@ const allParticipants = computed((): ParticipantData[] => {
       screenShare = props.screenShares.find(s => s.userId === user.id + '-self')
     }
     
+    // For current user, use currentUserIsSharing prop; for others, use userScreenShareStates
+    const isScreenSharing = isCurrentUser 
+      ? (props.currentUserIsSharing || false)
+      : (props.userScreenShareStates.get(user.id)?.isSharing || false)
+    
     return {
       userId: user.id,
       userNickname: user.nickname || 'Unknown',
@@ -177,7 +183,7 @@ const allParticipants = computed((): ParticipantData[] => {
       connectionRetryCount: props.peerConnectionRetries.get(user.id) || 0,
       initialVolume: props.remoteStreamVolumes.get(user.id) || 80,
       isDeafened: props.isDeafened,
-      isScreenSharing: props.userScreenShareStates.get(user.id)?.isSharing || false,
+      isScreenSharing,
       screenShareQuality: props.userScreenShareStates.get(user.id)?.quality,
       peerConnection: props.peerConnections.get(user.id),
       isCurrentUser,

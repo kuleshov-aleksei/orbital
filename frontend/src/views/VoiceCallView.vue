@@ -35,6 +35,7 @@
           :is-deafened="isDeafened"
           :current-user-audio-level="audioLevel"
           :current-user-id="currentUserId"
+          :current-user-is-sharing="isScreenSharing"
           class="m-4 max-h-[70vh]"
           @update:layout="screenShareLayout = $event"
           @toggle-user-grid="isUserGridVisible = !isUserGridVisible"
