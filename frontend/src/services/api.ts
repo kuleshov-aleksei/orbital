@@ -50,6 +50,18 @@ export interface AuthStatus {
   google_enabled: boolean
 }
 
+// Room configuration types
+export interface RoomConfig {
+  min_users: number
+  max_users: number
+  default_max_users: number
+}
+
+// General application configuration
+export interface AppConfig {
+  room: RoomConfig
+}
+
 // Generic API wrapper with error handling
 export async function apiRequest<T>(
   endpoint: string, 
@@ -152,6 +164,11 @@ export const apiService = {
   // Health check
   async healthCheck(): Promise<{ status: string; service: string; version: string }> {
     return apiRequest<{ status: string; service: string; version: string }>('/health')
+  },
+
+  // Get general application configuration
+  async getConfig(): Promise<AppConfig> {
+    return apiRequest<AppConfig>('/config')
   },
 
   // Category management

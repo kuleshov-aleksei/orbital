@@ -44,7 +44,7 @@
         <!-- Max Users -->
         <div class="mb-6">
           <label for="maxUsers" class="block text-sm font-medium text-gray-300 mb-2">
-            Maximum Users ({{ ROOM_CONFIG.MIN_USERS }} - {{ ROOM_CONFIG.MAX_USERS }})
+            Maximum Users ({{ configStore.minUsers }} - {{ configStore.maxUsers }})
           </label>
 
           <input
@@ -52,8 +52,8 @@
             v-model.number="maxUsers"
             type="number"
             required
-            :min="ROOM_CONFIG.MIN_USERS"
-            :max="ROOM_CONFIG.MAX_USERS"
+            :min="configStore.minUsers"
+            :max="configStore.maxUsers"
             class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
           />
 
@@ -85,7 +85,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { ROOM_CONFIG } from '@/config/room'
+import { useConfigStore } from '@/stores'
 
 interface Props {
   title: string
@@ -93,23 +93,22 @@ interface Props {
   initialMaxUsers?: number
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  initialName: '',
-  initialMaxUsers: ROOM_CONFIG.DEFAULT_MAX_USERS
-})
+const props = defineProps<Props>()
 
 const emit = defineEmits<{
   close: []
   submit: [name: string, maxUsers: number]
 }>()
 
+const configStore = useConfigStore()
+
 // Form data
 const roomName = ref('')
-const maxUsers = ref(ROOM_CONFIG.DEFAULT_MAX_USERS)
+const maxUsers = ref(10)
 
 onMounted(() => {
-  roomName.value = props.initialName
-  maxUsers.value = props.initialMaxUsers
+  roomName.value = props.initialName ?? ''
+  maxUsers.value = props.initialMaxUsers ?? configStore.defaultMaxUsers
 })
 
 // Character count
@@ -131,8 +130,8 @@ const roomNameError = computed(() => {
 })
 
 const maxUsersError = computed(() => {
-  if (maxUsers.value < ROOM_CONFIG.MIN_USERS || maxUsers.value > ROOM_CONFIG.MAX_USERS) {
-    return `Max users must be between ${ROOM_CONFIG.MIN_USERS} and ${ROOM_CONFIG.MAX_USERS}`
+  if (maxUsers.value < configStore.minUsers || maxUsers.value > configStore.maxUsers) {
+    return `Max users must be between ${configStore.minUsers} and ${configStore.maxUsers}`
   }
   return ''
 })
@@ -141,8 +140,8 @@ const isValid = computed(() => {
   const trimmed = roomName.value.trim()
   return trimmed && 
          roomNameCharCount.value <= 100 &&
-         maxUsers.value >= ROOM_CONFIG.MIN_USERS && 
-         maxUsers.value <= ROOM_CONFIG.MAX_USERS
+         maxUsers.value >= configStore.minUsers && 
+         maxUsers.value <= configStore.maxUsers
 })
 
 const handleSubmit = () => {

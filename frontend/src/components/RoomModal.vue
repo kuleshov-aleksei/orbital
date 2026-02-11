@@ -61,18 +61,21 @@
         <!-- Max Users -->
         <div class="mb-6">
           <label for="maxUsers" class="block text-sm font-medium text-gray-300 mb-2">
-            Max Users
+            Max Users ({{ configStore.minUsers }} - {{ configStore.maxUsers }})
           </label>
 
-          <select
+          <input
             id="maxUsers"
-            v-model="maxUsers"
+            v-model.number="maxUsers"
+            type="number"
+            required
+            :min="configStore.minUsers"
+            :max="configStore.maxUsers"
+            data-testid="max-users-input"
             class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-          >
-            <option value="5">5 users</option>
+          />
 
-            <option value="10">10 users</option>
-          </select>
+          <p v-if="maxUsersError" class="text-red-500 text-sm mt-1">{{ maxUsersError }}</p>
         </div>
 
         <!-- Action Buttons -->
@@ -101,27 +104,29 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useConfigStore } from '@/stores'
 
 interface Props {
   initialCategory?: string
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  initialCategory: ''
-})
+const props = defineProps<Props>()
 
 const emit = defineEmits<{
   close: []
   create: [roomName: string, category: string, maxUsers: number]
 }>()
 
+const configStore = useConfigStore()
+
 // Form data
 const roomName = ref('')
-const roomCategory = ref(props.initialCategory)
+const roomCategory = ref('')
 const maxUsers = ref(10)
 
 onMounted(() => {
-  roomCategory.value = props.initialCategory
+  roomCategory.value = props.initialCategory ?? ''
+  maxUsers.value = configStore.defaultMaxUsers
 })
 
 // Validation errors
@@ -144,10 +149,19 @@ const categoryError = computed(() => {
   return ''
 })
 
+const maxUsersError = computed(() => {
+  if (maxUsers.value < configStore.minUsers || maxUsers.value > configStore.maxUsers) {
+    return `Max users must be between ${configStore.minUsers} and ${configStore.maxUsers}`
+  }
+  return ''
+})
+
 const isValid = computed(() => {
   return roomName.value.trim() && 
          roomName.value.length <= 100 && 
-         Array.from(roomCategory.value).length <= 32
+         Array.from(roomCategory.value).length <= 32 &&
+         maxUsers.value >= configStore.minUsers && 
+         maxUsers.value <= configStore.maxUsers
 })
 
 const handleSubmit = () => {

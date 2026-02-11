@@ -357,6 +357,32 @@ func (h *RoomHandler) UpdateRoomOrder(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }
 
+// RoomConfigResponse represents the room configuration response
+type RoomConfigResponse struct {
+	MinUsers        int `json:"min_users"`
+	MaxUsers        int `json:"max_users"`
+	DefaultMaxUsers int `json:"default_max_users"`
+}
+
+// AppConfigResponse represents the general application configuration response
+type AppConfigResponse struct {
+	Room RoomConfigResponse `json:"room"`
+}
+
+// GetConfig handles GET /api/config
+func (h *RoomHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
+	cfg := AppConfigResponse{
+		Room: RoomConfigResponse{
+			MinUsers:        config.RoomConfig.MinUsers,
+			MaxUsers:        config.RoomConfig.MaxUsers,
+			DefaultMaxUsers: config.RoomConfig.DefaultMaxUsers,
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(cfg)
+}
+
 // generateUserID generates a unique user ID
 func generateUserID() string {
 	bytes := make([]byte, 16)

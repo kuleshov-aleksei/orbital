@@ -135,6 +135,9 @@ func main() {
 	// TURN server configuration route
 	r.HandleFunc("/api/turn-config", turnHandler.GetTURNConfig).Methods("GET")
 
+	// General configuration route (public)
+	r.HandleFunc("/api/config", roomHandler.GetConfig).Methods("GET")
+
 	// Public room routes (no auth required)
 	r.HandleFunc("/api/rooms", roomHandler.GetRooms).Methods("GET")
 	r.HandleFunc("/api/rooms/{id}", roomHandler.GetRoom).Methods("GET")
