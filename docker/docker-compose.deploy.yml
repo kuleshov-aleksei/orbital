@@ -29,13 +29,10 @@ services:
 
   turn-server:
     image: coturn/coturn:4.8.0
+    container_name: orb-coturn
     restart: unless-stopped
-    ports:
-      - "3478:3478"
-      - "3478:3478/udp"
-      - "5349:5349"
-      - "5349:5349/udp"
-      - "49152-65535:49152-65535/udp"
+    # For performance reason use host network
+    network_mode: "host"
     env_file:
       - .env
     volumes:
@@ -48,8 +45,6 @@ services:
         --use-auth-secret
         --static-auth-secret=$${TURN_SECRET}
       "
-    networks:
-      - orbital-network
 
 networks:
   orbital-network:
