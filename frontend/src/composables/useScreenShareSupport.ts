@@ -43,6 +43,9 @@ export function useScreenShareSupport() {
     const isSafari = /safari/.test(userAgent) && !/chrome/.test(userAgent)
     
     // Only Chrome and Chromium-based browsers support system audio capture
+    // Note: Firefox and Safari don't support system audio capture
+    void isFirefox
+    void isSafari
     return isChrome || isEdge || isOpera || isBrave
   })
 

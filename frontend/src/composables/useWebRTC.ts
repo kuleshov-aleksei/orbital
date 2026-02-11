@@ -59,6 +59,8 @@ export function useWebRTC(options: UseWebRTCOptions) {
   const localScreenStream = ref<MediaStream | null>(null)
   const remoteScreenStreams = ref<Map<string, MediaStream>>(new Map())
   const userScreenShareStates = ref<Map<string, ScreenShareState>>(new Map())
+  // Version counter to force reactivity updates for screen share data
+  const screenShareVersion = ref(0)
 
   // ICE servers configuration for TURN/STUN
   const iceServers = ref<ICEServer[]>([
@@ -675,6 +677,7 @@ export function useWebRTC(options: UseWebRTCOptions) {
     currentRoomUsers.value = newUsers
 
     // Update screen sharing states from room_users data
+    let sharingStateChanged = false
     users.forEach((user: RoomUser) => {
       if (!user) return
 
@@ -684,6 +687,10 @@ export function useWebRTC(options: UseWebRTCOptions) {
       console.log("Processing user " + user.id + " is_screen_sharing: " + isSharing)
 
       if (isSharing) {
+        const prevState = userScreenShareStates.value.get(user.id)
+        if (!prevState?.isSharing) {
+          sharingStateChanged = true
+        }
         userScreenShareStates.value.set(user.id, {
           isSharing: true,
           quality: quality || '1080p30'
@@ -692,6 +699,7 @@ export function useWebRTC(options: UseWebRTCOptions) {
       } else {
         const prevState = userScreenShareStates.value.get(user.id)
         if (prevState?.isSharing) {
+          sharingStateChanged = true
           userScreenShareStates.value.set(user.id, {
             isSharing: false,
             quality: '1080p30'
@@ -699,6 +707,11 @@ export function useWebRTC(options: UseWebRTCOptions) {
         }
       }
     })
+    
+    // Trigger reactivity update if sharing states changed
+    if (sharingStateChanged) {
+      screenShareVersion.value++
+    }
 
     // Set current user join time from server
     const currentUser = users.find((user: RoomUser) => user.id === currentUserId)
@@ -944,6 +957,7 @@ export function useWebRTC(options: UseWebRTCOptions) {
       isSharing: true,
       quality: quality
     })
+    screenShareVersion.value++
 
     addDebugLog(`User ${user_id} started screen sharing (${quality})`, 'info', user_id)
   }
@@ -958,6 +972,7 @@ export function useWebRTC(options: UseWebRTCOptions) {
     })
 
     remoteScreenStreams.value.delete(user_id)
+    screenShareVersion.value++
 
     addDebugLog(`User ${user_id} stopped screen sharing`, 'info', user_id)
   }
@@ -965,6 +980,7 @@ export function useWebRTC(options: UseWebRTCOptions) {
   const handleScreenShareTrack = (userId: string, stream: MediaStream) => {
     console.log(`🖥️ Received screen share stream from ${userId}:`, stream)
     remoteScreenStreams.value.set(userId, stream)
+    screenShareVersion.value++
     console.log(`🖥️ Stored screen share stream for ${userId}`)
   }
 
@@ -1209,6 +1225,10 @@ export function useWebRTC(options: UseWebRTCOptions) {
 
   // Computed screen share data for display
   const screenShareData = computed(() => {
+    // Access version counter to ensure reactivity
+    void screenShareVersion.value
+    const currentUserId = getCurrentUserId()
+    
     const shares: Array<{
       userId: string
       userNickname: string
@@ -1218,9 +1238,10 @@ export function useWebRTC(options: UseWebRTCOptions) {
       isSelfView?: boolean
     }> = []
 
+    // Add self-view if local user is sharing
     if (isScreenSharing.value && localScreenStream.value) {
       shares.push({
-        userId: getCurrentUserId() + '-self',
+        userId: currentUserId + '-self',
         userNickname: 'Your Screen',
         stream: localScreenStream.value,
         quality: screenShareQuality.value,
@@ -1229,8 +1250,11 @@ export function useWebRTC(options: UseWebRTCOptions) {
       })
     }
 
-    userScreenShareStates.value.forEach((state, userId) => {
-      if (state.isSharing) {
+    // Add remote shares - exclude current user (already handled above as self-view)
+    // Create a new array from the map entries to ensure reactivity
+    const entries = Array.from(userScreenShareStates.value.entries())
+    entries.forEach(([userId, state]) => {
+      if (state.isSharing && userId !== currentUserId) {
         const user = currentRoomUsers.value.get(userId)
         shares.push({
           userId,
@@ -1259,6 +1283,10 @@ export function useWebRTC(options: UseWebRTCOptions) {
   })
 
   const remoteScreenShareDebugData = computed(() => {
+    // Access version counter to ensure reactivity
+    void screenShareVersion.value
+    const currentUserId = getCurrentUserId()
+    
     const shares: Array<{
       userId: string
       userNickname: string
@@ -1267,8 +1295,11 @@ export function useWebRTC(options: UseWebRTCOptions) {
       connectionState: string
     }> = []
 
-    userScreenShareStates.value.forEach((state, userId) => {
-      if (state.isSharing) {
+    // Create a new array from the map entries to ensure reactivity
+    // Exclude current user (shown in localScreenShareDebugData instead)
+    const entries = Array.from(userScreenShareStates.value.entries())
+    entries.forEach(([userId, state]) => {
+      if (state.isSharing && userId !== currentUserId) {
         const user = currentRoomUsers.value.get(userId)
         shares.push({
           userId,

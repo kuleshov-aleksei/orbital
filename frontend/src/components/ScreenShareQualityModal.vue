@@ -88,6 +88,7 @@
             class="mt-1.5 text-xs text-gray-500 flex items-start"
           >
             <PhInfo class="w-3.5 h-3.5 mr-1 flex-shrink-0 mt-0.5" />
+
             <span>System audio sharing is only available in Chrome and Edge browsers</span>
           </p>
         </div>
