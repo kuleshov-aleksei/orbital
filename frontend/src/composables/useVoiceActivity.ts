@@ -34,32 +34,30 @@ export function useVoiceActivity(options: UseVoiceActivityOptions) {
       return
     }
 
-    const dataArray = new Uint8Array(analyser.value.frequencyBinCount)
-    analyser.value.getByteFrequencyData(dataArray)
+    const dataArray = new Uint8Array(analyser.value.fftSize)
+    analyser.value.getByteTimeDomainData(dataArray)
 
     // Calculate RMS (root mean square) for better volume representation
     let sum = 0
     for (let i = 0; i < dataArray.length; i++) {
-      const value = dataArray[i] / 255 // Normalize to 0-1
+      // Time domain data is in range 0-255, center is 128
+      const value = (dataArray[i] - 128) / 128 // Normalize to -1 to 1
       sum += value * value
     }
     const rms = Math.sqrt(sum / dataArray.length)
 
-    // Apply some smoothing
-    //audioLevel.value = audioLevel.value * 0.7 + rms * 0.3
-    audioLevel.value = rms
+    // Apply exponential smoothing for smoother UI updates
+    audioLevel.value = audioLevel.value * 0.7 + rms * 0.3
   }
 
-  // Animation loop with throttling
+  // Animation loop with throttling - runs every frame for smooth UI but throttles analysis
   const animate = (currentTime: number) => {
     if (currentTime - lastUpdateTime.value >= updateInterval) {
       analyzeAudioLevel()
       lastUpdateTime.value = currentTime
     }
 
-    setTimeout(() => {
-      animationId.value = requestAnimationFrame(animate)
-    }, updateInterval)
+    animationId.value = requestAnimationFrame(animate)
   }
 
   // Setup audio analysis
