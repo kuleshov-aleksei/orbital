@@ -6,8 +6,7 @@
     @mouseleave="handleMouseLeave"
   >
     <!-- Video Container - maintains actual stream aspect ratio within available space -->
-    <div 
-      class="relative flex items-center justify-center bg-black w-full h-full"
+    <div class="relative flex items-center justify-center bg-black w-full h-full"
     >
       <video
         :id="`screen-${userId}`"

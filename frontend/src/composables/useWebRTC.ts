@@ -1226,7 +1226,7 @@ export function useWebRTC(options: UseWebRTCOptions) {
   // Computed screen share data for display
   const screenShareData = computed(() => {
     // Access version counter to ensure reactivity
-    const _version = screenShareVersion.value
+    void screenShareVersion.value
     const currentUserId = getCurrentUserId()
     
     const shares: Array<{
@@ -1284,7 +1284,7 @@ export function useWebRTC(options: UseWebRTCOptions) {
 
   const remoteScreenShareDebugData = computed(() => {
     // Access version counter to ensure reactivity
-    const _version = screenShareVersion.value
+    void screenShareVersion.value
     const currentUserId = getCurrentUserId()
     
     const shares: Array<{

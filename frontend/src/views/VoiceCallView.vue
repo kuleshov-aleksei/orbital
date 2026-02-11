@@ -17,21 +17,34 @@
 
     <!-- Main Call Area -->
     <main class="relative flex flex-1 flex-col min-h-0 overflow-hidden">
-      <!-- Content Container - allows scrolling if needed, with padding for floating controls -->
-      <div class="flex-1 min-h-0 overflow-auto pb-20">
-        <!-- Screen Share Area -->
+      <!-- Content Container - allows scrolling if needed -->
+      <div class="flex-1 min-h-0 overflow-auto">
+        <!-- Screen Share Area - Shows users in side panel when screen sharing -->
         <ScreenShareArea
           v-if="screenShareData.length > 0"
           :screen-shares="screenShareData"
           :is-user-grid-visible="isUserGridVisible"
           :layout="screenShareLayout"
-          class="m-4"
+          :users="users"
+          :remote-streams="remoteStreams"
+          :peer-connection-states="peerConnectionStates"
+          :peer-connection-retries="peerConnectionRetries"
+          :remote-stream-volumes="props.remoteStreamVolumes"
+          :user-screen-share-states="userScreenShareStates"
+          :peer-connections="peerConnections"
+          :is-deafened="isDeafened"
+          :current-user-audio-level="audioLevel"
+          :current-user-id="currentUserId"
+          class="m-4 max-h-[70vh]"
           @update:layout="screenShareLayout = $event"
           @toggle-user-grid="isUserGridVisible = !isUserGridVisible"
+          @mute-toggle="handleMuteToggle"
+          @audio-level="handleAudioLevel"
         />
 
-        <!-- User Grid -->
+        <!-- User Grid - Only shown when no screen shares (audio-only mode) -->
         <UserGrid
+          v-else
           :users="users"
           :remote-streams="remoteStreams"
           :peer-connection-states="peerConnectionStates"
@@ -39,8 +52,7 @@
           :remote-stream-volumes="props.remoteStreamVolumes"
           :user-screen-share-states="userScreenShareStates"
           :is-deafened="isDeafened"
-          :is-visible="isUserGridVisible"
-          :screen-share-count="screenShareData.length"
+          :is-visible="true"
           :peer-connections="peerConnections"
           :current-user-audio-level="audioLevel"
           @mute-toggle="handleMuteToggle"
@@ -86,7 +98,7 @@ import RoomHeader from '@/components/RoomHeader.vue'
 import ScreenShareArea from '@/components/ScreenShareArea.vue'
 import UserGrid from '@/components/UserGrid.vue'
 import { useWebRTC, useVoiceActivity } from '@/composables'
-import { useAppStore, useAudioSettingsStore, useCallStore } from '@/stores'
+import { useAppStore, useAudioSettingsStore, useCallStore, useUserStore } from '@/stores'
 import type { User, ScreenShareQuality } from '@/types'
 
 interface Props {
@@ -199,6 +211,10 @@ const currentRoom = computed(() => {
     id: props.roomId
   }
 })
+
+// Current user info
+const userStore = useUserStore()
+const currentUserId = computed(() => userStore.userId)
 
 // Track reinitialization state
 let isReinitializing = false
