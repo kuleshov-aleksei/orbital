@@ -90,17 +90,38 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Resolve category name for the response
+	categoryName := ""
+	if h.categoryService != nil {
+		if category, exists := h.categoryService.GetCategory(room.Category); exists {
+			categoryName = category.Name
+		}
+	}
+
+	// Create response with category name
+	roomResponse := map[string]interface{}{
+		"id":            room.ID,
+		"name":          room.Name,
+		"owner_id":      room.OwnerID,
+		"max_users":     room.MaxUsers,
+		"user_count":    room.UserCount,
+		"created_at":    room.CreatedAt,
+		"category":      room.Category,
+		"category_name": categoryName,
+		"sort_order":    room.SortOrder,
+	}
+
 	// Broadcast room creation to all connected clients
 	if h.wsHub != nil {
 		roomCreatedMessage := map[string]interface{}{
 			"type": "room_created",
-			"data": room,
+			"data": roomResponse,
 		}
 		h.wsHub.BroadcastToAll(roomCreatedMessage)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(room)
+	json.NewEncoder(w).Encode(roomResponse)
 }
 
 // GetRooms handles GET /api/rooms
