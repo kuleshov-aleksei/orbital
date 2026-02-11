@@ -25,8 +25,8 @@ turn:
 # Room configuration
 room:
   min_users: 2
-  max_users: 10
-  default_max_users: 10
+  max_users: 6
+  default_max_users: 6
 
 # Security configuration
 security:
