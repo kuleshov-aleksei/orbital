@@ -572,6 +572,24 @@ func (c *Client) handleLeaveRoom(data interface{}) {
 		Data: users,
 	}
 	c.hub.BroadcastToRoom(roomID, usersUpdate)
+
+	// Check if room is now empty and clean up LiveKit room
+	if len(users) == 0 {
+		c.hub.cleanupLiveKitRoom(roomID)
+	}
+}
+
+// cleanupLiveKitRoom deletes the LiveKit room when the last user leaves
+func (h *Hub) cleanupLiveKitRoom(roomID string) {
+	if h.livekitService != nil && h.livekitService.IsHealthy() {
+		err := h.livekitService.DeleteRoom(roomID)
+		if err != nil {
+			// Log error but don't fail - room might already be deleted
+			log.Printf("[Hub] LiveKit DeleteRoom error (may already be deleted): %v", err)
+		} else {
+			log.Printf("[Hub] LiveKit room deleted: %s", roomID)
+		}
+	}
 }
 
 // handleICECandidate handles WebRTC ICE candidates
@@ -1085,6 +1103,11 @@ func (h *Hub) disconnectUserDueToTimeout(roomID, userID string) {
 		Data: users,
 	}
 	h.BroadcastToRoom(roomID, usersUpdate)
+
+	// Check if room is now empty and clean up LiveKit room
+	if len(users) == 0 {
+		h.cleanupLiveKitRoom(roomID)
+	}
 
 	log.Printf("User %s successfully removed from room %s due to ping timeout", userID, roomID)
 }
