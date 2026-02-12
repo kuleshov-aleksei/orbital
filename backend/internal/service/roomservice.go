@@ -501,6 +501,15 @@ func (rs *RoomService) UpdateUserPingTime(roomID, userID string) {
 	}
 }
 
+// GetUserByID returns a user by their ID from the in-memory store
+func (rs *RoomService) GetUserByID(userID string) (*models.User, bool) {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+
+	user, exists := rs.users[userID]
+	return user, exists
+}
+
 // CheckPingTimeouts checks for users who haven't pinged within timeout and returns them
 func (rs *RoomService) CheckPingTimeouts(timeout time.Duration) []struct {
 	RoomID string

@@ -92,12 +92,24 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 			client.mu.Unlock()
 			log.Printf("WebSocket client authenticated with userID: %s", claims.UserID)
 
-			// Prepare user data for later broadcast
-			authenticatedUser = &models.PublicUser{
-				ID:        claims.UserID,
-				Nickname:  claims.Nickname,
-				AvatarURL: claims.AvatarURL,
-				Role:      claims.Role,
+			// Get fresh user data from room service to ensure we have the current nickname
+			// (JWT claims may be stale if user changed their nickname since login)
+			freshUser, exists := h.roomService.GetUserByID(claims.UserID)
+			if exists {
+				authenticatedUser = &models.PublicUser{
+					ID:        freshUser.ID,
+					Nickname:  freshUser.Nickname,
+					AvatarURL: freshUser.AvatarURL,
+					Role:      freshUser.Role,
+				}
+			} else {
+				// Fallback to JWT claims if user not found in room service
+				authenticatedUser = &models.PublicUser{
+					ID:        claims.UserID,
+					Nickname:  claims.Nickname,
+					AvatarURL: claims.AvatarURL,
+					Role:      claims.Role,
+				}
 			}
 		}
 	}
