@@ -21,6 +21,7 @@ type Hub struct {
 	userConnectionCounts map[string]int                // userID -> connection count (for multi-tab support)
 	roomService          *service.RoomService
 	authService          *service.AuthService
+	livekitService       *service.LiveKitService
 	cfg                  *config.Config
 	upgrader             websocket.Upgrader
 	mu                   sync.RWMutex
@@ -38,7 +39,7 @@ type Client struct {
 }
 
 // NewHub creates a new WebSocket hub
-func NewHub(roomService *service.RoomService, authService *service.AuthService, cfg *config.Config) *Hub {
+func NewHub(roomService *service.RoomService, authService *service.AuthService, livekitService *service.LiveKitService, cfg *config.Config) *Hub {
 	hub := &Hub{
 		clients:              make(map[*Client]bool),
 		roomClients:          make(map[string]map[*Client]bool),
@@ -46,6 +47,7 @@ func NewHub(roomService *service.RoomService, authService *service.AuthService, 
 		userConnectionCounts: make(map[string]int),
 		roomService:          roomService,
 		authService:          authService,
+		livekitService:       livekitService,
 		cfg:                  cfg,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
@@ -505,6 +507,25 @@ func (c *Client) handleJoinRoom(data interface{}) {
 	c.userID = req.UserID
 	c.lastPingTime = time.Now() // Reset ping time on join to prevent immediate timeout
 	c.mu.Unlock()
+
+	// Create LiveKit room if LiveKit service is available
+	// This is idempotent - safe to call multiple times
+	if c.hub.livekitService != nil && c.hub.livekitService.IsHealthy() {
+		// Get room info to determine max participants
+		room, exists := c.hub.roomService.GetRoom(c.roomID)
+		maxParticipants := 10 // Default fallback
+		if exists {
+			maxParticipants = room.MaxUsers
+		}
+
+		_, err := c.hub.livekitService.CreateRoom(c.roomID, maxParticipants)
+		if err != nil {
+			// Log error but don't fail the join - room might already exist
+			log.Printf("[Hub] LiveKit CreateRoom error (may already exist): %v", err)
+		} else {
+			log.Printf("[Hub] LiveKit room created/verified for room %s (max participants: %d)", c.roomID, maxParticipants)
+		}
+	}
 
 	_, _, err := c.hub.roomService.JoinRoom(c.roomID, req.UserID, req.Nickname)
 	if err != nil {

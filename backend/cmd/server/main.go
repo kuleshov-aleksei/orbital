@@ -97,8 +97,6 @@ func main() {
 	authService := service.NewAuthService(cfg.GetAuthConfig(), userRepo)
 	roleService := service.NewRoleService(userRepo)
 
-	wsHub := websocket.NewHub(roomService, authService, cfg)
-
 	// Initialize LiveKit service
 	var livekitService *service.LiveKitService
 	if cfg.LiveKit.IsConfigured() {
@@ -112,6 +110,8 @@ func main() {
 	} else {
 		log.Println("LiveKit is not configured, LiveKit features will be disabled")
 	}
+
+	wsHub := websocket.NewHub(roomService, authService, livekitService, cfg)
 
 	// Initialize handlers with config
 	roomHandler := handlers.NewRoomHandler(roomService, categoryService, wsHub)
