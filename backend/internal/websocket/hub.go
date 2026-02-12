@@ -766,6 +766,7 @@ func (c *Client) handleNicknameChange(data interface{}) {
 			Nickname:  user.Nickname,
 			AvatarURL: user.AvatarURL,
 			Role:      user.Role,
+			IsOnline:  true,
 		}
 		c.hub.mu.RUnlock()
 		c.hub.BroadcastUserUpdate(updatedUser)
