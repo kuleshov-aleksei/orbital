@@ -43,6 +43,7 @@ dev:
 	@echo "LiveKit: http://localhost:7880"
 	@echo "Press Ctrl+C to stop all servers"
 	@bash -c ' \
+		set -a; source "$(PWD)/.env" 2>/dev/null || true; set +a; \
 		cd "$(PWD)" && livekit-server --config livekit/livekit-dev.yaml & \
 		LIVEKIT_PID=$$!; \
 		cd "$(PWD)/frontend" && npm run dev & \
@@ -91,6 +92,7 @@ dev-public: certs
 	@echo "Press Ctrl+C to stop all servers"
 	@echo ""
 	@bash -c ' \
+		set -a; source "$(PWD)/.env" 2>/dev/null || true; set +a; \
 		cd "$(PWD)" && livekit-server --config livekit/livekit-dev.yaml & \
 		LIVEKIT_PID=$$!; \
 		cd "$(PWD)/frontend" && VITE_HTTPS=true npm run dev & \
@@ -170,6 +172,7 @@ run-built:
 	# Ensure nginx can write its logs and PID file
 	@mkdir -p /tmp/orbital-logs
 	@bash -c ' \
+		set -a; source "$(PWD)/.env" 2>/dev/null || true; set +a; \
 		cd bin && ./orbital & \
 		BACKEND_PID=$$!; \
 		sleep 2; \

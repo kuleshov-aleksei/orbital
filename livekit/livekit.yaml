@@ -1,0 +1,62 @@
+# LiveKit Configuration for Production Deployment
+# This configuration is used by Docker Compose deployment
+
+# Binding addresses
+bind_addresses:
+  - 0.0.0.0
+
+# WebRTC ports
+port: 7880
+
+# Room settings
+room:
+  # Auto-create rooms when first participant joins
+  auto_create: true
+  # Empty room timeout (5 minutes)
+  empty_timeout: 300
+  # Max participants per room (matching Orbital config)
+  max_participants: 10
+  # Enable room creation when first participant joins
+  enabled_codecs:
+    - mime: audio/opus
+    - mime: video/vp8
+    - mime: video/h264
+
+# WebRTC settings
+rtc:
+  # UDP port range for media
+  udp_port: 7881
+  # Enable TURN (LiveKit includes built-in TURN server)
+  use_external_ip: false
+  # STUN servers for NAT traversal
+  stun_servers:
+    - urls:
+        - stun:stun.l.google.com:19302
+        - stun:stun1.l.google.com:19302
+
+# TURN server (built into LiveKit)
+turn:
+  # Enable built-in TURN server
+  enabled: true
+  # TURN UDP port (same as rtc.udp_port for single port mode)
+  udp_port: 7881
+  # External TURN host (set via env variable or auto-detect)
+  # external_tls: false
+
+# Logging
+logging:
+  level: info
+
+# API keys - will be overridden by environment variables if set
+# These are defaults for development, use LK_API_KEY and LK_API_SECRET env vars in production
+keys:
+  ${LIVEKIT_API_KEY:-dev_key}: ${LIVEKIT_API_SECRET:-this_is_a_development_secret_key_32chars}
+
+# Prometheus metrics (optional)
+# prometheus_port: 6789
+
+# Webhook configuration (optional, for room events)
+# webhook:
+#   urls:
+#     - http://backend:8080/api/webhooks/livekit
+#   api_key: ${LIVEKIT_API_KEY:-dev_key}
