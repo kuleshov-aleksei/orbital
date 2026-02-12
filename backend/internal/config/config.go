@@ -26,6 +26,7 @@ type Config struct {
 	Database  DatabaseConfig  `yaml:"database"`
 	Auth      AuthConfig      `yaml:"auth"`
 	WebSocket WebSocketConfig `yaml:"websocket"`
+	LiveKit   LiveKitConfig   `yaml:"livekit"`
 }
 
 // AuthConfig holds OAuth and JWT configuration
@@ -132,6 +133,7 @@ func DefaultConfig() *Config {
 			PingTimeout:       30 * time.Second,
 			PingCheckInterval: 10 * time.Second,
 		},
+		LiveKit: DefaultLiveKitConfig(),
 	}
 }
 
@@ -283,6 +285,9 @@ func (c *Config) loadFromEnv() {
 			c.WebSocket.PingCheckInterval = interval
 		}
 	}
+
+	// LiveKit config
+	c.LiveKit.LoadFromEnv()
 }
 
 // splitEnvList splits a comma-separated environment variable into a slice
@@ -337,6 +342,9 @@ func (c *Config) Validate() error {
 	if c.IsProduction() && c.Auth.JWTSecret == "change-this-in-production" {
 		return fmt.Errorf("default JWT secret must be changed in production")
 	}
+	if err := c.LiveKit.Validate(); err != nil {
+		return fmt.Errorf("livekit configuration: %w", err)
+	}
 	return nil
 }
 
@@ -352,8 +360,12 @@ func (c *Config) String() string {
 	if c.Database.Path != "" {
 		dbConfigured = "yes"
 	}
+	livekitConfigured := "no"
+	if c.LiveKit.IsConfigured() {
+		livekitConfigured = "yes"
+	}
 	return fmt.Sprintf(
-		"Config{Server: {Port: %s, Mode: %s}, TURN: {URL: %s, STUN: %d servers, Realm: %s}, Room: {Min: %d, Max: %d}, Security: {E2E: %v}, Logging: {Level: %s, Requests: %v}, Database: {Configured: %s}}",
+		"Config{Server: {Port: %s, Mode: %s}, TURN: {URL: %s, STUN: %d servers, Realm: %s}, Room: {Min: %d, Max: %d}, Security: {E2E: %v}, Logging: {Level: %s, Requests: %v}, Database: {Configured: %s}, LiveKit: {URL: %s, Configured: %s}}",
 		c.Server.Port,
 		c.Server.Mode,
 		c.TURN.TURNURL,
@@ -365,6 +377,8 @@ func (c *Config) String() string {
 		c.Logging.Level,
 		c.Logging.RequestLogging,
 		dbConfigured,
+		c.LiveKit.URL,
+		livekitConfigured,
 	)
 }
 
