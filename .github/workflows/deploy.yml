@@ -25,7 +25,7 @@ jobs:
       - name: Build Docker images
         run: |
           # Build images with version tag
-          docker build --build-arg VERSION=${{ env.VERSION }} -t orbital-frontend:${{ env.VERSION }} -f docker/Dockerfile.frontend .
+          docker build --build-arg VERSION=${{ env.VERSION }} --build-arg APP_URL=${{ vars.APP_URL }} -t orbital-frontend:${{ env.VERSION }} -f docker/Dockerfile.frontend .
           docker build --build-arg VERSION=${{ env.VERSION }} -t orbital-backend:${{ env.VERSION }} -f docker/Dockerfile.backend .
       
       - name: Setup deployment directory
