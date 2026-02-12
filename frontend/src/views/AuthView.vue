@@ -10,7 +10,7 @@
 
           <h1 class="text-3xl lg:text-4xl font-bold text-white mb-2">Welcome to Orbital</h1>
 
-          <p class="text-gray-400 text-lg">Voice chat for everyone</p>
+          <p class="text-gray-400 text-lg">Voice chat for my dudes</p>
         </div>
 
         <!-- Auth Card -->
