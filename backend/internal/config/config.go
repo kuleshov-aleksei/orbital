@@ -19,7 +19,6 @@ type WebSocketConfig struct {
 // Config holds all application configuration
 type Config struct {
 	Server    ServerConfig    `yaml:"server"`
-	TURN      TURNConfig      `yaml:"turn"`
 	Room      RoomSettings    `yaml:"room"`
 	Security  SecurityConfig  `yaml:"security"`
 	Logging   LoggingConfig   `yaml:"logging"`
@@ -56,16 +55,6 @@ type ServerConfig struct {
 	ExternalURL string   `yaml:"external_url"`
 }
 
-// TURNConfig holds TURN server configuration
-type TURNConfig struct {
-	SharedSecret       string   `yaml:"shared_secret"`
-	TURNURL            string   `yaml:"url"`
-	TURNTLSURL         string   `yaml:"tls_url"`
-	STUNURLs           []string `yaml:"stun_urls"`
-	Realm              string   `yaml:"realm"`
-	CredentialLifetime int      `yaml:"credential_lifetime"`
-}
-
 // RoomSettings holds room-related configuration
 type RoomSettings struct {
 	MinUsers        int `yaml:"min_users"`
@@ -92,14 +81,6 @@ func DefaultConfig() *Config {
 			Mode:        "development",
 			CORSOrigins: []string{"*"},
 			ExternalURL: "http://localhost:5173",
-		},
-		TURN: TURNConfig{
-			SharedSecret:       "pink-goose",
-			TURNURL:            "turn:localhost:3478",
-			TURNTLSURL:         "turns:localhost:5349",
-			STUNURLs:           []string{"stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"},
-			Realm:              "orbital",
-			CredentialLifetime: 86400,
 		},
 		Room: RoomSettings{
 			MinUsers:        2,
@@ -186,28 +167,6 @@ func (c *Config) loadFromEnv() {
 	}
 	if v := os.Getenv("EXTERNAL_URL"); v != "" {
 		c.Server.ExternalURL = v
-	}
-
-	// TURN config
-	if v := os.Getenv("TURN_SECRET"); v != "" {
-		c.TURN.SharedSecret = v
-	}
-	if v := os.Getenv("TURN_URL"); v != "" {
-		c.TURN.TURNURL = v
-	}
-	if v := os.Getenv("TURN_TLS_URL"); v != "" {
-		c.TURN.TURNTLSURL = v
-	}
-	if v := os.Getenv("TURN_STUN_URLS"); v != "" {
-		c.TURN.STUNURLs = splitEnvList(v)
-	}
-	if v := os.Getenv("TURN_REALM"); v != "" {
-		c.TURN.Realm = v
-	}
-	if v := os.Getenv("TURN_CREDENTIAL_TTL"); v != "" {
-		if ttl, err := strconv.Atoi(v); err == nil {
-			c.TURN.CredentialLifetime = ttl
-		}
 	}
 
 	// Room config
@@ -302,6 +261,14 @@ func splitEnvList(value string) []string {
 	return parts
 }
 
+// getEnv retrieves environment variable with fallback default
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
 // IsDevelopment returns true if the server is running in development mode
 func (c *Config) IsDevelopment() bool {
 	return c.Server.Mode == "development"
@@ -327,9 +294,6 @@ func (c *Config) Validate() error {
 	if c.Server.Port == "" {
 		return fmt.Errorf("server port is required")
 	}
-	if c.TURN.SharedSecret == "" {
-		return fmt.Errorf("TURN shared secret is required")
-	}
 	if c.Room.MinUsers < 1 {
 		return fmt.Errorf("room minimum users must be at least 1")
 	}
@@ -348,12 +312,6 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// GetSTUNServersString returns STUN URLs as a comma-separated string
-// This is for backward compatibility with existing code
-func (c *Config) GetSTUNServersString() string {
-	return strings.Join(c.TURN.STUNURLs, ",")
-}
-
 // String returns a string representation of the configuration (without sensitive data)
 func (c *Config) String() string {
 	dbConfigured := "no"
@@ -365,12 +323,9 @@ func (c *Config) String() string {
 		livekitConfigured = "yes"
 	}
 	return fmt.Sprintf(
-		"Config{Server: {Port: %s, Mode: %s}, TURN: {URL: %s, STUN: %d servers, Realm: %s}, Room: {Min: %d, Max: %d}, Security: {E2E: %v}, Logging: {Level: %s, Requests: %v}, Database: {Configured: %s}, LiveKit: {URL: %s, Configured: %s}}",
+		"Config{Server: {Port: %s, Mode: %s}, Room: {Min: %d, Max: %d}, Security: {E2E: %v}, Logging: {Level: %s, Requests: %v}, Database: {Configured: %s}, LiveKit: {URL: %s, Configured: %s}}",
 		c.Server.Port,
 		c.Server.Mode,
-		c.TURN.TURNURL,
-		len(c.TURN.STUNURLs),
-		c.TURN.Realm,
 		c.Room.MinUsers,
 		c.Room.MaxUsers,
 		c.Security.E2EMode,
@@ -400,12 +355,6 @@ func (c *Config) GetLogLevel() string {
 	return c.Logging.Level
 }
 
-// GetTURNConfig returns the TURN configuration section
-// This provides backward compatibility with existing code
-func (c *Config) GetTURNConfig() *TURNConfig {
-	return &c.TURN
-}
-
 // GetRoomConfig returns the room configuration section
 func (c *Config) GetRoomConfig() *RoomSettings {
 	return &c.Room
@@ -419,28 +368,4 @@ func (c *Config) GetDatabaseConfig() *DatabaseConfig {
 // GetAuthConfig returns the auth configuration section
 func (c *Config) GetAuthConfig() *AuthConfig {
 	return &c.Auth
-}
-
-// GenerateTURNCredentials generates time-limited TURN credentials
-func (c *Config) GenerateTURNCredentials(userID string) (username, credential string, expiry time.Time) {
-	if userID == "" {
-		userID = "anonymous"
-	}
-
-	// Calculate expiry timestamp (current time + lifetime)
-	now := time.Now()
-	expiry = now.Add(time.Duration(c.TURN.CredentialLifetime) * time.Second)
-	expiryTimestamp := expiry.Unix()
-
-	// Create username: "timestamp:user_id"
-	username = fmt.Sprintf("%d:%s", expiryTimestamp, userID)
-
-	// Generate HMAC-SHA1
-	return username, "", expiry
-}
-
-// LegacyTURNConfig returns a legacy TURNConfig for backward compatibility
-// This helps transition existing code to the new config system
-func (c *Config) LegacyTURNConfig() *TURNConfig {
-	return &c.TURN
 }

@@ -116,7 +116,6 @@ func main() {
 	// Initialize handlers with config
 	roomHandler := handlers.NewRoomHandler(roomService, categoryService, wsHub)
 	categoryHandler := handlers.NewCategoryHandler(categoryService, roomService, wsHub)
-	turnHandler := handlers.NewTURNHandler(cfg)
 	authHandler := handlers.NewAuthHandler(authService, roleService, cfg.Server.ExternalURL)
 	adminHandler := handlers.NewAdminHandler(roleService, userRepo)
 	usersHandler := handlers.NewUsersHandler(userRepo)
@@ -146,9 +145,6 @@ func main() {
 
 	// Users route (public)
 	r.HandleFunc("/api/users", usersHandler.GetAllUsers).Methods("GET")
-
-	// TURN server configuration route
-	r.HandleFunc("/api/turn-config", turnHandler.GetTURNConfig).Methods("GET")
 
 	// General configuration route (public)
 	r.HandleFunc("/api/config", roomHandler.GetConfig).Methods("GET")
