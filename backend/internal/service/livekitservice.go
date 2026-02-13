@@ -56,9 +56,11 @@ func (s *LiveKitService) GenerateAccessToken(data LiveKitTokenData) (string, err
 	at := auth.NewAccessToken(s.config.APIKey, s.config.APISecret)
 
 	// Set video grant with room join permission
+	canUpdateMetadata := true
 	grant := &auth.VideoGrant{
-		RoomJoin: true,
-		Room:     data.RoomID,
+		RoomJoin:             true,
+		Room:                 data.RoomID,
+		CanUpdateOwnMetadata: &canUpdateMetadata,
 	}
 
 	// Set user metadata
