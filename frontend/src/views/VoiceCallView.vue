@@ -98,7 +98,7 @@ import DebugDashboard from '@/components/DebugDashboard.vue'
 import RoomHeader from '@/components/RoomHeader.vue'
 import ScreenShareArea from '@/components/ScreenShareArea.vue'
 import UserGrid from '@/components/UserGrid.vue'
-import { useWebRTC, useVoiceActivity } from '@/composables'
+import { useLiveKit, useVoiceActivity } from '@/composables'
 import { useAppStore, useAudioSettingsStore, useCallStore, useUserStore } from '@/stores'
 import type { User, ScreenShareQuality } from '@/types'
 
@@ -152,7 +152,7 @@ const audioSettingsStore = useAudioSettingsStore()
 const appStore = useAppStore()
 const callStore = useCallStore()
 
-// Initialize WebRTC composable - destructure for template reactivity
+// Initialize LiveKit composable - destructure for template reactivity
 const {
   localStream,
   remoteStreams,
@@ -170,12 +170,17 @@ const {
   getConnectionQuality,
   applyMuteState,
   applyDeafenState,
-  reinitializeAudioStream
-} = useWebRTC({
+  reinitializeAudioStream,
+  initializeLiveKit
+} = useLiveKit({
   roomId: props.roomId,
   roomName: props.roomName,
   users: props.users,
   remoteStreamVolumes: props.remoteStreamVolumes,
+  onVolumeChange: (userId: string, volume: number) => {
+    // Volume changes are handled by the component
+    console.log(`Volume change for ${userId}: ${volume}`)
+  },
   onPingUpdate: (ping: number, quality: 'excellent' | 'good' | 'fair' | 'poor') => {
     emit('ping-update', ping, quality)
   },
@@ -193,7 +198,7 @@ const isMuted = computed({
   get: () => props.modelValueMuted,
   set: (value) => {
     emit('update:modelValueMuted', value)
-    applyMuteState(value)
+    void applyMuteState(value)
   }
 })
 
@@ -201,7 +206,7 @@ const isDeafened = computed({
   get: () => props.modelValueDeafened,
   set: (value) => {
     emit('update:modelValueDeafened', value)
-    applyDeafenState(value)
+    void applyDeafenState(value)
   }
 })
 
@@ -235,11 +240,11 @@ watch(() => audioSettingsStore.noiseSuppressionAlgorithm, async (newAlgorithm, o
   }
 })
 
-// Watch call store mute/deafen state and apply to WebRTC audio
+// Watch call store mute/deafen state and apply to LiveKit audio
 // This ensures sidebar controls affect the actual audio
 watch(() => callStore.isMuted, (newValue) => {
   console.log(`🎤 Call store mute state changed: ${newValue}`)
-  applyMuteState(newValue)
+  void applyMuteState(newValue)
   // Sync with parent v-model if different
   if (props.modelValueMuted !== newValue) {
     emit('update:modelValueMuted', newValue)
@@ -248,7 +253,7 @@ watch(() => callStore.isMuted, (newValue) => {
 
 watch(() => callStore.isDeafened, (newValue) => {
   console.log(`🎧 Call store deafen state changed: ${newValue}`)
-  applyDeafenState(newValue)
+  void applyDeafenState(newValue)
   // Sync with parent v-model if different
   if (props.modelValueDeafened !== newValue) {
     emit('update:modelValueDeafened', newValue)
@@ -256,12 +261,25 @@ watch(() => callStore.isDeafened, (newValue) => {
 })
 
 // Apply initial mute/deafen state from store when joining a room
-watch(() => props.roomId, (newRoomId) => {
+watch(() => props.roomId, async (newRoomId) => {
   if (newRoomId) {
-    console.log(`📞 Joined room ${newRoomId}, applying mute/deafen state from store`)
+    console.log(`📞 Joined room ${newRoomId}, initializing LiveKit and applying mute/deafen state from store`)
+
+    // Initialize LiveKit connection
+    try {
+      const connected = await initializeLiveKit()
+      if (connected) {
+        console.log(`✅ LiveKit connected to room ${newRoomId}`)
+      } else {
+        console.error(`❌ Failed to connect LiveKit to room ${newRoomId}`)
+      }
+    } catch (error) {
+      console.error(`❌ Error initializing LiveKit:`, error)
+    }
+
     // Apply current store state to audio
-    applyMuteState(callStore.isMuted)
-    applyDeafenState(callStore.isDeafened)
+    void applyMuteState(callStore.isMuted)
+    void applyDeafenState(callStore.isDeafened)
     // Sync with parent v-model
     if (props.modelValueMuted !== callStore.isMuted) {
       emit('update:modelValueMuted', callStore.isMuted)
@@ -278,7 +296,7 @@ watch(() => props.roomId, (newRoomId) => {
 // Start screen share wrapper - called by parent (AppLayout)
 const startScreenShareWithQuality = async (quality: string, shareAudio: boolean) => {
   try {
-    // Start the actual WebRTC screen share
+    // Start the actual LiveKit screen share
     await startScreenShare(quality as ScreenShareQuality, shareAudio)
     // Tell AudioControls to update state and send WebSocket message
     const audioControls = audioControlsRef.value as unknown as { confirmStartScreenShare?: (quality: ScreenShareQuality, hasAudio: boolean) => Promise<void> } | null
