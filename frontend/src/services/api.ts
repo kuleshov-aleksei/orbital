@@ -62,6 +62,12 @@ export interface AppConfig {
   room: RoomConfig
 }
 
+// LiveKit token response types
+export interface LiveKitTokenResponse {
+  token: string
+  room_url: string
+}
+
 // Generic API wrapper with error handling
 export async function apiRequest<T>(
   endpoint: string, 
@@ -272,6 +278,14 @@ export const apiService = {
   // Get all users (public information only)
   async getAllUsers(): Promise<PublicUser[]> {
     return apiRequest<PublicUser[]>('/users')
+  },
+
+  // LiveKit token generation
+  async getLiveKitToken(roomId: string): Promise<LiveKitTokenResponse> {
+    return apiRequest<LiveKitTokenResponse>('/livekit/token', {
+      method: 'POST',
+      body: JSON.stringify({ room_id: roomId }),
+    })
   },
 }
 

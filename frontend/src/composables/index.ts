@@ -1,4 +1,5 @@
 export { useWebRTC } from './useWebRTC'
+export { useLiveKit } from './useLiveKit'
 export { useUserSession } from './useUserSession'
 export { useMobileState } from './useMobileState'
 export { useWebSocketHandlers } from './useWebSocketHandlers'
