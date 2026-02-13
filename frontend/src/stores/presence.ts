@@ -149,8 +149,7 @@ export const usePresenceStore = defineStore('presence', () => {
     })
 
     // Load existing participants
-    const remoteParticipants = lkRoom.participants as Map<string, RemoteParticipant>
-    remoteParticipants.forEach((participant) => {
+    lkRoom.remoteParticipants.forEach((participant) => {
       updateParticipantFromLiveKit(participant)
     })
 

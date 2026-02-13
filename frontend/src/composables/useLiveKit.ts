@@ -10,14 +10,13 @@ import {
   type RemoteParticipant,
   type LocalParticipant,
   createLocalAudioTrack,
-  Track,
-  type TrackProcessor
+  Track
 } from 'livekit-client'
 import { apiService } from '@/services/api'
 import { usePresenceStore } from '@/stores/presence'
 import { useAudioSettingsStore } from '@/stores/audioSettings'
 import { useCallStore } from '@/stores/call'
-import { createLiveKitAudioProcessor, getLiveKitAudioConstraints } from '@/services/livekit-audio-processors'
+import { getLiveKitAudioConstraints } from '@/services/livekit-audio-processors'
 import { getAudioWorkletProcessor } from '@/services/audio'
 import type { User, ScreenShareQuality } from '@/types'
 import type { AudioWorkletProcessor } from '@/types/audio'
@@ -140,26 +139,31 @@ export function useLiveKit(options: UseLiveKitOptions) {
           // Get audio constraints based on algorithm
           const audioConstraints = getLiveKitAudioConstraints(algorithm)
 
-          // Create LiveKit audio track
-          const track = await createLocalAudioTrack({
-            audio: audioConstraints,
-          })
-
-          // Apply AudioWorklet processor if needed (for RNNoise/Speex)
+          // Apply AudioWorklet processing BEFORE creating LiveKit track to avoid Proxy cloning issues
           if (requiresWorklet && (algorithm === 'rnnoise' || algorithm === 'speex')) {
-            addDebugLog(`Applying AudioWorklet processor for ${algorithm}`, 'info')
+            addDebugLog(`Applying AudioWorklet processor for ${algorithm} before track creation`, 'info')
 
             disposeAudioWorkletProcessor()
             audioWorkletProcessor = getAudioWorkletProcessor(algorithm)
 
             if (audioWorkletProcessor) {
               try {
-                // Create a LiveKit-compatible processor
-                const processor = createLiveKitAudioProcessor(algorithm)
-                if (processor) {
-                  // Cast processor to expected type for LiveKit
-                  await track.setProcessor(processor as unknown as TrackProcessor<typeof Track.Kind.Audio, { sampleRate: number }>)
-                  addDebugLog(`AudioWorklet processor applied successfully`, 'info')
+                // Get raw media stream first
+                const rawStream = await navigator.mediaDevices.getUserMedia({
+                  audio: audioConstraints
+                })
+
+                // Process through AudioWorklet
+                const processedStream = await audioWorkletProcessor.processStream(rawStream)
+                addDebugLog(`AudioWorklet processor applied successfully`, 'info')
+
+                // Create LiveKit track from processed stream (no setProcessor needed)
+                const processedTrack = processedStream.getAudioTracks()[0]
+                if (processedTrack) {
+                  const track = new LocalAudioTrack(processedTrack)
+                  localAudioTrack.value = track
+                  addDebugLog('Audio track initialized successfully with AudioWorklet processing', 'info')
+                  return track
                 }
               } catch (error) {
                 console.error(`Failed to apply ${algorithm} AudioWorklet:`, error)
@@ -167,9 +171,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
                 // Fallback to browser-native
                 audioSettingsStore.setWASMError(`Failed to load ${algorithm}: ${(error as Error).message}. Falling back to browser-native.`)
-                
-                // Stop current track and recreate with fallback
-                track.stop()
                 disposeAudioWorkletProcessor()
                 audioSettingsStore.setNoiseSuppressionAlgorithm('browser-native')
 
@@ -181,6 +182,11 @@ export function useLiveKit(options: UseLiveKitOptions) {
               }
             }
           }
+
+          // Create LiveKit audio track (for non-AudioWorklet algorithms)
+          const track = await createLocalAudioTrack({
+            audio: audioConstraints,
+          })
 
           localAudioTrack.value = track
           addDebugLog('Audio track initialized successfully', 'info')
