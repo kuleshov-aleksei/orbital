@@ -1,13 +1,12 @@
 import { onMounted, onUnmounted, watch } from 'vue'
-import { useRoomStore, useCategoryStore, useAppStore, useUsersStore, useUserStore } from '@/stores'
+import { useRoomStore, useCategoryStore, useAppStore, useUserStore } from '@/stores'
 import { wsService } from '@/services/websocket'
-import type { User, Room, Category, PublicUser } from '@/types'
+import type { User, Room, Category } from '@/types'
 
 export function useWebSocketHandlers() {
   const roomStore = useRoomStore()
   const categoryStore = useCategoryStore()
   const appStore = useAppStore()
-  const usersStore = useUsersStore()
 
   const setupWebSocketListeners = () => {
     // Room users updates
@@ -78,34 +77,6 @@ export function useWebSocketHandlers() {
   }
 
   const setupGlobalWebSocketListeners = () => {
-    // Global user list - initial list of all users
-    wsService.onGlobal('user_list', (message) => {
-      const data = message.data as PublicUser[]
-      console.log('Received user_list event:', data.length, 'users')
-      usersStore.setUsers(data)
-    })
-
-    // User joined platform
-    wsService.onGlobal('user_joined', (message) => {
-      const data = message.data as PublicUser
-      console.log('Received user_joined event:', data.nickname)
-      usersStore.addUser(data)
-    })
-
-    // User left platform
-    wsService.onGlobal('user_left', (message) => {
-      const data = message.data as PublicUser
-      console.log('Received user_left event:', data.id)
-      usersStore.removeUser(data.id)
-    })
-
-    // User data updated
-    wsService.onGlobal('user_update', (message) => {
-      const data = message.data as PublicUser
-      console.log('Received user_update event:', data.nickname)
-      usersStore.updateUser(data)
-    })
-
     // Room creation
     wsService.onGlobal('room_created', (message) => {
       const newRoom = message.data as Room
@@ -149,7 +120,6 @@ export function useWebSocketHandlers() {
     wsService.onGlobal('nickname_change', (message) => {
       const data = message.data as { user_id: string; nickname: string }
       roomStore.updateUserNickname(data.user_id, data.nickname)
-      usersStore.updateUserNickname(data.user_id, data.nickname)
     })
 
     // Room user joined

@@ -85,7 +85,6 @@
 <script setup lang="ts">
 import { useUserStore } from '@/stores'
 import {
-  PhPlanet,
   PhUser,
   PhLock
 } from '@phosphor-icons/vue'

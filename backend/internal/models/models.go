@@ -82,14 +82,6 @@ type WebSocketMessage struct {
 	Data interface{} `json:"data"`
 }
 
-// WebSocket message types for global user events
-const (
-	MessageTypeUserList   = "user_list"   // Initial list of all users
-	MessageTypeUserJoined = "user_joined" // User connected to platform
-	MessageTypeUserLeft   = "user_left"   // User disconnected from platform
-	MessageTypeUserUpdate = "user_update" // User data updated (nickname, avatar, etc.)
-)
-
 // CreateRoomRequest represents a request to create a room
 type CreateRoomRequest struct {
 	Name     string `json:"name"`

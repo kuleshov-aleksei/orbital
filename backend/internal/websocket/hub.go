@@ -15,16 +15,14 @@ import (
 
 // Hub manages WebSocket connections
 type Hub struct {
-	clients              map[*Client]bool
-	roomClients          map[string]map[*Client]bool   // room_id -> clients
-	connectedUsers       map[string]*models.PublicUser // userID -> PublicUser (for global user list)
-	userConnectionCounts map[string]int                // userID -> connection count (for multi-tab support)
-	roomService          *service.RoomService
-	authService          *service.AuthService
-	livekitService       *service.LiveKitService
-	cfg                  *config.Config
-	upgrader             websocket.Upgrader
-	mu                   sync.RWMutex
+	clients        map[*Client]bool
+	roomClients    map[string]map[*Client]bool // room_id -> clients
+	roomService    *service.RoomService
+	authService    *service.AuthService
+	livekitService *service.LiveKitService
+	cfg            *config.Config
+	upgrader       websocket.Upgrader
+	mu             sync.RWMutex
 }
 
 // Client represents a WebSocket client
@@ -41,14 +39,12 @@ type Client struct {
 // NewHub creates a new WebSocket hub
 func NewHub(roomService *service.RoomService, authService *service.AuthService, livekitService *service.LiveKitService, cfg *config.Config) *Hub {
 	hub := &Hub{
-		clients:              make(map[*Client]bool),
-		roomClients:          make(map[string]map[*Client]bool),
-		connectedUsers:       make(map[string]*models.PublicUser),
-		userConnectionCounts: make(map[string]int),
-		roomService:          roomService,
-		authService:          authService,
-		livekitService:       livekitService,
-		cfg:                  cfg,
+		clients:        make(map[*Client]bool),
+		roomClients:    make(map[string]map[*Client]bool),
+		roomService:    roomService,
+		authService:    authService,
+		livekitService: livekitService,
+		cfg:            cfg,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				return true // Allow all origins for development
@@ -79,7 +75,6 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 	}
 
 	// Extract and validate JWT token if auth service is available
-	var authenticatedUser *models.PublicUser
 	if h.authService != nil {
 		token := r.URL.Query().Get("token")
 		if token != "" {
@@ -93,26 +88,6 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 			client.userID = claims.UserID
 			client.mu.Unlock()
 			log.Printf("WebSocket client authenticated with userID: %s", claims.UserID)
-
-			// Get fresh user data from room service to ensure we have the current nickname
-			// (JWT claims may be stale if user changed their nickname since login)
-			freshUser, exists := h.roomService.GetUserByID(claims.UserID)
-			if exists {
-				authenticatedUser = &models.PublicUser{
-					ID:        freshUser.ID,
-					Nickname:  freshUser.Nickname,
-					AvatarURL: freshUser.AvatarURL,
-					Role:      freshUser.Role,
-				}
-			} else {
-				// Fallback to JWT claims if user not found in room service
-				authenticatedUser = &models.PublicUser{
-					ID:        claims.UserID,
-					Nickname:  claims.Nickname,
-					AvatarURL: claims.AvatarURL,
-					Role:      claims.Role,
-				}
-			}
 		}
 	}
 
@@ -138,24 +113,6 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 		log.Printf("WebSocket client connected for global broadcasts (user: %s, total clients: %d)", userID, len(h.clients))
 	}
 	h.mu.Unlock()
-
-	// Now that client is registered, broadcast if authenticated and send initial data
-	if authenticatedUser != nil {
-		// Broadcast user joined to all clients (including this one)
-		h.AddConnectedUser(client.userID, authenticatedUser)
-
-		// Send initial user list to the newly connected client
-		userListMessage := models.WebSocketMessage{
-			Type: models.MessageTypeUserList,
-			Data: h.GetConnectedUsers(),
-		}
-		select {
-		case client.send <- marshalMessage(userListMessage):
-			log.Printf("Sent user list to newly connected client %s", client.userID)
-		default:
-			log.Printf("Failed to send user list to client %s", client.userID)
-		}
-	}
 
 	// Start goroutines for this client
 	go client.writePump()
@@ -275,137 +232,9 @@ func (h *Hub) SendToUser(roomID string, userID string, message interface{}) {
 	}
 }
 
-// AddConnectedUser adds a user to the global connected users map
-// Handles multi-tab support by tracking connection count
-func (h *Hub) AddConnectedUser(userID string, user *models.PublicUser) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	// Increment connection count for this user
-	h.userConnectionCounts[userID]++
-	connectionCount := h.userConnectionCounts[userID]
-
-	// Only broadcast "user joined" on first connection
-	if connectionCount == 1 {
-		// Mark user as online
-		user.IsOnline = true
-		h.connectedUsers[userID] = user
-
-		// Broadcast user joined to all clients
-		joinMessage := models.WebSocketMessage{
-			Type: models.MessageTypeUserJoined,
-			Data: user,
-		}
-		h.broadcastToAllInternal(joinMessage)
-		log.Printf("User %s (%s) connected to platform (first connection)", user.Nickname, userID)
-	} else {
-		// Update connected user info but don't broadcast (still has other connections)
-		user.IsOnline = true
-		h.connectedUsers[userID] = user
-		log.Printf("User %s (%s) connected additional tab (total connections: %d)", user.Nickname, userID, connectionCount)
-	}
-}
-
-// RemoveConnectedUser removes a user from the global connected users map
-// Handles multi-tab support - only marks offline when all connections are closed
-func (h *Hub) RemoveConnectedUser(userID string) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	// Decrement connection count
-	h.userConnectionCounts[userID]--
-	connectionCount := h.userConnectionCounts[userID]
-
-	// Get user info before potentially removing them
-	user, userExists := h.connectedUsers[userID]
-
-	// Only mark offline and broadcast when count reaches 0
-	if connectionCount <= 0 {
-		// Clean up the count entry
-		delete(h.userConnectionCounts, userID)
-
-		if userExists {
-			delete(h.connectedUsers, userID)
-
-			// Mark user as offline and broadcast to all clients
-			user.IsOnline = false
-			leaveMessage := models.WebSocketMessage{
-				Type: models.MessageTypeUserLeft,
-				Data: user,
-			}
-			h.broadcastToAllInternal(leaveMessage)
-			log.Printf("User %s (%s) disconnected from platform (all connections closed)", user.Nickname, userID)
-		}
-	} else if userExists {
-		log.Printf("User %s (%s) closed one connection (remaining connections: %d)", user.Nickname, userID, connectionCount)
-	} else {
-		log.Printf("User %s closed one connection (remaining connections: %d)", userID, connectionCount)
-	}
-}
-
-// BroadcastUserUpdate broadcasts a user update to all connected clients
-func (h *Hub) BroadcastUserUpdate(user *models.PublicUser) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	// Update user in connected users map if present
-	if existingUser, exists := h.connectedUsers[user.ID]; exists {
-		existingUser.Nickname = user.Nickname
-		existingUser.AvatarURL = user.AvatarURL
-		existingUser.Role = user.Role
-	}
-
-	// Broadcast update to all clients
-	updateMessage := models.WebSocketMessage{
-		Type: models.MessageTypeUserUpdate,
-		Data: user,
-	}
-	h.broadcastToAllInternal(updateMessage)
-}
-
-// GetConnectedUsers returns a list of all currently connected users
-func (h *Hub) GetConnectedUsers() []*models.PublicUser {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-
-	users := make([]*models.PublicUser, 0, len(h.connectedUsers))
-	for _, user := range h.connectedUsers {
-		// Ensure IsOnline is set to true for all connected users
-		user.IsOnline = true
-		users = append(users, user)
-	}
-	return users
-}
-
-// broadcastToAllInternal sends a message to all clients (internal use, caller must hold lock)
-func (h *Hub) broadcastToAllInternal(message interface{}) {
-	data, err := json.Marshal(message)
-	if err != nil {
-		log.Printf("Error marshaling message: %v", err)
-		return
-	}
-
-	for client := range h.clients {
-		select {
-		case client.send <- data:
-		default:
-			close(client.send)
-			delete(h.clients, client)
-			if h.roomClients[client.roomID] != nil {
-				delete(h.roomClients[client.roomID], client)
-			}
-		}
-	}
-}
-
 // readPump handles messages from the WebSocket connection
 func (c *Client) readPump() {
 	defer func() {
-		// Get userID before cleaning up
-		c.mu.RLock()
-		userID := c.userID
-		c.mu.RUnlock()
-
 		// Remove from hub's client maps, but DO NOT clean up room state
 		// Room cleanup only happens on ping timeout, allowing time for reconnection
 		c.hub.mu.Lock()
@@ -414,11 +243,6 @@ func (c *Client) readPump() {
 			delete(c.hub.roomClients[c.roomID], c)
 		}
 		c.hub.mu.Unlock()
-
-		// Remove user from global connected users
-		if userID != "" {
-			c.hub.RemoveConnectedUser(userID)
-		}
 
 		c.conn.Close()
 	}()
@@ -801,29 +625,6 @@ func (c *Client) handleNicknameChange(data interface{}) {
 
 	// Also broadcast globally so users outside room can see updated nickname
 	c.hub.BroadcastToAll(nicknameMessage)
-
-	// Update and broadcast user data change for global user list
-	c.mu.RLock()
-	userID := c.userID
-	c.mu.RUnlock()
-
-	// Get current user data from connected users
-	c.hub.mu.RLock()
-	if user, exists := c.hub.connectedUsers[userID]; exists {
-		user.Nickname = req.Nickname
-		// Create a copy to broadcast
-		updatedUser := &models.PublicUser{
-			ID:        user.ID,
-			Nickname:  user.Nickname,
-			AvatarURL: user.AvatarURL,
-			Role:      user.Role,
-			IsOnline:  true,
-		}
-		c.hub.mu.RUnlock()
-		c.hub.BroadcastUserUpdate(updatedUser)
-	} else {
-		c.hub.mu.RUnlock()
-	}
 }
 
 // handleScreenShareStart handles screen sharing start notifications
@@ -946,32 +747,12 @@ func (h *Hub) startPingMonitor() {
 	checkTicker := time.NewTicker(h.cfg.WebSocket.PingCheckInterval)
 	defer checkTicker.Stop()
 
-	// Broadcast user list every 30 seconds
-	broadcastTicker := time.NewTicker(30 * time.Second)
-	defer broadcastTicker.Stop()
-
 	for {
 		select {
 		case <-checkTicker.C:
 			h.checkPingTimeouts()
-		case <-broadcastTicker.C:
-			h.broadcastUserList()
 		}
 	}
-}
-
-// broadcastUserList sends the current connected users list to all clients
-func (h *Hub) broadcastUserList() {
-	h.mu.RLock()
-	users := h.GetConnectedUsers()
-	h.mu.RUnlock()
-
-	userListMessage := models.WebSocketMessage{
-		Type: models.MessageTypeUserList,
-		Data: users,
-	}
-
-	h.BroadcastToAll(userListMessage)
 }
 
 // checkPingTimeouts checks all room members and global clients for ping timeouts
@@ -1031,17 +812,6 @@ func (h *Hub) checkGlobalPingTimeouts(timeout time.Duration) {
 
 	// Remove timed-out clients
 	for _, client := range timedOutClients {
-		client.mu.RLock()
-		userID := client.userID
-		client.mu.RUnlock()
-
-		log.Printf("Global ping timeout for user %s - removing from connected users", userID)
-
-		// Remove from connected users map
-		if userID != "" {
-			h.RemoveConnectedUser(userID)
-		}
-
 		// Clean up client connection
 		close(client.send)
 		delete(h.clients, client)
