@@ -2,6 +2,7 @@ import type { AudioProcessor, AudioWorkletProcessor, NoiseSuppressionAlgorithm }
 import { BrowserNativeProcessor } from './browser'
 import { createNoNoiseSuppressionProcessor } from './noNoiseSuppression'
 import { createRNNoiseProcessor, createSpeexProcessor } from './noiseSuppressor'
+import { createLiveKitNativeProcessor } from '../livekit-audio-processors'
 
 /**
  * Audio Processor Registry
@@ -13,6 +14,7 @@ const processorRegistry: Map<NoiseSuppressionAlgorithm, () => AudioProcessor> = 
   ['off', () => createNoNoiseSuppressionProcessor()],
   ['rnnoise', () => createRNNoiseProcessor()],
   ['speex', () => createSpeexProcessor()],
+  ['livekit-native', () => createLiveKitNativeProcessor()],
 ])
 
 /**
@@ -111,3 +113,10 @@ export async function checkMicrophoneSampleRate(
 export { BrowserNativeProcessor }
 export { createNoNoiseSuppressionProcessor } from './noNoiseSuppression'
 export { createRNNoiseProcessor, createSpeexProcessor } from './noiseSuppressor'
+export {
+  createLiveKitAudioProcessor,
+  createLiveKitNativeProcessor,
+  LiveKitNativeProcessor,
+  isAlgorithmCompatibleWithLiveKit,
+  getLiveKitAudioConstraints
+} from '../livekit-audio-processors'

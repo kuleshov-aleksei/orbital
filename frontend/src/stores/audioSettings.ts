@@ -99,7 +99,9 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
     switch (algorithm) {
       case 'browser-native':
       case 'off':
-        // Browser native constraints are supported by all modern browsers
+      case 'livekit-native':
+        // Browser native and LiveKit native constraints are supported by all modern browsers
+        // LiveKit native processing runs server-side in the SFU
         return { isSupported: true }
 
       case 'rnnoise': {

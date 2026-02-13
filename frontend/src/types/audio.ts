@@ -3,7 +3,7 @@
  * Designed to be extensible for different noise suppression algorithms
  */
 
-export type NoiseSuppressionAlgorithm = 'off' | 'browser-native' | 'rnnoise' | 'speex'
+export type NoiseSuppressionAlgorithm = 'off' | 'browser-native' | 'rnnoise' | 'speex' | 'livekit-native'
 
 export interface NoiseSuppressionConfig {
   enabled: boolean
@@ -125,6 +125,15 @@ export const availableAlgorithms: AudioAlgorithmInfo[] = [
     id: 'off',
     name: 'Off',
     description: 'Disable noise suppression',
+    isSupported: true,
+    isAvailable: true,
+    requiresAudioWorklet: false,
+    sampleRate: null
+  },
+  {
+    id: 'livekit-native',
+    name: 'LiveKit Native',
+    description: 'Built-in LiveKit noise suppression (SFU-optimized, low latency)',
     isSupported: true,
     isAvailable: true,
     requiresAudioWorklet: false,
