@@ -197,8 +197,8 @@ export function useWebSocketHandlers() {
     }
   })
 
-  // Global ping interval (30 seconds)
-  const GLOBAL_PING_INTERVAL = 30000
+  // Global ping interval (20 seconds - must be less than backend timeout of 30s)
+  const GLOBAL_PING_INTERVAL = 20000
   let globalPingInterval: ReturnType<typeof setInterval> | null = null
 
   const sendGlobalPing = () => {

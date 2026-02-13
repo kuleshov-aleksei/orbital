@@ -377,10 +377,10 @@ func (c *Client) handleLeaveRoom(data interface{}) {
 	}
 	c.hub.BroadcastToRoom(roomID, usersUpdate)
 
-	// Check if room is now empty and clean up LiveKit room
-	if len(users) == 0 {
-		c.hub.cleanupLiveKitRoom(roomID)
-	}
+	// Note: We don't delete the LiveKit room here even if WebSocket room is empty.
+	// LiveKit has its own empty timeout (300s) and will auto-delete the room.
+	// This prevents disconnecting users who are still connected via LiveKit
+	// but may have temporarily lost their WebSocket connection.
 }
 
 // cleanupLiveKitRoom deletes the LiveKit room when the last user leaves
@@ -608,10 +608,10 @@ func (h *Hub) disconnectUserDueToTimeout(roomID, userID string) {
 	}
 	h.BroadcastToRoom(roomID, usersUpdate)
 
-	// Check if room is now empty and clean up LiveKit room
-	if len(users) == 0 {
-		h.cleanupLiveKitRoom(roomID)
-	}
+	// Note: We don't delete the LiveKit room here even if WebSocket room is empty.
+	// LiveKit has its own empty timeout (300s) and will auto-delete the room.
+	// This prevents disconnecting users who are still connected via LiveKit
+	// but may have temporarily lost their WebSocket connection.
 
 	log.Printf("User %s successfully removed from room %s due to ping timeout", userID, roomID)
 }

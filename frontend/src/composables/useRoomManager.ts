@@ -3,11 +3,43 @@ import { wsService } from '@/services/websocket'
 import { apiService, generateNickname } from '@/services/api'
 import type { CreateRoomData, UpdateRoomData } from '@/types'
 
+// Room ping interval (20 seconds - must be less than backend timeout of 30s)
+const ROOM_PING_INTERVAL = 20000
+let roomPingInterval: ReturnType<typeof setInterval> | null = null
+
 export function useRoomManager() {
   const roomStore = useRoomStore()
   const userStore = useUserStore()
   const appStore = useAppStore()
   const callStore = useCallStore()
+
+  // Send ping to room WebSocket to keep connection alive
+  const sendRoomPing = () => {
+    if (wsService.isConnected()) {
+      wsService.sendMessage('ping', {
+        user_id: userStore.userId,
+        timestamp: Date.now()
+      })
+    }
+  }
+
+  // Start room ping interval
+  const startRoomPing = () => {
+    if (roomPingInterval) {
+      clearInterval(roomPingInterval)
+    }
+    roomPingInterval = setInterval(sendRoomPing, ROOM_PING_INTERVAL)
+    // Send initial ping immediately
+    sendRoomPing()
+  }
+
+  // Stop room ping interval
+  const stopRoomPing = () => {
+    if (roomPingInterval) {
+      clearInterval(roomPingInterval)
+      roomPingInterval = null
+    }
+  }
 
   const loadRooms = async () => {
     try {
@@ -44,6 +76,9 @@ export function useRoomManager() {
       // Connect to WebSocket for new room
       await wsService.connect(roomId, userId)
       roomStore.setActiveRoom(roomId)
+      
+      // Start sending pings to keep room WebSocket connection alive
+      startRoomPing()
     } catch (error) {
       console.error('Failed to join room:', error)
       throw error
@@ -57,6 +92,9 @@ export function useRoomManager() {
     if (!roomId || !userId) return
     
     try {
+      // Stop room ping interval before disconnecting
+      stopRoomPing()
+      
       await apiService.leaveRoom(roomId, userId)
       wsService.sendMessage('leave_room', { user_id: userId })
       wsService.disconnect()
