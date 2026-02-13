@@ -3,13 +3,14 @@ import {
   Room,
   RoomEvent,
   type LocalAudioTrack,
-  type LocalVideoTrack,
   type LocalTrackPublication,
   type RemoteAudioTrack,
   type RemoteVideoTrack,
   type RemoteParticipant,
   type LocalParticipant,
   createLocalAudioTrack,
+  LocalVideoTrack,
+  LocalAudioTrack,
   Track
 } from 'livekit-client'
 import { apiService } from '@/services/api'
