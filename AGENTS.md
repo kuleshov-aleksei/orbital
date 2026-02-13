@@ -4,13 +4,13 @@ This document outlines the development guidelines and agent configurations for T
 
 ## Project Overview
 
-The Orbital is a voice chat web application for 5-10 people using WebRTC technology.
+The Orbital is a voice chat web application for 5-10 people using LiveKit SFU technology.
 
 ## Tech Stack
 
 - **Frontend**: Vue 3 + TypeScript + Tailwind CSS
 - **Backend**: Go 1.21+
-- **Communication**: WebSockets + REST API
+- **Communication**: LiveKit SFU + WebSockets + REST API
 - **Deployment**: Docker + Docker Compose
 
 ## Project Structure
@@ -20,8 +20,8 @@ orbital/
 ├── frontend/          # Vue.js frontend
 │   ├── src/
 │   │   ├── components/    # Vue components
-│   │   ├── composables/   # Vue composables (useWebRTC, etc.)
-│   │   ├── services/      # Audio processing, WebSocket, WebRTC
+│   │   ├── composables/   # Vue composables (useLiveKit, etc.)
+│   │   ├── services/      # Audio processing, WebSocket, LiveKit
 │   │   └── stores/        # Pinia stores
 ├── backend/           # Go backend
 │   ├── cmd/           # Application entry points
@@ -40,7 +40,7 @@ orbital/
 - Use Vue 3 Composition API
 - Follow TypeScript best practices
 - Use Tailwind CSS for styling
-- Implement WebRTC using native browser APIs
+- Use LiveKit Client SDK for real-time communication
 - Use Pinia for state management
 
 ### Backend Development
@@ -73,7 +73,7 @@ Types coming FROM backend to frontend should have **snake_case**. Do not follow 
 
 ### Testing
 - Write unit tests for business logic
-- Test WebRTC functionality in browsers
+- Test LiveKit functionality in browsers
 - Test WebSocket connections
 - Use integration tests for API endpoints
 
@@ -105,7 +105,7 @@ There are proper build command: `make build`. **DO NOT TRY TO BUILD FRONTEND AND
 
 1. **Simplicity First** - Avoid over-engineering
 2. **Single Binary** - Backend compiles to one executable
-3. **Browser Native** - Use WebRTC without plugins
+3. **SFU-Based** - Use LiveKit SFU for scalable voice communication
 4. **Clean Code** - Maintainable and readable codebase
 
 ## Restrictions

@@ -9,14 +9,13 @@ This project is built by AI (like 99.99%). AI is not perfect, but this applicati
 ## Features
 
 - **Voice Rooms** - Create and join voice rooms with up to 10 participants
-- **WebRTC Communication** - Direct low-latency peer-to-peer voice communication
-- **TURN server support (required)** - Allows user to connect to calls behind NAT
+- **LiveKit SFU** - Scalable Selective Forwarding Unit for reliable voice communication
 - **Screen Sharing** - Share your screen with quality options (720p, 1080p, source)
 - **Advanced Audio Processing**
-  - Multiple noise suppression algorithms (Browser Native, RNNoise, Speex)
+  - Multiple noise suppression algorithms (LiveKit Native, Browser Native, RNNoise, Speex)
   - Echo cancellation
   - Automatic gain control
-- **Real-time Debug Dashboard** - Monitor connection quality, audio settings, and network stats
+- **Real-time Debug Dashboard** - Monitor audio settings and connection stats
 - **OAuth authentication** - Backend does not store authentication data - thats by design. So the only options to auth are using OAuth2 Google and Discord.
 - **Simple Deployment** - Single binary backend with Docker support
 - **Persistence** - Backend stores data in sqlite database. Easy management, easy deployment, easy life
@@ -56,11 +55,12 @@ The Orbital implements a hierarchical role system:
 
 ### Frontend
 - Vue 3 + TypeScript + Tailwind CSS
-- WebRTC for real-time communication
-- WebAssembly for 3rd party noise suppression (RNNoise, Speex)
+- LiveKit Client SDK for real-time communication
+- WebAssembly for advanced noise suppression (RNNoise, Speex)
 
 ### Backend
 - Go 1.25+
+- LiveKit Server SDK for room management
 - WebSockets for signaling
 - REST API for room management
 
@@ -109,7 +109,8 @@ make docker-up
 
 The Orbital supports multiple noise suppression algorithms:
 
-- **Browser Native** - Uses built-in WebRTC audio processing
+- **LiveKit Native** - Built-in LiveKit noise suppression (SFU-optimized, low latency)
+- **Browser Native** - Uses built-in browser audio processing
 - **RNNoise** - High-quality ML-based noise suppression (requires 48kHz microphone)
 - **Speex** - Fast CPU-efficient noise suppression
 
