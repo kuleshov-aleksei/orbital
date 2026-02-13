@@ -16,7 +16,6 @@ export interface AudioSettings {
   autoGainControl: boolean
   sampleRate: number
   channelCount: number
-  forceICERelay: boolean // Debug: force TURN relay only
 }
 
 export interface AudioAlgorithmInfo {
@@ -80,13 +79,12 @@ export interface AudioWorkletProcessor extends AudioProcessor {
 export const defaultAudioSettings: AudioSettings = {
   noiseSuppression: {
     enabled: true,
-    algorithm: 'speex'
+    algorithm: 'livekit-native'
   },
   echoCancellation: true,
   autoGainControl: true,
   sampleRate: 48000,
-  channelCount: 1,
-  forceICERelay: false // Debug: disabled by default
+  channelCount: 1
 }
 
 /** Local storage key for audio settings */

@@ -154,32 +154,6 @@
       </button>
     </div>
 
-    <!-- Debug: Force ICE Relay -->
-    <div class="flex items-center justify-between pt-4 border-t-2 border-red-900/50">
-      <div>
-        <label class="text-sm font-medium text-red-400 block flex items-center gap-1">
-          <PhBug class="w-4 h-4" />
-          Force ICE Relay (Debug)
-        </label>
-
-        <p class="text-xs text-gray-400 mt-0.5">
-          Forces all WebRTC traffic through TURN relay only. Useful for testing TURN server connectivity.
-        </p>
-      </div>
-
-      <button
-        type="button"
-        class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-gray-800"
-        :class="forceICERelay ? 'bg-red-600' : 'bg-gray-600'"
-        @click="toggleForceICERelay"
-      >
-        <span
-          class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-          :class="forceICERelay ? 'translate-x-6' : 'translate-x-1'"
-        />
-      </button>
-    </div>
-
     <!-- Reset Button -->
     <div class="pt-4 border-t border-gray-700">
       <button
@@ -199,8 +173,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useAudioSettingsStore } from '@/stores'
 import {
   PhSpeakerHigh,
-  PhArrowCounterClockwise,
-  PhBug
+  PhArrowCounterClockwise
 } from '@phosphor-icons/vue'
 import type { NoiseSuppressionAlgorithm } from '@/types/audio'
 
@@ -215,7 +188,6 @@ const isCheckingMicrophone = ref(false)
 const noiseSuppressionEnabled = computed(() => audioStore.noiseSuppressionEnabled)
 const echoCancellationEnabled = computed(() => audioStore.echoCancellationEnabled)
 const autoGainControlEnabled = computed(() => audioStore.autoGainControlEnabled)
-const forceICERelay = computed(() => audioStore.forceICERelay)
 const availableAlgorithms = computed(() => audioStore.availableNoiseSuppressionAlgorithms)
 const currentAlgorithmInfo = computed(() => audioStore.currentAlgorithmInfo)
 const wasmError = computed(() => audioStore.wasmError)
@@ -241,10 +213,6 @@ function toggleEchoCancellation() {
 
 function toggleAutoGainControl() {
   audioStore.toggleAutoGainControl(!autoGainControlEnabled.value)
-}
-
-function toggleForceICERelay() {
-  audioStore.toggleForceICERelay(!forceICERelay.value)
 }
 
 function onAlgorithmChange() {
