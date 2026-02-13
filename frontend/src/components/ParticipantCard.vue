@@ -234,7 +234,6 @@ import {
   PhMonitorPlay,
   PhInfo
 } from '@phosphor-icons/vue'
-import { analyzeICEConnection } from '@/services/webrtc-stats'
 import { useRoomStore } from '@/stores'
 import type { ICEConnectionType, ScreenShareQuality } from '@/types'
 
@@ -292,7 +291,8 @@ const animationId = ref<number | null>(null)
 const showMenu = ref(false)
 const menuPosition = { x: 0, y: 0 }
 const connectionInfo = ref<ICEConnectionType | null>(null)
-const connectionInfoInterval = ref<number | null>(null)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const connectionInfoInterval = ref<number | null>(null) // Preserved for future use
 
 // Computed
 const audioLevel = computed(() => {
@@ -345,31 +345,21 @@ const connectionDisplay = computed(() => {
 })
 
 // Methods
+// ICE connection analysis removed - LiveKit handles connections internally
+// eslint-disable-next-line @typescript-eslint/require-await, @typescript-eslint/no-unused-vars
 const updateConnectionInfo = async () => {
-  if (!props.peerConnection || props.connectionState !== 'connected') {
-    connectionInfo.value = null
-    return
-  }
-  
-  try {
-    connectionInfo.value = await analyzeICEConnection(props.peerConnection)
-  } catch (error) {
-    console.warn('Failed to analyze ICE connection:', error)
-  }
+  // With LiveKit, ICE connections are managed by the SFU
+  connectionInfo.value = null
 }
 
+// eslint-disable-next-line @typescript-eslint/require-await, @typescript-eslint/no-unused-vars
 const startConnectionInfoPolling = async () => {
-  await updateConnectionInfo()
-  connectionInfoInterval.value = window.setInterval(() => {
-    void updateConnectionInfo()
-  }, 3000)
+  // No-op - LiveKit manages connections internally
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const stopConnectionInfoPolling = () => {
-  if (connectionInfoInterval.value) {
-    clearInterval(connectionInfoInterval.value)
-    connectionInfoInterval.value = null
-  }
+  // No-op - LiveKit manages connections internally
 }
 
 const updateVolume = (newVolume: number) => {
@@ -505,11 +495,9 @@ watch(() => props.isDeafened, (newDeafened) => {
   }
 })
 
-watch(() => props.connectionState, (newState, oldState) => {
-  if (newState === 'connected' && oldState !== 'connected') {
-    void startConnectionInfoPolling()
-  } else if (newState !== 'connected') {
-    stopConnectionInfoPolling()
+// Connection state polling removed - LiveKit manages connections internally
+watch(() => props.connectionState, (newState) => {
+  if (newState !== 'connected') {
     connectionInfo.value = null
   }
 })
@@ -539,11 +527,9 @@ onMounted(() => {
     // Setup video stream after mount
     setupVideoStream()
   })
-  
-  if (props.connectionState === 'connected') {
-    void startConnectionInfoPolling()
-  }
-  
+
+  // Connection polling removed - LiveKit manages connections internally
+
   document.addEventListener('keydown', handleKeydown)
   document.addEventListener('click', handleDocumentClick)
 })
@@ -552,12 +538,13 @@ onUnmounted(() => {
   if (animationId.value) {
     cancelAnimationFrame(animationId.value)
   }
-  
+
   if (audioContext.value) {
     void audioContext.value.close()
   }
-  
-  stopConnectionInfoPolling()
+
+  // Connection polling removed - LiveKit manages connections internally
+
   document.removeEventListener('keydown', handleKeydown)
   document.removeEventListener('click', handleDocumentClick)
 })

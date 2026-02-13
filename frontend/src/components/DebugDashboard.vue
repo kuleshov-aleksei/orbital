@@ -34,11 +34,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, type Component } from 'vue'
-import { webRTCStatsCollector } from '@/services/webrtc-stats'
 import type { ConnectionQuality, DebugInfo, ConnectionLog, ScreenShareQuality } from '@/types'
 import DebugToggle from './debug/DebugToggle.vue'
 import DebugHeader from './debug/DebugHeader.vue'
-import IceCandidatesTab from './debug/IceCandidatesTab.vue'
 import MetricsTab from './debug/MetricsTab.vue'
 import NetworkTab from './debug/NetworkTab.vue'
 import LogsTab from './debug/LogsTab.vue'
@@ -86,7 +84,7 @@ const isVisible = computed({
     }
   }
 })
-const activeTab = ref<'metrics' | 'network' | 'screen-share' | 'logs' | 'issues' | 'ice-candidates' | 'audio'>('metrics')
+const activeTab = ref<'metrics' | 'network' | 'screen-share' | 'logs' | 'issues' | 'audio'>('metrics')
 const connectionLogs = ref<ConnectionLog[]>([])
 const networkInfo = ref<Map<string, DebugInfo>>(new Map())
 const updateInterval = ref<number>()
@@ -98,17 +96,17 @@ const tabs = [
   { id: 'audio' as const, label: 'Audio' },
   { id: 'screen-share' as const, label: 'Screen Share' },
   { id: 'logs' as const, label: 'Logs' },
-  { id: 'issues' as const, label: 'Issues' },
-  { id: 'ice-candidates' as const, label: 'Outgoing ICE candidates' }
+  { id: 'issues' as const, label: 'Issues' }
 ]
 
 // Computed properties
-const allStats = computed(() => webRTCStatsCollector.getAllPeerStats())
-const allOutgoingIceCandidates = computed(() => webRTCStatsCollector.getAllOutgoingIceCandidates())
+// WebRTC stats removed - LiveKit handles connections internally
+const allStats = computed(() => new Map())
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const allOutgoingIceCandidates = computed(() => new Map()) // Preserved for future use
 
 const currentTabComponent = computed<Component | null>(() => {
   switch (activeTab.value) {
-    case 'ice-candidates': return IceCandidatesTab as Component
     case 'metrics': return MetricsTab as Component
     case 'network': return NetworkTab as Component
     case 'audio': return AudioTab as Component
@@ -121,11 +119,6 @@ const currentTabComponent = computed<Component | null>(() => {
 
 const currentTabProps = computed(() => {
   switch (activeTab.value) {
-    case 'ice-candidates':
-      return {
-        'ice-candidates-map': allOutgoingIceCandidates.value,
-        'get-user-nickname': getUserNickname
-      }
     case 'metrics':
       return {
         'stats-map': allStats.value,
@@ -187,17 +180,15 @@ const formatScreenShareData = (shares: ScreenShareDebugInfo[]) => {
 
 const connectionIssues = computed(() => {
   const issues = new Map<string, { quality: ConnectionQuality['quality'], issues: string[], suggestions: string[] }>()
-  
+
   try {
-    allStats.value.forEach((stats, userId) => {
-      if (!stats) return
-      
-      const quality = props.getConnectionQuality(userId)
+    allStats.value.forEach((_, userId) => {
+      const quality = props.getConnectionQuality(String(userId))
       if (!quality) return
-      
+
       const suggestions = generateSuggestions(quality)
-      
-      issues.set(userId, {
+
+      issues.set(String(userId), {
         quality: quality.quality,
         issues: quality.issues,
         suggestions
@@ -206,7 +197,7 @@ const connectionIssues = computed(() => {
   } catch (error) {
     console.warn('Error computing connection issues:', error instanceof Error ? error.message : String(error))
   }
-  
+
   return issues
 })
 

@@ -177,7 +177,7 @@
     PhMonitorPlay,
     PhInfo
   } from '@phosphor-icons/vue'
-  import { analyzeICEConnection } from '@/services/webrtc-stats'
+
   import { useRoomStore } from '@/stores'
   import type { ScreenShareQuality, ICEConnectionType } from '@/types'
 
@@ -223,11 +223,12 @@
  const analyzedAudioLevel = ref(0)
  const audioContext = ref<AudioContext | null>(null)
  const analyser = ref<AnalyserNode | null>(null)
- const animationId = ref<number | null>(null)
- const showMenu = ref(false)
- const menuPosition = { x: 0, y: 0 }
- const connectionInfo = ref<ICEConnectionType | null>(null)
- const connectionInfoInterval = ref<number | null>(null)
+  const animationId = ref<number | null>(null)
+  const showMenu = ref(false)
+  const menuPosition = { x: 0, y: 0 }
+  const connectionInfo = ref<ICEConnectionType | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const connectionInfoInterval = ref<number | null>(null) // Preserved for future use
 
  // Computed properties
  // Use external audio level for current user, analyzed level for remote users
@@ -281,38 +282,24 @@
    return { icon, label, tooltip }
  })
 
- // Update connection info from peer connection
- const updateConnectionInfo = async () => {
-   if (!props.peerConnection || props.connectionState !== 'connected') {
-     connectionInfo.value = null
-     return
-   }
-   
-   try {
-     connectionInfo.value = await analyzeICEConnection(props.peerConnection)
-   } catch (error) {
-     console.warn('Failed to analyze ICE connection:', error)
-   }
- }
+  // Update connection info from peer connection
+  // ICE connection analysis removed - LiveKit handles connections internally
+  // eslint-disable-next-line @typescript-eslint/require-await, @typescript-eslint/no-unused-vars
+  const updateConnectionInfo = async () => {
+    connectionInfo.value = null
+  }
 
- // Start polling for connection info
- const startConnectionInfoPolling = async () => {
-   // Update immediately (don't wait for interval)
-   await updateConnectionInfo()
-   
-    // Then poll every 3 seconds
-    connectionInfoInterval.value = window.setInterval(() => {
-      void updateConnectionInfo()
-    }, 3000)
- }
+  // Start polling for connection info
+  // eslint-disable-next-line @typescript-eslint/require-await, @typescript-eslint/no-unused-vars
+  const startConnectionInfoPolling = async () => {
+    // No-op - LiveKit manages connections internally
+  }
 
- // Stop polling
- const stopConnectionInfoPolling = () => {
-   if (connectionInfoInterval.value) {
-     clearInterval(connectionInfoInterval.value)
-     connectionInfoInterval.value = null
-   }
- }
+  // Stop polling
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const stopConnectionInfoPolling = () => {
+    // No-op - LiveKit manages connections internally
+  }
 
  // Update volume of audio element
  const updateVolume = (newVolume: number) => {
@@ -439,12 +426,9 @@
      }
    })
 
-    // Watch for connection state changes to start/stop polling
-    watch(() => props.connectionState, (newState, oldState) => {
-      if (newState === 'connected' && oldState !== 'connected') {
-        void startConnectionInfoPolling()
-      } else if (newState !== 'connected') {
-        stopConnectionInfoPolling()
+    // Connection state polling removed - LiveKit manages connections internally
+    watch(() => props.connectionState, (newState) => {
+      if (newState !== 'connected') {
         connectionInfo.value = null
       }
     })
@@ -474,11 +458,7 @@
         }
       })
 
-      // Check if already connected when component mounts
-      // (handles race condition where connectionState is already 'connected')
-      if (props.connectionState === 'connected') {
-        void startConnectionInfoPolling()
-      }
+      // Connection polling removed - LiveKit manages connections internally
 
       // Add document event listeners for context menu
       document.addEventListener('keydown', handleKeydown)
@@ -489,18 +469,17 @@
      if (animationId.value) {
        cancelAnimationFrame(animationId.value)
      }
-     
+
      if (audioContext.value) {
        void audioContext.value.close()
      }
 
-     // Clean up connection info polling
-     stopConnectionInfoPolling()
+     // Connection polling removed - LiveKit manages connections internally
 
      // Clean up document event listeners
      document.removeEventListener('keydown', handleKeydown)
      document.removeEventListener('click', handleDocumentClick)
-   })
+    })
 </script>
 
 <style scoped>

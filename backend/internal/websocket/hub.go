@@ -289,24 +289,10 @@ func (c *Client) handleMessage(message models.WebSocketMessage) {
 		c.handleJoinRoom(message.Data)
 	case "leave_room":
 		c.handleLeaveRoom(message.Data)
-	case "ice_candidate":
-		c.handleICECandidate(message.Data)
-	case "sdp_offer":
-		c.handleSDPOffer(message.Data)
-	case "sdp_answer":
-		c.handleSDPAnswer(message.Data)
 	case "nickname_change":
 		c.handleNicknameChange(message.Data)
-	case "screen_share_start":
-		c.handleScreenShareStart(message.Data)
-	case "screen_share_stop":
-		c.handleScreenShareStop(message.Data)
 	case "ping":
 		c.handlePing(message.Data)
-	case "reconnect_request":
-		c.handleReconnectRequest(message.Data)
-	case "reconnect_ready":
-		c.handleReconnectReady(message.Data)
 	case "room_created":
 		// This is a broadcast message, no action needed on receive
 		log.Printf("Received room_created broadcast")
@@ -410,110 +396,6 @@ func (h *Hub) cleanupLiveKitRoom(roomID string) {
 	}
 }
 
-// handleICECandidate handles WebRTC ICE candidates
-func (c *Client) handleICECandidate(data interface{}) {
-	// Parse the data to extract target user if available
-	var candidateData map[string]interface{}
-	jsonData, _ := json.Marshal(data)
-	json.Unmarshal(jsonData, &candidateData)
-
-	if targetUserID, ok := candidateData["target_user_id"].(string); ok && targetUserID != "" {
-		// Send to specific user
-		candidateMessage := models.WebSocketMessage{
-			Type: "ice_candidate",
-			Data: data,
-		}
-		c.hub.SendToUser(c.roomID, targetUserID, candidateMessage)
-	} else {
-		// Broadcast to all users (legacy behavior)
-		candidateMessage := models.WebSocketMessage{
-			Type: "ice_candidate",
-			Data: data,
-		}
-		c.hub.BroadcastToRoom(c.roomID, candidateMessage)
-	}
-}
-
-// handleSDPOffer handles WebRTC SDP offers
-func (c *Client) handleSDPOffer(data interface{}) {
-	// Parse the data to extract target user if available
-	var offerData map[string]interface{}
-	jsonData, _ := json.Marshal(data)
-	json.Unmarshal(jsonData, &offerData)
-
-	if targetUserID, ok := offerData["target_user_id"].(string); ok && targetUserID != "" {
-		// Send to specific user
-		offerMessage := models.WebSocketMessage{
-			Type: "sdp_offer",
-			Data: data,
-		}
-		c.hub.SendToUser(c.roomID, targetUserID, offerMessage)
-	} else {
-		// Broadcast to all users (legacy behavior)
-		offerMessage := models.WebSocketMessage{
-			Type: "sdp_offer",
-			Data: data,
-		}
-		c.hub.BroadcastToRoom(c.roomID, offerMessage)
-	}
-}
-
-// handleSDPAnswer handles WebRTC SDP answers
-func (c *Client) handleSDPAnswer(data interface{}) {
-	// Parse the data to extract target user if available
-	var answerData map[string]interface{}
-	jsonData, _ := json.Marshal(data)
-	json.Unmarshal(jsonData, &answerData)
-
-	if targetUserID, ok := answerData["target_user_id"].(string); ok && targetUserID != "" {
-		// Send to specific user
-		answerMessage := models.WebSocketMessage{
-			Type: "sdp_answer",
-			Data: data,
-		}
-		c.hub.SendToUser(c.roomID, targetUserID, answerMessage)
-	} else {
-		// Broadcast to all users (legacy behavior)
-		answerMessage := models.WebSocketMessage{
-			Type: "sdp_answer",
-			Data: data,
-		}
-		c.hub.BroadcastToRoom(c.roomID, answerMessage)
-	}
-}
-
-// handleReconnectRequest handles reconnection handshake step 1/3
-func (c *Client) handleReconnectRequest(data interface{}) {
-	var requestData map[string]interface{}
-	jsonData, _ := json.Marshal(data)
-	json.Unmarshal(jsonData, &requestData)
-
-	if targetUserID, ok := requestData["target_user_id"].(string); ok && targetUserID != "" {
-		log.Printf("Reconnection request from %s to %s", c.userID, targetUserID)
-		requestMessage := models.WebSocketMessage{
-			Type: "reconnect_request",
-			Data: data,
-		}
-		c.hub.SendToUser(c.roomID, targetUserID, requestMessage)
-	}
-}
-
-// handleReconnectReady handles reconnection handshake step 2/3
-func (c *Client) handleReconnectReady(data interface{}) {
-	var readyData map[string]interface{}
-	jsonData, _ := json.Marshal(data)
-	json.Unmarshal(jsonData, &readyData)
-
-	if targetUserID, ok := readyData["target_user_id"].(string); ok && targetUserID != "" {
-		log.Printf("Reconnection ready from %s to %s", c.userID, targetUserID)
-		readyMessage := models.WebSocketMessage{
-			Type: "reconnect_ready",
-			Data: data,
-		}
-		c.hub.SendToUser(c.roomID, targetUserID, readyMessage)
-	}
-}
-
 // handleNicknameChange handles user nickname changes
 func (c *Client) handleNicknameChange(data interface{}) {
 	var req models.NicknameChangeRequest
@@ -545,74 +427,6 @@ func (c *Client) handleNicknameChange(data interface{}) {
 
 	// Also broadcast globally so users outside room can see updated nickname
 	c.hub.BroadcastToAll(nicknameMessage)
-}
-
-// handleScreenShareStart handles screen sharing start notifications
-func (c *Client) handleScreenShareStart(data interface{}) {
-	var shareData struct {
-		UserID   string `json:"user_id"`
-		Quality  string `json:"quality"`
-		HasAudio bool   `json:"has_audio"`
-	}
-	jsonData, _ := json.Marshal(data)
-	json.Unmarshal(jsonData, &shareData)
-
-	// Validate that the user is only reporting their own screen share
-	if shareData.UserID != c.userID {
-		log.Printf("User %s attempted to report screen share for user %s", c.userID, shareData.UserID)
-		return
-	}
-
-	// Update screen sharing state in room service
-	c.hub.roomService.UpdateUserScreenShareStatus(c.roomID, c.userID, true, shareData.Quality)
-
-	log.Printf("User %s started screen sharing (quality: %s, audio: %v)", c.userID, shareData.Quality, shareData.HasAudio)
-
-	// Broadcast screen share start to all other users in room
-	shareMessage := models.WebSocketMessage{
-		Type: "screen_share_start",
-		Data: map[string]interface{}{
-			"user_id":   c.userID,
-			"quality":   shareData.Quality,
-			"has_audio": shareData.HasAudio,
-		},
-	}
-	c.hub.BroadcastToRoomExcluding(c.roomID, c, shareMessage)
-
-	// Also broadcast globally so users outside room can see status in room list
-	c.hub.BroadcastToAll(shareMessage)
-}
-
-// handleScreenShareStop handles screen sharing stop notifications
-func (c *Client) handleScreenShareStop(data interface{}) {
-	var stopData struct {
-		UserID string `json:"user_id"`
-	}
-	jsonData, _ := json.Marshal(data)
-	json.Unmarshal(jsonData, &stopData)
-
-	// Validate that the user is only stopping their own screen share
-	if stopData.UserID != c.userID {
-		log.Printf("User %s attempted to stop screen share for user %s", c.userID, stopData.UserID)
-		return
-	}
-
-	// Update screen sharing state in room service
-	c.hub.roomService.UpdateUserScreenShareStatus(c.roomID, c.userID, false, "")
-
-	log.Printf("User %s stopped screen sharing", c.userID)
-
-	// Broadcast screen share stop to all other users in room
-	stopMessage := models.WebSocketMessage{
-		Type: "screen_share_stop",
-		Data: map[string]interface{}{
-			"user_id": c.userID,
-		},
-	}
-	c.hub.BroadcastToRoomExcluding(c.roomID, c, stopMessage)
-
-	// Also broadcast globally so users outside room can see status in room list
-	c.hub.BroadcastToAll(stopMessage)
 }
 
 // handlePing handles ping messages and responds with pong
