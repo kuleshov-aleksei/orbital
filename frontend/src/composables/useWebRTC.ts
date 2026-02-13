@@ -1204,11 +1204,7 @@ export function useWebRTC(options: UseWebRTCOptions) {
         track.enabled = !muted
       })
     }
-    wsService.sendMessage('speaking_status', {
-      user_id: getCurrentUserId(),
-      is_speaking: false,
-      is_muted: muted
-    })
+    // Mute state is now synced via LiveKit presence store
   }
 
   // Apply deafen state to remote audio elements

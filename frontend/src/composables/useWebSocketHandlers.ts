@@ -15,34 +15,6 @@ export function useWebSocketHandlers() {
       roomStore.setCurrentRoomUsers(data)
     })
 
-    // Speaking status updates
-    wsService.on('speaking_status', (message) => {
-      const data = message.data as { user_id: string; is_speaking: boolean; is_muted?: boolean }
-      roomStore.updateCurrentRoomUser(data.user_id, { 
-        is_speaking: data.is_speaking,
-        is_muted: data.is_muted
-      })
-      roomStore.updateUserStatus(data.user_id, {
-        is_speaking: data.is_speaking,
-        is_muted: data.is_muted
-      })
-    })
-
-    // Mute status updates
-    wsService.on('mute_status', (message) => {
-      const data = message.data as { user_id: string; is_muted: boolean }
-      roomStore.updateCurrentRoomUser(data.user_id, { is_muted: data.is_muted })
-      roomStore.updateUserStatus(data.user_id, { is_muted: data.is_muted })
-    })
-
-    // Deafen status updates
-    wsService.on('deafen_status', (message) => {
-      const data = message.data as { user_id: string; is_deafened: boolean }
-      console.log('Room deafen_status received:', data)
-      roomStore.updateCurrentRoomUser(data.user_id, { is_deafened: data.is_deafened })
-      roomStore.updateUserStatus(data.user_id, { is_deafened: data.is_deafened })
-    })
-
     // Screen share start
     wsService.on('screen_share_start', (message) => {
       const data = message.data as { user_id: string; quality: string }
@@ -83,26 +55,6 @@ export function useWebSocketHandlers() {
       console.log('Received room_created event:', newRoom)
       roomStore.addRoom(newRoom)
       console.log('Added new room to list:', newRoom.name)
-    })
-
-    // Global status updates
-    wsService.onGlobal('speaking_status', (message) => {
-      const data = message.data as { user_id: string; is_speaking: boolean; is_muted?: boolean }
-      roomStore.updateUserStatus(data.user_id, {
-        is_speaking: data.is_speaking,
-        is_muted: data.is_muted
-      })
-    })
-
-    wsService.onGlobal('mute_status', (message) => {
-      const data = message.data as { user_id: string; is_muted: boolean }
-      roomStore.updateUserStatus(data.user_id, { is_muted: data.is_muted })
-    })
-
-    wsService.onGlobal('deafen_status', (message) => {
-      const data = message.data as { user_id: string; is_deafened: boolean }
-      console.log('Global deafen_status received:', data)
-      roomStore.updateUserStatus(data.user_id, { is_deafened: data.is_deafened })
     })
 
     // Screen share updates for sidebar

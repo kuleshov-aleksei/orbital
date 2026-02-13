@@ -29,7 +29,6 @@
 import { computed } from 'vue'
 import { PhMicrophone, PhMicrophoneSlash } from '@phosphor-icons/vue'
 import { useCallStore, useUserStore, useRoomStore } from '@/stores'
-import { wsService } from '@/services/websocket'
 
 interface Props {
   modelValue: boolean
@@ -85,30 +84,16 @@ const iconClasses = computed(() => {
   }
 })
 
-// Toggle mute with WebSocket notification
+// Toggle mute - presence store will sync with LiveKit
 const toggleMute = () => {
   const newValue = !isMuted.value
   isMuted.value = newValue
   
-  // Update call store
+  // Update call store (presence store watches this and syncs with LiveKit)
   callStore.setMuted(newValue)
   
   // Immediately update room store for local user so UI updates right away
   roomStore.updateUserStatus(userStore.userId, { is_muted: newValue })
-  
-  // Send WebSocket message if connected
-  if (wsService.isConnected()) {
-    wsService.sendMessage('mute_status', {
-      user_id: userStore.userId,
-      is_muted: newValue
-    })
-    // Also send speaking_status since mute affects speaking
-    wsService.sendMessage('speaking_status', {
-      user_id: userStore.userId,
-      is_speaking: false,
-      is_muted: newValue
-    })
-  }
 }
 </script>
 

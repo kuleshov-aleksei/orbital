@@ -28,7 +28,6 @@
 import { computed } from 'vue'
 import { PhHeadphones } from '@phosphor-icons/vue'
 import { useCallStore, useUserStore, useRoomStore } from '@/stores'
-import { wsService } from '@/services/websocket'
 
 interface Props {
   modelValue: boolean
@@ -101,24 +100,16 @@ const slashClasses = computed(() => {
   }
 })
 
-// Toggle deafen with WebSocket notification
+// Toggle deafen - presence store will sync with LiveKit
 const toggleDeafen = () => {
   const newValue = !isDeafened.value
   isDeafened.value = newValue
   
-  // Update call store
+  // Update call store (presence store watches this and syncs with LiveKit)
   callStore.setDeafened(newValue)
   
   // Immediately update room store for local user so UI updates right away
   roomStore.updateUserStatus(userStore.userId, { is_deafened: newValue })
-  
-  // Send WebSocket message if connected
-  if (wsService.isConnected()) {
-    wsService.sendMessage('deafen_status', {
-      user_id: userStore.userId,
-      is_deafened: newValue
-    })
-  }
 }
 </script>
 
