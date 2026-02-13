@@ -66,7 +66,7 @@ export const useRoomStore = defineStore('room', () => {
   }
 
   function updateUserStatus(userId: string, status: { is_speaking?: boolean; is_muted?: boolean; is_deafened?: boolean; is_screen_sharing?: boolean }) {
-    console.log('updateUserStatus called:', { userId, status })
+    //console.log('updateUserStatus called:', { userId, status })
     // Update rooms array for sidebar display
     // Use slice() to create new array references for Vue reactivity
     let hasChanges = false
@@ -103,8 +103,6 @@ export const useRoomStore = defineStore('room', () => {
     if (hasChanges) {
       console.log('Updating rooms with changes:', updatedRooms)
       rooms.value = updatedRooms
-    } else {
-      console.log('No changes detected for user:', userId)
     }
     
     // Also update current room users if applicable
