@@ -11,6 +11,38 @@ import { useRoomStore } from './room'
 import { useCallStore } from './call'
 import { useUserStore } from './user'
 
+// Debounce helper for batching updates
+function debounce<T extends (...args: unknown[]) => void>(
+  fn: T,
+  delay: number,
+  { leading = false, trailing = true }: { leading?: boolean; trailing?: boolean } = {}
+): (...args: Parameters<T>) => void {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null
+  let lastArgs: Parameters<T> | null = null
+
+  return (...args: Parameters<T>) => {
+    lastArgs = args
+
+    const shouldCallNow = leading && !timeoutId
+
+    if (timeoutId) {
+      clearTimeout(timeoutId)
+    }
+
+    timeoutId = setTimeout(() => {
+      if (trailing && lastArgs) {
+        fn(...lastArgs)
+      }
+      timeoutId = null
+      lastArgs = null
+    }, delay)
+
+    if (shouldCallNow) {
+      fn(...args)
+    }
+  }
+}
+
 // Participant metadata stored in LiveKit attributes
 interface ParticipantMetadata {
   user_id: string
@@ -38,6 +70,8 @@ export const usePresenceStore = defineStore('presence', () => {
   const participants = ref<Map<string, PresenceState>>(new Map())
   const localParticipant = ref<LocalParticipant | null>(null)
   const isConnected = ref(false)
+  
+
 
   // Getters
   const participantList = computed(() => Array.from(participants.value.values()))
@@ -131,11 +165,15 @@ export const usePresenceStore = defineStore('presence', () => {
       updateParticipantFromLiveKit(participant)
     })
 
-    lkRoom.on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
-      // Update speaking status for all speakers
+    // Debounced batch update for ActiveSpeakersChanged to reduce reactive churn
+    const debouncedBatchUpdate = debounce((speakers: Participant[]) => {
       speakers.forEach(speaker => {
         updateParticipantFromLiveKit(speaker)
       })
+    }, 50, { leading: true, trailing: false })
+
+    lkRoom.on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
+      debouncedBatchUpdate(speakers)
     })
 
     lkRoom.on(RoomEvent.TrackMuted, (track, participant: Participant) => {
