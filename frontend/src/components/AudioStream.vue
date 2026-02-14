@@ -282,25 +282,6 @@
    return { icon, label, tooltip }
  })
 
-  // Update connection info from peer connection
-  // ICE connection analysis removed - LiveKit handles connections internally
-  // eslint-disable-next-line @typescript-eslint/require-await, @typescript-eslint/no-unused-vars
-  const updateConnectionInfo = async () => {
-    connectionInfo.value = null
-  }
-
-  // Start polling for connection info
-  // eslint-disable-next-line @typescript-eslint/require-await, @typescript-eslint/no-unused-vars
-  const startConnectionInfoPolling = async () => {
-    // No-op - LiveKit manages connections internally
-  }
-
-  // Stop polling
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const stopConnectionInfoPolling = () => {
-    // No-op - LiveKit manages connections internally
-  }
-
  // Update volume of audio element
  const updateVolume = (newVolume: number) => {
     roomStore.setUserVolume(props.userId, newVolume)

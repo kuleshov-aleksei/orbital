@@ -14,15 +14,13 @@
           :user-nickname="user.nickname || 'Unknown'"
           :audio-stream="remoteStreams.get(user.id) || null"
           :screen-share-stream="null"
-          :connection-state="peerConnectionStates.get(user.id)"
-          :connection-retry-count="peerConnectionRetries.get(user.id) || 0"
           :initial-volume="remoteStreamVolumes.get(user.id) || 80"
           :is-deafened="isDeafened"
           :is-screen-sharing="userScreenShareStates.get(user.id)?.isSharing || false"
           :screen-share-quality="userScreenShareStates.get(user.id)?.quality"
-          :peer-connection="peerConnections.get(user.id)"
           :is-current-user="user.id === currentUserId"
           :external-audio-level="user.id === currentUserId ? currentUserAudioLevel : undefined"
+          :stats="getParticipantStats?.(user.id)"
           :force-audio-mode="true"
           @mute-toggle="(userId, isMuted) => $emit('mute-toggle', userId, isMuted)"
           @audio-level="(userId, level, isSpeaking) => $emit('audio-level', userId, level, isSpeaking)"
@@ -53,6 +51,7 @@ interface Props {
   isDeafened: boolean
   isVisible: boolean
   currentUserAudioLevel?: number
+  getParticipantStats?: (userId: string) => { ping: number; jitter: number; packetLoss: number; bitrate: number }
 }
 
 defineProps<Props>()

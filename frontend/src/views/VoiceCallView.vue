@@ -37,6 +37,7 @@
           :current-user-audio-level="audioLevel"
           :current-user-id="currentUserId"
           :current-user-is-sharing="isScreenSharing"
+          :get-participant-stats="getParticipantStats"
           class="m-4 max-h-[70vh]"
           @update:layout="screenShareLayout = $event"
           @toggle-user-grid="isUserGridVisible = !isUserGridVisible"
@@ -57,6 +58,7 @@
           :is-visible="true"
           :peer-connections="peerConnections"
           :current-user-audio-level="audioLevel"
+          :get-participant-stats="getParticipantStats"
           @mute-toggle="handleMuteToggle"
           @audio-level="handleAudioLevel"
         />
@@ -69,38 +71,23 @@
           v-model:model-value-muted="isMuted"
           v-model:model-value-deafened="isDeafened"
           v-model:model-value-screen-sharing="isScreenSharing"
-          v-model:model-value-debug-visible="appStore.isDebugVisible"
           :is-speaking="isSpeaking"
           @start-screen-share="$emit('request-screen-share')"
           @leave-room="$emit('leave-room')"
         />
       </div>
     </main>
-      
-      <!-- Debug Dashboard -->
-      <DebugDashboard
-        ref="debugDashboardRef"
-        v-model:model-value-visible="appStore.isDebugVisible"
-        hide-toggle-button
-        :users="props.users"
-        :peer-connections="peerConnections"
-        :get-connection-quality="getConnectionQuality"
-        :local-stream="localStream"
-        :local-screen-shares="localScreenShareDebugData"
-        :remote-screen-shares="remoteScreenShareDebugData"
-      />
   </div>
 </template>
 
  <script setup lang="ts">
 import { computed, ref, useTemplateRef, watch } from 'vue'
 import AudioControls from '@/components/AudioControls.vue'
-import DebugDashboard from '@/components/DebugDashboard.vue'
 import RoomHeader from '@/components/RoomHeader.vue'
 import ScreenShareArea from '@/components/ScreenShareArea.vue'
 import UserGrid from '@/components/UserGrid.vue'
 import { useLiveKit, useVoiceActivity } from '@/composables'
-import { useAppStore, useAudioSettingsStore, useCallStore, useUserStore } from '@/stores'
+import { useAudioSettingsStore, useCallStore, useUserStore } from '@/stores'
 import type { User, ScreenShareQuality } from '@/types'
 
 interface Props {
@@ -135,22 +122,12 @@ const emit = defineEmits<{
 // UI State (layout and display preferences)
 const isUserGridVisible = ref(true)
 const screenShareLayout = ref<'grid' | 'focus'>('focus')
-const debugDashboardRef = useTemplateRef<InstanceType<typeof DebugDashboard>>('debugDashboardRef')
 const audioControlsRef = useTemplateRef<InstanceType<typeof AudioControls>>('audioControlsRef')
-
-// Debug logging callback
-const onDebugLog = (message: string, level: 'info' | 'warning' | 'error' = 'info', userId?: string) => {
-  const dashboard = debugDashboardRef.value as unknown as { addLog?: (message: string, level: 'info' | 'warning' | 'error', userId?: string) => void } | null
-  if (dashboard?.addLog) {
-    dashboard.addLog(message, level, userId)
-  }
-}
 
 // Audio settings store
 const audioSettingsStore = useAudioSettingsStore()
 
 // Stores
-const appStore = useAppStore()
 const callStore = useCallStore()
 
 // Initialize LiveKit composable - destructure for template reactivity
@@ -169,6 +146,7 @@ const {
   handleAudioLevel,
   startScreenShare,
   getConnectionQuality,
+  getParticipantStats,
   applyMuteState,
   applyDeafenState,
   reinitializeAudioStream,
@@ -184,8 +162,7 @@ const {
   },
   onPingUpdate: (ping: number, quality: 'excellent' | 'good' | 'fair' | 'poor') => {
     emit('ping-update', ping, quality)
-  },
-  onDebugLog
+  }
 })
 
 // Voice Activity Detection for local user
@@ -306,7 +283,6 @@ const startScreenShareWithQuality = async (quality: string, shareAudio: boolean)
     }
   } catch (error) {
     console.error('Failed to start screen share:', error)
-    onDebugLog(`Failed to start screen share: ${(error as Error).message}`, 'error')
   }
 }
 

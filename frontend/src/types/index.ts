@@ -205,15 +205,14 @@ export interface BandwidthStats {
   download: number
 }
 
-// Enhanced WebRTC Statistics types
+// LiveKit Connection Statistics types
 export interface ConnectionStats {
-  packetsLost: number
+  ping: number
   jitter: number
-  roundTripTime: number
-  bandwidth: BandwidthStats
-  audioLevel: number
-  connectionState: string
-  timestamp: Date
+  packetLoss: number
+  bitrate: number
+  timestamp?: Date,
+  kind: string
 }
 
 export interface StatsHistory {

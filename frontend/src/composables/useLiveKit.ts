@@ -19,7 +19,7 @@ import { useAudioSettingsStore } from '@/stores/audioSettings'
 import { useCallStore } from '@/stores/call'
 import { getLiveKitAudioConstraints } from '@/services/livekit-audio-processors'
 import { getAudioWorkletProcessor } from '@/services/audio'
-import type { User, ScreenShareQuality } from '@/types'
+import type { User, ScreenShareQuality, ConnectionStats } from '@/types'
 import type { AudioWorkletProcessor } from '@/types/audio'
 
 export interface UseLiveKitOptions {
@@ -29,7 +29,6 @@ export interface UseLiveKitOptions {
   remoteStreamVolumes: Map<string, number>
   onVolumeChange: (userId: string, volume: number) => void
   onPingUpdate: (ping: number, quality: 'excellent' | 'good' | 'fair' | 'poor') => void
-  onDebugLog?: (message: string, level: 'info' | 'warning' | 'error', userId?: string) => void
 }
 
 export interface ScreenShareState {
@@ -79,13 +78,10 @@ export function useLiveKit(options: UseLiveKitOptions) {
   let pingInterval: ReturnType<typeof setInterval> | null = null
   const PING_INTERVAL = 3000
 
-  // Debug logging helper
-  const addDebugLog = (message: string, level: 'info' | 'warning' | 'error' = 'info', userId?: string) => {
-    if (options.onDebugLog) {
-      options.onDebugLog(message, level, userId)
-    }
-    console.log(`[LiveKit][${level.toUpperCase()}]${userId ? ' [' + userId + ']' : ''}: ${message}`)
-  }
+  // Stats tracking
+  const participantStats = ref<Map<string, ConnectionStats>>(new Map())
+  let statsInterval: ReturnType<typeof setInterval> | null = null
+  const STATS_INTERVAL = 2000 // Update every 2 seconds
 
   // Get current user ID
   const getCurrentUserId = (): string => {
@@ -95,6 +91,141 @@ export function useLiveKit(options: UseLiveKitOptions) {
       localStorage.setItem('orbital_user_id', userId)
     }
     return userId
+  }
+
+  // Update stats for all participants
+  const updateStats = async () => {
+    const stats = new Map<string, ConnectionStats>()
+    const currentUserId = getCurrentUserId()
+
+    // Get local stats
+    if (localAudioPublication.value?.track) {
+      try {
+        const trackStats = await localAudioPublication.value.track.getRTCStatsReport()
+        if (trackStats) {
+          const senderStats = Array.from(trackStats.values()).find(
+            (s: { type: string }) => s.type === 'outbound-rtp'
+          ) as unknown as {
+            jitter?: number
+            packetsLost?: number
+            packetsSent?: number
+            bytesSent?: number
+            timestamp?: number
+            roundTripTime?: number
+          }
+
+          if (senderStats) {
+            stats.set(currentUserId, {
+              ping: currentPing.value || 0,
+              jitter: (senderStats.jitter || 0) * 1000, // Convert to ms
+              packetLoss: senderStats.packetsLost
+                ? (senderStats.packetsLost / (senderStats.packetsSent || 1)) * 100
+                : 0,
+              bitrate: senderStats.bytesSent ? senderStats.bytesSent * 8 : 0
+            })
+          }
+        }
+      } catch (error) {
+        console.warn('Error getting local stats:', error)
+      }
+    }
+
+    // Get remote stats
+    for (const [userId, track] of remoteAudioTracks.value) {
+      try {
+        const trackStats = await track.getRTCStatsReport()
+        if (trackStats) {
+          const receiverStats = Array.from(trackStats.values()).find(
+            (s: { type: string }) => s.type === 'inbound-rtp'
+          ) as RTCInboundRtpStreamStats
+
+          if (receiverStats) {
+            const existing = stats.get(userId) || { ping: 0, jitter: 0, packetLoss: 0, bitrate: 0 }
+            stats.set(userId, {
+              ...existing,
+              jitter: (receiverStats.jitter || 0) * 1000,
+              packetLoss: receiverStats.packetsLost
+                ? (receiverStats.packetsLost / (receiverStats.packetsReceived || 1)) * 100
+                : 0,
+              bitrate: receiverStats.bytesReceived ? receiverStats.bytesReceived * 8 : 0,
+              kind: receiverStats.kind
+            })
+          }
+        }
+      } catch (error) {
+        console.warn(`Error getting stats for ${userId}:`, error)
+      }
+    }
+
+    participantStats.value = stats
+  }
+
+  // Start stats polling
+  const startStatsPolling = () => {
+    if (statsInterval) clearInterval(statsInterval)
+    void updateStats() // Initial update
+    statsInterval = setInterval(() => {
+      void updateStats()
+    }, STATS_INTERVAL)
+  }
+
+  // Stop stats polling
+  const stopStatsPolling = () => {
+    if (statsInterval) {
+      clearInterval(statsInterval)
+      statsInterval = null
+    }
+  }
+
+  // Get stats for a specific participant
+  const getParticipantStats = (userId: string): ConnectionStats => {
+    return (
+      participantStats.value.get(userId) || {
+        ping: 0,
+        jitter: 0,
+        packetLoss: 0,
+        bitrate: 0
+      }
+    )
+  }
+
+  // Get connection quality with real stats
+  const getConnectionQuality = (
+    userId: string
+  ): {
+    bitrate: number
+    packetLoss: number
+    jitter: number
+    quality: 'excellent' | 'good' | 'fair' | 'poor' | 'unknown'
+  } => {
+    const stats = participantStats.value.get(userId)
+
+    if (!stats) {
+      return {
+        bitrate: 0,
+        packetLoss: 0,
+        jitter: 0,
+        quality: 'unknown'
+      }
+    }
+
+    // Calculate quality based on stats
+    let quality: 'excellent' | 'good' | 'fair' | 'poor' | 'unknown' = 'good'
+
+    if (stats.packetLoss > 5 || stats.jitter > 100) {
+      quality = 'poor'
+    } else if (stats.packetLoss > 2 || stats.jitter > 50) {
+      quality = 'fair'
+    } else if (stats.packetLoss < 1 && stats.jitter < 30) {
+      quality = 'excellent'
+    }
+
+    return {
+      bitrate: stats.bitrate,
+      packetLoss: stats.packetLoss,
+      jitter: stats.jitter,
+      quality
+    }
   }
 
   // Dispose AudioWorklet processor
@@ -138,14 +269,14 @@ export function useLiveKit(options: UseLiveKitOptions) {
           const algorithm = audioSettingsStore.noiseSuppressionAlgorithm
           const requiresWorklet = audioSettingsStore.requiresAudioWorklet
 
-          addDebugLog(`Initializing audio track with algorithm: ${algorithm}`, 'info')
+          console.log(`[LiveKit][INFO]: Initializing audio track with algorithm: ${algorithm}`)
 
           // Get audio constraints based on algorithm
           const audioConstraints = getLiveKitAudioConstraints(algorithm)
 
           // Apply AudioWorklet processing BEFORE creating LiveKit track to avoid Proxy cloning issues
           if (requiresWorklet && (algorithm === 'rnnoise' || algorithm === 'speex')) {
-            addDebugLog(`Applying AudioWorklet processor for ${algorithm} before track creation`, 'info')
+            console.log(`[LiveKit][INFO]: Applying AudioWorklet processor for ${algorithm} before track creation`)
 
             disposeAudioWorkletProcessor()
             audioWorkletProcessor = getAudioWorkletProcessor(algorithm)
@@ -159,19 +290,19 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
                 // Process through AudioWorklet
                 const processedStream = await audioWorkletProcessor.processStream(rawStream)
-                addDebugLog(`AudioWorklet processor applied successfully`, 'info')
+                console.log(`[LiveKit][INFO]: AudioWorklet processor applied successfully`)
 
                 // Create LiveKit track from processed stream (no setProcessor needed)
                 const processedTrack = processedStream.getAudioTracks()[0]
                 if (processedTrack) {
                   const track = new LocalAudioTrack(processedTrack)
                   localAudioTrack.value = track
-                  addDebugLog('Audio track initialized successfully with AudioWorklet processing', 'info')
+                  console.log(`[LiveKit][INFO]: 'Audio track initialized successfully with AudioWorklet processing'}`)
                   return track
                 }
               } catch (error) {
                 console.error(`Failed to apply ${algorithm} AudioWorklet:`, error)
-                addDebugLog(`Failed to apply ${algorithm} processing: ${(error as Error).message}`, 'error')
+                console.error(`[LiveKit][ERROR]: Failed to apply ${algorithm} processing: ${(error as Error).message}`)
 
                 // Fallback to browser-native
                 audioSettingsStore.setWASMError(`Failed to load ${algorithm}: ${(error as Error).message}. Falling back to browser-native.`)
@@ -193,11 +324,11 @@ export function useLiveKit(options: UseLiveKitOptions) {
           })
 
           localAudioTrack.value = track
-          addDebugLog('Audio track initialized successfully', 'info')
+          console.log(`[LiveKit][INFO]: 'Audio track initialized successfully'}`)
           return track
         } catch (error) {
           console.error('Failed to initialize audio track:', error)
-          addDebugLog(`Failed to initialize audio: ${(error as Error).message}`, 'error')
+          console.error(`[LiveKit][ERROR]: Failed to initialize audio: ${(error as Error).message}`)
           return null
         }
       })()
@@ -212,7 +343,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
       isConnecting.value = true
       connectionError.value = null
 
-      addDebugLog(`Connecting to LiveKit room at ${url}`, 'info')
+      console.log(`[LiveKit][INFO]: Connecting to LiveKit room at ${url}`)
 
       // Create room with optimized options
       const lkRoom = new Room({
@@ -234,7 +365,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
       isConnected.value = true
       isConnecting.value = false
 
-      addDebugLog('Connected to LiveKit room successfully', 'info')
+      console.log(`[LiveKit][INFO]: 'Connected to LiveKit room successfully'}`)
 
       // Initialize presence tracking
       await presenceStore.initializePresence(lkRoom)
@@ -251,7 +382,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     } catch (error) {
       console.error('Failed to connect to LiveKit room:', error)
       connectionError.value = (error as Error).message
-      addDebugLog(`Connection failed: ${(error as Error).message}`, 'error')
+      console.error(`[LiveKit][ERROR]: Connection failed: ${(error as Error).message}`)
       isConnecting.value = false
       return false
     }
@@ -261,7 +392,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
   const setupRoomEventListeners = (lkRoom: Room) => {
     // Remote participant events
     lkRoom.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
-      addDebugLog(`Participant connected: ${participant.identity}`, 'info')
+      console.log(`[LiveKit][INFO]: Participant connected: ${participant.identity}`)
       remoteParticipants.value.set(participant.identity, participant)
       
       // Subscribe to participant's tracks
@@ -273,7 +404,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     })
 
     lkRoom.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
-      addDebugLog(`Participant disconnected: ${participant.identity}`, 'info')
+      console.log(`[LiveKit][INFO]: Participant disconnected: ${participant.identity}`)
       remoteParticipants.value.delete(participant.identity)
       remoteAudioTracks.value.delete(participant.identity)
       remoteScreenTracks.value.delete(participant.identity)
@@ -283,21 +414,21 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
     // Track events
     lkRoom.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
-      addDebugLog(`Track subscribed: ${track.kind} from ${participant.identity}`, 'info')
+      console.log(`[LiveKit][INFO]: Track subscribed: ${track.kind} from ${participant.identity}`)
       handleRemoteTrack(track, participant)
     })
 
     lkRoom.on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
-      addDebugLog(`Track unsubscribed: ${track.kind} from ${participant.identity}`, 'info')
+      console.log(`[LiveKit][INFO]: Track unsubscribed: ${track.kind} from ${participant.identity}`)
       handleTrackUnsubscribed(track, participant)
     })
 
     lkRoom.on(RoomEvent.TrackMuted, (publication, participant) => {
-      addDebugLog(`Track muted: ${publication.trackSid} from ${participant.identity}`, 'info')
+      console.log(`[LiveKit][INFO]: Track muted: ${publication.trackSid} from ${participant.identity}`)
     })
 
     lkRoom.on(RoomEvent.TrackUnmuted, (publication, participant) => {
-      addDebugLog(`Track unmuted: ${publication.trackSid} from ${participant.identity}`, 'info')
+      console.log(`[LiveKit][INFO]: Track unmuted: ${publication.trackSid} from ${participant.identity}`)
     })
 
     // Local track events for screen sharing
@@ -306,7 +437,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
       if (!track) return
 
       if (track.source === Track.Source.ScreenShare) {
-        addDebugLog(`Local screen share track published: ${publication.trackSid}`, 'info')
+        console.log(`[LiveKit][INFO]: Local screen share track published: ${publication.trackSid}`)
         localScreenVideoPublication.value = publication
         localScreenVideoTrack.value = track as LocalVideoTrack
         isScreenSharing.value = true
@@ -320,11 +451,11 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
         // Listen for browser-native stop sharing (via the "Stop sharing" button)
         track.on('ended', () => {
-          addDebugLog('Screen share track ended (browser UI)', 'info')
+          console.log(`[LiveKit][INFO]: 'Screen share track ended (browser UI)'}`)
           void stopScreenShare()
         })
       } else if (track.source === Track.Source.ScreenShareAudio) {
-        addDebugLog(`Local screen share audio track published: ${publication.trackSid}`, 'info')
+        console.log(`[LiveKit][INFO]: Local screen share audio track published: ${publication.trackSid}`)
         localScreenAudioPublication.value = publication
         localScreenAudioTrack.value = track as LocalAudioTrack
       }
@@ -332,7 +463,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
     lkRoom.on(RoomEvent.LocalTrackUnpublished, (publication) => {
       if (publication.source === Track.Source.ScreenShare) {
-        addDebugLog(`Local screen share track unpublished: ${publication.trackSid}`, 'info')
+        console.log(`[LiveKit][INFO]: Local screen share track unpublished: ${publication.trackSid}`)
         localScreenVideoPublication.value = null
         localScreenVideoTrack.value = null
         isScreenSharing.value = false
@@ -345,7 +476,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
           quality: '1080p30'
         })
       } else if (publication.source === Track.Source.ScreenShareAudio) {
-        addDebugLog(`Local screen share audio track unpublished: ${publication.trackSid}`, 'info')
+        console.log(`[LiveKit][INFO]: Local screen share audio track unpublished: ${publication.trackSid}`)
         localScreenAudioPublication.value = null
         localScreenAudioTrack.value = null
       }
@@ -353,17 +484,17 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
     // Connection state events
     lkRoom.on(RoomEvent.Disconnected, (reason) => {
-      addDebugLog(`Disconnected from room: ${reason || 'unknown reason'}`, 'warning')
+      console.warn(`[LiveKit][WARN]: Disconnected from room: ${reason || 'unknown reason'}`)
       isConnected.value = false
       cleanup()
     })
 
     lkRoom.on(RoomEvent.Reconnecting, () => {
-      addDebugLog('Reconnecting to room...', 'warning')
+      console.warn(`[LiveKit][WARN]: 'Reconnecting to room...'}`)
     })
 
     lkRoom.on(RoomEvent.Reconnected, () => {
-      addDebugLog('Reconnected to room', 'info')
+      console.log(`[LiveKit][INFO]: 'Reconnected to room'}`)
     })
   }
 
@@ -379,7 +510,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
       const volume = options.remoteStreamVolumes.get(participantId) ?? 80
       audioTrack.setVolume(volume / 100)
 
-      addDebugLog(`Audio track received from ${participantId}`, 'info', participantId)
+      console.log(`[LiveKit][INFO]: Audio track received from ${participantId}`)
     } else if (track.kind === Track.Kind.Video) {
       // Check if it's a screen share (source === 'screen_share')
       const videoTrack = track
@@ -393,7 +524,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
         })
         screenShareVersion.value++
         
-        addDebugLog(`Screen share track received from ${participantId}`, 'info', participantId)
+        console.log(`[LiveKit][INFO]: Screen share track received from ${participantId}`)
       }
     }
   }
@@ -427,18 +558,18 @@ export function useLiveKit(options: UseLiveKitOptions) {
   // Publish local audio track
   const publishAudioTrack = async (): Promise<void> => {
     if (!room.value || !localAudioTrack.value) {
-      addDebugLog('Cannot publish audio: room or track not ready', 'warning')
+      console.warn(`[LiveKit][WARN]: 'Cannot publish audio: room or track not ready'}`)
       return
     }
 
     try {
-      addDebugLog('Publishing audio track...', 'info')
+      console.log(`[LiveKit][INFO]: 'Publishing audio track...'}`)
       const publication = await room.value.localParticipant.publishTrack(localAudioTrack.value)
       localAudioPublication.value = publication
-      addDebugLog('Audio track published successfully', 'info')
+      console.log(`[LiveKit][INFO]: 'Audio track published successfully'}`)
     } catch (error) {
       console.error('Failed to publish audio track:', error)
-      addDebugLog(`Failed to publish audio: ${(error as Error).message}`, 'error')
+      console.error(`[LiveKit][ERROR]: Failed to publish audio: ${(error as Error).message}`)
     }
   }
 
@@ -451,7 +582,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     try {
       await room.value.localParticipant.unpublishTrack(localAudioPublication.value.trackSid)
       localAudioPublication.value = null
-      addDebugLog('Audio track unpublished', 'info')
+      console.log(`[LiveKit][INFO]: 'Audio track unpublished'}`)
     } catch (error) {
       console.error('Failed to unpublish audio track:', error)
     }
@@ -460,11 +591,11 @@ export function useLiveKit(options: UseLiveKitOptions) {
   // Initialize LiveKit connection (fetch token and connect)
   const initializeLiveKit = async (): Promise<boolean> => {
     try {
-      addDebugLog('Initializing LiveKit...', 'info')
+      console.log(`[LiveKit][INFO]: 'Initializing LiveKit...'}`)
 
       // Fetch token from backend
       const response = await apiService.getLiveKitToken(options.roomId)
-      addDebugLog(`Token received, connecting to ${response.room_url}`, 'info')
+      console.log(`[LiveKit][INFO]: Token received, connecting to ${response.room_url}`)
 
       // Initialize audio track first
       await initializeAudioTrack()
@@ -475,12 +606,14 @@ export function useLiveKit(options: UseLiveKitOptions) {
       if (connected) {
         // Start ping interval
         startPingInterval()
+        // Start stats polling
+        startStatsPolling()
       }
 
       return connected
     } catch (error) {
       console.error('Failed to initialize LiveKit:', error)
-      addDebugLog(`Initialization failed: ${(error as Error).message}`, 'error')
+      console.error(`[LiveKit][ERROR]: Initialization failed: ${(error as Error).message}`)
       return false
     }
   }
@@ -493,7 +626,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
     try {
       await room.value.localParticipant.setMicrophoneEnabled(!muted)
-      addDebugLog(`Microphone ${muted ? 'muted' : 'unmuted'}`, 'info')
+      console.log(`[LiveKit][INFO]: Microphone ${muted ? 'muted' : 'unmuted'}`)
     } catch (error) {
       console.error('Failed to apply mute state:', error)
     }
@@ -505,7 +638,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     remoteAudioTracks.value.forEach((track) => {
       track.setMuted(deafened)
     })
-    addDebugLog(`Deafen ${deafened ? 'enabled' : 'disabled'}`, 'info')
+    console.log(`[LiveKit][INFO]: Deafen ${deafened ? 'enabled' : 'disabled'}`)
   }
 
   // Handle remote user mute toggle (from UI)
@@ -531,7 +664,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     }
 
     try {
-      addDebugLog(`Starting screen share: ${quality}${audio ? ' with audio' : ''}`, 'info')
+      console.log(`[LiveKit][INFO]: Starting screen share: ${quality}${audio ? ' with audio' : ''}`)
 
       // Use LiveKit's recommended API instead of manual getDisplayMedia
       // This properly handles track management without interfering with existing audio
@@ -544,10 +677,10 @@ export function useLiveKit(options: UseLiveKitOptions) {
       // We update state optimistically, but the real state is managed by events
       screenShareQuality.value = quality
 
-      addDebugLog('Screen sharing started successfully', 'info')
+      console.log(`[LiveKit][INFO]: 'Screen sharing started successfully'}`)
     } catch (error) {
       console.error('Failed to start screen share:', error)
-      addDebugLog(`Screen share failed: ${(error as Error).message}`, 'error')
+      console.error(`[LiveKit][ERROR]: Screen share failed: ${(error as Error).message}`)
       throw error
     }
   }
@@ -559,7 +692,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     }
 
     try {
-      addDebugLog('Stopping screen share...', 'info')
+      console.log(`[LiveKit][INFO]: 'Stopping screen share...'}`)
 
       // Use LiveKit's recommended API to disable screen sharing
       // This properly handles track cleanup without affecting existing audio
@@ -567,10 +700,10 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
       // The actual state cleanup is handled in LocalTrackUnpublished event listener
 
-      addDebugLog('Screen sharing stopped', 'info')
+      console.log(`[LiveKit][INFO]: 'Screen sharing stopped'}`)
     } catch (error) {
       console.error('Error stopping screen share:', error)
-      addDebugLog(`Error stopping screen share: ${(error as Error).message}`, 'error')
+      console.error(`[LiveKit][ERROR]: Error stopping screen share: ${(error as Error).message}`)
     }
   }
 
@@ -593,7 +726,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
   // Reinitialize audio stream (when algorithm changes)
   const reinitializeAudioStream = async (): Promise<void> => {
-    addDebugLog('Reinitializing audio stream...', 'info')
+    console.log(`[LiveKit][INFO]: 'Reinitializing audio stream...'}`)
 
     // Unpublish current track
     await unpublishAudioTrack()
@@ -614,7 +747,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     await initializeAudioTrack()
     await publishAudioTrack()
 
-    addDebugLog('Audio stream reinitialized', 'info')
+    console.log(`[LiveKit][INFO]: 'Audio stream reinitialized'}`)
   }
 
   // Start ping interval
@@ -636,24 +769,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
     if (pingInterval) {
       clearInterval(pingInterval)
       pingInterval = null
-    }
-  }
-
-  // Get connection quality (for compatibility with useWebRTC interface)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const getConnectionQuality = (userId: string): {
-    bitrate: number
-    packetLoss: number
-    jitter: number
-    quality: 'excellent' | 'good' | 'fair' | 'poor' | 'unknown'
-  } => {
-    // LiveKit doesn't expose per-user connection stats in the same way
-    // Return placeholder data for compatibility
-    return {
-      bitrate: 0,
-      packetLoss: 0,
-      jitter: 0,
-      quality: 'unknown'
     }
   }
 
@@ -763,9 +878,10 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
   // Cleanup function
   const cleanup = () => {
-    addDebugLog('Cleaning up LiveKit...', 'info')
+    console.log(`[LiveKit][INFO]: 'Cleaning up LiveKit...'}`)
 
     stopPingInterval()
+    stopStatsPolling()
 
     // Stop screen share if active (using LiveKit API)
     if (isScreenSharing.value && room.value) {
@@ -811,7 +927,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     localParticipant.value = null
     localStreamPromise = null
 
-    addDebugLog('LiveKit cleanup complete', 'info')
+    console.log(`[LiveKit][INFO]: 'LiveKit cleanup complete'}`)
   }
 
   // Lifecycle hooks
@@ -857,7 +973,8 @@ export function useLiveKit(options: UseLiveKitOptions) {
     peerConnectionStates: ref(new Map()), // Empty map for compatibility
     peerConnectionRetries: ref(new Map()), // Empty map for compatibility
     currentPing,
-    
+    participantStats,
+
     // Methods
     initializeLiveKit,
     ensureLocalStream,
@@ -868,8 +985,8 @@ export function useLiveKit(options: UseLiveKitOptions) {
     startScreenShare,
     stopScreenShare,
     getConnectionQuality,
+    getParticipantStats,
     reinitializeAudioStream,
-    cleanup,
-    addDebugLog,
+    cleanup
   }
 }

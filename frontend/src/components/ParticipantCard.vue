@@ -1,13 +1,59 @@
 <template>
   <div 
-    class="participant-card relative rounded-lg overflow-hidden cursor-pointer transition-all duration-200"
+    class="participant-card overflow-visible relative rounded-lg cursor-pointer transition-all duration-200"
     :class="[
       isScreenSharing && screenShareStream ? 'aspect-video bg-gray-900' : 'p-3 border-2',
       isCurrentUser && !isScreenSharing ? 'bg-indigo-900/30 border-indigo-500' : !isScreenSharing ? 'bg-gray-800 border-gray-600' : ''
     ]"
     @contextmenu="handleContextMenu"
     @click="handleCardClick"
+    @mouseenter="showStats = true"
+    @mouseleave="showStats = false"
   >
+    <!-- Stats Tooltip -->
+    <Transition name="fade">
+      <div
+        v-if="showStats && hasStats"
+        class="absolute z-50 bg-gray-900/95 backdrop-blur-sm border border-gray-700 rounded-lg p-3 min-w-44 shadow-xl"
+      >
+        <div class="text-xs font-medium text-gray-300 mb-2 border-b border-gray-700 pb-1">
+          Connection Stats
+        </div>
+
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs">
+            <span class="text-gray-400">Ping:</span>
+
+            <span class="text-green-400">{{ formatNumber(stats.ping) }}ms</span>
+          </div>
+
+          <div class="flex justify-between text-xs">
+            <span class="text-gray-400">Jitter:</span>
+
+            <span class="text-blue-400">{{ formatNumber(stats.jitter) }}ms</span>
+          </div>
+
+          <div class="flex justify-between text-xs">
+            <span class="text-gray-400">Packet Loss:</span>
+
+            <span :class="getPacketLossClass(stats.packetLoss)">{{ formatNumber(stats.packetLoss) }}%</span>
+          </div>
+
+          <div class="flex justify-between text-xs">
+            <span class="text-gray-400">Bitrate:</span>
+
+            <span class="text-purple-400">{{ formatBitrate(stats.bitrate) }}</span>
+          </div>
+
+          <div class="flex justify-between text-xs">
+            <span class="text-gray-400">Kind:</span>
+
+            <span class="text-purple-400">{{ stats.kind }}</span>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Screen Share Mode: Video Preview with floating info -->
     <template v-if="isScreenSharing && screenShareStream">
       <video
@@ -54,18 +100,6 @@
         </div>
       </div>
       
-      <!-- Connection state badge -->
-      <div 
-        v-if="connectionState && connectionState !== 'connected'"
-        class="absolute top-2 right-2 px-2 py-0.5 text-xs rounded-full bg-yellow-500/80 text-white"
-      >
-        <span v-if="connectionState === 'connecting'">Connecting...</span>
-
-        <span v-else-if="connectionRetryCount > 0">Retry {{ connectionRetryCount }}</span>
-
-        <span v-else>{{ connectionState }}</span>
-      </div>
-      
       <!-- Screen sharing badge -->
       <div class="absolute bottom-2 right-2 w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center">
         <PhMonitorPlay class="w-3 h-3 text-white" />
@@ -96,14 +130,6 @@
               >
                 You
               </span>
-
-              <span v-else-if="connectionState === 'connected'" class="text-green-400">Connected</span>
-
-              <span v-else-if="connectionState === 'connecting'" class="text-yellow-400">Connecting...</span>
-
-              <span v-else-if="connectionRetryCount > 0" class="text-yellow-400">Reconnecting ({{ connectionRetryCount }})...</span>
-
-              <span v-else class="text-gray-400">{{ connectionState || 'Unknown' }}</span>
             </div>
           </div>
         </div>
@@ -149,21 +175,6 @@
         :title="'Sharing screen'"
       >
         <PhMonitorPlay class="w-3 h-3 text-white" />
-      </div>
-      
-      <!-- Connection Info Indicator -->
-      <div
-        v-if="connectionDisplay && (connectionState === 'connected' || connectionState === 'answer-received' || connectionState === 'handshake-complete')"
-        class="absolute top-2 left-2 w-5 h-5 rounded-full flex items-center justify-center cursor-help"
-        :class="{
-          'bg-blue-500': connectionDisplay.icon === 'relay',
-          'bg-yellow-500': connectionDisplay.icon === 'stun',
-          'bg-green-500': connectionDisplay.icon === 'direct',
-          'bg-gray-500': connectionDisplay.icon === 'unknown'
-        }"
-        :title="connectionDisplay.tooltip"
-      >
-        <PhInfo class="w-3 h-3 text-white" />
       </div>
     </template>
     
@@ -231,40 +242,35 @@ import {
   PhMicrophone,
   PhMicrophoneSlash,
   PhSpeakerHigh,
-  PhMonitorPlay,
-  PhInfo
+  PhMonitorPlay
 } from '@phosphor-icons/vue'
 import { useRoomStore } from '@/stores'
-import type { ICEConnectionType, ScreenShareQuality } from '@/types'
+import type { ScreenShareQuality, ConnectionStats } from '@/types'
 
 interface Props {
   userId: string
   userNickname: string
   audioStream: MediaStream | null
   screenShareStream: MediaStream | null
-  connectionState?: string
-  connectionRetryCount?: number
   initialVolume?: number
   isDeafened?: boolean
   isScreenSharing?: boolean
   screenShareQuality?: ScreenShareQuality
-  peerConnection?: RTCPeerConnection
   isCurrentUser?: boolean
   externalAudioLevel?: number
+  stats?: ConnectionStats
   // Mode control
   forceAudioMode?: boolean // If true, always show audio mode even when screen sharing
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  connectionState: 'disconnected',
-  connectionRetryCount: 0,
   initialVolume: 80,
   isDeafened: false,
   isScreenSharing: false,
   screenShareQuality: '1080p30',
-  peerConnection: undefined,
   isCurrentUser: false,
   externalAudioLevel: 0,
+  stats: () => ({ ping: 0, jitter: 0, packetLoss: 0, bitrate: 0 }),
   forceAudioMode: false
 })
 
@@ -289,10 +295,8 @@ const audioContext = ref<AudioContext | null>(null)
 const analyser = ref<AnalyserNode | null>(null)
 const analysisIntervalId = ref<number | null>(null)
 const showMenu = ref(false)
+const showStats = ref(false)
 const menuPosition = { x: 0, y: 0 }
-const connectionInfo = ref<ICEConnectionType | null>(null)
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const connectionInfoInterval = ref<number | null>(null) // Preserved for future use
 
 // Computed
 const audioLevel = computed(() => {
@@ -304,62 +308,28 @@ const audioLevel = computed(() => {
 
 const isSpeaking = computed(() => audioLevel.value > 0.1)
 
-const connectionDisplay = computed(() => {
-  if (!connectionInfo.value) {
-    return {
-      icon: 'unknown',
-      label: 'Detecting...',
-      tooltip: 'Detecting connection type...'
-    }
-  }
-  
-  const info = connectionInfo.value
-  let icon = 'direct'
-  let label = 'Direct P2P'
-  let tooltip = 'Direct peer-to-peer connection'
-  
-  switch (info.type) {
-    case 'relay':
-      icon = 'relay'
-      label = 'TURN Relay'
-      tooltip = `Connected via TURN relay server (${info.relayProtocol?.toUpperCase()})`
-      break
-    case 'srflx':
-      icon = 'stun'
-      label = 'STUN (NAT)'
-      tooltip = 'Connected via STUN server (traversing NAT)'
-      break
-    case 'host':
-      icon = 'direct'
-      label = 'Direct P2P'
-      tooltip = 'Direct peer-to-peer connection'
-      break
-    case 'unknown':
-    default:
-      icon = 'unknown'
-      label = 'Connecting...'
-      tooltip = 'Connection type not yet determined'
-  }
-  
-  return { icon, label, tooltip }
+const hasStats = computed(() => {
+  const s = props.stats
+  return s && (s.ping > 0 || s.jitter > 0 || s.packetLoss > 0 || s.bitrate > 0)
 })
 
 // Methods
-// ICE connection analysis removed - LiveKit handles connections internally
-// eslint-disable-next-line @typescript-eslint/require-await, @typescript-eslint/no-unused-vars
-const updateConnectionInfo = async () => {
-  // With LiveKit, ICE connections are managed by the SFU
-  connectionInfo.value = null
+const formatNumber = (value: number): string => {
+  if (value === 0) return '–'
+  return value.toFixed(1)
 }
 
-// eslint-disable-next-line @typescript-eslint/require-await, @typescript-eslint/no-unused-vars
-const startConnectionInfoPolling = async () => {
-  // No-op - LiveKit manages connections internally
+const formatBitrate = (value: number): string => {
+  if (value === 0) return '–'
+  if (value < 1000) return `${value.toFixed(0)} bps`
+  if (value < 1000000) return `${(value / 1000).toFixed(1)} kbps`
+  return `${(value / 1000000).toFixed(2)} mbps`
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const stopConnectionInfoPolling = () => {
-  // No-op - LiveKit manages connections internally
+const getPacketLossClass = (value: number): string => {
+  if (value === 0) return 'text-green-400'
+  if (value < 1) return 'text-yellow-400'
+  return 'text-red-400'
 }
 
 const updateVolume = (newVolume: number) => {
@@ -544,13 +514,6 @@ watch(() => props.isDeafened, (newDeafened) => {
   }
 })
 
-// Connection state polling removed - LiveKit manages connections internally
-watch(() => props.connectionState, (newState) => {
-  if (newState !== 'connected') {
-    connectionInfo.value = null
-  }
-})
-
 // Event handlers
 const handleKeydown = (event: KeyboardEvent) => {
   if (event.key === 'Escape') {
@@ -579,16 +542,12 @@ onMounted(() => {
     }, 50)
   })
 
-  // Connection polling removed - LiveKit manages connections internally
-
   document.addEventListener('keydown', handleKeydown)
   document.addEventListener('click', handleDocumentClick)
 })
 
 onUnmounted(() => {
   cleanupAudioAnalysis()
-
-  // Connection polling removed - LiveKit manages connections internally
 
   document.removeEventListener('keydown', handleKeydown)
   document.removeEventListener('click', handleDocumentClick)
@@ -617,5 +576,15 @@ onUnmounted(() => {
   cursor: pointer;
   border-radius: 50%;
   border: none;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>

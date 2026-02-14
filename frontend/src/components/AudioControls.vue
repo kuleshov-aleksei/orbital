@@ -23,27 +23,13 @@
       >
         <PhSignOut class="w-5 h-5" />
       </button>
-
-      <!-- Debug -->
-      <button
-        type="button"
-        :class="[
-          'control-button',
-          modelValueDebugVisible
-            ? 'bg-red-600 hover:bg-red-700'
-            : 'bg-gray-700 hover:bg-gray-600'
-        ]"
-        @click="toggleDebug"
-      >
-        <PhBug :class="['w-5 h-5', modelValueDebugVisible && 'animate-pulse']" />
-      </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, useTemplateRef } from 'vue'
-import { PhSignOut, PhBug } from '@phosphor-icons/vue'
+import { PhSignOut } from '@phosphor-icons/vue'
 import MicMuteButton from '@/components/MicMuteButton.vue'
 import AudioDeafenButton from '@/components/AudioDeafenButton.vue'
 import ScreenShareButton from '@/components/ScreenShareButton.vue'
@@ -53,7 +39,6 @@ interface Props {
   modelValueMuted?: boolean
   modelValueDeafened?: boolean
   modelValueScreenSharing?: boolean
-  modelValueDebugVisible?: boolean
   isSpeaking?: boolean
 }
 
@@ -61,7 +46,6 @@ const props = withDefaults(defineProps<Props>(), {
   modelValueMuted: false,
   modelValueDeafened: false,
   modelValueScreenSharing: false,
-  modelValueDebugVisible: false,
   isSpeaking: false
 })
 
@@ -69,7 +53,6 @@ const emit = defineEmits<{
   'update:modelValueMuted': [value: boolean]
   'update:modelValueDeafened': [value: boolean]
   'update:modelValueScreenSharing': [value: boolean]
-  'update:modelValueDebugVisible': [value: boolean]
   'start-screen-share': []
   'leave-room': []
 }>()
@@ -92,11 +75,6 @@ const isScreenSharing = computed({
   get: () => props.modelValueScreenSharing,
   set: (value) => emit('update:modelValueScreenSharing', value)
 })
-
-// Methods
-const toggleDebug = () => {
-  emit('update:modelValueDebugVisible', !props.modelValueDebugVisible)
-}
 
 // Confirm screen share start (called by parent after quality selection)
 const confirmStartScreenShare = async (quality: ScreenShareQuality, hasAudio: boolean) => {

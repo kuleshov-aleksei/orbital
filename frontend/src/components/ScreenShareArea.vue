@@ -28,15 +28,13 @@
             :user-nickname="participant.userNickname"
             :audio-stream="participant.audioStream"
             :screen-share-stream="participant.screenShareStream"
-            :connection-state="participant.connectionState"
-            :connection-retry-count="participant.connectionRetryCount"
             :initial-volume="participant.initialVolume"
             :is-deafened="participant.isDeafened"
             :is-screen-sharing="participant.isScreenSharing"
             :screen-share-quality="participant.screenShareQuality"
-            :peer-connection="participant.peerConnection"
             :is-current-user="participant.isCurrentUser"
             :external-audio-level="participant.externalAudioLevel"
+            :stats="participant.stats"
             :force-audio-mode="(participant.userId !== focusedShare?.userId && participant.userId + '-self' !== focusedShare?.userId) && !participant.isScreenSharing"
             @card-click="handleParticipantClick(participant.userId)"
             @mute-toggle="$emit('mute-toggle', $event)"
@@ -96,15 +94,13 @@ interface ParticipantData {
   userNickname: string
   audioStream: MediaStream | null
   screenShareStream: MediaStream | null
-  connectionState?: string
-  connectionRetryCount?: number
   initialVolume?: number
   isDeafened?: boolean
   isScreenSharing?: boolean
   screenShareQuality?: ScreenShareQuality
-  peerConnection?: RTCPeerConnection
   isCurrentUser?: boolean
   externalAudioLevel?: number
+  stats?: { ping: number; jitter: number; packetLoss: number; bitrate: number }
 }
 
 interface Props {
@@ -122,6 +118,7 @@ interface Props {
   currentUserAudioLevel?: number
   currentUserId: string
   currentUserIsSharing?: boolean
+  getParticipantStats?: (userId: string) => { ping: number; jitter: number; packetLoss: number; bitrate: number }
 }
 
 const props = defineProps<Props>()
@@ -163,31 +160,29 @@ const allParticipants = computed((): ParticipantData[] => {
     // Look for screen share by user id - for current user also check for '-self' suffix (self-view)
     let screenShare = props.screenShares.find(s => s.userId === user.id)
     const isCurrentUser = user.id === props.currentUserId
-    
+
     // For current user, also check for self-view (userId + '-self')
     if (isCurrentUser && !screenShare) {
       screenShare = props.screenShares.find(s => s.userId === user.id + '-self')
     }
-    
+
     // For current user, use currentUserIsSharing prop; for others, use userScreenShareStates
-    const isScreenSharing = isCurrentUser 
+    const isScreenSharing = isCurrentUser
       ? (props.currentUserIsSharing || false)
       : (props.userScreenShareStates.get(user.id)?.isSharing || false)
-    
+
     return {
       userId: user.id,
       userNickname: user.nickname || 'Unknown',
       audioStream: props.remoteStreams.get(user.id) || null,
       screenShareStream: screenShare?.stream || null,
-      connectionState: props.peerConnectionStates.get(user.id),
-      connectionRetryCount: props.peerConnectionRetries.get(user.id) || 0,
       initialVolume: props.remoteStreamVolumes.get(user.id) || 80,
       isDeafened: props.isDeafened,
       isScreenSharing,
       screenShareQuality: props.userScreenShareStates.get(user.id)?.quality,
-      peerConnection: props.peerConnections.get(user.id),
       isCurrentUser,
-      externalAudioLevel: isCurrentUser ? props.currentUserAudioLevel : undefined
+      externalAudioLevel: isCurrentUser ? props.currentUserAudioLevel : undefined,
+      stats: props.getParticipantStats?.(user.id)
     }
   })
 })
