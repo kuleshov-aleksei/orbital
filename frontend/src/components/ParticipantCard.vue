@@ -41,7 +41,7 @@
         <div class="flex items-center gap-2">
           <div class="flex-1 bg-black/50 rounded-full h-1.5 overflow-hidden">
             <div
-              class="bg-green-400 h-full transition-all duration-150 ease-out"
+              class="bg-green-400 h-full"
               :style="{ width: (audioLevel * 100) + '%' }"
             />
           </div>
@@ -129,7 +129,7 @@
         
         <div class="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
           <div
-            class="bg-green-400 h-full transition-all duration-150 ease-out"
+            class="bg-green-400 h-full"
             :style="{ width: (audioLevel * 100) + '%' }"
           />
         </div>

@@ -64,7 +64,7 @@
 
       <div class="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
         <div
-          class="bg-green-400 h-full transition-all duration-150 ease-out"
+          class="bg-green-400 h-full"
           :style="{ width: (audioLevel * 100) + '%' }"
         />
       </div>
@@ -208,22 +208,22 @@
      externalAudioLevel: 0
    })
 
- const emit = defineEmits<{
-  'mute-toggle': [userId: string, isMuted: boolean]
-  'audio-level': [userId: string, level: number, isSpeaking: boolean]
- }>()
+  const emit = defineEmits<{
+    'mute-toggle': [userId: string, isMuted: boolean]
+    'audio-level': [userId: string, level: number, isSpeaking: boolean]
+  }>()
 
- // Initialize RoomStore for volume management
- const roomStore = useRoomStore()
+  // Initialize RoomStore for volume management
+  const roomStore = useRoomStore()
 
- // Reactive state
- const audioElement = useTemplateRef<HTMLAudioElement>('audioElement')
- const volume = computed(() => roomStore.getUserVolume(props.userId))
- const isMuted = ref(false)
- const analyzedAudioLevel = ref(0)
- const audioContext = ref<AudioContext | null>(null)
- const analyser = ref<AnalyserNode | null>(null)
-  const animationId = ref<number | null>(null)
+  // Reactive state
+  const audioElement = useTemplateRef<HTMLAudioElement>('audioElement')
+  const volume = computed(() => roomStore.getUserVolume(props.userId))
+  const isMuted = ref(false)
+  const analyzedAudioLevel = ref(0)
+  const audioContext = ref<AudioContext | null>(null)
+  const analyser = ref<AnalyserNode | null>(null)
+  const analysisIntervalId = ref<number | null>(null)
   const showMenu = ref(false)
   const menuPosition = { x: 0, y: 0 }
   const connectionInfo = ref<ICEConnectionType | null>(null)
@@ -349,68 +349,84 @@
    emit('mute-toggle', props.userId, isMuted.value)
  }
 
- // Analyze audio level
- const analyzeAudioLevel = () => {
-   if (!analyser.value) return
+  // Setup audio analysis using setInterval for 10fps updates
+  const setupAudioAnalysis = () => {
+    if (!props.stream || !audioElement.value) return
 
-   const dataArray = new Uint8Array(analyser.value.frequencyBinCount)
-   analyser.value.getByteFrequencyData(dataArray)
+    // Clean up any existing analysis first
+    cleanupAudioAnalysis()
 
-   // Calculate average volume from frequency data
-   let sum = 0
-   for (let i = 0; i < dataArray.length; i++) {
-     sum += dataArray[i]
-   }
-   const average = sum / dataArray.length
-   const normalizedLevel = average / 255 // Normalize to 0-1
+    try {
+      // Create Web Audio API context
+      audioContext.value = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
+      
+      const source = audioContext.value.createMediaStreamSource(props.stream)
+      analyser.value = audioContext.value.createAnalyser()
+      analyser.value.fftSize = 256
+      
+      source.connect(analyser.value)
+      
+      // Use setInterval instead of RAF for 10fps updates (100ms)
+      analysisIntervalId.value = window.setInterval(() => {
+        if (!analyser.value) return
 
-   analyzedAudioLevel.value = normalizedLevel
- }
+        const dataArray = new Uint8Array(analyser.value.frequencyBinCount)
+        analyser.value.getByteFrequencyData(dataArray)
 
-  // Animation loop for audio level visualization
-  const animate = () => {
-    analyzeAudioLevel()
-    // Emit audio level data to parent for icon animation
-    emit('audio-level', props.userId, audioLevel.value, isSpeaking.value)
-    
-    // Throttle to ~10fps (100ms intervals) instead of 60fps
-    setTimeout(() => {
-      animationId.value = requestAnimationFrame(animate)
-    }, 100)
+        // Calculate average volume from frequency data
+        let sum = 0
+        for (let i = 0; i < dataArray.length; i++) {
+          sum += dataArray[i]
+        }
+        const average = sum / dataArray.length
+        analyzedAudioLevel.value = average / 255 // Normalize to 0-1
+
+        // Emit audio level data to parent for icon animation
+        emit('audio-level', props.userId, audioLevel.value, isSpeaking.value)
+      }, 100)
+    } catch (error) {
+      console.error('Error setting up audio analysis:', error)
+    }
   }
 
- // Setup audio analysis
- const setupAudioAnalysis = () => {
-   if (!props.stream || !audioElement.value) return
+  const cleanupAudioAnalysis = () => {
+    if (analysisIntervalId.value) {
+      clearInterval(analysisIntervalId.value)
+      analysisIntervalId.value = null
+    }
 
-   try {
-     // Create Web Audio API context
-     audioContext.value = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
-     
-     const source = audioContext.value.createMediaStreamSource(props.stream)
-     analyser.value = audioContext.value.createAnalyser()
-     analyser.value.fftSize = 256
-     
-     source.connect(analyser.value)
-     
-     // Start animation loop
-     animate()
-   } catch (error) {
-     console.error('Error setting up audio analysis:', error)
+    if (analyser.value) {
+      try {
+        analyser.value.disconnect()
+      } catch {
+        // Ignore
+      }
+      analyser.value = null
+    }
+
+    if (audioContext.value) {
+      void audioContext.value.close()
+      audioContext.value = null
+    }
+
+    analyzedAudioLevel.value = 0
    }
  }
 
   // Watch for stream changes
-  watch(() => props.stream, (newStream) => {
-    if (newStream && audioElement.value) {
-      console.log(`🎵 Setting stream for user ${props.userId}:`, newStream)
-      audioElement.value.srcObject = newStream
-      void audioElement.value.play().catch((error: Error) => {
-        console.warn(`Audio play failed for user ${props.userId}:`, error)
-      })
-      setupAudioAnalysis()
-    }
-  }, { immediate: true })
+   watch(() => props.stream, (newStream, oldStream) => {
+     if (newStream && audioElement.value) {
+       console.log(`🎵 Setting stream for user ${props.userId}:`, newStream)
+       audioElement.value.srcObject = newStream
+       void audioElement.value.play().catch((error: Error) => {
+         console.warn(`Audio play failed for user ${props.userId}:`, error)
+       })
+       setupAudioAnalysis()
+     } else if (!newStream && oldStream) {
+       // Stream was removed, cleanup analysis
+       cleanupAudioAnalysis()
+     }
+   }, { immediate: true })
 
    // Watch for volume changes from store
    watch(volume, (newVolume) => {
@@ -466,20 +482,14 @@
     })
 
    onUnmounted(() => {
-     if (animationId.value) {
-       cancelAnimationFrame(animationId.value)
-     }
-
-     if (audioContext.value) {
-       void audioContext.value.close()
-     }
+     cleanupAudioAnalysis()
 
      // Connection polling removed - LiveKit manages connections internally
 
      // Clean up document event listeners
      document.removeEventListener('keydown', handleKeydown)
      document.removeEventListener('click', handleDocumentClick)
-    })
+   })
 </script>
 
 <style scoped>
