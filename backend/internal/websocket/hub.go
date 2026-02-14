@@ -17,6 +17,7 @@ import (
 type Hub struct {
 	clients        map[*Client]bool
 	roomClients    map[string]map[*Client]bool // room_id -> clients
+	onlineUsers    map[string]time.Time        // user_id -> last_seen timestamp (global connections)
 	roomService    *service.RoomService
 	authService    *service.AuthService
 	livekitService *service.LiveKitService
@@ -41,6 +42,7 @@ func NewHub(roomService *service.RoomService, authService *service.AuthService, 
 	hub := &Hub{
 		clients:        make(map[*Client]bool),
 		roomClients:    make(map[string]map[*Client]bool),
+		onlineUsers:    make(map[string]time.Time),
 		roomService:    roomService,
 		authService:    authService,
 		livekitService: livekitService,
@@ -113,6 +115,21 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 		log.Printf("WebSocket client connected for global broadcasts (user: %s, total clients: %d)", userID, len(h.clients))
 	}
 	h.mu.Unlock()
+
+	// Mark user as online if they have a valid userID
+	client.mu.RLock()
+	userID := client.userID
+	client.mu.RUnlock()
+	if userID != "" {
+		h.UpdateUserPing(userID)
+		// Broadcast user online status to all connected clients
+		h.BroadcastToAll(models.WebSocketMessage{
+			Type: "user_online",
+			Data: map[string]string{
+				"user_id": userID,
+			},
+		})
+	}
 
 	// Start goroutines for this client
 	go client.writePump()
@@ -232,9 +249,81 @@ func (h *Hub) SendToUser(roomID string, userID string, message interface{}) {
 	}
 }
 
+// UpdateUserPing updates a user's last seen timestamp (called on ping)
+func (h *Hub) UpdateUserPing(userID string) {
+	if userID == "" {
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	wasOnline := h.isUserOnlineLocked(userID)
+	h.onlineUsers[userID] = time.Now()
+	if !wasOnline {
+		log.Printf("User %s is now online (total online: %d)", userID, len(h.onlineUsers))
+	}
+}
+
+// isUserOnlineLocked checks if a user is online (must be called with lock held)
+func (h *Hub) isUserOnlineLocked(userID string) bool {
+	lastSeen, exists := h.onlineUsers[userID]
+	if !exists {
+		return false
+	}
+	// Consider user online if they've pinged within the last 60 seconds
+	return time.Since(lastSeen) < 60*time.Second
+}
+
+// RemoveOnlineUser marks a user as offline (when they disconnect and have no other connections)
+func (h *Hub) RemoveOnlineUser(userID string) {
+	if userID == "" {
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	// Check if user has any other active connections
+	hasOtherConnection := false
+	for client := range h.clients {
+		if client.userID == userID {
+			hasOtherConnection = true
+			break
+		}
+	}
+
+	if !hasOtherConnection {
+		delete(h.onlineUsers, userID)
+		log.Printf("User %s is now offline (total online: %d)", userID, len(h.onlineUsers))
+	}
+}
+
+// IsUserOnline checks if a user is currently online (within last 60 seconds)
+func (h *Hub) IsUserOnline(userID string) bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.isUserOnlineLocked(userID)
+}
+
+// GetOnlineUsers returns a list of all online user IDs (pinged within last 60 seconds)
+func (h *Hub) GetOnlineUsers() []string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	users := make([]string, 0, len(h.onlineUsers))
+	for userID := range h.onlineUsers {
+		if h.isUserOnlineLocked(userID) {
+			users = append(users, userID)
+		}
+	}
+	return users
+}
+
 // readPump handles messages from the WebSocket connection
 func (c *Client) readPump() {
 	defer func() {
+		// Get userID before removing from maps
+		c.mu.RLock()
+		userID := c.userID
+		c.mu.RUnlock()
+
 		// Remove from hub's client maps, but DO NOT clean up room state
 		// Room cleanup only happens on ping timeout, allowing time for reconnection
 		c.hub.mu.Lock()
@@ -243,6 +332,18 @@ func (c *Client) readPump() {
 			delete(c.hub.roomClients[c.roomID], c)
 		}
 		c.hub.mu.Unlock()
+
+		// Mark user as offline if they have no other connections
+		if userID != "" {
+			c.hub.RemoveOnlineUser(userID)
+			// Broadcast user offline status to all connected clients
+			c.hub.BroadcastToAll(models.WebSocketMessage{
+				Type: "user_offline",
+				Data: map[string]string{
+					"user_id": userID,
+				},
+			})
+		}
 
 		c.conn.Close()
 	}()
@@ -450,6 +551,21 @@ func (c *Client) handlePing(data interface{}) {
 		c.hub.roomService.UpdateUserPingTime(roomID, userID)
 	}
 
+	// Update global presence (for users connected via global WebSocket)
+	if userID != "" {
+		wasOnline := c.hub.IsUserOnline(userID)
+		c.hub.UpdateUserPing(userID)
+		// If user was offline but is now online (after ping), broadcast it
+		if !wasOnline {
+			c.hub.BroadcastToAll(models.WebSocketMessage{
+				Type: "user_online",
+				Data: map[string]string{
+					"user_id": userID,
+				},
+			})
+		}
+	}
+
 	// Send pong response back to the client with the same timestamp
 	pongMessage := models.WebSocketMessage{
 		Type: "pong",
@@ -479,14 +595,34 @@ func (h *Hub) startPingMonitor() {
 		h.cfg.WebSocket.PingTimeout, h.cfg.WebSocket.PingCheckInterval)
 
 	checkTicker := time.NewTicker(h.cfg.WebSocket.PingCheckInterval)
+	broadcastTicker := time.NewTicker(30 * time.Second)
 	defer checkTicker.Stop()
+	defer broadcastTicker.Stop()
 
 	for {
 		select {
 		case <-checkTicker.C:
 			h.checkPingTimeouts()
+		case <-broadcastTicker.C:
+			h.broadcastOnlineUsers()
 		}
 	}
+}
+
+// broadcastOnlineUsers sends the current list of online users to all connected clients
+func (h *Hub) broadcastOnlineUsers() {
+	onlineUsers := h.GetOnlineUsers()
+	if len(onlineUsers) == 0 {
+		return
+	}
+
+	message := models.WebSocketMessage{
+		Type: "online_users",
+		Data: map[string]interface{}{
+			"users": onlineUsers,
+		},
+	}
+	h.BroadcastToAll(message)
 }
 
 // checkPingTimeouts checks all room members and global clients for ping timeouts
@@ -517,6 +653,9 @@ func (h *Hub) checkPingTimeouts() {
 
 	// Check global clients for ping timeouts (clients not in any room)
 	h.checkGlobalPingTimeouts(timeout)
+
+	// Check for users who went offline based on global presence (60 second timeout)
+	h.checkGlobalPresenceTimeouts()
 }
 
 // checkGlobalPingTimeouts checks global WebSocket clients and removes timed-out users
@@ -553,6 +692,36 @@ func (h *Hub) checkGlobalPingTimeouts(timeout time.Duration) {
 			delete(h.roomClients[client.roomID], client)
 		}
 		client.conn.Close()
+	}
+}
+
+// checkGlobalPresenceTimeouts checks for users who haven't pinged in 60 seconds and marks them offline
+func (h *Hub) checkGlobalPresenceTimeouts() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	timeout := 60 * time.Second
+	now := time.Now()
+	offlineUsers := make([]string, 0)
+
+	for userID, lastSeen := range h.onlineUsers {
+		if now.Sub(lastSeen) > timeout {
+			offlineUsers = append(offlineUsers, userID)
+		}
+	}
+
+	// Remove offline users and broadcast
+	for _, userID := range offlineUsers {
+		delete(h.onlineUsers, userID)
+		log.Printf("User %s marked offline due to inactivity (60s timeout)", userID)
+
+		// Broadcast user offline status
+		go h.BroadcastToAll(models.WebSocketMessage{
+			Type: "user_offline",
+			Data: map[string]string{
+				"user_id": userID,
+			},
+		})
 	}
 }
 

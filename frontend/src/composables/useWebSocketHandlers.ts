@@ -1,5 +1,5 @@
 import { onMounted, onUnmounted, watch } from 'vue'
-import { useRoomStore, useCategoryStore, useAppStore, useUserStore } from '@/stores'
+import { useRoomStore, useCategoryStore, useAppStore, useUserStore, useUsersStore } from '@/stores'
 import { wsService } from '@/services/websocket'
 import type { User, Room, Category } from '@/types'
 
@@ -7,6 +7,7 @@ export function useWebSocketHandlers() {
   const roomStore = useRoomStore()
   const categoryStore = useCategoryStore()
   const appStore = useAppStore()
+  const usersStore = useUsersStore()
 
   const setupWebSocketListeners = () => {
     // Room users updates
@@ -131,6 +132,8 @@ export function useWebSocketHandlers() {
       console.log('Global WebSocket connected')
       // Start sending pings to keep connection alive and trigger periodic user list updates
       startGlobalPing()
+      // Refetch users to get updated online status now that we're connected
+      void usersStore.fetchAllUsers()
     })
 
     wsService.onGlobalDisconnection((event) => {
@@ -145,6 +148,44 @@ export function useWebSocketHandlers() {
       if (latency > 1000) {
         console.log(`Global WebSocket latency: ${latency}ms`)
       }
+    })
+
+    // User online/offline events for global presence
+    wsService.onGlobal('user_online', (message) => {
+      const data = message.data as { user_id: string }
+      console.log('[WebSocket] User came online:', data.user_id)
+      const user = usersStore.allUsers.find(u => u.id === data.user_id)
+      if (user) {
+        user.is_online = true
+      }
+    })
+
+    wsService.onGlobal('user_offline', (message) => {
+      const data = message.data as { user_id: string }
+      console.log('[WebSocket] User went offline:', data.user_id)
+      const user = usersStore.allUsers.find(u => u.id === data.user_id)
+      if (user) {
+        user.is_online = false
+      }
+    })
+
+    // Full online users list (broadcast every 30 seconds)
+    wsService.onGlobal('online_users', (message) => {
+      const data = message.data as { users: string[] }
+      console.log('[WebSocket] Received online users list:', data.users)
+      
+      // Mark all users as offline first
+      usersStore.allUsers.forEach(user => {
+        user.is_online = false
+      })
+      
+      // Mark online users as online
+      data.users.forEach(userId => {
+        const user = usersStore.allUsers.find(u => u.id === userId)
+        if (user) {
+          user.is_online = true
+        }
+      })
     })
   }
 

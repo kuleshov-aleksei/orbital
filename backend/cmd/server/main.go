@@ -118,7 +118,7 @@ func main() {
 	categoryHandler := handlers.NewCategoryHandler(categoryService, roomService, wsHub)
 	authHandler := handlers.NewAuthHandler(authService, roleService, cfg.Server.ExternalURL)
 	adminHandler := handlers.NewAdminHandler(roleService, userRepo)
-	usersHandler := handlers.NewUsersHandler(userRepo)
+	usersHandler := handlers.NewUsersHandler(userRepo, wsHub)
 	livekitHandler := handlers.NewLiveKitHandler(livekitService)
 
 	// Setup router
