@@ -42,7 +42,6 @@
           @update:layout="screenShareLayout = $event"
           @toggle-user-grid="isUserGridVisible = !isUserGridVisible"
           @mute-toggle="handleMuteToggle"
-          @audio-level="handleAudioLevel"
         />
 
         <!-- User Grid - Only shown when no screen shares (audio-only mode) -->
@@ -60,7 +59,6 @@
           :current-user-audio-level="audioLevel"
           :get-participant-stats="getParticipantStats"
           @mute-toggle="handleMuteToggle"
-          @audio-level="handleAudioLevel"
         />
       </div>
 
@@ -143,7 +141,6 @@ const {
   localScreenShareDebugData,
   remoteScreenShareDebugData,
   handleMuteToggle,
-  handleAudioLevel,
   startScreenShare,
   getConnectionQuality,
   getParticipantStats,

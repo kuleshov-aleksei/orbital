@@ -276,7 +276,6 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   'mute-toggle': [userId: string, isMuted: boolean]
-  'audio-level': [userId: string, level: number, isSpeaking: boolean]
   'card-click': [userId: string]
 }>()
 
@@ -445,8 +444,6 @@ const setupAudioAnalysis = () => {
       }
       const average = sum / dataArray.length
       analyzedAudioLevel.value = average / 255
-      
-      emit('audio-level', props.userId, audioLevel.value, isSpeaking.value)
     }, 100)
   } catch (error) {
     console.error('Error setting up audio analysis:', error)

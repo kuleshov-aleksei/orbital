@@ -23,7 +23,6 @@
           :stats="getParticipantStats?.(user.id)"
           :force-audio-mode="true"
           @mute-toggle="(userId, isMuted) => $emit('mute-toggle', userId, isMuted)"
-          @audio-level="(userId, level, isSpeaking) => $emit('audio-level', userId, level, isSpeaking)"
         />
       </div>
     </div>
@@ -58,7 +57,6 @@ defineProps<Props>()
 
 defineEmits<{
   'mute-toggle': [userId: string, isMuted: boolean]
-  'audio-level': [userId: string, level: number, isSpeaking: boolean]
 }>()
 
 const userStore = useUserStore()

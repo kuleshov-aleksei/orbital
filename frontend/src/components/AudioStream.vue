@@ -210,7 +210,6 @@
 
   const emit = defineEmits<{
     'mute-toggle': [userId: string, isMuted: boolean]
-    'audio-level': [userId: string, level: number, isSpeaking: boolean]
   }>()
 
   // Initialize RoomStore for volume management
@@ -361,9 +360,6 @@
         }
         const average = sum / dataArray.length
         analyzedAudioLevel.value = average / 255 // Normalize to 0-1
-
-        // Emit audio level data to parent for icon animation
-        emit('audio-level', props.userId, audioLevel.value, isSpeaking.value)
       }, 100)
     } catch (error) {
       console.error('Error setting up audio analysis:', error)

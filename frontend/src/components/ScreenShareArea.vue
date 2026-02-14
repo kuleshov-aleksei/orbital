@@ -38,7 +38,6 @@
             :force-audio-mode="(participant.userId !== focusedShare?.userId && participant.userId + '-self' !== focusedShare?.userId) && !participant.isScreenSharing"
             @card-click="handleParticipantClick(participant.userId)"
             @mute-toggle="$emit('mute-toggle', $event)"
-            @audio-level="$emit('audio-level', $event)"
           />
         </div>
       </div>
@@ -126,7 +125,6 @@ const emit = defineEmits<{
   'toggle-user-grid': []
   'update:layout': [layout: 'grid' | 'focus']
   'mute-toggle': [userId: string, isMuted: boolean]
-  'audio-level': [userId: string, level: number, isSpeaking: boolean]
 }>()
 
 const localLayout = computed({

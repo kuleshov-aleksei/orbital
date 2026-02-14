@@ -649,14 +649,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
     }
   }
 
-  // Handle audio level updates (from UI/voice activity)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const handleAudioLevel = (userId: string, level: number, isSpeaking: boolean): void => {
-    // In LiveKit, speaking status is tracked via the presence store
-    // This is called for UI updates only
-    // Parameters kept for API compatibility with useWebRTC
-  }
-
   // Start screen sharing using LiveKit's setScreenShareEnabled API
   const startScreenShare = async (quality: ScreenShareQuality, audio: boolean): Promise<void> => {
     if (!room.value) {
@@ -981,7 +973,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
     applyMuteState,
     applyDeafenState,
     handleMuteToggle,
-    handleAudioLevel,
     startScreenShare,
     stopScreenShare,
     getConnectionQuality,
