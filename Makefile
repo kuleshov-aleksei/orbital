@@ -1,4 +1,4 @@
-.PHONY: help install build dev dev-public lint test clean docker-build docker-up certs run-built
+.PHONY: help install build dev dev-public lint lint-full test clean docker-build docker-up certs run-built
 
 # Default target
 help:
@@ -116,6 +116,11 @@ lint:
 	cd frontend && npm run lint
 	@echo "Running backend linter..."
 	cd backend && golangci-lint run
+
+# Run linters on changed files only (faster for pre-commit)
+lint-full:
+	@echo "Running frontend linter on changed files..."
+	cd frontend && npm run lint:full
 
 # Run tests
 test:
