@@ -1,4 +1,4 @@
-import type { AudioProcessor } from '@/types/audio'
+import type { AudioProcessor } from "@/types/audio"
 
 /**
  * No Noise Suppression Audio Processor
@@ -6,9 +6,9 @@ import type { AudioProcessor } from '@/types/audio'
  * Used when user selects "Off" for noise suppression
  */
 export class NoNoiseSuppressionAudioProcessor implements AudioProcessor {
-  readonly id = 'off'
-  readonly name = 'No Noise Suppression'
-  readonly description = 'No noise suppression applied'
+  readonly id = "off"
+  readonly name = "No Noise Suppression"
+  readonly description = "No noise suppression applied"
 
   isSupported(): boolean {
     // Always supported since we just disable noise suppression
@@ -19,7 +19,7 @@ export class NoNoiseSuppressionAudioProcessor implements AudioProcessor {
     return {
       noiseSuppression: false,
       echoCancellation: true,
-      autoGainControl: true
+      autoGainControl: true,
     }
   }
 

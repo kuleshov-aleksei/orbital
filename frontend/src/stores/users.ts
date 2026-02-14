@@ -1,9 +1,9 @@
-import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-import type { PublicUser } from '@/types'
-import { apiService } from '@/services/api'
+import { defineStore } from "pinia"
+import { ref, computed } from "vue"
+import type { PublicUser } from "@/types"
+import { apiService } from "@/services/api"
 
-export const useUsersStore = defineStore('users', () => {
+export const useUsersStore = defineStore("users", () => {
   // State
   const allUsers = ref<PublicUser[]>([])
   const isLoading = ref(false)
@@ -12,7 +12,7 @@ export const useUsersStore = defineStore('users', () => {
 
   // Getters
   const userCount = computed(() => allUsers.value.length)
-  
+
   // Sorted users: online users first, then offline users
   const sortedUsers = computed(() => {
     return [...allUsers.value].sort((a, b) => {
@@ -23,21 +23,21 @@ export const useUsersStore = defineStore('users', () => {
       return a.nickname.localeCompare(b.nickname)
     })
   })
-  
+
   const usersByRole = computed(() => {
     const grouped: Record<string, PublicUser[]> = {
       guest: [],
       user: [],
       admin: [],
-      super_admin: []
+      super_admin: [],
     }
-    
-    sortedUsers.value.forEach(user => {
+
+    sortedUsers.value.forEach((user) => {
       if (grouped[user.role]) {
         grouped[user.role].push(user)
       }
     })
-    
+
     return grouped
   })
 
@@ -51,17 +51,17 @@ export const useUsersStore = defineStore('users', () => {
     try {
       const users = await apiService.getAllUsers()
       const now = Date.now()
-      const hasRecentWebSocketUpdate = (now - lastOnlineUpdate.value) < 5000 // 5 seconds
+      const hasRecentWebSocketUpdate = now - lastOnlineUpdate.value < 5000 // 5 seconds
 
       // Create a map of existing users to preserve their online status
-      const existingUsersMap = new Map(allUsers.value.map(u => [u.id, u]))
+      const existingUsersMap = new Map(allUsers.value.map((u) => [u.id, u]))
 
       // Merge new users with existing ones, preserving online status from WebSocket
       // If we received WebSocket update in last 5 seconds, trust it over API
-      allUsers.value = users.map(user => {
+      allUsers.value = users.map((user) => {
         const existing = existingUsersMap.get(user.id)
         const apiOnlineStatus = user.is_online
-        
+
         // If we have recent WebSocket data, prioritize it over API
         // Otherwise, use API status or existing status
         let isOnline: boolean
@@ -70,40 +70,43 @@ export const useUsersStore = defineStore('users', () => {
         } else {
           isOnline = existing?.is_online ?? apiOnlineStatus ?? false
         }
-        
+
         return {
           ...user,
-          is_online: isOnline
+          is_online: isOnline,
         }
       })
     } catch (err) {
-      console.error('Failed to fetch users:', err)
-      error.value = 'Failed to load users'
+      console.error("Failed to fetch users:", err)
+      error.value = "Failed to load users"
     } finally {
       isLoading.value = false
     }
   }
 
   function updateOnlineStatus(userId: string, isOnline: boolean) {
-    const index = allUsers.value.findIndex(u => u.id === userId)
+    const index = allUsers.value.findIndex((u) => u.id === userId)
     if (index !== -1) {
       // Use splice to ensure reactivity in Vue 3
-      allUsers.value.splice(index, 1, { ...allUsers.value[index], is_online: isOnline })
+      allUsers.value.splice(index, 1, {
+        ...allUsers.value[index],
+        is_online: isOnline,
+      })
       lastOnlineUpdate.value = Date.now()
     }
   }
 
   function updateOnlineUsersList(onlineUserIds: string[]) {
-    allUsers.value = allUsers.value.map(user => ({
+    allUsers.value = allUsers.value.map((user) => ({
       ...user,
-      is_online: onlineUserIds.includes(user.id)
+      is_online: onlineUserIds.includes(user.id),
     }))
     lastOnlineUpdate.value = Date.now()
   }
 
   function addUser(user: PublicUser) {
     // Check if user already exists
-    const existingIndex = allUsers.value.findIndex(u => u.id === user.id)
+    const existingIndex = allUsers.value.findIndex((u) => u.id === user.id)
     if (existingIndex === -1) {
       // New user - add with online status
       allUsers.value.push(user)
@@ -114,14 +117,15 @@ export const useUsersStore = defineStore('users', () => {
   }
 
   function updateUser(user: PublicUser) {
-    const index = allUsers.value.findIndex(u => u.id === user.id)
+    const index = allUsers.value.findIndex((u) => u.id === user.id)
     if (index !== -1) {
       // Update existing user, preserving is_online if not provided
       // Use splice to ensure reactivity in Vue 3
       const currentOnline = allUsers.value[index].is_online
       allUsers.value.splice(index, 1, {
         ...user,
-        is_online: user.is_online !== undefined ? user.is_online : currentOnline
+        is_online:
+          user.is_online !== undefined ? user.is_online : currentOnline,
       })
     } else {
       // If user doesn't exist, add them
@@ -130,7 +134,7 @@ export const useUsersStore = defineStore('users', () => {
   }
 
   function removeUser(userId: string) {
-    const index = allUsers.value.findIndex(u => u.id === userId)
+    const index = allUsers.value.findIndex((u) => u.id === userId)
     if (index !== -1) {
       // Mark user as offline instead of removing
       allUsers.value[index].is_online = false
@@ -139,23 +143,23 @@ export const useUsersStore = defineStore('users', () => {
 
   function setUsers(users: PublicUser[]) {
     // Merge with existing users to preserve any users not in the connected list
-    const userMap = new Map(allUsers.value.map(u => [u.id, u]))
-    
+    const userMap = new Map(allUsers.value.map((u) => [u.id, u]))
+
     // Mark all existing users as offline first
-    userMap.forEach(user => {
+    userMap.forEach((user) => {
       user.is_online = false
     })
-    
+
     // Update with connected users (they come with is_online: true)
-    users.forEach(user => {
+    users.forEach((user) => {
       userMap.set(user.id, user)
     })
-    
+
     allUsers.value = Array.from(userMap.values())
   }
 
   function updateUserNickname(userId: string, nickname: string) {
-    const user = allUsers.value.find(u => u.id === userId)
+    const user = allUsers.value.find((u) => u.id === userId)
     if (user) {
       user.nickname = nickname
     }
@@ -178,6 +182,6 @@ export const useUsersStore = defineStore('users', () => {
     setUsers,
     updateUserNickname,
     updateOnlineStatus,
-    updateOnlineUsersList
+    updateOnlineUsersList,
   }
 })

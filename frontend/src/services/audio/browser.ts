@@ -1,24 +1,26 @@
-import type { AudioProcessor } from '@/types/audio'
+import type { AudioProcessor } from "@/types/audio"
 
 /**
  * Browser Native Noise Suppression Processor
  * Uses the built-in WebRTC Audio Processing module in browsers
  */
 export class BrowserNativeProcessor implements AudioProcessor {
-  readonly id = 'browser-native'
-  readonly name = 'Browser Native'
-  readonly description = 'Built-in browser noise suppression (WebRTC Audio Processing)'
+  readonly id = "browser-native"
+  readonly name = "Browser Native"
+  readonly description =
+    "Built-in browser noise suppression (WebRTC Audio Processing)"
 
   isSupported(): boolean {
     // Check if the browser supports the constraint
-    if (typeof navigator === 'undefined' || !navigator.mediaDevices) {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices) {
       return false
     }
 
     // Try to check support using getSupportedConstraints
     try {
-      const supportedConstraints = navigator.mediaDevices.getSupportedConstraints()
-      return 'noiseSuppression' in supportedConstraints
+      const supportedConstraints =
+        navigator.mediaDevices.getSupportedConstraints()
+      return "noiseSuppression" in supportedConstraints
     } catch {
       // Fallback: assume supported in modern browsers
       return true
@@ -29,7 +31,7 @@ export class BrowserNativeProcessor implements AudioProcessor {
     return {
       noiseSuppression: true,
       echoCancellation: true,
-      autoGainControl: true
+      autoGainControl: true,
     }
   }
 

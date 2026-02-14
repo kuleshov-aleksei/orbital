@@ -1,11 +1,14 @@
-import { WebNoiseSuppressorProcessor } from './baseProcessor'
-import { loadRnnoise, RnnoiseWorkletNode } from '@sapphi-red/web-noise-suppressor'
-import type { NoiseSuppressionAlgorithm } from '@/types/audio'
+import { WebNoiseSuppressorProcessor } from "./baseProcessor"
+import {
+  loadRnnoise,
+  RnnoiseWorkletNode,
+} from "@sapphi-red/web-noise-suppressor"
+import type { NoiseSuppressionAlgorithm } from "@/types/audio"
 
 // Import WASM and Worklet URLs
-import rnnoiseWasmPath from '@sapphi-red/web-noise-suppressor/rnnoise.wasm?url'
-import rnnoiseSimdWasmPath from '@sapphi-red/web-noise-suppressor/rnnoise_simd.wasm?url'
-import rnnoiseWorkletPath from '@sapphi-red/web-noise-suppressor/rnnoiseWorklet.js?url'
+import rnnoiseWasmPath from "@sapphi-red/web-noise-suppressor/rnnoise.wasm?url"
+import rnnoiseSimdWasmPath from "@sapphi-red/web-noise-suppressor/rnnoise_simd.wasm?url"
+import rnnoiseWorkletPath from "@sapphi-red/web-noise-suppressor/rnnoiseWorklet.js?url"
 
 // Type assertions for imported URLs
 const wasmPath = rnnoiseWasmPath as string
@@ -17,9 +20,10 @@ const workletPath = rnnoiseWorkletPath as string
  * High-quality ML-based noise suppression, requires 48kHz sample rate
  */
 export class RNNoiseProcessor extends WebNoiseSuppressorProcessor {
-  readonly id = 'rnnoise' as NoiseSuppressionAlgorithm
-  readonly name = 'RNNoise'
-  readonly description = 'Machine learning-based noise suppression (high quality, requires 48kHz)'
+  readonly id = "rnnoise" as NoiseSuppressionAlgorithm
+  readonly name = "RNNoise"
+  readonly description =
+    "Machine learning-based noise suppression (high quality, requires 48kHz)"
   readonly requiredSampleRate = 48000
 
   private async loadWasm(): Promise<void> {
@@ -34,11 +38,11 @@ export class RNNoiseProcessor extends WebNoiseSuppressorProcessor {
           url: wasmPath,
           simdUrl: simdWasmPath,
         },
-        { credentials: 'same-origin' }
+        { credentials: "same-origin" },
       )
     } catch (error) {
       this.loadError = error instanceof Error ? error : new Error(String(error))
-      console.error('Failed to load RNNoise WASM:', error)
+      console.error("Failed to load RNNoise WASM:", error)
       throw this.loadError
     } finally {
       this.isLoading = false
@@ -49,7 +53,7 @@ export class RNNoiseProcessor extends WebNoiseSuppressorProcessor {
     await this.loadWasm()
 
     if (!this.wasmBinary) {
-      throw new Error('RNNoise WASM not loaded')
+      throw new Error("RNNoise WASM not loaded")
     }
 
     // Create audio context with 48kHz sample rate

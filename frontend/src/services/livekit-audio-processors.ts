@@ -1,14 +1,17 @@
-import type { AudioProcessorOptions, TrackProcessor } from 'livekit-client'
-import type { AudioWorkletProcessor, NoiseSuppressionAlgorithm } from '@/types/audio'
-import { getAudioWorkletProcessor } from '@/services/audio'
+import type { AudioProcessorOptions, TrackProcessor } from "livekit-client"
+import type {
+  AudioWorkletProcessor,
+  NoiseSuppressionAlgorithm,
+} from "@/types/audio"
+import { getAudioWorkletProcessor } from "@/services/audio"
 
 /**
  * LiveKit Audio Processor Wrapper
- * 
+ *
  * Adapts our custom AudioWorklet processors (RNNoise, Speex) to LiveKit's
  * TrackProcessor interface. This allows us to use our existing WASM-based
  * noise suppression with LiveKit's SFU architecture.
- * 
+ *
  * Usage with LiveKit:
  * ```typescript
  * const localTrack = await createLocalAudioTrack({
@@ -30,15 +33,15 @@ export interface LiveKitAudioProcessorOptions {
 
 /**
  * Create a LiveKit TrackProcessor that wraps our AudioWorklet processors
- * 
+ *
  * @param algorithm - The noise suppression algorithm ('rnnoise', 'speex', or 'browser-native')
  * @returns A TrackProcessor compatible with LiveKit's LocalTrack.setProcessor()
  */
 export function createLiveKitAudioProcessor(
-  algorithm: NoiseSuppressionAlgorithm
+  algorithm: NoiseSuppressionAlgorithm,
 ): TrackProcessor<Audio, AudioProcessorOptions> | null {
   // Only wrap algorithms that use AudioWorklet processing
-  if (algorithm !== 'rnnoise' && algorithm !== 'speex') {
+  if (algorithm !== "rnnoise" && algorithm !== "speex") {
     return null
   }
 
@@ -48,7 +51,10 @@ export function createLiveKitAudioProcessor(
 /**
  * LiveKit TrackProcessor implementation that wraps our AudioWorklet processors
  */
-class LiveKitAudioWorkletProcessor implements TrackProcessor<Audio, AudioProcessorOptions> {
+class LiveKitAudioWorkletProcessor implements TrackProcessor<
+  Audio,
+  AudioProcessorOptions
+> {
   readonly name: string
 
   private algorithm: NoiseSuppressionAlgorithm
@@ -67,7 +73,9 @@ class LiveKitAudioWorkletProcessor implements TrackProcessor<Audio, AudioProcess
    */
   init(options: AudioProcessorOptions): Promise<void> {
     if (this.isInitialized) {
-      console.warn(`[LiveKitAudioProcessor] Already initialized for ${this.algorithm}`)
+      console.warn(
+        `[LiveKitAudioProcessor] Already initialized for ${this.algorithm}`,
+      )
       return Promise.resolve()
     }
 
@@ -76,17 +84,24 @@ class LiveKitAudioWorkletProcessor implements TrackProcessor<Audio, AudioProcess
       this.workletProcessor = getAudioWorkletProcessor(this.algorithm)
 
       if (!this.workletProcessor) {
-        throw new Error(`AudioWorklet processor not found for algorithm: ${this.algorithm}`)
+        throw new Error(
+          `AudioWorklet processor not found for algorithm: ${this.algorithm}`,
+        )
       }
 
       // Store options for later use
       this.options = options
 
       this.isInitialized = true
-      console.log(`[LiveKitAudioProcessor] Initialized ${this.algorithm} processor`)
+      console.log(
+        `[LiveKitAudioProcessor] Initialized ${this.algorithm} processor`,
+      )
       return Promise.resolve()
     } catch (error) {
-      console.error(`[LiveKitAudioProcessor] Failed to initialize ${this.algorithm}:`, error)
+      console.error(
+        `[LiveKitAudioProcessor] Failed to initialize ${this.algorithm}:`,
+        error,
+      )
       if (error instanceof Error) {
         return Promise.reject(error)
       }
@@ -116,7 +131,9 @@ class LiveKitAudioWorkletProcessor implements TrackProcessor<Audio, AudioProcess
       this.processedTrack = undefined
       this.isInitialized = false
       this.options = null
-      console.log(`[LiveKitAudioProcessor] Destroyed ${this.algorithm} processor`)
+      console.log(
+        `[LiveKitAudioProcessor] Destroyed ${this.algorithm} processor`,
+      )
       return Promise.resolve()
     } catch (error) {
       console.error(`[LiveKitAudioProcessor] Error during destroy:`, error)
@@ -130,12 +147,12 @@ class LiveKitAudioWorkletProcessor implements TrackProcessor<Audio, AudioProcess
    */
   async processStream(stream: MediaStream): Promise<MediaStream> {
     if (!this.workletProcessor) {
-      throw new Error('Processor not initialized. Call init() first.')
+      throw new Error("Processor not initialized. Call init() first.")
     }
 
     try {
       const processedStream = await this.workletProcessor.processStream(stream)
-      
+
       // Store reference to the processed audio track
       const audioTrack = processedStream.getAudioTracks()[0]
       if (audioTrack) {
@@ -166,15 +183,16 @@ class LiveKitAudioWorkletProcessor implements TrackProcessor<Audio, AudioProcess
 
 /**
  * LiveKit Native Audio Processor
- * 
+ *
  * Uses LiveKit's built-in noise suppression instead of custom AudioWorklet.
  * This is a simple processor that just passes through the track but signals
  * to LiveKit that native processing should be used.
  */
 export class LiveKitNativeProcessor {
-  readonly id = 'livekit-native' as const
-  readonly name = 'LiveKit Native'
-  readonly description = 'Built-in LiveKit noise suppression (SFU-optimized, low latency)'
+  readonly id = "livekit-native" as const
+  readonly name = "LiveKit Native"
+  readonly description =
+    "Built-in LiveKit noise suppression (SFU-optimized, low latency)"
 
   /**
    * Check if LiveKit is available (always true if this code runs)
@@ -193,7 +211,7 @@ export class LiveKitNativeProcessor {
     return {
       noiseSuppression: false, // Disable browser NS, use LiveKit's instead
       echoCancellation: true,
-      autoGainControl: true
+      autoGainControl: true,
     }
   }
 
@@ -214,12 +232,14 @@ export function createLiveKitNativeProcessor(): LiveKitNativeProcessor {
 
 /**
  * Check if a specific algorithm can be used with LiveKit
- * 
+ *
  * @param algorithm - The noise suppression algorithm
  * @returns true if the algorithm can be used with LiveKit
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function isAlgorithmCompatibleWithLiveKit(algorithm: NoiseSuppressionAlgorithm): boolean {
+export function isAlgorithmCompatibleWithLiveKit(
+  algorithm: NoiseSuppressionAlgorithm,
+): boolean {
   // All algorithms are compatible with LiveKit:
   // - 'livekit-native': Uses LiveKit's built-in processing
   // - 'browser-native': Uses browser constraints (LiveKit receives pre-processed audio)
@@ -231,61 +251,61 @@ export function isAlgorithmCompatibleWithLiveKit(algorithm: NoiseSuppressionAlgo
 
 /**
  * Get the appropriate audio constraints for publishing to LiveKit
- * 
+ *
  * @param algorithm - The selected noise suppression algorithm
  * @returns MediaTrackConstraints to use when creating the audio track
  */
 export function getLiveKitAudioConstraints(
-  algorithm: NoiseSuppressionAlgorithm
+  algorithm: NoiseSuppressionAlgorithm,
 ): MediaTrackConstraints {
   switch (algorithm) {
-    case 'livekit-native':
+    case "livekit-native":
       // Use LiveKit's built-in noise suppression
       return {
         noiseSuppression: false, // Let LiveKit handle it
         echoCancellation: true,
-        autoGainControl: true
+        autoGainControl: true,
       }
-    
-    case 'browser-native':
+
+    case "browser-native":
       // Use browser's WebRTC Audio Processing
       return {
         noiseSuppression: true,
         echoCancellation: true,
-        autoGainControl: true
+        autoGainControl: true,
       }
-    
-    case 'rnnoise':
+
+    case "rnnoise":
       // RNNoise requires 48kHz sample rate
       return {
         noiseSuppression: false, // We'll process via AudioWorklet
         echoCancellation: true,
         autoGainControl: true,
         sampleRate: { ideal: 48000 },
-        channelCount: { ideal: 1 }
+        channelCount: { ideal: 1 },
       }
-    
-    case 'speex':
+
+    case "speex":
       // Speex can work with any sample rate
       return {
         noiseSuppression: false, // We'll process via AudioWorklet
         echoCancellation: true,
         autoGainControl: true,
-        channelCount: { ideal: 1 }
+        channelCount: { ideal: 1 },
       }
-    
-    case 'off':
+
+    case "off":
       // No noise suppression
       return {
         noiseSuppression: false,
         echoCancellation: true,
-        autoGainControl: true
+        autoGainControl: true,
       }
-    
+
     default:
       return {
         echoCancellation: true,
-        autoGainControl: true
+        autoGainControl: true,
       }
   }
 }

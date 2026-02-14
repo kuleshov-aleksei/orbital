@@ -1,21 +1,24 @@
-import { defineStore } from 'pinia'
-import { ref, computed, watch } from 'vue'
+import { defineStore } from "pinia"
+import { ref, computed, watch } from "vue"
 import {
   Room,
   RoomEvent,
   type Participant,
   type RemoteParticipant,
-  type LocalParticipant
-} from 'livekit-client'
-import { useRoomStore } from './room'
-import { useCallStore } from './call'
-import { useUserStore } from './user'
+  type LocalParticipant,
+} from "livekit-client"
+import { useRoomStore } from "./room"
+import { useCallStore } from "./call"
+import { useUserStore } from "./user"
 
 // Debounce helper for batching updates
 function debounce<T extends (...args: unknown[]) => void>(
   fn: T,
   delay: number,
-  { leading = false, trailing = true }: { leading?: boolean; trailing?: boolean } = {}
+  {
+    leading = false,
+    trailing = true,
+  }: { leading?: boolean; trailing?: boolean } = {},
 ): (...args: Parameters<T>) => void {
   let timeoutId: ReturnType<typeof setTimeout> | null = null
   let lastArgs: Parameters<T> | null = null
@@ -64,24 +67,24 @@ interface PresenceState {
   audioLevel: number
 }
 
-export const usePresenceStore = defineStore('presence', () => {
+export const usePresenceStore = defineStore("presence", () => {
   // State
   const room = ref<Room | null>(null)
   const participants = ref<Map<string, PresenceState>>(new Map())
   const localParticipant = ref<LocalParticipant | null>(null)
   const isConnected = ref(false)
-  
-
 
   // Getters
-  const participantList = computed(() => Array.from(participants.value.values()))
-  
-  const speakingParticipants = computed(() => 
-    participantList.value.filter(p => p.isSpeaking && !p.isMuted)
+  const participantList = computed(() =>
+    Array.from(participants.value.values()),
   )
 
-  const getParticipant = computed(() => (userId: string) => 
-    participants.value.get(userId)
+  const speakingParticipants = computed(() =>
+    participantList.value.filter((p) => p.isSpeaking && !p.isMuted),
+  )
+
+  const getParticipant = computed(
+    () => (userId: string) => participants.value.get(userId),
   )
 
   // Helper to extract metadata from LiveKit participant attributes
@@ -91,15 +94,15 @@ export const usePresenceStore = defineStore('presence', () => {
       user_id: attributes.user_id || participant.identity,
       nickname: attributes.nickname || participant.name || participant.identity,
       avatar_url: attributes.avatar_url,
-      is_muted: attributes.is_muted === 'true',
-      is_deafened: attributes.is_deafened === 'true'
+      is_muted: attributes.is_muted === "true",
+      is_deafened: attributes.is_deafened === "true",
     }
   }
 
   // Update participant state from LiveKit participant
   const updateParticipantFromLiveKit = (lkParticipant: Participant) => {
     const metadata = extractMetadata(lkParticipant)
-    
+
     const presenceState: PresenceState = {
       userId: metadata.user_id,
       nickname: metadata.nickname,
@@ -108,18 +111,18 @@ export const usePresenceStore = defineStore('presence', () => {
       isMuted: metadata.is_muted,
       isDeafened: metadata.is_deafened,
       isScreenSharing: lkParticipant.isScreenShareEnabled || false,
-      audioLevel: lkParticipant.audioLevel || 0
+      audioLevel: lkParticipant.audioLevel || 0,
     }
 
     participants.value.set(metadata.user_id, presenceState)
-    
+
     // Also update room store for UI consistency
     const roomStore = useRoomStore()
     roomStore.updateUserStatus(metadata.user_id, {
       is_speaking: presenceState.isSpeaking,
       is_muted: presenceState.isMuted,
       is_deafened: presenceState.isDeafened,
-      is_screen_sharing: presenceState.isScreenSharing
+      is_screen_sharing: presenceState.isScreenSharing,
     })
   }
 
@@ -132,7 +135,7 @@ export const usePresenceStore = defineStore('presence', () => {
     // Set up local participant attributes
     const userStore = useUserStore()
     const callStore = useCallStore()
-    
+
     // Initialize local attributes
     const currentUser = userStore.currentUser
     await updateLocalAttributes({
@@ -140,57 +143,87 @@ export const usePresenceStore = defineStore('presence', () => {
       nickname: currentUser?.nickname ?? userStore.userId,
       avatar_url: currentUser?.avatarUrl,
       is_muted: callStore.isMuted.toString(),
-      is_deafened: callStore.isDeafened.toString()
+      is_deafened: callStore.isDeafened.toString(),
     })
 
     // Subscribe to participant events
-    lkRoom.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
-      console.log('[Presence] Participant connected:', participant.identity)
-      updateParticipantFromLiveKit(participant)
-    })
-
-    lkRoom.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
-      console.log('[Presence] Participant disconnected:', participant.identity)
-      const metadata = extractMetadata(participant)
-      participants.value.delete(metadata.user_id)
-    })
-
-    lkRoom.on(RoomEvent.ParticipantAttributesChanged, (changedAttributes: Record<string, string | undefined>, participant: Participant) => {
-      console.log('[Presence] Participant attributes changed:', {
-        identity: participant?.identity,
-        name: participant?.name,
-        attributes: participant?.attributes,
-        changedAttributes,
-        isLocal: participant === lkRoom.localParticipant
-      })
-      if (participant) {
+    lkRoom.on(
+      RoomEvent.ParticipantConnected,
+      (participant: RemoteParticipant) => {
+        console.log("[Presence] Participant connected:", participant.identity)
         updateParticipantFromLiveKit(participant)
-      }
-    })
+      },
+    )
 
-    lkRoom.on(RoomEvent.IsSpeakingChanged, (participant: Participant, speaking: boolean) => {
-      console.log('[Presence] Speaking changed:', participant.identity, speaking)
-      updateParticipantFromLiveKit(participant)
-    })
+    lkRoom.on(
+      RoomEvent.ParticipantDisconnected,
+      (participant: RemoteParticipant) => {
+        console.log(
+          "[Presence] Participant disconnected:",
+          participant.identity,
+        )
+        const metadata = extractMetadata(participant)
+        participants.value.delete(metadata.user_id)
+      },
+    )
+
+    lkRoom.on(
+      RoomEvent.ParticipantAttributesChanged,
+      (
+        changedAttributes: Record<string, string | undefined>,
+        participant: Participant,
+      ) => {
+        console.log("[Presence] Participant attributes changed:", {
+          identity: participant?.identity,
+          name: participant?.name,
+          attributes: participant?.attributes,
+          changedAttributes,
+          isLocal: participant === lkRoom.localParticipant,
+        })
+        if (participant) {
+          updateParticipantFromLiveKit(participant)
+        }
+      },
+    )
+
+    lkRoom.on(
+      RoomEvent.IsSpeakingChanged,
+      (participant: Participant, speaking: boolean) => {
+        console.log(
+          "[Presence] Speaking changed:",
+          participant.identity,
+          speaking,
+        )
+        updateParticipantFromLiveKit(participant)
+      },
+    )
 
     // Debounced batch update for ActiveSpeakersChanged to reduce reactive churn
-    const debouncedBatchUpdate = debounce((speakers: Participant[]) => {
-      speakers.forEach(speaker => {
-        updateParticipantFromLiveKit(speaker)
-      })
-    }, 50, { leading: true, trailing: false })
+    const debouncedBatchUpdate = debounce(
+      (speakers: Participant[]) => {
+        speakers.forEach((speaker) => {
+          updateParticipantFromLiveKit(speaker)
+        })
+      },
+      50,
+      { leading: true, trailing: false },
+    )
 
     lkRoom.on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
       debouncedBatchUpdate(speakers)
     })
 
     lkRoom.on(RoomEvent.TrackMuted, (track, participant: Participant) => {
-      console.log('[Presence] Track muted:', participant.identity, track.source)
+      console.log("[Presence] Track muted:", participant.identity, track.source)
       updateParticipantFromLiveKit(participant)
     })
 
     lkRoom.on(RoomEvent.TrackUnmuted, (track, participant: Participant) => {
-      console.log('[Presence] Track unmuted:', participant.identity, track.source)
+      console.log(
+        "[Presence] Track unmuted:",
+        participant.identity,
+        track.source,
+      )
       updateParticipantFromLiveKit(participant)
     })
 
@@ -203,24 +236,32 @@ export const usePresenceStore = defineStore('presence', () => {
     updateParticipantFromLiveKit(lkRoom.localParticipant)
 
     // Watch for local mute/deafen changes and sync to LiveKit
-    watch(() => callStore.isMuted, (newValue) => {
-      void updateLocalAttributes({ is_muted: newValue.toString() })
-      // Also update microphone enabled state in LiveKit
-      void lkRoom.localParticipant.setMicrophoneEnabled(!newValue)
-    })
+    watch(
+      () => callStore.isMuted,
+      (newValue) => {
+        void updateLocalAttributes({ is_muted: newValue.toString() })
+        // Also update microphone enabled state in LiveKit
+        void lkRoom.localParticipant.setMicrophoneEnabled(!newValue)
+      },
+    )
 
-    watch(() => callStore.isDeafened, (newValue) => {
-      void updateLocalAttributes({ is_deafened: newValue.toString() })
-    })
+    watch(
+      () => callStore.isDeafened,
+      (newValue) => {
+        void updateLocalAttributes({ is_deafened: newValue.toString() })
+      },
+    )
   }
 
   // Update local participant attributes
-  const updateLocalAttributes = async (attributes: Partial<ParticipantMetadata>) => {
+  const updateLocalAttributes = async (
+    attributes: Partial<ParticipantMetadata>,
+  ) => {
     if (!localParticipant.value) return
-    
+
     const currentAttributes = localParticipant.value.attributes || {}
     const newAttributes: Record<string, string> = {}
-    
+
     // Convert all values to strings for LiveKit attributes
     Object.entries(attributes).forEach(([key, value]) => {
       if (value !== undefined) {
@@ -230,7 +271,7 @@ export const usePresenceStore = defineStore('presence', () => {
 
     await localParticipant.value.setAttributes({
       ...currentAttributes,
-      ...newAttributes
+      ...newAttributes,
     })
 
     // Update local state
@@ -243,7 +284,7 @@ export const usePresenceStore = defineStore('presence', () => {
       isMuted: metadata.is_muted,
       isDeafened: metadata.is_deafened,
       isScreenSharing: localParticipant.value.isScreenShareEnabled || false,
-      audioLevel: localParticipant.value.audioLevel || 0
+      audioLevel: localParticipant.value.audioLevel || 0,
     }
     participants.value.set(metadata.user_id, presenceState)
   }
@@ -251,7 +292,7 @@ export const usePresenceStore = defineStore('presence', () => {
   // Set microphone enabled (mute/unmute)
   const setMicrophoneEnabled = async (enabled: boolean) => {
     if (!localParticipant.value) return
-    
+
     await localParticipant.value.setMicrophoneEnabled(enabled)
     await updateLocalAttributes({ is_muted: (!enabled).toString() })
   }
@@ -259,7 +300,7 @@ export const usePresenceStore = defineStore('presence', () => {
   // Set deafened state
   const setDeafened = async (deafened: boolean) => {
     if (!localParticipant.value) return
-    
+
     await updateLocalAttributes({ is_deafened: deafened.toString() })
   }
 
@@ -286,6 +327,6 @@ export const usePresenceStore = defineStore('presence', () => {
     updateLocalAttributes,
     setMicrophoneEnabled,
     setDeafened,
-    cleanup
+    cleanup,
   }
 })

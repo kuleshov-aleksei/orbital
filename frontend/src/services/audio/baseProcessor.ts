@@ -1,5 +1,11 @@
-import type { AudioWorkletProcessor, NoiseSuppressionAlgorithm } from '@/types/audio'
-import type { RnnoiseWorkletNode, SpeexWorkletNode } from '@sapphi-red/web-noise-suppressor'
+import type {
+  AudioWorkletProcessor,
+  NoiseSuppressionAlgorithm,
+} from "@/types/audio"
+import type {
+  RnnoiseWorkletNode,
+  SpeexWorkletNode,
+} from "@sapphi-red/web-noise-suppressor"
 
 /**
  * Base class for Web Noise Suppressor-based processors
@@ -23,10 +29,10 @@ export abstract class WebNoiseSuppressorProcessor implements AudioWorkletProcess
    */
   isSupported(): boolean {
     return (
-      typeof WebAssembly === 'object' &&
-      typeof AudioContext !== 'undefined' &&
-      typeof MediaStreamAudioSourceNode !== 'undefined' &&
-      typeof AudioWorkletNode !== 'undefined'
+      typeof WebAssembly === "object" &&
+      typeof AudioContext !== "undefined" &&
+      typeof MediaStreamAudioSourceNode !== "undefined" &&
+      typeof AudioWorkletNode !== "undefined"
     )
   }
 
@@ -46,7 +52,9 @@ export abstract class WebNoiseSuppressorProcessor implements AudioWorkletProcess
       noiseSuppression: false,
       echoCancellation: true,
       autoGainControl: true,
-      sampleRate: this.requiredSampleRate ? { ideal: this.requiredSampleRate } : undefined,
+      sampleRate: this.requiredSampleRate
+        ? { ideal: this.requiredSampleRate }
+        : undefined,
       channelCount: { ideal: this.maxChannels },
     }
   }
@@ -55,7 +63,9 @@ export abstract class WebNoiseSuppressorProcessor implements AudioWorkletProcess
    * Check if WASM is loaded and ready
    */
   isReady(): boolean {
-    return this.wasmBinary !== null && !this.isLoading && this.loadError === null
+    return (
+      this.wasmBinary !== null && !this.isLoading && this.loadError === null
+    )
   }
 
   /**
@@ -68,7 +78,7 @@ export abstract class WebNoiseSuppressorProcessor implements AudioWorkletProcess
    */
   dispose(): void {
     if (this.workletNode) {
-      if ('destroy' in this.workletNode) {
+      if ("destroy" in this.workletNode) {
         this.workletNode.destroy()
       }
       this.workletNode.disconnect()

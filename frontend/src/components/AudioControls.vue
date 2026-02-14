@@ -8,19 +8,17 @@
       <AudioDeafenButton v-model="isDeafened" size="lg" />
 
       <!-- Screen Share -->
-      <ScreenShareButton 
+      <ScreenShareButton
         ref="screenShareButtonRef"
-        v-model="isScreenSharing" 
-        size="lg" 
-        @start-screen-share="$emit('start-screen-share')"
-      />
+        v-model="isScreenSharing"
+        size="lg"
+        @start-screen-share="$emit('start-screen-share')" />
 
       <!-- Leave Room -->
       <button
         type="button"
         class="control-button bg-red-600 hover:bg-red-700"
-        @click="$emit('leave-room')"
-      >
+        @click="$emit('leave-room')">
         <PhSignOut class="w-5 h-5" />
       </button>
     </div>
@@ -28,12 +26,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, useTemplateRef } from 'vue'
-import { PhSignOut } from '@phosphor-icons/vue'
-import MicMuteButton from '@/components/MicMuteButton.vue'
-import AudioDeafenButton from '@/components/AudioDeafenButton.vue'
-import ScreenShareButton from '@/components/ScreenShareButton.vue'
-import type { ScreenShareQuality } from '@/types'
+import { computed, useTemplateRef } from "vue"
+import { PhSignOut } from "@phosphor-icons/vue"
+import MicMuteButton from "@/components/MicMuteButton.vue"
+import AudioDeafenButton from "@/components/AudioDeafenButton.vue"
+import ScreenShareButton from "@/components/ScreenShareButton.vue"
+import type { ScreenShareQuality } from "@/types"
 
 interface Props {
   modelValueMuted?: boolean
@@ -46,39 +44,49 @@ const props = withDefaults(defineProps<Props>(), {
   modelValueMuted: false,
   modelValueDeafened: false,
   modelValueScreenSharing: false,
-  isSpeaking: false
+  isSpeaking: false,
 })
 
 const emit = defineEmits<{
-  'update:modelValueMuted': [value: boolean]
-  'update:modelValueDeafened': [value: boolean]
-  'update:modelValueScreenSharing': [value: boolean]
-  'start-screen-share': []
-  'leave-room': []
+  "update:modelValueMuted": [value: boolean]
+  "update:modelValueDeafened": [value: boolean]
+  "update:modelValueScreenSharing": [value: boolean]
+  "start-screen-share": []
+  "leave-room": []
 }>()
 
 // Template refs
-const screenShareButtonRef = useTemplateRef<InstanceType<typeof ScreenShareButton>>('screenShareButtonRef')
+const screenShareButtonRef = useTemplateRef<
+  InstanceType<typeof ScreenShareButton>
+>("screenShareButtonRef")
 
 // Computed v-model bindings
 const isMuted = computed({
   get: () => props.modelValueMuted,
-  set: (value) => emit('update:modelValueMuted', value)
+  set: (value) => emit("update:modelValueMuted", value),
 })
 
 const isDeafened = computed({
   get: () => props.modelValueDeafened,
-  set: (value) => emit('update:modelValueDeafened', value)
+  set: (value) => emit("update:modelValueDeafened", value),
 })
 
 const isScreenSharing = computed({
   get: () => props.modelValueScreenSharing,
-  set: (value) => emit('update:modelValueScreenSharing', value)
+  set: (value) => emit("update:modelValueScreenSharing", value),
 })
 
 // Confirm screen share start (called by parent after quality selection)
-const confirmStartScreenShare = async (quality: ScreenShareQuality, hasAudio: boolean) => {
-  const button = screenShareButtonRef.value as unknown as { confirmStartScreenShare?: (quality: ScreenShareQuality, hasAudio: boolean) => Promise<void> } | null
+const confirmStartScreenShare = async (
+  quality: ScreenShareQuality,
+  hasAudio: boolean,
+) => {
+  const button = screenShareButtonRef.value as unknown as {
+    confirmStartScreenShare?: (
+      quality: ScreenShareQuality,
+      hasAudio: boolean,
+    ) => Promise<void>
+  } | null
   if (button?.confirmStartScreenShare) {
     await button.confirmStartScreenShare(quality, hasAudio)
   }
@@ -86,7 +94,7 @@ const confirmStartScreenShare = async (quality: ScreenShareQuality, hasAudio: bo
 
 // Expose for parent component
 defineExpose({
-  confirmStartScreenShare
+  confirmStartScreenShare,
 })
 </script>
 

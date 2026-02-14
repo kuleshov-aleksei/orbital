@@ -1,10 +1,10 @@
-import { WebNoiseSuppressorProcessor } from './baseProcessor'
-import { loadSpeex, SpeexWorkletNode } from '@sapphi-red/web-noise-suppressor'
-import type { NoiseSuppressionAlgorithm } from '@/types/audio'
+import { WebNoiseSuppressorProcessor } from "./baseProcessor"
+import { loadSpeex, SpeexWorkletNode } from "@sapphi-red/web-noise-suppressor"
+import type { NoiseSuppressionAlgorithm } from "@/types/audio"
 
 // Import WASM and Worklet URLs
-import speexWasmPath from '@sapphi-red/web-noise-suppressor/speex.wasm?url'
-import speexWorkletPath from '@sapphi-red/web-noise-suppressor/speexWorklet.js?url'
+import speexWasmPath from "@sapphi-red/web-noise-suppressor/speex.wasm?url"
+import speexWorkletPath from "@sapphi-red/web-noise-suppressor/speexWorklet.js?url"
 
 // Type assertions for imported URLs
 const wasmPath = speexWasmPath as string
@@ -15,9 +15,9 @@ const workletPath = speexWorkletPath as string
  * Fast CPU-efficient noise suppression
  */
 export class SpeexProcessor extends WebNoiseSuppressorProcessor {
-  readonly id = 'speex' as NoiseSuppressionAlgorithm
-  readonly name = 'Speex'
-  readonly description = 'Fast CPU-efficient noise suppression'
+  readonly id = "speex" as NoiseSuppressionAlgorithm
+  readonly name = "Speex"
+  readonly description = "Fast CPU-efficient noise suppression"
   readonly requiredSampleRate = null
 
   private async loadWasm(): Promise<void> {
@@ -31,11 +31,11 @@ export class SpeexProcessor extends WebNoiseSuppressorProcessor {
         {
           url: wasmPath,
         },
-        { credentials: 'same-origin' }
+        { credentials: "same-origin" },
       )
     } catch (error) {
       this.loadError = error instanceof Error ? error : new Error(String(error))
-      console.error('Failed to load Speex WASM:', error)
+      console.error("Failed to load Speex WASM:", error)
       throw this.loadError
     } finally {
       this.isLoading = false
@@ -46,7 +46,7 @@ export class SpeexProcessor extends WebNoiseSuppressorProcessor {
     await this.loadWasm()
 
     if (!this.wasmBinary) {
-      throw new Error('Speex WASM not loaded')
+      throw new Error("Speex WASM not loaded")
     }
 
     // Create audio context

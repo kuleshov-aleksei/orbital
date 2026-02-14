@@ -1,11 +1,10 @@
 <template>
   <!-- Create Room Modal -->
-  <RoomModal 
+  <RoomModal
     v-if="modalStore.isCreateRoomModal"
     :initial-category="modalStore.createRoomCategoryName"
     @close="modalStore.closeModal()"
-    @create="handleCreateRoom"
-  />
+    @create="handleCreateRoom" />
 
   <!-- Edit Room Modal -->
   <EditRoomModal
@@ -14,8 +13,7 @@
     :initial-name="modalStore.modalData.roomName || ''"
     :initial-max-users="modalStore.modalData.roomMaxUsers || 10"
     @close="modalStore.closeModal()"
-    @submit="handleEditRoom"
-  />
+    @submit="handleEditRoom" />
 
   <!-- Delete Room Modal -->
   <ConfirmDeleteRoomModal
@@ -24,8 +22,7 @@
     :room-name="modalStore.modalData.roomName || ''"
     :user-count="modalStore.modalData.roomUserCount || 0"
     @close="modalStore.closeModal()"
-    @confirm="handleDeleteRoom"
-  />
+    @confirm="handleDeleteRoom" />
 
   <!-- Create/Rename Category Modal -->
   <CategoryModal
@@ -34,8 +31,7 @@
     :submit-button-text="modalStore.submitButtonText"
     :initial-name="modalStore.modalData.initialName || ''"
     @close="modalStore.closeModal()"
-    @submit="handleCategorySubmit"
-  />
+    @submit="handleCategorySubmit" />
 
   <!-- Delete Category Modal -->
   <ConfirmDeleteCategoryModal
@@ -46,29 +42,32 @@
     :categories="categoryStore.categories"
     :general-category-id="categoryStore.generalCategoryId"
     @close="modalStore.closeModal()"
-    @confirm="handleDeleteCategory"
-  />
+    @confirm="handleDeleteCategory" />
 
   <!-- Settings Modal -->
   <SettingsModal v-if="modalStore.isUserSettingsModal" />
 </template>
 
 <script setup lang="ts">
-import { useModalStore, useCategoryStore } from '@/stores'
-import { useRoomManager, useCategoryManager } from '@/composables'
-import RoomModal from '@/components/RoomModal.vue'
-import EditRoomModal from '@/components/EditRoomModal.vue'
-import ConfirmDeleteRoomModal from '@/components/ConfirmDeleteRoomModal.vue'
-import CategoryModal from '@/components/CategoryModal.vue'
-import ConfirmDeleteCategoryModal from '@/components/ConfirmDeleteCategoryModal.vue'
-import SettingsModal from '@/components/settings/SettingsModal.vue'
+import { useModalStore, useCategoryStore } from "@/stores"
+import { useRoomManager, useCategoryManager } from "@/composables"
+import RoomModal from "@/components/RoomModal.vue"
+import EditRoomModal from "@/components/EditRoomModal.vue"
+import ConfirmDeleteRoomModal from "@/components/ConfirmDeleteRoomModal.vue"
+import CategoryModal from "@/components/CategoryModal.vue"
+import ConfirmDeleteCategoryModal from "@/components/ConfirmDeleteCategoryModal.vue"
+import SettingsModal from "@/components/settings/SettingsModal.vue"
 
 const modalStore = useModalStore()
 const categoryStore = useCategoryStore()
 const roomManager = useRoomManager()
 const categoryManager = useCategoryManager()
 
-const handleCreateRoom = async (roomName: string, category: string, maxUsers: number) => {
+const handleCreateRoom = async (
+  roomName: string,
+  category: string,
+  maxUsers: number,
+) => {
   await roomManager.createRoom(roomName, category, maxUsers)
   modalStore.closeModal()
 }
@@ -90,9 +89,9 @@ const handleDeleteRoom = async () => {
 }
 
 const handleCategorySubmit = async (name: string) => {
-  if (modalStore.activeModal === 'createCategory') {
+  if (modalStore.activeModal === "createCategory") {
     await categoryManager.createCategory(name)
-  } else if (modalStore.activeModal === 'renameCategory') {
+  } else if (modalStore.activeModal === "renameCategory") {
     const categoryId = modalStore.modalData.categoryId
     if (categoryId) {
       await categoryManager.renameCategory(categoryId, name)
@@ -101,10 +100,17 @@ const handleCategorySubmit = async (name: string) => {
   modalStore.closeModal()
 }
 
-const handleDeleteCategory = async (deleteRooms: boolean, targetCategoryId?: string) => {
+const handleDeleteCategory = async (
+  deleteRooms: boolean,
+  targetCategoryId?: string,
+) => {
   const categoryId = modalStore.modalData.categoryId
   if (categoryId) {
-    await categoryManager.deleteCategory(categoryId, deleteRooms, targetCategoryId)
+    await categoryManager.deleteCategory(
+      categoryId,
+      deleteRooms,
+      targetCategoryId,
+    )
     modalStore.closeModal()
   }
 }

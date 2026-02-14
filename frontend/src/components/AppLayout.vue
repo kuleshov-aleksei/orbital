@@ -1,5 +1,6 @@
 <template>
-  <div class="app-layout h-screen bg-gray-900 text-white flex flex-col lg:flex-row overflow-hidden">
+  <div
+    class="app-layout h-screen bg-gray-900 text-white flex flex-col lg:flex-row overflow-hidden">
     <!-- Auth View - Blocks entire app until user completes auth -->
     <AuthView v-if="!userStore.hasCompletedAuth" />
 
@@ -19,8 +20,7 @@
           @delete-room="handleDeleteRoom"
           @start-screen-share="showScreenShareQualityModal = true"
           @auth-required="handleAuthRequired"
-          @leave-room="roomManager.handleLeaveRoom"
-        />
+          @leave-room="roomManager.handleLeaveRoom" />
 
         <!-- Mobile Room List View -->
         <MobileRoomView
@@ -32,8 +32,7 @@
           @delete-category="handleDeleteCategory"
           @move-room="handleMoveRoom"
           @edit-room="handleEditRoom"
-          @delete-room="handleDeleteRoom"
-        />
+          @delete-room="handleDeleteRoom" />
 
         <!-- Main Content Area -->
         <MainContent
@@ -42,12 +41,10 @@
           @create-room="modalManager.openCreateRoomModal()"
           @leave-room="roomManager.handleLeaveRoom"
           @ping-update="callControls.handlePingUpdate"
-          @request-screen-share="showScreenShareQualityModal = true"
-        />
+          @request-screen-share="showScreenShareQualityModal = true" />
 
         <!-- User Sidebar (Desktop + Mobile) -->
-        <UserSidebarWrapper
-        />
+        <UserSidebarWrapper />
       </div>
 
       <!-- Overlays (Error, Loading, Mobile) -->
@@ -60,35 +57,39 @@
       <ScreenShareQualityModal
         :is-open="showScreenShareQualityModal"
         @select-quality="handleScreenShareQualitySelected"
-        @cancel="showScreenShareQualityModal = false"
-      />
+        @cancel="showScreenShareQualityModal = false" />
 
       <!-- Update Notification -->
       <UpdateNotification
         :visible="showUpdateNotification"
-        @reload="handleReload"
-      />
+        @reload="handleReload" />
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue'
+import { onMounted, onUnmounted, ref, useTemplateRef, watch } from "vue"
 import {
   DesktopSidebar,
   MobileRoomView,
   MainContent,
   UserSidebarWrapper,
-  AppOverlays
-} from '@/components/layout'
-import ModalManager from '@/components/ModalManager.vue'
-import ScreenShareQualityModal from '@/components/ScreenShareQualityModal.vue'
-import UpdateNotification from '@/components/UpdateNotification.vue'
-import AuthView from '@/views/AuthView.vue'
-import { useRoomStore, useUserStore } from '@/stores'
-import { useUserSession, useRoomManager, useCategoryManager, useCallControls, useModalManager } from '@/composables'
-import { useWebSocketHandlers } from '@/composables'
-import { createVersionChecker } from '@/services/version'
+  AppOverlays,
+} from "@/components/layout"
+import ModalManager from "@/components/ModalManager.vue"
+import ScreenShareQualityModal from "@/components/ScreenShareQualityModal.vue"
+import UpdateNotification from "@/components/UpdateNotification.vue"
+import AuthView from "@/views/AuthView.vue"
+import { useRoomStore, useUserStore } from "@/stores"
+import {
+  useUserSession,
+  useRoomManager,
+  useCategoryManager,
+  useCallControls,
+  useModalManager,
+} from "@/composables"
+import { useWebSocketHandlers } from "@/composables"
+import { createVersionChecker } from "@/services/version"
 
 // Initialize composables (auto-initialize on mount)
 useUserSession()
@@ -113,7 +114,7 @@ const handleUpdateAvailable = (isInCall: boolean) => {
     showUpdateNotification.value = true
   } else {
     // Auto-reload when not in call
-    console.log('[Update] Auto-reloading to apply update...')
+    console.log("[Update] Auto-reloading to apply update...")
     window.location.reload()
   }
 }
@@ -124,41 +125,84 @@ const handleReload = () => {
 }
 
 // Template refs
-const mainContentRef = useTemplateRef<InstanceType<typeof MainContent>>('mainContentRef')
+const mainContentRef =
+  useTemplateRef<InstanceType<typeof MainContent>>("mainContentRef")
 
 // Modal state
 const showScreenShareQualityModal = ref(false)
 
 // Event handlers for sidebar actions
-const handleCreateRoomInCategory = (payload: { categoryId: string, categoryName: string }) => {
+const handleCreateRoomInCategory = (payload: {
+  categoryId: string
+  categoryName: string
+}) => {
   modalManager.openCreateRoomModal(payload.categoryName)
 }
 
-const handleRenameCategory = (payload: { categoryId: string, categoryName: string }) => {
+const handleRenameCategory = (payload: {
+  categoryId: string
+  categoryName: string
+}) => {
   modalManager.openRenameCategoryModal(payload.categoryId, payload.categoryName)
 }
 
-const handleDeleteCategory = (payload: { categoryId: string, categoryName: string }) => {
+const handleDeleteCategory = (payload: {
+  categoryId: string
+  categoryName: string
+}) => {
   const roomCount = categoryManager.countRoomsInCategory(payload.categoryId)
-  modalManager.openDeleteCategoryModal(payload.categoryId, payload.categoryName, roomCount)
+  modalManager.openDeleteCategoryModal(
+    payload.categoryId,
+    payload.categoryName,
+    roomCount,
+  )
 }
 
-const handleMoveRoom = async (payload: { roomId: string, targetCategoryId: string }) => {
+const handleMoveRoom = async (payload: {
+  roomId: string
+  targetCategoryId: string
+}) => {
   await roomManager.moveRoomToCategory(payload.roomId, payload.targetCategoryId)
 }
 
-const handleEditRoom = (payload: { roomId: string, roomName: string, maxUsers: number }) => {
-  modalManager.openEditRoomModal(payload.roomId, payload.roomName, payload.maxUsers)
+const handleEditRoom = (payload: {
+  roomId: string
+  roomName: string
+  maxUsers: number
+}) => {
+  modalManager.openEditRoomModal(
+    payload.roomId,
+    payload.roomName,
+    payload.maxUsers,
+  )
 }
 
-const handleDeleteRoom = (payload: { roomId: string, roomName: string, userCount: number }) => {
-  modalManager.openDeleteRoomModal(payload.roomId, payload.roomName, payload.userCount)
+const handleDeleteRoom = (payload: {
+  roomId: string
+  roomName: string
+  userCount: number
+}) => {
+  modalManager.openDeleteRoomModal(
+    payload.roomId,
+    payload.roomName,
+    payload.userCount,
+  )
 }
 
-const handleScreenShareQualitySelected = async (quality: string, shareAudio: boolean) => {
+const handleScreenShareQualitySelected = async (
+  quality: string,
+  shareAudio: boolean,
+) => {
   showScreenShareQualityModal.value = false
   /* eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
-  const voiceCallView = mainContentRef.value?.voiceCallViewRef as { startScreenShare?: (quality: string, shareAudio: boolean) => Promise<void> } | undefined
+  const voiceCallView = mainContentRef.value?.voiceCallViewRef as
+    | {
+        startScreenShare?: (
+          quality: string,
+          shareAudio: boolean,
+        ) => Promise<void>
+      }
+    | undefined
   if (voiceCallView?.startScreenShare) {
     await voiceCallView.startScreenShare(quality, shareAudio)
   }
@@ -174,7 +218,7 @@ onMounted(async () => {
   // Start version checker
   versionChecker = createVersionChecker(
     handleUpdateAvailable,
-    () => roomStore.isInRoom
+    () => roomStore.isInRoom,
   )
   versionChecker.start()
 })
@@ -185,18 +229,21 @@ onUnmounted(() => {
 })
 
 // Watch for auth completion and load rooms when user completes auth (e.g., guest login)
-watch(() => userStore.hasCompletedAuth, async (hasCompleted) => {
-  if (hasCompleted) {
-    await roomManager.loadRooms()
-    await categoryManager.loadCategories()
-  }
-})
+watch(
+  () => userStore.hasCompletedAuth,
+  async (hasCompleted) => {
+    if (hasCompleted) {
+      await roomManager.loadRooms()
+      await categoryManager.loadCategories()
+    }
+  },
+)
 </script>
 
 <style scoped>
 .app-layout {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu",
+    "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
 }
 </style>

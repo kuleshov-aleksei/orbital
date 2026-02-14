@@ -1,4 +1,4 @@
-import { computed } from 'vue'
+import { computed } from "vue"
 
 /**
  * Detects if screen sharing is supported in the current browser environment.
@@ -7,14 +7,20 @@ import { computed } from 'vue'
 export function useScreenShareSupport() {
   const isScreenShareSupported = computed(() => {
     // Check if getDisplayMedia API exists
-    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getDisplayMedia !== 'function') {
+    if (
+      !navigator.mediaDevices ||
+      typeof navigator.mediaDevices.getDisplayMedia !== "function"
+    ) {
       return false
     }
 
     // Check for mobile user agents (iOS and Android)
     const userAgent = navigator.userAgent.toLowerCase()
-    const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent)
-    
+    const isMobile =
+      /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(
+        userAgent,
+      )
+
     if (isMobile) {
       return false
     }
@@ -31,17 +37,17 @@ export function useScreenShareSupport() {
   const isScreenShareAudioSupported = computed(() => {
     // Audio sharing is only supported in Chrome and Chromium-based browsers (Edge, Opera, Brave)
     const userAgent = navigator.userAgent.toLowerCase()
-    
+
     // Check for Chrome/Chromium (but not Edge, which also uses Chrome in user agent)
     const isChrome = /chrome/.test(userAgent) && !/edge|edg/.test(userAgent)
     const isEdge = /edge|edg/.test(userAgent)
     const isOpera = /opr|opera/.test(userAgent)
     const isBrave = /brave/.test(userAgent)
-    
+
     // Check for browsers that don't support audio
     const isFirefox = /firefox/.test(userAgent)
     const isSafari = /safari/.test(userAgent) && !/chrome/.test(userAgent)
-    
+
     // Only Chrome and Chromium-based browsers support system audio capture
     // Note: Firefox and Safari don't support system audio capture
     void isFirefox
@@ -51,6 +57,6 @@ export function useScreenShareSupport() {
 
   return {
     isScreenShareSupported,
-    isScreenShareAudioSupported
+    isScreenShareAudioSupported,
   }
 }

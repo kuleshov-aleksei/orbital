@@ -1,16 +1,16 @@
-import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { defineStore } from "pinia"
+import { ref, watch } from "vue"
 
 // Local storage keys
-const MUTE_STORAGE_KEY = 'orbital_mic_muted'
-const DEAFEN_STORAGE_KEY = 'orbital_deafened'
+const MUTE_STORAGE_KEY = "orbital_mic_muted"
+const DEAFEN_STORAGE_KEY = "orbital_deafened"
 
 // Helper functions for localStorage
 const saveToStorage = (key: string, value: boolean) => {
   try {
     localStorage.setItem(key, JSON.stringify(value))
   } catch (e) {
-    console.warn('Failed to save preference to localStorage:', e)
+    console.warn("Failed to save preference to localStorage:", e)
   }
 }
 
@@ -19,12 +19,12 @@ const loadFromStorage = (key: string, defaultValue: boolean): boolean => {
     const stored = localStorage.getItem(key)
     return stored !== null ? (JSON.parse(stored) as boolean) : defaultValue
   } catch (e) {
-    console.warn('Failed to load preference from localStorage:', e)
+    console.warn("Failed to load preference from localStorage:", e)
     return defaultValue
   }
 }
 
-export const useCallStore = defineStore('call', () => {
+export const useCallStore = defineStore("call", () => {
   // State - initialized from localStorage
   const isMuted = ref(loadFromStorage(MUTE_STORAGE_KEY, false))
   const isDeafened = ref(loadFromStorage(DEAFEN_STORAGE_KEY, false))
@@ -80,6 +80,6 @@ export const useCallStore = defineStore('call', () => {
     toggleMute,
     toggleDeafen,
     toggleScreenShare,
-    resetCallState
+    resetCallState,
   }
 })

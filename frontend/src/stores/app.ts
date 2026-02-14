@@ -1,26 +1,26 @@
-import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { defineStore } from "pinia"
+import { ref, computed } from "vue"
 
-export type ConnectionQuality = 'excellent' | 'good' | 'fair' | 'poor'
-export type MobileView = 'rooms' | 'room'
+export type ConnectionQuality = "excellent" | "good" | "fair" | "poor"
+export type MobileView = "rooms" | "room"
 
-export const useAppStore = defineStore('app', () => {
+export const useAppStore = defineStore("app", () => {
   // State
   const isLoading = ref(false)
-  const errorMessage = ref('')
+  const errorMessage = ref("")
   const isMobile = ref(false)
-  const mobileView = ref<MobileView>('rooms')
+  const mobileView = ref<MobileView>("rooms")
   const mobileUserSidebarOpen = ref(false)
   const mobileSidebarOpen = ref(false)
-  
+
   // Connection state
   const connectionPing = ref(0)
-  const connectionQuality = ref<ConnectionQuality>('excellent')
+  const connectionQuality = ref<ConnectionQuality>("excellent")
 
   // Getters
   const hasError = computed(() => !!errorMessage.value)
-  const isRoomView = computed(() => mobileView.value === 'room')
-  const isRoomsView = computed(() => mobileView.value === 'rooms')
+  const isRoomView = computed(() => mobileView.value === "room")
+  const isRoomsView = computed(() => mobileView.value === "rooms")
 
   // Actions
   function setLoading(loading: boolean) {
@@ -32,7 +32,7 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function clearError() {
-    errorMessage.value = ''
+    errorMessage.value = ""
   }
 
   function setMobile(mobile: boolean) {
@@ -48,11 +48,11 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function showRoomView() {
-    mobileView.value = 'room'
+    mobileView.value = "room"
   }
 
   function showRoomsView() {
-    mobileView.value = 'rooms'
+    mobileView.value = "rooms"
   }
 
   function toggleMobileUserSidebar() {
@@ -112,6 +112,6 @@ export const useAppStore = defineStore('app', () => {
     closeAllMobileSidebars,
     setConnectionPing,
     setConnectionQuality,
-    updateConnectionStatus
+    updateConnectionStatus,
   }
 })

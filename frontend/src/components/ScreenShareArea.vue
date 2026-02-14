@@ -1,5 +1,6 @@
 <template>
-  <div class="screen-share-area bg-gray-800 rounded-lg overflow-hidden flex flex-col">
+  <div
+    class="screen-share-area bg-gray-800 rounded-lg overflow-hidden flex flex-col">
     <!-- Screen Share Content -->
     <div class="p-2 flex-1 min-h-0 flex flex-col">
       <!-- Focus Layout: Main screen (70%) + user panel (30%) side by side -->
@@ -15,10 +16,9 @@
             :is-focused="true"
             :show-focus-button="false"
             :is-self-view="focusedShare.isSelfView"
-            class="h-full"
-          />
+            class="h-full" />
         </div>
-        
+
         <!-- User panel for participants - 30% width -->
         <div class="flex-[3] min-w-0 flex flex-col gap-3 overflow-y-auto">
           <ParticipantCard
@@ -35,13 +35,16 @@
             :is-current-user="participant.isCurrentUser"
             :external-audio-level="participant.externalAudioLevel"
             :stats="participant.stats"
-            :force-audio-mode="(participant.userId !== focusedShare?.userId && participant.userId + '-self' !== focusedShare?.userId) && !participant.isScreenSharing"
+            :force-audio-mode="
+              participant.userId !== focusedShare?.userId &&
+              participant.userId + '-self' !== focusedShare?.userId &&
+              !participant.isScreenSharing
+            "
             @card-click="handleParticipantClick(participant.userId)"
-            @mute-toggle="$emit('mute-toggle', $event)"
-          />
+            @mute-toggle="$emit('mute-toggle', $event)" />
         </div>
       </div>
-      
+
       <!-- Grid Layout: All screens side by side -->
       <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4 h-full">
         <ScreenStream
@@ -56,13 +59,14 @@
           :show-focus-button="screenShares.length > 1"
           :is-self-view="share.isSelfView"
           class="h-full"
-          @make-focused="setFocusedShare(share.userId)"
-        />
+          @make-focused="setFocusedShare(share.userId)" />
       </div>
     </div>
-    
+
     <!-- Empty State -->
-    <div v-if="screenShares.length === 0" class="px-4 py-8 text-center flex-1 flex flex-col items-center justify-center">
+    <div
+      v-if="screenShares.length === 0"
+      class="px-4 py-8 text-center flex-1 flex flex-col items-center justify-center">
       <PhMonitorPlay class="w-12 h-12 text-gray-600 mx-auto mb-2" />
 
       <p class="text-gray-400">No active screen shares</p>
@@ -71,13 +75,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import {
-  PhMonitorPlay
-} from '@phosphor-icons/vue'
-import ScreenStream from './ScreenStream.vue'
-import ParticipantCard from './ParticipantCard.vue'
-import type { ScreenShareQuality, User } from '@/types'
+import { ref, computed, watch } from "vue"
+import { PhMonitorPlay } from "@phosphor-icons/vue"
+import ScreenStream from "./ScreenStream.vue"
+import ParticipantCard from "./ParticipantCard.vue"
+import type { ScreenShareQuality, User } from "@/types"
 
 interface ScreenShare {
   userId: string
@@ -99,79 +101,106 @@ interface ParticipantData {
   screenShareQuality?: ScreenShareQuality
   isCurrentUser?: boolean
   externalAudioLevel?: number
-  stats?: { ping: number; jitter: number; packetLoss: number; bitrate: number }
+  stats?: {
+    ping: number
+    jitter: number
+    packetLoss: number
+    bitrate: number
+    kind: string
+  }
 }
 
 interface Props {
   screenShares: ScreenShare[]
   isUserGridVisible: boolean
-  layout: 'grid' | 'focus'
+  layout: "grid" | "focus"
   users: User[]
   remoteStreams: Map<string, MediaStream>
   peerConnectionStates: Map<string, string>
   peerConnectionRetries: Map<string, number>
   remoteStreamVolumes: Map<string, number>
-  userScreenShareStates: Map<string, { isSharing: boolean; quality?: ScreenShareQuality }>
+  userScreenShareStates: Map<
+    string,
+    { isSharing: boolean; quality?: ScreenShareQuality }
+  >
   peerConnections: Map<string, RTCPeerConnection>
   isDeafened: boolean
   currentUserAudioLevel?: number
   currentUserId: string
   currentUserIsSharing?: boolean
-  getParticipantStats?: (userId: string) => { ping: number; jitter: number; packetLoss: number; bitrate: number }
+  getParticipantStats?: (userId: string) => {
+    ping: number
+    jitter: number
+    packetLoss: number
+    bitrate: number
+  }
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<{
-  'toggle-user-grid': []
-  'update:layout': [layout: 'grid' | 'focus']
-  'mute-toggle': [userId: string, isMuted: boolean]
+  "toggle-user-grid": []
+  "update:layout": [layout: "grid" | "focus"]
+  "mute-toggle": [userId: string, isMuted: boolean]
 }>()
 
 const localLayout = computed({
   get: () => props.layout,
-  set: (value) => emit('update:layout', value)
+  set: (value) => emit("update:layout", value),
 })
 const focusedUserId = ref<string | null>(null)
 
 // Set initial focus to first screen share
-watch(() => props.screenShares.length, (newLength, oldLength) => {
-  if (newLength > 0 && (oldLength === 0 || !focusedUserId.value)) {
-    // If first share added or no focus set, focus on first
-    focusedUserId.value = props.screenShares[0].userId
-  } else if (newLength === 0) {
-    // If all shares removed, clear focus
-    focusedUserId.value = null
-  } else if (focusedUserId.value && !props.screenShares.find(s => s.userId === focusedUserId.value)) {
-    // If focused user stopped sharing, focus on first available
-    focusedUserId.value = props.screenShares[0]?.userId || null
-  }
-}, { immediate: true })
+watch(
+  () => props.screenShares.length,
+  (newLength, oldLength) => {
+    if (newLength > 0 && (oldLength === 0 || !focusedUserId.value)) {
+      // If first share added or no focus set, focus on first
+      focusedUserId.value = props.screenShares[0].userId
+    } else if (newLength === 0) {
+      // If all shares removed, clear focus
+      focusedUserId.value = null
+    } else if (
+      focusedUserId.value &&
+      !props.screenShares.find((s) => s.userId === focusedUserId.value)
+    ) {
+      // If focused user stopped sharing, focus on first available
+      focusedUserId.value = props.screenShares[0]?.userId || null
+    }
+  },
+  { immediate: true },
+)
 
 const focusedShare = computed(() => {
   if (!focusedUserId.value) return props.screenShares[0] || null
-  return props.screenShares.find(s => s.userId === focusedUserId.value) || props.screenShares[0] || null
+  return (
+    props.screenShares.find((s) => s.userId === focusedUserId.value) ||
+    props.screenShares[0] ||
+    null
+  )
 })
 
 // Build participant data for all users
 const allParticipants = computed((): ParticipantData[] => {
-  return props.users.map(user => {
+  return props.users.map((user) => {
     // Look for screen share by user id - for current user also check for '-self' suffix (self-view)
-    let screenShare = props.screenShares.find(s => s.userId === user.id)
+    let screenShare = props.screenShares.find((s) => s.userId === user.id)
     const isCurrentUser = user.id === props.currentUserId
 
     // For current user, also check for self-view (userId + '-self')
     if (isCurrentUser && !screenShare) {
-      screenShare = props.screenShares.find(s => s.userId === user.id + '-self')
+      screenShare = props.screenShares.find(
+        (s) => s.userId === user.id + "-self",
+      )
     }
 
     // For current user, use currentUserIsSharing prop; for others, use userScreenShareStates
     const isScreenSharing = isCurrentUser
-      ? (props.currentUserIsSharing || false)
-      : (props.userScreenShareStates.get(user.id)?.isSharing || false)
+      ? props.currentUserIsSharing || false
+      : props.userScreenShareStates.get(user.id)?.isSharing || false
 
     return {
       userId: user.id,
-      userNickname: user.nickname || 'Unknown',
+      userNickname: user.nickname || "Unknown",
       audioStream: props.remoteStreams.get(user.id) || null,
       screenShareStream: screenShare?.stream || null,
       initialVolume: props.remoteStreamVolumes.get(user.id) || 80,
@@ -179,8 +208,10 @@ const allParticipants = computed((): ParticipantData[] => {
       isScreenSharing,
       screenShareQuality: props.userScreenShareStates.get(user.id)?.quality,
       isCurrentUser,
-      externalAudioLevel: isCurrentUser ? props.currentUserAudioLevel : undefined,
-      stats: props.getParticipantStats?.(user.id)
+      externalAudioLevel: isCurrentUser
+        ? props.currentUserAudioLevel
+        : undefined,
+      stats: props.getParticipantStats?.(user.id),
     }
   })
 })
@@ -188,15 +219,17 @@ const allParticipants = computed((): ParticipantData[] => {
 const setFocusedShare = (userId: string) => {
   focusedUserId.value = userId
   // Switch to focus layout when user clicks on a participant
-  if (props.layout === 'grid') {
-    localLayout.value = 'focus'
+  if (props.layout === "grid") {
+    localLayout.value = "focus"
   }
 }
 
 const handleParticipantClick = (userId: string) => {
   // If user has a screen share, focus on it
   // Check for both regular userId and self-view userId (userId + '-self')
-  const screenShare = props.screenShares.find(s => s.userId === userId || s.userId === userId + '-self')
+  const screenShare = props.screenShares.find(
+    (s) => s.userId === userId || s.userId === userId + "-self",
+  )
   if (screenShare) {
     setFocusedShare(screenShare.userId)
   }

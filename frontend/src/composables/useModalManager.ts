@@ -1,4 +1,4 @@
-import { useModalStore } from '@/stores'
+import { useModalStore } from "@/stores"
 
 export function useModalManager() {
   const modalStore = useModalStore()
@@ -17,7 +17,7 @@ export function useModalManager() {
     modalTitle: modalStore.modalTitle,
     submitButtonText: modalStore.submitButtonText,
     createRoomCategoryName: modalStore.createRoomCategoryName,
-    
+
     // Actions
     closeModal: modalStore.closeModal,
     openCreateRoomModal: modalStore.openCreateRoomModal,
@@ -25,6 +25,6 @@ export function useModalManager() {
     openDeleteRoomModal: modalStore.openDeleteRoomModal,
     openCreateCategoryModal: modalStore.openCreateCategoryModal,
     openRenameCategoryModal: modalStore.openRenameCategoryModal,
-    openDeleteCategoryModal: modalStore.openDeleteCategoryModal
+    openDeleteCategoryModal: modalStore.openDeleteCategoryModal,
   }
 }

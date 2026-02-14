@@ -3,7 +3,12 @@
  * Designed to be extensible for different noise suppression algorithms
  */
 
-export type NoiseSuppressionAlgorithm = 'off' | 'browser-native' | 'rnnoise' | 'speex' | 'livekit-native'
+export type NoiseSuppressionAlgorithm =
+  | "off"
+  | "browser-native"
+  | "rnnoise"
+  | "speex"
+  | "livekit-native"
 
 export interface NoiseSuppressionConfig {
   enabled: boolean
@@ -79,62 +84,64 @@ export interface AudioWorkletProcessor extends AudioProcessor {
 export const defaultAudioSettings: AudioSettings = {
   noiseSuppression: {
     enabled: true,
-    algorithm: 'livekit-native'
+    algorithm: "livekit-native",
   },
   echoCancellation: true,
   autoGainControl: true,
   sampleRate: 48000,
-  channelCount: 1
+  channelCount: 1,
 }
 
 /** Local storage key for audio settings */
-export const AUDIO_SETTINGS_STORAGE_KEY = 'orbital_audio_settings'
+export const AUDIO_SETTINGS_STORAGE_KEY = "orbital_audio_settings"
 
 /** List of available algorithms with metadata */
 export const availableAlgorithms: AudioAlgorithmInfo[] = [
   {
-    id: 'browser-native',
-    name: 'Browser Native',
-    description: 'Built-in browser noise suppression (WebRTC Audio Processing)',
+    id: "browser-native",
+    name: "Browser Native",
+    description: "Built-in browser noise suppression (WebRTC Audio Processing)",
     isSupported: true,
     isAvailable: true,
     requiresAudioWorklet: false,
-    sampleRate: null
+    sampleRate: null,
   },
   {
-    id: 'rnnoise',
-    name: 'RNNoise',
-    description: 'Machine learning-based noise suppression (high quality, requires 48kHz)',
+    id: "rnnoise",
+    name: "RNNoise",
+    description:
+      "Machine learning-based noise suppression (high quality, requires 48kHz)",
     isSupported: true,
     isAvailable: true,
     requiresAudioWorklet: true,
-    sampleRate: 48000
+    sampleRate: 48000,
   },
   {
-    id: 'speex',
-    name: 'Speex',
-    description: 'Fast CPU-efficient noise suppression',
+    id: "speex",
+    name: "Speex",
+    description: "Fast CPU-efficient noise suppression",
     isSupported: true,
     isAvailable: true,
     requiresAudioWorklet: true,
-    sampleRate: null
+    sampleRate: null,
   },
   {
-    id: 'off',
-    name: 'Off',
-    description: 'Disable noise suppression',
+    id: "off",
+    name: "Off",
+    description: "Disable noise suppression",
     isSupported: true,
     isAvailable: true,
     requiresAudioWorklet: false,
-    sampleRate: null
+    sampleRate: null,
   },
   {
-    id: 'livekit-native',
-    name: 'LiveKit Native',
-    description: 'Built-in LiveKit noise suppression (SFU-optimized, low latency)',
+    id: "livekit-native",
+    name: "LiveKit Native",
+    description:
+      "Built-in LiveKit noise suppression (SFU-optimized, low latency)",
     isSupported: true,
     isAvailable: true,
     requiresAudioWorklet: false,
-    sampleRate: null
-  }
+    sampleRate: null,
+  },
 ]

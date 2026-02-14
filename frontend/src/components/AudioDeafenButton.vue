@@ -6,11 +6,10 @@
       sizeClasses,
       isDeafened
         ? 'bg-red-600 hover:bg-red-700 text-white'
-        : 'bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white'
+        : 'bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white',
     ]"
     :title="isDeafened ? 'Undeafen' : 'Deafen'"
-    @click="toggleDeafen"
-  >
+    @click="toggleDeafen">
     <!-- Headphones with slash when deafened -->
     <div v-if="isDeafened" :class="iconWrapperClasses">
       <PhHeadphones :class="iconClasses" />
@@ -25,21 +24,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { PhHeadphones } from '@phosphor-icons/vue'
-import { useCallStore, useUserStore, useRoomStore } from '@/stores'
+import { computed } from "vue"
+import { PhHeadphones } from "@phosphor-icons/vue"
+import { useCallStore, useUserStore, useRoomStore } from "@/stores"
 
 interface Props {
   modelValue: boolean
-  size?: 'sm' | 'md' | 'lg'
+  size?: "sm" | "md" | "lg"
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  size: 'md'
+  size: "md",
 })
 
 const emit = defineEmits<{
-  'update:modelValue': [value: boolean]
+  "update:modelValue": [value: boolean]
 }>()
 
 // Stores
@@ -51,33 +50,33 @@ const roomStore = useRoomStore()
 const isDeafened = computed({
   get: () => props.modelValue,
   set: (value) => {
-    emit('update:modelValue', value)
-  }
+    emit("update:modelValue", value)
+  },
 })
 
 // Size classes based on prop
 const sizeClasses = computed(() => {
   switch (props.size) {
-    case 'sm':
-      return 'w-8 h-8 rounded-full'
-    case 'lg':
-      return 'w-12 h-12 rounded-full'
-    case 'md':
+    case "sm":
+      return "w-8 h-8 rounded-full"
+    case "lg":
+      return "w-12 h-12 rounded-full"
+    case "md":
     default:
-      return 'w-10 h-10 rounded-full'
+      return "w-10 h-10 rounded-full"
   }
 })
 
 // Icon size classes
 const iconClasses = computed(() => {
   switch (props.size) {
-    case 'sm':
-      return 'w-4 h-4'
-    case 'lg':
-      return 'w-5 h-5'
-    case 'md':
+    case "sm":
+      return "w-4 h-4"
+    case "lg":
+      return "w-5 h-5"
+    case "md":
     default:
-      return 'w-5 h-5'
+      return "w-5 h-5"
   }
 })
 
@@ -88,13 +87,13 @@ const iconWrapperClasses = computed(() => {
 
 // Slash line size
 const slashClasses = computed(() => {
-  const baseClasses = 'bg-current rotate-45'
+  const baseClasses = "bg-current rotate-45"
   switch (props.size) {
-    case 'sm':
+    case "sm":
       return `${baseClasses} w-4 h-0.5`
-    case 'lg':
+    case "lg":
       return `${baseClasses} w-6 h-0.5`
-    case 'md':
+    case "md":
     default:
       return `${baseClasses} w-5 h-0.5`
   }
@@ -104,10 +103,10 @@ const slashClasses = computed(() => {
 const toggleDeafen = () => {
   const newValue = !isDeafened.value
   isDeafened.value = newValue
-  
+
   // Update call store (presence store watches this and syncs with LiveKit)
   callStore.setDeafened(newValue)
-  
+
   // Immediately update room store for local user so UI updates right away
   roomStore.updateUserStatus(userStore.userId, { is_deafened: newValue })
 }

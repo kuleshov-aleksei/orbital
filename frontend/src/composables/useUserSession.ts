@@ -1,6 +1,6 @@
-import { onMounted } from 'vue'
-import { useUserStore } from '@/stores'
-import { generateUserId, generateNickname } from '@/services/api'
+import { onMounted } from "vue"
+import { useUserStore } from "@/stores"
+import { generateUserId, generateNickname } from "@/services/api"
 
 export function useUserSession() {
   const userStore = useUserStore()
@@ -8,19 +8,19 @@ export function useUserSession() {
   const initializeUser = async () => {
     // Try to load from localStorage first
     const existingUser = await userStore.loadUserFromStorage()
-    
+
     if (!existingUser) {
       // Create new user if none exists
       const userId = generateUserId()
       const nickname = generateNickname(userId)
-      userStore.setUser({ 
-        id: userId, 
+      userStore.setUser({
+        id: userId,
         nickname,
-        authProvider: 'guest',
-        isGuest: true
+        authProvider: "guest",
+        isGuest: true,
       })
     }
-    
+
     return userStore.userId
   }
 
@@ -47,6 +47,6 @@ export function useUserSession() {
     isAuthenticated: userStore.isAuthenticated,
     initializeUser,
     getCurrentUserId,
-    updateNickname
+    updateNickname,
   }
 }

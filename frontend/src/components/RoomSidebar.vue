@@ -1,22 +1,29 @@
 <template>
   <div
-     class="room-sidebar"
-     :class="{
-        'w-72 bg-gray-800 flex flex-col min-h-0': !isMobileView,
-       'flex-1 flex flex-col bg-gray-900': isMobileView,
-       'fixed lg:relative inset-y-0 left-0 z-40 transform -translate-x-full lg:translate-x-0 transition-transform duration-300': !isMobileView,
-       'translate-x-0': !isHidden && !isMobileView
-     }">
+    class="room-sidebar"
+    :class="{
+      'w-72 bg-gray-800 flex flex-col min-h-0': !isMobileView,
+      'flex-1 flex flex-col bg-gray-900': isMobileView,
+      'fixed lg:relative inset-y-0 left-0 z-40 transform -translate-x-full lg:translate-x-0 transition-transform duration-300':
+        !isMobileView,
+      'translate-x-0': !isHidden && !isMobileView,
+    }">
     <!-- Desktop Header (only when not in mobile view mode) -->
-    <div v-if="!isMobileView" class="hidden lg:flex p-4 border-b border-gray-700">
-      <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">Rooms</h2>
+    <div
+      v-if="!isMobileView"
+      class="hidden lg:flex p-4 border-b border-gray-700">
+      <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">
+        Rooms
+      </h2>
     </div>
 
     <!-- Mobile Full-screen Header -->
     <div v-if="isMobileView" class="p-4 border-b border-gray-800">
       <h2 class="text-xl font-semibold text-white">Available Rooms</h2>
 
-      <p class="text-sm text-gray-400 mt-1">{{ rooms?.length || 0 }} room{{ (rooms?.length || 0) !== 1 ? 's' : '' }}</p>
+      <p class="text-sm text-gray-400 mt-1">
+        {{ rooms?.length || 0 }} room{{ (rooms?.length || 0) !== 1 ? "s" : "" }}
+      </p>
     </div>
 
     <!-- Room Categories and List -->
@@ -26,18 +33,24 @@
         v-if="draggedCategory"
         class="h-2 rounded transition-all duration-200"
         :class="{
-          'bg-purple-500/50 h-4': activeCategoryDropZone?.position === 'before-first'
+          'bg-purple-500/50 h-4':
+            activeCategoryDropZone?.position === 'before-first',
         }"
-        @dragover.prevent="handleCategoryDropZoneDragOver($event, 'before-first')"
+        @dragover.prevent="
+          handleCategoryDropZoneDragOver($event, 'before-first')
+        "
         @drop="handleCategoryDropZoneDrop($event, 0)" />
-      
-      <template v-for="(category, categoryIndex) in categorizedRooms" :key="category.id">
+
+      <template
+        v-for="(category, categoryIndex) in categorizedRooms"
+        :key="category.id">
         <div class="mb-4">
           <div class="px-2 py-1">
             <div
               class="w-full flex items-center justify-between px-2 py-1 text-xs font-medium text-gray-400 hover:text-gray-200 transition-colors duration-200 cursor-pointer group"
-               :class="{
-                'ring-2 ring-purple-400 ring-offset-2 ring-offset-gray-800': draggedCategory && draggedCategory.id === category.id
+              :class="{
+                'ring-2 ring-purple-400 ring-offset-2 ring-offset-gray-800':
+                  draggedCategory && draggedCategory.id === category.id,
               }"
               v-bind="isAdmin ? { draggable: true } : {}"
               @click="toggleCategory(category.name)"
@@ -53,83 +66,102 @@
 
                 <PhCaretDown
                   class="w-3 h-3 transition-transform duration-200"
-                  :class="{ 'rotate-180': expandedCategories.has(category.name) }" />
+                  :class="{
+                    'rotate-180': expandedCategories.has(category.name),
+                  }" />
               </div>
             </div>
           </div>
 
-        <div v-show="expandedCategories.has(category.name)" class="px-2">
-          <!-- Drop zone before first room -->
-          <div
-            v-if="draggedRoom"
-            class="h-2 rounded transition-all duration-200"
-            :class="{
-              'bg-indigo-500/50 h-8': activeDropZone?.categoryId === category.id && activeDropZone?.position === 'before-first'
-            }"
-            @dragover.prevent="handleDropZoneDragOver($event, category.id, 'before-first')"
-            @drop="handleDropZoneDrop($event, category.id, 0)" />
-          
-          <template v-for="(room, index) in category.rooms" :key="room.id">
-            <RoomCard
-              :room="room"
-              :is-active="room.id === activeRoomId"
-              :is-dragging="draggedRoom?.id === room.id"
-              :is-draggable="isAdmin"
-              @click="$emit('room-selected', room.id)"
-              @show-context-menu="showRoomContextMenu"
-              @dragstart="handleDragStart($event, room, category.id)"
-              @dragend="handleDragEnd" />
-            
-            <!-- Drop zone between rooms -->
+          <div v-show="expandedCategories.has(category.name)" class="px-2">
+            <!-- Drop zone before first room -->
             <div
-              v-if="draggedRoom && index < category.rooms.length - 1"
+              v-if="draggedRoom"
               class="h-2 rounded transition-all duration-200"
               :class="{
-                'bg-indigo-500/50 h-8': activeDropZone?.categoryId === category.id && activeDropZone?.position === index
+                'bg-indigo-500/50 h-8':
+                  activeDropZone?.categoryId === category.id &&
+                  activeDropZone?.position === 'before-first',
               }"
-              @dragover.prevent="handleDropZoneDragOver($event, category.id, index)"
-              @drop="handleDropZoneDrop($event, category.id, index + 1)" />
-          </template>
-          
-          <!-- Drop zone after last room -->
-          <div
-            v-if="draggedRoom"
-            class="h-2 rounded transition-all duration-200"
-            :class="{
-              'bg-indigo-500/50 h-8': activeDropZone?.categoryId === category.id && activeDropZone?.position === 'after-last'
-            }"
-            @dragover.prevent="handleDropZoneDragOver($event, category.id, 'after-last')"
-            @drop="handleDropZoneDrop($event, category.id, category.rooms.length)" />
-          
-          <!-- Drop zone at the end of category -->
-          <div
-            v-if="draggedRoom && draggedRoom.category !== category.id"
-            class="h-8 rounded-lg border-2 border-dashed border-indigo-400 bg-indigo-500/10 flex items-center justify-center text-xs text-indigo-300"
-            @dragover.prevent="handleCategoryDragOver($event, category.id)"
-            @drop="handleCategoryDrop($event, category.id)">
-            Drop here to move to {{ category.name }}
+              @dragover.prevent="
+                handleDropZoneDragOver($event, category.id, 'before-first')
+              "
+              @drop="handleDropZoneDrop($event, category.id, 0)" />
+
+            <template v-for="(room, index) in category.rooms" :key="room.id">
+              <RoomCard
+                :room="room"
+                :is-active="room.id === activeRoomId"
+                :is-dragging="draggedRoom?.id === room.id"
+                :is-draggable="isAdmin"
+                @click="$emit('room-selected', room.id)"
+                @show-context-menu="showRoomContextMenu"
+                @dragstart="handleDragStart($event, room, category.id)"
+                @dragend="handleDragEnd" />
+
+              <!-- Drop zone between rooms -->
+              <div
+                v-if="draggedRoom && index < category.rooms.length - 1"
+                class="h-2 rounded transition-all duration-200"
+                :class="{
+                  'bg-indigo-500/50 h-8':
+                    activeDropZone?.categoryId === category.id &&
+                    activeDropZone?.position === index,
+                }"
+                @dragover.prevent="
+                  handleDropZoneDragOver($event, category.id, index)
+                "
+                @drop="handleDropZoneDrop($event, category.id, index + 1)" />
+            </template>
+
+            <!-- Drop zone after last room -->
+            <div
+              v-if="draggedRoom"
+              class="h-2 rounded transition-all duration-200"
+              :class="{
+                'bg-indigo-500/50 h-8':
+                  activeDropZone?.categoryId === category.id &&
+                  activeDropZone?.position === 'after-last',
+              }"
+              @dragover.prevent="
+                handleDropZoneDragOver($event, category.id, 'after-last')
+              "
+              @drop="
+                handleDropZoneDrop($event, category.id, category.rooms.length)
+              " />
+
+            <!-- Drop zone at the end of category -->
+            <div
+              v-if="draggedRoom && draggedRoom.category !== category.id"
+              class="h-8 rounded-lg border-2 border-dashed border-indigo-400 bg-indigo-500/10 flex items-center justify-center text-xs text-indigo-300"
+              @dragover.prevent="handleCategoryDragOver($event, category.id)"
+              @drop="handleCategoryDrop($event, category.id)">
+              Drop here to move to {{ category.name }}
+            </div>
           </div>
         </div>
-        
-        </div>
-        
+
         <!-- Drop zone between categories -->
         <div
           v-if="draggedCategory && categoryIndex < categorizedRooms.length - 1"
           class="h-2 rounded transition-all duration-200"
           :class="{
-            'bg-purple-500/50 h-4': activeCategoryDropZone?.position === categoryIndex
+            'bg-purple-500/50 h-4':
+              activeCategoryDropZone?.position === categoryIndex,
           }"
-          @dragover.prevent="handleCategoryDropZoneDragOver($event, categoryIndex)"
+          @dragover.prevent="
+            handleCategoryDropZoneDragOver($event, categoryIndex)
+          "
           @drop="handleCategoryDropZoneDrop($event, categoryIndex + 1)" />
       </template>
-      
+
       <!-- Drop zone after last category -->
       <div
         v-if="draggedCategory"
         class="h-2 rounded transition-all duration-200"
         :class="{
-          'bg-purple-500/50 h-4': activeCategoryDropZone?.position === 'after-last'
+          'bg-purple-500/50 h-4':
+            activeCategoryDropZone?.position === 'after-last',
         }"
         @dragover.prevent="handleCategoryDropZoneDragOver($event, 'after-last')"
         @drop="handleCategoryDropZoneDrop($event, categorizedRooms.length)" />
@@ -218,15 +250,14 @@
 
           <PhCaretDown class="w-3 h-3 transform -rotate-90" />
         </button>
-        
+
         <!-- Invisible bridge to prevent menu from closing when moving cursor -->
         <div
           v-if="showMoveSubmenu"
           class="absolute left-full top-0 w-8 h-full -ml-4 z-[9999]"
           @mouseenter="onBridgeEnter"
-          @mouseleave="onBridgeLeave">
-        </div>
-        
+          @mouseleave="onBridgeLeave"></div>
+
         <!-- Move Submenu -->
         <div
           v-if="showMoveSubmenu"
@@ -242,7 +273,9 @@
             {{ category.name }}
           </button>
 
-          <div v-if="availableCategoriesForMove.length === 0" class="px-4 py-2 text-sm text-gray-500">
+          <div
+            v-if="availableCategoriesForMove.length === 0"
+            class="px-4 py-2 text-sm text-gray-500">
             No other categories
           </div>
         </div>
@@ -289,13 +322,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { storeToRefs } from 'pinia'
-import RoomCard from '@/components/RoomCard.vue'
-import { PhCaretDown, PhPlus, PhDotsThree, PhPencil, PhTrash, PhArrowsLeftRight } from '@phosphor-icons/vue'
-import { useRoomStore, useCategoryStore, useUserStore } from '@/stores'
-import { apiService } from '@/services/api'
-import type { Room, Category } from '@/types'
+import { ref, computed } from "vue"
+import { storeToRefs } from "pinia"
+import RoomCard from "@/components/RoomCard.vue"
+import {
+  PhCaretDown,
+  PhPlus,
+  PhDotsThree,
+  PhPencil,
+  PhTrash,
+  PhArrowsLeftRight,
+} from "@phosphor-icons/vue"
+import { useRoomStore, useCategoryStore, useUserStore } from "@/stores"
+import { apiService } from "@/services/api"
+import type { Room, Category } from "@/types"
 
 interface CategorizedRoom {
   id: string
@@ -311,16 +351,20 @@ interface Props {
 const { activeRoomId, isMobileView = false } = defineProps<Props>()
 
 const emit = defineEmits<{
-  'room-selected': [roomId: string]
-  'create-room': []
-  'create-room-in-category': [payload: { categoryId: string, categoryName: string }]
-  'rename-category': [payload: { categoryId: string, categoryName: string }]
-  'delete-category': [payload: { categoryId: string, categoryName: string }]
-  'move-room': [payload: { roomId: string, targetCategoryId: string }]
-  'edit-room': [payload: { roomId: string, roomName: string, maxUsers: number }]
-  'delete-room': [payload: { roomId: string, roomName: string, userCount: number }]
-  'close-mobile-sidebar': []
-  'room-order-updated': [payload: { orders: Record<string, number> }]
+  "room-selected": [roomId: string]
+  "create-room": []
+  "create-room-in-category": [
+    payload: { categoryId: string; categoryName: string },
+  ]
+  "rename-category": [payload: { categoryId: string; categoryName: string }]
+  "delete-category": [payload: { categoryId: string; categoryName: string }]
+  "move-room": [payload: { roomId: string; targetCategoryId: string }]
+  "edit-room": [payload: { roomId: string; roomName: string; maxUsers: number }]
+  "delete-room": [
+    payload: { roomId: string; roomName: string; userCount: number },
+  ]
+  "close-mobile-sidebar": []
+  "room-order-updated": [payload: { orders: Record<string, number> }]
 }>()
 // Use stores directly for reactivity
 const roomStore = useRoomStore()
@@ -338,7 +382,10 @@ const expandedCategories = ref(new Set<string>())
 
 const categorizedRooms = computed(() => {
   const result: CategorizedRoom[] = []
-  const categoryRoomMap = new Map<string, { id: string; name: string; rooms: Room[] }>()
+  const categoryRoomMap = new Map<
+    string,
+    { id: string; name: string; rooms: Room[] }
+  >()
 
   // Group rooms by category ID
   rooms.value?.forEach((room) => {
@@ -348,7 +395,11 @@ const categorizedRooms = computed(() => {
     const categoryName = category?.name || room.category_name || categoryId
 
     if (!categoryRoomMap.has(categoryId)) {
-      categoryRoomMap.set(categoryId, { id: categoryId, name: categoryName, rooms: [] })
+      categoryRoomMap.set(categoryId, {
+        id: categoryId,
+        name: categoryName,
+        rooms: [],
+      })
     }
     categoryRoomMap.get(categoryId)!.rooms.push(room)
   })
@@ -372,8 +423,8 @@ const categorizedRooms = computed(() => {
 
   // Sort categories by sort_order
   result.sort((a, b) => {
-    const catA = categories.value?.find(c => c.id === a.id)
-    const catB = categories.value?.find(c => c.id === b.id)
+    const catA = categories.value?.find((c) => c.id === a.id)
+    const catB = categories.value?.find((c) => c.id === b.id)
     return (catA?.sort_order || 0) - (catB?.sort_order || 0)
   })
 
@@ -414,7 +465,10 @@ const handleCreateRoomInCategory = () => {
   if (contextMenu.value.category) {
     // Use the category ID and name directly from the context menu
     // categorizedRooms now properly stores the category ID from room.category
-    emit('create-room-in-category', { categoryId: contextMenu.value.category.id, categoryName: contextMenu.value.category.name })
+    emit("create-room-in-category", {
+      categoryId: contextMenu.value.category.id,
+      categoryName: contextMenu.value.category.name,
+    })
   }
   closeContextMenu()
 }
@@ -422,7 +476,10 @@ const handleCreateRoomInCategory = () => {
 const handleRenameCategory = () => {
   if (contextMenu.value.category) {
     // Use the category ID and name directly from the context menu
-    emit('rename-category', { categoryId: contextMenu.value.category.id, categoryName: contextMenu.value.category.name })
+    emit("rename-category", {
+      categoryId: contextMenu.value.category.id,
+      categoryName: contextMenu.value.category.name,
+    })
   }
   closeContextMenu()
 }
@@ -430,7 +487,10 @@ const handleRenameCategory = () => {
 const handleDeleteCategory = () => {
   if (contextMenu.value.category) {
     // Use the category ID and name directly from the context menu
-    emit('delete-category', { categoryId: contextMenu.value.category.id, categoryName: contextMenu.value.category.name })
+    emit("delete-category", {
+      categoryId: contextMenu.value.category.id,
+      categoryName: contextMenu.value.category.name,
+    })
   }
   closeContextMenu()
 }
@@ -450,13 +510,15 @@ let submenuHideTimeout: ReturnType<typeof setTimeout> | null = null
 // Get available categories for moving (exclude current room's category)
 const availableCategoriesForMove = computed(() => {
   if (!roomContextMenu.value.room) return categories.value || []
-  return (categories.value || []).filter(cat => cat.id !== roomContextMenu.value.room?.category)
+  return (categories.value || []).filter(
+    (cat) => cat.id !== roomContextMenu.value.room?.category,
+  )
 })
 
 const showRoomContextMenu = (event: MouseEvent, room: Room) => {
   // Close category menu if open
   closeContextMenu()
-  
+
   roomContextMenu.value = {
     visible: true,
     x: event.clientX,
@@ -550,17 +612,20 @@ const onMoveCategorySelect = (targetCategoryId: string) => {
 
 const handleMoveRoom = (targetCategoryId: string) => {
   if (roomContextMenu.value.room) {
-    emit('move-room', { roomId: roomContextMenu.value.room.id, targetCategoryId })
+    emit("move-room", {
+      roomId: roomContextMenu.value.room.id,
+      targetCategoryId,
+    })
   }
   closeRoomContextMenu()
 }
 
 const handleEditRoom = () => {
   if (roomContextMenu.value.room) {
-    emit('edit-room', {
+    emit("edit-room", {
       roomId: roomContextMenu.value.room.id,
       roomName: roomContextMenu.value.room.name,
-      maxUsers: roomContextMenu.value.room.max_users
+      maxUsers: roomContextMenu.value.room.max_users,
     })
   }
   closeRoomContextMenu()
@@ -568,10 +633,10 @@ const handleEditRoom = () => {
 
 const handleDeleteRoom = () => {
   if (roomContextMenu.value.room) {
-    emit('delete-room', {
+    emit("delete-room", {
       roomId: roomContextMenu.value.room.id,
       roomName: roomContextMenu.value.room.name,
-      userCount: roomContextMenu.value.room.user_count
+      userCount: roomContextMenu.value.room.user_count,
     })
   }
   closeRoomContextMenu()
@@ -581,29 +646,34 @@ const handleDeleteRoom = () => {
 const draggedRoom = ref<Room | null>(null)
 const dragOverCategory = ref<string | null>(null)
 const dragSourceCategory = ref<string | null>(null)
-const activeDropZone = ref<{ categoryId: string; position: number | 'before-first' | 'after-last' } | null>(null)
+const activeDropZone = ref<{
+  categoryId: string
+  position: number | "before-first" | "after-last"
+} | null>(null)
 
 // Category Drag and Drop State
 const draggedCategory = ref<Category | null>(null)
-const activeCategoryDropZone = ref<{ position: number | 'before-first' | 'after-last' } | null>(null)
+const activeCategoryDropZone = ref<{
+  position: number | "before-first" | "after-last"
+} | null>(null)
 
 // Drag Start - when user starts dragging a room
 const handleDragStart = (event: DragEvent, room: Room, categoryId: string) => {
   draggedRoom.value = room
   dragSourceCategory.value = categoryId
-  
+
   // Set drag data
   if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = 'move'
-    event.dataTransfer.setData('text/plain', room.id)
-    
+    event.dataTransfer.effectAllowed = "move"
+    event.dataTransfer.setData("text/plain", room.id)
+
     // Set a custom drag image if needed
     const target = event.target as HTMLElement
     if (target) {
       event.dataTransfer.setDragImage(target, 0, 0)
     }
   }
-  
+
   // Close any open context menus
   closeAllContextMenus()
 }
@@ -617,18 +687,26 @@ const handleDragEnd = () => {
 }
 
 // Handle drag over drop zones
-const handleDropZoneDragOver = (event: DragEvent, categoryId: string, position: number | 'before-first' | 'after-last') => {
+const handleDropZoneDragOver = (
+  event: DragEvent,
+  categoryId: string,
+  position: number | "before-first" | "after-last",
+) => {
   event.preventDefault()
 
   if (!draggedRoom.value) return
 
   // Show drop zones for all categories
   activeDropZone.value = { categoryId, position }
-  event.dataTransfer!.dropEffect = 'move'
+  event.dataTransfer!.dropEffect = "move"
 }
 
 // Handle drop on drop zones
-const handleDropZoneDrop = async (event: DragEvent, categoryId: string, targetIndex: number) => {
+const handleDropZoneDrop = async (
+  event: DragEvent,
+  categoryId: string,
+  targetIndex: number,
+) => {
   event.preventDefault()
   event.stopPropagation()
 
@@ -649,7 +727,7 @@ const handleDropZoneDrop = async (event: DragEvent, categoryId: string, targetIn
       await moveRoomToCategoryAtPosition(sourceRoom, categoryId, targetIndex)
     }
   } catch (error) {
-    console.error('Failed to update room order:', error)
+    console.error("Failed to update room order:", error)
   }
 
   handleDragEnd()
@@ -660,7 +738,7 @@ const handleCategoryDragOver = (event: DragEvent, categoryId: string) => {
   event.preventDefault()
   dragOverCategory.value = categoryId
   if (event.dataTransfer) {
-    event.dataTransfer.dropEffect = 'move'
+    event.dataTransfer.dropEffect = "move"
   }
 }
 
@@ -668,29 +746,33 @@ const handleCategoryDragOver = (event: DragEvent, categoryId: string) => {
 const handleCategoryDrop = async (event: DragEvent, categoryId: string) => {
   event.preventDefault()
   event.stopPropagation()
-  
+
   if (!draggedRoom.value || draggedRoom.value.category === categoryId) {
     handleDragEnd()
     return
   }
-  
+
   try {
     await moveRoomToCategory(draggedRoom.value, categoryId)
   } catch (error) {
-    console.error('Failed to move room to category:', error)
+    console.error("Failed to move room to category:", error)
   }
-  
+
   handleDragEnd()
 }
 
 // Reorder rooms within the same category
-const reorderRoomsInCategory = async (categoryId: string, sourceRoom: Room, targetIndex: number) => {
+const reorderRoomsInCategory = async (
+  categoryId: string,
+  sourceRoom: Room,
+  targetIndex: number,
+) => {
   // Get all rooms in this category
   const categoryRooms = rooms.value
-    .filter(r => r.category === categoryId)
+    .filter((r) => r.category === categoryId)
     .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
 
-  const sourceIndex = categoryRooms.findIndex(r => r.id === sourceRoom.id)
+  const sourceIndex = categoryRooms.findIndex((r) => r.id === sourceRoom.id)
   if (sourceIndex === -1) return
 
   // If dropping at the same position, do nothing
@@ -725,15 +807,20 @@ const reorderRoomsInCategory = async (categoryId: string, sourceRoom: Room, targ
 // Move room to a different category
 const moveRoomToCategory = async (room: Room, targetCategoryId: string) => {
   // Find the highest sort_order in the target category
-  const targetCategoryRooms = rooms.value.filter(r => r.category === targetCategoryId)
-  const maxSortOrder = targetCategoryRooms.reduce((max, r) => Math.max(max, r.sort_order || 0), 0)
+  const targetCategoryRooms = rooms.value.filter(
+    (r) => r.category === targetCategoryId,
+  )
+  const maxSortOrder = targetCategoryRooms.reduce(
+    (max, r) => Math.max(max, r.sort_order || 0),
+    0,
+  )
 
   // Update room category via existing API
   await apiService.updateRoom(room.id, { category: targetCategoryId })
 
   // Update sort order in new category
   const updates: Record<string, number> = {
-    [room.id]: maxSortOrder + 1
+    [room.id]: maxSortOrder + 1,
   }
 
   // Update local state
@@ -744,14 +831,18 @@ const moveRoomToCategory = async (room: Room, targetCategoryId: string) => {
   await apiService.updateRoomOrder(updates)
 
   // Emit event for parent component
-  emit('move-room', { roomId: room.id, targetCategoryId })
+  emit("move-room", { roomId: room.id, targetCategoryId })
 }
 
 // Move room to a different category at a specific position
-const moveRoomToCategoryAtPosition = async (room: Room, targetCategoryId: string, targetIndex: number) => {
+const moveRoomToCategoryAtPosition = async (
+  room: Room,
+  targetCategoryId: string,
+  targetIndex: number,
+) => {
   // Get all rooms in the target category
   const targetCategoryRooms = rooms.value
-    .filter(r => r.category === targetCategoryId)
+    .filter((r) => r.category === targetCategoryId)
     .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
 
   // Update room category via existing API
@@ -775,7 +866,7 @@ const moveRoomToCategoryAtPosition = async (room: Room, targetCategoryId: string
   await apiService.updateRoomOrder(updates)
 
   // Emit event for parent component
-  emit('move-room', { roomId: room.id, targetCategoryId })
+  emit("move-room", { roomId: room.id, targetCategoryId })
 }
 
 // Category Drag and Drop Functions
@@ -785,8 +876,8 @@ const handleCategoryDragStart = (event: DragEvent, category: Category) => {
 
   // Set drag data
   if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = 'move'
-    event.dataTransfer.setData('text/plain', category.id)
+    event.dataTransfer.effectAllowed = "move"
+    event.dataTransfer.setData("text/plain", category.id)
 
     // Set a custom drag image
     const target = event.target as HTMLElement
@@ -806,17 +897,23 @@ const handleCategoryDragEnd = () => {
 }
 
 // Handle drag over category drop zones
-const handleCategoryDropZoneDragOver = (event: DragEvent, position: number | 'before-first' | 'after-last') => {
+const handleCategoryDropZoneDragOver = (
+  event: DragEvent,
+  position: number | "before-first" | "after-last",
+) => {
   event.preventDefault()
 
   if (!draggedCategory.value) return
 
   activeCategoryDropZone.value = { position }
-  event.dataTransfer!.dropEffect = 'move'
+  event.dataTransfer!.dropEffect = "move"
 }
 
 // Handle drop on category drop zones
-const handleCategoryDropZoneDrop = async (event: DragEvent, targetIndex: number) => {
+const handleCategoryDropZoneDrop = async (
+  event: DragEvent,
+  targetIndex: number,
+) => {
   event.preventDefault()
   event.stopPropagation()
 
@@ -830,7 +927,7 @@ const handleCategoryDropZoneDrop = async (event: DragEvent, targetIndex: number)
   try {
     await reorderCategories(sourceCategory, targetIndex)
   } catch (error) {
-    console.error('Failed to update category order:', error)
+    console.error("Failed to update category order:", error)
   } finally {
     // Always clear drag state after reordering completes
     handleCategoryDragEnd()
@@ -838,26 +935,32 @@ const handleCategoryDropZoneDrop = async (event: DragEvent, targetIndex: number)
 }
 
 // Reorder categories
-const reorderCategories = async (sourceCategory: Category, targetIndex: number) => {
-  
+const reorderCategories = async (
+  sourceCategory: Category,
+  targetIndex: number,
+) => {
   // Get all categories sorted by sort_order
-  const sortedCategories = [...categories.value].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+  const sortedCategories = [...categories.value].sort(
+    (a, b) => (a.sort_order || 0) - (b.sort_order || 0),
+  )
 
-  const sourceIndex = sortedCategories.findIndex(c => c.id === sourceCategory.id)
+  const sourceIndex = sortedCategories.findIndex(
+    (c) => c.id === sourceCategory.id,
+  )
   if (sourceIndex === -1) {
-    console.error('Source category not found:', sourceCategory.id)
+    console.error("Source category not found:", sourceCategory.id)
     return
   }
 
   // If dropping at the same position, do nothing
   if (sourceIndex === targetIndex || sourceIndex === targetIndex - 1) {
-    console.log('Dropping at same position, skipping')
+    console.log("Dropping at same position, skipping")
     return
   }
 
   // Reorder the array
   const [movedCategory] = sortedCategories.splice(sourceIndex, 1)
-  console.log('Moved category:', movedCategory.name)
+  console.log("Moved category:", movedCategory.name)
 
   // Adjust target index if moving down
   let adjustedTargetIndex = targetIndex
@@ -876,7 +979,7 @@ const reorderCategories = async (sourceCategory: Category, targetIndex: number) 
   // Create a new sorted categories array for immediate UI update
   const newCategoriesOrder = sortedCategories.map((cat, index) => ({
     ...cat,
-    sort_order: index + 1
+    sort_order: index + 1,
   }))
 
   // Update local state immediately for responsiveness
