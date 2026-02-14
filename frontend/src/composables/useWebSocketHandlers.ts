@@ -1,4 +1,4 @@
-import { onMounted, onUnmounted, watch } from 'vue'
+import { onMounted, onUnmounted, watch, ref } from 'vue'
 import { useRoomStore, useCategoryStore, useAppStore, useUserStore, useUsersStore } from '@/stores'
 import { wsService } from '@/services/websocket'
 import type { User, Room, Category } from '@/types'
@@ -8,6 +8,8 @@ export function useWebSocketHandlers() {
   const categoryStore = useCategoryStore()
   const appStore = useAppStore()
   const usersStore = useUsersStore()
+  const userStore = useUserStore()
+  const hasConnected = ref(false)
 
   const setupWebSocketListeners = () => {
     // Room users updates
@@ -152,38 +154,55 @@ export function useWebSocketHandlers() {
 
     // User online/offline events for global presence
     wsService.onGlobal('user_online', (message) => {
-      const data = message.data as { user_id: string }
-      console.log('[WebSocket] User came online:', data.user_id)
-      const user = usersStore.allUsers.find(u => u.id === data.user_id)
-      if (user) {
-        user.is_online = true
+      const data = message.data as { id: string; nickname: string; avatar_url?: string; role: string; is_online: boolean }
+      console.log('[WebSocket] User came online:', data.id, data.nickname, 'Current users count:', usersStore.allUsers.length)
+      
+      // Check if user already exists
+      const existingUser = usersStore.allUsers.find(u => u.id === data.id)
+      if (existingUser) {
+        console.log('[WebSocket] Updating existing user:', data.id)
+        usersStore.updateOnlineStatus(data.id, true)
+      } else {
+        console.log('[WebSocket] Adding new user:', data.id)
+        // Add new user with full data
+        usersStore.addUser({
+          id: data.id,
+          nickname: data.nickname,
+          avatar_url: data.avatar_url || '',
+          role: data.role,
+          is_online: true
+        })
       }
+      console.log('[WebSocket] After update, users count:', usersStore.allUsers.length)
     })
 
     wsService.onGlobal('user_offline', (message) => {
-      const data = message.data as { user_id: string }
-      console.log('[WebSocket] User went offline:', data.user_id)
-      const user = usersStore.allUsers.find(u => u.id === data.user_id)
-      if (user) {
-        user.is_online = false
-      }
+      const data = message.data as { id: string }
+      console.log('[WebSocket] User went offline:', data.id)
+      usersStore.updateOnlineStatus(data.id, false)
     })
 
     // Full online users list (broadcast every 30 seconds)
     wsService.onGlobal('online_users', (message) => {
-      const data = message.data as { users: string[] }
-      console.log('[WebSocket] Received online users list:', data.users)
+      const data = message.data as { users: Array<{ id: string; nickname: string; avatar_url?: string; role: string; is_online: boolean }> }
+      console.log('[WebSocket] Received online users list:', data.users.length, 'users')
       
-      // Mark all users as offline first
-      usersStore.allUsers.forEach(user => {
-        user.is_online = false
+      // Update all users with their online status from the broadcast
+      data.users.forEach(user => {
+        usersStore.updateUser({
+          id: user.id,
+          nickname: user.nickname,
+          avatar_url: user.avatar_url,
+          role: user.role,
+          is_online: user.is_online
+        })
       })
       
-      // Mark online users as online
-      data.users.forEach(userId => {
-        const user = usersStore.allUsers.find(u => u.id === userId)
-        if (user) {
-          user.is_online = true
+      // Mark users not in the online list as offline
+      const onlineUserIds = new Set(data.users.map(u => u.id))
+      usersStore.allUsers.forEach(user => {
+        if (user.is_online && !onlineUserIds.has(user.id)) {
+          usersStore.updateOnlineStatus(user.id, false)
         }
       })
     })
@@ -198,7 +217,6 @@ export function useWebSocketHandlers() {
   }
 
   // Watch for token changes to reconnect WebSocket with new auth
-  const userStore = useUserStore()
   watch(() => userStore.token, async (newToken, oldToken) => {
     // Only reconnect if:
     // 1. We have a new token
@@ -242,17 +260,36 @@ export function useWebSocketHandlers() {
     }
   }
 
+  // Connect to WebSocket only after auth is complete
+  const connectIfAuthenticated = () => {
+    if (userStore.hasCompletedAuth && !hasConnected.value) {
+      console.log('[WebSocket] Auth completed, connecting WebSocket')
+      hasConnected.value = true
+      void connectGlobalWebSocket()
+    }
+  }
+
   // Auto-initialize on mount
   onMounted(() => {
     setupWebSocketListeners()
     setupGlobalWebSocketListeners()
-    void connectGlobalWebSocket()
+    
+    // Only connect if already authenticated
+    connectIfAuthenticated()
+  })
+
+  // Watch for auth completion and connect when ready
+  watch(() => userStore.hasCompletedAuth, (hasCompleted) => {
+    if (hasCompleted) {
+      connectIfAuthenticated()
+    }
   })
 
   onUnmounted(() => {
     stopGlobalPing()
     wsService.disconnect()
     void wsService.disconnectGlobal()
+    hasConnected.value = false
   })
 
   return {

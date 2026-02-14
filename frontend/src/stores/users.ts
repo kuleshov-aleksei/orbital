@@ -8,6 +8,7 @@ export const useUsersStore = defineStore('users', () => {
   const allUsers = ref<PublicUser[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+  const lastOnlineUpdate = ref<number>(0)
 
   // Getters
   const userCount = computed(() => allUsers.value.length)
@@ -49,16 +50,30 @@ export const useUsersStore = defineStore('users', () => {
 
     try {
       const users = await apiService.getAllUsers()
+      const now = Date.now()
+      const hasRecentWebSocketUpdate = (now - lastOnlineUpdate.value) < 5000 // 5 seconds
+
       // Create a map of existing users to preserve their online status
       const existingUsersMap = new Map(allUsers.value.map(u => [u.id, u]))
 
       // Merge new users with existing ones, preserving online status from WebSocket
+      // If we received WebSocket update in last 5 seconds, trust it over API
       allUsers.value = users.map(user => {
         const existing = existingUsersMap.get(user.id)
+        const apiOnlineStatus = user.is_online
+        
+        // If we have recent WebSocket data, prioritize it over API
+        // Otherwise, use API status or existing status
+        let isOnline: boolean
+        if (hasRecentWebSocketUpdate && existing) {
+          isOnline = existing.is_online
+        } else {
+          isOnline = existing?.is_online ?? apiOnlineStatus ?? false
+        }
+        
         return {
           ...user,
-          // Preserve online status if we already have it from WebSocket
-          is_online: existing?.is_online ?? false
+          is_online: isOnline
         }
       })
     } catch (err) {
@@ -67,6 +82,23 @@ export const useUsersStore = defineStore('users', () => {
     } finally {
       isLoading.value = false
     }
+  }
+
+  function updateOnlineStatus(userId: string, isOnline: boolean) {
+    const index = allUsers.value.findIndex(u => u.id === userId)
+    if (index !== -1) {
+      // Use splice to ensure reactivity in Vue 3
+      allUsers.value.splice(index, 1, { ...allUsers.value[index], is_online: isOnline })
+      lastOnlineUpdate.value = Date.now()
+    }
+  }
+
+  function updateOnlineUsersList(onlineUserIds: string[]) {
+    allUsers.value = allUsers.value.map(user => ({
+      ...user,
+      is_online: onlineUserIds.includes(user.id)
+    }))
+    lastOnlineUpdate.value = Date.now()
   }
 
   function addUser(user: PublicUser) {
@@ -85,11 +117,12 @@ export const useUsersStore = defineStore('users', () => {
     const index = allUsers.value.findIndex(u => u.id === user.id)
     if (index !== -1) {
       // Update existing user, preserving is_online if not provided
+      // Use splice to ensure reactivity in Vue 3
       const currentOnline = allUsers.value[index].is_online
-      allUsers.value[index] = {
+      allUsers.value.splice(index, 1, {
         ...user,
         is_online: user.is_online !== undefined ? user.is_online : currentOnline
-      }
+      })
     } else {
       // If user doesn't exist, add them
       addUser(user)
@@ -143,6 +176,8 @@ export const useUsersStore = defineStore('users', () => {
     updateUser,
     removeUser,
     setUsers,
-    updateUserNickname
+    updateUserNickname,
+    updateOnlineStatus,
+    updateOnlineUsersList
   }
 })

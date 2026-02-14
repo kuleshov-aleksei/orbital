@@ -122,18 +122,74 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 	client.mu.RUnlock()
 	if userID != "" {
 		h.UpdateUserPing(userID)
-		// Broadcast user online status to all connected clients
-		h.BroadcastToAll(models.WebSocketMessage{
-			Type: "user_online",
-			Data: map[string]string{
-				"user_id": userID,
-			},
-		})
+		log.Printf("[WebSocket] User %s marked as online", userID)
+
+		// Broadcast user online status with full user data to all connected clients
+		if h.authService != nil {
+			user, err := h.authService.GetUserByID(userID)
+			if err != nil {
+				log.Printf("[WebSocket] Failed to get user %s for broadcast: %v", userID, err)
+			} else if user == nil {
+				log.Printf("[WebSocket] User %s not found in database", userID)
+			} else {
+				log.Printf("[WebSocket] Broadcasting user_online for %s (%s) to %d clients", userID, user.Nickname, len(h.clients))
+				h.BroadcastToAll(models.WebSocketMessage{
+					Type: "user_online",
+					Data: models.PublicUser{
+						ID:        user.ID,
+						Nickname:  user.Nickname,
+						AvatarURL: user.AvatarURL,
+						Role:      user.Role,
+						IsOnline:  true,
+					},
+				})
+			}
+		} else {
+			log.Printf("[WebSocket] Cannot broadcast user_online: authService is nil")
+		}
+	} else {
+		log.Printf("[WebSocket] Client connected without userID, waiting for authentication via ping")
 	}
 
-	// Start goroutines for this client
+	// Start goroutines for this client FIRST so they can receive messages
 	go client.writePump()
 	go client.readPump()
+
+	// Send initial online users list to the new client (after writePump starts)
+	if roomID == "" && userID != "" {
+		onlineUserIDs := h.GetOnlineUsers()
+		log.Printf("[WebSocket] Preparing initial online_users list for %s: %d users online", userID, len(onlineUserIDs))
+
+		// Fetch full user data for all online users
+		var onlineUsers []models.PublicUser
+		if h.authService != nil {
+			for _, uid := range onlineUserIDs {
+				user, err := h.authService.GetUserByID(uid)
+				if err == nil && user != nil {
+					onlineUsers = append(onlineUsers, models.PublicUser{
+						ID:        user.ID,
+						Nickname:  user.Nickname,
+						AvatarURL: user.AvatarURL,
+						Role:      user.Role,
+						IsOnline:  true,
+					})
+				}
+			}
+		}
+
+		initialOnlineMessage := models.WebSocketMessage{
+			Type: "online_users",
+			Data: map[string]interface{}{
+				"users": onlineUsers,
+			},
+		}
+		select {
+		case client.send <- marshalMessage(initialOnlineMessage):
+			log.Printf("[WebSocket] Sent initial online_users list to user %s (%d users)", userID, len(onlineUsers))
+		default:
+			log.Printf("[WebSocket] Failed to send initial online_users list to user %s: channel blocked", userID)
+		}
+	}
 }
 
 // HandleGlobalWebSocket handles WebSocket connections for global broadcasts (not room-specific)
@@ -171,18 +227,28 @@ func (h *Hub) BroadcastToRoom(roomID string, message interface{}) {
 // BroadcastToAll sends a message to all connected clients
 func (h *Hub) BroadcastToAll(message interface{}) {
 	h.mu.RLock()
-	defer h.mu.RUnlock()
+	clientCount := len(h.clients)
+	h.mu.RUnlock()
 
 	data, err := json.Marshal(message)
 	if err != nil {
-		log.Printf("Error marshaling message: %v", err)
+		log.Printf("[WebSocket] Error marshaling message: %v", err)
 		return
 	}
 
+	log.Printf("[WebSocket] Broadcasting message to %d clients", clientCount)
+
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	successCount := 0
+	failCount := 0
 	for client := range h.clients {
 		select {
 		case client.send <- data:
+			successCount++
 		default:
+			failCount++
 			close(client.send)
 			delete(h.clients, client)
 			// Remove from room clients if present
@@ -190,6 +256,12 @@ func (h *Hub) BroadcastToAll(message interface{}) {
 				delete(h.roomClients[client.roomID], client)
 			}
 		}
+	}
+
+	if failCount > 0 {
+		log.Printf("[WebSocket] Broadcast complete: %d sent, %d failed (channel blocked)", successCount, failCount)
+	} else {
+		log.Printf("[WebSocket] Broadcast complete: %d sent successfully", successCount)
 	}
 }
 
@@ -269,8 +341,8 @@ func (h *Hub) isUserOnlineLocked(userID string) bool {
 	if !exists {
 		return false
 	}
-	// Consider user online if they've pinged within the last 60 seconds
-	return time.Since(lastSeen) < 60*time.Second
+	// Consider user online if they've pinged within the last 30 seconds
+	return time.Since(lastSeen) < 30*time.Second
 }
 
 // RemoveOnlineUser marks a user as offline (when they disconnect and have no other connections)
@@ -282,17 +354,25 @@ func (h *Hub) RemoveOnlineUser(userID string) {
 	defer h.mu.Unlock()
 
 	// Check if user has any other active connections
-	hasOtherConnection := false
+	connectionCount := 0
 	for client := range h.clients {
 		if client.userID == userID {
-			hasOtherConnection = true
-			break
+			connectionCount++
 		}
 	}
 
-	if !hasOtherConnection {
+	// Check if user has pinged recently (within 30 seconds)
+	// This handles the case where another connection exists but hasn't been authenticated yet
+	lastSeen, hasLastSeen := h.onlineUsers[userID]
+	hasRecentPing := hasLastSeen && time.Since(lastSeen) < 30*time.Second
+
+	if connectionCount == 0 && !hasRecentPing {
 		delete(h.onlineUsers, userID)
-		log.Printf("User %s is now offline (total online: %d)", userID, len(h.onlineUsers))
+		log.Printf("User %s is now offline (no connections, total online: %d)", userID, len(h.onlineUsers))
+	} else if connectionCount > 0 {
+		log.Printf("User %s still has %d connection(s), keeping online status", userID, connectionCount)
+	} else if hasRecentPing {
+		log.Printf("User %s has recent ping, keeping online status", userID)
 	}
 }
 
@@ -303,7 +383,7 @@ func (h *Hub) IsUserOnline(userID string) bool {
 	return h.isUserOnlineLocked(userID)
 }
 
-// GetOnlineUsers returns a list of all online user IDs (pinged within last 60 seconds)
+// GetOnlineUsers returns a list of all online user IDs (pinged within last 30 seconds)
 func (h *Hub) GetOnlineUsers() []string {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -335,14 +415,31 @@ func (c *Client) readPump() {
 
 		// Mark user as offline if they have no other connections
 		if userID != "" {
+			wasOnline := c.hub.IsUserOnline(userID)
 			c.hub.RemoveOnlineUser(userID)
-			// Broadcast user offline status to all connected clients
-			c.hub.BroadcastToAll(models.WebSocketMessage{
-				Type: "user_offline",
-				Data: map[string]string{
-					"user_id": userID,
-				},
-			})
+			isStillOnline := c.hub.IsUserOnline(userID)
+			// Only broadcast if user actually went offline
+			if wasOnline && !isStillOnline {
+				log.Printf("[WebSocket] Broadcasting user_offline for %s (disconnected, no other connections)", userID)
+				// Broadcast user offline status with full user data to all connected clients
+				if c.hub.authService != nil {
+					user, err := c.hub.authService.GetUserByID(userID)
+					if err == nil && user != nil {
+						c.hub.BroadcastToAll(models.WebSocketMessage{
+							Type: "user_offline",
+							Data: models.PublicUser{
+								ID:        user.ID,
+								Nickname:  user.Nickname,
+								AvatarURL: user.AvatarURL,
+								Role:      user.Role,
+								IsOnline:  false,
+							},
+						})
+					}
+				}
+			} else if wasOnline && isStillOnline {
+				log.Printf("[WebSocket] User %s disconnected but still has other connections, keeping online", userID)
+			}
 		}
 
 		c.conn.Close()
@@ -539,9 +636,17 @@ func (c *Client) handlePing(data interface{}) {
 	jsonData, _ := json.Marshal(data)
 	json.Unmarshal(jsonData, &pingData)
 
-	// Update last ping time
+	// Check if this is a new authentication (userID was empty but ping has one)
 	c.mu.Lock()
 	c.lastPingTime = time.Now()
+	// If client doesn't have a userID yet but ping data has one, use it
+	// This handles the case where user authenticates after connecting
+	isNewAuthentication := false
+	if c.userID == "" && pingData.UserID != "" {
+		c.userID = pingData.UserID
+		isNewAuthentication = true
+		log.Printf("[WebSocket] User authenticated via ping: %s", pingData.UserID)
+	}
 	userID := c.userID
 	roomID := c.roomID
 	c.mu.Unlock()
@@ -555,14 +660,33 @@ func (c *Client) handlePing(data interface{}) {
 	if userID != "" {
 		wasOnline := c.hub.IsUserOnline(userID)
 		c.hub.UpdateUserPing(userID)
-		// If user was offline but is now online (after ping), broadcast it
-		if !wasOnline {
-			c.hub.BroadcastToAll(models.WebSocketMessage{
-				Type: "user_online",
-				Data: map[string]string{
-					"user_id": userID,
-				},
-			})
+		// Broadcast if either:
+		// 1. User just authenticated via ping (new connection with auth)
+		// 2. User was offline but is now online
+		shouldBroadcast := isNewAuthentication || !wasOnline
+		if shouldBroadcast {
+			if c.hub.authService != nil {
+				user, err := c.hub.authService.GetUserByID(userID)
+				if err == nil && user != nil {
+					log.Printf("[WebSocket] Broadcasting user_online for %s (new_auth=%v, was_online=%v)", userID, isNewAuthentication, wasOnline)
+					c.hub.BroadcastToAll(models.WebSocketMessage{
+						Type: "user_online",
+						Data: models.PublicUser{
+							ID:        user.ID,
+							Nickname:  user.Nickname,
+							AvatarURL: user.AvatarURL,
+							Role:      user.Role,
+							IsOnline:  true,
+						},
+					})
+				} else {
+					log.Printf("[WebSocket] Cannot broadcast user_online for %s: auth error=%v, user=%v", userID, err, user)
+				}
+			} else {
+				log.Printf("[WebSocket] Cannot broadcast user_online for %s: authService is nil", userID)
+			}
+		} else {
+			log.Printf("[WebSocket] Not broadcasting user_online for %s: wasOnline=%v, isNewAuth=%v", userID, wasOnline, isNewAuthentication)
 		}
 	}
 
@@ -611,9 +735,26 @@ func (h *Hub) startPingMonitor() {
 
 // broadcastOnlineUsers sends the current list of online users to all connected clients
 func (h *Hub) broadcastOnlineUsers() {
-	onlineUsers := h.GetOnlineUsers()
-	if len(onlineUsers) == 0 {
+	onlineUserIDs := h.GetOnlineUsers()
+	if len(onlineUserIDs) == 0 {
 		return
+	}
+
+	// Fetch full user data for all online users
+	var onlineUsers []models.PublicUser
+	if h.authService != nil {
+		for _, userID := range onlineUserIDs {
+			user, err := h.authService.GetUserByID(userID)
+			if err == nil && user != nil {
+				onlineUsers = append(onlineUsers, models.PublicUser{
+					ID:        user.ID,
+					Nickname:  user.Nickname,
+					AvatarURL: user.AvatarURL,
+					Role:      user.Role,
+					IsOnline:  true,
+				})
+			}
+		}
 	}
 
 	message := models.WebSocketMessage{
@@ -695,12 +836,14 @@ func (h *Hub) checkGlobalPingTimeouts(timeout time.Duration) {
 	}
 }
 
-// checkGlobalPresenceTimeouts checks for users who haven't pinged in 60 seconds and marks them offline
+// checkGlobalPresenceTimeouts checks for users who haven't pinged in 30 seconds and marks them offline
+// Note: Offline status is propagated via the periodic online_users broadcast (lazy update),
+// not via individual user_offline events
 func (h *Hub) checkGlobalPresenceTimeouts() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	timeout := 60 * time.Second
+	timeout := 30 * time.Second
 	now := time.Now()
 	offlineUsers := make([]string, 0)
 
@@ -710,18 +853,10 @@ func (h *Hub) checkGlobalPresenceTimeouts() {
 		}
 	}
 
-	// Remove offline users and broadcast
+	// Remove offline users - their offline status will be propagated via the next online_users broadcast
 	for _, userID := range offlineUsers {
 		delete(h.onlineUsers, userID)
-		log.Printf("User %s marked offline due to inactivity (60s timeout)", userID)
-
-		// Broadcast user offline status
-		go h.BroadcastToAll(models.WebSocketMessage{
-			Type: "user_offline",
-			Data: map[string]string{
-				"user_id": userID,
-			},
-		})
+		log.Printf("User %s marked offline due to inactivity (30s timeout), will be synced via online_users broadcast", userID)
 	}
 }
 
