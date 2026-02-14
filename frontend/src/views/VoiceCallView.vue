@@ -138,8 +138,6 @@ const {
   isScreenSharing,
   userScreenShareStates,
   screenShareData,
-  localScreenShareDebugData,
-  remoteScreenShareDebugData,
   handleMuteToggle,
   startScreenShare,
   getParticipantStats,
