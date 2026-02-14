@@ -155,9 +155,17 @@ export const usePresenceStore = defineStore('presence', () => {
       participants.value.delete(metadata.user_id)
     })
 
-    lkRoom.on(RoomEvent.ParticipantAttributesChanged, (participant: Participant, changedAttributes: Record<string, string | undefined>) => {
-      console.log('[Presence] Participant attributes changed:', participant.identity, changedAttributes)
-      updateParticipantFromLiveKit(participant)
+    lkRoom.on(RoomEvent.ParticipantAttributesChanged, (changedAttributes: Record<string, string | undefined>, participant: Participant) => {
+      console.log('[Presence] Participant attributes changed:', {
+        identity: participant?.identity,
+        name: participant?.name,
+        attributes: participant?.attributes,
+        changedAttributes,
+        isLocal: participant === lkRoom.localParticipant
+      })
+      if (participant) {
+        updateParticipantFromLiveKit(participant)
+      }
     })
 
     lkRoom.on(RoomEvent.IsSpeakingChanged, (participant: Participant, speaking: boolean) => {
