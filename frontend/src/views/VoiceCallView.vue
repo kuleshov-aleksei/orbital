@@ -142,7 +142,6 @@ const {
   remoteScreenShareDebugData,
   handleMuteToggle,
   startScreenShare,
-  getConnectionQuality,
   getParticipantStats,
   applyMuteState,
   applyDeafenState,

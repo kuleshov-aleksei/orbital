@@ -2,7 +2,6 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import {
   Room,
   RoomEvent,
-  type LocalAudioTrack,
   type LocalTrackPublication,
   type RemoteAudioTrack,
   type RemoteVideoTrack,
@@ -105,23 +104,15 @@ export function useLiveKit(options: UseLiveKitOptions) {
         if (trackStats) {
           const senderStats = Array.from(trackStats.values()).find(
             (s: { type: string }) => s.type === 'outbound-rtp'
-          ) as unknown as {
-            jitter?: number
-            packetsLost?: number
-            packetsSent?: number
-            bytesSent?: number
-            timestamp?: number
-            roundTripTime?: number
-          }
+          ) as RTCOutboundRtpStreamStats
 
           if (senderStats) {
             stats.set(currentUserId, {
               ping: currentPing.value || 0,
-              jitter: (senderStats.jitter || 0) * 1000, // Convert to ms
-              packetLoss: senderStats.packetsLost
-                ? (senderStats.packetsLost / (senderStats.packetsSent || 1)) * 100
-                : 0,
-              bitrate: senderStats.bytesSent ? senderStats.bytesSent * 8 : 0
+              jitter: 0,
+              packetLoss: 0,
+              bitrate: senderStats.bytesSent ? senderStats.bytesSent * 8 : 0,
+              kind: senderStats.kind
             })
           }
         }
@@ -187,45 +178,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
         bitrate: 0
       }
     )
-  }
-
-  // Get connection quality with real stats
-  const getConnectionQuality = (
-    userId: string
-  ): {
-    bitrate: number
-    packetLoss: number
-    jitter: number
-    quality: 'excellent' | 'good' | 'fair' | 'poor' | 'unknown'
-  } => {
-    const stats = participantStats.value.get(userId)
-
-    if (!stats) {
-      return {
-        bitrate: 0,
-        packetLoss: 0,
-        jitter: 0,
-        quality: 'unknown'
-      }
-    }
-
-    // Calculate quality based on stats
-    let quality: 'excellent' | 'good' | 'fair' | 'poor' | 'unknown' = 'good'
-
-    if (stats.packetLoss > 5 || stats.jitter > 100) {
-      quality = 'poor'
-    } else if (stats.packetLoss > 2 || stats.jitter > 50) {
-      quality = 'fair'
-    } else if (stats.packetLoss < 1 && stats.jitter < 30) {
-      quality = 'excellent'
-    }
-
-    return {
-      bitrate: stats.bitrate,
-      packetLoss: stats.packetLoss,
-      jitter: stats.jitter,
-      quality
-    }
   }
 
   // Dispose AudioWorklet processor
@@ -828,56 +780,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
     return shares
   })
 
-  // Debug data for screen sharing
-  const localScreenShareDebugData = computed(() => {
-    if (!isScreenSharing.value) return []
-
-    return [{
-      userId: getCurrentUserId(),
-      userNickname: 'You',
-      stream: localScreenVideoTrack.value 
-        ? new MediaStream([localScreenVideoTrack.value.mediaStreamTrack])
-        : null,
-      quality: screenShareQuality.value,
-      connectionState: 'connected'
-    }]
-  })
-
-  const remoteScreenShareDebugData = computed(() => {
-    void screenShareVersion.value
-    const shares: Array<{
-      userId: string
-      userNickname: string
-      stream: MediaStream | null
-      quality: ScreenShareQuality
-      connectionState: string
-    }> = []
-
-    remoteParticipants.value.forEach((participant, userId) => {
-      const shareState = userScreenShareStates.value.get(userId)
-      if (shareState?.isSharing) {
-        const tracks = remoteScreenTracks.value.get(userId)
-        const tracks_array: MediaStreamTrack[] = []
-        if (tracks?.video) {
-          tracks_array.push(tracks.video.mediaStreamTrack)
-        }
-        if (tracks?.audio) {
-          tracks_array.push(tracks.audio.mediaStreamTrack)
-        }
-        
-        shares.push({
-          userId,
-          userNickname: participant.name || userId,
-          stream: tracks_array.length > 0 ? new MediaStream(tracks_array) : null,
-          quality: shareState.quality,
-          connectionState: 'connected'
-        })
-      }
-    })
-
-    return shares
-  })
-
   // Cleanup function
   const cleanup = () => {
     console.log(`[LiveKit][INFO]: 'Cleaning up LiveKit...'}`)
@@ -957,8 +859,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
     screenShareQuality,
     userScreenShareStates,
     screenShareData,
-    localScreenShareDebugData,
-    remoteScreenShareDebugData,
     
     // Legacy compatibility (for useWebRTC interface)
     localStream: computed(() => localAudioTrack.value 
@@ -985,7 +885,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
     handleMuteToggle,
     startScreenShare,
     stopScreenShare,
-    getConnectionQuality,
     getParticipantStats,
     reinitializeAudioStream,
     cleanup
