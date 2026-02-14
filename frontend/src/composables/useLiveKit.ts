@@ -66,6 +66,9 @@ export function useLiveKit(options: UseLiveKitOptions) {
   const userScreenShareStates = ref<Map<string, ScreenShareState>>(new Map())
   const remoteScreenTracks = ref<Map<string, { video?: RemoteVideoTrack; audio?: RemoteAudioTrack }>>(new Map())
   const screenShareVersion = ref(0)
+  // Track publication references for cleanup
+  const localScreenVideoPublication = ref<LocalTrackPublication | null>(null)
+  const localScreenAudioPublication = ref<LocalTrackPublication | null>(null)
 
   // Audio processing
   let audioWorkletProcessor: AudioWorkletProcessor | null = null
@@ -297,6 +300,57 @@ export function useLiveKit(options: UseLiveKitOptions) {
       addDebugLog(`Track unmuted: ${publication.trackSid} from ${participant.identity}`, 'info')
     })
 
+    // Local track events for screen sharing
+    lkRoom.on(RoomEvent.LocalTrackPublished, (publication) => {
+      const track = publication.track
+      if (!track) return
+
+      if (track.source === Track.Source.ScreenShare) {
+        addDebugLog(`Local screen share track published: ${publication.trackSid}`, 'info')
+        localScreenVideoPublication.value = publication
+        localScreenVideoTrack.value = track as LocalVideoTrack
+        isScreenSharing.value = true
+        screenShareVersion.value++
+
+        // Update local state for self-view
+        userScreenShareStates.value.set(getCurrentUserId(), {
+          isSharing: true,
+          quality: screenShareQuality.value
+        })
+
+        // Listen for browser-native stop sharing (via the "Stop sharing" button)
+        track.on('ended', () => {
+          addDebugLog('Screen share track ended (browser UI)', 'info')
+          void stopScreenShare()
+        })
+      } else if (track.source === Track.Source.ScreenShareAudio) {
+        addDebugLog(`Local screen share audio track published: ${publication.trackSid}`, 'info')
+        localScreenAudioPublication.value = publication
+        localScreenAudioTrack.value = track as LocalAudioTrack
+      }
+    })
+
+    lkRoom.on(RoomEvent.LocalTrackUnpublished, (publication) => {
+      if (publication.source === Track.Source.ScreenShare) {
+        addDebugLog(`Local screen share track unpublished: ${publication.trackSid}`, 'info')
+        localScreenVideoPublication.value = null
+        localScreenVideoTrack.value = null
+        isScreenSharing.value = false
+        screenShareQuality.value = '1080p30'
+        screenShareVersion.value++
+
+        // Update local state
+        userScreenShareStates.value.set(getCurrentUserId(), {
+          isSharing: false,
+          quality: '1080p30'
+        })
+      } else if (publication.source === Track.Source.ScreenShareAudio) {
+        addDebugLog(`Local screen share audio track unpublished: ${publication.trackSid}`, 'info')
+        localScreenAudioPublication.value = null
+        localScreenAudioTrack.value = null
+      }
+    })
+
     // Connection state events
     lkRoom.on(RoomEvent.Disconnected, (reason) => {
       addDebugLog(`Disconnected from room: ${reason || 'unknown reason'}`, 'warning')
@@ -470,7 +524,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     // Parameters kept for API compatibility with useWebRTC
   }
 
-  // Start screen sharing
+  // Start screen sharing using LiveKit's setScreenShareEnabled API
   const startScreenShare = async (quality: ScreenShareQuality, audio: boolean): Promise<void> => {
     if (!room.value) {
       throw new Error('Not connected to room')
@@ -479,51 +533,16 @@ export function useLiveKit(options: UseLiveKitOptions) {
     try {
       addDebugLog(`Starting screen share: ${quality}${audio ? ' with audio' : ''}`, 'info')
 
-      const constraints: DisplayMediaStreamOptions = {
-        video: getScreenShareVideoConstraints(quality),
-        audio: audio ? { echoCancellation: false, noiseSuppression: false } : false,
-      }
-
-      // Get display media
-      const stream = await navigator.mediaDevices.getDisplayMedia(constraints)
-
-      // Create tracks from stream
-      const videoTrack = stream.getVideoTracks()[0]
-      if (videoTrack) {
-        localScreenVideoTrack.value = new LocalVideoTrack(videoTrack)
-        
-        // Listen for track ended (browser UI stop)
-        videoTrack.onended = () => {
-          void stopScreenShare()
-        }
-
-        // Publish screen share track
-        await room.value.localParticipant.publishTrack(localScreenVideoTrack.value, {
-          source: Track.Source.ScreenShare,
-          videoCodec: 'vp8',
-        })
-      }
-
-      // Handle audio if enabled
-      if (audio) {
-        const audioTrack = stream.getAudioTracks()[0]
-        if (audioTrack) {
-          localScreenAudioTrack.value = new LocalAudioTrack(audioTrack)
-          await room.value.localParticipant.publishTrack(localScreenAudioTrack.value, {
-            source: Track.Source.ScreenShareAudio,
-          })
-        }
-      }
-
-      isScreenSharing.value = true
-      screenShareQuality.value = quality
-      screenShareVersion.value++
-
-      // Update local state for self-view
-      userScreenShareStates.value.set(getCurrentUserId(), {
-        isSharing: true,
-        quality
+      // Use LiveKit's recommended API instead of manual getDisplayMedia
+      // This properly handles track management without interfering with existing audio
+      await room.value.localParticipant.setScreenShareEnabled(true, {
+        audio: audio,
+        resolution: getScreenShareVideoConstraints(quality),
       })
+
+      // The actual track handling is done in the LocalTrackPublished event listener
+      // We update state optimistically, but the real state is managed by events
+      screenShareQuality.value = quality
 
       addDebugLog('Screen sharing started successfully', 'info')
     } catch (error) {
@@ -533,7 +552,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     }
   }
 
-  // Stop screen sharing
+  // Stop screen sharing using LiveKit's setScreenShareEnabled API
   const stopScreenShare = async (): Promise<void> => {
     if (!room.value || !isScreenSharing.value) {
       return
@@ -542,29 +561,11 @@ export function useLiveKit(options: UseLiveKitOptions) {
     try {
       addDebugLog('Stopping screen share...', 'info')
 
-      // Unpublish and stop video track
-      if (localScreenVideoTrack.value) {
-        await room.value.localParticipant.unpublishTrack(localScreenVideoTrack.value)
-        localScreenVideoTrack.value.stop()
-        localScreenVideoTrack.value = null
-      }
+      // Use LiveKit's recommended API to disable screen sharing
+      // This properly handles track cleanup without affecting existing audio
+      await room.value.localParticipant.setScreenShareEnabled(false)
 
-      // Unpublish and stop audio track
-      if (localScreenAudioTrack.value) {
-        await room.value.localParticipant.unpublishTrack(localScreenAudioTrack.value)
-        localScreenAudioTrack.value.stop()
-        localScreenAudioTrack.value = null
-      }
-
-      isScreenSharing.value = false
-      screenShareQuality.value = '1080p30'
-      screenShareVersion.value++
-
-      // Update local state
-      userScreenShareStates.value.set(getCurrentUserId(), {
-        isSharing: false,
-        quality: '1080p30'
-      })
+      // The actual state cleanup is handled in LocalTrackUnpublished event listener
 
       addDebugLog('Screen sharing stopped', 'info')
     } catch (error) {
@@ -574,42 +575,20 @@ export function useLiveKit(options: UseLiveKitOptions) {
   }
 
   // Get screen share video constraints
-  const getScreenShareVideoConstraints = (quality: ScreenShareQuality): MediaTrackConstraints => {
-    if (quality === 'source') {
-      return true
+  // Returns VideoPreset string for LiveKit's setScreenShareEnabled API
+  const getScreenShareVideoConstraints = (quality: ScreenShareQuality): string => {
+    // Map quality to LiveKit VideoPreset names
+    // These are standard LiveKit presets: https://docs.livekit.io/client-sdk-js/enums/VideoPreset.html
+    const presetMap: Record<ScreenShareQuality, string> = {
+      'source': 'screen_share',  // Use LiveKit's default screen share preset
+      '1080p60': 'screenShareH1080FPS60',
+      '1080p30': 'screenShareH1080FPS30',
+      '720p30': 'screenShareH720FPS30',
+      '360p30': 'screenShareH360FPS30',
+      'text': 'screenShareH1080FPS5'
     }
 
-    const constraints: MediaTrackConstraints = {}
-
-    switch (quality) {
-      case '1080p60':
-        constraints.width = { ideal: 1920 }
-        constraints.height = { ideal: 1080 }
-        constraints.frameRate = { ideal: 60 }
-        break
-      case '1080p30':
-        constraints.width = { ideal: 1920 }
-        constraints.height = { ideal: 1080 }
-        constraints.frameRate = { ideal: 30 }
-        break
-      case '720p30':
-        constraints.width = { ideal: 1280 }
-        constraints.height = { ideal: 720 }
-        constraints.frameRate = { ideal: 30 }
-        break
-      case '360p30':
-        constraints.width = { ideal: 640 }
-        constraints.height = { ideal: 360 }
-        constraints.frameRate = { ideal: 30 }
-        break
-      case 'text':
-        constraints.width = { ideal: 1920 }
-        constraints.height = { ideal: 1080 }
-        constraints.frameRate = { ideal: 5 }
-        break
-    }
-
-    return constraints
+    return presetMap[quality] || 'screenShareH1080FPS30'
   }
 
   // Reinitialize audio stream (when algorithm changes)
@@ -787,10 +766,18 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
     stopPingInterval()
 
-    // Stop screen share if active
-    if (isScreenSharing.value) {
-      void stopScreenShare()
+    // Stop screen share if active (using LiveKit API)
+    if (isScreenSharing.value && room.value) {
+      void room.value.localParticipant.setScreenShareEnabled(false)
     }
+
+    // Reset screen sharing state
+    localScreenVideoTrack.value = null
+    localScreenAudioTrack.value = null
+    localScreenVideoPublication.value = null
+    localScreenAudioPublication.value = null
+    isScreenSharing.value = false
+    screenShareQuality.value = '1080p30'
 
     // Unpublish audio track
     void unpublishAudioTrack()

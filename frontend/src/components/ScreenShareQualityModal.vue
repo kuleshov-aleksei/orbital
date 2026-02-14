@@ -153,11 +153,6 @@ const qualityOptions: QualityOption[] = [
     description: 'Full HD at 60 frames per second - Best for gaming'
   },
   {
-    value: '1080p30',
-    label: '1080p 30fps',
-    description: 'Full HD at 30 frames per second - Standard HD'
-  },
-  {
     value: '720p30',
     label: '720p 30fps',
     description: 'HD at 30 frames per second - Balanced quality'
