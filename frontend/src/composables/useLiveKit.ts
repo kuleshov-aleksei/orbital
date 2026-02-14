@@ -749,10 +749,20 @@ export function useLiveKit(options: UseLiveKitOptions) {
     }
 
     pingInterval = setInterval(() => {
-      // In LiveKit, we can estimate connection quality via RTC stats
-      // For now, we'll set a default good quality since LiveKit handles most quality issues
-      currentPing.value = 30 // Placeholder - LiveKit doesn't expose direct ping
-      options.onPingUpdate(currentPing.value, 'excellent')
+      currentPing.value = room.value?.localParticipant.engine.client.rtt ?? 0
+
+      let quality: 'excellent' | 'good' | 'fair' | 'poor' = 'excellent'
+      if (currentPing.value < 30) {
+        quality = 'excellent'
+      } else if (currentPing.value < 60) {
+        quality = 'good'
+      } else if (currentPing.value < 100) {
+        quality = 'fair'
+      } else {
+        quality = 'poor'
+      }
+
+      options.onPingUpdate(currentPing.value, quality)
     }, PING_INTERVAL)
   }
 
