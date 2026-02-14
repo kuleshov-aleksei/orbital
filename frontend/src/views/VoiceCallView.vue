@@ -19,9 +19,10 @@
     <main class="relative flex flex-1 flex-col min-h-0 overflow-hidden">
       <!-- Content Container - allows scrolling if needed -->
       <div class="flex-1 min-h-0 overflow-auto">
+        <!-- Use v-show instead of v-if to keep both components mounted and preserve audio elements -->
         <!-- Screen Share Area - Shows users in side panel when screen sharing -->
         <ScreenShareArea
-          v-if="screenShareData.length > 0"
+          v-show="screenShareData.length > 0"
           :screen-shares="screenShareData"
           :is-user-grid-visible="isUserGridVisible"
           :layout="screenShareLayout"
@@ -45,7 +46,7 @@
 
         <!-- User Grid - Only shown when no screen shares (audio-only mode) -->
         <UserGrid
-          v-else
+          v-show="screenShareData.length === 0"
           :users="users"
           :remote-streams="remoteStreams"
           :peer-connection-states="peerConnectionStates"
