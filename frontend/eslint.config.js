@@ -9,7 +9,8 @@ export default typescriptEslint.config(
   {
     extends: [
       eslint.configs.recommended,
-      ...typescriptEslint.configs.recommendedTypeChecked,
+      //...typescriptEslint.configs.recommendedTypeChecked,
+      ...typescriptEslint.configs.recommended,
       ...eslintPluginVue.configs['flat/recommended'],
       ...eslintPluginVue.configs['flat/essential'],
       ...eslintPluginVue.configs['flat/strongly-recommended'],

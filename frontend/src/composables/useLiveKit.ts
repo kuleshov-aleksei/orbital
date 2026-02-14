@@ -684,10 +684,11 @@ export function useLiveKit(options: UseLiveKitOptions) {
       })
     }
 
-    // Add remote shares
-    remoteParticipants.value.forEach((participant, userId) => {
-      const shareState = userScreenShareStates.value.get(userId)
+    // Add remote shares - iterate over userScreenShareStates to catch all shares
+    // This ensures we don't miss shares even if remoteParticipants hasn't updated yet
+    userScreenShareStates.value.forEach((shareState, userId) => {
       if (shareState?.isSharing && userId !== currentUserId) {
+        const participant = remoteParticipants.value.get(userId)
         const tracks = remoteScreenTracks.value.get(userId)
         const tracks_array: MediaStreamTrack[] = []
         if (tracks?.video) {
@@ -699,7 +700,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
         
         shares.push({
           userId,
-          userNickname: participant.name || userId,
+          userNickname: participant?.name || userId,
           stream: tracks_array.length > 0 ? new MediaStream(tracks_array) : null,
           quality: shareState.quality,
           connectionState: 'connected'

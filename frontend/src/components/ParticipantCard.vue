@@ -406,10 +406,37 @@ const onVideoLoaded = () => {
 const setupVideoStream = () => {
   if (props.screenShareStream && videoElement.value) {
     console.log(`🖥️ Setting up screen share stream for user ${props.userId}`)
-    videoElement.value.srcObject = props.screenShareStream
-    videoElement.value.play().catch((error) => {
-      console.warn(`Screen share video play failed for user ${props.userId}:`, error)
-    })
+    const video = videoElement.value
+    const stream = props.screenShareStream
+    
+    // Check if stream has video tracks and they're active
+    const videoTracks = stream.getVideoTracks()
+    if (videoTracks.length === 0 || !videoTracks[0].enabled) {
+      console.warn(`No active video tracks in stream for user ${props.userId}`)
+      return
+    }
+    
+    // Set the stream
+    video.srcObject = stream
+    
+    // Wait for metadata to load before playing
+    // This ensures the browser is ready to play the stream
+    const attemptPlay = () => {
+      video.play().catch((error) => {
+        // Only log if it's not an abort error (which is normal during rapid changes)
+        if (error.name !== 'AbortError') {
+          console.warn(`Screen share video play failed for user ${props.userId}:`, error)
+        }
+      })
+    }
+    
+    if (video.readyState >= 1) { // HAVE_METADATA or higher
+      // Metadata already loaded, play immediately
+      attemptPlay()
+    } else {
+      // Wait for metadata to load
+      video.addEventListener('loadedmetadata', attemptPlay, { once: true })
+    }
   }
 }
 
@@ -474,12 +501,14 @@ watch(() => props.audioStream, (newStream) => {
   }
 }, { immediate: true })
 
-watch(() => props.screenShareStream, (newStream) => {
-  if (newStream) {
-    // Use nextTick to ensure DOM is updated
-    void nextTick(() => {
-      setupVideoStream()
-    })
+watch(() => props.screenShareStream, (newStream, oldStream) => {
+  if (newStream && newStream !== oldStream) {
+    // Small delay to ensure DOM is updated and stream is ready
+    setTimeout(() => {
+      void nextTick(() => {
+        setupVideoStream()
+      })
+    }, 100)
   }
 }, { immediate: true })
 
@@ -524,8 +553,10 @@ onMounted(() => {
         audioElement.value.muted = true
       }
     }
-    // Setup video stream after mount
-    setupVideoStream()
+    // Setup video stream after mount with a small delay to ensure stream is ready
+    setTimeout(() => {
+      setupVideoStream()
+    }, 50)
   })
 
   // Connection polling removed - LiveKit manages connections internally

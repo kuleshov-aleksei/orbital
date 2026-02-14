@@ -15,20 +15,6 @@ export function useWebSocketHandlers() {
       roomStore.setCurrentRoomUsers(data)
     })
 
-    // Screen share start
-    wsService.on('screen_share_start', (message) => {
-      const data = message.data as { user_id: string; quality: string }
-      roomStore.updateCurrentRoomUser(data.user_id, { is_screen_sharing: true, screen_share_quality: data.quality })
-      roomStore.updateUserStatus(data.user_id, { is_screen_sharing: true })
-    })
-
-    // Screen share stop
-    wsService.on('screen_share_stop', (message) => {
-      const data = message.data as { user_id: string }
-      roomStore.updateCurrentRoomUser(data.user_id, { is_screen_sharing: false })
-      roomStore.updateUserStatus(data.user_id, { is_screen_sharing: false })
-    })
-
     // Nickname change updates
     wsService.on('nickname_change', (message) => {
       const data = message.data as { user_id: string; nickname: string }
@@ -55,17 +41,6 @@ export function useWebSocketHandlers() {
       console.log('Received room_created event:', newRoom)
       roomStore.addRoom(newRoom)
       console.log('Added new room to list:', newRoom.name)
-    })
-
-    // Screen share updates for sidebar
-    wsService.onGlobal('screen_share_start', (message) => {
-      const data = message.data as { user_id: string; quality: string }
-      roomStore.updateUserStatus(data.user_id, { is_screen_sharing: true })
-    })
-
-    wsService.onGlobal('screen_share_stop', (message) => {
-      const data = message.data as { user_id: string }
-      roomStore.updateUserStatus(data.user_id, { is_screen_sharing: false })
     })
 
     // Nickname changes

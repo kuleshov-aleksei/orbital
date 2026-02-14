@@ -68,14 +68,13 @@ export interface RoomUser extends User {
 }
 
 // WebSocket message types
+// Note: screen sharing signaling is handled entirely by LiveKit, not WebSocket
 export type WebSocketMessageType =
   | 'join_room'
   | 'leave_room'
   | 'ice_candidate'
   | 'sdp_offer'
   | 'sdp_answer'
-  | 'screen_share_start'
-  | 'screen_share_stop'
   | 'nickname_change'
   | 'category_created'
   | 'category_renamed'

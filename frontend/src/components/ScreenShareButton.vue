@@ -31,8 +31,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { PhMonitorPlay, PhLock } from '@phosphor-icons/vue'
-import { useCallStore, useUserStore, useRoomStore } from '@/stores'
-import { wsService } from '@/services/websocket'
+import { useCallStore, useUserStore } from '@/stores'
 import { useScreenShareSupport } from '@/composables/useScreenShareSupport'
 
 interface Props {
@@ -53,7 +52,6 @@ const emit = defineEmits<{
 // Stores and composables
 const callStore = useCallStore()
 const userStore = useUserStore()
-const roomStore = useRoomStore()
 const { isScreenShareSupported } = useScreenShareSupport()
 
 // Computed properties
@@ -112,7 +110,7 @@ const handleClick = () => {
   toggleScreenShare()
 }
 
-// Toggle screen share with WebSocket notification
+// Toggle screen share - LiveKit handles all signaling
 const toggleScreenShare = () => {
   const newValue = !isScreenSharing.value
   
@@ -123,41 +121,21 @@ const toggleScreenShare = () => {
   }
   
   // If stopping, handle immediately
+  // Note: LiveKit will emit LocalTrackUnpublished event which updates state
   isScreenSharing.value = newValue
   
   // Update call store
   callStore.setScreenSharing(newValue)
-  
-  // Immediately update room store for local user so UI updates right away
-  roomStore.updateUserStatus(userStore.userId, { is_screen_sharing: newValue })
-  
-  // Send WebSocket message if connected
-  if (wsService.isConnected()) {
-    wsService.sendMessage('screen_share_stop', {
-      user_id: userStore.userId
-    })
-  }
 }
 
 // Method to be called by parent after quality is selected
+// Note: LiveKit handles all screen sharing signaling internally
 const confirmStartScreenShare = (quality: string = 'source', hasAudio: boolean = false) => {
   const newValue = true
   isScreenSharing.value = newValue
   
   // Update call store
   callStore.setScreenSharing(newValue)
-  
-  // Immediately update room store for local user so UI updates right away
-  roomStore.updateUserStatus(userStore.userId, { is_screen_sharing: newValue })
-  
-  // Send WebSocket message if connected
-  if (wsService.isConnected()) {
-    wsService.sendMessage('screen_share_start', {
-      user_id: userStore.userId,
-      quality: quality,
-      has_audio: hasAudio
-    })
-  }
 }
 
 // Expose method for parent to call after quality selection
