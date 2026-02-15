@@ -1,24 +1,19 @@
 <template>
   <div
     ref="cardElement"
-    class="participant-card overflow-visible relative rounded-lg cursor-pointer transition-all duration-200"
+    class="participant-card overflow-visible relative rounded-lg cursor-pointer transition-all duration-200 border-2"
     :class="[
-      isScreenSharing && screenShareStream
+      isScreenSharing && screenShareStream && !forceAudioMode
         ? 'aspect-video bg-gray-900'
-        : 'p-3 border-2',
-      isCurrentUser && !isScreenSharing
-        ? 'bg-indigo-900/30'
-        : !isScreenSharing
-          ? 'bg-gray-800'
+        : 'aspect-square',
+      isCurrentUser && (!isScreenSharing || forceAudioMode)
+        ? 'bg-indigo-900/30 border-indigo-500'
+        : !isScreenSharing || forceAudioMode
+          ? 'bg-gray-800 border-gray-600'
           : '',
-      // Border color based on speaking state
-      isScreenSharing && screenShareStream
-        ? ''
-        : isSpeaking
-          ? 'border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]'
-          : isCurrentUser
-            ? 'border-indigo-500'
-            : 'border-gray-600',
+      isSpeaking && (!isScreenSharing || forceAudioMode)
+        ? 'border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]'
+        : '',
     ]"
     @contextmenu="handleContextMenu"
     @click="handleCardClick"
@@ -231,12 +226,12 @@
     </Teleport>
 
     <!-- Screen Share Mode: Video Preview with floating info -->
-    <template v-if="isScreenSharing && screenShareStream">
+    <template v-if="isScreenSharing && screenShareStream && !forceAudioMode">
       <!-- Video element - only rendered when NOT viewing in main area -->
       <video
         v-if="!isViewing"
         ref="videoElement"
-        class="w-full h-full object-contain bg-gray-900"
+        class="w-full h-full object-contain bg-gray-900 rounded-lg"
         autoplay
         playsinline
         muted
@@ -247,7 +242,6 @@
         v-if="isViewing"
         class="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-indigo-600/90 backdrop-blur-sm text-white px-3 py-1.5 rounded-full z-20 shadow-lg">
         <PhMonitorPlay class="w-4 h-4" />
-
         <span class="text-sm font-medium">Viewing</span>
       </div>
 
@@ -255,18 +249,18 @@
       <div
         class="absolute top-2 left-2 right-2 flex items-center justify-between">
         <div class="flex items-center gap-2">
-          <div
-            class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white"
-            :class="isCurrentUser ? 'bg-indigo-500' : 'bg-indigo-600'">
-            {{ userNickname.charAt(0).toUpperCase() }}
-          </div>
-
+          <UserAvatar
+            :nickname="userNickname"
+            :avatar-url="avatarUrl"
+            :size="24"
+            :show-status="false" />
           <span
-            class="text-white text-sm font-medium bg-black/50 px-2 py-0.5 rounded">
-            {{ userNickname }}
-            <span v-if="isCurrentUser" class="text-indigo-300 text-xs ml-1"
-              >(You)</span
-            >
+            class="text-white text-sm font-medium bg-gray-900/70 px-3 py-1 rounded-lg max-w-[140px] truncate">
+            {{
+              userNickname.length > 12
+                ? userNickname.slice(0, 12) + "..."
+                : userNickname
+            }}
           </span>
         </div>
       </div>
@@ -278,31 +272,28 @@
         title="Speaking" />
     </template>
 
-    <!-- Audio Mode: User info with audio visualization -->
+    <!-- Audio Mode: Avatar centered with nickname at bottom -->
     <template v-else>
-      <!-- User Info Header -->
-      <div class="flex items-center justify-between mb-3">
-        <div class="flex items-center">
-          <div
-            class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white mr-3"
-            :class="isCurrentUser ? 'bg-indigo-500' : 'bg-indigo-600'">
-            {{ userNickname.charAt(0).toUpperCase() }}
-          </div>
+      <!-- Avatar centered in card -->
+      <div class="absolute inset-0 flex items-center justify-center">
+        <UserAvatar
+          :nickname="userNickname"
+          :avatar-url="avatarUrl"
+          :size="48"
+          :show-status="false" />
+      </div>
 
-          <div>
-            <div class="text-white font-medium flex items-center gap-2">
-              {{ userNickname }}
-            </div>
-
-            <div class="text-xs text-gray-400">
-              <span
-                v-if="isCurrentUser"
-                class="text-xs px-2 py-0.5 bg-indigo-500 text-white rounded-full">
-                You
-              </span>
-            </div>
-          </div>
-        </div>
+      <!-- Nickname at bottom center -->
+      <div
+        class="absolute bottom-2 left-0 right-0 flex justify-center items-center">
+        <span
+          class="text-white font-medium text-sm bg-gray-900/70 px-3 py-1 rounded-lg max-w-[160px] truncate">
+          {{
+            userNickname.length > 12
+              ? userNickname.slice(0, 12) + "..."
+              : userNickname
+          }}
+        </span>
       </div>
 
       <!-- Audio Element (Hidden) -->
@@ -320,10 +311,10 @@
         class="absolute top-2 right-2 w-3 h-3 bg-green-400 rounded-full animate-pulse"
         title="Speaking" />
 
-      <!-- Screen Sharing Indicator (when not actively showing screen) -->
+      <!-- Screen Sharing Indicator -->
       <div
         v-if="isScreenSharing"
-        class="absolute top-2 right-8 w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center"
+        class="absolute top-2 left-2 w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center"
         :title="'Sharing screen'">
         <PhMonitorPlay class="w-3 h-3 text-white" />
       </div>
@@ -400,11 +391,13 @@ import {
   PhMonitorPlay,
 } from "@phosphor-icons/vue"
 import { useRoomStore, usePresenceStore } from "@/stores"
+import UserAvatar from "@/components/UserAvatar.vue"
 import type { ScreenShareQuality, ConnectionStats } from "@/types"
 
 interface Props {
   userId: string
   userNickname: string
+  avatarUrl?: string
   audioStream: MediaStream | null
   screenShareStream: MediaStream | null
   initialVolume?: number
