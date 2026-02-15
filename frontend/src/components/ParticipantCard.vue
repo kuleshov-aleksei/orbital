@@ -298,7 +298,7 @@ import {
   PhSpeakerHigh,
   PhMonitorPlay,
 } from "@phosphor-icons/vue"
-import { useRoomStore } from "@/stores"
+import { useRoomStore, usePresenceStore } from "@/stores"
 import type { ScreenShareQuality, ConnectionStats } from "@/types"
 
 interface Props {
@@ -337,6 +337,7 @@ const emit = defineEmits<{
 
 // Store
 const roomStore = useRoomStore()
+const presenceStore = usePresenceStore()
 
 // Refs
 const audioElement = useTemplateRef<HTMLAudioElement>("audioElement")
@@ -347,10 +348,6 @@ const tooltipElement = useTemplateRef<HTMLDivElement>("tooltipElement")
 // State
 const volume = computed(() => roomStore.getUserVolume(props.userId))
 const isMuted = ref(false)
-const analyzedAudioLevel = ref(0)
-const audioContext = ref<AudioContext | null>(null)
-const analyser = ref<AnalyserNode | null>(null)
-const analysisIntervalId = ref<number | null>(null)
 const showMenu = ref(false)
 const showStats = ref(false)
 const menuPosition = { x: 0, y: 0 }
@@ -358,14 +355,23 @@ const mousePosition = ref({ x: 0, y: 0 })
 const tooltipOffset = { x: 16, y: 16 }
 
 // Computed
+const isSpeaking = computed(() => {
+  if (props.isCurrentUser) {
+    return props.externalAudioLevel > 0.1
+  }
+  // Use LiveKit's built-in isSpeaking flag from presence store (more reliable than checking audioLevel)
+  return presenceStore.getParticipant(props.userId)?.isSpeaking ?? false
+})
+
 const audioLevel = computed(() => {
   if (props.isCurrentUser) {
     return props.externalAudioLevel
   }
-  return analyzedAudioLevel.value
+  // Use LiveKit's built-in audio level from presence store
+  const level = presenceStore.getParticipant(props.userId)?.audioLevel ?? 0
+  // Reset to 0 when not speaking to avoid stuck values
+  return isSpeaking.value ? level : 0
 })
-
-const isSpeaking = computed(() => audioLevel.value > 0.1)
 
 const hasStats = computed(() => {
   const s = props.stats
@@ -547,80 +553,16 @@ const handleMuteToggle = () => {
   hideContextMenu()
 }
 
-const setupAudioAnalysis = () => {
-  if (!props.audioStream || !audioElement.value) return
-
-  // Clean up any existing analysis first
-  cleanupAudioAnalysis()
-
-  try {
-    audioContext.value = new (
-      window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext })
-        .webkitAudioContext
-    )()
-    const source = audioContext.value.createMediaStreamSource(props.audioStream)
-    analyser.value = audioContext.value.createAnalyser()
-    analyser.value.fftSize = 256
-
-    source.connect(analyser.value)
-
-    // Use setInterval instead of RAF for 10fps updates (100ms)
-    analysisIntervalId.value = window.setInterval(() => {
-      if (!analyser.value) return
-
-      const dataArray = new Uint8Array(analyser.value.frequencyBinCount)
-      analyser.value.getByteFrequencyData(dataArray)
-
-      let sum = 0
-      for (let i = 0; i < dataArray.length; i++) {
-        sum += dataArray[i]
-      }
-      const average = sum / dataArray.length
-      analyzedAudioLevel.value = average / 255
-    }, 100)
-  } catch (error) {
-    console.error("Error setting up audio analysis:", error)
-  }
-}
-
-const cleanupAudioAnalysis = () => {
-  if (analysisIntervalId.value) {
-    clearInterval(analysisIntervalId.value)
-    analysisIntervalId.value = null
-  }
-
-  if (analyser.value) {
-    try {
-      analyser.value.disconnect()
-    } catch {
-      // Ignore
-    }
-    analyser.value = null
-  }
-
-  if (audioContext.value) {
-    void audioContext.value.close()
-    audioContext.value = null
-  }
-
-  analyzedAudioLevel.value = 0
-}
-
 // Watchers
 watch(
   () => props.audioStream,
-  (newStream, oldStream) => {
+  (newStream) => {
     if (newStream && audioElement.value) {
       console.log(`🎵 Setting audio stream for user ${props.userId}`)
       audioElement.value.srcObject = newStream
       void audioElement.value.play().catch((error: Error) => {
         console.warn(`Audio play failed for user ${props.userId}:`, error)
       })
-      setupAudioAnalysis()
-    } else if (!newStream && oldStream) {
-      // Stream was removed, cleanup analysis
-      cleanupAudioAnalysis()
     }
   },
   { immediate: true },
@@ -689,8 +631,6 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  cleanupAudioAnalysis()
-
   document.removeEventListener("keydown", handleKeydown)
   document.removeEventListener("click", handleDocumentClick)
 })

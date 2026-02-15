@@ -186,24 +186,34 @@ export const usePresenceStore = defineStore("presence", () => {
       },
     )
 
-    lkRoom.on(
-      RoomEvent.IsSpeakingChanged,
-      (participant: Participant, speaking: boolean) => {
-        console.log(
-          "[Presence] Speaking changed:",
-          participant.identity,
-          speaking,
-        )
-        updateParticipantFromLiveKit(participant)
-      },
-    )
+    // Track current active speakers to detect when someone stops speaking
+    let activeSpeakers: Set<string> = new Set()
 
     // Debounced batch update for ActiveSpeakersChanged to reduce reactive churn
     const debouncedBatchUpdate = debounce(
       (speakers: Participant[]) => {
+        const newActiveSpeakers = new Set(speakers.map((s) => s.identity))
+
+        // Update speakers who are no longer active (stopped speaking)
+        activeSpeakers.forEach((identity) => {
+          if (!newActiveSpeakers.has(identity)) {
+            const participant =
+              lkRoom.getParticipantByIdentity(identity) ||
+              (identity === lkRoom.localParticipant.identity
+                ? lkRoom.localParticipant
+                : null)
+            if (participant) {
+              updateParticipantFromLiveKit(participant)
+            }
+          }
+        })
+
+        // Update current active speakers
         speakers.forEach((speaker) => {
           updateParticipantFromLiveKit(speaker)
         })
+
+        activeSpeakers = newActiveSpeakers
       },
       50,
       { leading: true, trailing: false },
