@@ -7,10 +7,18 @@
         ? 'aspect-video bg-gray-900'
         : 'p-3 border-2',
       isCurrentUser && !isScreenSharing
-        ? 'bg-indigo-900/30 border-indigo-500'
+        ? 'bg-indigo-900/30'
         : !isScreenSharing
-          ? 'bg-gray-800 border-gray-600'
+          ? 'bg-gray-800'
           : '',
+      // Border color based on speaking state
+      isScreenSharing && screenShareStream
+        ? ''
+        : isSpeaking
+          ? 'border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]'
+          : isCurrentUser
+            ? 'border-indigo-500'
+            : 'border-gray-600',
     ]"
     @contextmenu="handleContextMenu"
     @click="handleCardClick"
@@ -138,21 +146,11 @@
         </div>
       </div>
 
-      <!-- Audio level indicator overlay -->
-      <div class="absolute bottom-2 left-2 right-2">
-        <div class="flex items-center gap-2">
-          <div class="flex-1 bg-black/50 rounded-full h-1.5 overflow-hidden">
-            <div
-              class="bg-green-400 h-full"
-              :style="{ width: audioLevel * 100 + '%' }" />
-          </div>
-          <!-- Speaking indicator -->
-          <div
-            v-if="isSpeaking"
-            class="w-2 h-2 bg-green-400 rounded-full animate-pulse"
-            title="Speaking" />
-        </div>
-      </div>
+      <!-- Speaking indicator overlay -->
+      <div
+        v-if="isSpeaking"
+        class="absolute bottom-2 left-2 w-3 h-3 bg-green-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(74,222,128,0.8)]"
+        title="Speaking" />
 
       <!-- Screen sharing badge -->
       <div
@@ -196,22 +194,6 @@
         autoplay
         playsinline
         class="hidden" />
-
-      <!-- Audio Level Visualization -->
-      <div class="mt-3">
-        <div
-          class="flex items-center justify-between text-xs text-gray-400 mb-1">
-          <span>Audio Level</span>
-
-          <span>{{ Math.round(audioLevel * 100) }}%</span>
-        </div>
-
-        <div class="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
-          <div
-            class="bg-green-400 h-full"
-            :style="{ width: audioLevel * 100 + '%' }" />
-        </div>
-      </div>
 
       <!-- Speaking Indicator -->
       <div
