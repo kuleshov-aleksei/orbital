@@ -206,13 +206,19 @@ export interface BandwidthStats {
 }
 
 // LiveKit Connection Statistics types
-export interface ConnectionStats {
-  ping: number
+export interface TrackStats {
   jitter: number
   packetLoss: number
-  bitrate: number
+  bitrate: number // bits per second
+  bytesReceived: number
+  timestamp: number
+}
+
+export interface ConnectionStats {
+  ping: number
+  audio?: TrackStats
+  video?: TrackStats
   timestamp?: Date
-  kind: string
 }
 
 export interface StatsHistory {

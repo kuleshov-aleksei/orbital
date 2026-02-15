@@ -1,5 +1,6 @@
 <template>
   <div
+    ref="cardElement"
     class="participant-card overflow-visible relative rounded-lg cursor-pointer transition-all duration-200"
     :class="[
       isScreenSharing && screenShareStream
@@ -13,57 +14,99 @@
     ]"
     @contextmenu="handleContextMenu"
     @click="handleCardClick"
-    @mouseenter="showStats = true"
-    @mouseleave="showStats = false">
+    @mouseenter="handleMouseEnter"
+    @mousemove="handleMouseMove"
+    @mouseleave="handleMouseLeave">
     <!-- Stats Tooltip -->
-    <Transition name="fade">
-      <div
-        v-if="showStats && hasStats"
-        class="absolute z-50 bg-gray-900/95 backdrop-blur-sm border border-gray-700 rounded-lg p-3 min-w-44 shadow-xl">
+    <Teleport to="body">
+      <Transition name="fade">
         <div
-          class="text-xs font-medium text-gray-300 mb-2 border-b border-gray-700 pb-1">
-          Connection Stats
+          v-if="showStats && hasStats"
+          ref="tooltipElement"
+          class="fixed z-[9999] bg-gray-900/95 backdrop-blur-sm border border-gray-700 rounded-lg p-3 w-52 shadow-xl pointer-events-none"
+          :style="tooltipStyle">
+          <div
+            class="text-xs font-medium text-gray-300 mb-2 border-b border-gray-700 pb-1">
+            Connection Stats
+          </div>
+
+          <div class="space-y-2">
+            <!-- Ping (always shown) -->
+            <div class="flex justify-between text-xs">
+              <span class="text-gray-400">Ping:</span>
+
+              <span class="text-green-400"
+                >{{ formatNumber(stats.ping) }}ms</span
+              >
+            </div>
+
+            <!-- Audio Stats -->
+            <template v-if="stats.audio">
+              <div
+                class="text-xs font-medium text-gray-400 mt-2 pt-1 border-t border-gray-700/50">
+                Audio
+              </div>
+
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-500">Jitter:</span>
+
+                <span class="text-blue-400"
+                  >{{ formatNumber(stats.audio.jitter) }}ms</span
+                >
+              </div>
+
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-500">Packet Loss:</span>
+
+                <span :class="getPacketLossClass(stats.audio.packetLoss)">
+                  {{ formatNumber(stats.audio.packetLoss) }}%
+                </span>
+              </div>
+
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-500">Bitrate:</span>
+
+                <span class="text-purple-400">{{
+                  formatBitrate(stats.audio.bitrate)
+                }}</span>
+              </div>
+            </template>
+
+            <!-- Video Stats -->
+            <template v-if="stats.video">
+              <div
+                class="text-xs font-medium text-gray-400 mt-2 pt-1 border-t border-gray-700/50">
+                Video
+              </div>
+
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-500">Jitter:</span>
+
+                <span class="text-blue-400"
+                  >{{ formatNumber(stats.video.jitter) }}ms</span
+                >
+              </div>
+
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-500">Packet Loss:</span>
+
+                <span :class="getPacketLossClass(stats.video.packetLoss)">
+                  {{ formatNumber(stats.video.packetLoss) }}%
+                </span>
+              </div>
+
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-500">Bitrate:</span>
+
+                <span class="text-purple-400">{{
+                  formatBitrate(stats.video.bitrate)
+                }}</span>
+              </div>
+            </template>
+          </div>
         </div>
-
-        <div class="space-y-1">
-          <div class="flex justify-between text-xs">
-            <span class="text-gray-400">Ping:</span>
-
-            <span class="text-green-400">{{ formatNumber(stats.ping) }}ms</span>
-          </div>
-
-          <div class="flex justify-between text-xs">
-            <span class="text-gray-400">Jitter:</span>
-
-            <span class="text-blue-400"
-              >{{ formatNumber(stats.jitter) }}ms</span
-            >
-          </div>
-
-          <div class="flex justify-between text-xs">
-            <span class="text-gray-400">Packet Loss:</span>
-
-            <span :class="getPacketLossClass(stats.packetLoss)"
-              >{{ formatNumber(stats.packetLoss) }}%</span
-            >
-          </div>
-
-          <div class="flex justify-between text-xs">
-            <span class="text-gray-400">Bitrate:</span>
-
-            <span class="text-purple-400">{{
-              formatBitrate(stats.bitrate)
-            }}</span>
-          </div>
-
-          <div class="flex justify-between text-xs">
-            <span class="text-gray-400">Kind:</span>
-
-            <span class="text-purple-400">{{ stats.kind }}</span>
-          </div>
-        </div>
-      </div>
-    </Transition>
+      </Transition>
+    </Teleport>
 
     <!-- Screen Share Mode: Video Preview with floating info -->
     <template v-if="isScreenSharing && screenShareStream">
@@ -200,8 +243,8 @@
         type="button"
         class="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors flex items-center space-x-2"
         @click="
-          toggleMute()
-          hideContextMenu()
+          toggleMute();
+          hideContextMenu();
         ">
         <PhMicrophoneSlash v-if="isMuted" class="w-4 h-4" />
 
@@ -286,10 +329,6 @@ const props = withDefaults(defineProps<Props>(), {
   externalAudioLevel: 0,
   stats: () => ({
     ping: 0,
-    jitter: 0,
-    packetLoss: 0,
-    bitrate: 0,
-    kind: "unknown",
   }),
   forceAudioMode: false,
 })
@@ -305,6 +344,8 @@ const roomStore = useRoomStore()
 // Refs
 const audioElement = useTemplateRef<HTMLAudioElement>("audioElement")
 const videoElement = useTemplateRef<HTMLVideoElement>("videoElement")
+const cardElement = useTemplateRef<HTMLDivElement>("cardElement")
+const tooltipElement = useTemplateRef<HTMLDivElement>("tooltipElement")
 
 // State
 const volume = computed(() => roomStore.getUserVolume(props.userId))
@@ -316,6 +357,8 @@ const analysisIntervalId = ref<number | null>(null)
 const showMenu = ref(false)
 const showStats = ref(false)
 const menuPosition = { x: 0, y: 0 }
+const mousePosition = ref({ x: 0, y: 0 })
+const tooltipOffset = { x: 16, y: 16 }
 
 // Computed
 const audioLevel = computed(() => {
@@ -329,7 +372,53 @@ const isSpeaking = computed(() => audioLevel.value > 0.1)
 
 const hasStats = computed(() => {
   const s = props.stats
-  return s && (s.ping > 0 || s.jitter > 0 || s.packetLoss > 0 || s.bitrate > 0)
+  if (!s) return false
+  const hasAudio =
+    s.audio &&
+    (s.audio.jitter > 0 || s.audio.packetLoss > 0 || s.audio.bitrate > 0)
+  const hasVideo =
+    s.video &&
+    (s.video.jitter > 0 || s.video.packetLoss > 0 || s.video.bitrate > 0)
+  return s.ping > 0 || hasAudio || hasVideo
+})
+
+// Calculate tooltip position with viewport boundary detection
+const tooltipStyle = computed(() => {
+  if (typeof window === "undefined") {
+    return { left: "0px", top: "0px" }
+  }
+
+  const tooltipWidth = 208 // w-52 = 13rem = 208px
+  const tooltipHeight = tooltipElement.value?.offsetHeight || 200
+  const padding = 8
+
+  let left = mousePosition.value.x + tooltipOffset.x
+  let top = mousePosition.value.y + tooltipOffset.y
+
+  // Check right boundary
+  if (left + tooltipWidth > window.innerWidth - padding) {
+    left = mousePosition.value.x - tooltipWidth - tooltipOffset.x
+  }
+
+  // Check bottom boundary
+  if (top + tooltipHeight > window.innerHeight - padding) {
+    top = mousePosition.value.y - tooltipHeight - tooltipOffset.y
+  }
+
+  // Ensure minimum padding from edges
+  left = Math.max(
+    padding,
+    Math.min(left, window.innerWidth - tooltipWidth - padding),
+  )
+  top = Math.max(
+    padding,
+    Math.min(top, window.innerHeight - tooltipHeight - padding),
+  )
+
+  return {
+    left: `${left}px`,
+    top: `${top}px`,
+  }
 })
 
 // Methods
@@ -386,6 +475,19 @@ const getMenuPosition = () => {
 
 const handleCardClick = () => {
   emit("card-click", props.userId)
+}
+
+const handleMouseEnter = (event: MouseEvent) => {
+  mousePosition.value = { x: event.clientX, y: event.clientY }
+  showStats.value = true
+}
+
+const handleMouseMove = (event: MouseEvent) => {
+  mousePosition.value = { x: event.clientX, y: event.clientY }
+}
+
+const handleMouseLeave = () => {
+  showStats.value = false
 }
 
 const onVideoLoaded = () => {

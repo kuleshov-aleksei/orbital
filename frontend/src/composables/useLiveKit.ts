@@ -18,7 +18,12 @@ import { useAudioSettingsStore } from "@/stores/audioSettings"
 import { useCallStore } from "@/stores/call"
 import { getLiveKitAudioConstraints } from "@/services/livekit-audio-processors"
 import { getAudioWorkletProcessor } from "@/services/audio"
-import type { User, ScreenShareQuality, ConnectionStats } from "@/types"
+import type {
+  User,
+  ScreenShareQuality,
+  ConnectionStats,
+  TrackStats,
+} from "@/types"
 import type { AudioWorkletProcessor } from "@/types/audio"
 
 export interface UseLiveKitOptions {
@@ -86,6 +91,9 @@ export function useLiveKit(options: UseLiveKitOptions) {
   const participantStats = ref<Map<string, ConnectionStats>>(new Map())
   let statsInterval: ReturnType<typeof setInterval> | null = null
   const STATS_INTERVAL = 2000 // Update every 2 seconds
+  const previousStats = ref<
+    Map<string, Map<string, { bytesReceived: number; timestamp: number }>>
+  >(new Map())
 
   // Get current user ID
   const getCurrentUserId = (): string => {
@@ -97,10 +105,57 @@ export function useLiveKit(options: UseLiveKitOptions) {
     return userId
   }
 
+  // Calculate bitrate from byte deltas
+  const calculateBitrate = (
+    userId: string,
+    trackId: string,
+    currentBytes: number,
+    currentTime: number,
+  ): number => {
+    const userPreviousStats = previousStats.value.get(userId)
+    if (!userPreviousStats) {
+      // First measurement, store and return 0
+      previousStats.value.set(
+        userId,
+        new Map([
+          [trackId, { bytesReceived: currentBytes, timestamp: currentTime }],
+        ]),
+      )
+      return 0
+    }
+
+    const trackPreviousStats = userPreviousStats.get(trackId)
+    if (!trackPreviousStats) {
+      // First measurement for this track
+      userPreviousStats.set(trackId, {
+        bytesReceived: currentBytes,
+        timestamp: currentTime,
+      })
+      return 0
+    }
+
+    const deltaBytes = currentBytes - trackPreviousStats.bytesReceived
+    const deltaTimeMs = currentTime - trackPreviousStats.timestamp
+
+    // Update stored stats
+    userPreviousStats.set(trackId, {
+      bytesReceived: currentBytes,
+      timestamp: currentTime,
+    })
+
+    if (deltaTimeMs <= 0 || deltaBytes < 0) {
+      return 0
+    }
+
+    // Convert to bits per second: bytes * 8 * 1000 / ms
+    return (deltaBytes * 8 * 1000) / deltaTimeMs
+  }
+
   // Update stats for all participants
   const updateStats = async () => {
     const stats = new Map<string, ConnectionStats>()
     const currentUserId = getCurrentUserId()
+    const currentTime = Date.now()
 
     // Get local stats
     if (localAudioPublication.value?.track) {
@@ -112,13 +167,27 @@ export function useLiveKit(options: UseLiveKitOptions) {
             (s: { type: string }) => s.type === "outbound-rtp",
           ) as RTCOutboundRtpStreamStats
 
-          if (senderStats) {
-            stats.set(currentUserId, {
+          if (senderStats && senderStats.kind === "audio") {
+            const bitrate = calculateBitrate(
+              currentUserId,
+              "local-audio",
+              senderStats.bytesSent || 0,
+              currentTime,
+            )
+
+            const existing = stats.get(currentUserId) || {
               ping: currentPing.value || 0,
-              jitter: 0,
-              packetLoss: 0,
-              bitrate: senderStats.bytesSent ? senderStats.bytesSent * 8 : 0,
-              kind: senderStats.kind,
+            }
+            stats.set(currentUserId, {
+              ...existing,
+              audio: {
+                jitter: 0,
+                packetLoss: 0,
+                bitrate,
+                bytesReceived: senderStats.bytesSent || 0,
+                timestamp: currentTime,
+              },
+              timestamp: new Date(),
             })
           }
         }
@@ -127,35 +196,49 @@ export function useLiveKit(options: UseLiveKitOptions) {
       }
     }
 
-    // Get remote stats
+    // Get remote stats for all tracks (not just audio)
     for (const [userId, track] of remoteAudioTracks.value) {
       try {
         const trackStats = await track.getRTCStatsReport()
         if (trackStats) {
-          const receiverStats = Array.from(trackStats.values()).find(
+          // Find all inbound-rtp stats (could be audio or video)
+          const receiverStats = Array.from(trackStats.values()).filter(
             (s: { type: string }) => s.type === "inbound-rtp",
-          ) as RTCInboundRtpStreamStats
+          ) as RTCInboundRtpStreamStats[]
 
-          if (receiverStats) {
-            const existing = stats.get(userId) || {
-              ping: 0,
-              jitter: 0,
-              packetLoss: 0,
-              bitrate: 0,
+          for (const stat of receiverStats) {
+            const kind = stat.kind as "audio" | "video"
+            const bitrate = calculateBitrate(
+              userId,
+              `${kind}-${stat.ssrc || track.sid}`,
+              stat.bytesReceived || 0,
+              currentTime,
+            )
+
+            const existing = stats.get(userId) || { ping: 0 }
+            const trackStatsData: TrackStats = {
+              jitter: (stat.jitter || 0) * 1000,
+              packetLoss: stat.packetsLost
+                ? (stat.packetsLost / (stat.packetsReceived || 1)) * 100
+                : 0,
+              bitrate,
+              bytesReceived: stat.bytesReceived || 0,
+              timestamp: currentTime,
             }
-            stats.set(userId, {
-              ...existing,
-              jitter: (receiverStats.jitter || 0) * 1000,
-              packetLoss: receiverStats.packetsLost
-                ? (receiverStats.packetsLost /
-                    (receiverStats.packetsReceived || 1)) *
-                  100
-                : 0,
-              bitrate: receiverStats.bytesReceived
-                ? receiverStats.bytesReceived * 8
-                : 0,
-              kind: receiverStats.kind,
-            })
+
+            if (kind === "audio") {
+              stats.set(userId, {
+                ...existing,
+                audio: trackStatsData,
+                timestamp: new Date(),
+              })
+            } else if (kind === "video") {
+              stats.set(userId, {
+                ...existing,
+                video: trackStatsData,
+                timestamp: new Date(),
+              })
+            }
           }
         }
       } catch (error) {
@@ -181,6 +264,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
       clearInterval(statsInterval)
       statsInterval = null
     }
+    previousStats.value.clear()
   }
 
   // Get stats for a specific participant
@@ -188,9 +272,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
     return (
       participantStats.value.get(userId) || {
         ping: 0,
-        jitter: 0,
-        packetLoss: 0,
-        bitrate: 0,
       }
     )
   }

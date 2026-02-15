@@ -1,4 +1,4 @@
-.PHONY: help install build dev dev-public lint lint-full test clean docker-build docker-up certs run-built
+.PHONY: help install build dev dev-public lint lint-full prettier test clean docker-build docker-up certs run-built
 
 # Default target
 help:
@@ -121,6 +121,10 @@ lint:
 lint-full:
 	@echo "Running frontend linter on changed files..."
 	cd frontend && npm run lint:full
+
+prettier:
+	@echo "Running prettier"
+	cd frontend && npm run prettier
 
 # Run tests
 test:
