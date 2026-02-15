@@ -21,7 +21,7 @@
     <Teleport to="body">
       <Transition name="fade">
         <div
-          v-if="showStats && hasStats"
+          v-if="showStats && hasStats && !showMenu"
           ref="tooltipElement"
           class="fixed z-[9999] bg-gray-900/95 backdrop-blur-sm border border-gray-700 rounded-lg p-3 w-52 shadow-xl pointer-events-none"
           :style="tooltipStyle">
@@ -242,10 +242,7 @@
       <button
         type="button"
         class="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors flex items-center space-x-2"
-        @click="
-          toggleMute();
-          hideContextMenu();
-        ">
+        @click="handleMuteToggle">
         <PhMicrophoneSlash v-if="isMuted" class="w-4 h-4" />
 
         <PhMicrophone v-else class="w-4 h-4" />
@@ -382,7 +379,7 @@ const hasStats = computed(() => {
   return s.ping > 0 || hasAudio || hasVideo
 })
 
-// Calculate tooltip position with viewport boundary detection
+  // Calculate tooltip position with viewport boundary detection
 const tooltipStyle = computed(() => {
   if (typeof window === "undefined") {
     return { left: "0px", top: "0px" }
@@ -420,6 +417,13 @@ const tooltipStyle = computed(() => {
     top: `${top}px`,
   }
 })
+
+const handleMouseEnter = (event: MouseEvent) => {
+  // Don't show stats tooltip when context menu is open
+  if (showMenu.value) return
+  mousePosition.value = { x: event.clientX, y: event.clientY }
+  showStats.value = true
+}
 
 // Methods
 const formatNumber = (value: number): string => {
@@ -475,11 +479,6 @@ const getMenuPosition = () => {
 
 const handleCardClick = () => {
   emit("card-click", props.userId)
-}
-
-const handleMouseEnter = (event: MouseEvent) => {
-  mousePosition.value = { x: event.clientX, y: event.clientY }
-  showStats.value = true
 }
 
 const handleMouseMove = (event: MouseEvent) => {
@@ -541,6 +540,11 @@ const toggleMute = () => {
     audioElement.value.muted = isMuted.value
   }
   emit("mute-toggle", props.userId, isMuted.value)
+}
+
+const handleMuteToggle = () => {
+  toggleMute()
+  hideContextMenu()
 }
 
 const setupAudioAnalysis = () => {
