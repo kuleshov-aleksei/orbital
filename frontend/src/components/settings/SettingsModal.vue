@@ -45,6 +45,20 @@
 
             <span class="font-medium">Account</span>
           </button>
+
+          <button
+            type="button"
+            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
+            :class="
+              currentTab === 'debug'
+                ? 'bg-indigo-600 text-white'
+                : 'text-gray-300 hover:bg-gray-600 hover:text-white'
+            "
+            @click="currentTab = 'debug'">
+            <PhBug class="w-5 h-5" />
+
+            <span class="font-medium">Debug</span>
+          </button>
         </div>
 
         <!-- Close Button at Bottom -->
@@ -70,6 +84,9 @@
           <AccountSettings
             v-else-if="currentTab === 'account'"
             @logout="close" />
+
+          <!-- Debug Settings Tab -->
+          <DebugSettings v-else-if="currentTab === 'debug'" />
         </div>
       </div>
     </div>
@@ -81,10 +98,17 @@ import { ref, computed } from "vue"
 import { useModalStore } from "@/stores/modal"
 import AudioSettings from "./AudioSettings.vue"
 import AccountSettings from "./AccountSettings.vue"
-import { PhGearSix, PhSpeakerHigh, PhUser, PhX } from "@phosphor-icons/vue"
+import DebugSettings from "./DebugSettings.vue"
+import {
+  PhGearSix,
+  PhSpeakerHigh,
+  PhUser,
+  PhBug,
+  PhX,
+} from "@phosphor-icons/vue"
 
 const modalStore = useModalStore()
-const currentTab = ref<"audio" | "account">("audio")
+const currentTab = ref<"audio" | "account" | "debug">("audio")
 
 const isOpen = computed(() => modalStore.isUserSettingsModal)
 
