@@ -5,7 +5,8 @@
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave">
     <!-- Video Container - maintains actual stream aspect ratio within available space -->
-    <div class="relative flex items-center justify-center bg-black w-full h-full">
+    <div
+      class="relative flex items-center justify-center bg-black w-full h-full">
       <video
         :id="`screen-${userId}`"
         ref="videoElement"
@@ -16,10 +17,12 @@
         @loadedmetadata="handleVideoMetadata" />
 
       <!-- User Info Overlay -->
-      <div class="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/70 to-transparent px-4 py-3">
+      <div
+        class="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/70 to-transparent px-4 py-3">
         <div class="flex items-center justify-between">
           <div class="flex items-center">
-            <div class="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-sm font-bold text-white mr-2">
+            <div
+              class="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-sm font-bold text-white mr-2">
               {{ userNickname.charAt(0).toUpperCase() }}
             </div>
 
@@ -55,7 +58,8 @@
       </div>
 
       <!-- Controls Overlay -->
-      <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-4 py-3 opacity-0 hover:opacity-100 transition-opacity duration-200">
+      <div
+        class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-4 py-3 opacity-0 hover:opacity-100 transition-opacity duration-200">
         <div class="flex items-center justify-between">
           <!-- Left: Make Focus Button (only when not focused in multi-stream mode) -->
           <div v-if="!isFocused && showFocusButton">
@@ -98,7 +102,8 @@
         v-if="!videoTrack"
         class="absolute inset-0 flex items-center justify-center bg-gray-900">
         <div class="text-center">
-          <PhSpinner class="w-8 h-8 text-indigo-400 animate-spin mx-auto mb-2" />
+          <PhSpinner
+            class="w-8 h-8 text-indigo-400 animate-spin mx-auto mb-2" />
 
           <span class="text-gray-400 text-sm">Connecting...</span>
         </div>
@@ -138,7 +143,12 @@ import {
   PhPause,
 } from "@phosphor-icons/vue"
 import type { ScreenShareQuality } from "@/types"
-import type { RemoteVideoTrack, RemoteAudioTrack, LocalVideoTrack, LocalAudioTrack } from "livekit-client"
+import type {
+  RemoteVideoTrack,
+  RemoteAudioTrack,
+  LocalVideoTrack,
+  LocalAudioTrack,
+} from "livekit-client"
 
 interface Props {
   userId: string
@@ -213,11 +223,16 @@ const qualityLabels: Record<ScreenShareQuality, string> = {
 const qualityLabel = computed(() => qualityLabels[props.quality])
 
 // Function to attach track to video element
-const attachTrackToElement = async (track: typeof props.videoTrack, element: HTMLVideoElement) => {
+const attachTrackToElement = async (
+  track: typeof props.videoTrack,
+  element: HTMLVideoElement,
+) => {
   if (!track || !element) return
 
-  console.log(`[AdaptiveStream] Attaching track for ${props.userId}, isSelfView: ${props.isSelfView}`)
-  
+  console.log(
+    `[AdaptiveStream] Attaching track for ${props.userId}, isSelfView: ${props.isSelfView}`,
+  )
+
   if (props.isSelfView) {
     // For self-view, use MediaStream approach (custom pause/resume support)
     selfViewStream.value = new MediaStream([track.mediaStreamTrack])
@@ -237,18 +252,26 @@ const attachTrackToElement = async (track: typeof props.videoTrack, element: HTM
       track.attach(element)
       isLiveKitAttached.value = true
       console.log(`[AdaptiveStream] Attached track to ${props.userId}`)
-      
+
       // Ensure video plays (sometimes attach doesn't auto-play)
       if (element.paused) {
         try {
           await element.play()
-          console.log(`[AdaptiveStream] Video playing after attach for ${props.userId}`)
+          console.log(
+            `[AdaptiveStream] Video playing after attach for ${props.userId}`,
+          )
         } catch (playError) {
-          console.warn(`[AdaptiveStream] Play after attach failed for ${props.userId}:`, playError)
+          console.warn(
+            `[AdaptiveStream] Play after attach failed for ${props.userId}:`,
+            playError,
+          )
         }
       }
     } catch (error) {
-      console.error(`[AdaptiveStream] Error attaching track to ${props.userId}:`, error)
+      console.error(
+        `[AdaptiveStream] Error attaching track to ${props.userId}:`,
+        error,
+      )
     }
   }
 }
@@ -264,7 +287,10 @@ watch(
         isLiveKitAttached.value = false
         console.log(`[AdaptiveStream] Detached track from ${props.userId}`)
       } catch (error) {
-        console.warn(`[AdaptiveStream] Error detaching track from ${props.userId}:`, error)
+        console.warn(
+          `[AdaptiveStream] Error detaching track from ${props.userId}:`,
+          error,
+        )
       }
     }
 
@@ -279,7 +305,9 @@ watch(
     } else if (newTrack && !videoElement.value) {
       // Track arrived but element not ready - store for later
       pendingTrack.value = newTrack
-      console.log(`[AdaptiveStream] Track arrived but element not ready for ${props.userId}, storing for later`)
+      console.log(
+        `[AdaptiveStream] Track arrived but element not ready for ${props.userId}, storing for later`,
+      )
     } else if (!newTrack && videoElement.value) {
       // Clear video element when track is null
       videoElement.value.srcObject = null
@@ -346,16 +374,25 @@ const handlePiPChange = () => {
 }
 
 onMounted(() => {
-  console.log(`[AdaptiveStream] Component mounted for ${props.userId}, has track: ${!!props.videoTrack}, has element: ${!!videoElement.value}, pending: ${!!pendingTrack.value}`)
-  
+  console.log(
+    `[AdaptiveStream] Component mounted for ${props.userId}, has track: ${!!props.videoTrack}, has element: ${!!videoElement.value}, pending: ${!!pendingTrack.value}`,
+  )
+
   // If we have a pending track or current track but haven't attached it yet, attach it now
   const trackToAttach = pendingTrack.value || props.videoTrack
-  if (trackToAttach && videoElement.value && !isLiveKitAttached.value && !selfViewStream.value) {
-    console.log(`[AdaptiveStream] Attaching track in onMounted for ${props.userId}`)
+  if (
+    trackToAttach &&
+    videoElement.value &&
+    !isLiveKitAttached.value &&
+    !selfViewStream.value
+  ) {
+    console.log(
+      `[AdaptiveStream] Attaching track in onMounted for ${props.userId}`,
+    )
     pendingTrack.value = null
     void attachTrackToElement(trackToAttach, videoElement.value)
   }
-  
+
   // Check if video already has metadata
   if (videoElement.value && videoElement.value.videoWidth > 0) {
     handleVideoMetadata()
@@ -382,7 +419,9 @@ onUnmounted(() => {
   // Detach LiveKit track if attached
   if (props.videoTrack && videoElement.value && isLiveKitAttached.value) {
     props.videoTrack.detach(videoElement.value)
-    console.log(`[AdaptiveStream] Detached track from ${props.userId} (unmount)`)
+    console.log(
+      `[AdaptiveStream] Detached track from ${props.userId} (unmount)`,
+    )
   }
 
   // Clean up PiP if active

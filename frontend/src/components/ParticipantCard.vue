@@ -380,7 +380,7 @@ const hasStats = computed(() => {
   return s.ping > 0 || hasAudio || hasVideo
 })
 
-  // Calculate tooltip position with viewport boundary detection
+// Calculate tooltip position with viewport boundary detection
 const tooltipStyle = computed(() => {
   if (typeof window === "undefined") {
     return { left: "0px", top: "0px" }

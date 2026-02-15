@@ -62,7 +62,8 @@
       </div>
 
       <!-- Audio Controls - Fixed at bottom center -->
-      <div class="flex-shrink-0 flex justify-center px-4 py-3 bg-gray-900/80 backdrop-blur-sm border-t border-gray-700/50">
+      <div
+        class="flex-shrink-0 flex justify-center px-4 py-3 bg-gray-900/80 backdrop-blur-sm border-t border-gray-700/50">
         <AudioControls
           ref="audioControlsRef"
           v-model:model-value-muted="isMuted"

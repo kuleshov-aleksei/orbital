@@ -1,5 +1,6 @@
 <template>
-  <div class="screen-share-area bg-gray-800 rounded-lg overflow-hidden flex flex-col">
+  <div
+    class="screen-share-area bg-gray-800 rounded-lg overflow-hidden flex flex-col">
     <!-- Screen Share Content -->
     <div class="p-2 flex-1 min-h-0 flex flex-col">
       <!-- Focus Layout: Main screen (70%) + user panel (30%) side by side -->
@@ -86,7 +87,12 @@ import { PhMonitorPlay } from "@phosphor-icons/vue"
 import ScreenStream from "./ScreenStream.vue"
 import ParticipantCard from "./ParticipantCard.vue"
 import type { ScreenShareQuality, User } from "@/types"
-import type { RemoteVideoTrack, RemoteAudioTrack, LocalVideoTrack, LocalAudioTrack } from "livekit-client"
+import type {
+  RemoteVideoTrack,
+  RemoteAudioTrack,
+  LocalVideoTrack,
+  LocalAudioTrack,
+} from "livekit-client"
 
 // Cache for MediaStream objects to prevent recreation on every render
 const streamCache = ref<Map<string, MediaStream>>(new Map())
@@ -191,8 +197,11 @@ const focusedShare = computed(() => {
 })
 
 // Get track SID for cache key
-const getTrackKey = (userId: string, videoTrack: { sid?: string } | null): string => {
-  return `${userId}:${videoTrack?.sid || 'none'}`
+const getTrackKey = (
+  userId: string,
+  videoTrack: { sid?: string } | null,
+): string => {
+  return `${userId}:${videoTrack?.sid || "none"}`
 }
 
 // Build participant data for all users
@@ -228,7 +237,9 @@ const allParticipants = computed((): ParticipantData[] => {
         screenShareStream = cachedStream
       } else {
         // Create new MediaStream and cache it
-        const tracks: MediaStreamTrack[] = [screenShare.videoTrack.mediaStreamTrack]
+        const tracks: MediaStreamTrack[] = [
+          screenShare.videoTrack.mediaStreamTrack,
+        ]
         if (screenShare.audioTrack) {
           tracks.push(screenShare.audioTrack.mediaStreamTrack)
         }

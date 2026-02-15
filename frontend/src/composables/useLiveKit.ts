@@ -309,10 +309,12 @@ export function useLiveKit(options: UseLiveKitOptions) {
         return localAudioTrack.value
       }
       // Track has ended, clean it up and reset promise
-      console.log(`[LiveKit][INFO]: Existing audio track ended, creating new track`)
+      console.log(
+        `[LiveKit][INFO]: Existing audio track ended, creating new track`,
+      )
       localAudioTrack.value.stop()
       localAudioTrack.value = null
-      localStreamPromise = null  // Reset promise so we create a new track
+      localStreamPromise = null // Reset promise so we create a new track
     }
 
     if (!localStreamPromise) {
@@ -775,7 +777,9 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
     // Check if we have an audio track published
     if (!localAudioPublication.value) {
-      console.log(`[LiveKit][INFO]: Cannot apply mute state - no audio track published yet`)
+      console.log(
+        `[LiveKit][INFO]: Cannot apply mute state - no audio track published yet`,
+      )
       return
     }
 
