@@ -111,6 +111,120 @@
                 }}</span>
               </div>
             </template>
+
+            <!-- Screen Share Stats -->
+            <template v-if="stats.screenShare">
+              <div
+                class="text-xs font-medium text-indigo-300 mt-2 pt-1 border-t border-indigo-700/50">
+                Screen Share
+              </div>
+
+              <!-- Resolution -->
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-500">Resolution:</span>
+
+                <span class="text-indigo-400">{{
+                  stats.screenShare.resolution || "–"
+                }}</span>
+              </div>
+
+              <!-- Frame Rate -->
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-500">Frame Rate:</span>
+
+                <span class="text-indigo-400"
+                  >{{ formatNumber(stats.screenShare.fps || 0) }} fps</span
+                >
+              </div>
+
+              <!-- Codec -->
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-500">Codec:</span>
+
+                <span class="text-indigo-400">{{
+                  stats.screenShare.codec || "–"
+                }}</span>
+              </div>
+
+              <!-- Jitter -->
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-500">Jitter:</span>
+
+                <span class="text-blue-400"
+                  >{{ formatNumber(stats.screenShare.jitter) }}ms</span
+                >
+              </div>
+
+              <!-- Packet Loss -->
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-500">Packet Loss:</span>
+
+                <span :class="getPacketLossClass(stats.screenShare.packetLoss)">
+                  {{ formatNumber(stats.screenShare.packetLoss) }}%
+                </span>
+              </div>
+
+              <!-- Bitrate -->
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-500">Bitrate:</span>
+
+                <span class="text-purple-400">{{
+                  formatBitrate(stats.screenShare.bitrate)
+                }}</span>
+              </div>
+
+              <!-- Frames -->
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-500">Frames:</span>
+
+                <span class="text-green-400">
+                  {{ stats.screenShare.framesDecoded || 0 }}
+                  <span class="text-gray-500">/</span>
+
+                  <span
+                    :class="
+                      stats.screenShare.framesDropped &&
+                      stats.screenShare.framesDropped > 0
+                        ? 'text-red-400'
+                        : 'text-green-400'
+                    ">
+                    {{ stats.screenShare.framesDropped || 0 }}
+                  </span>
+                </span>
+              </div>
+
+              <!-- Quality Limitation (only show if present and not "none") -->
+              <div
+                v-if="
+                  stats.screenShare.qualityLimitationReason &&
+                  stats.screenShare.qualityLimitationReason !== 'none'
+                "
+                class="flex justify-between text-xs">
+                <span class="text-gray-500">Quality:</span>
+
+                <span class="text-yellow-400">{{
+                  stats.screenShare.qualityLimitationReason
+                }}</span>
+              </div>
+
+              <!-- NACK/PLI/FIR Counts (only show if any are present) -->
+              <div
+                v-if="
+                  stats.screenShare.nackCount ||
+                  stats.screenShare.pliCount ||
+                  stats.screenShare.firCount
+                "
+                class="flex justify-between text-xs">
+                <span class="text-gray-500">Recovery:</span>
+
+                <span class="text-orange-400">
+                  N:{{ stats.screenShare.nackCount || 0 }} P:{{
+                    stats.screenShare.pliCount || 0
+                  }}
+                  F:{{ stats.screenShare.firCount || 0 }}
+                </span>
+              </div>
+            </template>
           </div>
         </div>
       </Transition>
@@ -133,6 +247,7 @@
         v-if="isViewing"
         class="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-indigo-600/90 backdrop-blur-sm text-white px-3 py-1.5 rounded-full z-20 shadow-lg">
         <PhMonitorPlay class="w-4 h-4" />
+
         <span class="text-sm font-medium">Viewing</span>
       </div>
 
@@ -351,16 +466,6 @@ const isSpeaking = computed(() => {
   return presenceStore.getParticipant(props.userId)?.isSpeaking ?? false
 })
 
-const audioLevel = computed(() => {
-  if (props.isCurrentUser) {
-    return props.externalAudioLevel
-  }
-  // Use LiveKit's built-in audio level from presence store
-  const level = presenceStore.getParticipant(props.userId)?.audioLevel ?? 0
-  // Reset to 0 when not speaking to avoid stuck values
-  return isSpeaking.value ? level : 0
-})
-
 const hasStats = computed(() => {
   const s = props.stats
   if (!s) return false
@@ -370,7 +475,12 @@ const hasStats = computed(() => {
   const hasVideo =
     s.video &&
     (s.video.jitter > 0 || s.video.packetLoss > 0 || s.video.bitrate > 0)
-  return s.ping > 0 || hasAudio || hasVideo
+  const hasScreenShare =
+    s.screenShare &&
+    (s.screenShare.jitter > 0 ||
+      s.screenShare.packetLoss > 0 ||
+      s.screenShare.bitrate > 0)
+  return s.ping > 0 || hasAudio || hasVideo || hasScreenShare
 })
 
 // Calculate tooltip position with viewport boundary detection

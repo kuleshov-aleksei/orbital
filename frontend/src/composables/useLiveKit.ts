@@ -151,6 +151,65 @@ export function useLiveKit(options: UseLiveKitOptions) {
     return (deltaBytes * 8 * 1000) / deltaTimeMs
   }
 
+  // Extract video-specific stats from RTCInboundRtpStreamStats
+  const extractVideoStats = (
+    stat: RTCInboundRtpStreamStats,
+    trackStats: TrackStats,
+  ): TrackStats => {
+    const videoStats = { ...trackStats }
+
+    // Resolution
+    if (stat.frameWidth && stat.frameHeight) {
+      videoStats.frameWidth = stat.frameWidth
+      videoStats.frameHeight = stat.frameHeight
+      videoStats.resolution = `${stat.frameWidth}x${stat.frameHeight}`
+    }
+
+    // Frame rate
+    if (stat.framesPerSecond) {
+      videoStats.fps = stat.framesPerSecond
+    }
+
+    // Frame counts
+    if (stat.framesDecoded !== undefined) {
+      videoStats.framesDecoded = stat.framesDecoded
+    }
+    if (stat.framesDropped !== undefined) {
+      videoStats.framesDropped = stat.framesDropped
+    }
+    if (stat.framesReceived !== undefined) {
+      videoStats.framesReceived = stat.framesReceived
+    }
+
+    // Codec info (from codecId reference)
+    if (stat.codecId) {
+      videoStats.codec = stat.codecId
+    }
+
+    // Recovery mechanism counts
+    if (stat.pliCount !== undefined) {
+      videoStats.pliCount = stat.pliCount
+    }
+    if (stat.firCount !== undefined) {
+      videoStats.firCount = stat.firCount
+    }
+    if (stat.nackCount !== undefined) {
+      videoStats.nackCount = stat.nackCount
+    }
+
+    // Quality limitation
+    if (stat.qualityLimitationReason) {
+      videoStats.qualityLimitationReason = stat.qualityLimitationReason
+    }
+
+    // Decoder info
+    if (stat.decoderImplementation) {
+      videoStats.decoderImplementation = stat.decoderImplementation
+    }
+
+    return videoStats
+  }
+
   // Update stats for all participants
   const updateStats = async () => {
     const stats = new Map<string, ConnectionStats>()
@@ -233,6 +292,8 @@ export function useLiveKit(options: UseLiveKitOptions) {
                 timestamp: new Date(),
               })
             } else if (kind === "video") {
+              // Don't store regular video tracks in the video field anymore
+              // We'll handle them separately or leave this for camera video
               stats.set(userId, {
                 ...existing,
                 video: trackStatsData,
@@ -243,6 +304,69 @@ export function useLiveKit(options: UseLiveKitOptions) {
         }
       } catch (error) {
         console.warn(`Error getting stats for ${userId}:`, error)
+      }
+    }
+
+    // Get screen share stats from remoteScreenTracks
+    for (const [userId, tracks] of remoteScreenTracks.value) {
+      if (tracks.video) {
+        try {
+          const trackStats = await tracks.video.getRTCStatsReport()
+          if (trackStats) {
+            const receiverStats = Array.from(trackStats.values()).filter(
+              (s: { type: string }) => s.type === "inbound-rtp",
+            ) as RTCInboundRtpStreamStats[]
+
+            for (const stat of receiverStats) {
+              if (stat.kind === "video") {
+                const bitrate = calculateBitrate(
+                  userId,
+                  `screenshare-${stat.ssrc || tracks.video!.sid}`,
+                  stat.bytesReceived || 0,
+                  currentTime,
+                )
+
+                const existing = stats.get(userId) || { ping: 0 }
+                const trackStatsData: TrackStats = {
+                  jitter: (stat.jitter || 0) * 1000,
+                  packetLoss: stat.packetsLost
+                    ? (stat.packetsLost / (stat.packetsReceived || 1)) * 100
+                    : 0,
+                  bitrate,
+                  bytesReceived: stat.bytesReceived || 0,
+                  timestamp: currentTime,
+                }
+
+                // Extract video-specific stats
+                const videoStats = extractVideoStats(stat, trackStatsData)
+
+                // Resolve codec name from codecId if present
+                if (stat.codecId) {
+                  const codecStats = Array.from(trackStats.values()).find(
+                    (s: { type: string; id?: string }) =>
+                      s.type === "codec" && s.id === stat.codecId,
+                  ) as { mimeType?: string } | undefined
+
+                  if (codecStats?.mimeType) {
+                    // Extract codec from mimeType like "video/VP8" -> "VP8"
+                    const codecMatch = codecStats.mimeType.match(/\/(\w+)$/)
+                    if (codecMatch) {
+                      videoStats.codec = codecMatch[1]
+                    }
+                  }
+                }
+
+                stats.set(userId, {
+                  ...existing,
+                  screenShare: videoStats,
+                  timestamp: new Date(),
+                })
+              }
+            }
+          }
+        } catch (error) {
+          console.warn(`Error getting screen share stats for ${userId}:`, error)
+        }
       }
     }
 

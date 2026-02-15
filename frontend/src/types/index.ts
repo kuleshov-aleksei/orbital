@@ -212,12 +212,27 @@ export interface TrackStats {
   bitrate: number // bits per second
   bytesReceived: number
   timestamp: number
+  // Video-specific stats
+  resolution?: string // e.g., "1920x1080"
+  frameWidth?: number
+  frameHeight?: number
+  fps?: number
+  framesDecoded?: number
+  framesDropped?: number
+  framesReceived?: number
+  codec?: string // e.g., "VP8", "H264"
+  pliCount?: number // Picture Loss Indication
+  firCount?: number // Full Intra Request
+  nackCount?: number // Negative ACK count
+  qualityLimitationReason?: string // e.g., "none", "cpu", "bandwidth"
+  decoderImplementation?: string // e.g., "libvpx", "FFmpeg"
 }
 
 export interface ConnectionStats {
   ping: number
   audio?: TrackStats
   video?: TrackStats
+  screenShare?: TrackStats // Screen sharing specific stats
   timestamp?: Date
 }
 
