@@ -118,13 +118,24 @@
 
     <!-- Screen Share Mode: Video Preview with floating info -->
     <template v-if="isScreenSharing && screenShareStream">
+      <!-- Video element - only rendered when NOT viewing in main area -->
       <video
+        v-if="!isViewing"
         ref="videoElement"
         class="w-full h-full object-contain bg-gray-900"
         autoplay
         playsinline
         muted
         @loadedmetadata="onVideoLoaded" />
+
+      <!-- Viewing overlay - shown when this stream is being viewed in main area -->
+      <div
+        v-if="isViewing"
+        class="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 z-10">
+        <PhMonitorPlay class="w-12 h-12 text-indigo-400 mb-3" />
+        <span class="text-white text-lg font-medium">Viewing</span>
+        <p class="text-gray-400 text-sm mt-1">Click to focus</p>
+      </div>
 
       <!-- Floating nickname overlay -->
       <div
@@ -297,6 +308,7 @@ interface Props {
   stats?: ConnectionStats
   // Mode control
   forceAudioMode?: boolean // If true, always show audio mode even when screen sharing
+  isViewing?: boolean // If true, show "Viewing" overlay instead of video (stream is shown in main area)
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -310,6 +322,7 @@ const props = withDefaults(defineProps<Props>(), {
     ping: 0,
   }),
   forceAudioMode: false,
+  isViewing: false,
 })
 
 const emit = defineEmits<{

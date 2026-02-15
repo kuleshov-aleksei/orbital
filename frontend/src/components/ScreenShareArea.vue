@@ -1,6 +1,5 @@
 <template>
-  <div
-    class="screen-share-area bg-gray-800 rounded-lg overflow-hidden flex flex-col">
+  <div class="screen-share-area bg-gray-800 rounded-lg overflow-hidden flex flex-col">
     <!-- Screen Share Content -->
     <div class="p-2 flex-1 min-h-0 flex flex-col">
       <!-- Focus Layout: Main screen (70%) + user panel (30%) side by side -->
@@ -8,9 +7,11 @@
         <!-- Main focused screen - 70% width -->
         <div v-if="focusedShare" class="flex-[7] min-w-0 min-h-0">
           <ScreenStream
+            :key="focusedShare.userId"
             :user-id="focusedShare.userId"
             :user-nickname="focusedShare.userNickname"
-            :stream="focusedShare.stream"
+            :video-track="focusedShare.videoTrack"
+            :audio-track="focusedShare.audioTrack"
             :quality="focusedShare.quality"
             :connection-state="focusedShare.connectionState"
             :is-focused="true"
@@ -35,6 +36,10 @@
             :is-current-user="participant.isCurrentUser"
             :external-audio-level="participant.externalAudioLevel"
             :stats="participant.stats"
+            :is-viewing="
+              participant.userId === focusedShare?.userId ||
+              participant.userId + '-self' === focusedShare?.userId
+            "
             :force-audio-mode="
               participant.userId !== focusedShare?.userId &&
               participant.userId + '-self' !== focusedShare?.userId &&
@@ -52,7 +57,8 @@
           :key="share.userId"
           :user-id="share.userId"
           :user-nickname="share.userNickname"
-          :stream="share.stream"
+          :video-track="share.videoTrack"
+          :audio-track="share.audioTrack"
           :quality="share.quality"
           :connection-state="share.connectionState"
           :is-focused="false"
@@ -75,16 +81,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from "vue"
+import { ref, computed, watch, onUnmounted } from "vue"
 import { PhMonitorPlay } from "@phosphor-icons/vue"
 import ScreenStream from "./ScreenStream.vue"
 import ParticipantCard from "./ParticipantCard.vue"
 import type { ScreenShareQuality, User } from "@/types"
+import type { RemoteVideoTrack, RemoteAudioTrack, LocalVideoTrack, LocalAudioTrack } from "livekit-client"
+
+// Cache for MediaStream objects to prevent recreation on every render
+const streamCache = ref<Map<string, MediaStream>>(new Map())
 
 interface ScreenShare {
   userId: string
   userNickname: string
-  stream: MediaStream | null
+  videoTrack: RemoteVideoTrack | LocalVideoTrack | null
+  audioTrack: RemoteAudioTrack | LocalAudioTrack | null
   quality: ScreenShareQuality
   connectionState?: string
   isSelfView?: boolean
@@ -179,9 +190,16 @@ const focusedShare = computed(() => {
   )
 })
 
+// Get track SID for cache key
+const getTrackKey = (userId: string, videoTrack: { sid?: string } | null): string => {
+  return `${userId}:${videoTrack?.sid || 'none'}`
+}
+
 // Build participant data for all users
 const allParticipants = computed((): ParticipantData[] => {
-  return props.users.map((user) => {
+  const currentCacheKeys = new Set<string>()
+
+  const result = props.users.map((user) => {
     // Look for screen share by user id - for current user also check for '-self' suffix (self-view)
     let screenShare = props.screenShares.find((s) => s.userId === user.id)
     const isCurrentUser = user.id === props.currentUserId
@@ -198,11 +216,32 @@ const allParticipants = computed((): ParticipantData[] => {
       ? props.currentUserIsSharing || false
       : props.userScreenShareStates.get(user.id)?.isSharing || false
 
+    // Create or retrieve cached MediaStream from tracks for sidebar preview (ParticipantCard)
+    let screenShareStream: MediaStream | null = null
+    if (screenShare?.videoTrack) {
+      const cacheKey = getTrackKey(user.id, screenShare.videoTrack)
+      currentCacheKeys.add(cacheKey)
+
+      const cachedStream = streamCache.value.get(cacheKey)
+      if (cachedStream) {
+        // Use cached stream
+        screenShareStream = cachedStream
+      } else {
+        // Create new MediaStream and cache it
+        const tracks: MediaStreamTrack[] = [screenShare.videoTrack.mediaStreamTrack]
+        if (screenShare.audioTrack) {
+          tracks.push(screenShare.audioTrack.mediaStreamTrack)
+        }
+        screenShareStream = new MediaStream(tracks)
+        streamCache.value.set(cacheKey, screenShareStream)
+      }
+    }
+
     return {
       userId: user.id,
       userNickname: user.nickname || "Unknown",
       audioStream: props.remoteStreams.get(user.id) || null,
-      screenShareStream: screenShare?.stream || null,
+      screenShareStream,
       initialVolume: props.remoteStreamVolumes.get(user.id) || 80,
       isDeafened: props.isDeafened,
       isScreenSharing,
@@ -214,6 +253,15 @@ const allParticipants = computed((): ParticipantData[] => {
       stats: props.getParticipantStats?.(user.id),
     }
   })
+
+  // Clean up cached streams that are no longer needed
+  for (const [key] of streamCache.value) {
+    if (!currentCacheKeys.has(key)) {
+      streamCache.value.delete(key)
+    }
+  }
+
+  return result
 })
 
 const setFocusedShare = (userId: string) => {
@@ -234,6 +282,11 @@ const handleParticipantClick = (userId: string) => {
     setFocusedShare(screenShare.userId)
   }
 }
+
+// Cleanup on unmount
+onUnmounted(() => {
+  streamCache.value.clear()
+})
 </script>
 
 <style scoped>

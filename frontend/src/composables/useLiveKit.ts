@@ -948,7 +948,8 @@ export function useLiveKit(options: UseLiveKitOptions) {
     const shares: Array<{
       userId: string
       userNickname: string
-      stream: MediaStream | null
+      videoTrack: RemoteVideoTrack | LocalVideoTrack | null
+      audioTrack: RemoteAudioTrack | LocalAudioTrack | null
       quality: ScreenShareQuality
       connectionState: string
       isSelfView?: boolean
@@ -956,13 +957,11 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
     // Add self-view if local user is sharing
     if (isScreenSharing.value && localScreenVideoTrack.value) {
-      const selfStream = new MediaStream([
-        localScreenVideoTrack.value.mediaStreamTrack,
-      ])
       shares.push({
         userId: currentUserId + "-self",
         userNickname: "Your Screen",
-        stream: selfStream,
+        videoTrack: localScreenVideoTrack.value,
+        audioTrack: localScreenAudioTrack.value,
         quality: screenShareQuality.value,
         connectionState: "self-view",
         isSelfView: true,
@@ -975,19 +974,12 @@ export function useLiveKit(options: UseLiveKitOptions) {
       if (shareState?.isSharing && userId !== currentUserId) {
         const participant = remoteParticipants.value.get(userId)
         const tracks = remoteScreenTracks.value.get(userId)
-        const tracks_array: MediaStreamTrack[] = []
-        if (tracks?.video) {
-          tracks_array.push(tracks.video.mediaStreamTrack)
-        }
-        if (tracks?.audio) {
-          tracks_array.push(tracks.audio.mediaStreamTrack)
-        }
 
         shares.push({
           userId,
           userNickname: participant?.name || userId,
-          stream:
-            tracks_array.length > 0 ? new MediaStream(tracks_array) : null,
+          videoTrack: tracks?.video || null,
+          audioTrack: tracks?.audio || null,
           quality: shareState.quality,
           connectionState: "connected",
         })
@@ -1091,7 +1083,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     userScreenShareStates,
     screenShareData,
 
-    // Legacy compatibility (for useWebRTC interface)
+    // Audio-only legacy compatibility (voice chat participants)
     localStream: computed(() =>
       localAudioTrack.value
         ? new MediaStream([localAudioTrack.value.mediaStreamTrack])
@@ -1104,9 +1096,9 @@ export function useLiveKit(options: UseLiveKitOptions) {
       })
       return streams
     }),
-    peerConnections: ref(new Map()), // Empty map for compatibility
-    peerConnectionStates: ref(new Map()), // Empty map for compatibility
-    peerConnectionRetries: ref(new Map()), // Empty map for compatibility
+    peerConnections: ref(new Map()),
+    peerConnectionStates: ref(new Map()),
+    peerConnectionRetries: ref(new Map()),
     currentPing,
     participantStats,
 
