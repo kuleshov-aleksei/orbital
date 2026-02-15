@@ -25,12 +25,12 @@
 
       <button
         type="button"
-        class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+        class="relative inline-flex h-6 w-12 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800"
         :class="debugLogsEnabled ? 'bg-indigo-600' : 'bg-gray-600'"
         @click="toggleDebugLogs">
         <span
           class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-          :class="debugLogsEnabled ? 'translate-x-6' : 'translate-x-1'" />
+          :class="debugLogsEnabled ? 'translate-x-7' : 'translate-x-1'" />
       </button>
     </div>
 
