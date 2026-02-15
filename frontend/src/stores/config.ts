@@ -1,8 +1,8 @@
-import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-import { apiService } from '@/services/api'
+import { defineStore } from "pinia"
+import { ref, computed } from "vue"
+import { apiService } from "@/services/api"
 
-export const useConfigStore = defineStore('config', () => {
+export const useConfigStore = defineStore("config", () => {
   // State
   const minUsers = ref(2)
   const maxUsers = ref(10)
@@ -31,7 +31,7 @@ export const useConfigStore = defineStore('config', () => {
       defaultMaxUsers.value = config.room.default_max_users
       isLoaded.value = true
     } catch (error) {
-      console.error('Failed to load config:', error)
+      console.error("Failed to load config:", error)
       // Keep default values on error
     } finally {
       isLoading.value = false

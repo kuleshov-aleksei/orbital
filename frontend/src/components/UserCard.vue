@@ -2,26 +2,23 @@
   <div
     class="user-card flex items-center px-3 py-2 rounded-lg hover:bg-gray-700 transition-colors duration-200 cursor-pointer group relative"
     :data-testid="`user-card-${user.id}`"
-    @contextmenu="showContextMenu"
-  >
+    @contextmenu="showContextMenu">
     <!-- User Avatar -->
     <UserAvatar
       :nickname="user.nickname"
       :status="userStatus"
       :size="32"
       :grayscale="!user.is_online"
-      class="mr-3"
-    />
+      class="mr-3" />
 
     <!-- User Info -->
     <div class="flex-1 min-w-0">
-      <div 
+      <div
         v-if="!isEditingNickname"
         class="font-medium text-sm truncate cursor-pointer hover:text-indigo-400 transition-colors"
         :class="{ 'text-gray-500': !user.is_online }"
         :title="isCurrentUser ? 'Click to edit nickname' : ''"
-        @click="startEditingNickname"
-      >
+        @click="startEditingNickname">
         {{ user.nickname }}
       </div>
 
@@ -35,8 +32,7 @@
           placeholder="Enter nickname"
           @blur="saveNickname"
           @keydown.enter="saveNickname"
-          @keydown.escape="cancelEdit"
-        />
+          @keydown.escape="cancelEdit" />
       </div>
 
       <div class="text-xs text-gray-400">
@@ -59,14 +55,18 @@
     </div>
 
     <!-- Action Icons -->
-    <div class="ml-2 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+    <div
+      class="ml-2 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
       <!-- Muted Icon -->
       <div v-if="user.is_muted" class="w-4 h-4 text-red-400">
         <svg fill="currentColor" viewBox="0 0 20 20">
-          <path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd" />
+          <path
+            fill-rule="evenodd"
+            d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z"
+            clip-rule="evenodd" />
         </svg>
       </div>
-      
+
       <!-- Speaking Indicator -->
       <div v-if="user.is_speaking" class="w-4 h-4 text-green-400 animate-pulse">
         <PhSpeakerHigh class="w-3 h-3" />
@@ -83,12 +83,11 @@
       v-if="showMenu"
       class="fixed bg-gray-800 border border-gray-600 rounded-lg shadow-lg z-50 py-2 min-w-48"
       :style="getMenuPosition()"
-      @click.stop
-    >
+      @click.stop>
       <div class="px-3 py-2 text-sm text-gray-300 border-b border-gray-600">
         {{ user.nickname }}
       </div>
-      
+
       <!-- Volume Control -->
       <div class="px-3 py-2">
         <div class="flex items-center justify-between mb-2">
@@ -106,8 +105,7 @@
             min="0"
             max="100"
             class="flex-1 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer"
-            @input="handleVolumeChange"
-          />
+            @input="handleVolumeChange" />
         </div>
       </div>
 
@@ -121,11 +119,10 @@
           type="button"
           class="w-full px-3 py-2 text-left text-sm text-indigo-400 hover:bg-gray-700 hover:text-indigo-300 transition-colors flex items-center gap-2"
           :disabled="promoting"
-          @click="handlePromote"
-        >
+          @click="handlePromote">
           <PhUserPlus class="w-4 h-4" />
 
-          <span>{{ promoting ? 'Promoting...' : 'Make Admin' }}</span>
+          <span>{{ promoting ? "Promoting..." : "Make Admin" }}</span>
         </button>
 
         <!-- Demote to User - shown for admins -->
@@ -134,19 +131,17 @@
           type="button"
           class="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors flex items-center gap-2"
           :disabled="demoting"
-          @click="handleDemote"
-        >
+          @click="handleDemote">
           <PhUserMinus class="w-4 h-4" />
 
-          <span>{{ demoting ? 'Demoting...' : 'Remove Admin' }}</span>
+          <span>{{ demoting ? "Demoting..." : "Remove Admin" }}</span>
         </button>
 
         <!-- Super Admin indicator - shown for super_admins (disabled) -->
         <div
           v-if="targetUserIsSuperAdmin"
           class="px-3 py-2 text-sm text-purple-400 flex items-center gap-2 cursor-not-allowed opacity-60"
-          title="Cannot modify super admin"
-        >
+          title="Cannot modify super admin">
           <PhCrown class="w-4 h-4" />
 
           <span>Super Admin</span>
@@ -155,20 +150,32 @@
     </div>
 
     <!-- Click outside to close menu -->
-    <div 
+    <div
       v-if="showMenu"
       class="fixed inset-0 z-40"
-      @click="hideContextMenu"
-    ></div>
+      @click="hideContextMenu"></div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, nextTick, useTemplateRef } from 'vue'
-import { PhMicrophoneSlash, PhSpeakerHigh, PhUserPlus, PhUserMinus, PhCrown } from '@phosphor-icons/vue'
-import UserAvatar from '@/components/UserAvatar.vue'
-import { useUserStore } from '@/stores'
-import { apiService } from '@/services/api'
+import {
+  ref,
+  onMounted,
+  onUnmounted,
+  computed,
+  nextTick,
+  useTemplateRef,
+} from "vue"
+import {
+  PhMicrophoneSlash,
+  PhSpeakerHigh,
+  PhUserPlus,
+  PhUserMinus,
+  PhCrown,
+} from "@phosphor-icons/vue"
+import UserAvatar from "@/components/UserAvatar.vue"
+import { useUserStore } from "@/stores"
+import { apiService } from "@/services/api"
 
 interface User {
   id: string
@@ -177,8 +184,8 @@ interface User {
   is_muted?: boolean
   is_deafened?: boolean
   is_online?: boolean
-  status?: 'online' | 'away' | 'dnd'
-  role?: 'guest' | 'user' | 'admin' | 'super_admin'
+  status?: "online" | "away" | "dnd"
+  role?: "guest" | "user" | "admin" | "super_admin"
 }
 
 interface Props {
@@ -187,11 +194,11 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  initialVolume: 80
+  initialVolume: 80,
 })
 
 const emit = defineEmits<{
-  'volume-change': [userId: string, volume: number]
+  "volume-change": [userId: string, volume: number]
 }>()
 
 // Initialize UserStore
@@ -200,8 +207,8 @@ const userStore = useUserStore()
 const showMenu = ref(false)
 const volume = ref(props.initialVolume)
 const isEditingNickname = ref(false)
-const editingNickname = ref('')
-const nicknameInput = useTemplateRef<HTMLInputElement>('nicknameInput')
+const editingNickname = ref("")
+const nicknameInput = useTemplateRef<HTMLInputElement>("nicknameInput")
 const menuPosition = { x: 0, y: 0 }
 const promoting = ref(false)
 const demoting = ref(false)
@@ -210,14 +217,14 @@ const demoting = ref(false)
 const userStatus = computed(() => {
   // If user is explicitly offline, return 'offline'
   if (props.user.is_online === false) {
-    return 'offline'
+    return "offline"
   }
   // If user has a specific status (away, dnd), use it
   if (props.user.status) {
     return props.user.status
   }
   // Default to online if is_online is true or undefined
-  return 'online'
+  return "online"
 })
 
 // Check if this is the current user (for nickname editing)
@@ -226,20 +233,22 @@ const isCurrentUser = computed(() => props.user.id === currentUserId)
 
 // Role management computed properties
 const isSuperAdmin = computed(() => userStore.isSuperAdmin)
-const targetUserIsSuperAdmin = computed(() => props.user.role === 'super_admin')
-const targetUserIsAdmin = computed(() => props.user.role === 'admin')
-const targetUserIsRegularUser = computed(() => props.user.role === 'user')
-const canPromote = computed(() => isSuperAdmin.value && targetUserIsRegularUser.value)
+const targetUserIsSuperAdmin = computed(() => props.user.role === "super_admin")
+const targetUserIsAdmin = computed(() => props.user.role === "admin")
+const targetUserIsRegularUser = computed(() => props.user.role === "user")
+const canPromote = computed(
+  () => isSuperAdmin.value && targetUserIsRegularUser.value,
+)
 const canDemote = computed(() => isSuperAdmin.value && targetUserIsAdmin.value)
 
 const showContextMenu = (event: MouseEvent) => {
   event.preventDefault()
   event.stopPropagation()
-  
+
   // Store mouse position for fixed positioning
   menuPosition.x = event.clientX
   menuPosition.y = event.clientY
-  
+
   showMenu.value = true
 }
 
@@ -247,7 +256,7 @@ const getMenuPosition = () => {
   return {
     left: `${menuPosition.x}px`,
     top: `${menuPosition.y}px`,
-    transform: 'translate(0, -100%)' // Position above mouse
+    transform: "translate(0, -100%)", // Position above mouse
   }
 }
 
@@ -256,15 +265,15 @@ const hideContextMenu = () => {
 }
 
 const handleVolumeChange = () => {
-  emit('volume-change', props.user.id, volume.value)
+  emit("volume-change", props.user.id, volume.value)
 }
 
 const startEditingNickname = () => {
   if (!isCurrentUser.value) return
-  
+
   isEditingNickname.value = true
   editingNickname.value = props.user.nickname
-  
+
   void nextTick(() => {
     nicknameInput.value?.focus()
     nicknameInput.value?.select()
@@ -273,7 +282,7 @@ const startEditingNickname = () => {
 
 const saveNickname = async () => {
   if (!isCurrentUser.value) return
-  
+
   const trimmedNickname = editingNickname.value.trim()
   if (trimmedNickname && trimmedNickname !== props.user.nickname) {
     await userStore.updateNickname(trimmedNickname)
@@ -294,7 +303,7 @@ const handlePromote = async () => {
     await apiService.promoteUser(props.user.id)
     hideContextMenu()
   } catch (error) {
-    console.error('Failed to promote user:', error)
+    console.error("Failed to promote user:", error)
   } finally {
     promoting.value = false
   }
@@ -307,7 +316,7 @@ const handleDemote = async () => {
     await apiService.demoteUser(props.user.id)
     hideContextMenu()
   } catch (error) {
-    console.error('Failed to demote user:', error)
+    console.error("Failed to demote user:", error)
   } finally {
     demoting.value = false
   }
@@ -315,7 +324,7 @@ const handleDemote = async () => {
 
 // Close menu on escape key or document click
 const handleKeydown = (event: KeyboardEvent) => {
-  if (event.key === 'Escape') {
+  if (event.key === "Escape") {
     hideContextMenu()
   }
 }
@@ -326,16 +335,14 @@ const handleDocumentClick = () => {
   }
 }
 
-
-
 onMounted(() => {
-  document.addEventListener('keydown', handleKeydown)
-  document.addEventListener('click', handleDocumentClick)
+  document.addEventListener("keydown", handleKeydown)
+  document.addEventListener("click", handleDocumentClick)
 })
 
 onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeydown)
-  document.removeEventListener('click', handleDocumentClick)
+  document.removeEventListener("keydown", handleKeydown)
+  document.removeEventListener("click", handleDocumentClick)
 })
 </script>
 

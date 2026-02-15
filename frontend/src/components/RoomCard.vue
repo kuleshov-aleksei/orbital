@@ -4,7 +4,7 @@
     :class="{
       'bg-indigo-600 text-white': isActive,
       'bg-gray-700 hover:bg-gray-600 text-gray-200': !isActive,
-      'opacity-50': isDragging
+      'opacity-50': isDragging,
     }"
     v-bind="isDraggable ? { draggable: true } : {}"
     @click="$emit('click')"
@@ -14,8 +14,7 @@
     @dragover.prevent="$emit('dragover', $event)"
     @drop="$emit('drop', $event)"
     @dragenter.prevent="$emit('dragenter', $event)"
-    @dragleave="$emit('dragleave', $event)"
-  >
+    @dragleave="$emit('dragleave', $event)">
     <!-- Room Header -->
     <div class="flex items-center">
       <!-- Room Icon -->
@@ -24,9 +23,8 @@
           class="w-8 h-8 rounded-full flex items-center justify-center"
           :class="{
             'bg-indigo-500': isActive,
-            'bg-gray-600': !isActive
-          }"
-        >
+            'bg-gray-600': !isActive,
+          }">
           <PhWaveform class="w-4 h-4" />
         </div>
       </div>
@@ -36,7 +34,9 @@
         <div class="flex items-center justify-between">
           <div class="font-medium text-sm truncate">{{ room.name }}</div>
 
-          <div class="text-xs opacity-75 ml-2 flex-shrink-0">{{ room.user_count }}/{{ room.max_users }}</div>
+          <div class="text-xs opacity-75 ml-2 flex-shrink-0">
+            {{ room.user_count }}/{{ room.max_users }}
+          </div>
         </div>
       </div>
     </div>
@@ -49,21 +49,30 @@
         <div
           v-for="user in room.users"
           :key="user.id"
-          class="flex items-center text-xs"
-        >
+          class="flex items-center text-xs">
           <div class="mr-2 flex items-center gap-1">
-            <PhMicrophone v-if="!user.is_muted && !user.is_deafened" class="text-green-500 w-4 h-4"/>
+            <PhMicrophone
+              v-if="!user.is_muted && !user.is_deafened"
+              class="text-green-500 w-4 h-4" />
 
-            <PhMicrophoneSlash v-if="user.is_muted" class="text-red-500 w-4 h-4"/>
+            <PhMicrophoneSlash
+              v-if="user.is_muted"
+              class="text-red-500 w-4 h-4" />
 
-            <PhHeadphones v-if="user.is_deafened" class="text-red-500 w-4 h-4"/>
+            <PhHeadphones
+              v-if="user.is_deafened"
+              class="text-red-500 w-4 h-4" />
 
-            <PhMonitor v-if="user.is_screen_sharing" class="text-blue-400 w-4 h-4"/>
+            <PhMonitor
+              v-if="user.is_screen_sharing"
+              class="text-blue-400 w-4 h-4" />
           </div>
 
           <span>{{ user.nickname }}</span>
 
-          <span v-if="user.role === 'owner'" class="ml-1 opacity-60">(owner)</span>
+          <span v-if="user.role === 'owner'" class="ml-1 opacity-60"
+            >(owner)</span
+          >
         </div>
       </div>
     </div>
@@ -71,8 +80,13 @@
 </template>
 
 <script setup lang="ts">
-
-import { PhWaveform, PhMicrophone, PhHeadphones, PhMicrophoneSlash, PhMonitor } from '@phosphor-icons/vue'
+import {
+  PhWaveform,
+  PhMicrophone,
+  PhHeadphones,
+  PhMicrophoneSlash,
+  PhMonitor,
+} from "@phosphor-icons/vue"
 
 // Use snake_case to match backend API and global types
 interface RoomPreviewUser {
@@ -103,11 +117,11 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  isDraggable: true
+  isDraggable: true,
 })
 const emit = defineEmits<{
   click: []
-  'show-context-menu': [event: MouseEvent, room: Room]
+  "show-context-menu": [event: MouseEvent, room: Room]
   dragstart: [event: DragEvent]
   dragend: [event: DragEvent]
   dragover: [event: DragEvent]
@@ -117,7 +131,6 @@ const emit = defineEmits<{
 }>()
 
 const showContextMenu = (event: MouseEvent) => {
-  emit('show-context-menu', event, props.room)
+  emit("show-context-menu", event, props.room)
 }
-
 </script>

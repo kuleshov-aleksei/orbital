@@ -1,18 +1,18 @@
-import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { defineStore } from "pinia"
+import { ref, computed } from "vue"
 import type {
   AudioSettings,
   NoiseSuppressionAlgorithm,
-  AudioAlgorithmInfo
-} from '@/types/audio'
+  AudioAlgorithmInfo,
+} from "@/types/audio"
 import {
   defaultAudioSettings,
   AUDIO_SETTINGS_STORAGE_KEY,
-  availableAlgorithms
-} from '@/types/audio'
-import { getAudioProcessor } from '@/services/audio'
+  availableAlgorithms,
+} from "@/types/audio"
+import { getAudioProcessor } from "@/services/audio"
 
-export const useAudioSettingsStore = defineStore('audioSettings', () => {
+export const useAudioSettingsStore = defineStore("audioSettings", () => {
   // State
   const settings = ref<AudioSettings>({ ...defaultAudioSettings })
   const isLoaded = ref(false)
@@ -20,17 +20,24 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
   const microphoneSupports48kHz = ref<boolean | null>(null)
 
   // Getters
-  const noiseSuppressionEnabled = computed(() => settings.value.noiseSuppression.enabled)
-  const noiseSuppressionAlgorithm = computed(() => settings.value.noiseSuppression.algorithm)
-  const echoCancellationEnabled = computed(() => settings.value.echoCancellation)
+  const noiseSuppressionEnabled = computed(
+    () => settings.value.noiseSuppression.enabled,
+  )
+  const noiseSuppressionAlgorithm = computed(
+    () => settings.value.noiseSuppression.algorithm,
+  )
+  const echoCancellationEnabled = computed(
+    () => settings.value.echoCancellation,
+  )
   const autoGainControlEnabled = computed(() => settings.value.autoGainControl)
-  const forceICERelay = computed(() => settings.value.forceICERelay)
 
   /**
    * Check if current algorithm requires AudioWorklet processing
    */
   const requiresAudioWorklet = computed(() => {
-    const processor = getAudioProcessor(settings.value.noiseSuppression.algorithm)
+    const processor = getAudioProcessor(
+      settings.value.noiseSuppression.algorithm,
+    )
     return processor ? processor.requiresAudioWorklet() : false
   })
 
@@ -38,22 +45,26 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
    * Get available noise suppression algorithms
    * Filters out unsupported algorithms based on browser capabilities
    */
-  const availableNoiseSuppressionAlgorithms = computed<AudioAlgorithmInfo[]>(() => {
-    return availableAlgorithms.map(algo => {
-      const support = checkAlgorithmSupportWithReason(algo.id)
-      return {
-        ...algo,
-        isSupported: support.isSupported,
-        notSupportedReason: support.reason
-      }
-    })
-  })
+  const availableNoiseSuppressionAlgorithms = computed<AudioAlgorithmInfo[]>(
+    () => {
+      return availableAlgorithms.map((algo) => {
+        const support = checkAlgorithmSupportWithReason(algo.id)
+        return {
+          ...algo,
+          isSupported: support.isSupported,
+          notSupportedReason: support.reason,
+        }
+      })
+    },
+  )
 
   /**
    * Get the currently selected algorithm info
    */
   const currentAlgorithmInfo = computed<AudioAlgorithmInfo | undefined>(() => {
-    return availableAlgorithms.find(a => a.id === settings.value.noiseSuppression.algorithm)
+    return availableAlgorithms.find(
+      (a) => a.id === settings.value.noiseSuppression.algorithm,
+    )
   })
 
   /**
@@ -69,7 +80,9 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
    */
   const audioConstraints = computed<MediaTrackConstraints | boolean>(() => {
     // Get the processor for the current algorithm
-    const processor = getAudioProcessor(settings.value.noiseSuppression.algorithm)
+    const processor = getAudioProcessor(
+      settings.value.noiseSuppression.algorithm,
+    )
 
     if (processor && processor.isSupported()) {
       return processor.getConstraints()
@@ -77,11 +90,13 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
 
     // Fallback constraints
     const constraints: MediaTrackConstraints = {
-      noiseSuppression: settings.value.noiseSuppression.enabled && settings.value.noiseSuppression.algorithm === 'browser-native',
+      noiseSuppression:
+        settings.value.noiseSuppression.enabled &&
+        settings.value.noiseSuppression.algorithm === "browser-native",
       echoCancellation: settings.value.echoCancellation,
       autoGainControl: settings.value.autoGainControl,
       sampleRate: { ideal: settings.value.sampleRate },
-      channelCount: { ideal: settings.value.channelCount }
+      channelCount: { ideal: settings.value.channelCount },
     }
 
     return constraints
@@ -92,54 +107,79 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
   /**
    * Check if a specific algorithm is supported and return the reason if not
    */
-  function checkAlgorithmSupportWithReason(algorithm: NoiseSuppressionAlgorithm): {
+  function checkAlgorithmSupportWithReason(
+    algorithm: NoiseSuppressionAlgorithm,
+  ): {
     isSupported: boolean
     reason?: string
   } {
     switch (algorithm) {
-      case 'browser-native':
-      case 'off':
-        // Browser native constraints are supported by all modern browsers
+      case "browser-native":
+      case "off":
+      case "livekit-native":
+        // Browser native and LiveKit native constraints are supported by all modern browsers
+        // LiveKit native processing runs server-side in the SFU
         return { isSupported: true }
 
-      case 'rnnoise': {
+      case "rnnoise": {
         // Check WebAssembly support
-        if (typeof WebAssembly !== 'object') {
-          return { isSupported: false, reason: 'WebAssembly not supported by browser' }
+        if (typeof WebAssembly !== "object") {
+          return {
+            isSupported: false,
+            reason: "WebAssembly not supported by browser",
+          }
         }
         // Check AudioContext support
-        if (typeof AudioContext === 'undefined') {
-          return { isSupported: false, reason: 'AudioContext not supported by browser' }
+        if (typeof AudioContext === "undefined") {
+          return {
+            isSupported: false,
+            reason: "AudioContext not supported by browser",
+          }
         }
         // Check AudioWorklet support
-        if (typeof AudioWorkletNode === 'undefined') {
-          return { isSupported: false, reason: 'AudioWorklet not supported by browser' }
+        if (typeof AudioWorkletNode === "undefined") {
+          return {
+            isSupported: false,
+            reason: "AudioWorklet not supported by browser",
+          }
         }
         // Check 48kHz support
         if (microphoneSupports48kHz.value === false) {
-          return { isSupported: false, reason: 'Microphone doesn\'t support 48kHz sample rate' }
+          return {
+            isSupported: false,
+            reason: "Microphone doesn't support 48kHz sample rate",
+          }
         }
         return { isSupported: true }
       }
 
-      case 'speex': {
+      case "speex": {
         // Check WebAssembly support
-        if (typeof WebAssembly !== 'object') {
-          return { isSupported: false, reason: 'WebAssembly not supported by browser' }
+        if (typeof WebAssembly !== "object") {
+          return {
+            isSupported: false,
+            reason: "WebAssembly not supported by browser",
+          }
         }
         // Check AudioContext support
-        if (typeof AudioContext === 'undefined') {
-          return { isSupported: false, reason: 'AudioContext not supported by browser' }
+        if (typeof AudioContext === "undefined") {
+          return {
+            isSupported: false,
+            reason: "AudioContext not supported by browser",
+          }
         }
         // Check AudioWorklet support
-        if (typeof AudioWorkletNode === 'undefined') {
-          return { isSupported: false, reason: 'AudioWorklet not supported by browser' }
+        if (typeof AudioWorkletNode === "undefined") {
+          return {
+            isSupported: false,
+            reason: "AudioWorklet not supported by browser",
+          }
         }
         return { isSupported: true }
       }
 
       default:
-        return { isSupported: false, reason: 'Unknown algorithm' }
+        return { isSupported: false, reason: "Unknown algorithm" }
     }
   }
 
@@ -154,15 +194,15 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           sampleRate: { ideal: 48000 },
-          channelCount: { ideal: 1 }
-        }
+          channelCount: { ideal: 1 },
+        },
       })
 
       const track = stream.getAudioTracks()[0]
       const settings = track.getSettings()
 
       // Clean up
-      stream.getTracks().forEach(t => t.stop())
+      stream.getTracks().forEach((t) => t.stop())
 
       // Check if we got 48kHz (browsers may not report sampleRate in settings)
       // If we got a stream with ideal 48kHz, we assume it supports it
@@ -172,14 +212,14 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
         return true
       }
 
-      // If sampleRate is not in settings or different value, 
+      // If sampleRate is not in settings or different value,
       // check if it's at least close (some mics report 44100 or 48000)
       if (settings.sampleRate && settings.sampleRate >= 44100) {
         microphoneSupports48kHz.value = true
         return true
       }
     } catch (error) {
-      console.log('Ideal 48kHz check failed:', error)
+      console.log("Ideal 48kHz check failed:", error)
     }
 
     // Step 2: Try with exact constraint to confirm support
@@ -187,20 +227,22 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           sampleRate: { exact: 48000 },
-          channelCount: { ideal: 1 }
-        }
+          channelCount: { ideal: 1 },
+        },
       })
 
       // If we get here, the microphone supports 48kHz
-      stream.getTracks().forEach(t => t.stop())
+      stream.getTracks().forEach((t) => t.stop())
       microphoneSupports48kHz.value = true
       return true
     } catch (error) {
       // OverconstrainedError means the microphone doesn't support 48kHz
-      if (error instanceof Error && error.name === 'OverconstrainedError') {
-        console.warn('Microphone does not support 48kHz sample rate (OverconstrainedError)')
+      if (error instanceof Error && error.name === "OverconstrainedError") {
+        console.warn(
+          "Microphone does not support 48kHz sample rate (OverconstrainedError)",
+        )
       } else {
-        console.warn('Could not verify 48kHz support:', error)
+        console.warn("Could not verify 48kHz support:", error)
       }
       microphoneSupports48kHz.value = false
       return false
@@ -235,7 +277,7 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
   function setNoiseSuppressionAlgorithm(algorithm: NoiseSuppressionAlgorithm) {
     settings.value.noiseSuppression.algorithm = algorithm
     // If setting to an algorithm that's not "off", ensure enabled is true
-    if (algorithm !== 'off') {
+    if (algorithm !== "off") {
       settings.value.noiseSuppression.enabled = true
     }
     // Clear any previous WASM error when switching algorithms
@@ -260,21 +302,16 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
   }
 
   /**
-   * Toggle force ICE relay (debug: force TURN only)
-   */
-  function toggleForceICERelay(enabled: boolean) {
-    settings.value.forceICERelay = enabled
-    saveSettings()
-  }
-
-  /**
    * Save settings to localStorage
    */
   function saveSettings() {
     try {
-      localStorage.setItem(AUDIO_SETTINGS_STORAGE_KEY, JSON.stringify(settings.value))
+      localStorage.setItem(
+        AUDIO_SETTINGS_STORAGE_KEY,
+        JSON.stringify(settings.value),
+      )
     } catch (e) {
-      console.warn('Failed to save audio settings to localStorage:', e)
+      console.warn("Failed to save audio settings to localStorage:", e)
     }
   }
 
@@ -292,13 +329,13 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
           ...parsed,
           noiseSuppression: {
             ...defaultAudioSettings.noiseSuppression,
-            ...parsed.noiseSuppression
-          }
+            ...parsed.noiseSuppression,
+          },
         }
       }
       isLoaded.value = true
     } catch (e) {
-      console.warn('Failed to load audio settings from localStorage:', e)
+      console.warn("Failed to load audio settings from localStorage:", e)
       isLoaded.value = true
     }
   }
@@ -324,7 +361,6 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
     noiseSuppressionAlgorithm,
     echoCancellationEnabled,
     autoGainControlEnabled,
-    forceICERelay,
     availableNoiseSuppressionAlgorithms,
     currentAlgorithmInfo,
     audioConstraints,
@@ -336,12 +372,11 @@ export const useAudioSettingsStore = defineStore('audioSettings', () => {
     setNoiseSuppressionAlgorithm,
     toggleEchoCancellation,
     toggleAutoGainControl,
-    toggleForceICERelay,
     loadSettings,
     saveSettings,
     resetSettings,
     checkMicrophone48kHzSupport,
     setWASMError,
-    clearWASMError
+    clearWASMError,
   }
 })

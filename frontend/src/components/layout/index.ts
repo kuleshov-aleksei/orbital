@@ -1,5 +1,5 @@
-export { default as DesktopSidebar } from './DesktopSidebar.vue'
-export { default as MobileRoomView } from './MobileRoomView.vue'
-export { default as MainContent } from './MainContent.vue'
-export { default as UserSidebarWrapper } from './UserSidebarWrapper.vue'
-export { default as AppOverlays } from './AppOverlays.vue'
+export { default as DesktopSidebar } from "./DesktopSidebar.vue"
+export { default as MobileRoomView } from "./MobileRoomView.vue"
+export { default as MainContent } from "./MainContent.vue"
+export { default as UserSidebarWrapper } from "./UserSidebarWrapper.vue"
+export { default as AppOverlays } from "./AppOverlays.vue"

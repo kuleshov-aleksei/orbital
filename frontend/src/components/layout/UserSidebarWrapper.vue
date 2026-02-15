@@ -1,20 +1,18 @@
 <template>
   <!-- Desktop User Sidebar -->
-  <UserSidebar 
+  <UserSidebar
     v-if="!appStore.isMobile"
     v-model:collapsed="isCollapsed"
     class="hidden lg:flex"
     :users="usersStore.sortedUsers"
     :user-count="usersStore.userCount"
-    :initial-volumes="roomStore.remoteStreamVolumes"
-  />
+    :initial-volumes="roomStore.remoteStreamVolumes" />
 
   <!-- Mobile User Sidebar Overlay -->
-  <div 
+  <div
     v-if="appStore.isMobile && appStore.mobileUserSidebarOpen"
     class="fixed inset-0 bg-black bg-opacity-50 z-30"
-    @click="appStore.closeMobileUserSidebar()"
-  ></div>
+    @click="appStore.closeMobileUserSidebar()"></div>
 
   <!-- Mobile User Sidebar -->
   <UserSidebar
@@ -25,14 +23,13 @@
     :user-count="usersStore.userCount"
     :initial-volumes="roomStore.remoteStreamVolumes"
     :collapsed="false"
-    @close-mobile-sidebar="appStore.closeMobileUserSidebar()"
-  />
+    @close-mobile-sidebar="appStore.closeMobileUserSidebar()" />
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRoomStore, useAppStore, useUsersStore } from '@/stores'
-import UserSidebar from '@/components/UserSidebar.vue'
+import { ref, onMounted } from "vue"
+import { useRoomStore, useAppStore, useUsersStore } from "@/stores"
+import UserSidebar from "@/components/UserSidebar.vue"
 
 const roomStore = useRoomStore()
 const appStore = useAppStore()

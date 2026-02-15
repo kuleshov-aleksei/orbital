@@ -9,14 +9,13 @@ This project is built by AI (like 99.99%). AI is not perfect, but this applicati
 ## Features
 
 - **Voice Rooms** - Create and join voice rooms with up to 10 participants
-- **WebRTC Communication** - Direct low-latency peer-to-peer voice communication
-- **TURN server support (required)** - Allows user to connect to calls behind NAT
+- **LiveKit SFU** - Scalable Selective Forwarding Unit for reliable voice communication
 - **Screen Sharing** - Share your screen with quality options (720p, 1080p, source)
 - **Advanced Audio Processing**
-  - Multiple noise suppression algorithms (Browser Native, RNNoise, Speex)
+  - Multiple noise suppression algorithms (LiveKit Native, Browser Native, RNNoise, Speex)
   - Echo cancellation
   - Automatic gain control
-- **Real-time Debug Dashboard** - Monitor connection quality, audio settings, and network stats
+- **Real-time Debug Dashboard** - Monitor audio settings and connection stats
 - **OAuth authentication** - Backend does not store authentication data - thats by design. So the only options to auth are using OAuth2 Google and Discord.
 - **Simple Deployment** - Single binary backend with Docker support
 - **Persistence** - Backend stores data in sqlite database. Easy management, easy deployment, easy life
@@ -56,11 +55,12 @@ The Orbital implements a hierarchical role system:
 
 ### Frontend
 - Vue 3 + TypeScript + Tailwind CSS
-- WebRTC for real-time communication
-- WebAssembly for 3rd party noise suppression (RNNoise, Speex)
+- LiveKit Client SDK for real-time communication
+- WebAssembly for advanced noise suppression (RNNoise, Speex)
 
 ### Backend
 - Go 1.25+
+- LiveKit Server SDK for room management
 - WebSockets for signaling
 - REST API for room management
 
@@ -109,8 +109,90 @@ make docker-up
 
 The Orbital supports multiple noise suppression algorithms:
 
-- **Browser Native** - Uses built-in WebRTC audio processing
+- **LiveKit Native** - Built-in LiveKit noise suppression (SFU-optimized, low latency)
+- **Browser Native** - Uses built-in browser audio processing
 - **RNNoise** - High-quality ML-based noise suppression (requires 48kHz microphone)
 - **Speex** - Fast CPU-efficient noise suppression
 
 Audio settings can be changed in real-time during calls via the User Settings modal.
+
+## Deployment
+
+Note that this section describes my personal setup and it can and it WILL be different for your usecase
+
+### Production Architecture
+
+My setup of the Orbital uses a split-traffic architecture for optimal performance:
+
+- **Traefik (Load Balancer)**: Handles SSL termination for API/WebSocket traffic on port 7880
+- **LiveKit (Host Network)**: Media traffic goes directly to LiveKit using host networking for zero-overhead performance
+
+#### Required Ports
+
+| Port | Protocol | Purpose | Route |
+|------|----------|---------|-------|
+| 7880 | TCP | API/WebSocket | Via Traefik (SSL) |
+| 7881 | TCP | ICE/TCP fallback | Direct to LiveKit |
+| 3478 | UDP | TURN/UDP relay | Direct to LiveKit |
+| 62000-65535 | UDP | WebRTC media | Direct to LiveKit |
+| 5349 | TCP | TURN/TLS | Direct to LiveKit (or 443 if no LB) |
+
+### SSL Certificate Synchronization
+
+If Traefik and LiveKit are on separate machines, you need to sync SSL certificates from Traefik to LiveKit. The script uses `traefik-certs-dumper` Docker image to extract certificates from Traefik's `acme.json`:
+
+1. **Copy the sync script to your Traefik machine:**
+   ```bash
+   scp docker/scripts/sync-certs.sh traefik-server:/opt/traefik/
+   chmod +x /opt/traefik/sync-certs.sh
+   ```
+
+2. **Set up SSH key authentication** between Traefik and LiveKit machines
+
+3. **Run the script with your configuration:**
+   
+   **Sync all certificates (Traefik v2):**
+   ```bash
+   ./sync-certs.sh /opt/traefik/acme.json livekit.example.com /opt/orbital/livekit/certs ~/.ssh/id_rsa
+   ```
+   
+   **Sync specific domain only (for TURN/TLS):**
+   ```bash
+   ./sync-certs.sh -d turn.example.com /opt/traefik/acme.json livekit.example.com /opt/orbital/livekit/certs
+   ```
+   
+   **Sync with Traefik v3:**
+   ```bash
+   ./sync-certs.sh -v v3 -d turn.example.com /opt/traefik/acme.json livekit.example.com /opt/orbital/livekit/certs
+   ```
+
+4. **Add a cron job** to sync certificates automatically (runs every hour):
+   ```bash
+   # Edit crontab
+   sudo crontab -e
+   
+   # Sync only TURN domain for LiveKit (recommended):
+   0 * * * * /opt/traefik/sync-certs.sh -d turn.example.com -v v3 /opt/traefik/acme.json livekit.example.com /opt/orbital/livekit/certs >> /var/log/cert-sync.log 2>&1
+   ```
+
+5. **Update LiveKit config** to use the synced certificates:
+   ```yaml
+   turn:
+     enabled: true
+     cert_file: /etc/livekit/certs/cert.crt
+     key_file: /etc/livekit/certs/cert.key
+   ```
+
+### Docker Compose Deployment
+
+The production deployment uses host networking for LiveKit:
+
+```bash
+# Copy the deployment compose file
+cp docker/docker-compose.deploy.yml /opt/orbital/docker-compose.yml
+
+# Start services
+cd /opt/orbital && docker compose up -d
+```
+
+LiveKit will bind directly to host network interfaces. Ensure the required ports are open on your firewall.

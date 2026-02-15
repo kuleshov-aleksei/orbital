@@ -19,37 +19,44 @@ services:
     environment:
       - GIN_MODE=release
       - PORT=8080
-      - TURN_URL=${TURN_URL:-turn:localhost:3478}
-      - TURN_TLS_URL=${TURN_TLS_URL:-turns:localhost:5349}
-      - STUN_URLS=${STUN_URLS:-stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302}
+      - LIVEKIT_URL=${LIVEKIT_URL:-ws://localhost:7880}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-dev_key}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-this_is_a_development_secret_key_32chars}
       - ROOM_MIN_USERS=2
       - ROOM_MAX_USERS=6
       - ROOM_DEFAULT_MAX_USERS=6
     volumes:
       - ./data/backend/:/root/data/
     depends_on:
-      - turn-server
+      - livekit
     networks:
       - orbital-network
 
-  turn-server:
-    image: coturn/coturn:4.8.0
-    container_name: orb-coturn
+  # LiveKit uses host networking for optimal WebRTC performance
+  # Media traffic (UDP 62000-65535, TCP 7881, UDP 3478) goes directly to host
+  # Signaling (TCP 7880) can be routed through Traefik for SSL termination
+  livekit:
+    image: livekit/livekit-server:v1.9.11
+    container_name: orbital-livekit
     restart: unless-stopped
-    # For performance reason use host network
-    network_mode: "host"
+    command: >
+      livekit-server
+      --config /etc/livekit/livekit.yaml
+    # Use host networking - LiveKit binds directly to host interfaces
+    # This eliminates Docker networking overhead for media traffic
+    network_mode: host
     env_file:
       - .env
     volumes:
-      - ./configs/turnserver.conf:/etc/coturn/turnserver.conf:ro
-      - ./data/turn:/var/lib/coturn
-    command: >
-      sh -c "
-        turnserver
-        -c /etc/coturn/turnserver.conf
-        --use-auth-secret
-        --static-auth-secret=$${TURN_SECRET}
-      "
+      - ./livekit/livekit.yaml:/etc/livekit/livekit.yaml:ro
+      # Mount SSL certificates if using TURN/TLS (synced from Traefik)
+      # - ./livekit/certs:/etc/livekit/certs:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:7880"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
 networks:
   orbital-network:

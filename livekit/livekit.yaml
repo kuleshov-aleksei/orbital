@@ -1,0 +1,84 @@
+# LiveKit Configuration for Production Deployment
+# This configuration uses host networking for optimal WebRTC performance
+# 
+# Network Architecture:
+# - Signaling (7880): Routed through Traefik for SSL termination
+# - Media (7881, 3478, 62000-65535): Direct to LiveKit host network
+#
+# Required ports on firewall:
+# - TCP 7880: API/WebSocket (via Traefik)
+# - TCP 7881: ICE/TCP fallback
+# - UDP 3478: TURN/UDP
+# - UDP 62000-65535: WebRTC media
+# - TCP 5349: TURN/TLS (if not behind load balancer, use 443)
+
+# Binding addresses
+bind_addresses:
+  - 0.0.0.0
+
+# WebSocket/API port - will be behind Traefik
+port: 7880
+
+# Room settings
+room:
+  # Auto-create rooms when first participant joins
+  auto_create: true
+  # Empty room timeout (5 minutes)
+  empty_timeout: 300
+  # Max participants per room (matching Orbital config)
+  max_participants: 10
+  # Enable room creation when first participant joins
+  enabled_codecs:
+    - mime: audio/opus
+    - mime: video/vp8
+    - mime: video/h264
+
+# WebRTC settings
+rtc:
+  # UDP port range for media - using high ports to avoid conflicts
+  port_range_start: 62000
+  port_range_end: 65535
+  # TCP port for ICE fallback (when UDP is blocked)
+  tcp_port: 7881
+  # Enable external IP detection for NAT traversal
+  use_external_ip: true
+  # STUN servers for NAT traversal
+  stun_servers:
+    - urls:
+        - stun:stun.l.google.com:19302
+        - stun:stun1.l.google.com:19302
+
+# TURN server (built into LiveKit)
+turn:
+  # Enable built-in TURN server
+  enabled: true
+  # TURN UDP port (for relay when direct connection fails)
+  udp_port: 3478
+  # TURN TLS port - use 443 if not behind load balancer
+  # Set to 5349 when Traefik handles SSL termination on 443
+  tls_port: 5349
+  # External TURN domain - set this to your TURN domain
+  # domain: turn.example.com
+  # Certificate files for TURN/TLS (synced from Traefik machine)
+  # cert_file: /etc/livekit/certs/cert.crt
+  # key_file: /etc/livekit/certs/cert.key
+  # External TURN host (set via env variable or auto-detect)
+  # external_tls: false
+
+# Logging
+logging:
+  level: info
+
+# API keys - will be overridden by environment variables if set
+# These are defaults for development, use LK_API_KEY and LK_API_SECRET env vars in production
+keys:
+  ${LIVEKIT_API_KEY:-dev_key}: ${LIVEKIT_API_SECRET:-this_is_a_development_secret_key_32chars}
+
+# Prometheus metrics (optional)
+# prometheus_port: 6789
+
+# Webhook configuration (optional, for room events)
+# webhook:
+#   urls:
+#     - http://backend:8080/api/webhooks/livekit
+#   api_key: ${LIVEKIT_API_KEY:-dev_key}

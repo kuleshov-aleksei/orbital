@@ -1,0 +1,33 @@
+# LiveKit Configuration for Local Development
+# This is a minimal config for development purposes
+
+# Binding addresses
+bind_addresses:
+  - 0.0.0.0
+
+# WebRTC ports
+port: 7880
+
+# Room settings
+room:
+  # Auto-create rooms when first participant joins
+  auto_create: true
+  # Empty room timeout (5 minutes)
+  empty_timeout: 300
+  # Max participants per room (matching Orbital config)
+  max_participants: 10
+
+# WebRTC settings
+rtc:
+  # UDP port range for media
+  udp_port: 7881
+  # Enable TURN (not needed with LiveKit SFU, but good for NAT traversal)
+  use_external_ip: false
+
+# Logging
+logging:
+  level: info
+
+# API keys for development (use strong secrets in production!)
+keys:
+  dev_key: this_is_a_development_secret_key_32chars

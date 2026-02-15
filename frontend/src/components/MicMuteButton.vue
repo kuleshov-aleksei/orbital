@@ -8,42 +8,43 @@
         ? 'bg-red-600 hover:bg-red-700 text-white'
         : isSpeaking
           ? 'bg-green-600 hover:bg-green-700 text-white'
-          : 'bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white'
+          : 'bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white',
     ]"
     :title="isMuted ? 'Unmute' : 'Mute'"
-    @click="toggleMute"
-  >
-    <PhMicrophoneSlash v-if="isMuted" :class="[iconClasses, isSpeaking && !isMuted ? 'animate-pulse' : '']" />
+    @click="toggleMute">
+    <PhMicrophoneSlash
+      v-if="isMuted"
+      :class="[iconClasses, isSpeaking && !isMuted ? 'animate-pulse' : '']" />
 
-    <PhMicrophone v-else :class="[iconClasses, isSpeaking ? 'animate-pulse' : '']" />
+    <PhMicrophone
+      v-else
+      :class="[iconClasses, isSpeaking ? 'animate-pulse' : '']" />
 
     <!-- Pulsating ring when speaking -->
     <span
       v-if="isSpeaking && !isMuted"
-      class="absolute inset-0 rounded-full animate-ping bg-green-400 opacity-30"
-    />
+      class="absolute inset-0 rounded-full animate-ping bg-green-400 opacity-30" />
   </button>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { PhMicrophone, PhMicrophoneSlash } from '@phosphor-icons/vue'
-import { useCallStore, useUserStore, useRoomStore } from '@/stores'
-import { wsService } from '@/services/websocket'
+import { computed } from "vue"
+import { PhMicrophone, PhMicrophoneSlash } from "@phosphor-icons/vue"
+import { useCallStore, useUserStore, useRoomStore } from "@/stores"
 
 interface Props {
   modelValue: boolean
-  size?: 'sm' | 'md' | 'lg'
+  size?: "sm" | "md" | "lg"
   isSpeaking?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  size: 'md',
-  isSpeaking: false
+  size: "md",
+  isSpeaking: false,
 })
 
 const emit = defineEmits<{
-  'update:modelValue': [value: boolean]
+  "update:modelValue": [value: boolean]
 }>()
 
 // Stores
@@ -55,60 +56,46 @@ const roomStore = useRoomStore()
 const isMuted = computed({
   get: () => props.modelValue,
   set: (value) => {
-    emit('update:modelValue', value)
-  }
+    emit("update:modelValue", value)
+  },
 })
 
 // Size classes based on prop
 const sizeClasses = computed(() => {
   switch (props.size) {
-    case 'sm':
-      return 'w-8 h-8 rounded-full'
-    case 'lg':
-      return 'w-12 h-12 rounded-full'
-    case 'md':
+    case "sm":
+      return "w-8 h-8 rounded-full"
+    case "lg":
+      return "w-12 h-12 rounded-full"
+    case "md":
     default:
-      return 'w-10 h-10 rounded-full'
+      return "w-10 h-10 rounded-full"
   }
 })
 
 // Icon size classes
 const iconClasses = computed(() => {
   switch (props.size) {
-    case 'sm':
-      return 'w-4 h-4'
-    case 'lg':
-      return 'w-5 h-5'
-    case 'md':
+    case "sm":
+      return "w-4 h-4"
+    case "lg":
+      return "w-5 h-5"
+    case "md":
     default:
-      return 'w-5 h-5'
+      return "w-5 h-5"
   }
 })
 
-// Toggle mute with WebSocket notification
+// Toggle mute - presence store will sync with LiveKit
 const toggleMute = () => {
   const newValue = !isMuted.value
   isMuted.value = newValue
-  
-  // Update call store
+
+  // Update call store (presence store watches this and syncs with LiveKit)
   callStore.setMuted(newValue)
-  
+
   // Immediately update room store for local user so UI updates right away
   roomStore.updateUserStatus(userStore.userId, { is_muted: newValue })
-  
-  // Send WebSocket message if connected
-  if (wsService.isConnected()) {
-    wsService.sendMessage('mute_status', {
-      user_id: userStore.userId,
-      is_muted: newValue
-    })
-    // Also send speaking_status since mute affects speaking
-    wsService.sendMessage('speaking_status', {
-      user_id: userStore.userId,
-      is_speaking: false,
-      is_muted: newValue
-    })
-  }
 }
 </script>
 

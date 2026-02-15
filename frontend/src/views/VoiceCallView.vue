@@ -1,5 +1,7 @@
 <template>
-  <div class="voice-call-view flex-1 flex flex-col" data-testid="voice-call-view">
+  <div
+    class="voice-call-view flex-1 flex flex-col"
+    data-testid="voice-call-view">
     <!-- Room Header -->
     <RoomHeader
       v-model:screen-share-layout="screenShareLayout"
@@ -10,8 +12,7 @@
       :is-mobile="isMobile"
       @leave-room="$emit('leave-room')"
       @show-room-list="$emit('show-room-list')"
-      @toggle-user-sidebar="$emit('toggle-user-sidebar')"
-    />
+      @toggle-user-sidebar="$emit('toggle-user-sidebar')" />
 
     <!-- Screen Share Quality Modal handled by parent -->
 
@@ -19,9 +20,10 @@
     <main class="relative flex flex-1 flex-col min-h-0 overflow-hidden">
       <!-- Content Container - allows scrolling if needed -->
       <div class="flex-1 min-h-0 overflow-auto">
+        <!-- Use v-show instead of v-if to keep both components mounted and preserve audio elements -->
         <!-- Screen Share Area - Shows users in side panel when screen sharing -->
         <ScreenShareArea
-          v-if="screenShareData.length > 0"
+          v-show="screenShareData.length > 0"
           :screen-shares="screenShareData"
           :is-user-grid-visible="isUserGridVisible"
           :layout="screenShareLayout"
@@ -36,16 +38,15 @@
           :current-user-audio-level="audioLevel"
           :current-user-id="currentUserId"
           :current-user-is-sharing="isScreenSharing"
+          :get-participant-stats="getParticipantStats"
           class="m-4 max-h-[70vh]"
           @update:layout="screenShareLayout = $event"
           @toggle-user-grid="isUserGridVisible = !isUserGridVisible"
-          @mute-toggle="handleMuteToggle"
-          @audio-level="handleAudioLevel"
-        />
+          @mute-toggle="handleMuteToggle" />
 
         <!-- User Grid - Only shown when no screen shares (audio-only mode) -->
         <UserGrid
-          v-else
+          v-show="screenShareData.length === 0"
           :users="users"
           :remote-streams="remoteStreams"
           :peer-connection-states="peerConnectionStates"
@@ -56,51 +57,35 @@
           :is-visible="true"
           :peer-connections="peerConnections"
           :current-user-audio-level="audioLevel"
-          @mute-toggle="handleMuteToggle"
-          @audio-level="handleAudioLevel"
-        />
+          :get-participant-stats="getParticipantStats"
+          @mute-toggle="handleMuteToggle" />
       </div>
 
       <!-- Audio Controls - Fixed at bottom center -->
-      <div class="flex-shrink-0 flex justify-center px-4 py-3 bg-gray-900/80 backdrop-blur-sm border-t border-gray-700/50">
+      <div
+        class="flex-shrink-0 flex justify-center px-4 py-3 bg-gray-900/80 backdrop-blur-sm border-t border-gray-700/50">
         <AudioControls
           ref="audioControlsRef"
           v-model:model-value-muted="isMuted"
           v-model:model-value-deafened="isDeafened"
           v-model:model-value-screen-sharing="isScreenSharing"
-          v-model:model-value-debug-visible="appStore.isDebugVisible"
           :is-speaking="isSpeaking"
           @start-screen-share="$emit('request-screen-share')"
-          @leave-room="$emit('leave-room')"
-        />
+          @leave-room="$emit('leave-room')" />
       </div>
     </main>
-      
-      <!-- Debug Dashboard -->
-      <DebugDashboard
-        ref="debugDashboardRef"
-        v-model:model-value-visible="appStore.isDebugVisible"
-        hide-toggle-button
-        :users="props.users"
-        :peer-connections="peerConnections"
-        :get-connection-quality="getConnectionQuality"
-        :local-stream="localStream"
-        :local-screen-shares="localScreenShareDebugData"
-        :remote-screen-shares="remoteScreenShareDebugData"
-      />
   </div>
 </template>
 
- <script setup lang="ts">
-import { computed, ref, useTemplateRef, watch } from 'vue'
-import AudioControls from '@/components/AudioControls.vue'
-import DebugDashboard from '@/components/DebugDashboard.vue'
-import RoomHeader from '@/components/RoomHeader.vue'
-import ScreenShareArea from '@/components/ScreenShareArea.vue'
-import UserGrid from '@/components/UserGrid.vue'
-import { useWebRTC, useVoiceActivity } from '@/composables'
-import { useAppStore, useAudioSettingsStore, useCallStore, useUserStore } from '@/stores'
-import type { User, ScreenShareQuality } from '@/types'
+<script setup lang="ts">
+import { computed, ref, useTemplateRef, watch } from "vue"
+import AudioControls from "@/components/AudioControls.vue"
+import RoomHeader from "@/components/RoomHeader.vue"
+import ScreenShareArea from "@/components/ScreenShareArea.vue"
+import UserGrid from "@/components/UserGrid.vue"
+import { useLiveKit, useVoiceActivity } from "@/composables"
+import { useAudioSettingsStore, useCallStore, useUserStore } from "@/stores"
+import type { User, ScreenShareQuality } from "@/types"
 
 interface Props {
   roomId: string
@@ -117,42 +102,33 @@ const props = withDefaults(defineProps<Props>(), {
   isMobile: false,
   modelValueMuted: false,
   modelValueDeafened: false,
-  modelValueScreenSharing: false
+  modelValueScreenSharing: false,
 })
 
 const emit = defineEmits<{
-  'leave-room': []
-  'show-room-list': []
-  'toggle-user-sidebar': []
-  'update:modelValueMuted': [value: boolean]
-  'update:modelValueDeafened': [value: boolean]
-  'update:modelValueScreenSharing': [value: boolean]
-  'ping-update': [ping: number, quality: 'excellent' | 'good' | 'fair' | 'poor']
-  'request-screen-share': []
+  "leave-room": []
+  "show-room-list": []
+  "toggle-user-sidebar": []
+  "update:modelValueMuted": [value: boolean]
+  "update:modelValueDeafened": [value: boolean]
+  "update:modelValueScreenSharing": [value: boolean]
+  "ping-update": [ping: number, quality: "excellent" | "good" | "fair" | "poor"]
+  "request-screen-share": []
 }>()
 
 // UI State (layout and display preferences)
 const isUserGridVisible = ref(true)
-const screenShareLayout = ref<'grid' | 'focus'>('focus')
-const debugDashboardRef = useTemplateRef<InstanceType<typeof DebugDashboard>>('debugDashboardRef')
-const audioControlsRef = useTemplateRef<InstanceType<typeof AudioControls>>('audioControlsRef')
-
-// Debug logging callback
-const onDebugLog = (message: string, level: 'info' | 'warning' | 'error' = 'info', userId?: string) => {
-  const dashboard = debugDashboardRef.value as unknown as { addLog?: (message: string, level: 'info' | 'warning' | 'error', userId?: string) => void } | null
-  if (dashboard?.addLog) {
-    dashboard.addLog(message, level, userId)
-  }
-}
+const screenShareLayout = ref<"grid" | "focus">("focus")
+const audioControlsRef =
+  useTemplateRef<InstanceType<typeof AudioControls>>("audioControlsRef")
 
 // Audio settings store
 const audioSettingsStore = useAudioSettingsStore()
 
 // Stores
-const appStore = useAppStore()
 const callStore = useCallStore()
 
-// Initialize WebRTC composable - destructure for template reactivity
+// Initialize LiveKit composable - destructure for template reactivity
 const {
   localStream,
   remoteStreams,
@@ -162,54 +138,58 @@ const {
   isScreenSharing,
   userScreenShareStates,
   screenShareData,
-  localScreenShareDebugData,
-  remoteScreenShareDebugData,
   handleMuteToggle,
-  handleAudioLevel,
   startScreenShare,
-  getConnectionQuality,
+  getParticipantStats,
   applyMuteState,
   applyDeafenState,
-  reinitializeAudioStream
-} = useWebRTC({
+  reinitializeAudioStream,
+  initializeLiveKit,
+} = useLiveKit({
   roomId: props.roomId,
   roomName: props.roomName,
   users: props.users,
   remoteStreamVolumes: props.remoteStreamVolumes,
-  onPingUpdate: (ping: number, quality: 'excellent' | 'good' | 'fair' | 'poor') => {
-    emit('ping-update', ping, quality)
+  onVolumeChange: (userId: string, volume: number) => {
+    // Volume changes are handled by the component
+    console.log(`Volume change for ${userId}: ${volume}`)
   },
-  onDebugLog
+  onPingUpdate: (
+    ping: number,
+    quality: "excellent" | "good" | "fair" | "poor",
+  ) => {
+    emit("ping-update", ping, quality)
+  },
 })
 
 // Voice Activity Detection for local user
 const { audioLevel, isSpeaking } = useVoiceActivity({
   stream: localStream,
-  isMuted: computed(() => props.modelValueMuted)
+  isMuted: computed(() => props.modelValueMuted),
 })
 
 // Computed properties for v-model support
 const isMuted = computed({
   get: () => props.modelValueMuted,
   set: (value) => {
-    emit('update:modelValueMuted', value)
-    applyMuteState(value)
-  }
+    emit("update:modelValueMuted", value)
+    void applyMuteState(value)
+  },
 })
 
 const isDeafened = computed({
   get: () => props.modelValueDeafened,
   set: (value) => {
-    emit('update:modelValueDeafened', value)
-    applyDeafenState(value)
-  }
+    emit("update:modelValueDeafened", value)
+    void applyDeafenState(value)
+  },
 })
 
 // Current room info
 const currentRoom = computed(() => {
   return {
-    name: props.roomName || 'Voice Room',
-    id: props.roomId
+    name: props.roomName || "Voice Room",
+    id: props.roomId,
   }
 })
 
@@ -221,73 +201,119 @@ const currentUserId = computed(() => userStore.userId)
 let isReinitializing = false
 
 // Watch specifically for noise suppression algorithm changes
-watch(() => audioSettingsStore.noiseSuppressionAlgorithm, async (newAlgorithm, oldAlgorithm) => {
-  // Only reinitialize if algorithm actually changed and we're in a call
-  if (props.roomId && newAlgorithm !== oldAlgorithm && !isReinitializing) {
-    console.log(`Noise suppression algorithm changed from ${oldAlgorithm} to ${newAlgorithm}, reinitializing audio stream...`)
-    
-    isReinitializing = true
-    try {
-      await reinitializeAudioStream()
-    } finally {
-      isReinitializing = false
+watch(
+  () => audioSettingsStore.noiseSuppressionAlgorithm,
+  async (newAlgorithm, oldAlgorithm) => {
+    // Only reinitialize if algorithm actually changed and we're in a call
+    if (props.roomId && newAlgorithm !== oldAlgorithm && !isReinitializing) {
+      console.log(
+        `Noise suppression algorithm changed from ${oldAlgorithm} to ${newAlgorithm}, reinitializing audio stream...`,
+      )
+
+      isReinitializing = true
+      try {
+        await reinitializeAudioStream()
+      } finally {
+        isReinitializing = false
+      }
     }
-  }
-})
+  },
+)
 
-// Watch call store mute/deafen state and apply to WebRTC audio
+// Watch call store mute/deafen state and apply to LiveKit audio
 // This ensures sidebar controls affect the actual audio
-watch(() => callStore.isMuted, (newValue) => {
-  console.log(`🎤 Call store mute state changed: ${newValue}`)
-  applyMuteState(newValue)
-  // Sync with parent v-model if different
-  if (props.modelValueMuted !== newValue) {
-    emit('update:modelValueMuted', newValue)
-  }
-})
+watch(
+  () => callStore.isMuted,
+  (newValue) => {
+    console.log(`🎤 Call store mute state changed: ${newValue}`)
+    void applyMuteState(newValue)
+    // Sync with parent v-model if different
+    if (props.modelValueMuted !== newValue) {
+      emit("update:modelValueMuted", newValue)
+    }
+  },
+)
 
-watch(() => callStore.isDeafened, (newValue) => {
-  console.log(`🎧 Call store deafen state changed: ${newValue}`)
-  applyDeafenState(newValue)
-  // Sync with parent v-model if different
-  if (props.modelValueDeafened !== newValue) {
-    emit('update:modelValueDeafened', newValue)
-  }
-})
+watch(
+  () => callStore.isDeafened,
+  (newValue) => {
+    console.log(`🎧 Call store deafen state changed: ${newValue}`)
+    void applyDeafenState(newValue)
+    // Sync with parent v-model if different
+    if (props.modelValueDeafened !== newValue) {
+      emit("update:modelValueDeafened", newValue)
+    }
+  },
+)
 
 // Apply initial mute/deafen state from store when joining a room
-watch(() => props.roomId, (newRoomId) => {
-  if (newRoomId) {
-    console.log(`📞 Joined room ${newRoomId}, applying mute/deafen state from store`)
-    // Apply current store state to audio
-    applyMuteState(callStore.isMuted)
-    applyDeafenState(callStore.isDeafened)
-    // Sync with parent v-model
-    if (props.modelValueMuted !== callStore.isMuted) {
-      emit('update:modelValueMuted', callStore.isMuted)
+watch(
+  () => props.roomId,
+  async (newRoomId) => {
+    if (newRoomId) {
+      console.log(
+        `📞 Joined room ${newRoomId}, initializing LiveKit and applying mute/deafen state from store`,
+      )
+
+      // Initialize LiveKit connection
+      // Note: cleanup() is called from onUnmounted when component unmounts,
+      // which happens when switching rooms. We don't need to call it here
+      // to avoid race conditions with the new connection.
+      let connected = false
+      try {
+        connected = await initializeLiveKit()
+        if (connected) {
+          console.log(`✅ LiveKit connected to room ${newRoomId}`)
+        } else {
+          console.error(`❌ Failed to connect LiveKit to room ${newRoomId}`)
+        }
+      } catch (error) {
+        console.error(`❌ Error initializing LiveKit:`, error)
+      }
+
+      // Apply deafen state (mute remote audio) - this doesn't affect local tracks
+      void applyDeafenState(callStore.isDeafened)
+
+      // Note: applyMuteState is not called here because initializeLiveKit already
+      // handles the initial mute state during connection (see useLiveKit.ts:460-463).
+      // Calling it again immediately can cause race conditions with track publishing.
+      // Sync with parent v-model
+      if (props.modelValueMuted !== callStore.isMuted) {
+        emit("update:modelValueMuted", callStore.isMuted)
+      }
+      if (props.modelValueDeafened !== callStore.isDeafened) {
+        emit("update:modelValueDeafened", callStore.isDeafened)
+      }
     }
-    if (props.modelValueDeafened !== callStore.isDeafened) {
-      emit('update:modelValueDeafened', callStore.isDeafened)
-    }
-  }
-}, { immediate: true })
+  },
+  { immediate: true },
+)
 
 // Event handlers
 
-
 // Start screen share wrapper - called by parent (AppLayout)
-const startScreenShareWithQuality = async (quality: string, shareAudio: boolean) => {
+const startScreenShareWithQuality = async (
+  quality: string,
+  shareAudio: boolean,
+) => {
   try {
-    // Start the actual WebRTC screen share
+    // Start the actual LiveKit screen share
     await startScreenShare(quality as ScreenShareQuality, shareAudio)
     // Tell AudioControls to update state and send WebSocket message
-    const audioControls = audioControlsRef.value as unknown as { confirmStartScreenShare?: (quality: ScreenShareQuality, hasAudio: boolean) => Promise<void> } | null
+    const audioControls = audioControlsRef.value as unknown as {
+      confirmStartScreenShare?: (
+        quality: ScreenShareQuality,
+        hasAudio: boolean,
+      ) => Promise<void>
+    } | null
     if (audioControls?.confirmStartScreenShare) {
-      await audioControls.confirmStartScreenShare(quality as ScreenShareQuality, shareAudio)
+      await audioControls.confirmStartScreenShare(
+        quality as ScreenShareQuality,
+        shareAudio,
+      )
     }
   } catch (error) {
-    console.error('Failed to start screen share:', error)
-    onDebugLog(`Failed to start screen share: ${(error as Error).message}`, 'error')
+    console.error("Failed to start screen share:", error)
   }
 }
 

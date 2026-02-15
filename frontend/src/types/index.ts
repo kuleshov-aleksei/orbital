@@ -4,9 +4,9 @@ export interface Room {
   name: string
   user_count: number
   max_users: number
-  category: string  // Category ID
-  category_name?: string  // Category name for display
-  sort_order: number  // Order within category for drag-and-drop
+  category: string // Category ID
+  category_name?: string // Category name for display
+  sort_order: number // Order within category for drag-and-drop
   users?: RoomPreviewUser[]
 }
 
@@ -26,18 +26,18 @@ export interface PublicUser {
   id: string
   nickname: string
   avatar_url?: string
-  role: 'guest' | 'user' | 'admin' | 'super_admin'
+  role: "guest" | "user" | "admin" | "super_admin"
   is_online: boolean
 }
 
 // Screen sharing quality options
 export type ScreenShareQuality =
-  | 'source'
-  | '1080p60'
-  | '1080p30'
-  | '720p30'
-  | '360p30'
-  | 'text'
+  | "source"
+  | "1080p60"
+  | "1080p30"
+  | "720p30"
+  | "360p30"
+  | "text"
 
 // User interface - uses snake_case to match Go backend JSON
 export interface User {
@@ -49,14 +49,14 @@ export interface User {
   is_deafened?: boolean
   is_screen_sharing?: boolean
   screen_share_quality?: ScreenShareQuality
-  status: 'online' | 'away' | 'dnd'
-  auth_provider: 'guest' | 'discord' | 'google'
+  status: "online" | "away" | "dnd"
+  auth_provider: "guest" | "discord" | "google"
   is_guest: boolean
   email?: string
   avatar_url?: string
   created_at?: string
   last_seen?: string
-  role: 'guest' | 'user' | 'admin' | 'super_admin'
+  role: "guest" | "user" | "admin" | "super_admin"
 }
 
 // RoomUser interface - user with room-specific information
@@ -64,29 +64,25 @@ export interface RoomUser extends User {
   created_at?: string
   last_seen?: string
   joined_at?: string
-  role: 'member' | 'admin' | 'owner'
+  role: "member" | "admin" | "owner"
 }
 
 // WebSocket message types
+// Note: screen sharing signaling is handled entirely by LiveKit, not WebSocket
 export type WebSocketMessageType =
-  | 'join_room'
-  | 'leave_room'
-  | 'ice_candidate'
-  | 'sdp_offer'
-  | 'sdp_answer'
-  | 'speaking_status'
-  | 'mute_status'
-  | 'deafen_status'
-  | 'screen_share_start'
-  | 'screen_share_stop'
-  | 'nickname_change'
-  | 'category_created'
-  | 'category_renamed'
-  | 'category_deleted'
-  | 'room_updated'
-  | 'room_deleted'
-  | 'ping'
-  | 'pong'
+  | "join_room"
+  | "leave_room"
+  | "ice_candidate"
+  | "sdp_offer"
+  | "sdp_answer"
+  | "nickname_change"
+  | "category_created"
+  | "category_renamed"
+  | "category_deleted"
+  | "room_updated"
+  | "room_deleted"
+  | "ping"
+  | "pong"
 
 export interface WebSocketMessage {
   type: WebSocketMessageType
@@ -209,15 +205,35 @@ export interface BandwidthStats {
   download: number
 }
 
-// Enhanced WebRTC Statistics types
-export interface ConnectionStats {
-  packetsLost: number
+// LiveKit Connection Statistics types
+export interface TrackStats {
   jitter: number
-  roundTripTime: number
-  bandwidth: BandwidthStats
-  audioLevel: number
-  connectionState: string
-  timestamp: Date
+  packetLoss: number
+  bitrate: number // bits per second
+  bytesReceived: number
+  timestamp: number
+  // Video-specific stats
+  resolution?: string // e.g., "1920x1080"
+  frameWidth?: number
+  frameHeight?: number
+  fps?: number
+  framesDecoded?: number
+  framesDropped?: number
+  framesReceived?: number
+  codec?: string // e.g., "VP8", "H264"
+  pliCount?: number // Picture Loss Indication
+  firCount?: number // Full Intra Request
+  nackCount?: number // Negative ACK count
+  qualityLimitationReason?: string // e.g., "none", "cpu", "bandwidth"
+  decoderImplementation?: string // e.g., "libvpx", "FFmpeg"
+}
+
+export interface ConnectionStats {
+  ping: number
+  audio?: TrackStats
+  video?: TrackStats
+  screenShare?: TrackStats // Screen sharing specific stats
+  timestamp?: Date
 }
 
 export interface StatsHistory {
@@ -227,7 +243,7 @@ export interface StatsHistory {
 }
 
 export interface ConnectionQuality {
-  quality: 'excellent' | 'good' | 'fair' | 'poor'
+  quality: "excellent" | "good" | "fair" | "poor"
   score: number
   issues: string[]
 }
@@ -265,7 +281,7 @@ export interface NetworkPathInfo {
 export interface ConnectionLog {
   id: string | number
   timestamp: Date
-  level: 'info' | 'warning' | 'error'
+  level: "info" | "warning" | "error"
   message: string
   userId?: string
 }
@@ -293,9 +309,9 @@ export interface ConnectionDiagnostic {
 }
 
 export interface ICEConnectionType {
-  type: 'host' | 'srflx' | 'relay' | 'unknown'
+  type: "host" | "srflx" | "relay" | "unknown"
   usingTURN: boolean
-  relayProtocol?: 'udp' | 'tcp' | 'tls'
+  relayProtocol?: "udp" | "tcp" | "tls"
   localType: string
   remoteType: string
 }

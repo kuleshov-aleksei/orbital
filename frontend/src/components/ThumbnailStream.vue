@@ -1,21 +1,22 @@
 <template>
-  <div class="thumbnail-stream relative aspect-video rounded-lg overflow-hidden">
+  <div
+    class="thumbnail-stream relative aspect-video rounded-lg overflow-hidden">
     <video
       ref="videoElement"
       class="w-full h-full object-cover"
       autoplay
       playsinline
-      muted
-    />
+      muted />
 
-    <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1">
+    <div
+      class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1">
       <span class="text-white text-xs font-medium">{{ userNickname }}</span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, useTemplateRef } from 'vue'
+import { onMounted, useTemplateRef } from "vue"
 
 interface Props {
   userId: string
@@ -25,13 +26,16 @@ interface Props {
 
 const props = defineProps<Props>()
 
-const videoElement = useTemplateRef<HTMLVideoElement>('videoElement')
+const videoElement = useTemplateRef<HTMLVideoElement>("videoElement")
 
 onMounted(() => {
   if (props.stream && videoElement.value) {
     videoElement.value.srcObject = props.stream
-    videoElement.value.play().catch(error => {
-      console.warn(`Thumbnail video play failed for user ${props.userId}:`, error)
+    videoElement.value.play().catch((error) => {
+      console.warn(
+        `Thumbnail video play failed for user ${props.userId}:`,
+        error,
+      )
     })
   }
 })

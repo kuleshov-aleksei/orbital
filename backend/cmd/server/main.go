@@ -97,15 +97,29 @@ func main() {
 	authService := service.NewAuthService(cfg.GetAuthConfig(), userRepo)
 	roleService := service.NewRoleService(userRepo)
 
-	wsHub := websocket.NewHub(roomService, authService, cfg)
+	// Initialize LiveKit service
+	var livekitService *service.LiveKitService
+	if cfg.LiveKit.IsConfigured() {
+		livekitService, err = service.NewLiveKitService(cfg.GetLiveKitConfig())
+		if err != nil {
+			log.Printf("Warning: Failed to initialize LiveKit service: %v", err)
+			log.Println("LiveKit features will be disabled")
+		} else {
+			log.Println("LiveKit service initialized successfully")
+		}
+	} else {
+		log.Println("LiveKit is not configured, LiveKit features will be disabled")
+	}
+
+	wsHub := websocket.NewHub(roomService, authService, livekitService, cfg)
 
 	// Initialize handlers with config
 	roomHandler := handlers.NewRoomHandler(roomService, categoryService, wsHub)
 	categoryHandler := handlers.NewCategoryHandler(categoryService, roomService, wsHub)
-	turnHandler := handlers.NewTURNHandler(cfg)
 	authHandler := handlers.NewAuthHandler(authService, roleService, cfg.Server.ExternalURL)
 	adminHandler := handlers.NewAdminHandler(roleService, userRepo)
-	usersHandler := handlers.NewUsersHandler(userRepo)
+	usersHandler := handlers.NewUsersHandler(userRepo, wsHub)
+	livekitHandler := handlers.NewLiveKitHandler(livekitService)
 
 	// Setup router
 	r := mux.NewRouter()
@@ -132,11 +146,12 @@ func main() {
 	// Users route (public)
 	r.HandleFunc("/api/users", usersHandler.GetAllUsers).Methods("GET")
 
-	// TURN server configuration route
-	r.HandleFunc("/api/turn-config", turnHandler.GetTURNConfig).Methods("GET")
-
 	// General configuration route (public)
 	r.HandleFunc("/api/config", roomHandler.GetConfig).Methods("GET")
+
+	// LiveKit routes (protected)
+	r.Handle("/api/livekit/token", authHandler.AuthMiddleware(http.HandlerFunc(livekitHandler.GenerateToken))).Methods("POST")
+	r.HandleFunc("/api/livekit/health", livekitHandler.HealthCheck).Methods("GET")
 
 	// Public room routes (no auth required)
 	r.HandleFunc("/api/rooms", roomHandler.GetRooms).Methods("GET")

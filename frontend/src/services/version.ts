@@ -1,5 +1,5 @@
 // Version checking service for PWA update detection
-import { apiRequest } from './api'
+import { apiRequest } from "./api"
 
 // Version is injected at build time via Vite define
 declare const __APP_VERSION__: string
@@ -19,7 +19,7 @@ export class VersionChecker {
 
   constructor(
     onUpdateAvailable: (isInCall: boolean) => void,
-    isInCallCallback: () => boolean
+    isInCallCallback: () => boolean,
   ) {
     this.currentVersion = __APP_VERSION__
     this.onUpdateAvailable = onUpdateAvailable
@@ -34,12 +34,15 @@ export class VersionChecker {
     }, INITIAL_DELAY_MS)
 
     // Pause/resume polling based on tab visibility
-    document.addEventListener('visibilitychange', this.handleVisibilityChange)
+    document.addEventListener("visibilitychange", this.handleVisibilityChange)
   }
 
   stop(): void {
     this.stopPolling()
-    document.removeEventListener('visibilitychange', this.handleVisibilityChange)
+    document.removeEventListener(
+      "visibilitychange",
+      this.handleVisibilityChange,
+    )
   }
 
   private startPolling(): void {
@@ -68,17 +71,19 @@ export class VersionChecker {
 
   private async checkVersion(): Promise<void> {
     try {
-      const response = await apiRequest<VersionResponse>('/version')
+      const response = await apiRequest<VersionResponse>("/version")
       const serverVersion = response.version
 
       if (serverVersion !== this.currentVersion) {
-        console.log(`[VersionChecker] Update detected: ${this.currentVersion} → ${serverVersion}`)
+        console.log(
+          `[VersionChecker] Update detected: ${this.currentVersion} → ${serverVersion}`,
+        )
         const isInCall = this.isInCallCallback()
         this.onUpdateAvailable(isInCall)
       }
     } catch (error) {
       // Silent failure - will retry on next interval
-      console.debug('[VersionChecker] Version check failed:', error)
+      console.debug("[VersionChecker] Version check failed:", error)
     }
   }
 
@@ -94,7 +99,7 @@ export class VersionChecker {
 // Factory function for creating version checker instance
 export function createVersionChecker(
   onUpdateAvailable: (isInCall: boolean) => void,
-  isInCallCallback: () => boolean
+  isInCallCallback: () => boolean,
 ): VersionChecker {
   return new VersionChecker(onUpdateAvailable, isInCallCallback)
 }

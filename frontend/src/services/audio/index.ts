@@ -1,24 +1,33 @@
-import type { AudioProcessor, AudioWorkletProcessor, NoiseSuppressionAlgorithm } from '@/types/audio'
-import { BrowserNativeProcessor } from './browser'
-import { createNoNoiseSuppressionProcessor } from './noNoiseSuppression'
-import { createRNNoiseProcessor, createSpeexProcessor } from './noiseSuppressor'
+import type {
+  AudioProcessor,
+  AudioWorkletProcessor,
+  NoiseSuppressionAlgorithm,
+} from "@/types/audio"
+import { BrowserNativeProcessor } from "./browser"
+import { createNoNoiseSuppressionProcessor } from "./noNoiseSuppression"
+import { createRNNoiseProcessor, createSpeexProcessor } from "./noiseSuppressor"
+import { createLiveKitNativeProcessor } from "../livekit-audio-processors"
 
 /**
  * Audio Processor Registry
  * Factory for creating audio processors based on algorithm type
  */
 
-const processorRegistry: Map<NoiseSuppressionAlgorithm, () => AudioProcessor> = new Map([
-  ['browser-native', () => new BrowserNativeProcessor()],
-  ['off', () => createNoNoiseSuppressionProcessor()],
-  ['rnnoise', () => createRNNoiseProcessor()],
-  ['speex', () => createSpeexProcessor()],
-])
+const processorRegistry: Map<NoiseSuppressionAlgorithm, () => AudioProcessor> =
+  new Map([
+    ["browser-native", () => new BrowserNativeProcessor()],
+    ["off", () => createNoNoiseSuppressionProcessor()],
+    ["rnnoise", () => createRNNoiseProcessor()],
+    ["speex", () => createSpeexProcessor()],
+    ["livekit-native", () => createLiveKitNativeProcessor()],
+  ])
 
 /**
  * Get an audio processor for the specified algorithm
  */
-export function getAudioProcessor(algorithm: NoiseSuppressionAlgorithm): AudioProcessor | null {
+export function getAudioProcessor(
+  algorithm: NoiseSuppressionAlgorithm,
+): AudioProcessor | null {
   const factory = processorRegistry.get(algorithm)
   return factory ? factory() : null
 }
@@ -27,7 +36,9 @@ export function getAudioProcessor(algorithm: NoiseSuppressionAlgorithm): AudioPr
  * Get an AudioWorklet processor for the specified algorithm
  * Returns null if the algorithm doesn't require AudioWorklet processing
  */
-export function getAudioWorkletProcessor(algorithm: NoiseSuppressionAlgorithm): AudioWorkletProcessor | null {
+export function getAudioWorkletProcessor(
+  algorithm: NoiseSuppressionAlgorithm,
+): AudioWorkletProcessor | null {
   const processor = getAudioProcessor(algorithm)
   if (processor && processor.requiresAudioWorklet()) {
     return processor as AudioWorkletProcessor
@@ -38,7 +49,9 @@ export function getAudioWorkletProcessor(algorithm: NoiseSuppressionAlgorithm): 
 /**
  * Check if an algorithm requires AudioWorklet processing
  */
-export function requiresAudioWorklet(algorithm: NoiseSuppressionAlgorithm): boolean {
+export function requiresAudioWorklet(
+  algorithm: NoiseSuppressionAlgorithm,
+): boolean {
   const processor = getAudioProcessor(algorithm)
   return processor ? processor.requiresAudioWorklet() : false
 }
@@ -49,7 +62,7 @@ export function requiresAudioWorklet(algorithm: NoiseSuppressionAlgorithm): bool
  */
 export function registerAudioProcessor(
   algorithm: NoiseSuppressionAlgorithm,
-  factory: () => AudioProcessor
+  factory: () => AudioProcessor,
 ): void {
   processorRegistry.set(algorithm, factory)
 }
@@ -57,7 +70,9 @@ export function registerAudioProcessor(
 /**
  * Check if an algorithm has a registered processor
  */
-export function hasAudioProcessor(algorithm: NoiseSuppressionAlgorithm): boolean {
+export function hasAudioProcessor(
+  algorithm: NoiseSuppressionAlgorithm,
+): boolean {
   return processorRegistry.has(algorithm)
 }
 
@@ -66,7 +81,7 @@ export function hasAudioProcessor(algorithm: NoiseSuppressionAlgorithm): boolean
  * Convenience function that handles the processor creation
  */
 export function getConstraintsForAlgorithm(
-  algorithm: NoiseSuppressionAlgorithm
+  algorithm: NoiseSuppressionAlgorithm,
 ): MediaTrackConstraints {
   const processor = getAudioProcessor(algorithm)
   if (processor && processor.isSupported()) {
@@ -82,9 +97,9 @@ export function getConstraintsForAlgorithm(
  */
 export async function checkMicrophoneSampleRate(
   algorithm: NoiseSuppressionAlgorithm,
-  requiredRate: number
+  requiredRate: number,
 ): Promise<boolean> {
-  if (algorithm !== 'rnnoise') return true
+  if (algorithm !== "rnnoise") return true
 
   try {
     // Try to get user media with the required sample rate
@@ -109,5 +124,12 @@ export async function checkMicrophoneSampleRate(
 }
 
 export { BrowserNativeProcessor }
-export { createNoNoiseSuppressionProcessor } from './noNoiseSuppression'
-export { createRNNoiseProcessor, createSpeexProcessor } from './noiseSuppressor'
+export { createNoNoiseSuppressionProcessor } from "./noNoiseSuppression"
+export { createRNNoiseProcessor, createSpeexProcessor } from "./noiseSuppressor"
+export {
+  createLiveKitAudioProcessor,
+  createLiveKitNativeProcessor,
+  LiveKitNativeProcessor,
+  isAlgorithmCompatibleWithLiveKit,
+  getLiveKitAudioConstraints,
+} from "../livekit-audio-processors"

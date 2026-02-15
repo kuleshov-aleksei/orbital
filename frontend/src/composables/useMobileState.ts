@@ -1,5 +1,5 @@
-import { ref, onMounted, onUnmounted } from 'vue'
-import { useAppStore } from '@/stores'
+import { ref, onMounted, onUnmounted } from "vue"
+import { useAppStore } from "@/stores"
 
 export function useMobileState() {
   const appStore = useAppStore()
@@ -10,7 +10,7 @@ export function useMobileState() {
     isMobile.value = appStore.isMobile
   }
 
-  const setMobileView = (view: 'rooms' | 'room') => {
+  const setMobileView = (view: "rooms" | "room") => {
     appStore.setMobileView(view)
   }
 
@@ -37,11 +37,11 @@ export function useMobileState() {
   // Auto-initialize on mount
   onMounted(() => {
     checkMobile()
-    window.addEventListener('resize', checkMobile)
+    window.addEventListener("resize", checkMobile)
   })
 
   onUnmounted(() => {
-    window.removeEventListener('resize', checkMobile)
+    window.removeEventListener("resize", checkMobile)
   })
 
   return {
@@ -55,6 +55,6 @@ export function useMobileState() {
     showRoomsView,
     toggleMobileUserSidebar,
     closeMobileUserSidebar,
-    closeAllMobileSidebars
+    closeAllMobileSidebars,
   }
 }

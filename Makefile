@@ -1,4 +1,4 @@
-.PHONY: help install build dev dev-public lint test clean docker-build docker-up certs run-built
+.PHONY: help install build dev dev-public lint lint-full prettier test clean docker-build docker-up certs run-built
 
 # Default target
 help:
@@ -34,15 +34,32 @@ build:
 	cd backend && go build -ldflags "-X github.com/kuleshov-aleksei/orbital/internal/version.Version=$(VERSION)" -o ../bin/orbital ./cmd/server
 
 # Run development servers
+# turn is disabled while migrating to livekit
+# (cd docker && turnserver -c turnserver-dev.conf --use-auth-secret --static-auth-secret=pink-goose)
 dev:
 	@echo "Starting development servers..."
 	@echo "Frontend: http://localhost:3000"
 	@echo "Backend: http://localhost:8080"
-	@echo "Press Ctrl+C to stop both servers"
-	(cd frontend && npm run dev) & \
-	(cd backend && go run ./cmd/server) & \
-	(cd docker && turnserver -c turnserver-dev.conf --use-auth-secret --static-auth-secret=pink-goose)
-	wait
+	@echo "LiveKit: http://localhost:7880"
+	@echo "Press Ctrl+C to stop all servers"
+	@bash -c ' \
+		set -a; source "$(PWD)/.env" 2>/dev/null || true; set +a; \
+		cd "$(PWD)" && livekit-server --config livekit/livekit-dev.yaml & \
+		LIVEKIT_PID=$$!; \
+		cd "$(PWD)/frontend" && npm run dev & \
+		FRONTEND_PID=$$!; \
+		cd "$(PWD)/backend" && go run ./cmd/server & \
+		BACKEND_PID=$$!; \
+		cleanup() { \
+			echo ""; \
+			echo "Shutting down..."; \
+			kill $$LIVEKIT_PID $$FRONTEND_PID $$BACKEND_PID 2>/dev/null; \
+			wait $$LIVEKIT_PID $$FRONTEND_PID $$BACKEND_PID 2>/dev/null; \
+			exit 0; \
+		}; \
+		trap cleanup INT TERM EXIT; \
+		wait $$LIVEKIT_PID $$FRONTEND_PID $$BACKEND_PID \
+	'
 
 # Generate SSL certificates for HTTPS development
 certs:
@@ -72,11 +89,26 @@ dev-public: certs
 		echo "Frontend: https://0.0.0.0:3000"; \
 		echo "Backend: http://0.0.0.0:8080"; \
 	fi
-	@echo "Press Ctrl+C to stop both servers"
+	@echo "Press Ctrl+C to stop all servers"
 	@echo ""
-	(cd frontend && VITE_HTTPS=true npm run dev) & \
-	(cd backend && go run ./cmd/server) & \
-	wait
+	@bash -c ' \
+		set -a; source "$(PWD)/.env" 2>/dev/null || true; set +a; \
+		cd "$(PWD)" && livekit-server --config livekit/livekit-dev.yaml & \
+		LIVEKIT_PID=$$!; \
+		cd "$(PWD)/frontend" && VITE_HTTPS=true npm run dev & \
+		FRONTEND_PID=$$!; \
+		cd "$(PWD)/backend" && go run ./cmd/server & \
+		BACKEND_PID=$$!; \
+		cleanup() { \
+			echo ""; \
+			echo "Shutting down..."; \
+			kill $$LIVEKIT_PID $$FRONTEND_PID $$BACKEND_PID 2>/dev/null; \
+			wait $$LIVEKIT_PID $$FRONTEND_PID $$BACKEND_PID 2>/dev/null; \
+			exit 0; \
+		}; \
+		trap cleanup INT TERM EXIT; \
+		wait $$LIVEKIT_PID $$FRONTEND_PID $$BACKEND_PID \
+	'
 
 # Run linters
 lint:
@@ -84,6 +116,15 @@ lint:
 	cd frontend && npm run lint
 	@echo "Running backend linter..."
 	cd backend && golangci-lint run
+
+# Run linters on changed files only (faster for pre-commit)
+lint-full:
+	@echo "Running frontend linter on changed files..."
+	cd frontend && npm run lint:full
+
+prettier:
+	@echo "Running prettier"
+	cd frontend && npm run prettier
 
 # Run tests
 test:
@@ -140,6 +181,7 @@ run-built:
 	# Ensure nginx can write its logs and PID file
 	@mkdir -p /tmp/orbital-logs
 	@bash -c ' \
+		set -a; source "$(PWD)/.env" 2>/dev/null || true; set +a; \
 		cd bin && ./orbital & \
 		BACKEND_PID=$$!; \
 		sleep 2; \
