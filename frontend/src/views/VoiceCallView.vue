@@ -62,8 +62,7 @@
       </div>
 
       <!-- Audio Controls - Fixed at bottom center -->
-      <div
-        class="flex-shrink-0 flex justify-center px-4 py-3 bg-gray-900/80 backdrop-blur-sm border-t border-gray-700/50">
+      <div class="flex-shrink-0 flex justify-center px-4 py-3 bg-gray-900/80 backdrop-blur-sm border-t border-gray-700/50">
         <AudioControls
           ref="audioControlsRef"
           v-model:model-value-muted="isMuted"
@@ -256,8 +255,12 @@ watch(
       )
 
       // Initialize LiveKit connection
+      // Note: cleanup() is called from onUnmounted when component unmounts,
+      // which happens when switching rooms. We don't need to call it here
+      // to avoid race conditions with the new connection.
+      let connected = false
       try {
-        const connected = await initializeLiveKit()
+        connected = await initializeLiveKit()
         if (connected) {
           console.log(`✅ LiveKit connected to room ${newRoomId}`)
         } else {
@@ -267,9 +270,12 @@ watch(
         console.error(`❌ Error initializing LiveKit:`, error)
       }
 
-      // Apply current store state to audio
-      void applyMuteState(callStore.isMuted)
+      // Apply deafen state (mute remote audio) - this doesn't affect local tracks
       void applyDeafenState(callStore.isDeafened)
+
+      // Note: applyMuteState is not called here because initializeLiveKit already
+      // handles the initial mute state during connection (see useLiveKit.ts:460-463).
+      // Calling it again immediately can cause race conditions with track publishing.
       // Sync with parent v-model
       if (props.modelValueMuted !== callStore.isMuted) {
         emit("update:modelValueMuted", callStore.isMuted)

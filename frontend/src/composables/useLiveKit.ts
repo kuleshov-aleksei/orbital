@@ -302,8 +302,17 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
   // Initialize audio track with selected processor
   const initializeAudioTrack = async (): Promise<LocalAudioTrack | null> => {
+    // Check if existing track is still valid (not ended)
     if (localAudioTrack.value) {
-      return localAudioTrack.value
+      const mediaStreamTrack = localAudioTrack.value.mediaStreamTrack
+      if (mediaStreamTrack && mediaStreamTrack.readyState === "live") {
+        return localAudioTrack.value
+      }
+      // Track has ended, clean it up and reset promise
+      console.log(`[LiveKit][INFO]: Existing audio track ended, creating new track`)
+      localAudioTrack.value.stop()
+      localAudioTrack.value = null
+      localStreamPromise = null  // Reset promise so we create a new track
     }
 
     if (!localStreamPromise) {
@@ -597,7 +606,11 @@ export function useLiveKit(options: UseLiveKitOptions) {
         `[LiveKit][WARN]: Disconnected from room: ${reason || "unknown reason"}`,
       )
       isConnected.value = false
-      cleanup()
+      // Note: Don't call cleanup() here - it can cause race conditions
+      // when switching rooms. Cleanup should only be called from onUnmounted
+      // or when explicitly disconnecting. Just stop the intervals here.
+      stopPingInterval()
+      stopStatsPolling()
     })
 
     lkRoom.on(RoomEvent.Reconnecting, () => {
@@ -754,7 +767,15 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
   // Apply mute state
   const applyMuteState = async (muted: boolean): Promise<void> => {
-    if (!room.value) {
+    // Check if room is properly connected and ready
+    if (!room.value || !isConnected.value) {
+      console.log(`[LiveKit][INFO]: Cannot apply mute state - room not ready`)
+      return
+    }
+
+    // Check if we have an audio track published
+    if (!localAudioPublication.value) {
+      console.log(`[LiveKit][INFO]: Cannot apply mute state - no audio track published yet`)
       return
     }
 
@@ -978,14 +999,27 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
   // Cleanup function
   const cleanup = () => {
-    console.log(`[LiveKit][INFO]: 'Cleaning up LiveKit...'}`)
+    console.log(`[LiveKit][INFO]: 'Cleaning up LiveKit...'`)
 
     stopPingInterval()
     stopStatsPolling()
 
+    // Store reference to current room before clearing it
+    const currentRoom = room.value
+
+    // Clear room reference first to prevent disconnect event handler
+    // from calling cleanup again (which would race with new connections)
+    room.value = null
+    isConnected.value = false
+    localParticipant.value = null
+
     // Stop screen share if active (using LiveKit API)
-    if (isScreenSharing.value && room.value) {
-      void room.value.localParticipant.setScreenShareEnabled(false)
+    if (isScreenSharing.value && currentRoom) {
+      try {
+        void currentRoom.localParticipant.setScreenShareEnabled(false)
+      } catch {
+        // Ignore errors during cleanup
+      }
     }
 
     // Reset screen sharing state
@@ -1008,10 +1042,13 @@ export function useLiveKit(options: UseLiveKitOptions) {
     // Dispose AudioWorklet processor
     disposeAudioWorkletProcessor()
 
-    // Disconnect from room
-    if (room.value) {
-      void room.value.disconnect()
-      room.value = null
+    // Disconnect from room (now safe since room.value is already null)
+    if (currentRoom) {
+      try {
+        void currentRoom.disconnect()
+      } catch {
+        // Ignore errors during cleanup
+      }
     }
 
     // Clear stores
@@ -1023,11 +1060,9 @@ export function useLiveKit(options: UseLiveKitOptions) {
     // Clear presence store
     presenceStore.cleanup()
 
-    isConnected.value = false
-    localParticipant.value = null
     localStreamPromise = null
 
-    console.log(`[LiveKit][INFO]: 'LiveKit cleanup complete'}`)
+    console.log(`[LiveKit][INFO]: 'LiveKit cleanup complete'`)
   }
 
   // Lifecycle hooks
