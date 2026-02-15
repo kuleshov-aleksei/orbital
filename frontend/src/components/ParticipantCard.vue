@@ -131,10 +131,9 @@
       <!-- Viewing overlay - shown when this stream is being viewed in main area -->
       <div
         v-if="isViewing"
-        class="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 z-10">
-        <PhMonitorPlay class="w-12 h-12 text-indigo-400 mb-3" />
-        <span class="text-white text-lg font-medium">Viewing</span>
-        <p class="text-gray-400 text-sm mt-1">Click to focus</p>
+        class="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-indigo-600/90 backdrop-blur-sm text-white px-3 py-1.5 rounded-full z-20 shadow-lg">
+        <PhMonitorPlay class="w-4 h-4" />
+        <span class="text-sm font-medium">Viewing</span>
       </div>
 
       <!-- Floating nickname overlay -->
@@ -162,12 +161,6 @@
         v-if="isSpeaking"
         class="absolute bottom-2 left-2 w-3 h-3 bg-green-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(74,222,128,0.8)]"
         title="Speaking" />
-
-      <!-- Screen sharing badge -->
-      <div
-        class="absolute bottom-2 right-2 w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center">
-        <PhMonitorPlay class="w-3 h-3 text-white" />
-      </div>
     </template>
 
     <!-- Audio Mode: User info with audio visualization -->
