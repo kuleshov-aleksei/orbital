@@ -1,11 +1,22 @@
 # LiveKit Configuration for Production Deployment
-# This configuration is used by Docker Compose deployment
+# This configuration uses host networking for optimal WebRTC performance
+# 
+# Network Architecture:
+# - Signaling (7880): Routed through Traefik for SSL termination
+# - Media (7881, 3478, 62000-65535): Direct to LiveKit host network
+#
+# Required ports on firewall:
+# - TCP 7880: API/WebSocket (via Traefik)
+# - TCP 7881: ICE/TCP fallback
+# - UDP 3478: TURN/UDP
+# - UDP 62000-65535: WebRTC media
+# - TCP 5349: TURN/TLS (if not behind load balancer, use 443)
 
 # Binding addresses
 bind_addresses:
   - 0.0.0.0
 
-# WebRTC ports
+# WebSocket/API port - will be behind Traefik
 port: 7880
 
 # Room settings
@@ -24,10 +35,13 @@ room:
 
 # WebRTC settings
 rtc:
-  # UDP port range for media
-  udp_port: 7881
-  # Enable TURN (LiveKit includes built-in TURN server)
-  use_external_ip: false
+  # UDP port range for media - using high ports to avoid conflicts
+  port_range_start: 62000
+  port_range_end: 65535
+  # TCP port for ICE fallback (when UDP is blocked)
+  tcp_port: 7881
+  # Enable external IP detection for NAT traversal
+  use_external_ip: true
   # STUN servers for NAT traversal
   stun_servers:
     - urls:
@@ -38,8 +52,16 @@ rtc:
 turn:
   # Enable built-in TURN server
   enabled: true
-  # TURN UDP port (same as rtc.udp_port for single port mode)
-  udp_port: 7881
+  # TURN UDP port (for relay when direct connection fails)
+  udp_port: 3478
+  # TURN TLS port - use 443 if not behind load balancer
+  # Set to 5349 when Traefik handles SSL termination on 443
+  tls_port: 5349
+  # External TURN domain - set this to your TURN domain
+  # domain: turn.example.com
+  # Certificate files for TURN/TLS (synced from Traefik machine)
+  # cert_file: /etc/livekit/certs/cert.crt
+  # key_file: /etc/livekit/certs/cert.key
   # External TURN host (set via env variable or auto-detect)
   # external_tls: false
 

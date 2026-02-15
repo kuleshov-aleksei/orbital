@@ -19,7 +19,7 @@ services:
     environment:
       - GIN_MODE=release
       - PORT=8080
-      - LIVEKIT_URL=${LIVEKIT_URL:-ws://livekit:7880}
+      - LIVEKIT_URL=${LIVEKIT_URL:-ws://localhost:7880}
       - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-dev_key}
       - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-this_is_a_development_secret_key_32chars}
       - ROOM_MIN_USERS=2
@@ -32,22 +32,25 @@ services:
     networks:
       - orbital-network
 
+  # LiveKit uses host networking for optimal WebRTC performance
+  # Media traffic (UDP 62000-65535, TCP 7881, UDP 3478) goes directly to host
+  # Signaling (TCP 7880) can be routed through Traefik for SSL termination
   livekit:
-    image: livekit/livekit-server:v1.7
+    image: livekit/livekit-server:v1.9.11
     container_name: orbital-livekit
     restart: unless-stopped
     command: >
       livekit-server
       --config /etc/livekit/livekit.yaml
-    ports:
-      - "7880:7880"
-      - "7881:7881/udp"
+    # Use host networking - LiveKit binds directly to host interfaces
+    # This eliminates Docker networking overhead for media traffic
+    network_mode: host
     env_file:
       - .env
     volumes:
       - ./livekit/livekit.yaml:/etc/livekit/livekit.yaml:ro
-    networks:
-      - orbital-network
+      # Mount SSL certificates if using TURN/TLS (synced from Traefik)
+      # - ./livekit/certs:/etc/livekit/certs:ro
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:7880"]
       interval: 30s
