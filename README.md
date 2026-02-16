@@ -124,14 +124,50 @@ Note that this section describes my personal setup and it can and it WILL be dif
 
 My setup of the Orbital uses a split-traffic architecture for optimal performance:
 
-- **Traefik (Load Balancer)**: Handles SSL termination for API/WebSocket traffic on port 7880
+- **Traefik (Load Balancer)**: Handles SSL termination for API/WebSocket traffic via path-based routing (`/livekit`)
 - **LiveKit (Host Network)**: Media traffic goes directly to LiveKit using host networking for zero-overhead performance
+
+#### Traefik Configuration
+
+Use path-based routing to proxy LiveKit WebSocket connections through your main entrypoint:
+
+```yaml
+# Traefik routers configuration
+routers:
+  livekit:
+    entryPoints:
+      - "https"
+    rule: "Host(`your-domain.com`) && PathPrefix(`/livekit`)"
+    middlewares:
+      - strip-livekit-prefix
+      - default-headers
+    tls: {}
+    service: livekit
+
+middlewares:
+  strip-livekit-prefix:
+    stripPrefix:
+      prefixes:
+        - "/livekit"
+
+services:
+  livekit:
+    loadBalancer:
+      servers:
+        - url: "http://your-livekit-host:7880"
+      passHostHeader: true
+```
+
+Then set your `LIVEKIT_URL` in `.env`:
+```bash
+LIVEKIT_URL=wss://your-domain.com/livekit
+```
 
 #### Required Ports
 
 | Port | Protocol | Purpose | Route |
 |------|----------|---------|-------|
-| 7880 | TCP | API/WebSocket | Via Traefik (SSL) |
+| 7880 | TCP | API/WebSocket | Via Traefik (SSL, path `/livekit`) |
 | 7881 | TCP | ICE/TCP fallback | Direct to LiveKit |
 | 3478 | UDP | TURN/UDP relay | Direct to LiveKit |
 | 62000-65535 | UDP | WebRTC media | Direct to LiveKit |
