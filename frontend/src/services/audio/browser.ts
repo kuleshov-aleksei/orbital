@@ -34,10 +34,6 @@ export class BrowserNativeProcessor implements AudioProcessor {
       autoGainControl: true,
     }
   }
-
-  requiresAudioWorklet(): boolean {
-    return false
-  }
 }
 
 /**

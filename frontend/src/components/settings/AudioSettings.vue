@@ -75,30 +75,6 @@
             <span class="font-semibold">Not Available:</span>
             {{ selectedAlgorithmInfo.notSupportedReason }}
           </div>
-
-          <!-- 48kHz Warning for RNNoise -->
-          <div
-            v-if="selectedAlgorithm === 'rnnoise' && !supports48kHz"
-            class="mt-2 p-2 bg-red-900/50 border border-red-700 rounded text-xs text-red-200">
-            <span class="font-semibold">Warning:</span>
-            Your microphone doesn't support 48kHz sample rate required for
-            RNNoise. Please select a different algorithm or use a different
-            microphone.
-          </div>
-
-          <!-- WASM Error Message -->
-          <div
-            v-if="wasmError"
-            class="mt-2 p-2 bg-red-900/50 border border-red-700 rounded text-xs text-red-200">
-            <span class="font-semibold">Error:</span>
-            {{ wasmError }}
-            <button
-              type="button"
-              class="ml-2 underline hover:no-underline"
-              @click="clearWASMError">
-              Dismiss
-            </button>
-          </div>
         </div>
       </div>
     </div>
@@ -176,9 +152,7 @@ import type { NoiseSuppressionAlgorithm } from "@/types/audio"
 const audioStore = useAudioSettingsStore()
 
 // Local state
-const selectedAlgorithm = ref<NoiseSuppressionAlgorithm>("browser-native")
-const supports48kHz = ref<boolean | null>(null)
-const isCheckingMicrophone = ref(false)
+const selectedAlgorithm = ref<NoiseSuppressionAlgorithm>("livekit-native")
 
 // Computed
 const noiseSuppressionEnabled = computed(
@@ -192,7 +166,6 @@ const availableAlgorithms = computed(
   () => audioStore.availableNoiseSuppressionAlgorithms,
 )
 const currentAlgorithmInfo = computed(() => audioStore.currentAlgorithmInfo)
-const wasmError = computed(() => audioStore.wasmError)
 
 // Get the currently selected algorithm info with support status
 const selectedAlgorithmInfo = computed(() => {
@@ -229,25 +202,6 @@ function resetSettings() {
   if (confirm("Reset all audio settings to default values?")) {
     audioStore.resetSettings()
     selectedAlgorithm.value = audioStore.noiseSuppressionAlgorithm
-    supports48kHz.value = null
-  }
-}
-
-function clearWASMError() {
-  audioStore.clearWASMError()
-}
-
-async function checkMicrophoneSupport() {
-  if (isCheckingMicrophone.value) return
-  isCheckingMicrophone.value = true
-
-  try {
-    supports48kHz.value = await audioStore.checkMicrophone48kHzSupport()
-  } catch (error) {
-    console.error("Error checking microphone support:", error)
-    supports48kHz.value = false
-  } finally {
-    isCheckingMicrophone.value = false
   }
 }
 
@@ -255,6 +209,5 @@ async function checkMicrophoneSupport() {
 onMounted(() => {
   audioStore.loadSettings()
   selectedAlgorithm.value = audioStore.noiseSuppressionAlgorithm
-  void checkMicrophoneSupport()
 })
 </script>

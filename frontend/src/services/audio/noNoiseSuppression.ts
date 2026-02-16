@@ -22,10 +22,6 @@ export class NoNoiseSuppressionAudioProcessor implements AudioProcessor {
       autoGainControl: true,
     }
   }
-
-  requiresAudioWorklet(): boolean {
-    return false
-  }
 }
 
 /**

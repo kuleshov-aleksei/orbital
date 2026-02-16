@@ -16,7 +16,6 @@
   },
   "dependencies": {
     "@phosphor-icons/vue": "^2.2.1",
-    "@sapphi-red/web-noise-suppressor": "^0.3.5",
     "livekit-client": "^2.17.1",
     "pinia": "^2.1.0",
     "vue": "^3.3.0",

@@ -17,7 +17,6 @@ import { usePresenceStore } from "@/stores/presence"
 import { useAudioSettingsStore } from "@/stores/audioSettings"
 import { useCallStore } from "@/stores/call"
 import { getLiveKitAudioConstraints } from "@/services/livekit-audio-processors"
-import { getAudioWorkletProcessor } from "@/services/audio"
 import { debugLog, debugWarn } from "@/utils/debug"
 import type {
   User,
@@ -25,7 +24,6 @@ import type {
   ConnectionStats,
   TrackStats,
 } from "@/types"
-import type { AudioWorkletProcessor } from "@/types/audio"
 
 export interface UseLiveKitOptions {
   roomId: string
@@ -80,8 +78,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
   const localScreenAudioPublication = ref<LocalTrackPublication | null>(null)
 
   // Audio processing
-  let audioWorkletProcessor: AudioWorkletProcessor | null = null
-  let localStreamPromise: Promise<MediaStream | null> | null = null
+  let localStreamPromise: Promise<LocalAudioTrack | null> | null = null
 
   // Ping tracking
   const currentPing = ref<number>(0)
@@ -401,19 +398,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     )
   }
 
-  // Dispose AudioWorklet processor
-  const disposeAudioWorkletProcessor = () => {
-    if (audioWorkletProcessor) {
-      try {
-        audioWorkletProcessor.dispose()
-      } catch (error) {
-        console.warn("Error disposing AudioWorklet processor:", error)
-      }
-      audioWorkletProcessor = null
-    }
-  }
-
-  // Ensure local media stream is available (for AudioWorklet processing)
+  // Ensure local media stream is available
   const ensureLocalStream = async (): Promise<MediaStream | null> => {
     if (!localAudioTrack.value) {
       await initializeAudioTrack()
@@ -451,7 +436,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
           }
 
           const algorithm = audioSettingsStore.noiseSuppressionAlgorithm
-          const requiresWorklet = audioSettingsStore.requiresAudioWorklet
 
           debugLog(
             `[LiveKit][INFO]: Initializing audio track with algorithm: ${algorithm}`,
@@ -460,70 +444,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
           // Get audio constraints based on algorithm
           const audioConstraints = getLiveKitAudioConstraints(algorithm)
 
-          // Apply AudioWorklet processing BEFORE creating LiveKit track to avoid Proxy cloning issues
-          if (
-            requiresWorklet &&
-            (algorithm === "rnnoise" || algorithm === "speex")
-          ) {
-            debugLog(
-              `[LiveKit][INFO]: Applying AudioWorklet processor for ${algorithm} before track creation`,
-            )
-
-            disposeAudioWorkletProcessor()
-            audioWorkletProcessor = getAudioWorkletProcessor(algorithm)
-
-            if (audioWorkletProcessor) {
-              try {
-                // Get raw media stream first
-                const rawStream = await navigator.mediaDevices.getUserMedia({
-                  audio: audioConstraints,
-                })
-
-                // Process through AudioWorklet
-                const processedStream =
-                  await audioWorkletProcessor.processStream(rawStream)
-                debugLog(
-                  `[LiveKit][INFO]: AudioWorklet processor applied successfully`,
-                )
-
-                // Create LiveKit track from processed stream (no setProcessor needed)
-                const processedTrack = processedStream.getAudioTracks()[0]
-                if (processedTrack) {
-                  const track = new LocalAudioTrack(processedTrack)
-                  localAudioTrack.value = track
-                  debugLog(
-                    `[LiveKit][INFO]: 'Audio track initialized successfully with AudioWorklet processing'}`,
-                  )
-                  return track
-                }
-              } catch (error) {
-                console.error(
-                  `Failed to apply ${algorithm} AudioWorklet:`,
-                  error,
-                )
-                console.error(
-                  `[LiveKit][ERROR]: Failed to apply ${algorithm} processing: ${(error as Error).message}`,
-                )
-
-                // Fallback to browser-native
-                audioSettingsStore.setWASMError(
-                  `Failed to load ${algorithm}: ${(error as Error).message}. Falling back to browser-native.`,
-                )
-                disposeAudioWorkletProcessor()
-                audioSettingsStore.setNoiseSuppressionAlgorithm(
-                  "browser-native",
-                )
-
-                const fallbackTrack = await createLocalAudioTrack({
-                  audio: getLiveKitAudioConstraints("browser-native"),
-                })
-                localAudioTrack.value = fallbackTrack
-                return fallbackTrack
-              }
-            }
-          }
-
-          // Create LiveKit audio track (for non-AudioWorklet algorithms)
+          // Create LiveKit audio track
           const track = await createLocalAudioTrack({
             audio: audioConstraints,
           })
@@ -741,7 +662,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     })
 
     lkRoom.on(RoomEvent.Reconnected, () => {
-      debugLog(`[LiveKit][INFO]: 'Reconnected to room'}`)
+      debugLog(`[LiveKit][INFO]: 'Reconnected to room'`)
     })
   }
 
@@ -817,18 +738,18 @@ export function useLiveKit(options: UseLiveKitOptions) {
   const publishAudioTrack = async (): Promise<void> => {
     if (!room.value || !localAudioTrack.value) {
       debugWarn(
-        `[LiveKit][WARN]: 'Cannot publish audio: room or track not ready'}`,
+        `[LiveKit][WARN]: 'Cannot publish audio: room or track not ready'`,
       )
       return
     }
 
     try {
-      debugLog(`[LiveKit][INFO]: 'Publishing audio track...'}`)
+      debugLog(`[LiveKit][INFO]: 'Publishing audio track...'`)
       const publication = await room.value.localParticipant.publishTrack(
         localAudioTrack.value,
       )
       localAudioPublication.value = publication
-      debugLog(`[LiveKit][INFO]: 'Audio track published successfully'}`)
+      debugLog(`[LiveKit][INFO]: 'Audio track published successfully'`)
     } catch (error) {
       console.error("Failed to publish audio track:", error)
       console.error(
@@ -848,7 +769,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
         localAudioPublication.value.trackSid,
       )
       localAudioPublication.value = null
-      debugLog(`[LiveKit][INFO]: 'Audio track unpublished'}`)
+      debugLog(`[LiveKit][INFO]: 'Audio track unpublished'`)
     } catch (error) {
       console.error("Failed to unpublish audio track:", error)
     }
@@ -857,7 +778,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
   // Initialize LiveKit connection (fetch token and connect)
   const initializeLiveKit = async (): Promise<boolean> => {
     try {
-      debugLog(`[LiveKit][INFO]: 'Initializing LiveKit...'}`)
+      debugLog(`[LiveKit][INFO]: 'Initializing LiveKit...'`)
 
       // Fetch token from backend
       const response = await apiService.getLiveKitToken(options.roomId)
@@ -954,7 +875,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
       // We update state optimistically, but the real state is managed by events
       screenShareQuality.value = quality
 
-      debugLog(`[LiveKit][INFO]: 'Screen sharing started successfully'}`)
+      debugLog(`[LiveKit][INFO]: 'Screen sharing started successfully'`)
     } catch (error) {
       console.error("Failed to start screen share:", error)
       console.error(
@@ -971,7 +892,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     }
 
     try {
-      debugLog(`[LiveKit][INFO]: 'Stopping screen share...'}`)
+      debugLog(`[LiveKit][INFO]: 'Stopping screen share...'`)
 
       // Use LiveKit's recommended API to disable screen sharing
       // This properly handles track cleanup without affecting existing audio
@@ -979,7 +900,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
       // The actual state cleanup is handled in LocalTrackUnpublished event listener
 
-      debugLog(`[LiveKit][INFO]: 'Screen sharing stopped'}`)
+      debugLog(`[LiveKit][INFO]: 'Screen sharing stopped'`)
     } catch (error) {
       console.error("Error stopping screen share:", error)
       console.error(
@@ -1009,7 +930,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
   // Reinitialize audio stream (when algorithm changes)
   const reinitializeAudioStream = async (): Promise<void> => {
-    debugLog(`[LiveKit][INFO]: 'Reinitializing audio stream...'}`)
+    debugLog(`[LiveKit][INFO]: 'Reinitializing audio stream...'`)
 
     // Unpublish current track
     await unpublishAudioTrack()
@@ -1020,9 +941,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
       localAudioTrack.value = null
     }
 
-    // Clear processor
-    disposeAudioWorkletProcessor()
-
     // Reset promise so we create a new track
     localStreamPromise = null
 
@@ -1030,7 +948,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     await initializeAudioTrack()
     await publishAudioTrack()
 
-    debugLog(`[LiveKit][INFO]: 'Audio stream reinitialized'}`)
+    debugLog(`[LiveKit][INFO]: 'Audio stream reinitialized'`)
   }
 
   // Start ping interval
@@ -1155,9 +1073,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
       localAudioTrack.value.stop()
       localAudioTrack.value = null
     }
-
-    // Dispose AudioWorklet processor
-    disposeAudioWorkletProcessor()
 
     // Disconnect from room (now safe since room.value is already null)
     if (currentRoom) {

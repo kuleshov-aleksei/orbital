@@ -48,23 +48,5 @@ export default defineConfig({
         secure: !isHttps,
       },
     },
-    headers: {
-      // Required for AudioWorklet and WASM
-      "Cross-Origin-Opener-Policy": "same-origin",
-      "Cross-Origin-Embedder-Policy": "require-corp",
-    },
-  },
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          // Separate WASM-related chunks
-          "wasm-noise": ["@sapphi-red/web-noise-suppressor"],
-        },
-      },
-    },
-  },
-  optimizeDeps: {
-    exclude: ["@sapphi-red/web-noise-suppressor"],
   },
 })
