@@ -137,52 +137,6 @@ My setup of the Orbital uses a split-traffic architecture for optimal performanc
 | 62000-65535 | UDP | WebRTC media | Direct to LiveKit |
 | 5349 | TCP | TURN/TLS | Direct to LiveKit (or 443 if no LB) |
 
-### SSL Certificate Synchronization
-
-If Traefik and LiveKit are on separate machines, you need to sync SSL certificates from Traefik to LiveKit. The script uses `traefik-certs-dumper` Docker image to extract certificates from Traefik's `acme.json`:
-
-1. **Copy the sync script to your Traefik machine:**
-   ```bash
-   scp docker/scripts/sync-certs.sh traefik-server:/opt/traefik/
-   chmod +x /opt/traefik/sync-certs.sh
-   ```
-
-2. **Set up SSH key authentication** between Traefik and LiveKit machines
-
-3. **Run the script with your configuration:**
-   
-   **Sync all certificates (Traefik v2):**
-   ```bash
-   ./sync-certs.sh /opt/traefik/acme.json livekit.example.com /opt/orbital/livekit/certs ~/.ssh/id_rsa
-   ```
-   
-   **Sync specific domain only (for TURN/TLS):**
-   ```bash
-   ./sync-certs.sh -d turn.example.com /opt/traefik/acme.json livekit.example.com /opt/orbital/livekit/certs
-   ```
-   
-   **Sync with Traefik v3:**
-   ```bash
-   ./sync-certs.sh -v v3 -d turn.example.com /opt/traefik/acme.json livekit.example.com /opt/orbital/livekit/certs
-   ```
-
-4. **Add a cron job** to sync certificates automatically (runs every hour):
-   ```bash
-   # Edit crontab
-   sudo crontab -e
-   
-   # Sync only TURN domain for LiveKit (recommended):
-   0 * * * * /opt/traefik/sync-certs.sh -d turn.example.com -v v3 /opt/traefik/acme.json livekit.example.com /opt/orbital/livekit/certs >> /var/log/cert-sync.log 2>&1
-   ```
-
-5. **Update LiveKit config** to use the synced certificates:
-   ```yaml
-   turn:
-     enabled: true
-     cert_file: /etc/livekit/certs/cert.crt
-     key_file: /etc/livekit/certs/cert.key
-   ```
-
 ### Docker Compose Deployment
 
 The production deployment uses host networking for LiveKit:

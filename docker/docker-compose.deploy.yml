@@ -49,8 +49,6 @@ services:
       - .env
     volumes:
       - ./livekit/livekit.yaml:/etc/livekit/livekit.yaml:ro
-      # Mount SSL certificates if using TURN/TLS (synced from Traefik)
-      # - ./livekit/certs:/etc/livekit/certs:ro
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:7880"]
       interval: 30s

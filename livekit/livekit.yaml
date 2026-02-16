@@ -55,8 +55,8 @@ turn:
   # TURN UDP port (for relay when direct connection fails)
   udp_port: 3478
   # TURN TLS port - use 443 if not behind load balancer
-  # Set to 5349 when Traefik handles SSL termination on 443
-  tls_port: 5349
+  # (optional) For a distributed setup, use a network load balancer in front of the port. If not using LB, this port needs to be set to 443.
+  # tls_port: 5349
   # External TURN domain - set this to your TURN domain
   # domain: turn.example.com
   # Certificate files for TURN/TLS (synced from Traefik machine)
