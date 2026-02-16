@@ -80,6 +80,9 @@ export function useLiveKit(options: UseLiveKitOptions) {
   // Audio processing
   let localStreamPromise: Promise<LocalAudioTrack | null> | null = null
 
+  // Audio playback state (for browser autoplay restrictions)
+  const canPlaybackAudio = ref(true)
+
   // Ping tracking
   const currentPing = ref<number>(0)
   let pingInterval: ReturnType<typeof setInterval> | null = null
@@ -667,6 +670,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
     // Audio playback status changed - browser may require user interaction
     lkRoom.on(RoomEvent.AudioPlaybackStatusChanged, () => {
+      canPlaybackAudio.value = lkRoom.canPlaybackAudio
       debugLog(
         `[LiveKit][INFO]: Audio playback status changed: canPlaybackAudio=${lkRoom.canPlaybackAudio}`,
       )
@@ -698,6 +702,15 @@ export function useLiveKit(options: UseLiveKitOptions) {
       // Set initial volume if specified
       const volume = options.remoteStreamVolumes.get(participantId) ?? 80
       audioTrack.setVolume(volume / 100)
+
+      // Debug: Check track state
+      console.log(`[LiveKit][DEBUG] Audio track from ${participantId}:`, {
+        volume: audioTrack.getVolume?.(),
+        isMuted: audioTrack.isMuted,
+        mediaStreamTrack: audioTrack.mediaStreamTrack?.id,
+        readyState: audioTrack.mediaStreamTrack?.readyState,
+        enabled: audioTrack.mediaStreamTrack?.enabled,
+      })
 
       debugLog(`[LiveKit][INFO]: Audio track received from ${participantId}`)
     } else if (track.kind === Track.Kind.Video) {
@@ -1140,6 +1153,9 @@ export function useLiveKit(options: UseLiveKitOptions) {
     screenShareQuality,
     userScreenShareStates,
     screenShareData,
+
+    // Audio playback state
+    canPlaybackAudio,
 
     // Audio-only legacy compatibility (voice chat participants)
     localStream: computed(() =>

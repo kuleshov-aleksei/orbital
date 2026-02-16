@@ -625,14 +625,24 @@ const handleMuteToggle = () => {
 }
 
 // Watchers
-// LiveKit automatically plays audio tracks - we just control volume
+// LiveKit requires track.attach() to play audio - creates and manages its own element
+let attachedElement: HTMLAudioElement | undefined
+
 watch(
   () => props.audioTrack,
-  (newTrack) => {
+  (newTrack, oldTrack) => {
+    if (oldTrack && attachedElement) {
+      // Detach old track
+      oldTrack.detach(attachedElement)
+      attachedElement = undefined
+      debugLog(`[ParticipantCard] Detached old audio track for ${props.userId}`)
+    }
     if (newTrack) {
-      // Apply volume to the track
+      // Attach track - creates audio element and starts playback
+      attachedElement = newTrack.attach() as HTMLAudioElement
+      // Apply volume
       newTrack.setVolume((props.initialVolume || 80) / 100)
-      debugLog(`[ParticipantCard] Set volume for ${props.userId}`)
+      debugLog(`[ParticipantCard] Attached audio track for ${props.userId}`)
     }
   },
   { immediate: true },
@@ -650,7 +660,7 @@ watch(
 watch(
   () => props.isDeafened,
   (newDeafened) => {
-    if (props.audioTrack) {
+    if (props.audioTrack && attachedElement) {
       props.audioTrack.setMuted(newDeafened)
     }
   },
@@ -700,6 +710,12 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener("keydown", handleKeydown)
   document.removeEventListener("click", handleDocumentClick)
+
+  // Detach audio track on unmount
+  if (props.audioTrack && attachedElement) {
+    props.audioTrack.detach(attachedElement)
+    debugLog(`[ParticipantCard] Detached audio track on unmount for ${props.userId}`)
+  }
 })
 </script>
 

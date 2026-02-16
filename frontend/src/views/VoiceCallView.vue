@@ -61,6 +61,18 @@
           @mute-toggle="handleMuteToggle" />
       </div>
 
+      <!-- Audio Playback Blocked Warning -->
+      <div
+        v-if="!canPlaybackAudio"
+        class="flex-shrink-0 px-4 py-2 bg-yellow-900/50 border-t border-yellow-700/50 text-center">
+        <button
+          type="button"
+          class="text-yellow-200 text-sm hover:text-yellow-100 underline"
+          @click="startAudio">
+          🔊 Click to enable audio playback
+        </button>
+      </div>
+
       <!-- Audio Controls - Fixed at bottom center -->
       <div
         class="flex-shrink-0 flex justify-center px-4 py-3 bg-gray-900/80 backdrop-blur-sm border-t border-gray-700/50">
@@ -138,6 +150,7 @@ const {
   userScreenShareStates,
   screenShareData,
   remoteAudioTracks,
+  canPlaybackAudio,
   handleMuteToggle,
   startScreenShare,
   getParticipantStats,
@@ -145,6 +158,7 @@ const {
   applyDeafenState,
   reinitializeAudioStream,
   initializeLiveKit,
+  startAudio,
 } = useLiveKit({
   roomId: props.roomId,
   roomName: props.roomName,
