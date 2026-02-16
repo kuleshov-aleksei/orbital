@@ -8,7 +8,7 @@
           :user-id="user.id"
           :user-nickname="user.nickname || 'Unknown'"
           :avatar-url="user.avatar_url"
-          :audio-stream="remoteStreams.get(user.id) || null"
+          :audio-track="remoteAudioTracks.get(user.id) || null"
           :screen-share-stream="null"
           :initial-volume="remoteStreamVolumes.get(user.id) || 80"
           :is-deafened="isDeafened"
@@ -39,10 +39,10 @@ import ParticipantCard from "@/components/ParticipantCard.vue"
 import EmptyState from "@/components/EmptyState.vue"
 import { useUserStore } from "@/stores"
 import type { User, ScreenShareState } from "@/types"
+import type { RemoteAudioTrack } from "livekit-client"
 
 interface Props {
   users: User[]
-  remoteStreams: Map<string, MediaStream>
   peerConnectionStates: Map<string, string>
   peerConnectionRetries: Map<string, number>
   remoteStreamVolumes: Map<string, number>
@@ -51,6 +51,7 @@ interface Props {
   isDeafened: boolean
   isVisible: boolean
   currentUserAudioLevel?: number
+  remoteAudioTracks: Map<string, RemoteAudioTrack>
   getParticipantStats?: (userId: string) => {
     ping: number
     jitter: number

@@ -296,14 +296,7 @@
         </span>
       </div>
 
-      <!-- Audio Element (Hidden) -->
-      <audio
-        :id="`audio-${userId}`"
-        ref="audioElement"
-        :muted="isMuted || isDeafened"
-        autoplay
-        playsinline
-        class="hidden" />
+      <!-- Audio is handled automatically by LiveKit - no manual element needed -->
 
       <!-- Speaking Indicator -->
       <div
@@ -330,16 +323,13 @@
         {{ userNickname }}
       </div>
 
-      <!-- Mute/Unmute User -->
+      <!-- Mute User (for this participant only) -->
       <button
         type="button"
         class="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors flex items-center space-x-2"
         @click="handleMuteToggle">
-        <PhMicrophoneSlash v-if="isMuted" class="w-4 h-4" />
-
-        <PhMicrophone v-else class="w-4 h-4" />
-
-        <span>{{ isMuted ? "Unmute User" : "Mute User" }}</span>
+        <PhMicrophoneSlash class="w-4 h-4" />
+        <span>Mute User for Me</span>
       </button>
 
       <div class="border-t border-gray-600 my-1"></div>
@@ -385,20 +375,21 @@ import {
   useTemplateRef,
 } from "vue"
 import {
-  PhMicrophone,
   PhMicrophoneSlash,
   PhSpeakerHigh,
   PhMonitorPlay,
 } from "@phosphor-icons/vue"
 import { useRoomStore, usePresenceStore } from "@/stores"
 import UserAvatar from "@/components/UserAvatar.vue"
+import { debugLog } from "@/utils/debug"
 import type { ScreenShareQuality, ConnectionStats } from "@/types"
+import type { RemoteAudioTrack } from "livekit-client"
 
 interface Props {
   userId: string
   userNickname: string
   avatarUrl?: string
-  audioStream: MediaStream | null
+  audioTrack: RemoteAudioTrack | null
   screenShareStream: MediaStream | null
   initialVolume?: number
   isDeafened?: boolean
@@ -436,14 +427,12 @@ const roomStore = useRoomStore()
 const presenceStore = usePresenceStore()
 
 // Refs
-const audioElement = useTemplateRef<HTMLAudioElement>("audioElement")
 const videoElement = useTemplateRef<HTMLVideoElement>("videoElement")
 const cardElement = useTemplateRef<HTMLDivElement>("cardElement")
 const tooltipElement = useTemplateRef<HTMLDivElement>("tooltipElement")
 
 // State
 const volume = computed(() => roomStore.getUserVolume(props.userId))
-const isMuted = ref(false)
 const showMenu = ref(false)
 const showStats = ref(false)
 const menuPosition = { x: 0, y: 0 }
@@ -543,9 +532,7 @@ const getPacketLossClass = (value: number): string => {
 
 const updateVolume = (newVolume: number) => {
   roomStore.setUserVolume(props.userId, newVolume)
-  if (audioElement.value) {
-    audioElement.value.volume = newVolume / 100
-  }
+  // Volume is applied to LiveKit track via handleVolumeChange in parent component
 }
 
 const handleVolumeInput = (event: Event) => {
@@ -631,32 +618,42 @@ const setupVideoStream = () => {
   }
 }
 
-const toggleMute = () => {
-  isMuted.value = !isMuted.value
-  if (audioElement.value) {
-    audioElement.value.muted = isMuted.value
-  }
-  emit("mute-toggle", props.userId, isMuted.value)
-}
-
 const handleMuteToggle = () => {
-  toggleMute()
+  // Mute is handled by LiveKit - just emit the event
+  emit("mute-toggle", props.userId, true)
   hideContextMenu()
 }
 
 // Watchers
+// LiveKit automatically plays audio tracks - we just control volume
 watch(
-  () => props.audioStream,
-  (newStream) => {
-    if (newStream && audioElement.value) {
-      console.log(`🎵 Setting audio stream for user ${props.userId}`)
-      audioElement.value.srcObject = newStream
-      void audioElement.value.play().catch((error: Error) => {
-        console.warn(`Audio play failed for user ${props.userId}:`, error)
-      })
+  () => props.audioTrack,
+  (newTrack) => {
+    if (newTrack) {
+      // Apply volume to the track
+      newTrack.setVolume((props.initialVolume || 80) / 100)
+      debugLog(`[ParticipantCard] Set volume for ${props.userId}`)
     }
   },
   { immediate: true },
+)
+
+watch(
+  () => props.initialVolume,
+  (newVolume) => {
+    if (props.audioTrack) {
+      props.audioTrack.setVolume((newVolume || 80) / 100)
+    }
+  },
+)
+
+watch(
+  () => props.isDeafened,
+  (newDeafened) => {
+    if (props.audioTrack) {
+      props.audioTrack.setMuted(newDeafened)
+    }
+  },
 )
 
 watch(
@@ -672,21 +669,6 @@ watch(
     }
   },
   { immediate: true },
-)
-
-watch(volume, (newVolume) => {
-  if (audioElement.value) {
-    audioElement.value.volume = newVolume / 100
-  }
-})
-
-watch(
-  () => props.isDeafened,
-  (newDeafened) => {
-    if (audioElement.value) {
-      audioElement.value.muted = newDeafened || isMuted.value
-    }
-  },
 )
 
 // Event handlers
@@ -705,12 +687,6 @@ const handleDocumentClick = () => {
 // Lifecycle
 onMounted(() => {
   void nextTick(() => {
-    if (audioElement.value) {
-      updateVolume(volume.value)
-      if (props.isDeafened) {
-        audioElement.value.muted = true
-      }
-    }
     // Setup video stream after mount with a small delay to ensure stream is ready
     setTimeout(() => {
       setupVideoStream()

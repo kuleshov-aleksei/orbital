@@ -29,7 +29,7 @@
             :user-id="participant.userId"
             :user-nickname="participant.userNickname"
             :avatar-url="participant.avatarUrl"
-            :audio-stream="participant.audioStream"
+            :audio-track="participant.audioTrack"
             :screen-share-stream="participant.screenShareStream"
             :initial-volume="participant.initialVolume"
             :is-deafened="participant.isDeafened"
@@ -112,7 +112,7 @@ interface ParticipantData {
   userId: string
   userNickname: string
   avatarUrl?: string
-  audioStream: MediaStream | null
+  audioTrack: RemoteAudioTrack | null
   screenShareStream: MediaStream | null
   initialVolume?: number
   isDeafened?: boolean
@@ -134,7 +134,6 @@ interface Props {
   isUserGridVisible: boolean
   layout: "grid" | "focus"
   users: User[]
-  remoteStreams: Map<string, MediaStream>
   peerConnectionStates: Map<string, string>
   peerConnectionRetries: Map<string, number>
   remoteStreamVolumes: Map<string, number>
@@ -147,6 +146,7 @@ interface Props {
   currentUserAudioLevel?: number
   currentUserId: string
   currentUserIsSharing?: boolean
+  remoteAudioTracks: Map<string, RemoteAudioTrack>
   getParticipantStats?: (userId: string) => {
     ping: number
     jitter: number
@@ -254,7 +254,7 @@ const allParticipants = computed((): ParticipantData[] => {
       userId: user.id,
       userNickname: user.nickname || "Unknown",
       avatarUrl: user.avatar_url,
-      audioStream: props.remoteStreams.get(user.id) || null,
+      audioTrack: props.remoteAudioTracks.get(user.id) || null,
       screenShareStream,
       initialVolume: props.remoteStreamVolumes.get(user.id) || 80,
       isDeafened: props.isDeafened,

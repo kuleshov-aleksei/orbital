@@ -28,7 +28,6 @@
           :is-user-grid-visible="isUserGridVisible"
           :layout="screenShareLayout"
           :users="users"
-          :remote-streams="remoteStreams"
           :peer-connection-states="peerConnectionStates"
           :peer-connection-retries="peerConnectionRetries"
           :remote-stream-volumes="props.remoteStreamVolumes"
@@ -38,6 +37,7 @@
           :current-user-audio-level="audioLevel"
           :current-user-id="currentUserId"
           :current-user-is-sharing="isScreenSharing"
+          :remote-audio-tracks="remoteAudioTracks"
           :get-participant-stats="getParticipantStats"
           class="m-4 max-h-[70vh]"
           @update:layout="screenShareLayout = $event"
@@ -48,7 +48,6 @@
         <UserGrid
           v-show="screenShareData.length === 0"
           :users="users"
-          :remote-streams="remoteStreams"
           :peer-connection-states="peerConnectionStates"
           :peer-connection-retries="peerConnectionRetries"
           :remote-stream-volumes="props.remoteStreamVolumes"
@@ -57,6 +56,7 @@
           :is-visible="true"
           :peer-connections="peerConnections"
           :current-user-audio-level="audioLevel"
+          :remote-audio-tracks="remoteAudioTracks"
           :get-participant-stats="getParticipantStats"
           @mute-toggle="handleMuteToggle" />
       </div>
@@ -131,13 +131,13 @@ const callStore = useCallStore()
 // Initialize LiveKit composable - destructure for template reactivity
 const {
   localStream,
-  remoteStreams,
   peerConnections,
   peerConnectionStates,
   peerConnectionRetries,
   isScreenSharing,
   userScreenShareStates,
   screenShareData,
+  remoteAudioTracks,
   handleMuteToggle,
   startScreenShare,
   getParticipantStats,

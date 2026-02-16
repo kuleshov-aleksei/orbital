@@ -664,6 +664,24 @@ export function useLiveKit(options: UseLiveKitOptions) {
     lkRoom.on(RoomEvent.Reconnected, () => {
       debugLog(`[LiveKit][INFO]: 'Reconnected to room'`)
     })
+
+    // Audio playback status changed - browser may require user interaction
+    lkRoom.on(RoomEvent.AudioPlaybackStatusChanged, () => {
+      debugLog(
+        `[LiveKit][INFO]: Audio playback status changed: canPlaybackAudio=${lkRoom.canPlaybackAudio}`,
+      )
+    })
+  }
+
+  // Start audio playback (must be called from user interaction)
+  const startAudio = async (): Promise<void> => {
+    if (!room.value) return
+    try {
+      await room.value.startAudio()
+      debugLog(`[LiveKit][INFO]: Audio playback started`)
+    } catch (error) {
+      console.error(`[LiveKit][ERROR]: Failed to start audio:`, error)
+    }
   }
 
   // Handle remote track subscription
@@ -1129,13 +1147,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
         ? new MediaStream([localAudioTrack.value.mediaStreamTrack])
         : null,
     ),
-    remoteStreams: computed(() => {
-      const streams = new Map<string, MediaStream>()
-      remoteAudioTracks.value.forEach((track, userId) => {
-        streams.set(userId, new MediaStream([track.mediaStreamTrack]))
-      })
-      return streams
-    }),
     peerConnections: ref(new Map()),
     peerConnectionStates: ref(new Map()),
     peerConnectionRetries: ref(new Map()),
@@ -1152,6 +1163,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     stopScreenShare,
     getParticipantStats,
     reinitializeAudioStream,
+    startAudio,
     cleanup,
   }
 }
