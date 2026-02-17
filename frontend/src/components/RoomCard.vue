@@ -60,8 +60,6 @@
           </div>
 
           <span>{{ user.nickname }}</span>
-
-          <span v-if="user.role === 'owner'" class="ml-1 opacity-60">(owner)</span>
         </div>
       </div>
     </div>
