@@ -96,7 +96,8 @@
 
             <!-- Screen Share Stats -->
             <template v-if="stats.screenShare">
-              <div class="text-xs font-medium text-indigo-300 mt-2 pt-1 border-t border-indigo-700/50">
+              <div
+                class="text-xs font-medium text-indigo-300 mt-2 pt-1 border-t border-indigo-700/50">
                 Screen Share
               </div>
 
@@ -202,7 +203,10 @@
 
     <!-- Video Mode: Only when BOTH Screen Share AND Camera are active -->
     <!-- Shows the OPPOSITE stream of what's in the main view. Click to toggle. -->
-    <template v-if="isScreenSharing && screenShareStream && isCameraEnabled && cameraStream && !forceAudioMode">
+    <template
+      v-if="
+        isScreenSharing && screenShareStream && isCameraEnabled && cameraStream && !forceAudioMode
+      ">
       <!-- Show the stream that's NOT in the main view -->
       <div class="relative w-full h-full">
         <!-- Both videos are always mounted (v-show) to keep streams running -->
@@ -227,21 +231,30 @@
           @loadedmetadata="onCameraVideoLoaded" />
 
         <!-- Toggle hint overlay (Screen) -->
-        <div v-show="showCameraAsMain" class="absolute bottom-2 right-2 bg-indigo-600/80 backdrop-blur-sm px-2 py-1 rounded text-xs text-white flex items-center gap-1 z-10 pointer-events-none">
+        <div
+          v-show="showCameraAsMain"
+          class="absolute bottom-2 right-2 bg-indigo-600/80 backdrop-blur-sm px-2 py-1 rounded text-xs text-white flex items-center gap-1 z-10 pointer-events-none">
           <PhMonitorPlay class="w-3 h-3" />
         </div>
 
         <!-- Toggle hint overlay (Camera) -->
-        <div v-show="!showCameraAsMain" class="absolute bottom-2 right-2 bg-purple-600/80 backdrop-blur-sm px-2 py-1 rounded text-xs text-white flex items-center gap-1 z-10 pointer-events-none">
+        <div
+          v-show="!showCameraAsMain"
+          class="absolute bottom-2 right-2 bg-purple-600/80 backdrop-blur-sm px-2 py-1 rounded text-xs text-white flex items-center gap-1 z-10 pointer-events-none">
           <PhCamera class="w-3 h-3" />
         </div>
 
         <!-- Floating nickname overlay -->
         <div class="absolute top-2 left-2 right-2 flex items-center justify-between z-10">
           <div class="flex items-center gap-2">
-            <UserAvatar :user-id="userId" :nickname="userNickname" :size="24" :show-status="false" />
+            <UserAvatar
+              :user-id="userId"
+              :nickname="userNickname"
+              :size="24"
+              :show-status="false" />
 
-            <span class="text-white text-sm font-medium bg-gray-900/70 px-3 py-1 rounded-lg max-w-[140px] truncate">
+            <span
+              class="text-white text-sm font-medium bg-gray-900/70 px-3 py-1 rounded-lg max-w-[140px] truncate">
               {{ userNickname.length > 12 ? userNickname.slice(0, 12) + "..." : userNickname }}
             </span>
           </div>
@@ -264,7 +277,8 @@
 
       <!-- Nickname at bottom center -->
       <div class="absolute bottom-2 left-0 right-0 flex justify-center items-center">
-        <span class="text-white font-medium text-sm bg-gray-900/70 px-3 py-1 rounded-lg max-w-[160px] truncate">
+        <span
+          class="text-white font-medium text-sm bg-gray-900/70 px-3 py-1 rounded-lg max-w-[160px] truncate">
           {{ userNickname.length > 12 ? userNickname.slice(0, 12) + "..." : userNickname }}
         </span>
       </div>
@@ -355,7 +369,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick, useTemplateRef } from "vue"
-import { PhMicrophone, PhMicrophoneSlash, PhSpeakerHigh, PhMonitorPlay, PhCamera } from "@phosphor-icons/vue"
+import {
+  PhMicrophone,
+  PhMicrophoneSlash,
+  PhSpeakerHigh,
+  PhMonitorPlay,
+  PhCamera,
+} from "@phosphor-icons/vue"
 import { useRoomStore, usePresenceStore } from "@/stores"
 import UserAvatar from "@/components/UserAvatar.vue"
 import type { ScreenShareQuality, ConnectionStats } from "@/types"
@@ -436,25 +456,29 @@ const showCameraAsMain = computed({
 
 // Suggest initial state to parent when streams become available
 const hasInitialized = ref(false)
-watch([() => props.isScreenSharing, () => props.isCameraEnabled], ([hasScreen, hasCamera], [prevHasScreen, prevHasCamera]) => {
-  if (!hasInitialized.value) {
-    // First initialization: if only camera is available, suggest showing it as main
-    if (hasCamera && !hasScreen && !props.modelValueShowCameraAsMain) {
+watch(
+  [() => props.isScreenSharing, () => props.isCameraEnabled],
+  ([hasScreen, hasCamera], [prevHasScreen, prevHasCamera]) => {
+    if (!hasInitialized.value) {
+      // First initialization: if only camera is available, suggest showing it as main
+      if (hasCamera && !hasScreen && !props.modelValueShowCameraAsMain) {
+        emit("update:modelValueShowCameraAsMain", true)
+      }
+      hasInitialized.value = true
+      return
+    }
+
+    // When camera becomes available while screen share is already active, suggest screen share as main
+    if (hasCamera && !prevHasCamera && hasScreen && props.modelValueShowCameraAsMain) {
+      emit("update:modelValueShowCameraAsMain", false)
+    }
+    // When screen share becomes available while camera is already active, suggest camera as main
+    if (hasScreen && !prevHasScreen && hasCamera && !props.modelValueShowCameraAsMain) {
       emit("update:modelValueShowCameraAsMain", true)
     }
-    hasInitialized.value = true
-    return
-  }
-  
-  // When camera becomes available while screen share is already active, suggest screen share as main
-  if (hasCamera && !prevHasCamera && hasScreen && props.modelValueShowCameraAsMain) {
-    emit("update:modelValueShowCameraAsMain", false)
-  }
-  // When screen share becomes available while camera is already active, suggest camera as main
-  if (hasScreen && !prevHasScreen && hasCamera && !props.modelValueShowCameraAsMain) {
-    emit("update:modelValueShowCameraAsMain", true)
-  }
-}, { immediate: true })
+  },
+  { immediate: true },
+)
 
 // Computed
 const isSpeaking = computed(() => {
@@ -570,7 +594,12 @@ const getMenuPosition = () => {
 
 const handleCardClick = () => {
   // If both screen share and camera are active, toggle the view
-  if (props.isScreenSharing && props.screenShareStream && props.isCameraEnabled && props.cameraStream) {
+  if (
+    props.isScreenSharing &&
+    props.screenShareStream &&
+    props.isCameraEnabled &&
+    props.cameraStream
+  ) {
     showCameraAsMain.value = !showCameraAsMain.value
   }
   emit("card-click", props.userId)

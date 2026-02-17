@@ -122,11 +122,11 @@ const userStore = useUserStore()
 
 // Users with immediate nickname updates for current user
 const usersWithCurrentNickname = computed(() => {
-  return props.users.map(user => {
+  return props.users.map((user) => {
     if (user.id === userStore.userId) {
       return {
         ...user,
-        nickname: userStore.nickname
+        nickname: userStore.nickname,
       }
     }
     return user

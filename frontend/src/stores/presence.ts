@@ -99,7 +99,7 @@ export const usePresenceStore = defineStore("presence", () => {
 
     // Check if camera is enabled by looking for camera tracks
     const hasCameraTrack = Array.from(lkParticipant.trackPublications.values()).some(
-      (pub) => pub.track && pub.source === 'camera'
+      (pub) => pub.track && pub.source === "camera",
     )
 
     const presenceState: PresenceState = {
@@ -266,7 +266,7 @@ export const usePresenceStore = defineStore("presence", () => {
 
     // Check if camera is enabled for local participant
     const hasCameraTrack = Array.from(localParticipant.value.trackPublications.values()).some(
-      (pub) => pub.track && pub.source === 'camera'
+      (pub) => pub.track && pub.source === "camera",
     )
 
     // Update local state

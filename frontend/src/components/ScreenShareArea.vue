@@ -38,7 +38,9 @@
           <ParticipantCard
             v-for="participant in allParticipants"
             :key="participant.userId"
-            v-model:model-value-show-camera-as-main="participantShowCameraAsMain[participant.userId]"
+            v-model:model-value-show-camera-as-main="
+              participantShowCameraAsMain[participant.userId]
+            "
             :user-id="participant.userId"
             :user-nickname="participant.userNickname"
             :audio-stream="participant.audioStream"
@@ -175,8 +177,8 @@ interface CameraStream {
 }
 
 type VideoStreamItem =
-  | (ScreenShare & { type: 'screen'; sortKey: string })
-  | (CameraStream & { type: 'camera'; sortKey: string })
+  | (ScreenShare & { type: "screen"; sortKey: string })
+  | (CameraStream & { type: "camera"; sortKey: string })
 
 interface Props {
   screenShares: ScreenShare[]
@@ -215,7 +217,7 @@ const userShowCameraAsMain = ref<Map<string, boolean>>(new Map())
 
 // Normalize userId by removing -self suffix for consistent lookup
 const normalizeUserId = (userId: string): string => {
-  return userId.replace(/-self$/, '')
+  return userId.replace(/-self$/, "")
 }
 
 // Get the showCameraAsMain state for a user
@@ -253,7 +255,7 @@ watch(
       // Check if focused stream still exists
       const screenExists = props.screenShares.find((s) => s.userId === focusedUserId.value)
       const cameraExists = props.cameraStreams.find((c) => c.userId === focusedUserId.value)
-      
+
       if (!screenExists && !cameraExists) {
         // Focused stream stopped - pick next available
         if (hasScreens) {
@@ -275,65 +277,65 @@ const focusedStream = computed((): VideoStreamItem | null => {
     // No focus set - return first available (screen share preferred)
     if (props.screenShares.length > 0) {
       const share = props.screenShares[0]
-      return { ...share, type: 'screen' as const, sortKey: `${share.userId}-0` }
+      return { ...share, type: "screen" as const, sortKey: `${share.userId}-0` }
     }
     if (props.cameraStreams.length > 0) {
       const camera = props.cameraStreams[0]
-      return { ...camera, type: 'camera' as const, sortKey: `${camera.userId}-1` }
+      return { ...camera, type: "camera" as const, sortKey: `${camera.userId}-1` }
     }
     return null
   }
-  
+
   // Check if focused user has both screen share and camera
   const screenShare = props.screenShares.find((s) => s.userId === focusedUserId.value)
   const camera = props.cameraStreams.find((c) => c.userId === focusedUserId.value)
-  
+
   if (screenShare && camera) {
     // User has both - check which one should be shown as main
     const showCamera = getUserShowCameraAsMain(focusedUserId.value)
     if (showCamera) {
-      return { ...camera, type: 'camera' as const, sortKey: `${camera.userId}-1` }
+      return { ...camera, type: "camera" as const, sortKey: `${camera.userId}-1` }
     } else {
-      return { ...screenShare, type: 'screen' as const, sortKey: `${screenShare.userId}-0` }
+      return { ...screenShare, type: "screen" as const, sortKey: `${screenShare.userId}-0` }
     }
   } else if (screenShare) {
-    return { ...screenShare, type: 'screen' as const, sortKey: `${screenShare.userId}-0` }
+    return { ...screenShare, type: "screen" as const, sortKey: `${screenShare.userId}-0` }
   } else if (camera) {
-    return { ...camera, type: 'camera' as const, sortKey: `${camera.userId}-1` }
+    return { ...camera, type: "camera" as const, sortKey: `${camera.userId}-1` }
   }
-  
+
   // Focused stream not found - return first available
   if (props.screenShares.length > 0) {
     const share = props.screenShares[0]
-    return { ...share, type: 'screen' as const, sortKey: `${share.userId}-0` }
+    return { ...share, type: "screen" as const, sortKey: `${share.userId}-0` }
   }
   if (props.cameraStreams.length > 0) {
     const cam = props.cameraStreams[0]
-    return { ...cam, type: 'camera' as const, sortKey: `${cam.userId}-1` }
+    return { ...cam, type: "camera" as const, sortKey: `${cam.userId}-1` }
   }
-  
+
   return null
 })
 
 // Check if a participant's stream is currently being viewed in the main area
 const isParticipantViewingMainStream = (userId: string): boolean => {
   if (!focusedStream.value) return false
-  return userId === focusedStream.value.userId || userId + '-self' === focusedStream.value.userId
+  return userId === focusedStream.value.userId || userId + "-self" === focusedStream.value.userId
 }
 
 // Combine screen shares and cameras, sorted by user ID to keep same user's streams together
 // Screen shares come before cameras for the same user
 const sortedVideoStreams = computed((): VideoStreamItem[] => {
-  const screenItems: VideoStreamItem[] = props.screenShares.map(share => ({
+  const screenItems: VideoStreamItem[] = props.screenShares.map((share) => ({
     ...share,
-    type: 'screen' as const,
-    sortKey: `${share.userId.replace('-self', '')}-0`,
+    type: "screen" as const,
+    sortKey: `${share.userId.replace("-self", "")}-0`,
   }))
 
-  const cameraItems: VideoStreamItem[] = props.cameraStreams.map(camera => ({
+  const cameraItems: VideoStreamItem[] = props.cameraStreams.map((camera) => ({
     ...camera,
-    type: 'camera' as const,
-    sortKey: `${camera.userId.replace('-self', '')}-1`,
+    type: "camera" as const,
+    sortKey: `${camera.userId.replace("-self", "")}-1`,
   }))
 
   return [...screenItems, ...cameraItems].sort((a, b) => a.sortKey.localeCompare(b.sortKey))
@@ -437,7 +439,7 @@ const allParticipants = computed((): ParticipantData[] => {
 const participantShowCameraAsMain = computed({
   get: () => {
     const obj: Record<string, boolean> = {}
-    allParticipants.value.forEach(p => {
+    allParticipants.value.forEach((p) => {
       const normalizedId = normalizeUserId(p.userId)
       obj[p.userId] = getUserShowCameraAsMain(normalizedId)
     })
@@ -448,14 +450,14 @@ const participantShowCameraAsMain = computed({
       const normalizedId = normalizeUserId(userId)
       userShowCameraAsMain.value.set(normalizedId, showCamera)
     })
-  }
+  },
 })
 
 // Handle ParticipantCard click - toggle focused user if already focused, otherwise set focus
 const handleParticipantCardClick = (userId: string) => {
   // If this participant is already focused and has both streams, toggle the view
-  if (focusedUserId.value === userId || focusedUserId.value === userId + '-self') {
-    const participant = allParticipants.value.find(p => p.userId === userId)
+  if (focusedUserId.value === userId || focusedUserId.value === userId + "-self") {
+    const participant = allParticipants.value.find((p) => p.userId === userId)
     if (participant?.isScreenSharing && participant?.isCameraEnabled) {
       toggleUserStreamView(userId)
       return

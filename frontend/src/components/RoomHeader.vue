@@ -38,7 +38,9 @@
               {{ screenShareCount }} sharing
             </span>
 
-            <span v-if="cameraCount && cameraCount > 0" class="ml-2 text-purple-400 flex items-center">
+            <span
+              v-if="cameraCount && cameraCount > 0"
+              class="ml-2 text-purple-400 flex items-center">
               <span class="mx-1.5">•</span>
 
               <PhCamera class="w-3.5 h-3.5 mr-1" />
