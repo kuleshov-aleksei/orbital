@@ -229,19 +229,11 @@
         <!-- Toggle hint overlay (Screen) -->
         <div v-show="showCameraAsMain" class="absolute bottom-2 right-2 bg-indigo-600/80 backdrop-blur-sm px-2 py-1 rounded text-xs text-white flex items-center gap-1 z-10 pointer-events-none">
           <PhMonitorPlay class="w-3 h-3" />
-
-          <span>Screen</span>
-
-          <span class="text-indigo-200 ml-1">(click to swap)</span>
         </div>
 
         <!-- Toggle hint overlay (Camera) -->
         <div v-show="!showCameraAsMain" class="absolute bottom-2 right-2 bg-purple-600/80 backdrop-blur-sm px-2 py-1 rounded text-xs text-white flex items-center gap-1 z-10 pointer-events-none">
           <PhCamera class="w-3 h-3" />
-
-          <span>Camera</span>
-
-          <span class="text-purple-200 ml-1">(click to swap)</span>
         </div>
 
         <!-- Floating nickname overlay -->
@@ -252,25 +244,6 @@
             <span class="text-white text-sm font-medium bg-gray-900/70 px-3 py-1 rounded-lg max-w-[140px] truncate">
               {{ userNickname.length > 12 ? userNickname.slice(0, 12) + "..." : userNickname }}
             </span>
-          </div>
-
-          <!-- Stream Type Indicator (showing what's in main view) -->
-          <div class="flex items-center gap-2">
-            <div
-              v-if="!showCameraAsMain"
-              class="bg-indigo-600/80 px-2 py-1 rounded text-xs text-white flex items-center gap-1">
-              <PhMonitorPlay class="w-3 h-3" />
-
-              <span>Screen</span>
-            </div>
-
-            <div
-              v-else
-              class="bg-purple-600/80 px-2 py-1 rounded text-xs text-white flex items-center gap-1">
-              <PhCamera class="w-3 h-3" />
-
-              <span>Camera</span>
-            </div>
           </div>
         </div>
 

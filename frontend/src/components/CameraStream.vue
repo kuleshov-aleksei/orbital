@@ -1,9 +1,7 @@
 <template>
   <div
     class="camera-stream relative bg-gray-900 rounded-lg overflow-hidden border border-gray-600 flex flex-col"
-    :class="{ 'border-indigo-500 ring-2 ring-indigo-500/50': isFocused }"
-    @mouseenter="handleMouseEnter"
-    @mouseleave="handleMouseLeave">
+    :class="{ 'border-indigo-500 ring-2 ring-indigo-500/50': isFocused }">
     <!-- Video Container -->
     <div class="relative flex items-center justify-center bg-black w-full h-full">
       <video
@@ -68,19 +66,6 @@
           <span class="text-gray-400 text-xs">Connecting...</span>
         </div>
       </div>
-
-      <!-- Paused State (for self-view when not hovered) -->
-      <div
-        v-if="isPausedComputed"
-        class="absolute inset-0 flex items-center justify-center bg-gray-900/90 z-10">
-        <div class="text-center">
-          <PhCameraSlash class="w-8 h-8 text-gray-400 mx-auto mb-2" />
-
-          <span class="text-gray-300 text-sm font-medium">Preview Paused</span>
-
-          <p class="text-gray-500 text-xs mt-1">Hover to view</p>
-        </div>
-      </div>
     </div>
   </div>
 </template>
@@ -112,7 +97,6 @@ const props = withDefaults(defineProps<Props>(), {
 const videoElement = useTemplateRef<HTMLVideoElement>("videoElement")
 const isFullscreen = ref(false)
 const isPiPActive = ref(false)
-const isHovered = ref(false)
 const videoWidth = ref(1280)
 const videoHeight = ref(720)
 
@@ -123,25 +107,12 @@ const selfViewStream = ref<MediaStream | null>(null)
 // Pending track to attach when element becomes available
 const pendingTrack = ref<typeof props.videoTrack>(null)
 
-// Self-view pauses when not hovered
-const isPausedComputed = computed(() => {
-  return props.isSelfView && !isHovered.value
-})
-
 // Handle video metadata loaded to get actual dimensions
 const handleVideoMetadata = () => {
   if (videoElement.value) {
     videoWidth.value = videoElement.value.videoWidth || 1280
     videoHeight.value = videoElement.value.videoHeight || 720
   }
-}
-
-const handleMouseEnter = () => {
-  isHovered.value = true
-}
-
-const handleMouseLeave = () => {
-  isHovered.value = false
 }
 
 // Function to attach track to video element
@@ -209,19 +180,6 @@ watch(
     }
   },
 )
-
-// Actually pause/resume video for self-view
-watch(isPausedComputed, (isPaused) => {
-  if (!videoElement.value || !props.isSelfView) return
-
-  if (isPaused) {
-    videoElement.value.pause()
-  } else {
-    videoElement.value.play().catch(() => {
-      // Silently ignore play errors
-    })
-  }
-})
 
 const toggleFullscreen = async () => {
   if (!videoElement.value) return
