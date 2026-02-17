@@ -1,11 +1,5 @@
 import { onMounted, onUnmounted, watch, ref } from "vue"
-import {
-  useRoomStore,
-  useCategoryStore,
-  useAppStore,
-  useUserStore,
-  useUsersStore,
-} from "@/stores"
+import { useRoomStore, useCategoryStore, useAppStore, useUserStore, useUsersStore } from "@/stores"
 import { wsService } from "@/services/websocket"
 import type { User, Room, Category } from "@/types"
 
@@ -87,12 +81,7 @@ export function useWebSocketHandlers() {
         categoryStore.updateCategory(updatedCategory.id, {
           name: updatedCategory.name,
         })
-        console.log(
-          "Renamed category from",
-          oldCategory.name,
-          "to",
-          updatedCategory.name,
-        )
+        console.log("Renamed category from", oldCategory.name, "to", updatedCategory.name)
       }
     })
 
@@ -204,10 +193,7 @@ export function useWebSocketHandlers() {
           is_online: true,
         })
       }
-      console.log(
-        "[WebSocket] After update, users count:",
-        usersStore.allUsers.length,
-      )
+      console.log("[WebSocket] After update, users count:", usersStore.allUsers.length)
     })
 
     wsService.onGlobal("user_offline", (message) => {
@@ -227,11 +213,7 @@ export function useWebSocketHandlers() {
           is_online: boolean
         }>
       }
-      console.log(
-        "[WebSocket] Received online users list:",
-        data.users.length,
-        "users",
-      )
+      console.log("[WebSocket] Received online users list:", data.users.length, "users")
 
       // Update all users with their online status from the broadcast
       data.users.forEach((user) => {

@@ -79,9 +79,7 @@ export function useCategoryManager() {
 
       if (deleteRooms) {
         // Remove all rooms that were in this category
-        const roomsToRemove = roomStore.rooms.filter(
-          (r) => r.category === deletedCategory.name,
-        )
+        const roomsToRemove = roomStore.rooms.filter((r) => r.category === deletedCategory.name)
         roomsToRemove.forEach((room) => {
           roomStore.removeRoom(room.id)
         })

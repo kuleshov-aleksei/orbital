@@ -12,11 +12,7 @@
           data-testid="room-modal-close"
           class="text-gray-400 hover:text-white transition-colors duration-200"
           @click="$emit('close')">
-          <svg
-            class="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               stroke-linecap="round"
               stroke-linejoin="round"
@@ -30,9 +26,7 @@
       <form @submit.prevent="handleSubmit">
         <!-- Room Name -->
         <div class="mb-4">
-          <label
-            for="roomName"
-            class="block text-sm font-medium text-gray-300 mb-2">
+          <label for="roomName" class="block text-sm font-medium text-gray-300 mb-2">
             Room Name
           </label>
 
@@ -52,9 +46,7 @@
 
         <!-- Room Category -->
         <div class="mb-4">
-          <label
-            for="roomCategory"
-            class="block text-sm font-medium text-gray-300 mb-2">
+          <label for="roomCategory" class="block text-sm font-medium text-gray-300 mb-2">
             Category
           </label>
 
@@ -77,9 +69,7 @@
 
         <!-- Max Users -->
         <div class="mb-6">
-          <label
-            for="maxUsers"
-            class="block text-sm font-medium text-gray-300 mb-2">
+          <label for="maxUsers" class="block text-sm font-medium text-gray-300 mb-2">
             Max Users ({{ configStore.minUsers }} - {{ configStore.maxUsers }})
           </label>
 
@@ -168,10 +158,7 @@ const categoryError = computed(() => {
 })
 
 const maxUsersError = computed(() => {
-  if (
-    maxUsers.value < configStore.minUsers ||
-    maxUsers.value > configStore.maxUsers
-  ) {
+  if (maxUsers.value < configStore.minUsers || maxUsers.value > configStore.maxUsers) {
     return `Max users must be between ${configStore.minUsers} and ${configStore.maxUsers}`
   }
   return ""

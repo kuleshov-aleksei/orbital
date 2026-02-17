@@ -10,11 +10,7 @@
           type="button"
           class="text-gray-400 hover:text-white transition-colors duration-200"
           @click="$emit('close')">
-          <svg
-            class="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               stroke-linecap="round"
               stroke-linejoin="round"
@@ -28,9 +24,7 @@
       <form @submit.prevent="handleSubmit">
         <!-- Room Name -->
         <div class="mb-6">
-          <label
-            for="roomName"
-            class="block text-sm font-medium text-gray-300 mb-2">
+          <label for="roomName" class="block text-sm font-medium text-gray-300 mb-2">
             Room Name
           </label>
 
@@ -48,19 +42,14 @@
               {{ roomNameError }}
             </p>
 
-            <p class="text-gray-500 text-xs">
-              {{ roomNameCharCount }}/100 characters
-            </p>
+            <p class="text-gray-500 text-xs">{{ roomNameCharCount }}/100 characters</p>
           </div>
         </div>
 
         <!-- Max Users -->
         <div class="mb-6">
-          <label
-            for="maxUsers"
-            class="block text-sm font-medium text-gray-300 mb-2">
-            Maximum Users ({{ configStore.minUsers }} -
-            {{ configStore.maxUsers }})
+          <label for="maxUsers" class="block text-sm font-medium text-gray-300 mb-2">
+            Maximum Users ({{ configStore.minUsers }} - {{ configStore.maxUsers }})
           </label>
 
           <input
@@ -145,10 +134,7 @@ const roomNameError = computed(() => {
 })
 
 const maxUsersError = computed(() => {
-  if (
-    maxUsers.value < configStore.minUsers ||
-    maxUsers.value > configStore.maxUsers
-  ) {
+  if (maxUsers.value < configStore.minUsers || maxUsers.value > configStore.maxUsers) {
     return `Max users must be between ${configStore.minUsers} and ${configStore.maxUsers}`
   }
   return ""

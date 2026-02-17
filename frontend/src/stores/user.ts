@@ -18,17 +18,13 @@ export const useUserStore = defineStore("user", () => {
   const currentUser = ref<UserSession | null>(null)
   const hasCompletedAuth = ref(false)
   const token = ref<string | null>(null)
-  const nicknameUpdateStatus = ref<"idle" | "pending" | "success" | "error">(
-    "idle",
-  )
+  const nicknameUpdateStatus = ref<"idle" | "pending" | "success" | "error">("idle")
   const nicknameUpdateError = ref<string | null>(null)
 
   const userId = computed(() => currentUser.value?.id ?? "")
   const nickname = computed(() => currentUser.value?.nickname ?? "User")
   const isAuthenticated = computed(() => !!currentUser.value && !!token.value)
-  const authProvider = computed(
-    () => currentUser.value?.authProvider || "guest",
-  )
+  const authProvider = computed(() => currentUser.value?.authProvider || "guest")
   const isLoggedIn = computed(() => authProvider.value !== "guest")
   const isGuest = computed(
     () => authProvider.value === "guest" || currentUser.value?.isGuest === true,
@@ -36,19 +32,12 @@ export const useUserStore = defineStore("user", () => {
   const email = computed(() => currentUser.value?.email)
   const avatarUrl = computed(() => currentUser.value?.avatarUrl)
   const role = computed(() => currentUser.value?.role || "guest")
-  const isAdmin = computed(
-    () => role.value === "admin" || role.value === "super_admin",
-  )
+  const isAdmin = computed(() => role.value === "admin" || role.value === "super_admin")
   const isSuperAdmin = computed(() => role.value === "super_admin")
 
   function setUser(user: UserSession, authToken?: string) {
     // Validate user object
-    if (
-      !user.id ||
-      !user.nickname ||
-      !user.authProvider ||
-      typeof user.isGuest !== "boolean"
-    ) {
+    if (!user.id || !user.nickname || !user.authProvider || typeof user.isGuest !== "boolean") {
       console.error("Invalid user object provided:", user)
       throw new Error("Invalid user object: missing required fields")
     }
@@ -81,9 +70,7 @@ export const useUserStore = defineStore("user", () => {
 
   async function updateNickname(newNickname: string) {
     if (!currentUser.value || !currentUser.value.id) {
-      console.error(
-        "Cannot update nickname: no current user or user ID missing",
-      )
+      console.error("Cannot update nickname: no current user or user ID missing")
       return
     }
 
@@ -111,8 +98,7 @@ export const useUserStore = defineStore("user", () => {
 
       // Revert local change on failure
       if (currentUser.value) {
-        currentUser.value.nickname =
-          localStorage.getItem("orbital_user_nickname") || "User"
+        currentUser.value.nickname = localStorage.getItem("orbital_user_nickname") || "User"
       }
       throw error
     }
@@ -137,13 +123,9 @@ export const useUserStore = defineStore("user", () => {
     const storedToken = localStorage.getItem("orbital_auth_token")
     const id = localStorage.getItem("orbital_user_id")
     const nickname = localStorage.getItem("orbital_user_nickname")
-    const authProvider = localStorage.getItem(
-      "orbital_user_auth_provider",
-    ) as AuthProvider | null
+    const authProvider = localStorage.getItem("orbital_user_auth_provider") as AuthProvider | null
     const isGuestStored = localStorage.getItem("orbital_user_is_guest")
-    const hasCompletedAuthValue = localStorage.getItem(
-      "orbital_has_completed_auth",
-    )
+    const hasCompletedAuthValue = localStorage.getItem("orbital_has_completed_auth")
 
     hasCompletedAuth.value = hasCompletedAuthValue === "true"
 
@@ -157,9 +139,7 @@ export const useUserStore = defineStore("user", () => {
         nickname,
         authProvider,
         isGuest: isGuestStored === "true",
-        role:
-          (localStorage.getItem("orbital_user_role") as UserSession["role"]) ||
-          "guest",
+        role: (localStorage.getItem("orbital_user_role") as UserSession["role"]) || "guest",
         email: localStorage.getItem("orbital_user_email") || undefined,
         avatarUrl: localStorage.getItem("orbital_user_avatar") || undefined,
       }

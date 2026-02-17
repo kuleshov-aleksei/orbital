@@ -1,6 +1,5 @@
 <template>
-  <div
-    class="app-layout h-screen bg-gray-900 text-white flex flex-col lg:flex-row overflow-hidden">
+  <div class="app-layout h-screen bg-gray-900 text-white flex flex-col lg:flex-row overflow-hidden">
     <!-- Auth View - Blocks entire app until user completes auth -->
     <AuthView v-if="!userStore.hasCompletedAuth" />
 
@@ -60,9 +59,7 @@
         @cancel="showScreenShareQualityModal = false" />
 
       <!-- Update Notification -->
-      <UpdateNotification
-        :visible="showUpdateNotification"
-        @reload="handleReload" />
+      <UpdateNotification :visible="showUpdateNotification" @reload="handleReload" />
     </template>
   </div>
 </template>
@@ -125,82 +122,43 @@ const handleReload = () => {
 }
 
 // Template refs
-const mainContentRef =
-  useTemplateRef<InstanceType<typeof MainContent>>("mainContentRef")
+const mainContentRef = useTemplateRef<InstanceType<typeof MainContent>>("mainContentRef")
 
 // Modal state
 const showScreenShareQualityModal = ref(false)
 
 // Event handlers for sidebar actions
-const handleCreateRoomInCategory = (payload: {
-  categoryId: string
-  categoryName: string
-}) => {
+const handleCreateRoomInCategory = (payload: { categoryId: string; categoryName: string }) => {
   modalManager.openCreateRoomModal(payload.categoryName)
 }
 
-const handleRenameCategory = (payload: {
-  categoryId: string
-  categoryName: string
-}) => {
+const handleRenameCategory = (payload: { categoryId: string; categoryName: string }) => {
   modalManager.openRenameCategoryModal(payload.categoryId, payload.categoryName)
 }
 
-const handleDeleteCategory = (payload: {
-  categoryId: string
-  categoryName: string
-}) => {
+const handleDeleteCategory = (payload: { categoryId: string; categoryName: string }) => {
   const roomCount = categoryManager.countRoomsInCategory(payload.categoryId)
-  modalManager.openDeleteCategoryModal(
-    payload.categoryId,
-    payload.categoryName,
-    roomCount,
-  )
+  modalManager.openDeleteCategoryModal(payload.categoryId, payload.categoryName, roomCount)
 }
 
-const handleMoveRoom = async (payload: {
-  roomId: string
-  targetCategoryId: string
-}) => {
+const handleMoveRoom = async (payload: { roomId: string; targetCategoryId: string }) => {
   await roomManager.moveRoomToCategory(payload.roomId, payload.targetCategoryId)
 }
 
-const handleEditRoom = (payload: {
-  roomId: string
-  roomName: string
-  maxUsers: number
-}) => {
-  modalManager.openEditRoomModal(
-    payload.roomId,
-    payload.roomName,
-    payload.maxUsers,
-  )
+const handleEditRoom = (payload: { roomId: string; roomName: string; maxUsers: number }) => {
+  modalManager.openEditRoomModal(payload.roomId, payload.roomName, payload.maxUsers)
 }
 
-const handleDeleteRoom = (payload: {
-  roomId: string
-  roomName: string
-  userCount: number
-}) => {
-  modalManager.openDeleteRoomModal(
-    payload.roomId,
-    payload.roomName,
-    payload.userCount,
-  )
+const handleDeleteRoom = (payload: { roomId: string; roomName: string; userCount: number }) => {
+  modalManager.openDeleteRoomModal(payload.roomId, payload.roomName, payload.userCount)
 }
 
-const handleScreenShareQualitySelected = async (
-  quality: string,
-  shareAudio: boolean,
-) => {
+const handleScreenShareQualitySelected = async (quality: string, shareAudio: boolean) => {
   showScreenShareQualityModal.value = false
   /* eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
   const voiceCallView = mainContentRef.value?.voiceCallViewRef as
     | {
-        startScreenShare?: (
-          quality: string,
-          shareAudio: boolean,
-        ) => Promise<void>
+        startScreenShare?: (quality: string, shareAudio: boolean) => Promise<void>
       }
     | undefined
   if (voiceCallView?.startScreenShare) {
@@ -216,10 +174,7 @@ onMounted(async () => {
   }
 
   // Start version checker
-  versionChecker = createVersionChecker(
-    handleUpdateAvailable,
-    () => roomStore.isInRoom,
-  )
+  versionChecker = createVersionChecker(handleUpdateAvailable, () => roomStore.isInRoom)
   versionChecker.start()
 })
 
@@ -243,7 +198,7 @@ watch(
 <style scoped>
 .app-layout {
   font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu",
-    "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell",
+    "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
 }
 </style>

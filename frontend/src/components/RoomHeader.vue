@@ -31,9 +31,7 @@
           <div class="flex items-center text-sm text-gray-400">
             <span>{{ userCount }} users</span>
 
-            <span
-              v-if="screenShareCount > 0"
-              class="ml-2 text-indigo-400 flex items-center">
+            <span v-if="screenShareCount > 0" class="ml-2 text-indigo-400 flex items-center">
               <span class="mx-1.5">•</span>
 
               <PhMonitorPlay class="w-3.5 h-3.5 mr-1" />

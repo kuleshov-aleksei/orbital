@@ -10,11 +10,7 @@
           type="button"
           class="text-gray-400 hover:text-white transition-colors duration-200"
           @click="$emit('close')">
-          <svg
-            class="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               stroke-linecap="round"
               stroke-linejoin="round"
@@ -25,12 +21,9 @@
       </div>
 
       <!-- Warning Message -->
-      <div
-        class="mb-6 p-4 bg-red-900 bg-opacity-30 border border-red-800 rounded-lg">
+      <div class="mb-6 p-4 bg-red-900 bg-opacity-30 border border-red-800 rounded-lg">
         <p class="text-red-400 text-sm">
-          <strong>Warning:</strong> You are about to delete the category "{{
-            categoryName
-          }}".
+          <strong>Warning:</strong> You are about to delete the category "{{ categoryName }}".
           {{
             roomCount > 0
               ? `This category contains ${roomCount} room${roomCount !== 1 ? "s" : ""}.`
@@ -54,11 +47,8 @@
               >
 
               <p class="text-xs text-gray-500 mt-1">
-                If checked, all {{ roomCount }} room{{
-                  roomCount !== 1 ? "s" : ""
-                }}
-                will be permanently deleted. If unchecked, rooms will be moved
-                to another category.
+                If checked, all {{ roomCount }} room{{ roomCount !== 1 ? "s" : "" }}
+                will be permanently deleted. If unchecked, rooms will be moved to another category.
               </p>
             </div>
           </label>
@@ -66,9 +56,7 @@
 
         <!-- Target Category Selection -->
         <div v-if="!deleteRooms && availableCategories.length > 0" class="mb-6">
-          <label
-            for="targetCategory"
-            class="block text-sm font-medium text-gray-300 mb-2">
+          <label for="targetCategory" class="block text-sm font-medium text-gray-300 mb-2">
             Move rooms to category
           </label>
 
@@ -76,10 +64,7 @@
             id="targetCategory"
             v-model="targetCategoryId"
             class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
-            <option
-              v-for="cat in availableCategories"
-              :key="cat.id"
-              :value="cat.id">
+            <option v-for="cat in availableCategories" :key="cat.id" :value="cat.id">
               {{ cat.name }}
             </option>
           </select>
@@ -93,8 +78,8 @@
           v-else-if="!deleteRooms && availableCategories.length === 0"
           class="mb-6 p-3 bg-yellow-900 bg-opacity-30 border border-yellow-800 rounded-lg">
           <p class="text-yellow-400 text-sm">
-            No other categories available. You must either create a new category
-            first or delete the rooms.
+            No other categories available. You must either create a new category first or delete the
+            rooms.
           </p>
         </div>
 
@@ -169,11 +154,7 @@ const handleSubmit = () => {
     return
   }
 
-  emit(
-    "confirm",
-    deleteRooms.value,
-    deleteRooms.value ? undefined : targetCategoryId.value,
-  )
+  emit("confirm", deleteRooms.value, deleteRooms.value ? undefined : targetCategoryId.value)
 }
 </script>
 

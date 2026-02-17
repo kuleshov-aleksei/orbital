@@ -27,9 +27,6 @@ export function debugWarn(message: string, ...optionalParams: unknown[]): void {
  * Always log errors regardless of debug setting.
  * This is a pass-through to console.error for consistency.
  */
-export function debugError(
-  message: string,
-  ...optionalParams: unknown[]
-): void {
+export function debugError(message: string, ...optionalParams: unknown[]): void {
   console.error(message, ...optionalParams)
 }

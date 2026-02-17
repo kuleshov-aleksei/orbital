@@ -79,10 +79,7 @@ export interface LiveKitTokenResponse {
 }
 
 // Generic API wrapper with error handling
-export async function apiRequest<T>(
-  endpoint: string,
-  options: RequestInit = {},
-): Promise<T> {
+export async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   try {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -149,10 +146,7 @@ export const apiService = {
   },
 
   // Join a room
-  async joinRoom(
-    roomId: string,
-    userData: { user_id?: string; nickname?: string },
-  ): Promise<User> {
+  async joinRoom(roomId: string, userData: { user_id?: string; nickname?: string }): Promise<User> {
     return apiRequest<User>(`/rooms/${roomId}/join`, {
       method: "POST",
       body: JSON.stringify(userData),
@@ -173,9 +167,7 @@ export const apiService = {
   },
 
   // Update room order for drag-and-drop
-  async updateRoomOrder(
-    orders: Record<string, number>,
-  ): Promise<{ status: string }> {
+  async updateRoomOrder(orders: Record<string, number>): Promise<{ status: string }> {
     return apiRequest<{ status: string }>("/rooms/order", {
       method: "PUT",
       body: JSON.stringify({ orders }),
@@ -188,9 +180,7 @@ export const apiService = {
     service: string
     version: string
   }> {
-    return apiRequest<{ status: string; service: string; version: string }>(
-      "/health",
-    )
+    return apiRequest<{ status: string; service: string; version: string }>("/health")
   },
 
   // Get general application configuration
@@ -210,20 +200,14 @@ export const apiService = {
     })
   },
 
-  async renameCategory(
-    categoryId: string,
-    data: RenameCategoryData,
-  ): Promise<Category> {
+  async renameCategory(categoryId: string, data: RenameCategoryData): Promise<Category> {
     return apiRequest<Category>(`/categories/${categoryId}`, {
       method: "PUT",
       body: JSON.stringify(data),
     })
   },
 
-  async deleteCategory(
-    categoryId: string,
-    data: DeleteCategoryData,
-  ): Promise<{ status: string }> {
+  async deleteCategory(categoryId: string, data: DeleteCategoryData): Promise<{ status: string }> {
     return apiRequest<{ status: string }>(`/categories/${categoryId}`, {
       method: "DELETE",
       body: JSON.stringify(data),
@@ -231,9 +215,7 @@ export const apiService = {
   },
 
   // Update category order for drag-and-drop
-  async updateCategoryOrder(
-    orders: Record<string, number>,
-  ): Promise<{ status: string }> {
+  async updateCategoryOrder(orders: Record<string, number>): Promise<{ status: string }> {
     return apiRequest<{ status: string }>("/categories/reorder", {
       method: "PUT",
       body: JSON.stringify({ orders }),
@@ -267,12 +249,9 @@ export const apiService = {
   },
 
   async logout(): Promise<{ status: string; message: string }> {
-    const response = await apiRequest<{ status: string; message: string }>(
-      "/auth/logout",
-      {
-        method: "POST",
-      },
-    )
+    const response = await apiRequest<{ status: string; message: string }>("/auth/logout", {
+      method: "POST",
+    })
     // Clear token
     clearAuthToken()
     return response
@@ -295,26 +274,16 @@ export const apiService = {
     return apiRequest<{ role: string }>(`/admin/users/${userId}/role`)
   },
 
-  async promoteUser(
-    userId: string,
-  ): Promise<{ status: string; message: string }> {
-    return apiRequest<{ status: string; message: string }>(
-      `/admin/users/${userId}/promote`,
-      {
-        method: "POST",
-      },
-    )
+  async promoteUser(userId: string): Promise<{ status: string; message: string }> {
+    return apiRequest<{ status: string; message: string }>(`/admin/users/${userId}/promote`, {
+      method: "POST",
+    })
   },
 
-  async demoteUser(
-    userId: string,
-  ): Promise<{ status: string; message: string }> {
-    return apiRequest<{ status: string; message: string }>(
-      `/admin/users/${userId}/demote`,
-      {
-        method: "POST",
-      },
-    )
+  async demoteUser(userId: string): Promise<{ status: string; message: string }> {
+    return apiRequest<{ status: string; message: string }>(`/admin/users/${userId}/demote`, {
+      method: "POST",
+    })
   },
 
   // Get all users (public information only)

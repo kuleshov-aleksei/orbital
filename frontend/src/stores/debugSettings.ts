@@ -35,10 +35,7 @@ export const useDebugSettingsStore = defineStore("debugSettings", () => {
     if (typeof window === "undefined") return
 
     try {
-      localStorage.setItem(
-        DEBUG_LOGS_STORAGE_KEY,
-        String(debugLogsEnabled.value),
-      )
+      localStorage.setItem(DEBUG_LOGS_STORAGE_KEY, String(debugLogsEnabled.value))
     } catch (e) {
       console.warn("Failed to save debug settings to localStorage:", e)
     }

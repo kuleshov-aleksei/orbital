@@ -1,6 +1,5 @@
 <template>
-  <div
-    class="callback-view fixed inset-0 bg-gray-900 flex items-center justify-center z-50">
+  <div class="callback-view fixed inset-0 bg-gray-900 flex items-center justify-center z-50">
     <div class="text-center">
       <div
         class="w-20 h-20 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 animate-pulse">
@@ -15,9 +14,7 @@
         {{ error }}
       </p>
 
-      <p v-else class="text-gray-400">
-        Please wait while we complete your sign in...
-      </p>
+      <p v-else class="text-gray-400">Please wait while we complete your sign in...</p>
     </div>
   </div>
 </template>
@@ -42,10 +39,7 @@ onMounted(async () => {
     const token = urlParams.get("token")
     const expires = urlParams.get("expires")
 
-    console.log(
-      "[AuthCallback] Extracted token:",
-      token ? token.substring(0, 20) + "..." : "null",
-    )
+    console.log("[AuthCallback] Extracted token:", token ? token.substring(0, 20) + "..." : "null")
     console.log("[AuthCallback] Token expires:", expires)
 
     if (!token) {
@@ -87,8 +81,7 @@ onMounted(async () => {
       void router.push("/")
     }, 500)
   } catch (err) {
-    error.value =
-      err instanceof Error ? err.message : "An unexpected error occurred"
+    error.value = err instanceof Error ? err.message : "An unexpected error occurred"
     statusMessage.value = "Authentication failed"
 
     // Clear any partial auth state

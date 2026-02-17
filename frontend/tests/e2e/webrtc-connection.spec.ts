@@ -1,10 +1,7 @@
 import { test, expect } from "@playwright/test"
 import { resetBackend, seedRoom, setUserIdentity } from "./_helpers"
 
-test("two users establish WebRTC audio connection", async ({
-  browser,
-  request,
-}) => {
+test("two users establish WebRTC audio connection", async ({ browser, request }) => {
   await resetBackend(request)
   const room = await seedRoom(request, { name: "E2E WebRTC Test Room" })
 
@@ -49,12 +46,8 @@ test("two users establish WebRTC audio connection", async ({
   await pageB.waitForTimeout(3000)
 
   // Check that connection logs contain WebRTC signaling
-  const logsA = await pageA
-    .locator(".debug-dashboard .text-xs")
-    .allTextContents()
-  const logsB = await pageB
-    .locator(".debug-dashboard .text-xs")
-    .allTextContents()
+  const logsA = await pageA.locator(".debug-dashboard .text-xs").allTextContents()
+  const logsB = await pageB.locator(".debug-dashboard .text-xs").allTextContents()
 
   console.log("Alice logs:", logsA)
   console.log("Bob logs:", logsB)

@@ -5,18 +5,14 @@
       <div class="flex items-center justify-between">
         <!-- Room Info -->
         <div class="flex items-center min-w-0 flex-1">
-          <div
-            class="w-2 h-2 rounded-full mr-2 flex-shrink-0"
-            :class="connectionStatusColor"></div>
+          <div class="w-2 h-2 rounded-full mr-2 flex-shrink-0" :class="connectionStatusColor"></div>
 
           <div class="min-w-0">
             <div class="text-sm font-medium text-white truncate">
               {{ roomName }}
             </div>
 
-            <div class="text-xs text-gray-400">
-              {{ connectionStatusText }} • {{ ping }}ms
-            </div>
+            <div class="text-xs text-gray-400">{{ connectionStatusText }} • {{ ping }}ms</div>
           </div>
         </div>
 
@@ -46,11 +42,7 @@
       <div class="flex items-center justify-between">
         <!-- User Info -->
         <div class="flex items-center flex-1 min-w-0">
-          <UserAvatar
-            :user-id="userId"
-            status="online"
-            :size="36"
-            class="mr-3 flex-shrink-0" />
+          <UserAvatar :user-id="userId" status="online" :size="36" class="mr-3 flex-shrink-0" />
 
           <div class="min-w-0">
             <div class="font-medium text-sm text-white truncate">

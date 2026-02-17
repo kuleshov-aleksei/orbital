@@ -3,10 +3,7 @@
  * Simplified: Only LiveKit native, browser native, and off options
  */
 
-export type NoiseSuppressionAlgorithm =
-  | "off"
-  | "browser-native"
-  | "livekit-native"
+export type NoiseSuppressionAlgorithm = "off" | "browser-native" | "livekit-native"
 
 export interface NoiseSuppressionConfig {
   enabled: boolean
@@ -72,8 +69,7 @@ export const availableAlgorithms: AudioAlgorithmInfo[] = [
   {
     id: "livekit-native",
     name: "LiveKit Native",
-    description:
-      "Built-in LiveKit noise suppression (SFU-optimized, low latency)",
+    description: "Built-in LiveKit noise suppression (SFU-optimized, low latency)",
     isSupported: true,
     isAvailable: true,
     sampleRate: null,

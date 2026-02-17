@@ -35,18 +35,10 @@ export const useModalStore = defineStore("modal", () => {
   const isCreateRoomModal = computed(() => activeModal.value === "createRoom")
   const isEditRoomModal = computed(() => activeModal.value === "editRoom")
   const isDeleteRoomModal = computed(() => activeModal.value === "deleteRoom")
-  const isCreateCategoryModal = computed(
-    () => activeModal.value === "createCategory",
-  )
-  const isRenameCategoryModal = computed(
-    () => activeModal.value === "renameCategory",
-  )
-  const isDeleteCategoryModal = computed(
-    () => activeModal.value === "deleteCategory",
-  )
-  const isUserSettingsModal = computed(
-    () => activeModal.value === "userSettings",
-  )
+  const isCreateCategoryModal = computed(() => activeModal.value === "createCategory")
+  const isRenameCategoryModal = computed(() => activeModal.value === "renameCategory")
+  const isDeleteCategoryModal = computed(() => activeModal.value === "deleteCategory")
+  const isUserSettingsModal = computed(() => activeModal.value === "userSettings")
 
   const modalTitle = computed(() => {
     switch (activeModal.value) {
@@ -102,19 +94,11 @@ export const useModalStore = defineStore("modal", () => {
     openModal("createRoom")
   }
 
-  function openEditRoomModal(
-    roomId: string,
-    roomName: string,
-    maxUsers: number,
-  ) {
+  function openEditRoomModal(roomId: string, roomName: string, maxUsers: number) {
     openModal("editRoom", { roomId, roomName, roomMaxUsers: maxUsers })
   }
 
-  function openDeleteRoomModal(
-    roomId: string,
-    roomName: string,
-    userCount: number,
-  ) {
+  function openDeleteRoomModal(roomId: string, roomName: string, userCount: number) {
     openModal("deleteRoom", { roomId, roomName, roomUserCount: userCount })
   }
 
@@ -130,11 +114,7 @@ export const useModalStore = defineStore("modal", () => {
     })
   }
 
-  function openDeleteCategoryModal(
-    categoryId: string,
-    categoryName: string,
-    roomCount: number,
-  ) {
+  function openDeleteCategoryModal(categoryId: string, categoryName: string, roomCount: number) {
     openModal("deleteCategory", {
       categoryId,
       categoryName,

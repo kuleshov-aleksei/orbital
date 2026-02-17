@@ -1,6 +1,5 @@
 <template>
-  <div
-    class="screen-share-area bg-gray-800 rounded-lg overflow-hidden flex flex-col">
+  <div class="screen-share-area bg-gray-800 rounded-lg overflow-hidden flex flex-col">
     <!-- Screen Share Content -->
     <div class="p-2 flex-1 min-h-0 flex flex-col">
       <!-- Focus Layout: Main screen (70%) + user panel (30%) side by side -->
@@ -144,10 +143,7 @@ interface Props {
   peerConnectionStates: Map<string, string>
   peerConnectionRetries: Map<string, number>
   remoteStreamVolumes: Map<string, number>
-  userScreenShareStates: Map<
-    string,
-    { isSharing: boolean; quality?: ScreenShareQuality }
-  >
+  userScreenShareStates: Map<string, { isSharing: boolean; quality?: ScreenShareQuality }>
   peerConnections: Map<string, RTCPeerConnection>
   isDeafened: boolean
   currentUserAudioLevel?: number
@@ -198,10 +194,7 @@ const focusedShare = computed(() => {
 })
 
 // Get track SID for cache key
-const getTrackKey = (
-  userId: string,
-  videoTrack: { sid?: string } | null,
-): string => {
+const getTrackKey = (userId: string, videoTrack: { sid?: string } | null): string => {
   return `${userId}:${videoTrack?.sid || "none"}`
 }
 
@@ -216,9 +209,7 @@ const allParticipants = computed((): ParticipantData[] => {
 
     // For current user, also check for self-view (userId + '-self')
     if (isCurrentUser && !screenShare) {
-      screenShare = props.screenShares.find(
-        (s) => s.userId === user.id + "-self",
-      )
+      screenShare = props.screenShares.find((s) => s.userId === user.id + "-self")
     }
 
     // For current user, use currentUserIsSharing prop; for others, use userScreenShareStates
@@ -238,9 +229,7 @@ const allParticipants = computed((): ParticipantData[] => {
         screenShareStream = cachedStream
       } else {
         // Create new MediaStream and cache it
-        const tracks: MediaStreamTrack[] = [
-          screenShare.videoTrack.mediaStreamTrack,
-        ]
+        const tracks: MediaStreamTrack[] = [screenShare.videoTrack.mediaStreamTrack]
         if (screenShare.audioTrack) {
           tracks.push(screenShare.audioTrack.mediaStreamTrack)
         }
@@ -252,18 +241,14 @@ const allParticipants = computed((): ParticipantData[] => {
     return {
       userId: user.id,
       userNickname: user.nickname || "Unknown",
-      audioStream: props.isUserGridVisible
-        ? null
-        : props.remoteStreams.get(user.id) || null,
+      audioStream: props.isUserGridVisible ? null : props.remoteStreams.get(user.id) || null,
       screenShareStream,
       initialVolume: props.remoteStreamVolumes.get(user.id) || 80,
       isDeafened: props.isDeafened,
       isScreenSharing,
       screenShareQuality: props.userScreenShareStates.get(user.id)?.quality,
       isCurrentUser,
-      externalAudioLevel: isCurrentUser
-        ? props.currentUserAudioLevel
-        : undefined,
+      externalAudioLevel: isCurrentUser ? props.currentUserAudioLevel : undefined,
       stats: props.getParticipantStats?.(user.id),
     }
   })

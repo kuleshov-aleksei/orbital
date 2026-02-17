@@ -14,12 +14,7 @@ export interface UseVoiceActivityOptions {
 }
 
 export function useVoiceActivity(options: UseVoiceActivityOptions) {
-  const {
-    stream,
-    isMuted,
-    speakingThreshold = 0.05,
-    updateInterval = 200,
-  } = options
+  const { stream, isMuted, speakingThreshold = 0.05, updateInterval = 200 } = options
 
   // Reactive state
   const audioLevel = ref(0)
@@ -29,9 +24,7 @@ export function useVoiceActivity(options: UseVoiceActivityOptions) {
   const intervalId = ref<number | null>(null)
 
   // Computed
-  const isSpeaking = computed(
-    () => !isMuted.value && audioLevel.value > speakingThreshold,
-  )
+  const isSpeaking = computed(() => !isMuted.value && audioLevel.value > speakingThreshold)
 
   // Analyze audio level from time domain data (better for speech detection)
   const analyzeAudioLevel = () => {
@@ -70,8 +63,7 @@ export function useVoiceActivity(options: UseVoiceActivityOptions) {
       // Create new audio context
       audioContext.value = new (
         window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext })
-          .webkitAudioContext
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
       )()
 
       // Create analyser
@@ -80,9 +72,7 @@ export function useVoiceActivity(options: UseVoiceActivityOptions) {
       analyser.value.smoothingTimeConstant = 0.8
 
       // Create source from stream
-      sourceNode.value = audioContext.value.createMediaStreamSource(
-        stream.value,
-      )
+      sourceNode.value = audioContext.value.createMediaStreamSource(stream.value)
       sourceNode.value.connect(analyser.value)
 
       // Use setInterval instead of requestAnimationFrame for 10fps updates

@@ -8,9 +8,7 @@ import { test, expect } from "@playwright/test"
  * and plays the same tracks, causing double playback and feedback/echo.
  */
 
-test("detect double audio elements causing feedback loop", async ({
-  browser,
-}) => {
+test("detect double audio elements causing feedback loop", async ({ browser }) => {
   // Create two separate browser contexts (simulating different devices)
   const ctxA = await browser.newContext({
     permissions: ["microphone"],
@@ -76,9 +74,7 @@ test("detect double audio elements causing feedback loop", async ({
 
   // Helper to join an existing room
   const joinRoom = async (page: typeof pageA, roomName: string) => {
-    const roomCard = page
-      .locator('[data-testid^="room-card-"]')
-      .filter({ hasText: roomName })
+    const roomCard = page.locator('[data-testid^="room-card-"]').filter({ hasText: roomName })
     await expect(roomCard).toBeVisible()
     await roomCard.click()
     await expect(page.getByTestId("voice-call-view")).toBeVisible()
@@ -104,17 +100,11 @@ test("detect double audio elements causing feedback loop", async ({
   // Check audio elements on Device A
   console.log("\n=== Checking audio elements ===")
   const audioStatsA = await countAudioElements(pageA)
-  console.log(
-    "\nDevice A audio elements:",
-    JSON.stringify(audioStatsA, null, 2),
-  )
+  console.log("\nDevice A audio elements:", JSON.stringify(audioStatsA, null, 2))
 
   // Check audio elements on Device B
   const audioStatsB = await countAudioElements(pageB)
-  console.log(
-    "\nDevice B audio elements:",
-    JSON.stringify(audioStatsB, null, 2),
-  )
+  console.log("\nDevice B audio elements:", JSON.stringify(audioStatsB, null, 2))
 
   // Analysis
   console.log("\n=== FEEDBACK LOOP ANALYSIS ===")
@@ -125,21 +115,14 @@ test("detect double audio elements causing feedback loop", async ({
     `Device B: ${audioStatsB.totalAudioElements} total audio elements, ${audioStatsB.playingAudioElements} playing`,
   )
 
-  const checkForDuplicates = (
-    stats: typeof audioStatsA,
-    deviceName: string,
-  ) => {
-    const audioWithStreams = stats.audioInfo.filter(
-      (a) => a.srcObject === "set",
-    )
+  const checkForDuplicates = (stats: typeof audioStatsA, deviceName: string) => {
+    const audioWithStreams = stats.audioInfo.filter((a) => a.srcObject === "set")
 
     if (audioWithStreams.length > 1) {
       console.log(
         `\n⚠️  WARNING: ${deviceName} has ${audioWithStreams.length} playing audio elements!`,
       )
-      console.log(
-        "This indicates the feedback loop bug where audio is played twice.",
-      )
+      console.log("This indicates the feedback loop bug where audio is played twice.")
 
       audioWithStreams.forEach((info, idx) => {
         console.log(
@@ -156,12 +139,8 @@ test("detect double audio elements causing feedback loop", async ({
   const hasDuplicatesB = checkForDuplicates(audioStatsB, "Device B")
 
   if (hasDuplicatesA || hasDuplicatesB) {
-    console.log(
-      "\n🐛 BUG DETECTED: Multiple audio elements playing simultaneously!",
-    )
-    console.log(
-      "This confirms the feedback loop issue where audio is amplified.",
-    )
+    console.log("\n🐛 BUG DETECTED: Multiple audio elements playing simultaneously!")
+    console.log("This confirms the feedback loop issue where audio is amplified.")
   } else {
     console.log("\n✅ OK: No duplicate playing audio elements detected.")
   }
@@ -197,9 +176,7 @@ test("analyze ParticipantCard audio element structure", async ({ browser }) => {
   await page.waitForSelector("text=Available Rooms", { timeout: 10000 })
 
   // Join existing "Testing" room
-  const roomCard = page
-    .locator('[data-testid^="room-card-"]')
-    .filter({ hasText: "Testing" })
+  const roomCard = page.locator('[data-testid^="room-card-"]').filter({ hasText: "Testing" })
   await roomCard.click()
   await expect(page.getByTestId("voice-call-view")).toBeVisible()
 

@@ -15,10 +15,7 @@ import { useUserStore } from "./user"
 function debounce<T extends (...args: unknown[]) => void>(
   fn: T,
   delay: number,
-  {
-    leading = false,
-    trailing = true,
-  }: { leading?: boolean; trailing?: boolean } = {},
+  { leading = false, trailing = true }: { leading?: boolean; trailing?: boolean } = {},
 ): (...args: Parameters<T>) => void {
   let timeoutId: ReturnType<typeof setTimeout> | null = null
   let lastArgs: Parameters<T> | null = null
@@ -75,17 +72,13 @@ export const usePresenceStore = defineStore("presence", () => {
   const isConnected = ref(false)
 
   // Getters
-  const participantList = computed(() =>
-    Array.from(participants.value.values()),
-  )
+  const participantList = computed(() => Array.from(participants.value.values()))
 
   const speakingParticipants = computed(() =>
     participantList.value.filter((p) => p.isSpeaking && !p.isMuted),
   )
 
-  const getParticipant = computed(
-    () => (userId: string) => participants.value.get(userId),
-  )
+  const getParticipant = computed(() => (userId: string) => participants.value.get(userId))
 
   // Helper to extract metadata from LiveKit participant attributes
   const extractMetadata = (participant: Participant): ParticipantMetadata => {
@@ -147,32 +140,20 @@ export const usePresenceStore = defineStore("presence", () => {
     })
 
     // Subscribe to participant events
-    lkRoom.on(
-      RoomEvent.ParticipantConnected,
-      (participant: RemoteParticipant) => {
-        console.log("[Presence] Participant connected:", participant.identity)
-        updateParticipantFromLiveKit(participant)
-      },
-    )
+    lkRoom.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
+      console.log("[Presence] Participant connected:", participant.identity)
+      updateParticipantFromLiveKit(participant)
+    })
 
-    lkRoom.on(
-      RoomEvent.ParticipantDisconnected,
-      (participant: RemoteParticipant) => {
-        console.log(
-          "[Presence] Participant disconnected:",
-          participant.identity,
-        )
-        const metadata = extractMetadata(participant)
-        participants.value.delete(metadata.user_id)
-      },
-    )
+    lkRoom.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
+      console.log("[Presence] Participant disconnected:", participant.identity)
+      const metadata = extractMetadata(participant)
+      participants.value.delete(metadata.user_id)
+    })
 
     lkRoom.on(
       RoomEvent.ParticipantAttributesChanged,
-      (
-        changedAttributes: Record<string, string | undefined>,
-        participant: Participant,
-      ) => {
+      (changedAttributes: Record<string, string | undefined>, participant: Participant) => {
         console.log("[Presence] Participant attributes changed:", {
           identity: participant?.identity,
           name: participant?.name,
@@ -199,9 +180,7 @@ export const usePresenceStore = defineStore("presence", () => {
           if (!newActiveSpeakers.has(identity)) {
             const participant =
               lkRoom.getParticipantByIdentity(identity) ||
-              (identity === lkRoom.localParticipant.identity
-                ? lkRoom.localParticipant
-                : null)
+              (identity === lkRoom.localParticipant.identity ? lkRoom.localParticipant : null)
             if (participant) {
               updateParticipantFromLiveKit(participant)
             }
@@ -229,11 +208,7 @@ export const usePresenceStore = defineStore("presence", () => {
     })
 
     lkRoom.on(RoomEvent.TrackUnmuted, (track, participant: Participant) => {
-      console.log(
-        "[Presence] Track unmuted:",
-        participant.identity,
-        track.source,
-      )
+      console.log("[Presence] Track unmuted:", participant.identity, track.source)
       updateParticipantFromLiveKit(participant)
     })
 
@@ -264,9 +239,7 @@ export const usePresenceStore = defineStore("presence", () => {
   }
 
   // Update local participant attributes
-  const updateLocalAttributes = async (
-    attributes: Partial<ParticipantMetadata>,
-  ) => {
+  const updateLocalAttributes = async (attributes: Partial<ParticipantMetadata>) => {
     if (!localParticipant.value) return
 
     const currentAttributes = localParticipant.value.attributes || {}

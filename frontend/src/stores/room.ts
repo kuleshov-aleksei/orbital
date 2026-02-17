@@ -10,17 +10,13 @@ export const useRoomStore = defineStore("room", () => {
   const remoteStreamVolumes = ref<Map<string, number>>(new Map())
 
   // Getters
-  const activeRoom = computed(
-    () => rooms.value.find((r) => r.id === activeRoomId.value) || null,
-  )
+  const activeRoom = computed(() => rooms.value.find((r) => r.id === activeRoomId.value) || null)
 
   const activeRoomName = computed(() => activeRoom.value?.name || "Voice Room")
 
   const isInRoom = computed(() => !!activeRoomId.value)
 
-  const getRoomById = computed(
-    () => (roomId: string) => rooms.value.find((r) => r.id === roomId),
-  )
+  const getRoomById = computed(() => (roomId: string) => rooms.value.find((r) => r.id === roomId))
 
   const getUserVolume = computed(
     () => (userId: string) => remoteStreamVolumes.value.get(userId) ?? 80,
@@ -84,12 +80,9 @@ export const useRoomStore = defineStore("room", () => {
           userFound = true
           const user = room.users[userIndex]
           const updatedUser = { ...user }
-          if (status.is_speaking !== undefined)
-            updatedUser.is_speaking = status.is_speaking
-          if (status.is_muted !== undefined)
-            updatedUser.is_muted = status.is_muted
-          if (status.is_deafened !== undefined)
-            updatedUser.is_deafened = status.is_deafened
+          if (status.is_speaking !== undefined) updatedUser.is_speaking = status.is_speaking
+          if (status.is_muted !== undefined) updatedUser.is_muted = status.is_muted
+          if (status.is_deafened !== undefined) updatedUser.is_deafened = status.is_deafened
           if (status.is_screen_sharing !== undefined)
             updatedUser.is_screen_sharing = status.is_screen_sharing
 

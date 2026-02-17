@@ -152,22 +152,12 @@
     </div>
 
     <!-- Click outside to close menu -->
-    <div
-      v-if="showMenu"
-      class="fixed inset-0 z-40"
-      @click="hideContextMenu"></div>
+    <div v-if="showMenu" class="fixed inset-0 z-40" @click="hideContextMenu"></div>
   </div>
 </template>
 
 <script setup lang="ts">
-import {
-  ref,
-  onMounted,
-  onUnmounted,
-  computed,
-  nextTick,
-  useTemplateRef,
-} from "vue"
+import { ref, onMounted, onUnmounted, computed, nextTick, useTemplateRef } from "vue"
 import {
   PhMicrophoneSlash,
   PhSpeakerHigh,
@@ -239,9 +229,7 @@ const isSuperAdmin = computed(() => userStore.isSuperAdmin)
 const targetUserIsSuperAdmin = computed(() => props.user.role === "super_admin")
 const targetUserIsAdmin = computed(() => props.user.role === "admin")
 const targetUserIsRegularUser = computed(() => props.user.role === "user")
-const canPromote = computed(
-  () => isSuperAdmin.value && targetUserIsRegularUser.value,
-)
+const canPromote = computed(() => isSuperAdmin.value && targetUserIsRegularUser.value)
 const canDemote = computed(() => isSuperAdmin.value && targetUserIsAdmin.value)
 
 const showContextMenu = (event: MouseEvent) => {

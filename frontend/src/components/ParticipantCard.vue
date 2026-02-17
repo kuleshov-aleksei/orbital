@@ -28,8 +28,7 @@
           ref="tooltipElement"
           class="fixed z-[9999] bg-gray-900/95 backdrop-blur-sm border border-gray-700 rounded-lg p-3 w-52 shadow-xl pointer-events-none"
           :style="tooltipStyle">
-          <div
-            class="text-xs font-medium text-gray-300 mb-2 border-b border-gray-700 pb-1">
+          <div class="text-xs font-medium text-gray-300 mb-2 border-b border-gray-700 pb-1">
             Connection Stats
           </div>
 
@@ -38,24 +37,19 @@
             <div class="flex justify-between text-xs">
               <span class="text-gray-400">Ping:</span>
 
-              <span class="text-green-400"
-                >{{ formatNumber(stats.ping) }}ms</span
-              >
+              <span class="text-green-400">{{ formatNumber(stats.ping) }}ms</span>
             </div>
 
             <!-- Audio Stats -->
             <template v-if="stats.audio">
-              <div
-                class="text-xs font-medium text-gray-400 mt-2 pt-1 border-t border-gray-700/50">
+              <div class="text-xs font-medium text-gray-400 mt-2 pt-1 border-t border-gray-700/50">
                 Audio
               </div>
 
               <div class="flex justify-between text-xs">
                 <span class="text-gray-500">Jitter:</span>
 
-                <span class="text-blue-400"
-                  >{{ formatNumber(stats.audio.jitter) }}ms</span
-                >
+                <span class="text-blue-400">{{ formatNumber(stats.audio.jitter) }}ms</span>
               </div>
 
               <div class="flex justify-between text-xs">
@@ -69,25 +63,20 @@
               <div class="flex justify-between text-xs">
                 <span class="text-gray-500">Bitrate:</span>
 
-                <span class="text-purple-400">{{
-                  formatBitrate(stats.audio.bitrate)
-                }}</span>
+                <span class="text-purple-400">{{ formatBitrate(stats.audio.bitrate) }}</span>
               </div>
             </template>
 
             <!-- Video Stats -->
             <template v-if="stats.video">
-              <div
-                class="text-xs font-medium text-gray-400 mt-2 pt-1 border-t border-gray-700/50">
+              <div class="text-xs font-medium text-gray-400 mt-2 pt-1 border-t border-gray-700/50">
                 Video
               </div>
 
               <div class="flex justify-between text-xs">
                 <span class="text-gray-500">Jitter:</span>
 
-                <span class="text-blue-400"
-                  >{{ formatNumber(stats.video.jitter) }}ms</span
-                >
+                <span class="text-blue-400">{{ formatNumber(stats.video.jitter) }}ms</span>
               </div>
 
               <div class="flex justify-between text-xs">
@@ -101,9 +90,7 @@
               <div class="flex justify-between text-xs">
                 <span class="text-gray-500">Bitrate:</span>
 
-                <span class="text-purple-400">{{
-                  formatBitrate(stats.video.bitrate)
-                }}</span>
+                <span class="text-purple-400">{{ formatBitrate(stats.video.bitrate) }}</span>
               </div>
             </template>
 
@@ -118,9 +105,7 @@
               <div class="flex justify-between text-xs">
                 <span class="text-gray-500">Resolution:</span>
 
-                <span class="text-indigo-400">{{
-                  stats.screenShare.resolution || "–"
-                }}</span>
+                <span class="text-indigo-400">{{ stats.screenShare.resolution || "–" }}</span>
               </div>
 
               <!-- Frame Rate -->
@@ -136,18 +121,14 @@
               <div class="flex justify-between text-xs">
                 <span class="text-gray-500">Codec:</span>
 
-                <span class="text-indigo-400">{{
-                  stats.screenShare.codec || "–"
-                }}</span>
+                <span class="text-indigo-400">{{ stats.screenShare.codec || "–" }}</span>
               </div>
 
               <!-- Jitter -->
               <div class="flex justify-between text-xs">
                 <span class="text-gray-500">Jitter:</span>
 
-                <span class="text-blue-400"
-                  >{{ formatNumber(stats.screenShare.jitter) }}ms</span
-                >
+                <span class="text-blue-400">{{ formatNumber(stats.screenShare.jitter) }}ms</span>
               </div>
 
               <!-- Packet Loss -->
@@ -163,9 +144,7 @@
               <div class="flex justify-between text-xs">
                 <span class="text-gray-500">Bitrate:</span>
 
-                <span class="text-purple-400">{{
-                  formatBitrate(stats.screenShare.bitrate)
-                }}</span>
+                <span class="text-purple-400">{{ formatBitrate(stats.screenShare.bitrate) }}</span>
               </div>
 
               <!-- Frames -->
@@ -178,8 +157,7 @@
 
                   <span
                     :class="
-                      stats.screenShare.framesDropped &&
-                      stats.screenShare.framesDropped > 0
+                      stats.screenShare.framesDropped && stats.screenShare.framesDropped > 0
                         ? 'text-red-400'
                         : 'text-green-400'
                     ">
@@ -197,9 +175,7 @@
                 class="flex justify-between text-xs">
                 <span class="text-gray-500">Quality:</span>
 
-                <span class="text-yellow-400">{{
-                  stats.screenShare.qualityLimitationReason
-                }}</span>
+                <span class="text-yellow-400">{{ stats.screenShare.qualityLimitationReason }}</span>
               </div>
 
               <!-- NACK/PLI/FIR Counts (only show if any are present) -->
@@ -247,22 +223,13 @@
       </div>
 
       <!-- Floating nickname overlay -->
-      <div
-        class="absolute top-2 left-2 right-2 flex items-center justify-between">
+      <div class="absolute top-2 left-2 right-2 flex items-center justify-between">
         <div class="flex items-center gap-2">
-          <UserAvatar
-            :user-id="userId"
-            :nickname="userNickname"
-            :size="24"
-            :show-status="false" />
+          <UserAvatar :user-id="userId" :nickname="userNickname" :size="24" :show-status="false" />
 
           <span
             class="text-white text-sm font-medium bg-gray-900/70 px-3 py-1 rounded-lg max-w-[140px] truncate">
-            {{
-              userNickname.length > 12
-                ? userNickname.slice(0, 12) + "..."
-                : userNickname
-            }}
+            {{ userNickname.length > 12 ? userNickname.slice(0, 12) + "..." : userNickname }}
           </span>
         </div>
       </div>
@@ -278,23 +245,14 @@
     <template v-else>
       <!-- Avatar centered in card -->
       <div class="absolute inset-0 flex items-center justify-center">
-        <UserAvatar
-          :user-id="userId"
-          :nickname="userNickname"
-          :size="48"
-          :show-status="false" />
+        <UserAvatar :user-id="userId" :nickname="userNickname" :size="48" :show-status="false" />
       </div>
 
       <!-- Nickname at bottom center -->
-      <div
-        class="absolute bottom-2 left-0 right-0 flex justify-center items-center">
+      <div class="absolute bottom-2 left-0 right-0 flex justify-center items-center">
         <span
           class="text-white font-medium text-sm bg-gray-900/70 px-3 py-1 rounded-lg max-w-[160px] truncate">
-          {{
-            userNickname.length > 12
-              ? userNickname.slice(0, 12) + "..."
-              : userNickname
-          }}
+          {{ userNickname.length > 12 ? userNickname.slice(0, 12) + "..." : userNickname }}
         </span>
       </div>
 
@@ -369,29 +327,13 @@
     </div>
 
     <!-- Click outside to close menu -->
-    <div
-      v-if="showMenu"
-      class="fixed inset-0 z-40"
-      @click="hideContextMenu"></div>
+    <div v-if="showMenu" class="fixed inset-0 z-40" @click="hideContextMenu"></div>
   </div>
 </template>
 
 <script setup lang="ts">
-import {
-  ref,
-  computed,
-  onMounted,
-  onUnmounted,
-  watch,
-  nextTick,
-  useTemplateRef,
-} from "vue"
-import {
-  PhMicrophone,
-  PhMicrophoneSlash,
-  PhSpeakerHigh,
-  PhMonitorPlay,
-} from "@phosphor-icons/vue"
+import { ref, computed, onMounted, onUnmounted, watch, nextTick, useTemplateRef } from "vue"
+import { PhMicrophone, PhMicrophoneSlash, PhSpeakerHigh, PhMonitorPlay } from "@phosphor-icons/vue"
 import { useRoomStore, usePresenceStore } from "@/stores"
 import UserAvatar from "@/components/UserAvatar.vue"
 import type { ScreenShareQuality, ConnectionStats } from "@/types"
@@ -463,17 +405,11 @@ const isSpeaking = computed(() => {
 const hasStats = computed(() => {
   const s = props.stats
   if (!s) return false
-  const hasAudio =
-    s.audio &&
-    (s.audio.jitter > 0 || s.audio.packetLoss > 0 || s.audio.bitrate > 0)
-  const hasVideo =
-    s.video &&
-    (s.video.jitter > 0 || s.video.packetLoss > 0 || s.video.bitrate > 0)
+  const hasAudio = s.audio && (s.audio.jitter > 0 || s.audio.packetLoss > 0 || s.audio.bitrate > 0)
+  const hasVideo = s.video && (s.video.jitter > 0 || s.video.packetLoss > 0 || s.video.bitrate > 0)
   const hasScreenShare =
     s.screenShare &&
-    (s.screenShare.jitter > 0 ||
-      s.screenShare.packetLoss > 0 ||
-      s.screenShare.bitrate > 0)
+    (s.screenShare.jitter > 0 || s.screenShare.packetLoss > 0 || s.screenShare.bitrate > 0)
   return s.ping > 0 || hasAudio || hasVideo || hasScreenShare
 })
 
@@ -501,14 +437,8 @@ const tooltipStyle = computed(() => {
   }
 
   // Ensure minimum padding from edges
-  left = Math.max(
-    padding,
-    Math.min(left, window.innerWidth - tooltipWidth - padding),
-  )
-  top = Math.max(
-    padding,
-    Math.min(top, window.innerHeight - tooltipHeight - padding),
-  )
+  left = Math.max(padding, Math.min(left, window.innerWidth - tooltipWidth - padding))
+  top = Math.max(padding, Math.min(top, window.innerHeight - tooltipHeight - padding))
 
   return {
     left: `${left}px`,
@@ -613,10 +543,7 @@ const setupVideoStream = () => {
       video.play().catch((error) => {
         // Only log if it's not an abort error (which is normal during rapid changes)
         if (error.name !== "AbortError") {
-          console.warn(
-            `Screen share video play failed for user ${props.userId}:`,
-            error,
-          )
+          console.warn(`Screen share video play failed for user ${props.userId}:`, error)
         }
       })
     }

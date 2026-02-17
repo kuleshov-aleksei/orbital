@@ -4,8 +4,7 @@
     data-testid="user-sidebar"
     :class="sidebarClasses">
     <!-- Mobile Close Button -->
-    <div
-      class="lg:hidden flex items-center justify-between p-4 border-b border-gray-700">
+    <div class="lg:hidden flex items-center justify-between p-4 border-b border-gray-700">
       <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">
         Users — {{ userCount }}
       </h2>
@@ -22,9 +21,7 @@
     <div
       class="hidden lg:flex items-center justify-between p-3 border-b border-gray-700"
       :class="{ 'justify-center': isCollapsed }">
-      <h2
-        v-if="!isCollapsed"
-        class="text-sm font-semibold text-gray-300 uppercase tracking-wider">
+      <h2 v-if="!isCollapsed" class="text-sm font-semibold text-gray-300 uppercase tracking-wider">
         Users — {{ userCount }}
       </h2>
 
@@ -40,10 +37,7 @@
     </div>
 
     <!-- User List (hidden when collapsed) -->
-    <div
-      v-if="!isCollapsed"
-      class="flex-1 overflow-y-auto p-2"
-      data-testid="user-list">
+    <div v-if="!isCollapsed" class="flex-1 overflow-y-auto p-2" data-testid="user-list">
       <UserCard
         v-for="user in users"
         :key="user.id"
@@ -53,9 +47,7 @@
     </div>
 
     <!-- Collapsed state - show compact user avatars -->
-    <div
-      v-else
-      class="flex-1 overflow-y-auto py-2 px-1 flex flex-col items-center gap-2">
+    <div v-else class="flex-1 overflow-y-auto py-2 px-1 flex flex-col items-center gap-2">
       <!-- Show first 15 users (to prevent overcrowding) -->
       <div
         v-for="user in displayedUsers"

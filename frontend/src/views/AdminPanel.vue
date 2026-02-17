@@ -18,8 +18,7 @@
 
       <!-- Users Section -->
       <div class="bg-gray-800 rounded-lg border border-gray-700">
-        <div
-          class="p-4 border-b border-gray-700 flex items-center justify-between">
+        <div class="p-4 border-b border-gray-700 flex items-center justify-between">
           <h2 class="text-lg font-semibold text-white">Users</h2>
 
           <span class="text-sm text-gray-400">{{ users.length }} total</span>
@@ -44,13 +43,7 @@
                 <Avatar
                   v-else
                   :name="user.nickname"
-                  :colors="[
-                    '#E8F5E9',
-                    '#C8E6C9',
-                    '#A5D6A7',
-                    '#81C784',
-                    '#66BB6A',
-                  ]"
+                  :colors="['#E8F5E9', '#C8E6C9', '#A5D6A7', '#81C784', '#66BB6A']"
                   variant="beam"
                   :size="40" />
               </div>
@@ -58,15 +51,10 @@
               <!-- User Info -->
               <div>
                 <div class="flex items-center gap-2">
-                  <span class="font-medium text-white">{{
-                    user.nickname
-                  }}</span>
+                  <span class="font-medium text-white">{{ user.nickname }}</span>
 
                   <span
-                    v-if="
-                      user.oauth_nickname &&
-                      user.oauth_nickname !== user.nickname
-                    "
+                    v-if="user.oauth_nickname && user.oauth_nickname !== user.nickname"
                     class="text-sm text-gray-500">
                     ({{ user.oauth_nickname }})
                   </span>
@@ -83,17 +71,13 @@
 
                   <span class="text-gray-600">•</span>
 
-                  <span :class="getRoleColor(user.role)">{{
-                    formatRole(user.role)
-                  }}</span>
+                  <span :class="getRoleColor(user.role)">{{ formatRole(user.role) }}</span>
                 </div>
               </div>
             </div>
 
             <!-- Actions - Only for super_admin -->
-            <div
-              v-if="isSuperAdmin && user.id !== currentUserId"
-              class="flex items-center gap-2">
+            <div v-if="isSuperAdmin && user.id !== currentUserId" class="flex items-center gap-2">
               <!-- Promote/Demote buttons - not shown for super_admin users -->
               <template v-if="user.role !== 'super_admin'">
                 <button
@@ -120,9 +104,7 @@
               </template>
 
               <!-- Super admin indicator -->
-              <span
-                v-else
-                class="text-xs px-2 py-1 bg-purple-600/20 text-purple-400 rounded">
+              <span v-else class="text-xs px-2 py-1 bg-purple-600/20 text-purple-400 rounded">
                 Super Admin
               </span>
             </div>
@@ -150,36 +132,27 @@
           <div class="flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-gray-500"></span>
 
-            <span
-              ><strong>Guest:</strong> Can join rooms but cannot create or
-              manage anything</span
-            >
+            <span><strong>Guest:</strong> Can join rooms but cannot create or manage anything</span>
           </div>
 
           <div class="flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-blue-500"></span>
 
-            <span
-              ><strong>User:</strong> Authenticated user who can join
-              rooms</span
-            >
+            <span><strong>User:</strong> Authenticated user who can join rooms</span>
           </div>
 
           <div class="flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
 
-            <span
-              ><strong>Admin:</strong> Can create, edit, and delete rooms and
-              categories</span
-            >
+            <span><strong>Admin:</strong> Can create, edit, and delete rooms and categories</span>
           </div>
 
           <div class="flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-purple-500"></span>
 
             <span
-              ><strong>Super Admin:</strong> Can promote/demote other users to
-              admin (only one can exist)</span
+              ><strong>Super Admin:</strong> Can promote/demote other users to admin (only one can
+              exist)</span
             >
           </div>
         </div>

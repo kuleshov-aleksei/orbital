@@ -1,12 +1,8 @@
 <template>
   <Teleport to="body">
-    <div
-      v-if="isOpen"
-      class="fixed inset-0 z-50 flex items-center justify-center">
+    <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center">
       <!-- Backdrop -->
-      <div
-        class="absolute inset-0 bg-black/70 backdrop-blur-sm"
-        @click="handleCancel" />
+      <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="handleCancel" />
 
       <!-- Modal Content -->
       <div
@@ -19,15 +15,12 @@
             <h2 class="text-lg font-semibold text-white">Share Your Screen</h2>
           </div>
 
-          <p class="text-xs text-gray-400 mt-0.5">
-            Select streaming quality and audio
-          </p>
+          <p class="text-xs text-gray-400 mt-0.5">Select streaming quality and audio</p>
         </div>
 
         <!-- Quality Selection -->
         <div class="px-5 py-3 space-y-2">
-          <label
-            class="text-xs font-medium text-gray-300 uppercase tracking-wide"
+          <label class="text-xs font-medium text-gray-300 uppercase tracking-wide"
             >Quality Settings</label
           >
 
@@ -96,16 +89,12 @@
             class="mt-1.5 text-xs text-gray-500 flex items-start">
             <PhInfo class="w-3.5 h-3.5 mr-1 flex-shrink-0 mt-0.5" />
 
-            <span
-              >System audio sharing is only available in Chrome and Edge
-              browsers</span
-            >
+            <span>System audio sharing is only available in Chrome and Edge browsers</span>
           </p>
         </div>
 
         <!-- Actions -->
-        <div
-          class="px-5 py-3 border-t border-gray-700 flex justify-end space-x-2">
+        <div class="px-5 py-3 border-t border-gray-700 flex justify-end space-x-2">
           <button
             type="button"
             class="px-3 py-1.5 rounded-lg bg-gray-700 text-sm text-gray-300 hover:bg-gray-600 transition-colors duration-200"

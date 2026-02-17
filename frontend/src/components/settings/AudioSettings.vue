@@ -9,9 +9,7 @@
     <div class="space-y-3">
       <div class="flex items-center justify-between">
         <div>
-          <label class="text-sm font-medium text-gray-200 block">
-            Noise Suppression
-          </label>
+          <label class="text-sm font-medium text-gray-200 block"> Noise Suppression </label>
 
           <p class="text-xs text-gray-400 mt-0.5">
             Reduce background noise like typing, fans, or traffic
@@ -25,20 +23,14 @@
           @click="toggleNoiseSuppression">
           <span
             class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-            :class="
-              noiseSuppressionEnabled ? 'translate-x-6' : 'translate-x-1'
-            " />
+            :class="noiseSuppressionEnabled ? 'translate-x-6' : 'translate-x-1'" />
         </button>
       </div>
 
       <!-- Algorithm Selection (only visible when enabled) -->
-      <div
-        v-if="noiseSuppressionEnabled"
-        class="ml-0 pl-4 border-l-2 border-gray-600 space-y-3">
+      <div v-if="noiseSuppressionEnabled" class="ml-0 pl-4 border-l-2 border-gray-600 space-y-3">
         <div>
-          <label class="text-sm font-medium text-gray-300 block mb-1.5">
-            Algorithm
-          </label>
+          <label class="text-sm font-medium text-gray-300 block mb-1.5"> Algorithm </label>
 
           <select
             v-model="selectedAlgorithm"
@@ -58,9 +50,7 @@
             </option>
           </select>
 
-          <p
-            v-if="currentAlgorithmInfo?.description"
-            class="text-xs text-gray-400 mt-1.5">
+          <p v-if="currentAlgorithmInfo?.description" class="text-xs text-gray-400 mt-1.5">
             {{ currentAlgorithmInfo.description }}
           </p>
 
@@ -80,12 +70,9 @@
     </div>
 
     <!-- Echo Cancellation -->
-    <div
-      class="flex items-center justify-between pt-2 border-t border-gray-700">
+    <div class="flex items-center justify-between pt-2 border-t border-gray-700">
       <div>
-        <label class="text-sm font-medium text-gray-200 block">
-          Echo Cancellation
-        </label>
+        <label class="text-sm font-medium text-gray-200 block"> Echo Cancellation </label>
 
         <p class="text-xs text-gray-400 mt-0.5">
           Prevent echo from your speakers being picked up by your microphone
@@ -99,23 +86,17 @@
         @click="toggleEchoCancellation">
         <span
           class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
-          :class="
-            echoCancellationEnabled ? 'translate-x-6' : 'translate-x-1'
-          " />
+          :class="echoCancellationEnabled ? 'translate-x-6' : 'translate-x-1'" />
       </button>
     </div>
 
     <!-- Auto Gain Control -->
-    <div
-      class="flex items-center justify-between pt-2 border-t border-gray-700">
+    <div class="flex items-center justify-between pt-2 border-t border-gray-700">
       <div>
-        <label class="text-sm font-medium text-gray-200 block">
-          Automatic Gain Control
-        </label>
+        <label class="text-sm font-medium text-gray-200 block"> Automatic Gain Control </label>
 
         <p class="text-xs text-gray-400 mt-0.5">
-          Automatically adjust your microphone volume to maintain consistent
-          loudness
+          Automatically adjust your microphone volume to maintain consistent loudness
         </p>
       </div>
 
@@ -155,16 +136,10 @@ const audioStore = useAudioSettingsStore()
 const selectedAlgorithm = ref<NoiseSuppressionAlgorithm>("livekit-native")
 
 // Computed
-const noiseSuppressionEnabled = computed(
-  () => audioStore.noiseSuppressionEnabled,
-)
-const echoCancellationEnabled = computed(
-  () => audioStore.echoCancellationEnabled,
-)
+const noiseSuppressionEnabled = computed(() => audioStore.noiseSuppressionEnabled)
+const echoCancellationEnabled = computed(() => audioStore.echoCancellationEnabled)
 const autoGainControlEnabled = computed(() => audioStore.autoGainControlEnabled)
-const availableAlgorithms = computed(
-  () => audioStore.availableNoiseSuppressionAlgorithms,
-)
+const availableAlgorithms = computed(() => audioStore.availableNoiseSuppressionAlgorithms)
 const currentAlgorithmInfo = computed(() => audioStore.currentAlgorithmInfo)
 
 // Get the currently selected algorithm info with support status

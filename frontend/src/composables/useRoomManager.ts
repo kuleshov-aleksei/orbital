@@ -145,11 +145,7 @@ export function useRoomManager() {
     appStore.showRoomView()
   }
 
-  const createRoom = async (
-    roomName: string,
-    category: string,
-    maxUsers: number,
-  ) => {
+  const createRoom = async (roomName: string, category: string, maxUsers: number) => {
     try {
       appStore.setLoading(true)
       appStore.clearError()
@@ -186,10 +182,7 @@ export function useRoomManager() {
     }
   }
 
-  const moveRoomToCategory = async (
-    roomId: string,
-    targetCategoryId: string,
-  ) => {
+  const moveRoomToCategory = async (roomId: string, targetCategoryId: string) => {
     try {
       appStore.setLoading(true)
       appStore.clearError()

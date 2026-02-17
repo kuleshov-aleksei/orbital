@@ -31,13 +31,7 @@ export interface PublicUser {
 }
 
 // Screen sharing quality options
-export type ScreenShareQuality =
-  | "source"
-  | "1080p60"
-  | "1080p30"
-  | "720p30"
-  | "360p30"
-  | "text"
+export type ScreenShareQuality = "source" | "1080p60" | "1080p30" | "720p30" | "360p30" | "text"
 
 // User interface - uses snake_case to match Go backend JSON
 export interface User {

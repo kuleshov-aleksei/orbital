@@ -7,8 +7,7 @@ import type { AudioProcessor } from "@/types/audio"
 export class BrowserNativeProcessor implements AudioProcessor {
   readonly id = "browser-native"
   readonly name = "Browser Native"
-  readonly description =
-    "Built-in browser noise suppression (WebRTC Audio Processing)"
+  readonly description = "Built-in browser noise suppression (WebRTC Audio Processing)"
 
   isSupported(): boolean {
     // Check if the browser supports the constraint
@@ -18,8 +17,7 @@ export class BrowserNativeProcessor implements AudioProcessor {
 
     // Try to check support using getSupportedConstraints
     try {
-      const supportedConstraints =
-        navigator.mediaDevices.getSupportedConstraints()
+      const supportedConstraints = navigator.mediaDevices.getSupportedConstraints()
       return "noiseSuppression" in supportedConstraints
     } catch {
       // Fallback: assume supported in modern browsers

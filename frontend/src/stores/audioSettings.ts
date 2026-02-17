@@ -1,10 +1,6 @@
 import { defineStore } from "pinia"
 import { ref, computed } from "vue"
-import type {
-  AudioSettings,
-  NoiseSuppressionAlgorithm,
-  AudioAlgorithmInfo,
-} from "@/types/audio"
+import type { AudioSettings, NoiseSuppressionAlgorithm, AudioAlgorithmInfo } from "@/types/audio"
 import {
   defaultAudioSettings,
   AUDIO_SETTINGS_STORAGE_KEY,
@@ -18,41 +14,31 @@ export const useAudioSettingsStore = defineStore("audioSettings", () => {
   const isLoaded = ref(false)
 
   // Getters
-  const noiseSuppressionEnabled = computed(
-    () => settings.value.noiseSuppression.enabled,
-  )
-  const noiseSuppressionAlgorithm = computed(
-    () => settings.value.noiseSuppression.algorithm,
-  )
-  const echoCancellationEnabled = computed(
-    () => settings.value.echoCancellation,
-  )
+  const noiseSuppressionEnabled = computed(() => settings.value.noiseSuppression.enabled)
+  const noiseSuppressionAlgorithm = computed(() => settings.value.noiseSuppression.algorithm)
+  const echoCancellationEnabled = computed(() => settings.value.echoCancellation)
   const autoGainControlEnabled = computed(() => settings.value.autoGainControl)
 
   /**
    * Get available noise suppression algorithms
    * All algorithms are supported by modern browsers
    */
-  const availableNoiseSuppressionAlgorithms = computed<AudioAlgorithmInfo[]>(
-    () => {
-      return availableAlgorithms.map((algo) => {
-        const support = checkAlgorithmSupportWithReason(algo.id)
-        return {
-          ...algo,
-          isSupported: support.isSupported,
-          notSupportedReason: support.reason,
-        }
-      })
-    },
-  )
+  const availableNoiseSuppressionAlgorithms = computed<AudioAlgorithmInfo[]>(() => {
+    return availableAlgorithms.map((algo) => {
+      const support = checkAlgorithmSupportWithReason(algo.id)
+      return {
+        ...algo,
+        isSupported: support.isSupported,
+        notSupportedReason: support.reason,
+      }
+    })
+  })
 
   /**
    * Get the currently selected algorithm info
    */
   const currentAlgorithmInfo = computed<AudioAlgorithmInfo | undefined>(() => {
-    return availableAlgorithms.find(
-      (a) => a.id === settings.value.noiseSuppression.algorithm,
-    )
+    return availableAlgorithms.find((a) => a.id === settings.value.noiseSuppression.algorithm)
   })
 
   /**
@@ -60,9 +46,7 @@ export const useAudioSettingsStore = defineStore("audioSettings", () => {
    */
   const audioConstraints = computed<MediaTrackConstraints | boolean>(() => {
     // Get the processor for the current algorithm
-    const processor = getAudioProcessor(
-      settings.value.noiseSuppression.algorithm,
-    )
+    const processor = getAudioProcessor(settings.value.noiseSuppression.algorithm)
 
     if (processor && processor.isSupported()) {
       return processor.getConstraints()
@@ -87,9 +71,7 @@ export const useAudioSettingsStore = defineStore("audioSettings", () => {
   /**
    * Check if a specific algorithm is supported and return the reason if not
    */
-  function checkAlgorithmSupportWithReason(
-    algorithm: NoiseSuppressionAlgorithm,
-  ): {
+  function checkAlgorithmSupportWithReason(algorithm: NoiseSuppressionAlgorithm): {
     isSupported: boolean
     reason?: string
   } {
@@ -146,10 +128,7 @@ export const useAudioSettingsStore = defineStore("audioSettings", () => {
    */
   function saveSettings() {
     try {
-      localStorage.setItem(
-        AUDIO_SETTINGS_STORAGE_KEY,
-        JSON.stringify(settings.value),
-      )
+      localStorage.setItem(AUDIO_SETTINGS_STORAGE_KEY, JSON.stringify(settings.value))
     } catch (e) {
       console.warn("Failed to save audio settings to localStorage:", e)
     }

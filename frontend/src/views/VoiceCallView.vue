@@ -1,7 +1,5 @@
 <template>
-  <div
-    class="voice-call-view flex-1 flex flex-col"
-    data-testid="voice-call-view">
+  <div class="voice-call-view flex-1 flex flex-col" data-testid="voice-call-view">
     <!-- Room Header -->
     <RoomHeader
       v-model:screen-share-layout="screenShareLayout"
@@ -120,8 +118,7 @@ const emit = defineEmits<{
 // UI State (layout and display preferences)
 const isUserGridVisible = ref(true)
 const screenShareLayout = ref<"grid" | "focus">("focus")
-const audioControlsRef =
-  useTemplateRef<InstanceType<typeof AudioControls>>("audioControlsRef")
+const audioControlsRef = useTemplateRef<InstanceType<typeof AudioControls>>("audioControlsRef")
 
 // Audio settings store
 const audioSettingsStore = useAudioSettingsStore()
@@ -155,10 +152,7 @@ const {
     // Volume changes are handled by the component
     console.log(`Volume change for ${userId}: ${volume}`)
   },
-  onPingUpdate: (
-    ping: number,
-    quality: "excellent" | "good" | "fair" | "poor",
-  ) => {
+  onPingUpdate: (ping: number, quality: "excellent" | "good" | "fair" | "poor") => {
     emit("ping-update", ping, quality)
   },
 })
@@ -293,25 +287,16 @@ watch(
 // Event handlers
 
 // Start screen share wrapper - called by parent (AppLayout)
-const startScreenShareWithQuality = async (
-  quality: string,
-  shareAudio: boolean,
-) => {
+const startScreenShareWithQuality = async (quality: string, shareAudio: boolean) => {
   try {
     // Start the actual LiveKit screen share
     await startScreenShare(quality as ScreenShareQuality, shareAudio)
     // Tell AudioControls to update state and send WebSocket message
     const audioControls = audioControlsRef.value as unknown as {
-      confirmStartScreenShare?: (
-        quality: ScreenShareQuality,
-        hasAudio: boolean,
-      ) => Promise<void>
+      confirmStartScreenShare?: (quality: ScreenShareQuality, hasAudio: boolean) => Promise<void>
     } | null
     if (audioControls?.confirmStartScreenShare) {
-      await audioControls.confirmStartScreenShare(
-        quality as ScreenShareQuality,
-        shareAudio,
-      )
+      await audioControls.confirmStartScreenShare(quality as ScreenShareQuality, shareAudio)
     }
   } catch (error) {
     console.error("Failed to start screen share:", error)

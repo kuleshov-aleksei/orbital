@@ -108,9 +108,7 @@
 
     <!-- Login Options for Guests -->
     <div v-if="userStore.isGuest" class="space-y-3">
-      <p class="text-sm text-gray-400">
-        Connect an account to unlock all features:
-      </p>
+      <p class="text-sm text-gray-400">Connect an account to unlock all features:</p>
 
       <button
         type="button"
@@ -130,9 +128,7 @@
     </div>
 
     <!-- Admin Panel Button - Only for super admins -->
-    <div
-      v-if="userStore.isSuperAdmin"
-      class="pt-2 border-t border-gray-600 mt-4">
+    <div v-if="userStore.isSuperAdmin" class="pt-2 border-t border-gray-600 mt-4">
       <router-link v-slot="{ navigate }" to="/admin" custom>
         <button
           type="button"
@@ -143,18 +139,14 @@
         </button>
       </router-link>
 
-      <p class="text-xs text-gray-500 mt-2 text-center">
-        Manage users and system settings.
-      </p>
+      <p class="text-xs text-gray-500 mt-2 text-center">Manage users and system settings.</p>
     </div>
 
     <!-- Logout Button for Logged In Users -->
     <div
       v-if="!userStore.isGuest"
       class="pt-2"
-      :class="
-        userStore.isSuperAdmin ? 'mt-4' : 'border-t border-gray-600 mt-4'
-      ">
+      :class="userStore.isSuperAdmin ? 'mt-4' : 'border-t border-gray-600 mt-4'">
       <button
         type="button"
         class="w-full flex items-center justify-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors duration-200 text-sm font-medium"
@@ -174,13 +166,7 @@
 import { ref, nextTick, useTemplateRef } from "vue"
 import { useUserStore } from "@/stores"
 import UserAvatar from "@/components/UserAvatar.vue"
-import {
-  PhUser,
-  PhSignOut,
-  PhCheckCircle,
-  PhPencil,
-  PhShield,
-} from "@phosphor-icons/vue"
+import { PhUser, PhSignOut, PhCheckCircle, PhPencil, PhShield } from "@phosphor-icons/vue"
 import DiscordIcon from "~icons/simple-icons/discord"
 import GoogleIcon from "~icons/logos/google-icon"
 
@@ -239,8 +225,7 @@ async function saveNickname() {
     isEditingNickname.value = false
     editedNickname.value = ""
   } catch {
-    errorMessage.value =
-      userStore.nicknameUpdateError || "Failed to update nickname"
+    errorMessage.value = userStore.nicknameUpdateError || "Failed to update nickname"
   } finally {
     isSaving.value = false
   }
@@ -255,11 +240,7 @@ function handleLoginWithGoogle() {
 }
 
 async function handleLogout() {
-  if (
-    confirm(
-      "This will clear your session and you'll need to login again. Continue?",
-    )
-  ) {
+  if (confirm("This will clear your session and you'll need to login again. Continue?")) {
     await userStore.logout()
     emit("logout")
   }

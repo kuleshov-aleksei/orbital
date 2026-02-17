@@ -1,10 +1,7 @@
 import { test, expect } from "@playwright/test"
 import { resetBackend, seedRoom, setUserIdentity } from "./_helpers"
 
-test("two users join same room and see each other", async ({
-  browser,
-  request,
-}) => {
+test("two users join same room and see each other", async ({ browser, request }) => {
   await resetBackend(request)
   const room = await seedRoom(request, { name: "E2E Multiuser Room" })
 

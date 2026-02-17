@@ -124,8 +124,7 @@ export const useUsersStore = defineStore("users", () => {
       const currentOnline = allUsers.value[index].is_online
       allUsers.value.splice(index, 1, {
         ...user,
-        is_online:
-          user.is_online !== undefined ? user.is_online : currentOnline,
+        is_online: user.is_online !== undefined ? user.is_online : currentOnline,
       })
     } else {
       // If user doesn't exist, add them

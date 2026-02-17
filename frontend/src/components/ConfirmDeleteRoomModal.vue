@@ -10,11 +10,7 @@
           type="button"
           class="text-gray-400 hover:text-white transition-colors duration-200"
           @click="$emit('close')">
-          <svg
-            class="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               stroke-linecap="round"
               stroke-linejoin="round"
@@ -25,12 +21,9 @@
       </div>
 
       <!-- Warning Message -->
-      <div
-        class="mb-6 p-4 bg-red-900 bg-opacity-30 border border-red-800 rounded-lg">
+      <div class="mb-6 p-4 bg-red-900 bg-opacity-30 border border-red-800 rounded-lg">
         <p class="text-red-400 text-sm">
-          <strong>Warning:</strong> You are about to delete the room "{{
-            roomName
-          }}".
+          <strong>Warning:</strong> You are about to delete the room "{{ roomName }}".
           {{
             userCount > 0
               ? `This room currently has ${userCount} user${userCount !== 1 ? "s" : ""} in it.`

@@ -1,6 +1,5 @@
 <template>
-  <div
-    class="auth-view fixed inset-0 bg-gray-900 flex items-center justify-center z-50">
+  <div class="auth-view fixed inset-0 bg-gray-900 flex items-center justify-center z-50">
     <div class="max-w-md lg:max-w-5xl w-full mx-4">
       <div class="lg:flex lg:items-center lg:justify-center lg:gap-16">
         <!-- Logo/Title -->
@@ -13,18 +12,14 @@
               class="w-16 h-16 lg:w-24 lg:h-24 object-contain" />
           </div>
 
-          <h1 class="text-3xl lg:text-4xl font-bold text-white mb-2">
-            Welcome to Orbital
-          </h1>
+          <h1 class="text-3xl lg:text-4xl font-bold text-white mb-2">Welcome to Orbital</h1>
 
           <p class="text-gray-400 text-lg">Voice chat for my dudes</p>
         </div>
 
         <!-- Auth Card -->
         <div class="bg-gray-800 rounded-xl p-8 shadow-xl lg:w-[420px]">
-          <h2 class="text-xl font-semibold text-white text-center mb-6">
-            Choose how to join
-          </h2>
+          <h2 class="text-xl font-semibold text-white text-center mb-6">Choose how to join</h2>
 
           <!-- OAuth Provider Buttons -->
           <div class="space-y-3 mb-6">
@@ -79,9 +74,7 @@
           <div class="mt-6 flex items-start text-sm text-gray-400">
             <PhLock class="w-4 h-4 mr-2 mt-0.5 flex-shrink-0 text-gray-500" />
 
-            <span
-              >Some features are restricted for guests, like screensharing</span
-            >
+            <span>Some features are restricted for guests, like screensharing</span>
           </div>
         </div>
       </div>

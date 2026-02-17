@@ -81,9 +81,7 @@
           <AudioSettings v-if="currentTab === 'audio'" />
 
           <!-- Account Settings Tab -->
-          <AccountSettings
-            v-else-if="currentTab === 'account'"
-            @logout="close" />
+          <AccountSettings v-else-if="currentTab === 'account'" @logout="close" />
 
           <!-- Debug Settings Tab -->
           <DebugSettings v-else-if="currentTab === 'debug'" />
@@ -99,13 +97,7 @@ import { useModalStore } from "@/stores/modal"
 import AudioSettings from "./AudioSettings.vue"
 import AccountSettings from "./AccountSettings.vue"
 import DebugSettings from "./DebugSettings.vue"
-import {
-  PhGearSix,
-  PhSpeakerHigh,
-  PhUser,
-  PhBug,
-  PhX,
-} from "@phosphor-icons/vue"
+import { PhGearSix, PhSpeakerHigh, PhUser, PhBug, PhX } from "@phosphor-icons/vue"
 
 const modalStore = useModalStore()
 const currentTab = ref<"audio" | "account" | "debug">("audio")

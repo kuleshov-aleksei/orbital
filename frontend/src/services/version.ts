@@ -17,10 +17,7 @@ export class VersionChecker {
   private onUpdateAvailable: (isInCall: boolean) => void
   private isInCallCallback: () => boolean
 
-  constructor(
-    onUpdateAvailable: (isInCall: boolean) => void,
-    isInCallCallback: () => boolean,
-  ) {
+  constructor(onUpdateAvailable: (isInCall: boolean) => void, isInCallCallback: () => boolean) {
     this.currentVersion = __APP_VERSION__
     this.onUpdateAvailable = onUpdateAvailable
     this.isInCallCallback = isInCallCallback
@@ -39,10 +36,7 @@ export class VersionChecker {
 
   stop(): void {
     this.stopPolling()
-    document.removeEventListener(
-      "visibilitychange",
-      this.handleVisibilityChange,
-    )
+    document.removeEventListener("visibilitychange", this.handleVisibilityChange)
   }
 
   private startPolling(): void {
@@ -75,9 +69,7 @@ export class VersionChecker {
       const serverVersion = response.version
 
       if (serverVersion !== this.currentVersion) {
-        console.log(
-          `[VersionChecker] Update detected: ${this.currentVersion} → ${serverVersion}`,
-        )
+        console.log(`[VersionChecker] Update detected: ${this.currentVersion} → ${serverVersion}`)
         const isInCall = this.isInCallCallback()
         this.onUpdateAvailable(isInCall)
       }

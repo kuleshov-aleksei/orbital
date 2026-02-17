@@ -9,19 +9,16 @@ import { createLiveKitNativeProcessor } from "../livekit-audio-processors"
  * Simplified: Only LiveKit native, browser native, and off options
  */
 
-const processorRegistry: Map<NoiseSuppressionAlgorithm, () => AudioProcessor> =
-  new Map([
-    ["browser-native", () => new BrowserNativeProcessor()],
-    ["off", () => createNoNoiseSuppressionProcessor()],
-    ["livekit-native", () => createLiveKitNativeProcessor()],
-  ])
+const processorRegistry: Map<NoiseSuppressionAlgorithm, () => AudioProcessor> = new Map([
+  ["browser-native", () => new BrowserNativeProcessor()],
+  ["off", () => createNoNoiseSuppressionProcessor()],
+  ["livekit-native", () => createLiveKitNativeProcessor()],
+])
 
 /**
  * Get an audio processor for the specified algorithm
  */
-export function getAudioProcessor(
-  algorithm: NoiseSuppressionAlgorithm,
-): AudioProcessor | null {
+export function getAudioProcessor(algorithm: NoiseSuppressionAlgorithm): AudioProcessor | null {
   const factory = processorRegistry.get(algorithm)
   return factory ? factory() : null
 }
@@ -40,9 +37,7 @@ export function registerAudioProcessor(
 /**
  * Check if an algorithm has a registered processor
  */
-export function hasAudioProcessor(
-  algorithm: NoiseSuppressionAlgorithm,
-): boolean {
+export function hasAudioProcessor(algorithm: NoiseSuppressionAlgorithm): boolean {
   return processorRegistry.has(algorithm)
 }
 

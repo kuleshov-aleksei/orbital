@@ -47,8 +47,7 @@ const roomStore = useRoomStore()
 const appStore = useAppStore()
 const callStore = useCallStore()
 
-const voiceCallViewRef =
-  useTemplateRef<InstanceType<typeof VoiceCallView>>("voiceCallViewRef")
+const voiceCallViewRef = useTemplateRef<InstanceType<typeof VoiceCallView>>("voiceCallViewRef")
 
 defineExpose({
   voiceCallViewRef,

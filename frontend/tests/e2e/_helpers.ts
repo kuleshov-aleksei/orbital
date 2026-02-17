@@ -16,9 +16,7 @@ export async function resetBackend(request: APIRequestContext) {
           `Stop any running backend on :8080 and rerun Playwright so it can start the test backend.`,
       )
     }
-    throw new Error(
-      `Failed to reset backend: ${res.status()} ${await res.text()}`,
-    )
+    throw new Error(`Failed to reset backend: ${res.status()} ${await res.text()}`)
   }
 }
 
@@ -35,9 +33,7 @@ export async function seedRoom(
   })
 
   if (!res.ok()) {
-    throw new Error(
-      `Failed to create room: ${res.status()} ${await res.text()}`,
-    )
+    throw new Error(`Failed to create room: ${res.status()} ${await res.text()}`)
   }
 
   return (await res.json()) as { id: string; name: string }

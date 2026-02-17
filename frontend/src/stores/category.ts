@@ -13,8 +13,7 @@ export const useCategoryStore = defineStore("category", () => {
   })
 
   const getCategoryById = computed(
-    () => (categoryId: string) =>
-      categories.value.find((c) => c.id === categoryId),
+    () => (categoryId: string) => categories.value.find((c) => c.id === categoryId),
   )
 
   const getCategoryByName = computed(
@@ -27,9 +26,7 @@ export const useCategoryStore = defineStore("category", () => {
   }
 
   function addCategory(category: Category) {
-    const existingIndex = categories.value.findIndex(
-      (c) => c.id === category.id,
-    )
+    const existingIndex = categories.value.findIndex((c) => c.id === category.id)
     if (existingIndex === -1) {
       categories.value.push(category)
     }

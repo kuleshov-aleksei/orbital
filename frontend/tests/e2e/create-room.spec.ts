@@ -18,9 +18,7 @@ test("create room via UI and leave", async ({ page, request }) => {
   await expect(page.getByTestId("room-modal")).not.toBeVisible()
 
   // Find and click the room card by the room name text (room ID is dynamic)
-  const roomCard = page
-    .locator('[data-testid^="room-card-"]')
-    .filter({ hasText: "E2E Room" })
+  const roomCard = page.locator('[data-testid^="room-card-"]').filter({ hasText: "E2E Room" })
   await expect(roomCard).toBeVisible()
   await roomCard.click()
 

@@ -46,8 +46,7 @@ export class WebSocketService {
             room_id: this.roomId,
             user_id: this.userId,
             nickname:
-              localStorage.getItem("orbital_user_nickname") ||
-              `User_${this.userId.substr(0, 8)}`,
+              localStorage.getItem("orbital_user_nickname") || `User_${this.userId.substr(0, 8)}`,
           })
 
           this.notifyConnectionCallbacks()
@@ -404,11 +403,7 @@ export class WebSocketService {
         })
       }
     } catch (error) {
-      console.error(
-        "Error parsing global WebSocket message:",
-        error,
-        event.data,
-      )
+      console.error("Error parsing global WebSocket message:", error, event.data)
     }
   }
 

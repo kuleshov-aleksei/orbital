@@ -9,8 +9,7 @@ import type { NoiseSuppressionAlgorithm } from "@/types/audio"
 export class LiveKitNativeProcessor {
   readonly id = "livekit-native" as const
   readonly name = "LiveKit Native"
-  readonly description =
-    "Built-in LiveKit noise suppression (SFU-optimized, low latency)"
+  readonly description = "Built-in LiveKit noise suppression (SFU-optimized, low latency)"
 
   /**
    * Check if LiveKit is available (always true if this code runs)

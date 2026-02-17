@@ -72,10 +72,7 @@ export default typescriptEslint.config(
       "vue/prefer-use-template-ref": ["error"],
 
       // Enforce new line between multi-line properties
-      "vue/new-line-between-multi-line-property": [
-        "error",
-        { minLineOfMultilineProperty: 2 },
-      ],
+      "vue/new-line-between-multi-line-property": ["error", { minLineOfMultilineProperty: 2 }],
 
       // Enforce defineOptions for component naming
       "vue/prefer-define-options": ["error"],
@@ -100,10 +97,7 @@ export default typescriptEslint.config(
       "vue/define-emits-declaration": ["error", "type-based"],
 
       // Enforce order of define macros
-      "vue/define-macros-order": [
-        "error",
-        { order: ["defineProps", "defineEmits"] },
-      ],
+      "vue/define-macros-order": ["error", { order: ["defineProps", "defineEmits"] }],
 
       // Enforce typed props
       "vue/define-props-declaration": ["error", "type-based"],

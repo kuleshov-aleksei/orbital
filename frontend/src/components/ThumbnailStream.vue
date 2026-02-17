@@ -1,12 +1,6 @@
 <template>
-  <div
-    class="thumbnail-stream relative aspect-video rounded-lg overflow-hidden">
-    <video
-      ref="videoElement"
-      class="w-full h-full object-cover"
-      autoplay
-      playsinline
-      muted />
+  <div class="thumbnail-stream relative aspect-video rounded-lg overflow-hidden">
+    <video ref="videoElement" class="w-full h-full object-cover" autoplay playsinline muted />
 
     <div
       class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1">
@@ -32,10 +26,7 @@ onMounted(() => {
   if (props.stream && videoElement.value) {
     videoElement.value.srcObject = props.stream
     videoElement.value.play().catch((error) => {
-      console.warn(
-        `Thumbnail video play failed for user ${props.userId}:`,
-        error,
-      )
+      console.warn(`Thumbnail video play failed for user ${props.userId}:`, error)
     })
   }
 })

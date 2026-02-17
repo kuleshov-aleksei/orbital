@@ -16,9 +16,7 @@
       v-if="isMuted"
       :class="[iconClasses, isSpeaking && !isMuted ? 'animate-pulse' : '']" />
 
-    <PhMicrophone
-      v-else
-      :class="[iconClasses, isSpeaking ? 'animate-pulse' : '']" />
+    <PhMicrophone v-else :class="[iconClasses, isSpeaking ? 'animate-pulse' : '']" />
 
     <!-- Pulsating ring when speaking -->
     <span

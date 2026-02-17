@@ -11,8 +11,7 @@
     v-if="appStore.isLoading"
     class="fixed inset-0 bg-black bg-opacity-50 z-40 flex items-center justify-center">
     <div class="bg-gray-800 rounded-lg p-6 flex items-center space-x-3">
-      <div
-        class="animate-spin rounded-full h-6 w-6 border-b-2 border-t-2 border-white"></div>
+      <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-t-2 border-white"></div>
 
       <span class="text-white">Loading...</span>
     </div>

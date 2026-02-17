@@ -63,11 +63,7 @@ const categoryStore = useCategoryStore()
 const roomManager = useRoomManager()
 const categoryManager = useCategoryManager()
 
-const handleCreateRoom = async (
-  roomName: string,
-  category: string,
-  maxUsers: number,
-) => {
+const handleCreateRoom = async (roomName: string, category: string, maxUsers: number) => {
   await roomManager.createRoom(roomName, category, maxUsers)
   modalStore.closeModal()
 }
@@ -100,17 +96,10 @@ const handleCategorySubmit = async (name: string) => {
   modalStore.closeModal()
 }
 
-const handleDeleteCategory = async (
-  deleteRooms: boolean,
-  targetCategoryId?: string,
-) => {
+const handleDeleteCategory = async (deleteRooms: boolean, targetCategoryId?: string) => {
   const categoryId = modalStore.modalData.categoryId
   if (categoryId) {
-    await categoryManager.deleteCategory(
-      categoryId,
-      deleteRooms,
-      targetCategoryId,
-    )
+    await categoryManager.deleteCategory(categoryId, deleteRooms, targetCategoryId)
     modalStore.closeModal()
   }
 }

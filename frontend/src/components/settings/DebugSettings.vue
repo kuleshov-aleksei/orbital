@@ -10,16 +10,13 @@
     </p>
 
     <!-- Debug Logs Toggle -->
-    <div
-      class="flex items-center justify-between pt-2 border-t border-gray-700">
+    <div class="flex items-center justify-between pt-2 border-t border-gray-700">
       <div>
-        <label class="text-sm font-medium text-gray-200 block">
-          Enable Debug Logs
-        </label>
+        <label class="text-sm font-medium text-gray-200 block"> Enable Debug Logs </label>
 
         <p class="text-xs text-gray-400 mt-0.5">
-          Show verbose LiveKit and WebSocket logs in the browser console. Useful
-          for troubleshooting connection issues.
+          Show verbose LiveKit and WebSocket logs in the browser console. Useful for troubleshooting
+          connection issues.
         </p>
       </div>
 
@@ -38,8 +35,8 @@
     <div class="pt-2 border-t border-gray-700">
       <p class="text-xs text-gray-500">
         <span class="font-medium">Note:</span>
-        Error messages will always be shown in the console regardless of this
-        setting, as they are important for debugging issues.
+        Error messages will always be shown in the console regardless of this setting, as they are
+        important for debugging issues.
       </p>
     </div>
 

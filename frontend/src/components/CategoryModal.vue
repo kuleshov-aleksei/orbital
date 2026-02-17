@@ -10,11 +10,7 @@
           type="button"
           class="text-gray-400 hover:text-white transition-colors duration-200"
           @click="$emit('close')">
-          <svg
-            class="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               stroke-linecap="round"
               stroke-linejoin="round"
@@ -28,9 +24,7 @@
       <form @submit.prevent="handleSubmit">
         <!-- Category Name -->
         <div class="mb-6">
-          <label
-            for="categoryName"
-            class="block text-sm font-medium text-gray-300 mb-2">
+          <label for="categoryName" class="block text-sm font-medium text-gray-300 mb-2">
             Category Name
           </label>
 

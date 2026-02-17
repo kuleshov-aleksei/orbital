@@ -11,19 +11,13 @@
           :screen-share-stream="null"
           :initial-volume="remoteStreamVolumes.get(user.id) || 80"
           :is-deafened="isDeafened"
-          :is-screen-sharing="
-            userScreenShareStates.get(user.id)?.isSharing || false
-          "
+          :is-screen-sharing="userScreenShareStates.get(user.id)?.isSharing || false"
           :screen-share-quality="userScreenShareStates.get(user.id)?.quality"
           :is-current-user="user.id === currentUserId"
-          :external-audio-level="
-            user.id === currentUserId ? currentUserAudioLevel : undefined
-          "
+          :external-audio-level="user.id === currentUserId ? currentUserAudioLevel : undefined"
           :stats="getParticipantStats?.(user.id)"
           :force-audio-mode="true"
-          @mute-toggle="
-            (userId, isMuted) => $emit('mute-toggle', userId, isMuted)
-          " />
+          @mute-toggle="(userId, isMuted) => $emit('mute-toggle', userId, isMuted)" />
       </div>
     </div>
 

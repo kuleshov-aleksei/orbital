@@ -9,9 +9,7 @@
       </div>
 
       <!-- Room Grid -->
-      <div
-        v-if="rooms?.length > 0"
-        class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div v-if="rooms?.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div
           v-for="room in rooms"
           :key="room.id"
@@ -19,8 +17,7 @@
           class="room-browser-card bg-gray-800 rounded-lg p-4 hover:bg-gray-700 transition-all duration-200 cursor-pointer border border-gray-700 hover:border-indigo-500"
           @click="$emit('room-selected', room.id)">
           <div class="flex items-center justify-between mb-3">
-            <div
-              class="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center">
+            <div class="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center">
               <PhFolderSimpleUser class="w-5 h-5 text-white" />
             </div>
 
@@ -41,9 +38,7 @@
               {{ room.user_count }}/{{ room.max_users }}
             </div>
 
-            <button
-              type="button"
-              class="text-indigo-400 hover:text-indigo-300 font-medium text-sm">
+            <button type="button" class="text-indigo-400 hover:text-indigo-300 font-medium text-sm">
               Join →
             </button>
           </div>
@@ -57,13 +52,9 @@
           <PhMagnifyingGlass class="w-8 h-8 text-gray-600" />
         </div>
 
-        <h3 class="text-xl font-semibold text-white mb-2">
-          No rooms available
-        </h3>
+        <h3 class="text-xl font-semibold text-white mb-2">No rooms available</h3>
 
-        <p class="text-gray-400 mb-6">
-          Be the first to create a room and start chatting!
-        </p>
+        <p class="text-gray-400 mb-6">Be the first to create a room and start chatting!</p>
 
         <button
           v-if="isAdmin"
@@ -74,9 +65,7 @@
           Create First Room
         </button>
 
-        <p v-else class="text-gray-500 text-sm">
-          Ask an admin to create a room
-        </p>
+        <p v-else class="text-gray-500 text-sm">Ask an admin to create a room</p>
       </div>
     </div>
   </div>
@@ -85,11 +74,7 @@
 <script setup lang="ts">
 import { storeToRefs } from "pinia"
 import { useRoomStore, useUserStore } from "@/stores"
-import {
-  PhPlus,
-  PhFolderSimpleUser,
-  PhMagnifyingGlass,
-} from "@phosphor-icons/vue"
+import { PhPlus, PhFolderSimpleUser, PhMagnifyingGlass } from "@phosphor-icons/vue"
 
 defineEmits<{
   "room-selected": [roomId: string]
