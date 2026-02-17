@@ -39,7 +39,7 @@
     <!-- User List (hidden when collapsed) -->
     <div v-if="!isCollapsed" class="flex-1 overflow-y-auto p-2" data-testid="user-list">
       <UserCard
-        v-for="user in users"
+        v-for="user in usersWithCurrentNickname"
         :key="user.id"
         :user="user"
         :initial-volume="getInitialVolume(user.id)"
@@ -83,10 +83,12 @@ import { computed } from "vue"
 import UserCard from "@/components/UserCard.vue"
 import UserAvatar from "@/components/UserAvatar.vue"
 import { PhCaretDoubleRight } from "@phosphor-icons/vue"
+import { useUserStore } from "@/stores"
 
 interface User {
   id: string
   nickname: string
+  avatar_url?: string
   is_speaking?: boolean
   is_muted?: boolean
   is_deafened?: boolean
@@ -114,6 +116,22 @@ const emit = defineEmits<{
   "volume-change": [userId: string, volume: number]
   "update:collapsed": [value: boolean]
 }>()
+
+// Store for immediate nickname updates
+const userStore = useUserStore()
+
+// Users with immediate nickname updates for current user
+const usersWithCurrentNickname = computed(() => {
+  return props.users.map(user => {
+    if (user.id === userStore.userId) {
+      return {
+        ...user,
+        nickname: userStore.nickname
+      }
+    }
+    return user
+  })
+})
 
 // Visibility logic:
 // - Desktop (isOpen not provided): always visible when there are users
@@ -170,7 +188,7 @@ const MAX_COLLAPSED_AVATARS = 15
 
 // Users to display in collapsed sidebar (limited to prevent overcrowding)
 const displayedUsers = computed(() => {
-  return props.users.slice(0, MAX_COLLAPSED_AVATARS)
+  return usersWithCurrentNickname.value.slice(0, MAX_COLLAPSED_AVATARS)
 })
 
 // Count of remaining users not shown
