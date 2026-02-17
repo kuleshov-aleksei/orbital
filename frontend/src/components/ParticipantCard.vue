@@ -405,6 +405,8 @@ interface Props {
   forceAudioMode?: boolean // If true, always show audio mode even when screen sharing
   isViewing?: boolean // If true, show "Viewing" overlay instead of video (stream is shown in main area)
   isCompact?: boolean // If true, show compact layout for sidebar
+  // Sync state with parent for stream toggle
+  modelValueShowCameraAsMain?: boolean // true = camera in main view, false = screen share in main view
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -422,7 +424,6 @@ const props = withDefaults(defineProps<Props>(), {
   forceAudioMode: false,
   isViewing: false,
   isCompact: false,
-  // Sync state with parent for stream toggle
   modelValueShowCameraAsMain: false,
 })
 
@@ -456,14 +457,8 @@ const tooltipOffset = { x: 16, y: 16 }
 // showCameraAsMain = true means camera is main, screen share is in ParticipantCard
 // showCameraAsMain = false means screen share is main, camera is in ParticipantCard
 const showCameraAsMain = computed({
-  get: () => {
-    console.log(`[ParticipantCard] Getting showCameraAsMain for ${props.userId}: ${props.modelValueShowCameraAsMain}`)
-    return props.modelValueShowCameraAsMain
-  },
-  set: (value) => {
-    console.log(`[ParticipantCard] Setting showCameraAsMain for ${props.userId} to ${value}`)
-    emit("update:modelValueShowCameraAsMain", value)
-  },
+  get: () => props.modelValueShowCameraAsMain,
+  set: (value) => emit("update:modelValueShowCameraAsMain", value),
 })
 
 // Suggest initial state to parent when streams become available
@@ -601,13 +596,10 @@ const getMenuPosition = () => {
 }
 
 const handleCardClick = () => {
-  console.log(`[ParticipantCard] Card clicked for ${props.userId}`)
   // If both screen share and camera are active, toggle the view
   if (props.isScreenSharing && props.screenShareStream && props.isCameraEnabled && props.cameraStream) {
-    console.log(`[ParticipantCard] Both streams active, toggling from ${showCameraAsMain.value} to ${!showCameraAsMain.value}`)
     showCameraAsMain.value = !showCameraAsMain.value
   }
-  console.log(`[ParticipantCard] Emitting card-click for ${props.userId}`)
   emit("card-click", props.userId)
 }
 

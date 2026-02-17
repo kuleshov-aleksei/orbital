@@ -229,7 +229,6 @@ const toggleUserStreamView = (userId: string) => {
   const normalizedId = normalizeUserId(userId)
   const currentValue = getUserShowCameraAsMain(normalizedId)
   const newValue = !currentValue
-  console.log(`[ScreenShareArea] toggleUserStreamView: ${normalizedId} from ${currentValue} to ${newValue}`)
   userShowCameraAsMain.value.set(normalizedId, newValue)
 }
 
@@ -445,7 +444,6 @@ const participantShowCameraAsMain = computed({
     return obj
   },
   set: (value: Record<string, boolean>) => {
-    console.log('[ScreenShareArea] participantShowCameraAsMain setter called:', value)
     Object.entries(value).forEach(([userId, showCamera]) => {
       const normalizedId = normalizeUserId(userId)
       userShowCameraAsMain.value.set(normalizedId, showCamera)
@@ -455,19 +453,15 @@ const participantShowCameraAsMain = computed({
 
 // Handle ParticipantCard click - toggle focused user if already focused, otherwise set focus
 const handleParticipantCardClick = (userId: string) => {
-  console.log(`[ScreenShareArea] handleParticipantCardClick called for ${userId}, focusedUserId: ${focusedUserId.value}`)
   // If this participant is already focused and has both streams, toggle the view
   if (focusedUserId.value === userId || focusedUserId.value === userId + '-self') {
     const participant = allParticipants.value.find(p => p.userId === userId)
-    console.log(`[ScreenShareArea] Participant ${userId} is focused, hasScreen: ${participant?.isScreenSharing}, hasCamera: ${participant?.isCameraEnabled}`)
     if (participant?.isScreenSharing && participant?.isCameraEnabled) {
-      console.log(`[ScreenShareArea] Toggling stream view for ${userId}`)
       toggleUserStreamView(userId)
       return
     }
   }
   // Otherwise just set focus to this user
-  console.log(`[ScreenShareArea] Setting focus to ${userId}`)
   setFocusedShare(userId)
 }
 
