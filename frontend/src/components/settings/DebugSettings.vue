@@ -42,18 +42,35 @@
         setting, as they are important for debugging issues.
       </p>
     </div>
+
+    <!-- Application Version -->
+    <div class="pt-4 border-t border-gray-700">
+      <div class="flex items-center gap-2">
+        <PhInfo class="w-4 h-4 text-gray-400" />
+        <span class="text-sm font-medium text-gray-300">Version</span>
+      </div>
+      <p class="text-sm text-gray-400 mt-1 font-mono">
+        {{ appVersion }}
+      </p>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from "vue"
 import { useDebugSettingsStore } from "@/stores/debugSettings"
-import { PhBug } from "@phosphor-icons/vue"
+import { PhBug, PhInfo } from "@phosphor-icons/vue"
+
+// Global constant defined in vite.config.ts
+declare const __APP_VERSION__: string
 
 const debugStore = useDebugSettingsStore()
 
 // Computed
 const debugLogsEnabled = computed(() => debugStore.isDebugLogsEnabled)
+
+// App version from build
+const appVersion = __APP_VERSION__
 
 // Methods
 function toggleDebugLogs() {
