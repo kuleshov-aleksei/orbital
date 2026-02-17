@@ -7,7 +7,6 @@
         <ParticipantCard
           :user-id="user.id"
           :user-nickname="user.nickname || 'Unknown'"
-          :avatar-url="user.avatar_url"
           :audio-stream="isVisible ? remoteStreams.get(user.id) || null : null"
           :screen-share-stream="null"
           :initial-volume="remoteStreamVolumes.get(user.id) || 80"

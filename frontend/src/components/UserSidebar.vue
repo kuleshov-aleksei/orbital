@@ -63,7 +63,9 @@
         class="relative group cursor-pointer"
         :title="user.nickname">
         <UserAvatar
+          :user-id="user.id"
           :nickname="user.nickname"
+          :avatar-url="user.avatar_url"
           :size="28"
           :show-status="false"
           :grayscale="!user.is_online" />

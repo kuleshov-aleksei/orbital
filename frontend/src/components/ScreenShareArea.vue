@@ -28,7 +28,6 @@
             :key="participant.userId"
             :user-id="participant.userId"
             :user-nickname="participant.userNickname"
-            :avatar-url="participant.avatarUrl"
             :audio-stream="participant.audioStream"
             :screen-share-stream="participant.screenShareStream"
             :initial-volume="participant.initialVolume"
@@ -119,7 +118,6 @@ interface ScreenShare {
 interface ParticipantData {
   userId: string
   userNickname: string
-  avatarUrl?: string
   audioStream: MediaStream | null
   screenShareStream: MediaStream | null
   initialVolume?: number
@@ -254,7 +252,6 @@ const allParticipants = computed((): ParticipantData[] => {
     return {
       userId: user.id,
       userNickname: user.nickname || "Unknown",
-      avatarUrl: user.avatar_url,
       audioStream: props.isUserGridVisible
         ? null
         : props.remoteStreams.get(user.id) || null,

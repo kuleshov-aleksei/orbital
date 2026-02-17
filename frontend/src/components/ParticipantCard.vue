@@ -251,8 +251,8 @@
         class="absolute top-2 left-2 right-2 flex items-center justify-between">
         <div class="flex items-center gap-2">
           <UserAvatar
+            :user-id="userId"
             :nickname="userNickname"
-            :avatar-url="avatarUrl"
             :size="24"
             :show-status="false" />
 
@@ -279,8 +279,8 @@
       <!-- Avatar centered in card -->
       <div class="absolute inset-0 flex items-center justify-center">
         <UserAvatar
+          :user-id="userId"
           :nickname="userNickname"
-          :avatar-url="avatarUrl"
           :size="48"
           :show-status="false" />
       </div>
@@ -399,7 +399,6 @@ import type { ScreenShareQuality, ConnectionStats } from "@/types"
 interface Props {
   userId: string
   userNickname: string
-  avatarUrl?: string
   audioStream: MediaStream | null
   screenShareStream: MediaStream | null
   initialVolume?: number

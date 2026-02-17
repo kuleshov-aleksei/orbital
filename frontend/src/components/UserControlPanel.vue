@@ -47,15 +47,14 @@
         <!-- User Info -->
         <div class="flex items-center flex-1 min-w-0">
           <UserAvatar
-            :nickname="nickname"
-            :avatar-url="avatarUrl"
+            :user-id="userId"
             status="online"
             :size="36"
             class="mr-3 flex-shrink-0" />
 
           <div class="min-w-0">
             <div class="font-medium text-sm text-white truncate">
-              {{ nickname }}
+              {{ userStore.nickname }}
             </div>
 
             <div class="text-xs text-gray-400">
@@ -92,11 +91,10 @@ import UserAvatar from "@/components/UserAvatar.vue"
 import MicMuteButton from "@/components/MicMuteButton.vue"
 import AudioDeafenButton from "@/components/AudioDeafenButton.vue"
 import ScreenShareButton from "@/components/ScreenShareButton.vue"
-import { useModalStore } from "@/stores"
+import { useModalStore, useUserStore } from "@/stores"
 import { PhSignOut, PhGearSix } from "@phosphor-icons/vue"
 
 interface Props {
-  nickname: string
   userId: string
   isInCall: boolean
   roomName?: string
@@ -105,7 +103,6 @@ interface Props {
   modelValueMuted?: boolean
   modelValueDeafened?: boolean
   modelValueScreenSharing?: boolean
-  avatarUrl?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -115,7 +112,6 @@ const props = withDefaults(defineProps<Props>(), {
   modelValueMuted: false,
   modelValueDeafened: false,
   modelValueScreenSharing: false,
-  avatarUrl: undefined,
 })
 
 const emit = defineEmits<{
@@ -130,6 +126,7 @@ const emit = defineEmits<{
 
 // Stores
 const modalStore = useModalStore()
+const userStore = useUserStore()
 
 // Computed properties for v-model support - parent controls all state
 const localMuted = computed({

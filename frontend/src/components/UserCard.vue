@@ -5,7 +5,9 @@
     @contextmenu="showContextMenu">
     <!-- User Avatar -->
     <UserAvatar
+      :user-id="user.id"
       :nickname="user.nickname"
+      :avatar-url="user.avatar_url"
       :status="userStatus"
       :size="32"
       :grayscale="!user.is_online"
@@ -180,6 +182,7 @@ import { apiService } from "@/services/api"
 interface User {
   id: string
   nickname: string
+  avatar_url?: string
   is_speaking?: boolean
   is_muted?: boolean
   is_deafened?: boolean
