@@ -37,6 +37,13 @@
               <PhMonitorPlay class="w-3.5 h-3.5 mr-1" />
               {{ screenShareCount }} sharing
             </span>
+
+            <span v-if="cameraCount && cameraCount > 0" class="ml-2 text-purple-400 flex items-center">
+              <span class="mx-1.5">•</span>
+
+              <PhCamera class="w-3.5 h-3.5 mr-1" />
+              {{ cameraCount }} camera
+            </span>
           </div>
         </div>
       </div>
@@ -113,6 +120,7 @@ import {
   PhArrowLeft,
   PhUsers,
   PhMonitorPlay,
+  PhCamera,
   PhGridFour,
   PhArrowsOut,
   PhEye,
@@ -123,6 +131,7 @@ interface Props {
   roomName: string
   userCount: number
   screenShareCount: number
+  cameraCount?: number
   screenShareLayout: "grid" | "focus"
   isUserGridVisible: boolean
   isMobile?: boolean
@@ -130,6 +139,7 @@ interface Props {
 
 withDefaults(defineProps<Props>(), {
   isMobile: false,
+  cameraCount: 0,
 })
 
 defineEmits<{

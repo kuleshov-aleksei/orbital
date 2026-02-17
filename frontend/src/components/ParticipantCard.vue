@@ -96,8 +96,7 @@
 
             <!-- Screen Share Stats -->
             <template v-if="stats.screenShare">
-              <div
-                class="text-xs font-medium text-indigo-300 mt-2 pt-1 border-t border-indigo-700/50">
+              <div class="text-xs font-medium text-indigo-300 mt-2 pt-1 border-t border-indigo-700/50">
                 Screen Share
               </div>
 
@@ -201,44 +200,121 @@
       </Transition>
     </Teleport>
 
-    <!-- Screen Share Mode: Video Preview with floating info -->
-    <template v-if="isScreenSharing && screenShareStream && !forceAudioMode">
-      <!-- Video element - only rendered when NOT viewing in main area -->
-      <video
-        v-if="!isViewing"
-        ref="videoElement"
-        class="w-full h-full object-contain bg-gray-900 rounded-lg"
-        autoplay
-        playsinline
-        muted
-        @loadedmetadata="onVideoLoaded" />
+    <!-- Video Mode: Screen Share and/or Camera -->
+    <template v-if="(isScreenSharing && screenShareStream) || (isCameraEnabled && cameraStream) && !forceAudioMode">
+      <!-- Main Video Display -->
+      <div class="relative w-full h-full">
+        <!-- Screen Share as Main -->
+        <template v-if="isScreenSharing && screenShareStream && !showCameraAsMain">
+          <video
+            v-if="!isViewing"
+            ref="screenVideoElement"
+            class="w-full h-full object-contain bg-gray-900 rounded-lg"
+            autoplay
+            playsinline
+            muted
+            @loadedmetadata="onScreenVideoLoaded" />
 
-      <!-- Viewing overlay - shown when this stream is being viewed in main area -->
-      <div
-        v-if="isViewing"
-        class="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-indigo-600/90 backdrop-blur-sm text-white px-3 py-1.5 rounded-full z-20 shadow-lg">
-        <PhMonitorPlay class="w-4 h-4" />
+          <!-- Viewing overlay -->
+          <div
+            v-if="isViewing"
+            class="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-indigo-600/90 backdrop-blur-sm text-white px-3 py-1.5 rounded-full z-20 shadow-lg">
+            <PhMonitorPlay class="w-4 h-4" />
 
-        <span class="text-sm font-medium">Viewing</span>
-      </div>
+            <span class="text-sm font-medium">Viewing</span>
+          </div>
+        </template>
 
-      <!-- Floating nickname overlay -->
-      <div class="absolute top-2 left-2 right-2 flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <UserAvatar :user-id="userId" :nickname="userNickname" :size="24" :show-status="false" />
+        <!-- Camera as Main -->
+        <template v-else-if="isCameraEnabled && cameraStream">
+          <video
+            ref="cameraVideoElement"
+            class="w-full h-full object-cover bg-gray-900 rounded-lg"
+            autoplay
+            playsinline
+            muted
+            @loadedmetadata="onCameraVideoLoaded" />
+        </template>
 
-          <span
-            class="text-white text-sm font-medium bg-gray-900/70 px-3 py-1 rounded-lg max-w-[140px] truncate">
-            {{ userNickname.length > 12 ? userNickname.slice(0, 12) + "..." : userNickname }}
-          </span>
+        <!-- Floating nickname overlay -->
+        <div class="absolute top-2 left-2 right-2 flex items-center justify-between z-10">
+          <div class="flex items-center gap-2">
+            <UserAvatar :user-id="userId" :nickname="userNickname" :size="24" :show-status="false" />
+
+            <span class="text-white text-sm font-medium bg-gray-900/70 px-3 py-1 rounded-lg max-w-[140px] truncate">
+              {{ userNickname.length > 12 ? userNickname.slice(0, 12) + "..." : userNickname }}
+            </span>
+          </div>
+
+          <!-- Stream Type Indicator -->
+          <div class="flex items-center gap-2">
+            <div
+              v-if="isScreenSharing && screenShareStream && !showCameraAsMain"
+              class="bg-indigo-600/80 px-2 py-1 rounded text-xs text-white flex items-center gap-1">
+              <PhMonitorPlay class="w-3 h-3" />
+
+              <span>Screen</span>
+            </div>
+
+            <div
+              v-else-if="isCameraEnabled && cameraStream"
+              class="bg-purple-600/80 px-2 py-1 rounded text-xs text-white flex items-center gap-1">
+              <PhCamera class="w-3 h-3" />
+
+              <span>Camera</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Speaking indicator overlay -->
+        <div
+          v-if="isSpeaking"
+          class="absolute bottom-2 left-2 w-3 h-3 bg-green-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(74,222,128,0.8)]"
+          title="Speaking" />
+
+        <!-- Stream Toggle Thumbnails (when both streams are available) -->
+        <div
+          v-if="isScreenSharing && screenShareStream && isCameraEnabled && cameraStream"
+          class="absolute bottom-2 right-2 flex items-center gap-2 z-10">
+          <!-- Screen Share Thumbnail -->
+          <button
+            type="button"
+            class="relative w-16 h-12 rounded-lg overflow-hidden border-2 transition-all"
+            :class="showCameraAsMain ? 'border-indigo-500 opacity-100' : 'border-transparent opacity-60'"
+            title="Show Screen Share"
+            @click.stop="showCameraAsMain = false">
+            <video
+              ref="screenShareThumbnailElement"
+              class="w-full h-full object-cover"
+              autoplay
+              playsinline
+              muted />
+
+            <div class="absolute inset-0 flex items-center justify-center bg-black/30">
+              <PhMonitorPlay class="w-4 h-4 text-white" />
+            </div>
+          </button>
+
+          <!-- Camera Thumbnail -->
+          <button
+            type="button"
+            class="relative w-16 h-12 rounded-lg overflow-hidden border-2 transition-all"
+            :class="!showCameraAsMain ? 'border-purple-500 opacity-100' : 'border-transparent opacity-60'"
+            title="Show Camera"
+            @click.stop="showCameraAsMain = true">
+            <video
+              ref="cameraThumbnailElement"
+              class="w-full h-full object-cover"
+              autoplay
+              playsinline
+              muted />
+
+            <div class="absolute inset-0 flex items-center justify-center bg-black/30">
+              <PhCamera class="w-4 h-4 text-white" />
+            </div>
+          </button>
         </div>
       </div>
-
-      <!-- Speaking indicator overlay -->
-      <div
-        v-if="isSpeaking"
-        class="absolute bottom-2 left-2 w-3 h-3 bg-green-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(74,222,128,0.8)]"
-        title="Speaking" />
     </template>
 
     <!-- Audio Mode: Avatar centered with nickname at bottom -->
@@ -250,8 +326,7 @@
 
       <!-- Nickname at bottom center -->
       <div class="absolute bottom-2 left-0 right-0 flex justify-center items-center">
-        <span
-          class="text-white font-medium text-sm bg-gray-900/70 px-3 py-1 rounded-lg max-w-[160px] truncate">
+        <span class="text-white font-medium text-sm bg-gray-900/70 px-3 py-1 rounded-lg max-w-[160px] truncate">
           {{ userNickname.length > 12 ? userNickname.slice(0, 12) + "..." : userNickname }}
         </span>
       </div>
@@ -271,12 +346,21 @@
         class="absolute top-2 right-2 w-3 h-3 bg-green-400 rounded-full animate-pulse"
         title="Speaking" />
 
-      <!-- Screen Sharing Indicator -->
-      <div
-        v-if="isScreenSharing"
-        class="absolute top-2 left-2 w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center"
-        :title="'Sharing screen'">
-        <PhMonitorPlay class="w-3 h-3 text-white" />
+      <!-- Stream Indicators -->
+      <div class="absolute top-2 left-2 flex gap-1">
+        <div
+          v-if="isScreenSharing"
+          class="w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center"
+          :title="'Sharing screen'">
+          <PhMonitorPlay class="w-3 h-3 text-white" />
+        </div>
+
+        <div
+          v-if="isCameraEnabled"
+          class="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center"
+          :title="'Camera enabled'">
+          <PhCamera class="w-3 h-3 text-white" />
+        </div>
       </div>
     </template>
 
@@ -333,7 +417,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick, useTemplateRef } from "vue"
-import { PhMicrophone, PhMicrophoneSlash, PhSpeakerHigh, PhMonitorPlay } from "@phosphor-icons/vue"
+import { PhMicrophone, PhMicrophoneSlash, PhSpeakerHigh, PhMonitorPlay, PhCamera } from "@phosphor-icons/vue"
 import { useRoomStore, usePresenceStore } from "@/stores"
 import UserAvatar from "@/components/UserAvatar.vue"
 import type { ScreenShareQuality, ConnectionStats } from "@/types"
@@ -343,9 +427,11 @@ interface Props {
   userNickname: string
   audioStream: MediaStream | null
   screenShareStream: MediaStream | null
+  cameraStream?: MediaStream | null // Camera video stream
   initialVolume?: number
   isDeafened?: boolean
   isScreenSharing?: boolean
+  isCameraEnabled?: boolean
   screenShareQuality?: ScreenShareQuality
   isCurrentUser?: boolean
   externalAudioLevel?: number
@@ -353,12 +439,15 @@ interface Props {
   // Mode control
   forceAudioMode?: boolean // If true, always show audio mode even when screen sharing
   isViewing?: boolean // If true, show "Viewing" overlay instead of video (stream is shown in main area)
+  isCompact?: boolean // If true, show compact layout for sidebar
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  cameraStream: null,
   initialVolume: 80,
   isDeafened: false,
   isScreenSharing: false,
+  isCameraEnabled: false,
   screenShareQuality: "1080p30",
   isCurrentUser: false,
   externalAudioLevel: 0,
@@ -367,6 +456,7 @@ const props = withDefaults(defineProps<Props>(), {
   }),
   forceAudioMode: false,
   isViewing: false,
+  isCompact: false,
 })
 
 const emit = defineEmits<{
@@ -380,7 +470,10 @@ const presenceStore = usePresenceStore()
 
 // Refs
 const audioElement = useTemplateRef<HTMLAudioElement>("audioElement")
-const videoElement = useTemplateRef<HTMLVideoElement>("videoElement")
+const screenVideoElement = useTemplateRef<HTMLVideoElement>("screenVideoElement")
+const cameraVideoElement = useTemplateRef<HTMLVideoElement>("cameraVideoElement")
+const screenShareThumbnailElement = useTemplateRef<HTMLVideoElement>("screenShareThumbnailElement")
+const cameraThumbnailElement = useTemplateRef<HTMLVideoElement>("cameraThumbnailElement")
 const cardElement = useTemplateRef<HTMLDivElement>("cardElement")
 const tooltipElement = useTemplateRef<HTMLDivElement>("tooltipElement")
 
@@ -392,6 +485,37 @@ const showStats = ref(false)
 const menuPosition = { x: 0, y: 0 }
 const mousePosition = ref({ x: 0, y: 0 })
 const tooltipOffset = { x: 16, y: 16 }
+
+// Camera/Screen share toggle state
+// When both are available, the "newer" stream is the thumbnail
+// showCameraAsMain = true means camera is main, screen share is thumbnail
+// showCameraAsMain = false means screen share is main, camera is thumbnail
+// Default: false (screen share is main by default when both are active)
+const showCameraAsMain = ref(false)
+
+// Watch for changes in available streams to auto-set the initial state
+// When camera becomes available while screen share is already active, camera should be thumbnail
+// When screen share becomes available while camera is already active, screen share should be thumbnail
+const hasInitialized = ref(false)
+watch([() => props.isScreenSharing, () => props.isCameraEnabled], ([hasScreen, hasCamera], [prevHasScreen, prevHasCamera]) => {
+  if (!hasInitialized.value) {
+    // First initialization: if only camera is available, show it as main
+    if (hasCamera && !hasScreen) {
+      showCameraAsMain.value = true
+    }
+    hasInitialized.value = true
+    return
+  }
+  
+  // When camera becomes available while screen share is already active
+  if (hasCamera && !prevHasCamera && hasScreen) {
+    showCameraAsMain.value = false // Screen share stays main, camera becomes thumbnail
+  }
+  // When screen share becomes available while camera is already active
+  if (hasScreen && !prevHasScreen && hasCamera) {
+    showCameraAsMain.value = true // Camera stays main, screen share becomes thumbnail
+  }
+}, { immediate: true })
 
 // Computed
 const isSpeaking = computed(() => {
@@ -517,45 +641,66 @@ const handleMouseLeave = () => {
   showStats.value = false
 }
 
-const onVideoLoaded = () => {
-  console.log(`✅ Video loaded for user ${props.userId}`)
+const onScreenVideoLoaded = () => {
+  console.log(`✅ Screen share video loaded for user ${props.userId}`)
 }
 
-const setupVideoStream = () => {
-  if (props.screenShareStream && videoElement.value) {
-    console.log(`🖥️ Setting up screen share stream for user ${props.userId}`)
-    const video = videoElement.value
-    const stream = props.screenShareStream
+const onCameraVideoLoaded = () => {
+  console.log(`✅ Camera video loaded for user ${props.userId}`)
+}
 
-    // Check if stream has video tracks and they're active
-    const videoTracks = stream.getVideoTracks()
-    if (videoTracks.length === 0 || !videoTracks[0].enabled) {
-      console.warn(`No active video tracks in stream for user ${props.userId}`)
-      return
-    }
+const setupVideoStream = (element: HTMLVideoElement | null, stream: MediaStream | null, streamType: 'screen' | 'camera') => {
+  if (!element || !stream) return
 
-    // Set the stream
-    video.srcObject = stream
+  console.log(`🎥 Setting up ${streamType} stream for user ${props.userId}`)
 
-    // Wait for metadata to load before playing
-    // This ensures the browser is ready to play the stream
-    const attemptPlay = () => {
-      video.play().catch((error) => {
-        // Only log if it's not an abort error (which is normal during rapid changes)
-        if (error.name !== "AbortError") {
-          console.warn(`Screen share video play failed for user ${props.userId}:`, error)
-        }
-      })
-    }
+  // Check if stream has video tracks and they're active
+  const videoTracks = stream.getVideoTracks()
+  if (videoTracks.length === 0 || !videoTracks[0].enabled) {
+    console.warn(`No active video tracks in ${streamType} stream for user ${props.userId}`)
+    return
+  }
 
-    if (video.readyState >= 1) {
-      // HAVE_METADATA or higher
-      // Metadata already loaded, play immediately
-      attemptPlay()
-    } else {
-      // Wait for metadata to load
-      video.addEventListener("loadedmetadata", attemptPlay, { once: true })
-    }
+  // Set the stream
+  element.srcObject = stream
+
+  // Wait for metadata to load before playing
+  const attemptPlay = () => {
+    element.play().catch((error) => {
+      // Only log if it's not an abort error (which is normal during rapid changes)
+      if (error.name !== "AbortError") {
+        console.warn(`${streamType} video play failed for user ${props.userId}:`, error)
+      }
+    })
+  }
+
+  if (element.readyState >= 1) {
+    // HAVE_METADATA or higher - play immediately
+    attemptPlay()
+  } else {
+    // Wait for metadata to load
+    element.addEventListener("loadedmetadata", attemptPlay, { once: true })
+  }
+}
+
+const setupAllVideoStreams = () => {
+  // Setup main screen share video
+  if (props.screenShareStream && screenVideoElement.value) {
+    setupVideoStream(screenVideoElement.value, props.screenShareStream, 'screen')
+  }
+
+  // Setup main camera video
+  if (props.cameraStream && cameraVideoElement.value) {
+    setupVideoStream(cameraVideoElement.value, props.cameraStream, 'camera')
+  }
+
+  // Setup thumbnail videos when both streams are available
+  if (props.screenShareStream && screenShareThumbnailElement.value) {
+    setupVideoStream(screenShareThumbnailElement.value, props.screenShareStream, 'screen-thumbnail')
+  }
+
+  if (props.cameraStream && cameraThumbnailElement.value) {
+    setupVideoStream(cameraThumbnailElement.value, props.cameraStream, 'camera-thumbnail')
   }
 }
 
@@ -591,10 +736,23 @@ watch(
   () => props.screenShareStream,
   (newStream, oldStream) => {
     if (newStream && newStream !== oldStream) {
-      // Small delay to ensure DOM is updated and stream is ready
       setTimeout(() => {
         void nextTick(() => {
-          setupVideoStream()
+          setupAllVideoStreams()
+        })
+      }, 100)
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  () => props.cameraStream,
+  (newStream, oldStream) => {
+    if (newStream && newStream !== oldStream) {
+      setTimeout(() => {
+        void nextTick(() => {
+          setupAllVideoStreams()
         })
       }, 100)
     }
@@ -639,9 +797,9 @@ onMounted(() => {
         audioElement.value.muted = true
       }
     }
-    // Setup video stream after mount with a small delay to ensure stream is ready
+    // Setup video streams after mount with a small delay to ensure streams are ready
     setTimeout(() => {
-      setupVideoStream()
+      setupAllVideoStreams()
     }, 50)
   })
 

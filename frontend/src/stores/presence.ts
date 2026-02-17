@@ -61,6 +61,7 @@ interface PresenceState {
   isMuted: boolean
   isDeafened: boolean
   isScreenSharing: boolean
+  isCameraEnabled: boolean
   audioLevel: number
 }
 
@@ -96,6 +97,11 @@ export const usePresenceStore = defineStore("presence", () => {
   const updateParticipantFromLiveKit = (lkParticipant: Participant) => {
     const metadata = extractMetadata(lkParticipant)
 
+    // Check if camera is enabled by looking for camera tracks
+    const hasCameraTrack = Array.from(lkParticipant.trackPublications.values()).some(
+      (pub) => pub.track && pub.source === 'camera'
+    )
+
     const presenceState: PresenceState = {
       userId: metadata.user_id,
       nickname: metadata.nickname,
@@ -104,6 +110,7 @@ export const usePresenceStore = defineStore("presence", () => {
       isMuted: metadata.is_muted,
       isDeafened: metadata.is_deafened,
       isScreenSharing: lkParticipant.isScreenShareEnabled || false,
+      isCameraEnabled: hasCameraTrack,
       audioLevel: lkParticipant.audioLevel || 0,
     }
 
@@ -257,6 +264,11 @@ export const usePresenceStore = defineStore("presence", () => {
       ...newAttributes,
     })
 
+    // Check if camera is enabled for local participant
+    const hasCameraTrack = Array.from(localParticipant.value.trackPublications.values()).some(
+      (pub) => pub.track && pub.source === 'camera'
+    )
+
     // Update local state
     const metadata = extractMetadata(localParticipant.value)
     const presenceState: PresenceState = {
@@ -267,6 +279,7 @@ export const usePresenceStore = defineStore("presence", () => {
       isMuted: metadata.is_muted,
       isDeafened: metadata.is_deafened,
       isScreenSharing: localParticipant.value.isScreenShareEnabled || false,
+      isCameraEnabled: hasCameraTrack,
       audioLevel: localParticipant.value.audioLevel || 0,
     }
     participants.value.set(metadata.user_id, presenceState)

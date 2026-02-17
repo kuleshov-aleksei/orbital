@@ -8,6 +8,7 @@ import {
   type RemoteParticipant,
   type LocalParticipant,
   createLocalAudioTrack,
+  createLocalVideoTrack,
   LocalVideoTrack,
   LocalAudioTrack,
   Track,
@@ -68,6 +69,15 @@ export function useLiveKit(options: UseLiveKitOptions) {
   // Track publication references for cleanup
   const localScreenVideoPublication = ref<LocalTrackPublication | null>(null)
   const localScreenAudioPublication = ref<LocalTrackPublication | null>(null)
+
+  // Camera state
+  const isCameraEnabled = ref(false)
+  const localCameraTrack = ref<LocalVideoTrack | null>(null)
+  const userCameraStates = ref<Map<string, boolean>>(new Map())
+  const remoteCameraTracks = ref<Map<string, RemoteVideoTrack>>(new Map())
+  const cameraVersion = ref(0)
+  // Track publication reference for cleanup
+  const localCameraPublication = ref<LocalTrackPublication | null>(null)
 
   // Audio processing
   let localStreamPromise: Promise<LocalAudioTrack | null> | null = null
@@ -573,6 +583,21 @@ export function useLiveKit(options: UseLiveKitOptions) {
         )
         localScreenAudioPublication.value = publication
         localScreenAudioTrack.value = track as LocalAudioTrack
+      } else if (track.source === Track.Source.Camera) {
+        debugLog(`[LiveKit][INFO]: Local camera track published: ${publication.trackSid}`)
+        localCameraPublication.value = publication
+        localCameraTrack.value = track as LocalVideoTrack
+        isCameraEnabled.value = true
+        cameraVersion.value++
+
+        // Update local state
+        userCameraStates.value.set(getCurrentUserId(), true)
+
+        // Listen for track ended event
+        track.on("ended", () => {
+          debugLog(`[LiveKit][INFO]: 'Camera track ended'`)
+          void stopCamera()
+        })
       }
     })
 
@@ -596,6 +621,15 @@ export function useLiveKit(options: UseLiveKitOptions) {
         )
         localScreenAudioPublication.value = null
         localScreenAudioTrack.value = null
+      } else if (publication.source === Track.Source.Camera) {
+        debugLog(`[LiveKit][INFO]: Local camera track unpublished: ${publication.trackSid}`)
+        localCameraPublication.value = null
+        localCameraTrack.value = null
+        isCameraEnabled.value = false
+        cameraVersion.value++
+
+        // Update local state
+        userCameraStates.value.set(getCurrentUserId(), false)
       }
     })
 
@@ -652,6 +686,13 @@ export function useLiveKit(options: UseLiveKitOptions) {
         screenShareVersion.value++
 
         debugLog(`[LiveKit][INFO]: Screen share track received from ${participantId}`)
+      } else if (videoTrack.source === Track.Source.Camera) {
+        // Handle camera video track
+        remoteCameraTracks.value.set(participantId, videoTrack)
+        userCameraStates.value.set(participantId, true)
+        cameraVersion.value++
+
+        debugLog(`[LiveKit][INFO]: Camera track received from ${participantId}`)
       }
     }
   }
@@ -681,6 +722,11 @@ export function useLiveKit(options: UseLiveKitOptions) {
           quality: "1080p30",
         })
         screenShareVersion.value++
+      } else if (videoTrack.source === Track.Source.Camera) {
+        // Handle camera track unsubscription
+        remoteCameraTracks.value.delete(participantId)
+        userCameraStates.value.set(participantId, false)
+        cameraVersion.value++
       }
     }
   }
@@ -837,6 +883,93 @@ export function useLiveKit(options: UseLiveKitOptions) {
     }
   }
 
+  // Start camera using createLocalVideoTrack API (avoids proxy serialization issues)
+  const startCamera = async (): Promise<void> => {
+    if (!room.value) {
+      throw new Error("Not connected to room")
+    }
+
+    try {
+      debugLog(`[LiveKit][INFO]: Starting camera...`)
+
+      // Create camera track directly with minimal constraints
+      // Using createLocalVideoTrack avoids the proxy serialization issue in setCameraEnabled
+      const videoTrack = await createLocalVideoTrack({
+        resolution: "h720", // 720p default resolution
+      })
+
+      // Publish the track
+      const publication = await room.value.localParticipant.publishTrack(videoTrack)
+      localCameraPublication.value = publication
+      localCameraTrack.value = videoTrack
+      isCameraEnabled.value = true
+      cameraVersion.value++
+
+      // Update local state
+      userCameraStates.value.set(getCurrentUserId(), true)
+
+      // Listen for track ended event
+      videoTrack.on("ended", () => {
+        debugLog(`[LiveKit][INFO]: 'Camera track ended'`)
+        void stopCamera()
+      })
+
+      debugLog(`[LiveKit][INFO]: 'Camera started successfully'`)
+    } catch (error) {
+      console.error("Failed to start camera:", error)
+      console.error(`[LiveKit][ERROR]: Camera failed: ${(error as Error).message}`)
+      throw error
+    }
+  }
+
+  // Stop camera by unpublishing and stopping the track
+  const stopCamera = async (): Promise<void> => {
+    if (!room.value || !isCameraEnabled.value) {
+      return
+    }
+
+    // Store track reference locally - the LocalTrackUnpublished event will clear the ref
+    const trackToStop = localCameraTrack.value
+    const publicationToUnpublish = localCameraPublication.value
+
+    try {
+      debugLog(`[LiveKit][INFO]: 'Stopping camera...'`)
+
+      // Stop the track first (before unpublishing to avoid race condition)
+      if (trackToStop) {
+        trackToStop.stop()
+      }
+
+      // Unpublish the track if we have a publication
+      if (publicationToUnpublish) {
+        await room.value.localParticipant.unpublishTrack(publicationToUnpublish.trackSid)
+      }
+
+      // Reset state
+      localCameraPublication.value = null
+      localCameraTrack.value = null
+      isCameraEnabled.value = false
+      cameraVersion.value++
+
+      // Update local state
+      userCameraStates.value.set(getCurrentUserId(), false)
+
+      debugLog(`[LiveKit][INFO]: 'Camera stopped'`)
+    } catch (error) {
+      console.error("Error stopping camera:", error)
+      console.error(`[LiveKit][ERROR]: Error stopping camera: ${(error as Error).message}`)
+    }
+  }
+
+  // Toggle camera on/off
+  const toggleCamera = async (): Promise<void> => {
+    if (isCameraEnabled.value) {
+      await stopCamera()
+    } else {
+      await startCamera()
+    }
+  }
+
   // Get screen share video constraints
   // Returns VideoPreset string for LiveKit's setScreenShareEnabled API
   const getScreenShareVideoConstraints = (quality: ScreenShareQuality): string => {
@@ -958,6 +1091,48 @@ export function useLiveKit(options: UseLiveKitOptions) {
     return shares
   })
 
+  // Computed camera data for display
+  const cameraData = computed(() => {
+    void cameraVersion.value // Trigger reactivity
+    const currentUserId = getCurrentUserId()
+
+    const cameras: Array<{
+      userId: string
+      userNickname: string
+      videoTrack: RemoteVideoTrack | LocalVideoTrack | null
+      connectionState: string
+      isSelfView?: boolean
+    }> = []
+
+    // Add self-view if local camera is enabled
+    if (isCameraEnabled.value && localCameraTrack.value) {
+      cameras.push({
+        userId: currentUserId + "-self",
+        userNickname: "Your Camera",
+        videoTrack: localCameraTrack.value,
+        connectionState: "self-view",
+        isSelfView: true,
+      })
+    }
+
+    // Add remote cameras - iterate over userCameraStates to catch all cameras
+    userCameraStates.value.forEach((isEnabled, userId) => {
+      if (isEnabled && userId !== currentUserId) {
+        const participant = remoteParticipants.value.get(userId)
+        const track = remoteCameraTracks.value.get(userId)
+
+        cameras.push({
+          userId,
+          userNickname: participant?.name || userId,
+          videoTrack: track || null,
+          connectionState: "connected",
+        })
+      }
+    })
+
+    return cameras
+  })
+
   // Cleanup function
   const cleanup = () => {
     debugLog(`[LiveKit][INFO]: 'Cleaning up LiveKit...'`)
@@ -990,6 +1165,22 @@ export function useLiveKit(options: UseLiveKitOptions) {
     localScreenAudioPublication.value = null
     isScreenSharing.value = false
     screenShareQuality.value = "1080p30"
+
+    // Stop camera if active (using LiveKit API)
+    if (isCameraEnabled.value && currentRoom) {
+      try {
+        void currentRoom.localParticipant.setCameraEnabled(false)
+      } catch {
+        // Ignore errors during cleanup
+      }
+    }
+
+    // Reset camera state
+    localCameraTrack.value = null
+    localCameraPublication.value = null
+    isCameraEnabled.value = false
+    userCameraStates.value.clear()
+    remoteCameraTracks.value.clear()
 
     // Unpublish audio track
     void unpublishAudioTrack()
@@ -1049,6 +1240,11 @@ export function useLiveKit(options: UseLiveKitOptions) {
     userScreenShareStates,
     screenShareData,
 
+    // Camera state
+    isCameraEnabled,
+    userCameraStates,
+    cameraData,
+
     // Audio-only legacy compatibility (voice chat participants)
     localStream: computed(() =>
       localAudioTrack.value ? new MediaStream([localAudioTrack.value.mediaStreamTrack]) : null,
@@ -1074,6 +1270,9 @@ export function useLiveKit(options: UseLiveKitOptions) {
     handleMuteToggle,
     startScreenShare,
     stopScreenShare,
+    startCamera,
+    stopCamera,
+    toggleCamera,
     getParticipantStats,
     reinitializeAudioStream,
     cleanup,

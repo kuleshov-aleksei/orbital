@@ -2,21 +2,34 @@
   <div class="screen-share-area bg-gray-800 rounded-lg overflow-hidden flex flex-col">
     <!-- Screen Share Content -->
     <div class="p-2 flex-1 min-h-0 flex flex-col">
-      <!-- Focus Layout: Main screen (70%) + user panel (30%) side by side -->
+      <!-- Focus Layout: Main stream (70%) + user panel (30%) side by side -->
       <div v-if="props.layout === 'focus'" class="flex flex-row h-full gap-4">
-        <!-- Main focused screen - 70% width -->
-        <div v-if="focusedShare" class="flex-[7] min-w-0 min-h-0">
+        <!-- Main focused stream - 70% width (screen share or camera) -->
+        <div class="flex-[7] min-w-0 min-h-0">
+          <!-- Screen Share in main area -->
           <ScreenStream
-            :key="focusedShare.userId"
-            :user-id="focusedShare.userId"
-            :user-nickname="focusedShare.userNickname"
-            :video-track="focusedShare.videoTrack"
-            :audio-track="focusedShare.audioTrack"
-            :quality="focusedShare.quality"
-            :connection-state="focusedShare.connectionState"
+            v-if="focusedStream?.type === 'screen'"
+            :key="focusedStream.userId"
+            :user-id="focusedStream.userId"
+            :user-nickname="focusedStream.userNickname"
+            :video-track="focusedStream.videoTrack"
+            :audio-track="focusedStream.audioTrack"
+            :quality="focusedStream.quality"
+            :connection-state="focusedStream.connectionState"
             :is-focused="true"
             :show-focus-button="false"
-            :is-self-view="focusedShare.isSelfView"
+            :is-self-view="focusedStream.isSelfView"
+            class="h-full" />
+          <!-- Camera in main area -->
+          <CameraStream
+            v-else-if="focusedStream?.type === 'camera'"
+            :key="focusedStream.userId"
+            :user-id="focusedStream.userId"
+            :user-nickname="focusedStream.userNickname"
+            :video-track="focusedStream.videoTrack"
+            :connection-state="focusedStream.connectionState"
+            :is-focused="true"
+            :is-self-view="focusedStream.isSelfView"
             class="h-full" />
         </div>
 
@@ -29,43 +42,58 @@
             :user-nickname="participant.userNickname"
             :audio-stream="participant.audioStream"
             :screen-share-stream="participant.screenShareStream"
+            :camera-stream="participant.cameraStream"
             :initial-volume="participant.initialVolume"
             :is-deafened="participant.isDeafened"
             :is-screen-sharing="participant.isScreenSharing"
+            :is-camera-enabled="participant.isCameraEnabled"
             :screen-share-quality="participant.screenShareQuality"
             :is-current-user="participant.isCurrentUser"
             :external-audio-level="participant.externalAudioLevel"
             :stats="participant.stats"
-            :is-viewing="
-              participant.userId === focusedShare?.userId ||
-              participant.userId + '-self' === focusedShare?.userId
-            "
+            :is-viewing="isParticipantViewingMainStream(participant.userId)"
             :force-audio-mode="
-              participant.userId !== focusedShare?.userId &&
-              participant.userId + '-self' !== focusedShare?.userId &&
-              !participant.isScreenSharing
+              !isParticipantViewingMainStream(participant.userId) &&
+              !participant.isScreenSharing &&
+              !participant.isCameraEnabled
             "
+            :is-compact="true"
             @card-click="handleParticipantClick(participant.userId)"
             @mute-toggle="$emit('mute-toggle', $event)" />
         </div>
       </div>
 
-      <!-- Grid Layout: All screens side by side -->
+      <!-- Grid Layout: All screens and cameras side by side -->
       <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4 h-full">
-        <ScreenStream
-          v-for="share in screenShares"
-          :key="share.userId"
-          :user-id="share.userId"
-          :user-nickname="share.userNickname"
-          :video-track="share.videoTrack"
-          :audio-track="share.audioTrack"
-          :quality="share.quality"
-          :connection-state="share.connectionState"
-          :is-focused="false"
-          :show-focus-button="screenShares.length > 1"
-          :is-self-view="share.isSelfView"
-          class="h-full"
-          @make-focused="setFocusedShare(share.userId)" />
+        <!-- Combine screen shares and cameras, sort by user ID to keep same user's streams together -->
+        <template v-for="item in sortedVideoStreams" :key="item.userId">
+          <!-- Screen Share -->
+          <ScreenStream
+            v-if="item.type === 'screen'"
+            :user-id="item.userId"
+            :user-nickname="item.userNickname"
+            :video-track="item.videoTrack"
+            :audio-track="item.audioTrack"
+            :quality="item.quality"
+            :connection-state="item.connectionState"
+            :is-focused="false"
+            :show-focus-button="sortedVideoStreams.length > 1"
+            :is-self-view="item.isSelfView"
+            class="h-full"
+            @make-focused="setFocusedShare(item.userId)" />
+          <!-- Camera -->
+          <CameraStream
+            v-else
+            :user-id="item.userId"
+            :user-nickname="item.userNickname"
+            :video-track="item.videoTrack"
+            :connection-state="item.connectionState"
+            :is-focused="false"
+            :is-self-view="item.isSelfView"
+            :is-compact="true"
+            class="h-full"
+            @dblclick="setFocusedShare(item.userId)" />
+        </template>
       </div>
     </div>
 
@@ -84,6 +112,7 @@
 import { ref, computed, watch, onUnmounted } from "vue"
 import { PhMonitorPlay } from "@phosphor-icons/vue"
 import ScreenStream from "./ScreenStream.vue"
+import CameraStream from "./CameraStream.vue"
 import ParticipantCard from "./ParticipantCard.vue"
 import type { ScreenShareQuality, User } from "@/types"
 import type {
@@ -119,9 +148,11 @@ interface ParticipantData {
   userNickname: string
   audioStream: MediaStream | null
   screenShareStream: MediaStream | null
+  cameraStream: MediaStream | null
   initialVolume?: number
   isDeafened?: boolean
   isScreenSharing?: boolean
+  isCameraEnabled?: boolean
   screenShareQuality?: ScreenShareQuality
   isCurrentUser?: boolean
   externalAudioLevel?: number
@@ -134,8 +165,21 @@ interface ParticipantData {
   }
 }
 
+interface CameraStream {
+  userId: string
+  userNickname: string
+  videoTrack: RemoteVideoTrack | LocalVideoTrack | null
+  connectionState?: string
+  isSelfView?: boolean
+}
+
+type VideoStreamItem =
+  | (ScreenShare & { type: 'screen'; sortKey: string })
+  | (CameraStream & { type: 'camera'; sortKey: string })
+
 interface Props {
   screenShares: ScreenShare[]
+  cameraStreams: CameraStream[]
   isUserGridVisible: boolean
   layout: "grid" | "focus"
   users: User[]
@@ -144,11 +188,13 @@ interface Props {
   peerConnectionRetries: Map<string, number>
   remoteStreamVolumes: Map<string, number>
   userScreenShareStates: Map<string, { isSharing: boolean; quality?: ScreenShareQuality }>
+  userCameraStates: Map<string, boolean>
   peerConnections: Map<string, RTCPeerConnection>
   isDeafened: boolean
   currentUserAudioLevel?: number
   currentUserId: string
   currentUserIsSharing?: boolean
+  currentUserCameraEnabled?: boolean
   getParticipantStats?: (userId: string) => {
     ping: number
     jitter: number
@@ -163,34 +209,104 @@ const localLayout = computed({
 })
 const focusedUserId = ref<string | null>(null)
 
-// Set initial focus to first screen share
+// Set initial focus to first available stream (screen share preferred, then camera)
 watch(
-  () => props.screenShares.length,
-  (newLength, oldLength) => {
-    if (newLength > 0 && (oldLength === 0 || !focusedUserId.value)) {
-      // If first share added or no focus set, focus on first
-      focusedUserId.value = props.screenShares[0].userId
-    } else if (newLength === 0) {
-      // If all shares removed, clear focus
+  [() => props.screenShares.length, () => props.cameraStreams.length],
+  ([newScreenLength, newCameraLength]) => {
+    const hasScreens = newScreenLength > 0
+    const hasCameras = newCameraLength > 0
+
+    if (!focusedUserId.value) {
+      // No focus set yet - pick first available
+      if (hasScreens) {
+        focusedUserId.value = props.screenShares[0].userId
+      } else if (hasCameras) {
+        focusedUserId.value = props.cameraStreams[0].userId
+      }
+    } else if (newScreenLength === 0 && newCameraLength === 0) {
+      // All streams removed, clear focus
       focusedUserId.value = null
-    } else if (
-      focusedUserId.value &&
-      !props.screenShares.find((s) => s.userId === focusedUserId.value)
-    ) {
-      // If focused user stopped sharing, focus on first available
-      focusedUserId.value = props.screenShares[0]?.userId || null
+    } else if (focusedUserId.value) {
+      // Check if focused stream still exists
+      const screenExists = props.screenShares.find((s) => s.userId === focusedUserId.value)
+      const cameraExists = props.cameraStreams.find((c) => c.userId === focusedUserId.value)
+      
+      if (!screenExists && !cameraExists) {
+        // Focused stream stopped - pick next available
+        if (hasScreens) {
+          focusedUserId.value = props.screenShares[0]?.userId || null
+        } else if (hasCameras) {
+          focusedUserId.value = props.cameraStreams[0]?.userId || null
+        } else {
+          focusedUserId.value = null
+        }
+      }
     }
   },
   { immediate: true },
 )
 
-const focusedShare = computed(() => {
-  if (!focusedUserId.value) return props.screenShares[0] || null
-  return (
-    props.screenShares.find((s) => s.userId === focusedUserId.value) ||
-    props.screenShares[0] ||
-    null
-  )
+// Get the currently focused stream (either screen share or camera)
+const focusedStream = computed((): VideoStreamItem | null => {
+  if (!focusedUserId.value) {
+    // No focus set - return first available (screen share preferred)
+    if (props.screenShares.length > 0) {
+      const share = props.screenShares[0]
+      return { ...share, type: 'screen' as const, sortKey: `${share.userId}-0` }
+    }
+    if (props.cameraStreams.length > 0) {
+      const camera = props.cameraStreams[0]
+      return { ...camera, type: 'camera' as const, sortKey: `${camera.userId}-1` }
+    }
+    return null
+  }
+  
+  // Look for the focused stream in both screen shares and cameras
+  const screenShare = props.screenShares.find((s) => s.userId === focusedUserId.value)
+  if (screenShare) {
+    return { ...screenShare, type: 'screen' as const, sortKey: `${screenShare.userId}-0` }
+  }
+  
+  const camera = props.cameraStreams.find((c) => c.userId === focusedUserId.value)
+  if (camera) {
+    return { ...camera, type: 'camera' as const, sortKey: `${camera.userId}-1` }
+  }
+  
+  // Focused stream not found - return first available
+  if (props.screenShares.length > 0) {
+    const share = props.screenShares[0]
+    return { ...share, type: 'screen' as const, sortKey: `${share.userId}-0` }
+  }
+  if (props.cameraStreams.length > 0) {
+    const cam = props.cameraStreams[0]
+    return { ...cam, type: 'camera' as const, sortKey: `${cam.userId}-1` }
+  }
+  
+  return null
+})
+
+// Check if a participant's stream is currently being viewed in the main area
+const isParticipantViewingMainStream = (userId: string): boolean => {
+  if (!focusedStream.value) return false
+  return userId === focusedStream.value.userId || userId + '-self' === focusedStream.value.userId
+}
+
+// Combine screen shares and cameras, sorted by user ID to keep same user's streams together
+// Screen shares come before cameras for the same user
+const sortedVideoStreams = computed((): VideoStreamItem[] => {
+  const screenItems: VideoStreamItem[] = props.screenShares.map(share => ({
+    ...share,
+    type: 'screen' as const,
+    sortKey: `${share.userId.replace('-self', '')}-0`,
+  }))
+
+  const cameraItems: VideoStreamItem[] = props.cameraStreams.map(camera => ({
+    ...camera,
+    type: 'camera' as const,
+    sortKey: `${camera.userId.replace('-self', '')}-1`,
+  }))
+
+  return [...screenItems, ...cameraItems].sort((a, b) => a.sortKey.localeCompare(b.sortKey))
 })
 
 // Get track SID for cache key
@@ -205,17 +321,24 @@ const allParticipants = computed((): ParticipantData[] => {
   const result = props.users.map((user) => {
     // Look for screen share by user id - for current user also check for '-self' suffix (self-view)
     let screenShare = props.screenShares.find((s) => s.userId === user.id)
+    let camera = props.cameraStreams.find((c) => c.userId === user.id)
     const isCurrentUser = user.id === props.currentUserId
 
     // For current user, also check for self-view (userId + '-self')
     if (isCurrentUser && !screenShare) {
       screenShare = props.screenShares.find((s) => s.userId === user.id + "-self")
     }
+    if (isCurrentUser && !camera) {
+      camera = props.cameraStreams.find((c) => c.userId === user.id + "-self")
+    }
 
-    // For current user, use currentUserIsSharing prop; for others, use userScreenShareStates
+    // For current user, use props; for others, use state maps
     const isScreenSharing = isCurrentUser
       ? props.currentUserIsSharing || false
       : props.userScreenShareStates.get(user.id)?.isSharing || false
+    const isCameraEnabled = isCurrentUser
+      ? props.currentUserCameraEnabled || false
+      : props.userCameraStates.get(user.id) || false
 
     // Create or retrieve cached MediaStream from tracks for sidebar preview (ParticipantCard)
     let screenShareStream: MediaStream | null = null
@@ -238,14 +361,31 @@ const allParticipants = computed((): ParticipantData[] => {
       }
     }
 
+    // Create camera stream
+    let cameraStream: MediaStream | null = null
+    if (camera?.videoTrack) {
+      const cacheKey = getTrackKey(user.id + "-camera", camera.videoTrack)
+      currentCacheKeys.add(cacheKey)
+
+      const cachedStream = streamCache.value.get(cacheKey)
+      if (cachedStream) {
+        cameraStream = cachedStream
+      } else {
+        cameraStream = new MediaStream([camera.videoTrack.mediaStreamTrack])
+        streamCache.value.set(cacheKey, cameraStream)
+      }
+    }
+
     return {
       userId: user.id,
       userNickname: user.nickname || "Unknown",
       audioStream: props.isUserGridVisible ? null : props.remoteStreams.get(user.id) || null,
       screenShareStream,
+      cameraStream,
       initialVolume: props.remoteStreamVolumes.get(user.id) || 80,
       isDeafened: props.isDeafened,
       isScreenSharing,
+      isCameraEnabled,
       screenShareQuality: props.userScreenShareStates.get(user.id)?.quality,
       isCurrentUser,
       externalAudioLevel: isCurrentUser ? props.currentUserAudioLevel : undefined,
@@ -272,13 +412,19 @@ const setFocusedShare = (userId: string) => {
 }
 
 const handleParticipantClick = (userId: string) => {
-  // If user has a screen share, focus on it
+  // If user has a screen share or camera, focus on it
   // Check for both regular userId and self-view userId (userId + '-self')
   const screenShare = props.screenShares.find(
     (s) => s.userId === userId || s.userId === userId + "-self",
   )
+  const camera = props.cameraStreams.find(
+    (c) => c.userId === userId || c.userId === userId + "-self",
+  )
+  
   if (screenShare) {
     setFocusedShare(screenShare.userId)
+  } else if (camera) {
+    setFocusedShare(camera.userId)
   }
 }
 

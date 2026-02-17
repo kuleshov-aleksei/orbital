@@ -7,6 +7,7 @@
       :room-name="currentRoom?.name || 'Voice Room'"
       :user-count="users.length"
       :screen-share-count="screenShareData.length"
+      :camera-count="cameraData.length"
       :is-mobile="isMobile"
       @leave-room="$emit('leave-room')"
       @show-room-list="$emit('show-room-list')"
@@ -19,10 +20,11 @@
       <!-- Content Container - allows scrolling if needed -->
       <div class="flex-1 min-h-0 overflow-auto">
         <!-- Use v-show instead of v-if to keep both components mounted and preserve audio elements -->
-        <!-- Screen Share Area - Shows users in side panel when screen sharing -->
+        <!-- Screen Share Area - Shows users in side panel when screen sharing or camera is active -->
         <ScreenShareArea
-          v-show="screenShareData.length > 0"
+          v-show="screenShareData.length > 0 || cameraData.length > 0"
           :screen-shares="screenShareData"
+          :camera-streams="cameraData"
           :is-user-grid-visible="isUserGridVisible"
           :layout="screenShareLayout"
           :users="users"
@@ -31,37 +33,40 @@
           :peer-connection-retries="peerConnectionRetries"
           :remote-stream-volumes="props.remoteStreamVolumes"
           :user-screen-share-states="userScreenShareStates"
+          :user-camera-states="userCameraStates"
           :peer-connections="peerConnections"
           :is-deafened="isDeafened"
           :current-user-audio-level="audioLevel"
           :current-user-id="currentUserId"
           :current-user-is-sharing="isScreenSharing"
+          :current-user-camera-enabled="isCameraEnabled"
           :get-participant-stats="getParticipantStats"
           class="m-4 max-h-[70vh]"
           @update:layout="screenShareLayout = $event"
           @toggle-user-grid="isUserGridVisible = !isUserGridVisible"
           @mute-toggle="handleMuteToggle" />
 
-        <!-- User Grid - Only shown when no screen shares (audio-only mode) -->
+        <!-- User Grid - Only shown when no screen shares or cameras (audio-only mode) -->
         <UserGrid
-          v-show="screenShareData.length === 0"
+          v-show="screenShareData.length === 0 && cameraData.length === 0"
           :users="users"
           :remote-streams="remoteStreams"
           :peer-connection-states="peerConnectionStates"
           :peer-connection-retries="peerConnectionRetries"
           :remote-stream-volumes="props.remoteStreamVolumes"
           :user-screen-share-states="userScreenShareStates"
+          :user-camera-states="userCameraStates"
           :is-deafened="isDeafened"
           :is-visible="true"
           :peer-connections="peerConnections"
           :current-user-audio-level="audioLevel"
+          :current-user-camera-enabled="isCameraEnabled"
           :get-participant-stats="getParticipantStats"
           @mute-toggle="handleMuteToggle" />
       </div>
 
       <!-- Audio Controls - Fixed at bottom center -->
-      <div
-        class="flex-shrink-0 flex justify-center px-4 py-3 bg-gray-900/80 backdrop-blur-sm border-t border-gray-700/50">
+      <div class="flex-shrink-0 flex justify-center items-center gap-4 px-4 py-3 bg-gray-900/80 backdrop-blur-sm border-t border-gray-700/50">
         <AudioControls
           ref="audioControlsRef"
           v-model:model-value-muted="isMuted"
@@ -71,6 +76,13 @@
           :is-mobile="isMobile"
           @start-screen-share="$emit('request-screen-share')"
           @leave-room="$emit('leave-room')" />
+
+        <!-- Camera Toggle Button -->
+        <CameraButton
+          v-model="cameraEnabled"
+          size="md"
+          @toggle-camera="handleCameraToggle"
+          @auth-required="$emit('show-room-list')" />
       </div>
     </main>
   </div>
@@ -79,6 +91,7 @@
 <script setup lang="ts">
 import { computed, ref, useTemplateRef, watch } from "vue"
 import AudioControls from "@/components/AudioControls.vue"
+import CameraButton from "@/components/CameraButton.vue"
 import RoomHeader from "@/components/RoomHeader.vue"
 import ScreenShareArea from "@/components/ScreenShareArea.vue"
 import UserGrid from "@/components/UserGrid.vue"
@@ -95,6 +108,7 @@ interface Props {
   modelValueMuted?: boolean
   modelValueDeafened?: boolean
   modelValueScreenSharing?: boolean
+  modelValueCameraEnabled?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -102,6 +116,7 @@ const props = withDefaults(defineProps<Props>(), {
   modelValueMuted: false,
   modelValueDeafened: false,
   modelValueScreenSharing: false,
+  modelValueCameraEnabled: false,
 })
 
 const emit = defineEmits<{
@@ -111,6 +126,7 @@ const emit = defineEmits<{
   "update:modelValueMuted": [value: boolean]
   "update:modelValueDeafened": [value: boolean]
   "update:modelValueScreenSharing": [value: boolean]
+  "update:modelValueCameraEnabled": [value: boolean]
   "ping-update": [ping: number, quality: "excellent" | "good" | "fair" | "poor"]
   "request-screen-share": []
 }>()
@@ -134,10 +150,14 @@ const {
   peerConnectionStates,
   peerConnectionRetries,
   isScreenSharing,
+  isCameraEnabled,
   userScreenShareStates,
+  userCameraStates,
   screenShareData,
+  cameraData,
   handleMuteToggle,
   startScreenShare,
+  toggleCamera,
   getParticipantStats,
   applyMuteState,
   applyDeafenState,
@@ -177,6 +197,14 @@ const isDeafened = computed({
   set: (value) => {
     emit("update:modelValueDeafened", value)
     void applyDeafenState(value)
+  },
+})
+
+const cameraEnabled = computed({
+  get: () => props.modelValueCameraEnabled,
+  set: (value) => {
+    emit("update:modelValueCameraEnabled", value)
+    void toggleCamera()
   },
 })
 
@@ -241,6 +269,17 @@ watch(
   },
 )
 
+watch(
+  () => callStore.isCameraEnabled,
+  (newValue) => {
+    console.log(`📹 Call store camera state changed: ${newValue}`)
+    // Sync with parent v-model if different
+    if (props.modelValueCameraEnabled !== newValue) {
+      emit("update:modelValueCameraEnabled", newValue)
+    }
+  },
+)
+
 // Apply initial mute/deafen state from store when joining a room
 watch(
   () => props.roomId,
@@ -300,6 +339,15 @@ const startScreenShareWithQuality = async (quality: string, shareAudio: boolean)
     }
   } catch (error) {
     console.error("Failed to start screen share:", error)
+  }
+}
+
+// Handle camera toggle
+const handleCameraToggle = async () => {
+  try {
+    await toggleCamera()
+  } catch (error) {
+    console.error("Failed to toggle camera:", error)
   }
 }
 

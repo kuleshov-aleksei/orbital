@@ -29,6 +29,7 @@ export const useCallStore = defineStore("call", () => {
   const isMuted = ref(loadFromStorage(MUTE_STORAGE_KEY, false))
   const isDeafened = ref(loadFromStorage(DEAFEN_STORAGE_KEY, false))
   const isScreenSharing = ref(false)
+  const isCameraEnabled = ref(false)
 
   // Watch for changes and persist to localStorage
   watch(isMuted, (newValue) => {
@@ -52,6 +53,10 @@ export const useCallStore = defineStore("call", () => {
     isScreenSharing.value = sharing
   }
 
+  function setCameraEnabled(enabled: boolean) {
+    isCameraEnabled.value = enabled
+  }
+
   function toggleMute() {
     isMuted.value = !isMuted.value
   }
@@ -64,22 +69,30 @@ export const useCallStore = defineStore("call", () => {
     isScreenSharing.value = !isScreenSharing.value
   }
 
+  function toggleCamera() {
+    isCameraEnabled.value = !isCameraEnabled.value
+  }
+
   function resetCallState() {
     isMuted.value = false
     isDeafened.value = false
     isScreenSharing.value = false
+    isCameraEnabled.value = false
   }
 
   return {
     isMuted,
     isDeafened,
     isScreenSharing,
+    isCameraEnabled,
     setMuted,
     setDeafened,
     setScreenSharing,
+    setCameraEnabled,
     toggleMute,
     toggleDeafen,
     toggleScreenShare,
+    toggleCamera,
     resetCallState,
   }
 })
