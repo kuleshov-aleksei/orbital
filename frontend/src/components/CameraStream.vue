@@ -17,12 +17,10 @@
         @loadedmetadata="handleVideoMetadata" />
 
       <!-- User Info Overlay -->
-      <div
-        class="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/70 to-transparent px-3 py-2">
+      <div class="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/70 to-transparent px-3 py-2">
         <div class="flex items-center justify-between">
           <div class="flex items-center">
-            <div
-              class="w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center text-xs font-bold text-white mr-2">
+            <div class="w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center text-xs font-bold text-white mr-2">
               {{ userNickname.charAt(0).toUpperCase() }}
             </div>
 
@@ -39,8 +37,7 @@
       </div>
 
       <!-- Controls Overlay -->
-      <div
-        class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-3 py-2 opacity-0 hover:opacity-100 transition-opacity duration-200">
+      <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-3 py-2 opacity-0 hover:opacity-100 transition-opacity duration-200">
         <div class="flex items-center justify-end space-x-2">
           <button
             type="button"
@@ -136,9 +133,6 @@ const handleVideoMetadata = () => {
   if (videoElement.value) {
     videoWidth.value = videoElement.value.videoWidth || 1280
     videoHeight.value = videoElement.value.videoHeight || 720
-    console.log(
-      `Camera dimensions for ${props.userId}: ${videoWidth.value}x${videoHeight.value}`,
-    )
   }
 }
 
@@ -154,34 +148,27 @@ const handleMouseLeave = () => {
 const attachTrackToElement = async (track: typeof props.videoTrack, element: HTMLVideoElement) => {
   if (!track || !element) return
 
-  console.log(
-    `[CameraStream] Attaching track for ${props.userId}, isSelfView: ${props.isSelfView}`,
-  )
-
   if (props.isSelfView) {
     // For self-view, use MediaStream approach (custom pause/resume support)
     selfViewStream.value = new MediaStream([track.mediaStreamTrack])
     element.srcObject = selfViewStream.value
     try {
       await element.play()
-      console.log(`[CameraStream] Self-view playing for ${props.userId}`)
-    } catch (error) {
-      console.warn(`[CameraStream] Self-view play failed for ${props.userId}:`, error)
+    } catch {
+      // Silently ignore play errors
     }
   } else {
     // For remote views, use LiveKit attach for adaptive streaming
     try {
       track.attach(element)
       isLiveKitAttached.value = true
-      console.log(`[CameraStream] Attached track to ${props.userId}`)
 
       // Ensure video plays (sometimes attach doesn't auto-play)
       if (element.paused) {
         try {
           await element.play()
-          console.log(`[CameraStream] Video playing after attach for ${props.userId}`)
-        } catch (playError) {
-          console.warn(`[CameraStream] Play after attach failed for ${props.userId}:`, playError)
+        } catch {
+          // Silently ignore play errors
         }
       }
     } catch (error) {
@@ -199,9 +186,8 @@ watch(
       try {
         oldTrack.detach(videoElement.value)
         isLiveKitAttached.value = false
-        console.log(`[CameraStream] Detached track from ${props.userId}`)
-      } catch (error) {
-        console.warn(`[CameraStream] Error detaching track from ${props.userId}:`, error)
+      } catch {
+        // Silently ignore detach errors
       }
     }
 
@@ -216,14 +202,10 @@ watch(
     } else if (newTrack && !videoElement.value) {
       // Track arrived but element not ready - store for later
       pendingTrack.value = newTrack
-      console.log(
-        `[CameraStream] Track arrived but element not ready for ${props.userId}, storing for later`,
-      )
     } else if (!newTrack && videoElement.value) {
       // Clear video element when track is null
       videoElement.value.srcObject = null
       pendingTrack.value = null
-      console.log(`[CameraStream] Cleared video element for ${props.userId}`)
     }
   },
 )
@@ -234,12 +216,10 @@ watch(isPausedComputed, (isPaused) => {
 
   if (isPaused) {
     videoElement.value.pause()
-    console.log(`⏸️ Camera self-view paused for ${props.userId}`)
   } else {
-    videoElement.value.play().catch((error) => {
-      console.warn(`Failed to resume camera self-view for ${props.userId}:`, error)
+    videoElement.value.play().catch(() => {
+      // Silently ignore play errors
     })
-    console.log(`▶️ Camera self-view resumed for ${props.userId}`)
   }
 })
 
@@ -285,14 +265,9 @@ const handlePiPChange = () => {
 }
 
 onMounted(() => {
-  console.log(
-    `[CameraStream] Component mounted for ${props.userId}, has track: ${!!props.videoTrack}, has element: ${!!videoElement.value}, pending: ${!!pendingTrack.value}`,
-  )
-
   // If we have a pending track or current track but haven't attached it yet, attach it now
   const trackToAttach = pendingTrack.value || props.videoTrack
   if (trackToAttach && videoElement.value && !isLiveKitAttached.value && !selfViewStream.value) {
-    console.log(`[CameraStream] Attaching track in onMounted for ${props.userId}`)
     pendingTrack.value = null
     void attachTrackToElement(trackToAttach, videoElement.value)
   }
@@ -317,7 +292,6 @@ onUnmounted(() => {
   // Detach LiveKit track if attached
   if (props.videoTrack && videoElement.value && isLiveKitAttached.value) {
     props.videoTrack.detach(videoElement.value)
-    console.log(`[CameraStream] Detached track from ${props.userId} (unmount)`)
   }
 
   // Clean up PiP if active

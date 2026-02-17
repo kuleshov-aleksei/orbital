@@ -200,8 +200,8 @@
       </Transition>
     </Teleport>
 
-    <!-- Video Mode: Screen Share and/or Camera -->
-    <template v-if="(isScreenSharing && screenShareStream) || (isCameraEnabled && cameraStream) && !forceAudioMode">
+    <!-- Video Mode: Only when BOTH Screen Share AND Camera are active -->
+    <template v-if="isScreenSharing && screenShareStream && isCameraEnabled && cameraStream && !forceAudioMode">
       <!-- Main Video Display -->
       <div class="relative w-full h-full">
         <!-- Screen Share as Main -->
@@ -642,22 +642,19 @@ const handleMouseLeave = () => {
 }
 
 const onScreenVideoLoaded = () => {
-  console.log(`✅ Screen share video loaded for user ${props.userId}`)
+  // Video loaded successfully
 }
 
 const onCameraVideoLoaded = () => {
-  console.log(`✅ Camera video loaded for user ${props.userId}`)
+  // Video loaded successfully
 }
 
-const setupVideoStream = (element: HTMLVideoElement | null, stream: MediaStream | null, streamType: 'screen' | 'camera') => {
+const setupVideoStream = (element: HTMLVideoElement | null, stream: MediaStream | null) => {
   if (!element || !stream) return
-
-  console.log(`🎥 Setting up ${streamType} stream for user ${props.userId}`)
 
   // Check if stream has video tracks and they're active
   const videoTracks = stream.getVideoTracks()
   if (videoTracks.length === 0 || !videoTracks[0].enabled) {
-    console.warn(`No active video tracks in ${streamType} stream for user ${props.userId}`)
     return
   }
 
@@ -666,11 +663,8 @@ const setupVideoStream = (element: HTMLVideoElement | null, stream: MediaStream 
 
   // Wait for metadata to load before playing
   const attemptPlay = () => {
-    element.play().catch((error) => {
-      // Only log if it's not an abort error (which is normal during rapid changes)
-      if (error.name !== "AbortError") {
-        console.warn(`${streamType} video play failed for user ${props.userId}:`, error)
-      }
+    element.play().catch(() => {
+      // Silently ignore play errors (AbortError is normal during rapid changes)
     })
   }
 
@@ -686,21 +680,21 @@ const setupVideoStream = (element: HTMLVideoElement | null, stream: MediaStream 
 const setupAllVideoStreams = () => {
   // Setup main screen share video
   if (props.screenShareStream && screenVideoElement.value) {
-    setupVideoStream(screenVideoElement.value, props.screenShareStream, 'screen')
+    setupVideoStream(screenVideoElement.value, props.screenShareStream)
   }
 
   // Setup main camera video
   if (props.cameraStream && cameraVideoElement.value) {
-    setupVideoStream(cameraVideoElement.value, props.cameraStream, 'camera')
+    setupVideoStream(cameraVideoElement.value, props.cameraStream)
   }
 
   // Setup thumbnail videos when both streams are available
   if (props.screenShareStream && screenShareThumbnailElement.value) {
-    setupVideoStream(screenShareThumbnailElement.value, props.screenShareStream, 'screen-thumbnail')
+    setupVideoStream(screenShareThumbnailElement.value, props.screenShareStream)
   }
 
   if (props.cameraStream && cameraThumbnailElement.value) {
-    setupVideoStream(cameraThumbnailElement.value, props.cameraStream, 'camera-thumbnail')
+    setupVideoStream(cameraThumbnailElement.value, props.cameraStream)
   }
 }
 
@@ -722,10 +716,9 @@ watch(
   () => props.audioStream,
   (newStream) => {
     if (newStream && audioElement.value) {
-      console.log(`🎵 Setting audio stream for user ${props.userId}`)
       audioElement.value.srcObject = newStream
-      void audioElement.value.play().catch((error: Error) => {
-        console.warn(`Audio play failed for user ${props.userId}:`, error)
+      void audioElement.value.play().catch(() => {
+        // Silently ignore play errors
       })
     }
   },

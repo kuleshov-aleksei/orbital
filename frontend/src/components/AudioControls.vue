@@ -18,7 +18,7 @@
       <CameraButton
         v-model="isCameraEnabled"
         size="lg"
-        @toggle-camera="(val) => { console.log('[AudioControls] toggle-camera received:', val); $emit('toggle-camera', val); }"
+        @toggle-camera="$emit('toggle-camera', $event)"
         @auth-required="$emit('auth-required')" />
 
       <!-- Settings (mobile only) -->

@@ -925,13 +925,11 @@ export function useLiveKit(options: UseLiveKitOptions) {
       // Note: The publication will be stored by the LocalTrackPublished event handler
       // which has the canonical reference that's guaranteed to be in LiveKit's internal map
       const publication = await room.value.localParticipant.publishTrack(videoTrack)
-      debugLog(`[LiveKit][DEBUG]: publishTrack returned publication with sid=${publication?.trackSid}`)
 
       // Also store it immediately to avoid race conditions
       if (publication) {
         localCameraPublication.value = publication
         localCameraTrack.value = videoTrack
-        debugLog(`[LiveKit][DEBUG]: Stored publication immediately`)
       }
 
       // Track and state will be set by the LocalTrackPublished event handler
@@ -957,19 +955,8 @@ export function useLiveKit(options: UseLiveKitOptions) {
     const trackToStop = localCameraTrack.value
     const publicationToUnpublish = localCameraPublication.value
 
-    // Debug: Log all available publications on the local participant
-    if (room.value) {
-      const allPublications = Array.from(room.value.localParticipant.trackPublications.values())
-      const cameraPubs = allPublications.filter(p => p.source === Track.Source.Camera)
-      debugLog(`[LiveKit][DEBUG]: Available camera publications: ${cameraPubs.length}`)
-      cameraPubs.forEach(p => {
-        debugLog(`[LiveKit][DEBUG]: - sid=${p.trackSid}, track=${p.track?.sid}`)
-      })
-    }
-
     // Early exit if already being stopped (no track or publication)
     if (!trackToStop && !publicationToUnpublish) {
-      debugLog(`[LiveKit][INFO]: Camera already stopped or stopping`)
       return
     }
 
@@ -978,21 +965,15 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
     try {
       debugLog(`[LiveKit][INFO]: 'Stopping camera...'`)
-      debugLog(`[LiveKit][DEBUG]: publicationToUnpublish=${publicationToUnpublish?.trackSid}, trackToStop=${trackToStop?.sid}`)
 
       // CRITICAL: Unpublish FIRST, then stop the track
       // This order ensures LiveKit can properly clean up the publication before we stop the MediaStreamTrack
       if (publicationToUnpublish && publicationToUnpublish.trackSid) {
         try {
-          debugLog(`[LiveKit][DEBUG]: Calling unpublishTrack with sid=${publicationToUnpublish.trackSid}`)
           await room.value.localParticipant.unpublishTrack(publicationToUnpublish.trackSid)
-          debugLog(`[LiveKit][INFO]: Unpublished track from LiveKit`)
         } catch {
           // If the track wasn't found in LiveKit's map, it might already be unpublished
-          debugLog(`[LiveKit][INFO]: Track not found in LiveKit map (already unpublished)`)
         }
-      } else {
-        debugLog(`[LiveKit][WARN]: No publication to unpublish`)
       }
 
       // Stop the underlying MediaStreamTrack to turn off the privacy light
@@ -1001,7 +982,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
         const mediaStreamTrack = trackToStop.mediaStreamTrack
         if (mediaStreamTrack && mediaStreamTrack.readyState === "live") {
           mediaStreamTrack.stop()
-          debugLog(`[LiveKit][INFO]: Stopped MediaStreamTrack`)
         }
       }
 

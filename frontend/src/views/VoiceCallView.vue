@@ -269,7 +269,6 @@ watch(
 watch(
   () => callStore.isCameraEnabled,
   (newValue) => {
-    console.log(`📹 Call store camera state changed: ${newValue}`)
     // Sync with parent v-model if different
     if (props.modelValueCameraEnabled !== newValue) {
       emit("update:modelValueCameraEnabled", newValue)
@@ -341,18 +340,11 @@ const startScreenShareWithQuality = async (quality: string, shareAudio: boolean)
 
 // Handle camera toggle from AudioControls
 const handleCameraToggle = async (enabled: boolean) => {
-  console.log(`[VoiceCallView] handleCameraToggle called: enabled=${enabled}, current isCameraEnabled=${isCameraEnabled.value}, LiveKit isCameraEnabled=${isCameraEnabled.value}`)
   try {
-    // toggleCamera() will check isCameraEnabled internally and toggle accordingly
-    // But since we already know the desired state from the event, we can directly call start/stop
     if (enabled && !isCameraEnabled.value) {
-      console.log("[VoiceCallView] Starting camera...")
       await startCamera()
     } else if (!enabled && isCameraEnabled.value) {
-      console.log("[VoiceCallView] Stopping camera...")
       await stopCamera()
-    } else {
-      console.log(`[VoiceCallView] No action needed: conditions not met`)
     }
   } catch (error) {
     console.error("Failed to toggle camera:", error)
