@@ -254,7 +254,7 @@ const allParticipants = computed((): ParticipantData[] => {
       userId: user.id,
       userNickname: user.nickname || "Unknown",
       avatarUrl: user.avatar_url,
-      audioStream: props.remoteStreams.get(user.id) || null,
+      audioStream: props.isUserGridVisible ? null : props.remoteStreams.get(user.id) || null,
       screenShareStream,
       initialVolume: props.remoteStreamVolumes.get(user.id) || 80,
       isDeafened: props.isDeafened,
