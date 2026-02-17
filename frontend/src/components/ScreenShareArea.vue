@@ -95,6 +95,14 @@ import type {
   LocalAudioTrack,
 } from "livekit-client"
 
+const props = defineProps<Props>()
+
+const emit = defineEmits<{
+  "toggle-user-grid": []
+  "update:layout": [layout: "grid" | "focus"]
+  "mute-toggle": [userId: string, isMuted: boolean]
+}>()
+
 // Cache for MediaStream objects to prevent recreation on every render
 const streamCache = ref<Map<string, MediaStream>>(new Map())
 
@@ -154,13 +162,6 @@ interface Props {
     bitrate: number
   }
 }
-
-const props = defineProps<Props>()
-const emit = defineEmits<{
-  "toggle-user-grid": []
-  "update:layout": [layout: "grid" | "focus"]
-  "mute-toggle": [userId: string, isMuted: boolean]
-}>()
 
 const localLayout = computed({
   get: () => props.layout,
@@ -254,7 +255,9 @@ const allParticipants = computed((): ParticipantData[] => {
       userId: user.id,
       userNickname: user.nickname || "Unknown",
       avatarUrl: user.avatar_url,
-      audioStream: props.isUserGridVisible ? null : props.remoteStreams.get(user.id) || null,
+      audioStream: props.isUserGridVisible
+        ? null
+        : props.remoteStreams.get(user.id) || null,
       screenShareStream,
       initialVolume: props.remoteStreamVolumes.get(user.id) || 80,
       isDeafened: props.isDeafened,

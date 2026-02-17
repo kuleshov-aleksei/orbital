@@ -14,6 +14,16 @@
         size="lg"
         @start-screen-share="$emit('start-screen-share')" />
 
+      <!-- Settings (mobile only) -->
+      <button
+        v-if="isMobile"
+        type="button"
+        class="control-button bg-gray-700 hover:bg-gray-600"
+        title="Settings"
+        @click="openSettings">
+        <PhGearSix class="w-5 h-5" />
+      </button>
+
       <!-- Leave Room -->
       <button
         type="button"
@@ -27,10 +37,11 @@
 
 <script setup lang="ts">
 import { computed, useTemplateRef } from "vue"
-import { PhSignOut } from "@phosphor-icons/vue"
+import { PhSignOut, PhGearSix } from "@phosphor-icons/vue"
 import MicMuteButton from "@/components/MicMuteButton.vue"
 import AudioDeafenButton from "@/components/AudioDeafenButton.vue"
 import ScreenShareButton from "@/components/ScreenShareButton.vue"
+import { useModalStore } from "@/stores"
 import type { ScreenShareQuality } from "@/types"
 
 interface Props {
@@ -38,6 +49,7 @@ interface Props {
   modelValueDeafened?: boolean
   modelValueScreenSharing?: boolean
   isSpeaking?: boolean
+  isMobile?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -45,6 +57,7 @@ const props = withDefaults(defineProps<Props>(), {
   modelValueDeafened: false,
   modelValueScreenSharing: false,
   isSpeaking: false,
+  isMobile: false,
 })
 
 const emit = defineEmits<{
@@ -59,6 +72,14 @@ const emit = defineEmits<{
 const screenShareButtonRef = useTemplateRef<
   InstanceType<typeof ScreenShareButton>
 >("screenShareButtonRef")
+
+// Stores
+const modalStore = useModalStore()
+
+// Methods
+const openSettings = () => {
+  modalStore.openUserSettingsModal()
+}
 
 // Computed v-model bindings
 const isMuted = computed({

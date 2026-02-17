@@ -242,6 +242,7 @@
         v-if="isViewing"
         class="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-indigo-600/90 backdrop-blur-sm text-white px-3 py-1.5 rounded-full z-20 shadow-lg">
         <PhMonitorPlay class="w-4 h-4" />
+
         <span class="text-sm font-medium">Viewing</span>
       </div>
 
@@ -254,6 +255,7 @@
             :avatar-url="avatarUrl"
             :size="24"
             :show-status="false" />
+
           <span
             class="text-white text-sm font-medium bg-gray-900/70 px-3 py-1 rounded-lg max-w-[140px] truncate">
             {{

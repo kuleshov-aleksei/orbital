@@ -6,16 +6,6 @@
     <div class="w-full max-w-4xl flex-1">
       <div class="flex items-center justify-between mb-6">
         <h2 class="text-2xl font-semibold text-white">Available Rooms</h2>
-
-        <button
-          v-if="isAdmin"
-          type="button"
-          data-testid="create-room-welcome"
-          class="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors duration-200"
-          @click="$emit('create-room')">
-          <PhPlus class="w-4 h-4 mr-2" />
-          Create Room
-        </button>
       </div>
 
       <!-- Room Grid -->

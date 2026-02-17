@@ -24,11 +24,7 @@
         </button>
 
         <div>
-          <h1
-            class="text-xl font-semibold text-white cursor-pointer hover:text-indigo-400 transition-colors duration-200"
-            :class="{ 'cursor-pointer': isMobile }"
-            data-testid="room-title"
-            @click="isMobile && $emit('toggle-user-sidebar')">
+          <h1 class="text-xl font-semibold text-white" data-testid="room-title">
             {{ roomName || "Voice Room" }}
           </h1>
 

@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test"
 
 /**
  * E2E test to detect the feedback loop bug caused by double audio elements.
- * 
+ *
  * The bug: When a user connects to a room, LiveKit automatically plays remote
  * audio tracks internally. However, the app also creates custom <audio> elements
  * and plays the same tracks, causing double playback and feedback/echo.
@@ -27,11 +27,11 @@ test("detect double audio elements causing feedback loop", async ({
     return await page.evaluate(() => {
       const audioElements = document.querySelectorAll("audio")
       const livekitAudioElements = document.querySelectorAll("[data-lk-audio]")
-      
+
       const playingAudioElements = Array.from(audioElements).filter(
-        (el) => (el as HTMLAudioElement).srcObject !== null
+        (el) => (el as HTMLAudioElement).srcObject !== null,
       )
-      
+
       const audioInfo = Array.from(audioElements).map((el, index) => {
         const audioEl = el as HTMLAudioElement
         const parent = audioEl.parentElement
@@ -41,15 +41,16 @@ test("detect double audio elements causing feedback loop", async ({
           srcObject: audioEl.srcObject ? "set" : "null",
           muted: audioEl.muted,
           autoplay: audioEl.autoplay,
-          trackCount: audioEl.srcObject instanceof MediaStream 
-            ? (audioEl.srcObject as MediaStream).getAudioTracks().length 
-            : 0,
+          trackCount:
+            audioEl.srcObject instanceof MediaStream
+              ? (audioEl.srcObject as MediaStream).getAudioTracks().length
+              : 0,
           parentTag: parent?.tagName || "unknown",
           parentClasses: parent?.className || "none",
           parentTestId: parent?.getAttribute("data-testid") || "none",
         }
       })
-      
+
       return {
         totalAudioElements: audioElements.length,
         livekitAudioElements: livekitAudioElements.length,
@@ -62,13 +63,13 @@ test("detect double audio elements causing feedback loop", async ({
   // Helper to join room as guest
   const joinAsGuest = async (page: typeof pageA, nickname: string) => {
     await page.goto("http://localhost:3000/")
-    
+
     // Wait for the welcome page to load
     await page.waitForSelector("text=Continue as Guest", { timeout: 10000 })
-    
+
     // Click "Continue as Guest" - this auto-generates a guest nickname
     await page.getByRole("button", { name: "Continue as Guest" }).click()
-    
+
     // Wait for the room list to appear (auto-login happens immediately)
     await page.waitForSelector("text=Available Rooms", { timeout: 10000 })
   }
@@ -103,39 +104,64 @@ test("detect double audio elements causing feedback loop", async ({
   // Check audio elements on Device A
   console.log("\n=== Checking audio elements ===")
   const audioStatsA = await countAudioElements(pageA)
-  console.log("\nDevice A audio elements:", JSON.stringify(audioStatsA, null, 2))
+  console.log(
+    "\nDevice A audio elements:",
+    JSON.stringify(audioStatsA, null, 2),
+  )
 
-  // Check audio elements on Device B  
+  // Check audio elements on Device B
   const audioStatsB = await countAudioElements(pageB)
-  console.log("\nDevice B audio elements:", JSON.stringify(audioStatsB, null, 2))
+  console.log(
+    "\nDevice B audio elements:",
+    JSON.stringify(audioStatsB, null, 2),
+  )
 
   // Analysis
   console.log("\n=== FEEDBACK LOOP ANALYSIS ===")
-  console.log(`Device A: ${audioStatsA.totalAudioElements} total audio elements, ${audioStatsA.playingAudioElements} playing`)
-  console.log(`Device B: ${audioStatsB.totalAudioElements} total audio elements, ${audioStatsB.playingAudioElements} playing`)
-  
-  const checkForDuplicates = (stats: typeof audioStatsA, deviceName: string) => {
-    const audioWithStreams = stats.audioInfo.filter(a => a.srcObject === "set")
-    
+  console.log(
+    `Device A: ${audioStatsA.totalAudioElements} total audio elements, ${audioStatsA.playingAudioElements} playing`,
+  )
+  console.log(
+    `Device B: ${audioStatsB.totalAudioElements} total audio elements, ${audioStatsB.playingAudioElements} playing`,
+  )
+
+  const checkForDuplicates = (
+    stats: typeof audioStatsA,
+    deviceName: string,
+  ) => {
+    const audioWithStreams = stats.audioInfo.filter(
+      (a) => a.srcObject === "set",
+    )
+
     if (audioWithStreams.length > 1) {
-      console.log(`\n⚠️  WARNING: ${deviceName} has ${audioWithStreams.length} playing audio elements!`)
-      console.log("This indicates the feedback loop bug where audio is played twice.")
-      
+      console.log(
+        `\n⚠️  WARNING: ${deviceName} has ${audioWithStreams.length} playing audio elements!`,
+      )
+      console.log(
+        "This indicates the feedback loop bug where audio is played twice.",
+      )
+
       audioWithStreams.forEach((info, idx) => {
-        console.log(`  Audio ${idx + 1}: id=${info.id}, parent=${info.parentTag}.${info.parentClasses}, tracks=${info.trackCount}`)
+        console.log(
+          `  Audio ${idx + 1}: id=${info.id}, parent=${info.parentTag}.${info.parentClasses}, tracks=${info.trackCount}`,
+        )
       })
-      
+
       return true
     }
     return false
   }
-  
+
   const hasDuplicatesA = checkForDuplicates(audioStatsA, "Device A")
   const hasDuplicatesB = checkForDuplicates(audioStatsB, "Device B")
-  
+
   if (hasDuplicatesA || hasDuplicatesB) {
-    console.log("\n🐛 BUG DETECTED: Multiple audio elements playing simultaneously!")
-    console.log("This confirms the feedback loop issue where audio is amplified.")
+    console.log(
+      "\n🐛 BUG DETECTED: Multiple audio elements playing simultaneously!",
+    )
+    console.log(
+      "This confirms the feedback loop issue where audio is amplified.",
+    )
   } else {
     console.log("\n✅ OK: No duplicate playing audio elements detected.")
   }
@@ -197,16 +223,16 @@ test("analyze ParticipantCard audio element structure", async ({ browser }) => {
         parentClasses: string
       }>
     }> = []
-    
+
     cards.forEach((card, index) => {
       const audios = card.querySelectorAll("audio")
       const userId = card.getAttribute("data-user-id") || `card-${index}`
-      
+
       results.push({
         cardIndex: index,
         userId,
         audioElements: audios.length,
-        audioDetails: Array.from(audios).map(a => {
+        audioDetails: Array.from(audios).map((a) => {
           const audioEl = a as HTMLAudioElement
           return {
             id: audioEl.id,
@@ -220,7 +246,7 @@ test("analyze ParticipantCard audio element structure", async ({ browser }) => {
         }),
       })
     })
-    
+
     return results
   })
 
@@ -231,7 +257,7 @@ test("analyze ParticipantCard audio element structure", async ({ browser }) => {
   participantCardAudio.forEach((card) => {
     console.log(`\nCard ${card.cardIndex} (user: ${card.userId}):`)
     console.log(`  Audio elements: ${card.audioElements}`)
-    
+
     card.audioDetails.forEach((audio, idx) => {
       console.log(`  Audio ${idx + 1}:`)
       console.log(`    - id: ${audio.id}`)

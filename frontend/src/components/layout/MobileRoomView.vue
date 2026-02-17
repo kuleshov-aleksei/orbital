@@ -2,11 +2,14 @@
   <div
     v-if="appStore.isMobile && appStore.mobileView === 'rooms'"
     class="lg:hidden flex-1 flex flex-col bg-gray-900">
-    <!-- Mobile Header -->
-    <div
-      class="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-700">
-      <h1 class="text-lg font-semibold">The Orbital</h1>
-    </div>
+    <!-- Floating Toggle Button for User Sidebar -->
+    <button
+      type="button"
+      class="fixed top-4 right-4 z-30 w-10 h-10 rounded-full bg-gray-700/90 hover:bg-gray-600 text-gray-300 hover:text-white shadow-lg flex items-center justify-center transition-all duration-200"
+      title="Open user list"
+      @click="appStore.toggleMobileUserSidebar()">
+      <PhCaretDoubleLeft class="w-5 h-5" />
+    </button>
 
     <!-- Mobile Room List Content -->
     <RoomSidebar
@@ -27,6 +30,7 @@
 <script setup lang="ts">
 import { useAppStore } from "@/stores"
 import RoomSidebar from "@/components/RoomSidebar.vue"
+import { PhCaretDoubleLeft } from "@phosphor-icons/vue"
 
 defineProps<{
   activeRoomId: string | null

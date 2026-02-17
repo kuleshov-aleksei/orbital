@@ -14,7 +14,7 @@
         type="button"
         class="p-1 text-gray-400 hover:text-white"
         @click="$emit('close-mobile-sidebar')">
-        <PhCross class="w-5 h-5" />
+        <PhCaretDoubleRight class="w-5 h-5" />
       </button>
     </div>
 
@@ -32,7 +32,7 @@
       <button
         type="button"
         class="flex items-center justify-center w-7 h-7 rounded-md bg-gray-700/50 hover:bg-gray-600 text-gray-400 hover:text-gray-200 transition-all duration-200"
-        :class="{ 'rotate-180': !isCollapsed }"
+        :class="{ 'rotate-180': isCollapsed }"
         :title="isCollapsed ? 'Expand' : 'Collapse'"
         @click="toggleCollapse">
         <PhCaretDoubleRight class="w-3.5 h-3.5" />
@@ -88,7 +88,7 @@
 import { computed } from "vue"
 import UserCard from "@/components/UserCard.vue"
 import UserAvatar from "@/components/UserAvatar.vue"
-import { PhCross, PhCaretDoubleRight } from "@phosphor-icons/vue"
+import { PhCaretDoubleRight } from "@phosphor-icons/vue"
 
 interface User {
   id: string

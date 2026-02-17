@@ -70,6 +70,7 @@
           v-model:model-value-deafened="isDeafened"
           v-model:model-value-screen-sharing="isScreenSharing"
           :is-speaking="isSpeaking"
+          :is-mobile="isMobile"
           @start-screen-share="$emit('request-screen-share')"
           @leave-room="$emit('leave-room')" />
       </div>

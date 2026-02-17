@@ -5,5 +5,22 @@
 </template>
 
 <script setup lang="ts">
-// Router handles component rendering via router-view
+import { onMounted, onUnmounted } from "vue"
+import { useAppStore } from "@/stores"
+
+// Initialize mobile detection
+const appStore = useAppStore()
+
+const checkMobile = () => {
+  appStore.checkMobile()
+}
+
+onMounted(() => {
+  checkMobile()
+  window.addEventListener("resize", checkMobile)
+})
+
+onUnmounted(() => {
+  window.removeEventListener("resize", checkMobile)
+})
 </script>
