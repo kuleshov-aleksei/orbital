@@ -96,6 +96,8 @@ const iconClasses = computed(() => {
 
 // Handle button click
 const handleClick = () => {
+  console.log(`[CameraButton] handleClick called, current value: ${isCameraEnabled.value}`)
+  
   // If user is a guest, emit auth-required event
   if (isGuest.value) {
     emit("auth-required")
@@ -104,12 +106,14 @@ const handleClick = () => {
 
   // Toggle camera
   const newValue = !isCameraEnabled.value
+  console.log(`[CameraButton] Toggling to: ${newValue}`)
   isCameraEnabled.value = newValue
 
   // Update call store
   callStore.setCameraEnabled(newValue)
 
   // Emit toggle event
+  console.log(`[CameraButton] Emitting toggle-camera event with value: ${newValue}`)
   emit("toggle-camera", newValue)
 }
 </script>

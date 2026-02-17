@@ -12,6 +12,7 @@ import {
   LocalVideoTrack,
   LocalAudioTrack,
   Track,
+  VideoPresets,
 } from "livekit-client"
 import { apiService } from "@/services/api"
 import { usePresenceStore } from "@/stores/presence"
@@ -78,6 +79,10 @@ export function useLiveKit(options: UseLiveKitOptions) {
   const cameraVersion = ref(0)
   // Track publication reference for cleanup
   const localCameraPublication = ref<LocalTrackPublication | null>(null)
+  // Guard to prevent track "ended" event from triggering during manual stop
+  const isStoppingCamera = ref(false)
+  // Guard to prevent multiple concurrent camera starts
+  let isStartingCamera = false
 
   // Audio processing
   let localStreamPromise: Promise<LocalAudioTrack | null> | null = null
@@ -593,10 +598,13 @@ export function useLiveKit(options: UseLiveKitOptions) {
         // Update local state
         userCameraStates.value.set(getCurrentUserId(), true)
 
-        // Listen for track ended event
+        // Listen for track ended event (e.g., user revoked camera permission in browser)
         track.on("ended", () => {
-          debugLog(`[LiveKit][INFO]: 'Camera track ended'`)
-          void stopCamera()
+          // Only handle if not already being stopped manually
+          if (!isStoppingCamera.value) {
+            debugLog(`[LiveKit][INFO]: 'Camera track ended (external)'`)
+            void stopCamera()
+          }
         })
       }
     })
@@ -630,6 +638,9 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
         // Update local state
         userCameraStates.value.set(getCurrentUserId(), false)
+
+        // Reset guard flag in case track was unpublished externally
+        isStoppingCamera.value = false
       }
     })
 
@@ -889,63 +900,112 @@ export function useLiveKit(options: UseLiveKitOptions) {
       throw new Error("Not connected to room")
     }
 
+    // Prevent multiple concurrent camera starts
+    if (isStartingCamera) {
+      debugLog(`[LiveKit][INFO]: Camera already starting, ignoring duplicate request`)
+      return
+    }
+
+    isStartingCamera = true
+
     try {
       debugLog(`[LiveKit][INFO]: Starting camera...`)
 
-      // Create camera track directly with minimal constraints
-      // Using createLocalVideoTrack avoids the proxy serialization issue in setCameraEnabled
-      const videoTrack = await createLocalVideoTrack({
-        resolution: "h720", // 720p default resolution
+      // CRITICAL: Create a completely plain object to avoid Vue proxy serialization issues
+      // The options must not contain any proxy objects
+      const cameraOptions = Object.freeze({
+        resolution: VideoPresets.h720,
       })
+
+      // Create camera track directly with minimal constraints
+      // Using createLocalVideoTrack with frozen plain object avoids the proxy serialization issue
+      const videoTrack = await createLocalVideoTrack(cameraOptions)
 
       // Publish the track
+      // Note: The publication will be stored by the LocalTrackPublished event handler
+      // which has the canonical reference that's guaranteed to be in LiveKit's internal map
       const publication = await room.value.localParticipant.publishTrack(videoTrack)
-      localCameraPublication.value = publication
-      localCameraTrack.value = videoTrack
-      isCameraEnabled.value = true
-      cameraVersion.value++
+      debugLog(`[LiveKit][DEBUG]: publishTrack returned publication with sid=${publication?.trackSid}`)
 
-      // Update local state
-      userCameraStates.value.set(getCurrentUserId(), true)
+      // Also store it immediately to avoid race conditions
+      if (publication) {
+        localCameraPublication.value = publication
+        localCameraTrack.value = videoTrack
+        debugLog(`[LiveKit][DEBUG]: Stored publication immediately`)
+      }
 
-      // Listen for track ended event
-      videoTrack.on("ended", () => {
-        debugLog(`[LiveKit][INFO]: 'Camera track ended'`)
-        void stopCamera()
-      })
+      // Track and state will be set by the LocalTrackPublished event handler
+      // This ensures we use the publication that's confirmed to be in LiveKit's map
 
       debugLog(`[LiveKit][INFO]: 'Camera started successfully'`)
     } catch (error) {
       console.error("Failed to start camera:", error)
       console.error(`[LiveKit][ERROR]: Camera failed: ${(error as Error).message}`)
       throw error
+    } finally {
+      isStartingCamera = false
     }
   }
 
   // Stop camera by unpublishing and stopping the track
   const stopCamera = async (): Promise<void> => {
-    if (!room.value || !isCameraEnabled.value) {
+    if (!room.value || !isCameraEnabled.value || isStoppingCamera.value) {
       return
     }
 
-    // Store track reference locally - the LocalTrackUnpublished event will clear the ref
+    // Store track reference locally before any async operations
     const trackToStop = localCameraTrack.value
     const publicationToUnpublish = localCameraPublication.value
 
+    // Debug: Log all available publications on the local participant
+    if (room.value) {
+      const allPublications = Array.from(room.value.localParticipant.trackPublications.values())
+      const cameraPubs = allPublications.filter(p => p.source === Track.Source.Camera)
+      debugLog(`[LiveKit][DEBUG]: Available camera publications: ${cameraPubs.length}`)
+      cameraPubs.forEach(p => {
+        debugLog(`[LiveKit][DEBUG]: - sid=${p.trackSid}, track=${p.track?.sid}`)
+      })
+    }
+
+    // Early exit if already being stopped (no track or publication)
+    if (!trackToStop && !publicationToUnpublish) {
+      debugLog(`[LiveKit][INFO]: Camera already stopped or stopping`)
+      return
+    }
+
+    // Set guard flag to prevent track "ended" event from triggering this function
+    isStoppingCamera.value = true
+
     try {
       debugLog(`[LiveKit][INFO]: 'Stopping camera...'`)
+      debugLog(`[LiveKit][DEBUG]: publicationToUnpublish=${publicationToUnpublish?.trackSid}, trackToStop=${trackToStop?.sid}`)
 
-      // Stop the track first (before unpublishing to avoid race condition)
+      // CRITICAL: Unpublish FIRST, then stop the track
+      // This order ensures LiveKit can properly clean up the publication before we stop the MediaStreamTrack
+      if (publicationToUnpublish && publicationToUnpublish.trackSid) {
+        try {
+          debugLog(`[LiveKit][DEBUG]: Calling unpublishTrack with sid=${publicationToUnpublish.trackSid}`)
+          await room.value.localParticipant.unpublishTrack(publicationToUnpublish.trackSid)
+          debugLog(`[LiveKit][INFO]: Unpublished track from LiveKit`)
+        } catch {
+          // If the track wasn't found in LiveKit's map, it might already be unpublished
+          debugLog(`[LiveKit][INFO]: Track not found in LiveKit map (already unpublished)`)
+        }
+      } else {
+        debugLog(`[LiveKit][WARN]: No publication to unpublish`)
+      }
+
+      // Stop the underlying MediaStreamTrack to turn off the privacy light
+      // This must happen AFTER unpublish to avoid race conditions
       if (trackToStop) {
-        trackToStop.stop()
+        const mediaStreamTrack = trackToStop.mediaStreamTrack
+        if (mediaStreamTrack && mediaStreamTrack.readyState === "live") {
+          mediaStreamTrack.stop()
+          debugLog(`[LiveKit][INFO]: Stopped MediaStreamTrack`)
+        }
       }
 
-      // Unpublish the track if we have a publication
-      if (publicationToUnpublish) {
-        await room.value.localParticipant.unpublishTrack(publicationToUnpublish.trackSid)
-      }
-
-      // Reset state
+      // Reset state (event handler may have already done this, but ensure it's done)
       localCameraPublication.value = null
       localCameraTrack.value = null
       isCameraEnabled.value = false
@@ -958,6 +1018,9 @@ export function useLiveKit(options: UseLiveKitOptions) {
     } catch (error) {
       console.error("Error stopping camera:", error)
       console.error(`[LiveKit][ERROR]: Error stopping camera: ${(error as Error).message}`)
+    } finally {
+      // Always reset the guard flag
+      isStoppingCamera.value = false
     }
   }
 
@@ -1166,10 +1229,16 @@ export function useLiveKit(options: UseLiveKitOptions) {
     isScreenSharing.value = false
     screenShareQuality.value = "1080p30"
 
-    // Stop camera if active (using LiveKit API)
-    if (isCameraEnabled.value && currentRoom) {
+    // Stop camera if active - manually stop the MediaStreamTrack to turn off privacy light
+    if (isCameraEnabled.value) {
       try {
-        void currentRoom.localParticipant.setCameraEnabled(false)
+        const track = localCameraTrack.value
+        if (track) {
+          const mediaStreamTrack = track.mediaStreamTrack
+          if (mediaStreamTrack && mediaStreamTrack.readyState === "live") {
+            mediaStreamTrack.stop()
+          }
+        }
       } catch {
         // Ignore errors during cleanup
       }
@@ -1179,6 +1248,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     localCameraTrack.value = null
     localCameraPublication.value = null
     isCameraEnabled.value = false
+    isStoppingCamera.value = false
     userCameraStates.value.clear()
     remoteCameraTracks.value.clear()
 

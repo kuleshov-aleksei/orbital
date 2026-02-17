@@ -14,6 +14,13 @@
         size="lg"
         @start-screen-share="$emit('start-screen-share')" />
 
+      <!-- Camera -->
+      <CameraButton
+        v-model="isCameraEnabled"
+        size="lg"
+        @toggle-camera="(val) => { console.log('[AudioControls] toggle-camera received:', val); $emit('toggle-camera', val); }"
+        @auth-required="$emit('auth-required')" />
+
       <!-- Settings (mobile only) -->
       <button
         v-if="isMobile"
@@ -41,6 +48,7 @@ import { PhSignOut, PhGearSix } from "@phosphor-icons/vue"
 import MicMuteButton from "@/components/MicMuteButton.vue"
 import AudioDeafenButton from "@/components/AudioDeafenButton.vue"
 import ScreenShareButton from "@/components/ScreenShareButton.vue"
+import CameraButton from "@/components/CameraButton.vue"
 import { useModalStore } from "@/stores"
 import type { ScreenShareQuality } from "@/types"
 
@@ -48,6 +56,7 @@ interface Props {
   modelValueMuted?: boolean
   modelValueDeafened?: boolean
   modelValueScreenSharing?: boolean
+  modelValueCameraEnabled?: boolean
   isSpeaking?: boolean
   isMobile?: boolean
 }
@@ -56,6 +65,7 @@ const props = withDefaults(defineProps<Props>(), {
   modelValueMuted: false,
   modelValueDeafened: false,
   modelValueScreenSharing: false,
+  modelValueCameraEnabled: false,
   isSpeaking: false,
   isMobile: false,
 })
@@ -64,7 +74,10 @@ const emit = defineEmits<{
   "update:modelValueMuted": [value: boolean]
   "update:modelValueDeafened": [value: boolean]
   "update:modelValueScreenSharing": [value: boolean]
+  "update:modelValueCameraEnabled": [value: boolean]
   "start-screen-share": []
+  "toggle-camera": [enabled: boolean]
+  "auth-required": []
   "leave-room": []
 }>()
 
@@ -94,6 +107,11 @@ const isDeafened = computed({
 const isScreenSharing = computed({
   get: () => props.modelValueScreenSharing,
   set: (value) => emit("update:modelValueScreenSharing", value),
+})
+
+const isCameraEnabled = computed({
+  get: () => props.modelValueCameraEnabled,
+  set: (value) => emit("update:modelValueCameraEnabled", value),
 })
 
 // Confirm screen share start (called by parent after quality selection)

@@ -66,23 +66,19 @@
       </div>
 
       <!-- Audio Controls - Fixed at bottom center -->
-      <div class="flex-shrink-0 flex justify-center items-center gap-4 px-4 py-3 bg-gray-900/80 backdrop-blur-sm border-t border-gray-700/50">
+      <div class="flex-shrink-0 flex justify-center px-4 py-3 bg-gray-900/80 backdrop-blur-sm border-t border-gray-700/50">
         <AudioControls
           ref="audioControlsRef"
           v-model:model-value-muted="isMuted"
           v-model:model-value-deafened="isDeafened"
           v-model:model-value-screen-sharing="isScreenSharing"
+          v-model:model-value-camera-enabled="cameraEnabled"
           :is-speaking="isSpeaking"
           :is-mobile="isMobile"
           @start-screen-share="$emit('request-screen-share')"
-          @leave-room="$emit('leave-room')" />
-
-        <!-- Camera Toggle Button -->
-        <CameraButton
-          v-model="cameraEnabled"
-          size="md"
           @toggle-camera="handleCameraToggle"
-          @auth-required="$emit('show-room-list')" />
+          @auth-required="$emit('show-room-list')"
+          @leave-room="$emit('leave-room')" />
       </div>
     </main>
   </div>
@@ -91,7 +87,6 @@
 <script setup lang="ts">
 import { computed, ref, useTemplateRef, watch } from "vue"
 import AudioControls from "@/components/AudioControls.vue"
-import CameraButton from "@/components/CameraButton.vue"
 import RoomHeader from "@/components/RoomHeader.vue"
 import ScreenShareArea from "@/components/ScreenShareArea.vue"
 import UserGrid from "@/components/UserGrid.vue"
@@ -157,7 +152,8 @@ const {
   cameraData,
   handleMuteToggle,
   startScreenShare,
-  toggleCamera,
+  startCamera,
+  stopCamera,
   getParticipantStats,
   applyMuteState,
   applyDeafenState,
@@ -204,7 +200,8 @@ const cameraEnabled = computed({
   get: () => props.modelValueCameraEnabled,
   set: (value) => {
     emit("update:modelValueCameraEnabled", value)
-    void toggleCamera()
+    // Note: Camera toggle is handled by @toggle-camera event handler (handleCameraToggle)
+    // to avoid duplicate calls from both v-model and the event
   },
 })
 
@@ -342,10 +339,21 @@ const startScreenShareWithQuality = async (quality: string, shareAudio: boolean)
   }
 }
 
-// Handle camera toggle
-const handleCameraToggle = async () => {
+// Handle camera toggle from AudioControls
+const handleCameraToggle = async (enabled: boolean) => {
+  console.log(`[VoiceCallView] handleCameraToggle called: enabled=${enabled}, current isCameraEnabled=${isCameraEnabled.value}, LiveKit isCameraEnabled=${isCameraEnabled.value}`)
   try {
-    await toggleCamera()
+    // toggleCamera() will check isCameraEnabled internally and toggle accordingly
+    // But since we already know the desired state from the event, we can directly call start/stop
+    if (enabled && !isCameraEnabled.value) {
+      console.log("[VoiceCallView] Starting camera...")
+      await startCamera()
+    } else if (!enabled && isCameraEnabled.value) {
+      console.log("[VoiceCallView] Stopping camera...")
+      await stopCamera()
+    } else {
+      console.log(`[VoiceCallView] No action needed: conditions not met`)
+    }
   } catch (error) {
     console.error("Failed to toggle camera:", error)
   }

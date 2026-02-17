@@ -13,6 +13,7 @@
       v-model:model-value-muted="callStore.isMuted"
       v-model:model-value-deafened="callStore.isDeafened"
       v-model:model-value-screen-sharing="callStore.isScreenSharing"
+      v-model:model-value-camera-enabled="callStore.isCameraEnabled"
       :room-id="roomStore.activeRoomId"
       :room-name="roomStore.activeRoomName"
       :users="roomStore.currentRoomUsers"
