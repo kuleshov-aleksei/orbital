@@ -33,6 +33,12 @@ export interface PublicUser {
 // Screen sharing quality options
 export type ScreenShareQuality = "source" | "1080p60" | "1080p30" | "720p30" | "360p30" | "text"
 
+// Camera video stream data
+export interface CameraData {
+  user_id: string
+  user_nickname: string
+}
+
 // User interface - uses snake_case to match Go backend JSON
 export interface User {
   id: string
