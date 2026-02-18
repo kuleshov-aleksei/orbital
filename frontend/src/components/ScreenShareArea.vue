@@ -43,7 +43,6 @@
             "
             :user-id="participant.userId"
             :user-nickname="participant.userNickname"
-            :audio-stream="participant.audioStream"
             :screen-share-stream="participant.screenShareStream"
             :camera-stream="participant.cameraStream"
             :initial-volume="participant.initialVolume"
@@ -149,7 +148,6 @@ interface ScreenShare {
 interface ParticipantData {
   userId: string
   userNickname: string
-  audioStream: MediaStream | null
   screenShareStream: MediaStream | null
   cameraStream: MediaStream | null
   initialVolume?: number
@@ -183,16 +181,11 @@ type VideoStreamItem =
 interface Props {
   screenShares: ScreenShare[]
   cameraStreams: CameraStream[]
-  isUserGridVisible: boolean
   layout: "grid" | "focus"
   users: User[]
-  remoteStreams: Map<string, MediaStream>
-  peerConnectionStates: Map<string, string>
-  peerConnectionRetries: Map<string, number>
   remoteStreamVolumes: Map<string, number>
   userScreenShareStates: Map<string, { isSharing: boolean; quality?: ScreenShareQuality }>
   userCameraStates: Map<string, boolean>
-  peerConnections: Map<string, RTCPeerConnection>
   isDeafened: boolean
   currentUserAudioLevel?: number
   currentUserId: string
@@ -411,7 +404,6 @@ const allParticipants = computed((): ParticipantData[] => {
     return {
       userId: user.id,
       userNickname: user.nickname || "Unknown",
-      audioStream: props.isUserGridVisible ? null : props.remoteStreams.get(user.id) || null,
       screenShareStream,
       cameraStream,
       initialVolume: props.remoteStreamVolumes.get(user.id) || 80,

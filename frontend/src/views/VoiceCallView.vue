@@ -1,5 +1,12 @@
 <template>
   <div class="voice-call-view flex-1 flex flex-col" data-testid="voice-call-view">
+    <!-- Audio Manager - Handles all audio playback centrally -->
+    <AudioManager
+      :audio-tracks="remoteAudioTracks"
+      :volumes="props.remoteStreamVolumes"
+      :is-deafened="isDeafened"
+      :muted-users="mutedUsers" />
+
     <!-- Room Header -->
     <RoomHeader
       v-model:screen-share-layout="screenShareLayout"
@@ -25,16 +32,11 @@
           v-show="screenShareData.length > 0 || cameraData.length > 0"
           :screen-shares="screenShareData"
           :camera-streams="cameraData"
-          :is-user-grid-visible="isUserGridVisible"
           :layout="screenShareLayout"
           :users="users"
-          :remote-streams="remoteStreams"
-          :peer-connection-states="peerConnectionStates"
-          :peer-connection-retries="peerConnectionRetries"
           :remote-stream-volumes="props.remoteStreamVolumes"
           :user-screen-share-states="userScreenShareStates"
           :user-camera-states="userCameraStates"
-          :peer-connections="peerConnections"
           :is-deafened="isDeafened"
           :current-user-audio-level="audioLevel"
           :current-user-id="currentUserId"
@@ -44,25 +46,21 @@
           class="m-4 max-h-[70vh]"
           @update:layout="screenShareLayout = $event"
           @toggle-user-grid="isUserGridVisible = !isUserGridVisible"
-          @mute-toggle="handleMuteToggle" />
+          @mute-toggle="handleUserMuteToggle" />
 
         <!-- User Grid - Only shown when no screen shares or cameras (audio-only mode) -->
         <UserGrid
           v-show="screenShareData.length === 0 && cameraData.length === 0"
           :users="users"
-          :remote-streams="remoteStreams"
-          :peer-connection-states="peerConnectionStates"
-          :peer-connection-retries="peerConnectionRetries"
           :remote-stream-volumes="props.remoteStreamVolumes"
           :user-screen-share-states="userScreenShareStates"
           :user-camera-states="userCameraStates"
           :is-deafened="isDeafened"
           :is-visible="screenShareData.length === 0 && cameraData.length === 0"
-          :peer-connections="peerConnections"
           :current-user-audio-level="audioLevel"
           :current-user-camera-enabled="isCameraEnabled"
           :get-participant-stats="getParticipantStats"
-          @mute-toggle="handleMuteToggle" />
+          @mute-toggle="handleUserMuteToggle" />
       </div>
 
       <!-- Audio Controls - Fixed at bottom center -->
@@ -87,6 +85,7 @@
 <script setup lang="ts">
 import { computed, ref, useTemplateRef, watch } from "vue"
 import AudioControls from "@/components/AudioControls.vue"
+import AudioManager from "@/components/AudioManager.vue"
 import RoomHeader from "@/components/RoomHeader.vue"
 import ScreenShareArea from "@/components/ScreenShareArea.vue"
 import UserGrid from "@/components/UserGrid.vue"
@@ -137,13 +136,13 @@ const audioSettingsStore = useAudioSettingsStore()
 // Stores
 const callStore = useCallStore()
 
+// Track muted users for AudioManager
+const mutedUsers = ref<Set<string>>(new Set())
+
 // Initialize LiveKit composable - destructure for template reactivity
 const {
   localStream,
-  remoteStreams,
-  peerConnections,
-  peerConnectionStates,
-  peerConnectionRetries,
+  remoteAudioTracks,
   isScreenSharing,
   isCameraEnabled,
   userScreenShareStates,
@@ -320,6 +319,17 @@ watch(
 )
 
 // Event handlers
+
+// Handle user mute toggle from ParticipantCard - updates muted users set
+const handleUserMuteToggle = (userId: string, isMuted: boolean): void => {
+  if (isMuted) {
+    mutedUsers.value.add(userId)
+  } else {
+    mutedUsers.value.delete(userId)
+  }
+  // Also call the original LiveKit mute handler
+  handleMuteToggle(userId, isMuted)
+}
 
 // Start screen share wrapper - called by parent (AppLayout)
 const startScreenShareWithQuality = async (quality: string, shareAudio: boolean) => {

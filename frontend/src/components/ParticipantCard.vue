@@ -280,15 +280,6 @@
         </span>
       </div>
 
-      <!-- Audio Element (Hidden) -->
-      <audio
-        :id="`audio-${userId}`"
-        ref="audioElement"
-        :muted="isMuted || isDeafened"
-        autoplay
-        playsinline
-        class="hidden" />
-
       <!-- Speaking Indicator -->
       <div
         v-if="isSpeaking"
@@ -380,7 +371,6 @@ import type { ScreenShareQuality, ConnectionStats } from "@/types"
 interface Props {
   userId: string
   userNickname: string
-  audioStream: MediaStream | null
   screenShareStream: MediaStream | null
   cameraStream?: MediaStream | null // Camera video stream
   initialVolume?: number
@@ -428,7 +418,6 @@ const roomStore = useRoomStore()
 const presenceStore = usePresenceStore()
 
 // Refs
-const audioElement = useTemplateRef<HTMLAudioElement>("audioElement")
 const screenVideoElement = useTemplateRef<HTMLVideoElement>("screenVideoElement")
 const cameraVideoElement = useTemplateRef<HTMLVideoElement>("cameraVideoElement")
 const cardElement = useTemplateRef<HTMLDivElement>("cardElement")
@@ -558,9 +547,8 @@ const getPacketLossClass = (value: number): string => {
 
 const updateVolume = (newVolume: number) => {
   roomStore.setUserVolume(props.userId, newVolume)
-  if (audioElement.value) {
-    audioElement.value.volume = newVolume / 100
-  }
+  // Volume is now managed by AudioManager component
+  // This method still updates the store for persistence
 }
 
 const handleVolumeInput = (event: Event) => {
@@ -660,9 +648,7 @@ const setupAllVideoStreams = () => {
 
 const toggleMute = () => {
   isMuted.value = !isMuted.value
-  if (audioElement.value) {
-    audioElement.value.muted = isMuted.value
-  }
+  // Mute state is now managed by AudioManager component
   emit("mute-toggle", props.userId, isMuted.value)
 }
 
@@ -672,21 +658,7 @@ const handleMuteToggle = () => {
 }
 
 // Watchers
-watch(
-  () => props.audioStream,
-  (newStream, oldStream) => {
-    if (newStream && audioElement.value) {
-      audioElement.value.srcObject = newStream
-      void audioElement.value.play().catch(() => {
-        // Silently ignore play errors
-      })
-    } else if (!newStream && oldStream && audioElement.value) {
-      // Clear stream when component is hidden (v-show=false) to prevent feedback loop
-      audioElement.value.srcObject = null
-    }
-  },
-  { immediate: true },
-)
+
 
 watch(
   () => props.screenShareStream,
@@ -716,20 +688,9 @@ watch(
   { immediate: true },
 )
 
-watch(volume, (newVolume) => {
-  if (audioElement.value) {
-    audioElement.value.volume = newVolume / 100
-  }
-})
 
-watch(
-  () => props.isDeafened,
-  (newDeafened) => {
-    if (audioElement.value) {
-      audioElement.value.muted = newDeafened || isMuted.value
-    }
-  },
-)
+
+
 
 // Event handlers
 const handleKeydown = (event: KeyboardEvent) => {
@@ -747,12 +708,6 @@ const handleDocumentClick = () => {
 // Lifecycle
 onMounted(() => {
   void nextTick(() => {
-    if (audioElement.value) {
-      updateVolume(volume.value)
-      if (props.isDeafened) {
-        audioElement.value.muted = true
-      }
-    }
     // Setup video streams after mount with a small delay to ensure streams are ready
     setTimeout(() => {
       setupAllVideoStreams()

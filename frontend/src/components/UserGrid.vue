@@ -7,7 +7,6 @@
         <ParticipantCard
           :user-id="user.id"
           :user-nickname="user.nickname || 'Unknown'"
-          :audio-stream="isVisible ? remoteStreams.get(user.id) || null : null"
           :screen-share-stream="null"
           :initial-volume="remoteStreamVolumes.get(user.id) || 80"
           :is-deafened="isDeafened"
@@ -35,12 +34,8 @@ import type { User, ScreenShareState } from "@/types"
 
 interface Props {
   users: User[]
-  remoteStreams: Map<string, MediaStream>
-  peerConnectionStates: Map<string, string>
-  peerConnectionRetries: Map<string, number>
   remoteStreamVolumes: Map<string, number>
   userScreenShareStates: Map<string, ScreenShareState>
-  peerConnections: Map<string, RTCPeerConnection>
   isDeafened: boolean
   isVisible: boolean
   currentUserAudioLevel?: number
