@@ -57,7 +57,7 @@
           :user-screen-share-states="userScreenShareStates"
           :user-camera-states="userCameraStates"
           :is-deafened="isDeafened"
-          :is-visible="true"
+          :is-visible="screenShareData.length === 0 && cameraData.length === 0"
           :peer-connections="peerConnections"
           :current-user-audio-level="audioLevel"
           :current-user-camera-enabled="isCameraEnabled"
@@ -66,8 +66,7 @@
       </div>
 
       <!-- Audio Controls - Fixed at bottom center -->
-      <div
-        class="flex-shrink-0 flex justify-center px-4 py-3 bg-gray-900/80 backdrop-blur-sm border-t border-gray-700/50">
+      <div class="flex-shrink-0 flex justify-center px-4 py-3 bg-gray-900/80 backdrop-blur-sm border-t border-gray-700/50">
         <AudioControls
           ref="audioControlsRef"
           v-model:model-value-muted="isMuted"

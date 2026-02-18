@@ -96,8 +96,7 @@
 
             <!-- Screen Share Stats -->
             <template v-if="stats.screenShare">
-              <div
-                class="text-xs font-medium text-indigo-300 mt-2 pt-1 border-t border-indigo-700/50">
+              <div class="text-xs font-medium text-indigo-300 mt-2 pt-1 border-t border-indigo-700/50">
                 Screen Share
               </div>
 
@@ -253,8 +252,7 @@
               :size="24"
               :show-status="false" />
 
-            <span
-              class="text-white text-sm font-medium bg-gray-900/70 px-3 py-1 rounded-lg max-w-[140px] truncate">
+            <span class="text-white text-sm font-medium bg-gray-900/70 px-3 py-1 rounded-lg max-w-[140px] truncate">
               {{ userNickname.length > 12 ? userNickname.slice(0, 12) + "..." : userNickname }}
             </span>
           </div>
@@ -277,8 +275,7 @@
 
       <!-- Nickname at bottom center -->
       <div class="absolute bottom-2 left-0 right-0 flex justify-center items-center">
-        <span
-          class="text-white font-medium text-sm bg-gray-900/70 px-3 py-1 rounded-lg max-w-[160px] truncate">
+        <span class="text-white font-medium text-sm bg-gray-900/70 px-3 py-1 rounded-lg max-w-[160px] truncate">
           {{ userNickname.length > 12 ? userNickname.slice(0, 12) + "..." : userNickname }}
         </span>
       </div>
@@ -677,12 +674,15 @@ const handleMuteToggle = () => {
 // Watchers
 watch(
   () => props.audioStream,
-  (newStream) => {
+  (newStream, oldStream) => {
     if (newStream && audioElement.value) {
       audioElement.value.srcObject = newStream
       void audioElement.value.play().catch(() => {
         // Silently ignore play errors
       })
+    } else if (!newStream && oldStream && audioElement.value) {
+      // Clear stream when component is hidden (v-show=false) to prevent feedback loop
+      audioElement.value.srcObject = null
     }
   },
   { immediate: true },
