@@ -151,6 +151,7 @@ const {
   cameraData,
   handleMuteToggle,
   startScreenShare,
+  stopScreenShare,
   startCamera,
   stopCamera,
   getParticipantStats,
@@ -316,6 +317,21 @@ watch(
     }
   },
   { immediate: true },
+)
+
+// Watch for screen sharing state changes from UI and call stopScreenShare when needed
+watch(
+  () => isScreenSharing.value,
+  async (newValue, oldValue) => {
+    // If changing from true to false, we need to stop the screen share
+    if (oldValue === true && newValue === false) {
+      try {
+        await stopScreenShare()
+      } catch (error) {
+        console.error("[VoiceCallView] Error stopping screen share:", error)
+      }
+    }
+  },
 )
 
 // Event handlers

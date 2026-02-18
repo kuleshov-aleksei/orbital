@@ -83,6 +83,10 @@ export function useLiveKit(options: UseLiveKitOptions) {
   const isStoppingCamera = ref(false)
   // Guard to prevent multiple concurrent camera starts
   let isStartingCamera = false
+  // Guard to prevent track "ended" event from triggering during manual stop for screen share
+  const isStoppingScreenShare = ref(false)
+  // Guard to prevent multiple concurrent screen share starts
+  let isStartingScreenShare = false
 
   // Audio processing
   let localStreamPromise: Promise<LocalAudioTrack | null> | null = null
@@ -579,8 +583,11 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
         // Listen for browser-native stop sharing (via the "Stop sharing" button)
         track.on("ended", () => {
-          debugLog(`[LiveKit][INFO]: 'Screen share track ended (browser UI)'}`)
-          void stopScreenShare()
+          // Only handle if not already being stopped manually
+          if (!isStoppingScreenShare.value) {
+            debugLog(`[LiveKit][INFO]: 'Screen share track ended (browser UI)'`)
+            void stopScreenShare()
+          }
         })
       } else if (track.source === Track.Source.ScreenShareAudio) {
         debugLog(
@@ -623,6 +630,9 @@ export function useLiveKit(options: UseLiveKitOptions) {
           isSharing: false,
           quality: "1080p30",
         })
+
+        // Reset guard flag in case track was unpublished externally
+        isStoppingScreenShare.value = false
       } else if (publication.source === Track.Source.ScreenShareAudio) {
         debugLog(
           `[LiveKit][INFO]: Local screen share audio track unpublished: ${publication.trackSid}`,
@@ -850,6 +860,14 @@ export function useLiveKit(options: UseLiveKitOptions) {
       throw new Error("Not connected to room")
     }
 
+    // Prevent multiple concurrent screen share starts
+    if (isStartingScreenShare) {
+      debugLog(`[LiveKit][INFO]: Screen share already starting, ignoring duplicate request`)
+      return
+    }
+
+    isStartingScreenShare = true
+
     try {
       debugLog(`[LiveKit][INFO]: Starting screen share: ${quality}${audio ? " with audio" : ""}`)
 
@@ -869,28 +887,79 @@ export function useLiveKit(options: UseLiveKitOptions) {
       console.error("Failed to start screen share:", error)
       console.error(`[LiveKit][ERROR]: Screen share failed: ${(error as Error).message}`)
       throw error
+    } finally {
+      isStartingScreenShare = false
     }
   }
 
   // Stop screen sharing using LiveKit's setScreenShareEnabled API
   const stopScreenShare = async (): Promise<void> => {
-    if (!room.value || !isScreenSharing.value) {
+    if (!room.value || isStoppingScreenShare.value) {
       return
     }
+
+    // Store track references locally before any async operations
+    const videoTrackToStop = localScreenVideoTrack.value
+    const audioTrackToStop = localScreenAudioTrack.value
+    const videoPublicationToUnpublish = localScreenVideoPublication.value
+
+    // Early exit if already being stopped (no tracks or publication)
+    // Check actual track/publication existence instead of reactive state
+    // because state may already be false when called from watcher
+    if (!videoTrackToStop && !videoPublicationToUnpublish) {
+      return
+    }
+
+    // Set guard flag to prevent track "ended" event from triggering this function
+    isStoppingScreenShare.value = true
 
     try {
       debugLog(`[LiveKit][INFO]: 'Stopping screen share...'`)
 
-      // Use LiveKit's recommended API to disable screen sharing
-      // This properly handles track cleanup without affecting existing audio
+      // Use LiveKit API to unpublish FIRST
+      // This ensures the server is notified before we stop the tracks
       await room.value.localParticipant.setScreenShareEnabled(false)
 
-      // The actual state cleanup is handled in LocalTrackUnpublished event listener
+      // CRITICAL: After unpublishing, stop the underlying MediaStreamTracks
+      // This ensures the browser UI "Stop sharing" indicator is cleared
+      // and system resources are released
+      if (videoTrackToStop) {
+        const mediaStreamTrack = videoTrackToStop.mediaStreamTrack
+        if (mediaStreamTrack && mediaStreamTrack.readyState === "live") {
+          mediaStreamTrack.stop()
+          debugLog(`[LiveKit][INFO]: Stopped screen share video MediaStreamTrack`)
+        }
+      }
+
+      if (audioTrackToStop) {
+        const mediaStreamTrack = audioTrackToStop.mediaStreamTrack
+        if (mediaStreamTrack && mediaStreamTrack.readyState === "live") {
+          mediaStreamTrack.stop()
+          debugLog(`[LiveKit][INFO]: Stopped screen share audio MediaStreamTrack`)
+        }
+      }
+
+      // Reset state (event handler may have already done this, but ensure it's done)
+      localScreenVideoPublication.value = null
+      localScreenAudioPublication.value = null
+      localScreenVideoTrack.value = null
+      localScreenAudioTrack.value = null
+      isScreenSharing.value = false
+      screenShareVersion.value++
+
+      // Update local state
+      userScreenShareStates.value.set(getCurrentUserId(), {
+        isSharing: false,
+        quality: "1080p30",
+      })
 
       debugLog(`[LiveKit][INFO]: 'Screen sharing stopped'`)
     } catch (error) {
       console.error("Error stopping screen share:", error)
       console.error(`[LiveKit][ERROR]: Error stopping screen share: ${(error as Error).message}`)
+    } finally {
+      // Always reset the guard flag
+      isStoppingScreenShare.value = false
     }
   }
 
@@ -1208,6 +1277,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     localScreenAudioPublication.value = null
     isScreenSharing.value = false
     screenShareQuality.value = "1080p30"
+    isStoppingScreenShare.value = false
 
     // Stop camera if active - manually stop the MediaStreamTrack to turn off privacy light
     if (isCameraEnabled.value) {
