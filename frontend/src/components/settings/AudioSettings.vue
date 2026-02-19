@@ -168,22 +168,48 @@
         <div class="flex items-center justify-between mb-1.5">
           <label class="text-sm font-medium text-gray-200 block"> Microphone Gain </label>
 
-          <span class="text-sm text-indigo-400">{{ Math.round(microphoneGain * 100) }}%</span>
+          <span class="text-sm text-indigo-400">{{ displayedGain }}%</span>
         </div>
 
-        <input
-          v-model.number="microphoneGain"
-          type="range"
-          min="0"
-          max="1.2"
-          step="0.05"
-          class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800"
-          @input="onGainChange" />
+        <div class="relative">
+          <!-- Custom slider track with colored sections -->
+          <div class="relative h-2 bg-gray-700 rounded-lg overflow-hidden">
+            <!-- Blue filled area (0 to current value) -->
+            <div
+              class="absolute h-full bg-indigo-500 rounded-l-lg transition-all duration-75 ease-out"
+              :style="{ width: Math.min(sliderPercentage, 83.33) + '%' }" />
+            <!-- Blue filled area extending into red zone (if > 100%) -->
+            <div
+              v-if="sliderPercentage > 83.33"
+              class="absolute h-full bg-indigo-500 transition-all duration-75 ease-out"
+              :style="{ left: '83.33%', width: (sliderPercentage - 83.33) + '%' }" />
+            <!-- Red zone background (100% to 120%) -->
+            <div
+              class="absolute h-full bg-red-900/40"
+              style="left: 83.33%; width: 16.67%;" />
+          </div>
+          
+          <!-- Invisible range input for interaction -->
+          <input
+            v-model.number="rawGainValue"
+            type="range"
+            min="0"
+            max="1.2"
+            step="0.001"
+            class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            @input="onRawGainInput"
+            @change="onGainChange" />
+          
+          <!-- Custom thumb -->
+          <div
+            class="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-md pointer-events-none transition-all duration-75 ease-out"
+            :style="{ left: 'calc(' + sliderPercentage + '% - 8px)' }" />
+        </div>
 
-        <div class="flex justify-between text-xs text-gray-400 mt-1">
+        <div class="relative flex justify-between text-xs text-gray-400 mt-1">
           <span>0%</span>
 
-          <span>100%</span>
+          <span class="absolute" style="left: calc(83.33% + 4px);">100%</span>
 
           <span>120%</span>
         </div>
@@ -218,8 +244,13 @@ const audioStore = useAudioSettingsStore()
 const selectedAlgorithm = ref<NoiseSuppressionAlgorithm>("livekit-native")
 const selectedDeviceId = ref<string>("")
 const microphoneGain = ref<number>(1.0)
+const rawGainValue = ref<number>(1.0) // For smooth slider movement
 const isRefreshing = ref(false)
 const isRequestingPermission = ref(false)
+
+// Computed for slider display
+const sliderPercentage = computed(() => (rawGainValue.value / 1.2) * 100)
+const displayedGain = computed(() => Math.round(microphoneGain.value * 100))
 
 // Computed
 const noiseSuppressionEnabled = computed(() => audioStore.noiseSuppressionEnabled)
@@ -254,6 +285,7 @@ watch(
   () => audioStore.microphoneGain,
   (newVal) => {
     microphoneGain.value = newVal
+    rawGainValue.value = newVal
   },
   { immediate: true },
 )
@@ -297,6 +329,7 @@ function resetSettings() {
     selectedAlgorithm.value = audioStore.noiseSuppressionAlgorithm
     selectedDeviceId.value = audioStore.inputDeviceId
     microphoneGain.value = audioStore.microphoneGain
+    rawGainValue.value = audioStore.microphoneGain
     // Apply reset gain in real-time
     setMicrophoneGain(microphoneGain.value)
   }
@@ -306,7 +339,15 @@ function onDeviceChange() {
   audioStore.setInputDevice(selectedDeviceId.value)
 }
 
+function onRawGainInput() {
+  // Round to nearest 5% for the actual value (0.05 steps)
+  const roundedGain = Math.round(rawGainValue.value / 0.05) * 0.05
+  microphoneGain.value = Math.max(0, Math.min(1.2, roundedGain))
+}
+
 function onGainChange() {
+  // Finalize the gain value on change event
+  onRawGainInput()
   audioStore.setMicrophoneGain(microphoneGain.value)
   // Apply gain in real-time if already in a call
   setMicrophoneGain(microphoneGain.value)
@@ -332,6 +373,7 @@ onMounted(async () => {
   selectedAlgorithm.value = audioStore.noiseSuppressionAlgorithm
   selectedDeviceId.value = audioStore.inputDeviceId
   microphoneGain.value = audioStore.microphoneGain
+  rawGainValue.value = audioStore.microphoneGain
   // Enumerate devices (works without permission, labels will be empty)
   await audioStore.refreshInputDevices()
 })
