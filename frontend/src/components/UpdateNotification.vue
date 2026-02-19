@@ -2,8 +2,7 @@
   <div
     v-if="visible"
     class="fixed top-0 left-0 right-0 flex justify-center z-50 pointer-events-none pt-4">
-    <div
-      class="bg-indigo-600 text-white px-6 py-3 rounded-xl shadow-2xl flex items-center gap-4 pointer-events-auto animate-slide-down">
+    <div class="bg-indigo-600 text-white px-6 py-3 rounded-xl shadow-2xl flex items-center gap-4 pointer-events-auto animate-slide-down">
       <PhArrowClockwise class="w-5 h-5 flex-shrink-0" />
 
       <span class="font-medium"> Update available </span>

@@ -442,11 +442,12 @@ export function useLiveKit(options: UseLiveKitOptions) {
           }
 
           const algorithm = audioSettingsStore.noiseSuppressionAlgorithm
+          const deviceId = audioSettingsStore.inputDeviceId
 
-          debugLog(`[LiveKit][INFO]: Initializing audio track with algorithm: ${algorithm}`)
+          debugLog(`[LiveKit][INFO]: Initializing audio track with algorithm: ${algorithm}, device: ${deviceId || "default"}`)
 
-          // Get audio constraints based on algorithm
-          const audioConstraints = getLiveKitAudioConstraints(algorithm)
+          // Get audio constraints based on algorithm and device
+          const audioConstraints = getLiveKitAudioConstraints(algorithm, deviceId)
 
           // Create LiveKit audio track
           const track = await createLocalAudioTrack({

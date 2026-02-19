@@ -1,8 +1,7 @@
 <template>
   <div class="callback-view fixed inset-0 bg-gray-900 flex items-center justify-center z-50">
     <div class="text-center">
-      <div
-        class="w-20 h-20 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 animate-pulse">
+      <div class="w-20 h-20 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 animate-pulse">
         <PhPlanet class="w-12 h-12 text-white" />
       </div>
 

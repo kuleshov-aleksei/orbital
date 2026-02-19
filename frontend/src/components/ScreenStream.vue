@@ -16,12 +16,10 @@
         @loadedmetadata="handleVideoMetadata" />
 
       <!-- User Info Overlay -->
-      <div
-        class="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/70 to-transparent px-4 py-3">
+      <div class="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/70 to-transparent px-4 py-3">
         <div class="flex items-center justify-between">
           <div class="flex items-center">
-            <div
-              class="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-sm font-bold text-white mr-2">
+            <div class="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-sm font-bold text-white mr-2">
               {{ userNickname.charAt(0).toUpperCase() }}
             </div>
 
@@ -54,8 +52,7 @@
       </div>
 
       <!-- Controls Overlay -->
-      <div
-        class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-4 py-3 opacity-0 hover:opacity-100 transition-opacity duration-200">
+      <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-4 py-3 opacity-0 hover:opacity-100 transition-opacity duration-200">
         <div class="flex items-center justify-between">
           <!-- Left: Make Focus Button (only when not focused in multi-stream mode) -->
           <div v-if="!isFocused && showFocusButton">
