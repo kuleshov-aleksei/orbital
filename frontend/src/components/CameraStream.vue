@@ -272,6 +272,7 @@ onUnmounted(() => {
 
 <style scoped>
 .camera-stream {
-  min-height: 80px;
+  max-height: 360px;
+  aspect-ratio: 16 / 9;
 }
 </style>

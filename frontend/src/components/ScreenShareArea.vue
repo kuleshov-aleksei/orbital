@@ -98,15 +98,6 @@
         </template>
       </div>
     </div>
-
-    <!-- Empty State -->
-    <div
-      v-if="screenShares.length === 0"
-      class="px-4 py-8 text-center flex-1 flex flex-col items-center justify-center">
-      <PhMonitorPlay class="w-12 h-12 text-gray-600 mx-auto mb-2" />
-
-      <p class="text-gray-400">No active screen shares</p>
-    </div>
   </div>
 </template>
 
