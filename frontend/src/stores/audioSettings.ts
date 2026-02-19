@@ -21,7 +21,6 @@ export const useAudioSettingsStore = defineStore("audioSettings", () => {
   const echoCancellationEnabled = computed(() => settings.value.echoCancellation)
   const autoGainControlEnabled = computed(() => settings.value.autoGainControl)
   const inputDeviceId = computed(() => settings.value.inputDeviceId)
-  const microphoneGain = computed(() => settings.value.microphoneGain)
 
   /**
    * Get available noise suppression algorithms
@@ -198,15 +197,6 @@ export const useAudioSettingsStore = defineStore("audioSettings", () => {
   }
 
   /**
-   * Set microphone gain (0.0 to 1.2, representing 0% to 120%)
-   */
-  function setMicrophoneGain(gain: number) {
-    // Clamp gain between 0 and 1.2 (0% to 120%)
-    settings.value.microphoneGain = Math.max(0, Math.min(1.2, gain))
-    saveSettings()
-  }
-
-  /**
    * Save settings to localStorage
    */
   function saveSettings() {
@@ -263,7 +253,6 @@ export const useAudioSettingsStore = defineStore("audioSettings", () => {
     echoCancellationEnabled,
     autoGainControlEnabled,
     inputDeviceId,
-    microphoneGain,
     availableNoiseSuppressionAlgorithms,
     currentAlgorithmInfo,
     audioConstraints,
@@ -274,7 +263,6 @@ export const useAudioSettingsStore = defineStore("audioSettings", () => {
     toggleEchoCancellation,
     toggleAutoGainControl,
     setInputDevice,
-    setMicrophoneGain,
     refreshInputDevices,
     requestDevicePermission,
     loadSettings,
