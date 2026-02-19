@@ -7,7 +7,6 @@ import {
   type RemoteVideoTrack,
   type RemoteParticipant,
   type LocalParticipant,
-  createLocalAudioTrack,
   createLocalVideoTrack,
   LocalVideoTrack,
   LocalAudioTrack,
@@ -18,7 +17,7 @@ import { apiService } from "@/services/api"
 import { usePresenceStore } from "@/stores/presence"
 import { useAudioSettingsStore } from "@/stores/audioSettings"
 import { useCallStore } from "@/stores/call"
-import { getLiveKitAudioConstraints } from "@/services/livekit-audio-processors"
+import { getLiveKitAudioConstraints, createAudioTrackWithGain, setMicrophoneGain } from "@/services/livekit-audio-processors"
 import { debugLog, debugWarn } from "@/utils/debug"
 import type { User, ScreenShareQuality, ConnectionStats, TrackStats } from "@/types"
 
@@ -443,16 +442,15 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
           const algorithm = audioSettingsStore.noiseSuppressionAlgorithm
           const deviceId = audioSettingsStore.inputDeviceId
+          const gain = audioSettingsStore.microphoneGain
 
-          debugLog(`[LiveKit][INFO]: Initializing audio track with algorithm: ${algorithm}, device: ${deviceId || "default"}`)
+          debugLog(`[LiveKit][INFO]: Initializing audio track with algorithm: ${algorithm}, device: ${deviceId || "default"}, gain: ${gain}`)
 
           // Get audio constraints based on algorithm and device
           const audioConstraints = getLiveKitAudioConstraints(algorithm, deviceId)
 
-          // Create LiveKit audio track
-          const track = await createLocalAudioTrack({
-            audio: audioConstraints,
-          })
+          // Create LiveKit audio track with gain control
+          const track = await createAudioTrackWithGain(audioConstraints, gain)
 
           localAudioTrack.value = track
           debugLog(`[LiveKit][INFO]: 'Audio track initialized successfully'}`)
@@ -1140,6 +1138,12 @@ export function useLiveKit(options: UseLiveKitOptions) {
     debugLog(`[LiveKit][INFO]: 'Audio stream reinitialized'`)
   }
 
+  // Apply microphone gain in real-time
+  const applyMicrophoneGain = (gain: number): void => {
+    debugLog(`[LiveKit][INFO]: Applying microphone gain: ${gain}`)
+    setMicrophoneGain(gain)
+  }
+
   // Start ping interval
   const startPingInterval = () => {
     if (pingInterval) {
@@ -1413,6 +1417,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     toggleCamera,
     getParticipantStats,
     reinitializeAudioStream,
+    applyMicrophoneGain,
     cleanup,
   }
 }
