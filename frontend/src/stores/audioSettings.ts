@@ -1,6 +1,6 @@
 import { defineStore } from "pinia"
 import { ref, computed } from "vue"
-import type { AudioSettings, NoiseSuppressionAlgorithm, AudioAlgorithmInfo, AudioInputDevice } from "@/types/audio"
+import type { AudioSettings, NoiseSuppressionAlgorithm, AudioAlgorithmInfo } from "@/types/audio"
 import {
   defaultAudioSettings,
   AUDIO_SETTINGS_STORAGE_KEY,
@@ -12,15 +12,12 @@ export const useAudioSettingsStore = defineStore("audioSettings", () => {
   // State
   const settings = ref<AudioSettings>({ ...defaultAudioSettings })
   const isLoaded = ref(false)
-  const availableInputDevices = ref<AudioInputDevice[]>([])
-  const hasDevicePermission = ref<boolean | null>(null)
 
   // Getters
   const noiseSuppressionEnabled = computed(() => settings.value.noiseSuppression.enabled)
   const noiseSuppressionAlgorithm = computed(() => settings.value.noiseSuppression.algorithm)
   const echoCancellationEnabled = computed(() => settings.value.echoCancellation)
   const autoGainControlEnabled = computed(() => settings.value.autoGainControl)
-  const inputDeviceId = computed(() => settings.value.inputDeviceId)
 
   /**
    * Get available noise suppression algorithms
@@ -119,76 +116,6 @@ export const useAudioSettingsStore = defineStore("audioSettings", () => {
   }
 
   /**
-   * Set input device ID
-   */
-  function setInputDevice(deviceId: string) {
-    settings.value.inputDeviceId = deviceId
-    saveSettings()
-  }
-
-  /**
-   * Refresh the list of available input devices
-   * Returns true if successful, false if permission denied
-   */
-  async function refreshInputDevices(): Promise<boolean> {
-    try {
-      // Enumerate devices - this works without permission, but labels will be empty
-      const devices = await navigator.mediaDevices.enumerateDevices()
-      const audioInputs = devices
-        .filter((device) =>
-          device.kind === "audioinput" &&
-          !device.label.toLowerCase().startsWith("monitor")
-        )
-        .map((device) => ({
-          deviceId: device.deviceId,
-          label: device.label || `Microphone ${device.deviceId.slice(0, 8)}...`,
-          isDefault: device.deviceId === "default" || device.deviceId === "",
-        }))
-
-      // Check if we got labels (indicates permission was granted)
-      const hasLabels = audioInputs.some((d) => !d.label.includes("..."))
-      hasDevicePermission.value = hasLabels
-
-      // If no device is selected or selected device is not available, use default
-      const currentDevice = settings.value.inputDeviceId
-      const deviceExists = audioInputs.some((d) => d.deviceId === currentDevice)
-      if (!deviceExists || !currentDevice) {
-        // Find the default device or use the first one
-        const defaultDevice = audioInputs.find((d) => d.isDefault) || audioInputs[0]
-        if (defaultDevice && !currentDevice) {
-          settings.value.inputDeviceId = defaultDevice.deviceId
-          // Don't save here, let the user explicitly select
-        }
-      }
-
-      availableInputDevices.value = audioInputs
-      return true
-    } catch (error) {
-      console.warn("Failed to enumerate audio input devices:", error)
-      hasDevicePermission.value = false
-      return false
-    }
-  }
-
-  /**
-   * Request microphone permission to get device labels
-   */
-  async function requestDevicePermission(): Promise<boolean> {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      // Immediately stop the tracks to release the mic
-      stream.getTracks().forEach((track) => track.stop())
-      // Refresh device list to get labels
-      await refreshInputDevices()
-      return true
-    } catch (error) {
-      console.warn("Microphone permission denied:", error)
-      hasDevicePermission.value = false
-      return false
-    }
-  }
-
-  /**
    * Toggle auto gain control
    */
   function toggleAutoGainControl(enabled: boolean) {
@@ -244,15 +171,12 @@ export const useAudioSettingsStore = defineStore("audioSettings", () => {
     // State
     settings,
     isLoaded,
-    availableInputDevices,
-    hasDevicePermission,
 
     // Getters
     noiseSuppressionEnabled,
     noiseSuppressionAlgorithm,
     echoCancellationEnabled,
     autoGainControlEnabled,
-    inputDeviceId,
     availableNoiseSuppressionAlgorithms,
     currentAlgorithmInfo,
     audioConstraints,
@@ -262,9 +186,6 @@ export const useAudioSettingsStore = defineStore("audioSettings", () => {
     setNoiseSuppressionAlgorithm,
     toggleEchoCancellation,
     toggleAutoGainControl,
-    setInputDevice,
-    refreshInputDevices,
-    requestDevicePermission,
     loadSettings,
     saveSettings,
     resetSettings,

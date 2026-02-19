@@ -31,7 +31,8 @@
             class="p-4 flex items-center justify-between hover:bg-gray-700/50 transition-colors">
             <div class="flex items-center gap-4">
               <!-- Avatar -->
-              <div class="w-10 h-10 rounded-full bg-gray-600 flex items-center justify-center overflow-hidden flex-shrink-0">
+              <div
+                class="w-10 h-10 rounded-full bg-gray-600 flex items-center justify-center overflow-hidden flex-shrink-0">
                 <img
                   v-if="user.avatar_url && !avatarErrors.has(user.id)"
                   :src="user.avatar_url"

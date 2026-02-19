@@ -15,10 +15,12 @@
         @loadedmetadata="handleVideoMetadata" />
 
       <!-- User Info Overlay -->
-      <div class="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/70 to-transparent px-3 py-2">
+      <div
+        class="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/70 to-transparent px-3 py-2">
         <div class="flex items-center justify-between">
           <div class="flex items-center">
-            <div class="w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center text-xs font-bold text-white mr-2">
+            <div
+              class="w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center text-xs font-bold text-white mr-2">
               {{ userNickname.charAt(0).toUpperCase() }}
             </div>
 
@@ -37,7 +39,8 @@
       </div>
 
       <!-- Controls Overlay -->
-      <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-3 py-2 opacity-0 hover:opacity-100 transition-opacity duration-200">
+      <div
+        class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-3 py-2 opacity-0 hover:opacity-100 transition-opacity duration-200">
         <div class="flex items-center justify-end space-x-2">
           <button
             type="button"

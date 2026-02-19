@@ -44,10 +44,8 @@
     <div class="pt-4 border-t border-gray-700">
       <div class="flex items-center gap-2">
         <PhInfo class="w-4 h-4 text-gray-400" />
-
         <span class="text-sm font-medium text-gray-300">Version</span>
       </div>
-
       <p class="text-sm text-gray-400 mt-1 font-mono">
         {{ appVersion }}
       </p>

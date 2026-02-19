@@ -4,7 +4,8 @@
       <div class="lg:flex lg:items-center lg:justify-center lg:gap-16">
         <!-- Logo/Title -->
         <div class="text-center lg:text-left mb-8 lg:mb-0 lg:flex-shrink-0">
-          <div class="w-20 h-20 lg:w-28 lg:h-28 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto lg:mx-0 mb-4">
+          <div
+            class="w-20 h-20 lg:w-28 lg:h-28 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto lg:mx-0 mb-4">
             <img
               src="/orbital-logo.png"
               alt="Orbital Logo"

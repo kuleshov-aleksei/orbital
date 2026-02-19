@@ -57,7 +57,8 @@
     </div>
 
     <!-- Action Icons -->
-    <div class="ml-2 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+    <div
+      class="ml-2 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
       <!-- Muted Icon -->
       <div v-if="user.is_muted" class="w-4 h-4 text-red-400">
         <svg fill="currentColor" viewBox="0 0 20 20">
