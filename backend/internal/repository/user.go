@@ -145,6 +145,15 @@ func (r *UserRepository) UpdateLastSeen(id string, lastSeen time.Time) error {
 	return err
 }
 
+// UpdateNickname updates only the nickname and last_seen timestamp
+func (r *UserRepository) UpdateNickname(id string, nickname string, lastSeen time.Time) error {
+	_, err := r.db.Exec(
+		`UPDATE users SET nickname = ?, last_seen = ? WHERE id = ?`,
+		nickname, lastSeen, id,
+	)
+	return err
+}
+
 // Delete removes a user from the database
 func (r *UserRepository) Delete(id string) error {
 	_, err := r.db.Exec(`DELETE FROM users WHERE id = ?`, id)

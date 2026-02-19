@@ -252,10 +252,10 @@ func (rs *RoomService) JoinRoom(roomID, userID, nickname string) (*models.User, 
 		user.Nickname = nickname
 		user.LastSeen = time.Now()
 
-		// Update user in database
+		// Update nickname in database (only nickname, not avatar_url)
 		if rs.userRepo != nil {
-			if err := rs.userRepo.Update(user); err != nil {
-				log.Printf("Failed to update user in database: %v", err)
+			if err := rs.userRepo.UpdateNickname(userID, nickname, user.LastSeen); err != nil {
+				log.Printf("Failed to update user nickname in database: %v", err)
 			}
 		}
 	}
@@ -474,7 +474,7 @@ func (rs *RoomService) UpdateUserNickname(roomID, userID, nickname string) error
 
 		// Update in database
 		if rs.userRepo != nil {
-			if err := rs.userRepo.Update(user); err != nil {
+			if err := rs.userRepo.UpdateNickname(userID, nickname, user.LastSeen); err != nil {
 				return err
 			}
 		}
