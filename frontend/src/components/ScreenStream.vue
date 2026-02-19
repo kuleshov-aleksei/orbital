@@ -384,10 +384,3 @@ onUnmounted(() => {
   }
 })
 </script>
-
-<style scoped>
-.screen-stream {
-  /* Container now uses flex layout to fit available space */
-  min-height: 120px;
-}
-</style>

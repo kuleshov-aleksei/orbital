@@ -269,11 +269,3 @@ onUnmounted(() => {
   }
 })
 </script>
-
-<style scoped>
-.camera-stream {
-  /* Flexible and responsive with maintained aspect ratio */
-  min-height: 120px;
-  min-width: 160px;
-}
-</style>

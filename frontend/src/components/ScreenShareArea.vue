@@ -5,7 +5,7 @@
       <!-- Focus Layout: Main stream (70%) + user panel (30%) side by side -->
       <div v-if="props.layout === 'focus'" class="flex flex-row h-full gap-4">
         <!-- Main focused stream - 70% width (screen share or camera) -->
-        <div class="flex-[7] min-w-0 min-h-0">
+        <div class="flex-[7] min-w-48 min-h-48 aspect-video self-center">
           <!-- Screen Share in main area -->
           <ScreenStream
             v-if="focusedStream?.type === 'screen'"
@@ -19,7 +19,7 @@
             :is-focused="true"
             :show-focus-button="false"
             :is-self-view="focusedStream.isSelfView"
-            class="h-full" />
+            />
           <!-- Camera in main area -->
           <CameraStream
             v-else-if="focusedStream?.type === 'camera'"
@@ -30,7 +30,7 @@
             :connection-state="focusedStream.connectionState"
             :is-focused="true"
             :is-self-view="focusedStream.isSelfView"
-            class="h-full" />
+             />
         </div>
 
         <!-- User panel for participants - 30% width -->
