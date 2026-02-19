@@ -5,8 +5,59 @@
       Audio Settings
     </h3>
 
+   <!-- Microphone Selection -->
+    <div class="space-y-3 pb-2 border-b border-gray-700">
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <label class="text-sm font-medium text-gray-200 block"> Microphone </label>
+
+          <button
+            v-if="audioStore.hasDevicePermission === false"
+            type="button"
+            class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+            @click="requestPermission">
+            Allow Access
+          </button>
+
+          <button
+            v-else
+            type="button"
+            class="text-xs text-gray-400 hover:text-gray-300 transition-colors"
+            @click="refreshDevices">
+            <PhArrowsClockwise class="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <select
+          v-model="selectedDeviceId"
+          class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          :disabled="audioStore.availableInputDevices.length === 0"
+          @change="onDeviceChange">
+          <option v-if="audioStore.availableInputDevices.length === 0" value="">
+            No microphones found
+          </option>
+
+          <option
+            v-for="device in audioStore.availableInputDevices"
+            :key="device.deviceId"
+            :value="device.deviceId">
+            {{ device.label }}
+            <span v-if="device.isDefault">(Default)</span>
+          </option>
+        </select>
+
+        <p v-if="audioStore.hasDevicePermission === false" class="text-xs text-amber-400 mt-1.5">
+          Grant microphone access to see device names
+        </p>
+
+        <p v-else-if="audioStore.availableInputDevices.length === 0" class="text-xs text-gray-400 mt-1.5">
+          No audio input devices detected
+        </p>
+      </div>
+    </div>
+
     <!-- Noise Suppression -->
-    <div class="space-y-3">
+    <div class="space-y-3 pt-2">
       <div class="flex items-center justify-between">
         <div>
           <label class="text-sm font-medium text-gray-200 block"> Noise Suppression </label>
@@ -127,13 +178,16 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue"
 import { useAudioSettingsStore } from "@/stores"
-import { PhSpeakerHigh, PhArrowCounterClockwise } from "@phosphor-icons/vue"
+import { PhSpeakerHigh, PhArrowCounterClockwise, PhArrowsClockwise } from "@phosphor-icons/vue"
 import type { NoiseSuppressionAlgorithm } from "@/types/audio"
 
 const audioStore = useAudioSettingsStore()
 
 // Local state
 const selectedAlgorithm = ref<NoiseSuppressionAlgorithm>("livekit-native")
+const selectedDeviceId = ref<string>("")
+const isRefreshing = ref(false)
+const isRequestingPermission = ref(false)
 
 // Computed
 const noiseSuppressionEnabled = computed(() => audioStore.noiseSuppressionEnabled)
@@ -152,6 +206,30 @@ watch(
   () => audioStore.noiseSuppressionAlgorithm,
   (newVal) => {
     selectedAlgorithm.value = newVal
+  },
+  { immediate: true },
+)
+
+watch(
+  () => audioStore.inputDeviceId,
+  (newVal) => {
+    selectedDeviceId.value = newVal
+  },
+  { immediate: true },
+)
+
+// Watch for device list changes
+watch(
+  () => audioStore.availableInputDevices,
+  (devices) => {
+    // If current selection is not in the list and we have devices, select default
+    if (selectedDeviceId.value && !devices.some((d) => d.deviceId === selectedDeviceId.value)) {
+      const defaultDevice = devices.find((d) => d.isDefault) || devices[0]
+      if (defaultDevice) {
+        selectedDeviceId.value = defaultDevice.deviceId
+        audioStore.setInputDevice(defaultDevice.deviceId)
+      }
+    }
   },
   { immediate: true },
 )
@@ -177,12 +255,34 @@ function resetSettings() {
   if (confirm("Reset all audio settings to default values?")) {
     audioStore.resetSettings()
     selectedAlgorithm.value = audioStore.noiseSuppressionAlgorithm
+    selectedDeviceId.value = audioStore.inputDeviceId
   }
 }
 
+function onDeviceChange() {
+  audioStore.setInputDevice(selectedDeviceId.value)
+}
+
+async function refreshDevices() {
+  if (isRefreshing.value) return
+  isRefreshing.value = true
+  await audioStore.refreshInputDevices()
+  isRefreshing.value = false
+}
+
+async function requestPermission() {
+  if (isRequestingPermission.value) return
+  isRequestingPermission.value = true
+  await audioStore.requestDevicePermission()
+  isRequestingPermission.value = false
+}
+
 // Load settings on mount
-onMounted(() => {
+onMounted(async () => {
   audioStore.loadSettings()
   selectedAlgorithm.value = audioStore.noiseSuppressionAlgorithm
+  selectedDeviceId.value = audioStore.inputDeviceId
+  // Enumerate devices (works without permission, labels will be empty)
+  await audioStore.refreshInputDevices()
 })
 </script>

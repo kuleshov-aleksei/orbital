@@ -47,8 +47,7 @@
 
       <!-- Empty State -->
       <div v-else class="text-center py-12">
-        <div
-          class="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+        <div class="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
           <PhMagnifyingGlass class="w-8 h-8 text-gray-600" />
         </div>
 
