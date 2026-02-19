@@ -17,6 +17,7 @@ export interface AudioSettings {
   sampleRate: number
   channelCount: number
   inputDeviceId: string // Empty string means default device
+  microphoneGain: number // 0.0 to 1.2 (0% to 120%)
 }
 
 export interface AudioAlgorithmInfo {
@@ -61,6 +62,7 @@ export const defaultAudioSettings: AudioSettings = {
   sampleRate: 48000,
   channelCount: 1,
   inputDeviceId: "", // Empty string means default device
+  microphoneGain: 1.0, // 100% gain (no boost)
 }
 
 /** Audio input device information */

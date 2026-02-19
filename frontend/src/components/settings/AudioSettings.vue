@@ -162,6 +162,36 @@
       </button>
     </div>
 
+    <!-- Microphone Gain -->
+    <div class="space-y-3 pt-2 border-t border-gray-700">
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <label class="text-sm font-medium text-gray-200 block"> Microphone Gain </label>
+
+          <span class="text-sm text-indigo-400">{{ Math.round(microphoneGain * 100) }}%</span>
+        </div>
+
+        <input
+          v-model.number="microphoneGain"
+          type="range"
+          min="0"
+          max="1.2"
+          step="0.05"
+          class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+          @input="onGainChange" />
+
+        <div class="flex justify-between text-xs text-gray-400 mt-1">
+          <span>0%</span>
+
+          <span>100%</span>
+
+          <span>120%</span>
+        </div>
+
+        <p class="text-xs text-gray-400 mt-1.5">Manual input gain adjustment (0-120%)</p>
+      </div>
+    </div>
+
     <!-- Reset Button -->
     <div class="pt-4 border-t border-gray-700">
       <button
@@ -180,12 +210,14 @@ import { ref, computed, onMounted, watch } from "vue"
 import { useAudioSettingsStore } from "@/stores"
 import { PhSpeakerHigh, PhArrowCounterClockwise, PhArrowsClockwise } from "@phosphor-icons/vue"
 import type { NoiseSuppressionAlgorithm } from "@/types/audio"
+import { setMicrophoneGain } from "@/services/livekit-audio-processors"
 
 const audioStore = useAudioSettingsStore()
 
 // Local state
 const selectedAlgorithm = ref<NoiseSuppressionAlgorithm>("livekit-native")
 const selectedDeviceId = ref<string>("")
+const microphoneGain = ref<number>(1.0)
 const isRefreshing = ref(false)
 const isRequestingPermission = ref(false)
 
@@ -214,6 +246,14 @@ watch(
   () => audioStore.inputDeviceId,
   (newVal) => {
     selectedDeviceId.value = newVal
+  },
+  { immediate: true },
+)
+
+watch(
+  () => audioStore.microphoneGain,
+  (newVal) => {
+    microphoneGain.value = newVal
   },
   { immediate: true },
 )
@@ -256,11 +296,20 @@ function resetSettings() {
     audioStore.resetSettings()
     selectedAlgorithm.value = audioStore.noiseSuppressionAlgorithm
     selectedDeviceId.value = audioStore.inputDeviceId
+    microphoneGain.value = audioStore.microphoneGain
+    // Apply reset gain in real-time
+    setMicrophoneGain(microphoneGain.value)
   }
 }
 
 function onDeviceChange() {
   audioStore.setInputDevice(selectedDeviceId.value)
+}
+
+function onGainChange() {
+  audioStore.setMicrophoneGain(microphoneGain.value)
+  // Apply gain in real-time if already in a call
+  setMicrophoneGain(microphoneGain.value)
 }
 
 async function refreshDevices() {
@@ -282,6 +331,7 @@ onMounted(async () => {
   audioStore.loadSettings()
   selectedAlgorithm.value = audioStore.noiseSuppressionAlgorithm
   selectedDeviceId.value = audioStore.inputDeviceId
+  microphoneGain.value = audioStore.microphoneGain
   // Enumerate devices (works without permission, labels will be empty)
   await audioStore.refreshInputDevices()
 })
