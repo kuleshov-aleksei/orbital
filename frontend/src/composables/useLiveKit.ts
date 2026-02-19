@@ -965,29 +965,23 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
   // Start camera using createLocalVideoTrack API
   const startCamera = async (): Promise<void> => {
-    debugLog(`[LiveKit][INFO]: startCamera() called - room: ${!!room.value}, starting: ${isStartingCamera}, hasTrack: ${!!localCameraTrack.value}`)
-
     if (!room.value) {
       throw new Error("Not connected to room")
     }
 
     // Prevent multiple concurrent camera starts
     if (isStartingCamera) {
-      debugLog(`[LiveKit][INFO]: Camera already starting, ignoring duplicate request`)
       return
     }
 
     // Check if camera is already enabled
     if (localCameraTrack.value) {
-      debugLog(`[LiveKit][INFO]: Camera already enabled, skipping start`)
       return
     }
 
     isStartingCamera = true
 
     try {
-      debugLog(`[LiveKit][INFO]: Creating camera track...`)
-
       // Create camera track directly - use plain object to avoid proxy issues
       const videoTrack = await createLocalVideoTrack({
         resolution: VideoPresets.h720,
@@ -1030,10 +1024,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
   // Stop camera by unpublishing and stopping the track
   const stopCamera = async (): Promise<void> => {
-    debugLog(`[LiveKit][INFO]: stopCamera() called - room: ${!!room.value}, stopping: ${isStoppingCamera.value}`)
-
     if (!room.value || isStoppingCamera.value) {
-      debugLog(`[LiveKit][INFO]: stopCamera() early exit - no room or already stopping`)
       return
     }
 
@@ -1041,10 +1032,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     const trackToStop = localCameraTrack.value
     const publicationToUnpublish = localCameraPublication.value
 
-    debugLog(`[LiveKit][INFO]: stopCamera() - track: ${!!trackToStop}, publication: ${!!publicationToUnpublish}, sid: ${publicationToUnpublish?.trackSid}`)
-
     if (!trackToStop && !publicationToUnpublish) {
-      debugLog(`[LiveKit][INFO]: stopCamera() early exit - no track or publication to stop`)
       return
     }
 
@@ -1057,32 +1045,23 @@ export function useLiveKit(options: UseLiveKitOptions) {
       // Try to unpublish using track object first (more reliable)
       if (trackToStop) {
         try {
-          debugLog(`[LiveKit][INFO]: Unpublishing camera track by track object`)
-          // Use markRaw to ensure we're passing a plain object, not a proxy
           await room.value.localParticipant.unpublishTrack(trackToStop)
-          debugLog(`[LiveKit][INFO]: Camera track unpublished successfully by track object`)
-        } catch (error) {
-          debugLog(`[LiveKit][WARN]: Failed to unpublish by track: ${(error as Error).message}`)
-
+        } catch {
           // Fallback: try unpublishing by sid
           if (publicationToUnpublish?.trackSid) {
             try {
-              debugLog(`[LiveKit][INFO]: Trying to unpublish by sid: ${publicationToUnpublish.trackSid}`)
               await room.value.localParticipant.unpublishTrack(publicationToUnpublish.trackSid)
-              debugLog(`[LiveKit][INFO]: Camera track unpublished successfully by sid`)
             } catch (sidError) {
-              debugLog(`[LiveKit][WARN]: Failed to unpublish by sid: ${(sidError as Error).message}`)
+              debugLog(`[LiveKit][WARN]: Failed to unpublish camera: ${(sidError as Error).message}`)
             }
           }
         }
       } else if (publicationToUnpublish?.trackSid) {
         // No track object, try by sid
         try {
-          debugLog(`[LiveKit][INFO]: Unpublishing camera track by sid: ${publicationToUnpublish.trackSid}`)
           await room.value.localParticipant.unpublishTrack(publicationToUnpublish.trackSid)
-          debugLog(`[LiveKit][INFO]: Camera track unpublished successfully by sid`)
         } catch (error) {
-          debugLog(`[LiveKit][WARN]: Failed to unpublish by sid: ${(error as Error).message}`)
+          debugLog(`[LiveKit][WARN]: Failed to unpublish camera: ${(error as Error).message}`)
         }
       }
 
@@ -1091,7 +1070,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
         const mediaStreamTrack = trackToStop.mediaStreamTrack
         if (mediaStreamTrack && mediaStreamTrack.readyState === "live") {
           mediaStreamTrack.stop()
-          debugLog(`[LiveKit][INFO]: Camera MediaStreamTrack stopped`)
         }
       }
 
