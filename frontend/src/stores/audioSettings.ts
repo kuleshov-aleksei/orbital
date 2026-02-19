@@ -135,7 +135,10 @@ export const useAudioSettingsStore = defineStore("audioSettings", () => {
       // Enumerate devices - this works without permission, but labels will be empty
       const devices = await navigator.mediaDevices.enumerateDevices()
       const audioInputs = devices
-        .filter((device) => device.kind === "audioinput")
+        .filter((device) =>
+          device.kind === "audioinput" &&
+          !device.label.toLowerCase().startsWith("monitor")
+        )
         .map((device) => ({
           deviceId: device.deviceId,
           label: device.label || `Microphone ${device.deviceId.slice(0, 8)}...`,
