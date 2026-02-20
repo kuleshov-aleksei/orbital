@@ -274,7 +274,7 @@ test("check for duplicate PLAYING audio per user", async ({ browser }) => {
   // Check for duplicate PLAYING audio elements (srcObject is set)
   const playingAudioAnalysis = await page.evaluate(() => {
     const playingAudios = Array.from(document.querySelectorAll("audio")).filter(
-      (el) => (el as HTMLAudioElement).srcObject !== null
+      (el) => (el as HTMLAudioElement).srcObject !== null,
     )
 
     const userIdCount: Record<string, number> = {}
@@ -317,12 +317,17 @@ test("check for duplicate PLAYING audio per user", async ({ browser }) => {
   console.log("User ID counts:", JSON.stringify(playingAudioAnalysis.userIdCount, null, 2))
 
   // Check for duplicates (a user should appear at most once with playing audio)
-  const duplicates = Object.entries(playingAudioAnalysis.userIdCount).filter(([_, count]) => count > 1)
+  const duplicates = Object.entries(playingAudioAnalysis.userIdCount).filter(
+    ([_, count]) => count > 1,
+  )
   if (duplicates.length > 0) {
     console.log("\n🐛 DUPLICATE PLAYING AUDIO FOUND:")
     duplicates.forEach(([userId, count]) => {
       console.log(`  User ${userId}: has ${count} playing audio elements!`)
-      console.log(`    Details:`, JSON.stringify(playingAudioAnalysis.userIdDetails[userId], null, 2))
+      console.log(
+        `    Details:`,
+        JSON.stringify(playingAudioAnalysis.userIdDetails[userId], null, 2),
+      )
     })
   } else {
     console.log("\n✅ No duplicate playing audio - feedback loop is prevented!")
@@ -356,7 +361,7 @@ test("debug: analyze which components have playing audio", async ({ browser }) =
   // Detailed analysis of where playing audio elements are
   const audioAnalysis = await page.evaluate(() => {
     const playingAudios = Array.from(document.querySelectorAll("audio")).filter(
-      (el) => (el as HTMLAudioElement).srcObject !== null
+      (el) => (el as HTMLAudioElement).srcObject !== null,
     )
 
     return playingAudios.map((audio, index) => {
@@ -471,7 +476,8 @@ test("detect LiveKit internal audio elements", async ({ browser }) => {
       const allMediaElements = Array.from(document.querySelectorAll("audio, video"))
 
       // 4. Check WebRTC connections
-      const peerConnections = (window as { RTCPeerConnection?: typeof RTCPeerConnection }).RTCPeerConnection
+      const peerConnections = (window as { RTCPeerConnection?: typeof RTCPeerConnection })
+        .RTCPeerConnection
       const pcCount = peerConnections ? 1 : 0 // Just checking if API exists
 
       return {
@@ -495,7 +501,9 @@ test("detect LiveKit internal audio elements", async ({ browser }) => {
     })
 
     console.log(`\n=== ${deviceName} Audio Sources ===`)
-    console.log(`Custom audio elements: ${result.customAudioCount} (${result.customPlayingCount} playing)`)
+    console.log(
+      `Custom audio elements: ${result.customAudioCount} (${result.customPlayingCount} playing)`,
+    )
     console.log(`LiveKit internal audio elements: ${result.livekitAudioCount}`)
     console.log(`All media elements: ${result.allMediaCount}`)
     console.log("Custom audio details:", JSON.stringify(result.customAudioDetails, null, 2))
@@ -545,7 +553,7 @@ test("reconnection scenario - leave and rejoin", async ({ browser }) => {
   const countPlayingAudio = async () => {
     return await page.evaluate(() => {
       return Array.from(document.querySelectorAll("audio")).filter(
-        (el) => (el as HTMLAudioElement).srcObject !== null
+        (el) => (el as HTMLAudioElement).srcObject !== null,
       ).length
     })
   }
@@ -558,7 +566,10 @@ test("reconnection scenario - leave and rejoin", async ({ browser }) => {
 
   // Leave room (go back to room list)
   console.log("\n=== Leaving room ===")
-  await page.getByRole("button", { name: /leave|back/i }).first().click()
+  await page
+    .getByRole("button", { name: /leave|back/i })
+    .first()
+    .click()
   await page.waitForSelector("text=Available Rooms", { timeout: 10000 })
   await page.waitForTimeout(1000)
 
@@ -572,7 +583,10 @@ test("reconnection scenario - leave and rejoin", async ({ browser }) => {
 
   // Leave and rejoin again
   console.log("\n=== Leaving and rejoining again ===")
-  await page.getByRole("button", { name: /leave|back/i }).first().click()
+  await page
+    .getByRole("button", { name: /leave|back/i })
+    .first()
+    .click()
   await page.waitForSelector("text=Available Rooms", { timeout: 10000 })
   await page.waitForTimeout(1000)
   await page.locator('[data-testid^="room-card-"]').filter({ hasText: "Testing" }).click()
@@ -611,7 +625,7 @@ test("staggered join - one user joins before another", async ({ browser }) => {
   const analyzeAudio = async (page: typeof pageA, deviceName: string) => {
     return await page.evaluate(() => {
       const playingAudios = Array.from(document.querySelectorAll("audio")).filter(
-        (el) => (el as HTMLAudioElement).srcObject !== null
+        (el) => (el as HTMLAudioElement).srcObject !== null,
       )
       return {
         count: playingAudios.length,
@@ -687,25 +701,29 @@ test("debug: check component visibility and audio stream assignment", async ({ b
     document.querySelectorAll(".participant-card").forEach((card) => {
       const audioEl = card.querySelector("audio") as HTMLAudioElement
       const userId = audioEl?.id?.replace("audio-", "") || "unknown"
-      
+
       // Walk up DOM to find parent component
       let parent = card.parentElement
       let componentName = "unknown"
       let parentDisplay = ""
       let parentVisibility = ""
       let parentClasses = ""
-      
+
       while (parent) {
         const classes = parent.className || ""
         const computedStyle = window.getComputedStyle(parent)
-        
+
         if (classes.includes("screen-share-area")) {
           componentName = "ScreenShareArea"
           parentDisplay = computedStyle.display
           parentVisibility = computedStyle.visibility
           parentClasses = classes.slice(0, 100)
           break
-        } else if (classes.includes("grid") && classes.includes("gap-4") && parent.tagName === "DIV") {
+        } else if (
+          classes.includes("grid") &&
+          classes.includes("gap-4") &&
+          parent.tagName === "DIV"
+        ) {
           // Check if this is inside UserGrid by looking for the v-show wrapper
           const wrapper = parent.parentElement
           if (wrapper) {
@@ -738,14 +756,14 @@ test("debug: check component visibility and audio stream assignment", async ({ b
   console.table(visibilityAnalysis)
 
   // Check for the bug: hidden components with playing audio
-  const bugs = visibilityAnalysis.filter(
-    (item) => !item.isVisible && item.streamAttached
-  )
+  const bugs = visibilityAnalysis.filter((item) => !item.isVisible && item.streamAttached)
 
   if (bugs.length > 0) {
     console.log("\n🐛 BUG: Hidden components with audio playing:")
     bugs.forEach((bug) => {
-      console.log(`  User ${bug.userId} in ${bug.component}: hidden=${!bug.isVisible}, streamAttached=${bug.streamAttached}`)
+      console.log(
+        `  User ${bug.userId} in ${bug.component}: hidden=${!bug.isVisible}, streamAttached=${bug.streamAttached}`,
+      )
     })
   }
 

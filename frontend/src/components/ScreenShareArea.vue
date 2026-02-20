@@ -18,8 +18,7 @@
             :connection-state="focusedStream.connectionState"
             :is-focused="true"
             :show-focus-button="false"
-            :is-self-view="focusedStream.isSelfView"
-            />
+            :is-self-view="focusedStream.isSelfView" />
           <!-- Camera in main area -->
           <CameraStream
             v-else-if="focusedStream?.type === 'camera'"
@@ -29,8 +28,7 @@
             :video-track="focusedStream.videoTrack"
             :connection-state="focusedStream.connectionState"
             :is-focused="true"
-            :is-self-view="focusedStream.isSelfView"
-             />
+            :is-self-view="focusedStream.isSelfView" />
         </div>
 
         <!-- User panel for participants - 30% width -->

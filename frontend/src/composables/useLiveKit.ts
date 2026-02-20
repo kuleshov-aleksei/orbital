@@ -1052,7 +1052,9 @@ export function useLiveKit(options: UseLiveKitOptions) {
             try {
               await room.value.localParticipant.unpublishTrack(publicationToUnpublish.trackSid)
             } catch (sidError) {
-              debugLog(`[LiveKit][WARN]: Failed to unpublish camera: ${(sidError as Error).message}`)
+              debugLog(
+                `[LiveKit][WARN]: Failed to unpublish camera: ${(sidError as Error).message}`,
+              )
             }
           }
         }
