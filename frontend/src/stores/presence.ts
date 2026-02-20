@@ -10,7 +10,7 @@ import {
 import { useRoomStore } from "./room"
 import { useCallStore } from "./call"
 import { useUserStore } from "./user"
-import { initSounds, toggleOn, toggleOff, transitionOpen, transitionClose } from "@/services/sounds"
+import { toggleOn, toggleOff, transitionOpen, transitionClose } from "@/services/sounds"
 
 // Debounce helper for batching updates
 function debounce<T extends (...args: unknown[]) => void>(
@@ -133,12 +133,6 @@ export const usePresenceStore = defineStore("presence", () => {
     localParticipant.value = lkRoom.localParticipant
     isConnected.value = true
 
-    try {
-      await initSounds()
-    } catch (error) {
-      console.warn("Failed to initialize sounds:", error)
-    }
-
     // Set up local participant attributes
     const userStore = useUserStore()
     const callStore = useCallStore()
@@ -154,22 +148,22 @@ export const usePresenceStore = defineStore("presence", () => {
     })
 
     // Subscribe to participant events
-    lkRoom.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
+    lkRoom.on(RoomEvent.ParticipantConnected, async (participant: RemoteParticipant) => {
       console.log("[Presence] Participant connected:", participant.identity)
       updateParticipantFromLiveKit(participant)
-      transitionOpen()
+      await transitionOpen()
     })
 
-    lkRoom.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
+    lkRoom.on(RoomEvent.ParticipantDisconnected, async (participant: RemoteParticipant) => {
       console.log("[Presence] Participant disconnected:", participant.identity)
       const metadata = extractMetadata(participant)
       participants.value.delete(metadata.user_id)
-      transitionClose()
+      await transitionClose()
     })
 
     lkRoom.on(
       RoomEvent.ParticipantAttributesChanged,
-      (changedAttributes: Record<string, string | undefined>, participant: Participant) => {
+      async (changedAttributes: Record<string, string | undefined>, participant: Participant) => {
         console.log("[Presence] Participant attributes changed:", {
           identity: participant?.identity,
           name: participant?.name,
@@ -187,9 +181,9 @@ export const usePresenceStore = defineStore("presence", () => {
           const newIsDeafened = participant.attributes?.is_deafened === "true"
 
           if (newIsMuted || newIsDeafened) {
-            toggleOff()
+            await toggleOff()
           } else {
-            toggleOn()
+            await toggleOn()
           }
         }
 

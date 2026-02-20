@@ -101,15 +101,15 @@ const slashClasses = computed(() => {
 })
 
 // Toggle deafen - presence store will sync with LiveKit
-const toggleDeafen = () => {
+const toggleDeafen = async () => {
   const newValue = !isDeafened.value
   isDeafened.value = newValue
 
   // Play sound: toggle off for deafen, toggle on for undeafen
   if (newValue) {
-    toggleOff()
+    await toggleOff()
   } else {
-    toggleOn()
+    await toggleOn()
   }
 
   // Update call store (presence store watches this and syncs with LiveKit)

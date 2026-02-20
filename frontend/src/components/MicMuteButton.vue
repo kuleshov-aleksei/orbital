@@ -86,15 +86,15 @@ const iconClasses = computed(() => {
 })
 
 // Toggle mute - presence store will sync with LiveKit
-const toggleMute = () => {
+const toggleMute = async () => {
   const newValue = !isMuted.value
   isMuted.value = newValue
 
   // Play sound: toggle on for unmute, toggle off for mute
   if (newValue) {
-    toggleOff()
+    await toggleOff()
   } else {
-    toggleOn()
+    await toggleOn()
   }
 
   // Update call store (presence store watches this and syncs with LiveKit)
