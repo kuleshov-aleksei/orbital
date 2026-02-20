@@ -90,7 +90,7 @@ const toggleMute = async () => {
   const newValue = !isMuted.value
   isMuted.value = newValue
 
-  // Play sound: toggle on for unmute, toggle off for mute
+  // Play sound locally (remote users hear it via presence.ts)
   if (newValue) {
     await toggleOff()
   } else {

@@ -105,7 +105,7 @@ const toggleDeafen = async () => {
   const newValue = !isDeafened.value
   isDeafened.value = newValue
 
-  // Play sound: toggle off for deafen, toggle on for undeafen
+  // Play sound locally (remote users hear it via presence.ts)
   if (newValue) {
     await toggleOff()
   } else {

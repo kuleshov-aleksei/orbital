@@ -172,11 +172,14 @@ export const usePresenceStore = defineStore("presence", () => {
           isLocal: participant === lkRoom.localParticipant,
         })
 
+        // Only play sounds for remote participants (local sounds are played in button components)
+        const isLocal = participant === lkRoom.localParticipant
+
         // Check if mute or deafen status changed
         const isMutedChanged = "is_muted" in changedAttributes
         const isDeafenedChanged = "is_deafened" in changedAttributes
 
-        if (isMutedChanged || isDeafenedChanged) {
+        if (!isLocal && (isMutedChanged || isDeafenedChanged)) {
           const newIsMuted = participant.attributes?.is_muted === "true"
           const newIsDeafened = participant.attributes?.is_deafened === "true"
 
