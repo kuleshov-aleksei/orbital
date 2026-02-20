@@ -10,6 +10,7 @@ import {
 import { useRoomStore } from "./room"
 import { useCallStore } from "./call"
 import { useUserStore } from "./user"
+import { initSounds, toggleOn, toggleOff, transitionOpen, transitionClose } from "@/services/sounds"
 
 // Debounce helper for batching updates
 function debounce<T extends (...args: unknown[]) => void>(
@@ -132,6 +133,12 @@ export const usePresenceStore = defineStore("presence", () => {
     localParticipant.value = lkRoom.localParticipant
     isConnected.value = true
 
+    try {
+      await initSounds()
+    } catch (error) {
+      console.warn("Failed to initialize sounds:", error)
+    }
+
     // Set up local participant attributes
     const userStore = useUserStore()
     const callStore = useCallStore()
@@ -150,12 +157,14 @@ export const usePresenceStore = defineStore("presence", () => {
     lkRoom.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
       console.log("[Presence] Participant connected:", participant.identity)
       updateParticipantFromLiveKit(participant)
+      transitionOpen()
     })
 
     lkRoom.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
       console.log("[Presence] Participant disconnected:", participant.identity)
       const metadata = extractMetadata(participant)
       participants.value.delete(metadata.user_id)
+      transitionClose()
     })
 
     lkRoom.on(
@@ -168,6 +177,22 @@ export const usePresenceStore = defineStore("presence", () => {
           changedAttributes,
           isLocal: participant === lkRoom.localParticipant,
         })
+
+        // Check if mute or deafen status changed
+        const isMutedChanged = "is_muted" in changedAttributes
+        const isDeafenedChanged = "is_deafened" in changedAttributes
+
+        if (isMutedChanged || isDeafenedChanged) {
+          const newIsMuted = participant.attributes?.is_muted === "true"
+          const newIsDeafened = participant.attributes?.is_deafened === "true"
+
+          if (newIsMuted || newIsDeafened) {
+            toggleOff()
+          } else {
+            toggleOn()
+          }
+        }
+
         if (participant) {
           updateParticipantFromLiveKit(participant)
         }

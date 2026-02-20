@@ -29,6 +29,7 @@
 import { computed } from "vue"
 import { PhMicrophone, PhMicrophoneSlash } from "@phosphor-icons/vue"
 import { useCallStore, useUserStore, useRoomStore } from "@/stores"
+import { toggleOn, toggleOff } from "@/services/sounds"
 
 interface Props {
   modelValue: boolean
@@ -88,6 +89,13 @@ const iconClasses = computed(() => {
 const toggleMute = () => {
   const newValue = !isMuted.value
   isMuted.value = newValue
+
+  // Play sound: toggle on for unmute, toggle off for mute
+  if (newValue) {
+    toggleOff()
+  } else {
+    toggleOn()
+  }
 
   // Update call store (presence store watches this and syncs with LiveKit)
   callStore.setMuted(newValue)

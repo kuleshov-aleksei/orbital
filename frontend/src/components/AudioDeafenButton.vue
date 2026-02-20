@@ -27,6 +27,7 @@
 import { computed } from "vue"
 import { PhHeadphones } from "@phosphor-icons/vue"
 import { useCallStore, useUserStore, useRoomStore } from "@/stores"
+import { toggleOn, toggleOff } from "@/services/sounds"
 
 interface Props {
   modelValue: boolean
@@ -103,6 +104,13 @@ const slashClasses = computed(() => {
 const toggleDeafen = () => {
   const newValue = !isDeafened.value
   isDeafened.value = newValue
+
+  // Play sound: toggle off for deafen, toggle on for undeafen
+  if (newValue) {
+    toggleOff()
+  } else {
+    toggleOn()
+  }
 
   // Update call store (presence store watches this and syncs with LiveKit)
   callStore.setDeafened(newValue)
