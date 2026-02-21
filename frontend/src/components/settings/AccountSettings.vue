@@ -188,6 +188,13 @@
         This will clear your session and you'll need to login again.
       </p>
     </div>
+
+    <!-- Avatar Crop Modal -->
+    <AvatarCropModal
+      v-if="showCropModal"
+      :image-src="cropImageSrc"
+      @close="closeCropModal"
+      @upload="handleCroppedUpload" />
   </div>
 </template>
 
@@ -195,7 +202,16 @@
 import { ref, nextTick, useTemplateRef } from "vue"
 import { useUserStore } from "@/stores"
 import UserAvatar from "@/components/UserAvatar.vue"
-import { PhUser, PhSignOut, PhCheckCircle, PhPencil, PhShield, PhCamera, PhSpinner } from "@phosphor-icons/vue"
+import AvatarCropModal from "@/components/AvatarCropModal.vue"
+import {
+  PhUser,
+  PhSignOut,
+  PhCheckCircle,
+  PhPencil,
+  PhShield,
+  PhCamera,
+  PhSpinner,
+} from "@phosphor-icons/vue"
 import DiscordIcon from "~icons/simple-icons/discord"
 import GoogleIcon from "~icons/logos/google-icon"
 
@@ -216,6 +232,10 @@ const nicknameInput = useTemplateRef<HTMLInputElement>("nicknameInput")
 const avatarInput = useTemplateRef<HTMLInputElement>("avatarInput")
 const isUploadingAvatar = ref(false)
 const avatarError = ref("")
+
+// Avatar crop modal state
+const showCropModal = ref(false)
+const cropImageSrc = ref("")
 
 function startEditingNickname() {
   editedNickname.value = userStore.nickname
@@ -288,19 +308,39 @@ async function handleAvatarChange(event: Event) {
     return
   }
 
+  // Read file and show crop modal
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    cropImageSrc.value = e.target?.result as string
+    showCropModal.value = true
+  }
+  reader.onerror = () => {
+    avatarError.value = "Failed to read file"
+  }
+  reader.readAsDataURL(file)
+
+  // Reset input so same file can be selected again
+  if (target) {
+    target.value = ""
+  }
+}
+
+function closeCropModal() {
+  showCropModal.value = false
+  cropImageSrc.value = ""
+}
+
+async function handleCroppedUpload(blob: Blob) {
   isUploadingAvatar.value = true
   avatarError.value = ""
+  closeCropModal()
 
   try {
-    await userStore.updateAvatar(file)
+    await userStore.updateAvatar(blob as File)
   } catch {
     avatarError.value = userStore.avatarUpdateError || "Failed to upload avatar"
   } finally {
     isUploadingAvatar.value = false
-    // Reset input so same file can be selected again
-    if (target) {
-      target.value = ""
-    }
   }
 }
 
