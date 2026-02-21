@@ -8,12 +8,36 @@
     <!-- User Info Card -->
     <div class="bg-gray-700 rounded-lg p-4">
       <div class="flex items-center gap-3">
-        <UserAvatar
-          :nickname="userStore.nickname"
-          :avatar-url="userStore.avatarUrl"
-          :size="48"
-          status="online"
-          class="flex-shrink-0" />
+        <div class="relative flex-shrink-0">
+          <UserAvatar
+            :nickname="userStore.nickname"
+            :avatar-url="userStore.avatarUrl"
+            :size="48"
+            status="online"
+            :class="{ 'opacity-50': isUploadingAvatar }" />
+          <!-- Avatar upload overlay for logged-in users -->
+          <button
+            v-if="userStore.isLoggedIn && !isUploadingAvatar"
+            type="button"
+            class="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 hover:opacity-100 transition-opacity cursor-pointer"
+            title="Change avatar"
+            @click="triggerAvatarUpload">
+            <PhCamera class="w-5 h-5 text-white" />
+          </button>
+          <!-- Loading spinner during upload -->
+          <div
+            v-if="isUploadingAvatar"
+            class="absolute inset-0 flex items-center justify-center rounded-full bg-black/50">
+            <PhSpinner class="w-5 h-5 text-white animate-spin" />
+          </div>
+          <!-- Hidden file input -->
+          <input
+            ref="avatarInput"
+            type="file"
+            accept="image/png,image/jpeg,image/jpg"
+            class="hidden"
+            @change="handleAvatarChange" />
+        </div>
 
         <div class="flex-1 min-w-0 min-h-24">
           <!-- Nickname Display / Edit Mode -->
@@ -66,6 +90,11 @@
             <div v-if="errorMessage" class="text-xs text-red-400">
               {{ errorMessage }}
             </div>
+          </div>
+
+          <!-- Avatar upload error -->
+          <div v-if="avatarError" class="text-xs text-red-400 mt-2">
+            {{ avatarError }}
           </div>
 
           <div v-if="userStore.email" class="text-sm text-gray-400 truncate">
@@ -166,7 +195,7 @@
 import { ref, nextTick, useTemplateRef } from "vue"
 import { useUserStore } from "@/stores"
 import UserAvatar from "@/components/UserAvatar.vue"
-import { PhUser, PhSignOut, PhCheckCircle, PhPencil, PhShield } from "@phosphor-icons/vue"
+import { PhUser, PhSignOut, PhCheckCircle, PhPencil, PhShield, PhCamera, PhSpinner } from "@phosphor-icons/vue"
 import DiscordIcon from "~icons/simple-icons/discord"
 import GoogleIcon from "~icons/logos/google-icon"
 
@@ -182,6 +211,11 @@ const editedNickname = ref("")
 const isSaving = ref(false)
 const errorMessage = ref("")
 const nicknameInput = useTemplateRef<HTMLInputElement>("nicknameInput")
+
+// Avatar upload state
+const avatarInput = useTemplateRef<HTMLInputElement>("avatarInput")
+const isUploadingAvatar = ref(false)
+const avatarError = ref("")
 
 function startEditingNickname() {
   editedNickname.value = userStore.nickname
@@ -228,6 +262,45 @@ async function saveNickname() {
     errorMessage.value = userStore.nicknameUpdateError || "Failed to update nickname"
   } finally {
     isSaving.value = false
+  }
+}
+
+function triggerAvatarUpload() {
+  avatarError.value = ""
+  avatarInput.value?.click()
+}
+
+async function handleAvatarChange(event: Event) {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  // Validate file type
+  const validTypes = ["image/png", "image/jpeg", "image/jpg"]
+  if (!validTypes.includes(file.type)) {
+    avatarError.value = "Only PNG and JPG files are allowed"
+    return
+  }
+
+  // Validate file size (5MB)
+  if (file.size > 5 * 1024 * 1024) {
+    avatarError.value = "File size must be less than 5MB"
+    return
+  }
+
+  isUploadingAvatar.value = true
+  avatarError.value = ""
+
+  try {
+    await userStore.updateAvatar(file)
+  } catch {
+    avatarError.value = userStore.avatarUpdateError || "Failed to upload avatar"
+  } finally {
+    isUploadingAvatar.value = false
+    // Reset input so same file can be selected again
+    if (target) {
+      target.value = ""
+    }
   }
 }
 

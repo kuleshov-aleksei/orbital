@@ -20,6 +20,8 @@ export const useUserStore = defineStore("user", () => {
   const token = ref<string | null>(null)
   const nicknameUpdateStatus = ref<"idle" | "pending" | "success" | "error">("idle")
   const nicknameUpdateError = ref<string | null>(null)
+  const avatarUpdateStatus = ref<"idle" | "pending" | "success" | "error">("idle")
+  const avatarUpdateError = ref<string | null>(null)
 
   const userId = computed(() => currentUser.value?.id ?? "")
   const nickname = computed(() => currentUser.value?.nickname ?? "User")
@@ -116,6 +118,28 @@ export const useUserStore = defineStore("user", () => {
     if (currentUser.value) {
       currentUser.value.nickname = newNickname
       localStorage.setItem("orbital_user_nickname", newNickname)
+    }
+  }
+
+  async function updateAvatar(file: File): Promise<void> {
+    if (!currentUser.value || !currentUser.value.id) {
+      console.error("Cannot update avatar: no current user or user ID missing")
+      return
+    }
+
+    avatarUpdateStatus.value = "pending"
+    avatarUpdateError.value = null
+
+    try {
+      const response = await apiService.uploadAvatar(file)
+      currentUser.value.avatarUrl = response.avatar_url
+      localStorage.setItem("orbital_user_avatar", response.avatar_url)
+      avatarUpdateStatus.value = "success"
+    } catch (error) {
+      console.error("Failed to update avatar:", error)
+      avatarUpdateError.value = "Failed to update avatar. Please try again."
+      avatarUpdateStatus.value = "error"
+      throw error
     }
   }
 
@@ -245,10 +269,13 @@ export const useUserStore = defineStore("user", () => {
     hasCompletedAuth,
     nicknameUpdateStatus,
     nicknameUpdateError,
+    avatarUpdateStatus,
+    avatarUpdateError,
     setUser,
     updateNickname,
     updateNicknameLocally,
     updateUserNickname,
+    updateAvatar,
     loadUserFromStorage,
     clearUser,
     loginWithProvider,
