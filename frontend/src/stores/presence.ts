@@ -10,6 +10,7 @@ import {
 import { useRoomStore } from "./room"
 import { useCallStore } from "./call"
 import { useUserStore } from "./user"
+import { toggleOn, toggleOff, transitionOpen, transitionClose } from "@/services/sounds"
 
 // Debounce helper for batching updates
 function debounce<T extends (...args: unknown[]) => void>(
@@ -147,20 +148,22 @@ export const usePresenceStore = defineStore("presence", () => {
     })
 
     // Subscribe to participant events
-    lkRoom.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
+    lkRoom.on(RoomEvent.ParticipantConnected, async (participant: RemoteParticipant) => {
       console.log("[Presence] Participant connected:", participant.identity)
       updateParticipantFromLiveKit(participant)
+      await transitionOpen()
     })
 
-    lkRoom.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
+    lkRoom.on(RoomEvent.ParticipantDisconnected, async (participant: RemoteParticipant) => {
       console.log("[Presence] Participant disconnected:", participant.identity)
       const metadata = extractMetadata(participant)
       participants.value.delete(metadata.user_id)
+      await transitionClose()
     })
 
     lkRoom.on(
       RoomEvent.ParticipantAttributesChanged,
-      (changedAttributes: Record<string, string | undefined>, participant: Participant) => {
+      async (changedAttributes: Record<string, string | undefined>, participant: Participant) => {
         console.log("[Presence] Participant attributes changed:", {
           identity: participant?.identity,
           name: participant?.name,
@@ -168,6 +171,25 @@ export const usePresenceStore = defineStore("presence", () => {
           changedAttributes,
           isLocal: participant === lkRoom.localParticipant,
         })
+
+        // Only play sounds for remote participants (local sounds are played in button components)
+        const isLocal = participant === lkRoom.localParticipant
+
+        // Check if mute or deafen status changed
+        const isMutedChanged = "is_muted" in changedAttributes
+        const isDeafenedChanged = "is_deafened" in changedAttributes
+
+        if (!isLocal && (isMutedChanged || isDeafenedChanged)) {
+          const newIsMuted = participant.attributes?.is_muted === "true"
+          const newIsDeafened = participant.attributes?.is_deafened === "true"
+
+          if (newIsMuted || newIsDeafened) {
+            await toggleOff()
+          } else {
+            await toggleOn()
+          }
+        }
+
         if (participant) {
           updateParticipantFromLiveKit(participant)
         }

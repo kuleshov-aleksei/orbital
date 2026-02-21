@@ -20,6 +20,7 @@ import { useAudioSettingsStore } from "@/stores/audioSettings"
 import { useCallStore } from "@/stores/call"
 import { getLiveKitAudioConstraints } from "@/services/livekit-audio-processors"
 import { debugLog, debugWarn } from "@/utils/debug"
+import { transitionOpen, transitionClose, tap } from "@/services/sounds"
 import type { User, ScreenShareQuality, ConnectionStats, TrackStats } from "@/types"
 
 export interface UseLiveKitOptions {
@@ -497,6 +498,9 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
       debugLog(`[LiveKit][INFO]: 'Connected to LiveKit room successfully'}`)
 
+      // Play transition open sound on successful connection
+      await transitionOpen()
+
       // Initialize presence tracking
       await presenceStore.initializePresence(lkRoom)
 
@@ -655,9 +659,10 @@ export function useLiveKit(options: UseLiveKitOptions) {
     })
 
     // Connection state events
-    lkRoom.on(RoomEvent.Disconnected, (reason) => {
+    lkRoom.on(RoomEvent.Disconnected, async (reason) => {
       debugWarn(`[LiveKit][WARN]: Disconnected from room: ${reason || "unknown reason"}`)
       isConnected.value = false
+      await transitionClose()
       // Note: Don't call cleanup() here - it can cause race conditions
       // when switching rooms. Cleanup should only be called from onUnmounted
       // or when explicitly disconnecting. Just stop the intervals here.
@@ -883,6 +888,8 @@ export function useLiveKit(options: UseLiveKitOptions) {
       screenShareQuality.value = quality
 
       debugLog(`[LiveKit][INFO]: 'Screen sharing started successfully'`)
+
+      await tap()
     } catch (error) {
       console.error("Failed to start screen share:", error)
       console.error(`[LiveKit][ERROR]: Screen share failed: ${(error as Error).message}`)
@@ -954,6 +961,8 @@ export function useLiveKit(options: UseLiveKitOptions) {
       })
 
       debugLog(`[LiveKit][INFO]: 'Screen sharing stopped'`)
+
+      await tap()
     } catch (error) {
       console.error("Error stopping screen share:", error)
       console.error(`[LiveKit][ERROR]: Error stopping screen share: ${(error as Error).message}`)
@@ -1013,6 +1022,8 @@ export function useLiveKit(options: UseLiveKitOptions) {
       }
 
       debugLog(`[LiveKit][INFO]: 'Camera started successfully'`)
+
+      await tap()
     } catch (error) {
       console.error("Failed to start camera:", error)
       console.error(`[LiveKit][ERROR]: Camera failed: ${(error as Error).message}`)
@@ -1083,6 +1094,8 @@ export function useLiveKit(options: UseLiveKitOptions) {
       userCameraStates.value.set(getCurrentUserId(), false)
 
       debugLog(`[LiveKit][INFO]: 'Camera stopped'`)
+
+      await tap()
     } catch (error) {
       console.error("Error stopping camera:", error)
       console.error(`[LiveKit][ERROR]: Error stopping camera: ${(error as Error).message}`)
