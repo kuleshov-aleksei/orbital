@@ -49,7 +49,7 @@ export async function toggleOff(): Promise<void> {
 
 /**
  * Plays the transition up sound effect.
- * Used when user starts screen share, camera, or joins room.
+ * Used when user joins room.
  */
 export async function transitionOpen(): Promise<void> {
   await initSounds()
@@ -58,7 +58,7 @@ export async function transitionOpen(): Promise<void> {
 
 /**
  * Plays the transition down sound effect.
- * Used when user stops screen share, camera, or leaves room.
+ * Used when user leaves room.
  */
 export async function transitionClose(): Promise<void> {
   await initSounds()
