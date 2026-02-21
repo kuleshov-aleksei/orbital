@@ -1,6 +1,12 @@
 # Backend Dockerfile
 FROM golang:1.25-alpine AS builder
 
+# Install build dependencies for libvips and CGO
+RUN apk add --no-cache \
+    build-base \
+    vips-dev \
+    pkgconfig
+
 # Accept version as build argument
 ARG VERSION=dev-unknown
 
@@ -9,11 +15,19 @@ COPY backend/go.mod backend/go.sum ./
 RUN go mod download
 
 COPY backend/ .
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags "-X github.com/kuleshov-aleksei/orbital/internal/version.Version=${VERSION}" -o orbital ./cmd/server
+RUN CGO_ENABLED=1 GOOS=linux go build -ldflags "-X github.com/kuleshov-aleksei/orbital/internal/version.Version=${VERSION}" -o orbital ./cmd/server
 
 FROM alpine:latest
-RUN apk --no-cache add ca-certificates
+
+# Install runtime dependencies (libvips and ca-certificates)
+RUN apk --no-cache add \
+    ca-certificates \
+    vips
+
 WORKDIR /root/
+
+# Create data directory for avatars
+RUN mkdir -p /root/data/avatars
 
 COPY --from=builder /app/orbital .
 

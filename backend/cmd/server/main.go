@@ -113,6 +113,9 @@ func main() {
 
 	wsHub := websocket.NewHub(roomService, authService, livekitService, cfg)
 
+	// Initialize avatar service
+	avatarService := service.NewAvatarService("data")
+
 	// Initialize handlers with config
 	roomHandler := handlers.NewRoomHandler(roomService, categoryService, wsHub)
 	categoryHandler := handlers.NewCategoryHandler(categoryService, roomService, wsHub)
@@ -120,6 +123,7 @@ func main() {
 	adminHandler := handlers.NewAdminHandler(roleService, userRepo)
 	usersHandler := handlers.NewUsersHandler(userRepo, wsHub)
 	livekitHandler := handlers.NewLiveKitHandler(livekitService)
+	avatarHandler := handlers.NewAvatarHandler(avatarService, userRepo)
 
 	// Setup router
 	r := mux.NewRouter()
@@ -145,6 +149,10 @@ func main() {
 
 	// Users route (public)
 	r.HandleFunc("/api/users", usersHandler.GetAllUsers).Methods("GET")
+
+	// Avatar routes (public for serving, protected for upload)
+	r.HandleFunc("/api/avatars/{guid}", avatarHandler.GetAvatar).Methods("GET")
+	r.Handle("/api/users/me/avatar", authHandler.AuthMiddleware(http.HandlerFunc(avatarHandler.UploadAvatar))).Methods("POST")
 
 	// General configuration route (public)
 	r.HandleFunc("/api/config", roomHandler.GetConfig).Methods("GET")

@@ -136,6 +136,15 @@ func (r *UserRepository) Update(user *models.User) error {
 	return err
 }
 
+// UpdateAvatarURL updates only the avatar_url field
+func (r *UserRepository) UpdateAvatarURL(userID string, avatarURL string) error {
+	_, err := r.db.Exec(
+		`UPDATE users SET avatar_url = ? WHERE id = ?`,
+		avatarURL, userID,
+	)
+	return err
+}
+
 // UpdateLastSeen updates only the last_seen timestamp
 func (r *UserRepository) UpdateLastSeen(id string, lastSeen time.Time) error {
 	_, err := r.db.Exec(

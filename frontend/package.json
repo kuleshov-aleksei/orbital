@@ -20,6 +20,7 @@
     "pinia": "^2.1.0",
     "snd-lib": "^1.2.4",
     "vue": "^3.3.0",
+    "vue-advanced-cropper": "^2.8.9",
     "vue-boring-avatars": "^1.4.0",
     "vue-router": "^4.2.0"
   },

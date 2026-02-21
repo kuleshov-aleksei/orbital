@@ -291,6 +291,28 @@ export const apiService = {
     return apiRequest<PublicUser[]>("/users")
   },
 
+  // Avatar upload
+  async uploadAvatar(file: File): Promise<{ avatar_url: string }> {
+    const formData = new FormData()
+    formData.append("avatar", file)
+
+    const token = getAuthToken()
+    const response = await fetch(`${API_BASE}/users/me/avatar`, {
+      method: "POST",
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`API Error: ${response.status} - ${errorText}`)
+    }
+
+    return response.json()
+  },
+
   // LiveKit token generation
   async getLiveKitToken(roomId: string): Promise<LiveKitTokenResponse> {
     return apiRequest<LiveKitTokenResponse>("/livekit/token", {
