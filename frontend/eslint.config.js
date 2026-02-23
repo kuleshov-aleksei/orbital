@@ -3,18 +3,24 @@ import eslintConfigPrettier from "eslint-config-prettier/flat"
 import eslintPluginVue from "eslint-plugin-vue"
 import globals from "globals"
 import typescriptEslint from "typescript-eslint"
+import eslintPluginPrettier from "eslint-plugin-prettier"
 
-export default typescriptEslint.config(
+export default [
   { ignores: ["*.d.ts", "**/coverage", "**/dist"] },
+  eslint.configs.recommended,
+  ...typescriptEslint.configs.recommended,
+  ...eslintPluginVue.configs["flat/recommended"],
+  ...eslintPluginVue.configs["flat/essential"],
+  ...eslintPluginVue.configs["flat/strongly-recommended"],
   {
-    extends: [
-      eslint.configs.recommended,
-      //...typescriptEslint.configs.recommendedTypeChecked,
-      ...typescriptEslint.configs.recommended,
-      ...eslintPluginVue.configs["flat/recommended"],
-      ...eslintPluginVue.configs["flat/essential"],
-      ...eslintPluginVue.configs["flat/strongly-recommended"],
-    ],
+    plugins: {
+      prettier: eslintPluginPrettier,
+    },
+    rules: {
+      "prettier/prettier": "error",
+    },
+  },
+  {
     files: ["**/*.{ts,vue}"],
     languageOptions: {
       ecmaVersion: "latest",
@@ -30,49 +36,16 @@ export default typescriptEslint.config(
       // Enforce <template> at top of file, then script, then style
       "vue/block-order": ["error", { order: ["template", "script", "style"] }],
 
-      // Enforce new line between each attribute
-      "vue/max-attributes-per-line": [
-        "error",
-        {
-          singleline: { max: 1 },
-          multiline: { max: 1 },
-        },
-      ],
-
-      "vue/first-attribute-linebreak": [
-        "error",
-        {
-          singleline: "beside",
-          multiline: "below",
-        },
-      ],
-
-      // Enforce new line between each tag
-      "vue/padding-line-between-tags": [
-        "error",
-        [
-          {
-            blankLine: "always",
-            prev: "*",
-            next: "*",
-          },
-        ],
-      ],
-
-      // Enforce new line after singline elements
-      "vue/singleline-html-element-content-newline": [
-        "error",
-        {
-          ignoreWhenNoAttributes: true,
-          ignoreWhenEmpty: true,
-        },
-      ],
+      // Formatting rules - disabled to let Prettier handle formatting
+      "vue/max-attributes-per-line": "off",
+      "vue/first-attribute-linebreak": "off",
+      "vue/padding-line-between-tags": "off",
+      "vue/singleline-html-element-content-newline": "off",
+      "vue/new-line-between-multi-line-property": "off",
+      "vue/html-comment-content-spacing": "off",
 
       // Enforce use of useTemplateRef
       "vue/prefer-use-template-ref": ["error"],
-
-      // Enforce new line between multi-line properties
-      "vue/new-line-between-multi-line-property": ["error", { minLineOfMultilineProperty: 2 }],
 
       // Enforce defineOptions for component naming
       "vue/prefer-define-options": ["error"],
@@ -112,19 +85,15 @@ export default typescriptEslint.config(
         },
       ],
 
-      // Enforce whitespace around comment content
-      "vue/html-comment-content-spacing": ["error", "always"],
-
       // Enforce all props with default values be optional
       "vue/no-required-prop-with-default": ["error", { autofix: false }],
 
       // Enforce refs to have defined types
       "vue/require-typed-ref": ["error"],
 
-      //'@typescript-eslint/no-unsafe-member-access': ['error'],
-
       "@typescript-eslint/no-explicit-any": ["error"],
+      "prettier/prettier": ["error"],
     },
   },
   eslintConfigPrettier,
-)
+]
