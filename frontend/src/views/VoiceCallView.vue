@@ -84,15 +84,34 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, useTemplateRef, watch } from "vue"
+import { computed, defineAsyncComponent, ref, useTemplateRef, watch } from "vue"
 import AudioControls from "@/components/AudioControls.vue"
-import AudioManager from "@/components/AudioManager.vue"
 import RoomHeader from "@/components/RoomHeader.vue"
-import ScreenShareArea from "@/components/ScreenShareArea.vue"
-import UserGrid from "@/components/UserGrid.vue"
 import { useLiveKit, useVoiceActivity } from "@/composables"
 import { useAudioSettingsStore, useCallStore, useUserStore } from "@/stores"
 import type { User, ScreenShareQuality } from "@/types"
+
+const props = withDefaults(defineProps<Props>(), {
+  isMobile: false,
+  modelValueMuted: false,
+  modelValueDeafened: false,
+  modelValueScreenSharing: false,
+  modelValueCameraEnabled: false,
+})
+const emit = defineEmits<{
+  "leave-room": []
+  "show-room-list": []
+  "toggle-user-sidebar": []
+  "update:modelValueMuted": [value: boolean]
+  "update:modelValueDeafened": [value: boolean]
+  "update:modelValueScreenSharing": [value: boolean]
+  "update:modelValueCameraEnabled": [value: boolean]
+  "ping-update": [ping: number, quality: "excellent" | "good" | "fair" | "poor"]
+  "request-screen-share": []
+}>()
+const AudioManager = defineAsyncComponent(() => import("@/components/AudioManager.vue"))
+const ScreenShareArea = defineAsyncComponent(() => import("@/components/ScreenShareArea.vue"))
+const UserGrid = defineAsyncComponent(() => import("@/components/UserGrid.vue"))
 
 interface Props {
   roomId: string
@@ -105,26 +124,6 @@ interface Props {
   modelValueScreenSharing?: boolean
   modelValueCameraEnabled?: boolean
 }
-
-const props = withDefaults(defineProps<Props>(), {
-  isMobile: false,
-  modelValueMuted: false,
-  modelValueDeafened: false,
-  modelValueScreenSharing: false,
-  modelValueCameraEnabled: false,
-})
-
-const emit = defineEmits<{
-  "leave-room": []
-  "show-room-list": []
-  "toggle-user-sidebar": []
-  "update:modelValueMuted": [value: boolean]
-  "update:modelValueDeafened": [value: boolean]
-  "update:modelValueScreenSharing": [value: boolean]
-  "update:modelValueCameraEnabled": [value: boolean]
-  "ping-update": [ping: number, quality: "excellent" | "good" | "fair" | "poor"]
-  "request-screen-share": []
-}>()
 
 // UI State (layout and display preferences)
 const isUserGridVisible = ref(true)

@@ -25,6 +25,16 @@ export default defineConfig({
       "@": resolve(__dirname, "src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-livekit': ['livekit-client'],
+          'vendor-avatar': ['vue-advanced-cropper', 'vue-boring-avatars'],
+        },
+      },
+    },
+  },
   server: {
     port: 3000,
     host: "0.0.0.0",

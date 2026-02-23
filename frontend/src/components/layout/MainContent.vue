@@ -8,7 +8,7 @@
       @create-room="$emit('create-room')" />
 
     <VoiceCallView
-      v-else
+      v-else-if="roomStore.activeRoomId"
       ref="voiceCallViewRef"
       v-model:model-value-muted="callStore.isMuted"
       v-model:model-value-deafened="callStore.isDeafened"
@@ -28,10 +28,9 @@
 </template>
 
 <script setup lang="ts">
-import { useTemplateRef } from "vue"
+import { defineAsyncComponent, useTemplateRef } from "vue"
 import { useRoomStore, useAppStore, useCallStore } from "@/stores"
 import WelcomeView from "@/views/WelcomeView.vue"
-import VoiceCallView from "@/views/VoiceCallView.vue"
 
 defineEmits<{
   (e: "room-selected", roomId: string): void
@@ -43,6 +42,8 @@ defineEmits<{
   ): void
   (e: "request-screen-share"): void
 }>()
+
+const VoiceCallView = defineAsyncComponent(() => import("@/views/VoiceCallView.vue"))
 
 const roomStore = useRoomStore()
 const appStore = useAppStore()
