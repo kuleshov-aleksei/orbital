@@ -1,6 +1,7 @@
 import { defineConfig } from "vite"
 import vue from "@vitejs/plugin-vue"
 import Icons from "unplugin-icons/vite"
+import compression from "vite-plugin-compression"
 import { resolve } from "path"
 import { readFileSync } from "fs"
 
@@ -18,6 +19,14 @@ export default defineConfig({
     Icons({
       compiler: "vue3",
       autoInstall: true,
+    }),
+    compression({
+      algorithm: "gzip",
+      ext: ".gz",
+    }),
+    compression({
+      algorithm: "brotliCompress",
+      ext: ".br",
     }),
   ],
   resolve: {
