@@ -44,7 +44,7 @@
           :current-user-is-sharing="isScreenSharing"
           :current-user-camera-enabled="isCameraEnabled"
           :get-participant-stats="getParticipantStats"
-          class="m-4 max-h-[70vh]"
+          class="m-4"
           @update:layout="screenShareLayout = $event"
           @mute-toggle="handleUserMuteToggle" />
 

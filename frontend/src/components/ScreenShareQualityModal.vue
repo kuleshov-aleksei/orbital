@@ -6,7 +6,7 @@
 
       <!-- Modal Content -->
       <div
-        class="relative bg-gray-800 rounded-xl shadow-2xl max-w-md w-full mx-4 border border-gray-600 max-h-[90vh] overflow-y-auto">
+        class="relative bg-gray-800 rounded-xl shadow-2xl max-w-md w-full mx-4 border border-gray-600 max-h-[90svh] overflow-y-auto">
         <!-- Header -->
         <div class="px-5 py-3 border-b border-gray-700">
           <div class="flex items-center">
