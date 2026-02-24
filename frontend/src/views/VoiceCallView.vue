@@ -293,7 +293,7 @@ watch(
       try {
         connected = await initializeLiveKit()
         if (connected) {
-          console.log(`✅ LiveKit connected to room ${newRoomId}`)
+          console.log(`${Date.now()} ✅ LiveKit connected to room ${newRoomId}`)
         } else {
           console.error(`❌ Failed to connect LiveKit to room ${newRoomId}`)
         }

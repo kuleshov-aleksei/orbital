@@ -470,11 +470,12 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
   // Connect to LiveKit room
   const connectToRoom = async (token: string, url: string): Promise<boolean> => {
+    const connectStart = performance.now()
     try {
       isConnecting.value = true
       connectionError.value = null
 
-      debugLog(`[LiveKit][INFO]: Connecting to LiveKit room at ${url}`)
+      debugLog(`[LiveKit][INFO]: Connecting to LiveKit room at ${url} (t=${connectStart.toFixed(0)}ms)`)
 
       // Create room with optimized options
       const lkRoom = new Room({
@@ -490,6 +491,9 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
       // Connect to room
       await lkRoom.connect(url, token)
+
+      const connectTime = performance.now() - connectStart
+      debugLog(`[LiveKit][INFO]: Room connected (t=${connectTime.toFixed(0)}ms)`)
 
       room.value = lkRoom
       localParticipant.value = lkRoom.localParticipant
@@ -792,20 +796,26 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
   // Initialize LiveKit connection (fetch token and connect)
   const initializeLiveKit = async (): Promise<boolean> => {
+    const startTime = performance.now()
     try {
-      debugLog(`[LiveKit][INFO]: 'Initializing LiveKit...'`)
+      debugLog(`[LiveKit][INFO]: 'Initializing LiveKit...' (t=0ms)`)
 
       // Fetch token from backend
       const response = await apiService.getLiveKitToken(options.roomId)
-      debugLog(`[LiveKit][INFO]: Token received, connecting to ${response.room_url}`)
+      const tokenTime = performance.now() - startTime
+      debugLog(`[LiveKit][INFO]: Token received (t=${tokenTime.toFixed(0)}ms), connecting to ${response.room_url}`)
 
       // Initialize audio track first
       await initializeAudioTrack()
+      const audioTime = performance.now() - startTime
+      debugLog(`[LiveKit][INFO]: Audio track ready (t=${audioTime.toFixed(0)}ms)`)
 
       // Connect to room
       const connected = await connectToRoom(response.token, response.room_url)
 
       if (connected) {
+        const totalTime = performance.now() - startTime
+        debugLog(`[LiveKit][INFO]: LiveKit fully connected (t=${totalTime.toFixed(0)}ms)`)
         // Start ping interval
         startPingInterval()
         // Start stats polling

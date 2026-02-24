@@ -389,7 +389,7 @@ export class WebSocketService {
   private handleGlobalMessage(event: MessageEvent<unknown>): void {
     try {
       const message = JSON.parse(event.data as string) as WebSocketMessage
-      console.log("Received global WebSocket message:", message)
+      console.log(Date.now(), "Received global WebSocket message:", message)
 
       // Route message to appropriate global callbacks
       const callbacks = this.globalCallbacks.get(message.type)
