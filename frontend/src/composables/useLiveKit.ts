@@ -469,13 +469,13 @@ export function useLiveKit(options: UseLiveKitOptions) {
   }
 
   // Connect to LiveKit room
-  const connectToRoom = async (token: string, url: string): Promise<boolean> => {
-    const connectStart = performance.now()
+  const connectToRoom = async (token: string, url: string, startTime?: number): Promise<boolean> => {
+    const connectStart = startTime || performance.now()
     try {
       isConnecting.value = true
       connectionError.value = null
 
-      debugLog(`[LiveKit][INFO]: Connecting to LiveKit room at ${url} (t=${connectStart.toFixed(0)}ms)`)
+      debugLog(`[LiveKit][INFO]: Connecting to LiveKit room at ${url} (t=${(performance.now() - connectStart).toFixed(0)}ms)`)
 
       // Create room with optimized options
       const lkRoom = new Room({
@@ -493,7 +493,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
       await lkRoom.connect(url, token)
 
       const connectTime = performance.now() - connectStart
-      debugLog(`[LiveKit][INFO]: Room connected (t=${connectTime.toFixed(0)}ms)`)
+      debugLog(`[LiveKit][INFO]: Room connected (t=${(performance.now() - startTime).toFixed(0)}ms)`)
 
       room.value = lkRoom
       localParticipant.value = lkRoom.localParticipant
@@ -811,7 +811,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
       debugLog(`[LiveKit][INFO]: Audio track ready (t=${audioTime.toFixed(0)}ms)`)
 
       // Connect to room
-      const connected = await connectToRoom(response.token, response.room_url)
+      const connected = await connectToRoom(response.token, response.room_url, startTime)
 
       if (connected) {
         const totalTime = performance.now() - startTime
