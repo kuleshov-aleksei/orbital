@@ -8,7 +8,7 @@ ENV VITE_APP_URL=${APP_URL}
 
 WORKDIR /app
 COPY frontend/package*.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci
+RUN --mount=type=cache,target=/root/.npm npm ci --prefer-offline
 
 COPY frontend/ .
 RUN npm run build

@@ -15,7 +15,7 @@ COPY backend/go.mod backend/go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 COPY backend/ .
-RUN CGO_ENABLED=1 GOOS=linux go build -ldflags "-X github.com/kuleshov-aleksei/orbital/internal/version.Version=${VERSION}" -o orbital ./cmd/server
+RUN --mount=type=cache,target=/go/pkg/mod CGO_ENABLED=1 GOOS=linux go build -ldflags "-X github.com/kuleshov-aleksei/orbital/internal/version.Version=${VERSION}" -o orbital ./cmd/server
 
 FROM alpine:latest
 

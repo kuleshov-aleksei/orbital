@@ -23,12 +23,10 @@ jobs:
           echo "Deploying version: $VERSION"
       
       - name: Build Docker images
-        env:
-          DOCKER_BUILDKIT: 1
         run: |
-          # Build images with version tag
-          docker build --build-arg VERSION=${{ env.VERSION }} --build-arg APP_URL=${{ vars.APP_URL }} -t orbital-frontend:${{ env.VERSION }} -f docker/Dockerfile.frontend .
-          docker build --build-arg VERSION=${{ env.VERSION }} -t orbital-backend:${{ env.VERSION }} -f docker/Dockerfile.backend .
+          # Build images with version tag using buildx (BuildKit)
+          docker buildx build --build-arg VERSION=${{ env.VERSION }} --build-arg APP_URL=${{ vars.APP_URL }} -t orbital-frontend:${{ env.VERSION }} -f docker/Dockerfile.frontend .
+          docker buildx build --build-arg VERSION=${{ env.VERSION }} -t orbital-backend:${{ env.VERSION }} -f docker/Dockerfile.backend .
       
       - name: Setup deployment directory
         run: |
