@@ -30,6 +30,7 @@
             :video-track="focusedStream.videoTrack"
             :connection-state="focusedStream.connectionState"
             :is-focused="true"
+            class="max-w-full"
             :is-self-view="focusedStream.isSelfView" />
         </div>
 
@@ -105,7 +106,6 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from "vue"
-import { PhMonitorPlay } from "@phosphor-icons/vue"
 import ScreenStream from "./ScreenStream.vue"
 import CameraStream from "./CameraStream.vue"
 import ParticipantCard from "./ParticipantCard.vue"
@@ -120,7 +120,6 @@ import type {
 const props = defineProps<Props>()
 
 const emit = defineEmits<{
-  "toggle-user-grid": []
   "update:layout": [layout: "grid" | "focus"]
   "mute-toggle": [userId: string, isMuted: boolean]
 }>()

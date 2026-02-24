@@ -1,5 +1,5 @@
 <template>
-  <header class="bg-gray-800 px-6 py-4 border-b border-gray-700">
+  <header class="bg-gray-800 px-6 py-4 border-b border-gray-700 overflow-hidden max-w-full">
     <div class="flex items-center justify-between">
       <div class="flex items-center">
         <!-- Back to room list button (mobile only, doesn't leave room) -->
@@ -27,32 +27,12 @@
           <h1 class="text-xl font-semibold text-white" data-testid="room-title">
             {{ roomName || "Voice Room" }}
           </h1>
-
-          <div class="flex items-center text-sm text-gray-400">
-            <span>{{ userCount }} users</span>
-
-            <span v-if="screenShareCount > 0" class="ml-2 text-indigo-400 flex items-center">
-              <span class="mx-1.5">•</span>
-
-              <PhMonitorPlay class="w-3.5 h-3.5 mr-1" />
-              {{ screenShareCount }} sharing
-            </span>
-
-            <span
-              v-if="cameraCount && cameraCount > 0"
-              class="ml-2 text-purple-400 flex items-center">
-              <span class="mx-1.5">•</span>
-
-              <PhCamera class="w-3.5 h-3.5 mr-1" />
-              {{ cameraCount }} camera
-            </span>
-          </div>
         </div>
       </div>
 
       <div class="flex items-center space-x-2">
         <!-- Screen Share Layout Toggle (when sharing active) -->
-        <template v-if="screenShareCount > 0">
+        <template v-if="screenShareCount > 0 || cameraCount > 0">
           <div class="flex bg-gray-700 rounded-lg p-0.5">
             <button
               type="button"
@@ -80,17 +60,6 @@
               Focus
             </button>
           </div>
-
-          <!-- Toggle User Grid Visibility -->
-          <button
-            type="button"
-            class="p-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
-            :title="isUserGridVisible ? 'Hide user grid' : 'Show user grid'"
-            @click="$emit('update:isUserGridVisible', !isUserGridVisible)">
-            <PhEye v-if="isUserGridVisible" class="w-4 h-4" />
-
-            <PhEyeSlash v-else class="w-4 h-4" />
-          </button>
         </template>
 
         <!-- Mobile: Users count button to toggle sidebar -->
@@ -99,9 +68,7 @@
           type="button"
           class="flex items-center px-3 py-1.5 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors duration-200"
           @click="$emit('toggle-user-sidebar')">
-          <PhUsers class="w-4 h-4 mr-2" />
-
-          <span class="text-sm">{{ userCount }}</span>
+          <PhUsers class="w-4 h-4 m-1" />
         </button>
 
         <!-- Desktop: Connection Status -->
@@ -121,21 +88,15 @@
 import {
   PhArrowLeft,
   PhUsers,
-  PhMonitorPlay,
-  PhCamera,
   PhGridFour,
   PhArrowsOut,
-  PhEye,
-  PhEyeSlash,
 } from "@phosphor-icons/vue"
 
 interface Props {
   roomName: string
-  userCount: number
   screenShareCount: number
   cameraCount?: number
   screenShareLayout: "grid" | "focus"
-  isUserGridVisible: boolean
   isMobile?: boolean
 }
 
@@ -149,6 +110,5 @@ defineEmits<{
   "show-room-list": []
   "toggle-user-sidebar": []
   "update:screenShareLayout": [value: "grid" | "focus"]
-  "update:isUserGridVisible": [value: boolean]
 }>()
 </script>

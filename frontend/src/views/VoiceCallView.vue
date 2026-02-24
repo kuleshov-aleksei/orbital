@@ -13,9 +13,7 @@
     <!-- Room Header -->
     <RoomHeader
       v-model:screen-share-layout="screenShareLayout"
-      v-model:is-user-grid-visible="isUserGridVisible"
       :room-name="currentRoom?.name || 'Voice Room'"
-      :user-count="users.length"
       :screen-share-count="screenShareData.length"
       :camera-count="cameraData.length"
       :is-mobile="isMobile"
@@ -48,7 +46,6 @@
           :get-participant-stats="getParticipantStats"
           class="m-4 max-h-[70vh]"
           @update:layout="screenShareLayout = $event"
-          @toggle-user-grid="isUserGridVisible = !isUserGridVisible"
           @mute-toggle="handleUserMuteToggle" />
 
         <!-- User Grid - Only shown when no screen shares or cameras (audio-only mode) -->
@@ -129,7 +126,6 @@ interface Props {
 }
 
 // UI State (layout and display preferences)
-const isUserGridVisible = ref(true)
 const screenShareLayout = ref<"grid" | "focus">("focus")
 const audioControlsRef = useTemplateRef<InstanceType<typeof AudioControls>>("audioControlsRef")
 
@@ -148,7 +144,6 @@ const {
   localStream,
   remoteAudioTracks,
   isConnected,
-  isConnecting,
   isScreenSharing,
   isCameraEnabled,
   userScreenShareStates,
