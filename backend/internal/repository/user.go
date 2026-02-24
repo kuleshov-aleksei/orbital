@@ -210,3 +210,12 @@ func (r *UserRepository) HasSuperAdmin() (bool, error) {
 	}
 	return count > 0, nil
 }
+
+// DeleteAllGuests deletes all guest users and returns the count of deleted users
+func (r *UserRepository) DeleteAllGuests() (int64, error) {
+	result, err := r.db.Exec(`DELETE FROM users WHERE is_guest = 1`)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}

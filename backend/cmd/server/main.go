@@ -194,9 +194,11 @@ func main() {
 	superAdminRouter.Use(authHandler.AuthMiddleware)
 	superAdminRouter.Use(authHandler.RequireSuperAdmin)
 	superAdminRouter.HandleFunc("/users", adminHandler.ListUsers).Methods("GET")
+	superAdminRouter.HandleFunc("/users/guests", adminHandler.DeleteAllGuests).Methods("DELETE")
 	superAdminRouter.HandleFunc("/users/{id}/role", adminHandler.GetUserRole).Methods("GET")
 	superAdminRouter.HandleFunc("/users/{id}/promote", adminHandler.PromoteUser).Methods("POST")
 	superAdminRouter.HandleFunc("/users/{id}/demote", adminHandler.DemoteUser).Methods("POST")
+	superAdminRouter.HandleFunc("/users/{id}", adminHandler.DeleteUser).Methods("DELETE")
 
 	// Test-only routes (guarded to avoid accidental use).
 	// Allowed when either ORBITAL_E2E=1 is set OR the request explicitly opts in.

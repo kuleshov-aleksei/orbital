@@ -116,3 +116,72 @@ func (h *AdminHandler) GetUserRole(w http.ResponseWriter, r *http.Request) {
 		"role": role,
 	})
 }
+
+// DeleteUser deletes a user (super_admin only)
+func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
+	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	if !ok || claims == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	vars := mux.Vars(r)
+	targetUserID := vars["id"]
+	if targetUserID == "" {
+		http.Error(w, "Missing user ID", http.StatusBadRequest)
+		return
+	}
+
+	if targetUserID == claims.UserID {
+		http.Error(w, "Cannot delete yourself", http.StatusForbidden)
+		return
+	}
+
+	targetUser, err := h.userRepo.GetByID(targetUserID)
+	if err != nil {
+		http.Error(w, "Failed to get user: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if targetUser == nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	if targetUser.Role == models.RoleSuperAdmin {
+		http.Error(w, "Cannot delete super admin", http.StatusForbidden)
+		return
+	}
+
+	if err := h.userRepo.Delete(targetUserID); err != nil {
+		http.Error(w, "Failed to delete user: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"status":  "success",
+		"message": "User deleted",
+	})
+}
+
+// DeleteAllGuests deletes all guest users (super_admin only)
+func (h *AdminHandler) DeleteAllGuests(w http.ResponseWriter, r *http.Request) {
+	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	if !ok || claims == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	deletedCount, err := h.userRepo.DeleteAllGuests()
+	if err != nil {
+		http.Error(w, "Failed to delete guests: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":        "success",
+		"message":       "Guest users deleted",
+		"deleted_count": deletedCount,
+	})
+}

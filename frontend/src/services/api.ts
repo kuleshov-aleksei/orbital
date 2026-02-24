@@ -286,6 +286,21 @@ export const apiService = {
     })
   },
 
+  async deleteUser(userId: string): Promise<{ status: string; message: string }> {
+    return apiRequest<{ status: string; message: string }>(`/admin/users/${userId}`, {
+      method: "DELETE",
+    })
+  },
+
+  async deleteAllGuests(): Promise<{ status: string; message: string; deleted_count: number }> {
+    return apiRequest<{ status: string; message: string; deleted_count: number }>(
+      `/admin/users/guests`,
+      {
+        method: "DELETE",
+      },
+    )
+  },
+
   // Get all users (public information only)
   async getAllUsers(): Promise<PublicUser[]> {
     return apiRequest<PublicUser[]>("/users")

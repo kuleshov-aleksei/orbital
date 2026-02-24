@@ -469,13 +469,19 @@ export function useLiveKit(options: UseLiveKitOptions) {
   }
 
   // Connect to LiveKit room
-  const connectToRoom = async (token: string, url: string, startTime?: number): Promise<boolean> => {
+  const connectToRoom = async (
+    token: string,
+    url: string,
+    startTime?: number,
+  ): Promise<boolean> => {
     const connectStart = startTime || performance.now()
     try {
       isConnecting.value = true
       connectionError.value = null
 
-      debugLog(`[LiveKit][INFO]: Connecting to LiveKit room at ${url} (t=${(performance.now() - connectStart).toFixed(0)}ms)`)
+      debugLog(
+        `[LiveKit][INFO]: Connecting to LiveKit room at ${url} (t=${(performance.now() - connectStart).toFixed(0)}ms)`,
+      )
 
       // Create room with optimized options
       const lkRoom = new Room({
@@ -493,7 +499,9 @@ export function useLiveKit(options: UseLiveKitOptions) {
       await lkRoom.connect(url, token)
 
       const connectTime = performance.now() - connectStart
-      debugLog(`[LiveKit][INFO]: Room connected (t=${(performance.now() - startTime).toFixed(0)}ms)`)
+      debugLog(
+        `[LiveKit][INFO]: Room connected (t=${(performance.now() - startTime).toFixed(0)}ms)`,
+      )
 
       room.value = lkRoom
       localParticipant.value = lkRoom.localParticipant
@@ -803,7 +811,9 @@ export function useLiveKit(options: UseLiveKitOptions) {
       // Fetch token from backend
       const response = await apiService.getLiveKitToken(options.roomId)
       const tokenTime = performance.now() - startTime
-      debugLog(`[LiveKit][INFO]: Token received (t=${tokenTime.toFixed(0)}ms), connecting to ${response.room_url}`)
+      debugLog(
+        `[LiveKit][INFO]: Token received (t=${tokenTime.toFixed(0)}ms), connecting to ${response.room_url}`,
+      )
 
       // Initialize audio track first
       await initializeAudioTrack()

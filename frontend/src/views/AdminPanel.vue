@@ -21,7 +21,19 @@
         <div class="p-4 border-b border-gray-700 flex items-center justify-between">
           <h2 class="text-lg font-semibold text-white">Users</h2>
 
-          <span class="text-sm text-gray-400">{{ users.length }} total</span>
+          <div class="flex items-center gap-4">
+            <span class="text-sm text-gray-400">{{ users.length }} total</span>
+
+            <button
+              v-if="isSuperAdmin"
+              type="button"
+              class="px-3 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
+              :disabled="deletingGuests"
+              @click="deleteAllGuests">
+              <span v-if="deletingGuests">Deleting...</span>
+              <span v-else>Delete All Guests</span>
+            </button>
+          </div>
         </div>
 
         <div class="divide-y divide-gray-700">
@@ -101,6 +113,16 @@
 
                   <span v-else>Remove Admin</span>
                 </button>
+
+                <button
+                  type="button"
+                  class="px-3 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
+                  :disabled="deletingUserId === user.id"
+                  @click="confirmDeleteUser(user)">
+                  <span v-if="deletingUserId === user.id">Deleting...</span>
+
+                  <span v-else>Delete</span>
+                </button>
               </template>
 
               <!-- Super admin indicator -->
@@ -158,6 +180,37 @@
         </div>
       </div>
     </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div
+      v-if="showDeleteModal"
+      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      @click.self="showDeleteModal = false">
+      <div class="bg-gray-800 rounded-lg border border-gray-700 p-6 max-w-md w-full mx-4">
+        <h3 class="text-lg font-semibold text-white mb-4">Delete User</h3>
+
+        <p class="text-gray-300 mb-6">
+          Are you sure you want to delete <strong>{{ userToDelete?.nickname }}</strong
+          >? This action cannot be undone.
+        </p>
+
+        <div class="flex justify-end gap-3">
+          <button
+            type="button"
+            class="px-4 py-2 text-sm bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
+            @click="showDeleteModal = false">
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            class="px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
+            @click="deleteUser">
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -177,7 +230,12 @@ const users = ref<User[]>([])
 const loading = ref(false)
 const promotingUserId = ref<string | null>(null)
 const demotingUserId = ref<string | null>(null)
+const deletingUserId = ref<string | null>(null)
+const deletingGuests = ref(false)
 const avatarErrors = ref<Set<string>>(new Set())
+
+const showDeleteModal = ref(false)
+const userToDelete = ref<User | null>(null)
 
 const currentUserId = computed(() => currentUser.value?.id)
 const currentUserRole = computed(() => currentUser.value?.role)
@@ -244,6 +302,45 @@ const demoteUser = async (userId: string) => {
     console.error("Failed to demote user:", error)
   } finally {
     demotingUserId.value = null
+  }
+}
+
+const confirmDeleteUser = (user: User) => {
+  userToDelete.value = user
+
+  if (user.role === "guest") {
+    deleteUser()
+  } else {
+    showDeleteModal.value = true
+  }
+}
+
+const deleteUser = async () => {
+  if (!userToDelete.value) return
+
+  deletingUserId.value = userToDelete.value.id
+  showDeleteModal.value = false
+
+  try {
+    await apiService.deleteUser(userToDelete.value.id)
+    await loadUsers()
+  } catch (error) {
+    console.error("Failed to delete user:", error)
+  } finally {
+    deletingUserId.value = null
+    userToDelete.value = null
+  }
+}
+
+const deleteAllGuests = async () => {
+  deletingGuests.value = true
+  try {
+    await apiService.deleteAllGuests()
+    await loadUsers()
+  } catch (error) {
+    console.error("Failed to delete guests:", error)
+  } finally {
+    deletingGuests.value = false
   }
 }
 
