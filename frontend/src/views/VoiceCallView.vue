@@ -1,5 +1,5 @@
 <template>
-  <div class="voice-call-view flex-1 flex flex-col" data-testid="voice-call-view">
+  <div class="voice-call-view flex-1 flex flex-col relative" :class="{ 'grayscale opacity-50 pointer-events-none': !isConnected }" data-testid="voice-call-view">
     <!-- Audio Manager - Handles all audio playback centrally -->
     <AudioManager
       :audio-tracks="remoteAudioTracks"
@@ -88,7 +88,7 @@ import { computed, defineAsyncComponent, ref, useTemplateRef, watch } from "vue"
 import AudioControls from "@/components/AudioControls.vue"
 import RoomHeader from "@/components/RoomHeader.vue"
 import { useLiveKit, useVoiceActivity } from "@/composables"
-import { useAudioSettingsStore, useCallStore, useUserStore } from "@/stores"
+import { useAudioSettingsStore, useCallStore, useUserStore, useAppStore } from "@/stores"
 import type { User, ScreenShareQuality } from "@/types"
 
 const props = withDefaults(defineProps<Props>(), {
@@ -135,6 +135,7 @@ const audioSettingsStore = useAudioSettingsStore()
 
 // Stores
 const callStore = useCallStore()
+const appStore = useAppStore()
 
 // Track muted users for AudioManager
 const mutedUsers = ref<Set<string>>(new Set())
@@ -143,6 +144,8 @@ const mutedUsers = ref<Set<string>>(new Set())
 const {
   localStream,
   remoteAudioTracks,
+  isConnected,
+  isConnecting,
   isScreenSharing,
   isCameraEnabled,
   userScreenShareStates,
@@ -290,6 +293,7 @@ watch(
       // which happens when switching rooms. We don't need to call it here
       // to avoid race conditions with the new connection.
       let connected = false
+      appStore.setConnecting(true)
       try {
         connected = await initializeLiveKit()
         if (connected) {
@@ -299,6 +303,8 @@ watch(
         }
       } catch (error) {
         console.error(`❌ Error initializing LiveKit:`, error)
+      } finally {
+        appStore.setConnecting(false)
       }
 
       // Apply deafen state (mute remote audio) - this doesn't affect local tracks

@@ -6,6 +6,17 @@
     {{ appStore.errorMessage }}
   </div>
 
+  <!-- Connecting Overlay -->
+  <div
+    v-if="appStore.isConnecting"
+    class="fixed inset-0 bg-black bg-opacity-50 z-40 flex items-center justify-center">
+    <div class="bg-gray-800 rounded-lg p-6 flex items-center space-x-3">
+      <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-t-2 border-white"></div>
+
+      <span class="text-white">Connecting...</span>
+    </div>
+  </div>
+
   <!-- Loading Overlay -->
   <div
     v-if="appStore.isLoading"
