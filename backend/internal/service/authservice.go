@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -235,7 +236,10 @@ func (s *AuthService) CreateOrUpdateUser(oauthInfo *models.OAuthUserInfo) (*mode
 		// Update existing user - preserve custom nickname, only update oauth_nickname
 		existingUser.OAuthNickname = oauthInfo.Nickname
 		existingUser.Email = oauthInfo.Email
-		existingUser.AvatarURL = oauthInfo.AvatarURL
+		// Only update avatar if user doesn't have a custom avatar
+		if existingUser.AvatarURL == "" || !strings.HasPrefix(existingUser.AvatarURL, "/api/avatars/") {
+			existingUser.AvatarURL = oauthInfo.AvatarURL
+		}
 		existingUser.LastSeen = now
 
 		if err := s.userRepo.Update(existingUser); err != nil {
