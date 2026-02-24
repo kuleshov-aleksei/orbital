@@ -25,8 +25,7 @@
 
     <!-- Main Call Area -->
     <main class="relative flex flex-1 flex-col min-h-0 overflow-hidden">
-      <!-- Content Container - allows scrolling if needed -->
-      <div class="flex-1 min-h-0 overflow-auto">
+      <div class="flex-1 min-h-0">
         <!-- Use v-show instead of v-if to keep both components mounted and preserve audio elements -->
         <!-- Screen Share Area - Shows users in side panel when screen sharing or camera is active -->
         <ScreenShareArea
