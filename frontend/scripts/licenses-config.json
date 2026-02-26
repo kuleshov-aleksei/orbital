@@ -1,0 +1,9 @@
+{
+  "custom": {
+    "livekit-client": "What made this project possible",
+    "@phosphor-icons/vue": "Awesome icon library",
+    "snd-lib": "Sexy UI sounds. Please check out https://snd.dev/",
+    "vue-boring-avatars": "SVG-based avatars from any username and color palette",
+    "vue-router": "The official router for Vue.js"
+  }
+}

@@ -59,6 +59,20 @@
 
             <span class="font-medium">Debug</span>
           </button>
+
+          <button
+            type="button"
+            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
+            :class="
+              currentTab === 'about'
+                ? 'bg-indigo-600 text-white'
+                : 'text-gray-300 hover:bg-gray-600 hover:text-white'
+            "
+            @click="currentTab = 'about'">
+            <PhInfo class="w-5 h-5" />
+
+            <span class="font-medium">About</span>
+          </button>
         </div>
 
         <!-- Close Button at Bottom -->
@@ -85,6 +99,9 @@
 
           <!-- Debug Settings Tab -->
           <DebugSettings v-else-if="currentTab === 'debug'" />
+
+          <!-- About Settings Tab -->
+          <AboutSettings v-else-if="currentTab === 'about'" />
         </div>
       </div>
     </div>
@@ -97,10 +114,11 @@ import { useModalStore } from "@/stores/modal"
 import AudioSettings from "./AudioSettings.vue"
 import AccountSettings from "./AccountSettings.vue"
 import DebugSettings from "./DebugSettings.vue"
-import { PhGearSix, PhSpeakerHigh, PhUser, PhBug, PhX } from "@phosphor-icons/vue"
+import AboutSettings from "./AboutSettings.vue"
+import { PhGearSix, PhSpeakerHigh, PhUser, PhBug, PhX, PhInfo } from "@phosphor-icons/vue"
 
 const modalStore = useModalStore()
-const currentTab = ref<"audio" | "account" | "debug">("audio")
+const currentTab = ref<"audio" | "account" | "debug" | "about">("audio")
 
 const isOpen = computed(() => modalStore.isUserSettingsModal)
 

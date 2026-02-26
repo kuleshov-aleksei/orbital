@@ -1,4 +1,4 @@
-.PHONY: help install build dev dev-public lint lint-full prettier test clean docker-build docker-up certs run-built
+.PHONY: help install build dev dev-public lint lint-full prettier test clean docker-build docker-up certs run-built licenses
 
 # Default target
 help:
@@ -14,6 +14,7 @@ help:
 	@echo "  docker-build - Build Docker images"
 	@echo "  docker-up    - Run with Docker Compose"
 	@echo "  run-built    - Run production build locally (nginx + binary, no Docker)"
+	@echo "  licenses     - Generate frontend licenses JSON"
 
 # Install dependencies
 install:
@@ -137,6 +138,11 @@ test:
 test-headed:
 	@echo "Running frontend e2e tests..."
 	cd frontend && npm run test:e2e:headed
+
+# Generate licenses JSON
+licenses:
+	@echo "Generating licenses JSON..."
+	cd frontend && npm run generate:licenses
 
 # Clean build artifacts
 clean:

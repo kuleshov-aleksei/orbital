@@ -6,6 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "generate:licenses": "node scripts/generate-licenses.js",
     "lint": "git diff --name-only HEAD | grep '^frontend/' | sed 's|^frontend/||' | grep -E '\\.(ts|vue|js|tsx|jsx)$' | xargs -r eslint --config eslint.config.js --fix",
     "lint:full": "eslint --config eslint.config.js src/ --fix",
     "prettier": "npx prettier . --write src/",

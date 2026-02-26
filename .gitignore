@@ -245,3 +245,5 @@ docker/docker-data/data/*
 !docker/docker-data/data/.gitkeep
 docker/docker-data/configs/*
 !docker/docker-data/configs/.gitkeep
+
+frontend/public/licenses.json

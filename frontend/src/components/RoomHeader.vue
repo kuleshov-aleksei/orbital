@@ -85,12 +85,7 @@
 </template>
 
 <script setup lang="ts">
-import {
-  PhArrowLeft,
-  PhUsers,
-  PhGridFour,
-  PhArrowsOut,
-} from "@phosphor-icons/vue"
+import { PhArrowLeft, PhUsers, PhGridFour, PhArrowsOut } from "@phosphor-icons/vue"
 
 interface Props {
   roomName: string
