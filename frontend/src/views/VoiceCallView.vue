@@ -1,7 +1,7 @@
 <template>
   <div
-    class="voice-call-view flex-1 flex flex-col relative"
-    :class="{ 'grayscale opacity-50 pointer-events-none': !isConnected }"
+    class="voice-call-view flex-1 flex flex-col min-h-0 relative"
+    :class="{ 'pointer-events-none': !isConnected }"
     data-testid="voice-call-view">
     <!-- Audio Manager - Handles all audio playback centrally -->
     <AudioManager
