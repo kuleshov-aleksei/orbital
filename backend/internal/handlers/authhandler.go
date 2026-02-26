@@ -150,8 +150,8 @@ func (h *AuthHandler) handleCallback(w http.ResponseWriter, r *http.Request, pro
 		return
 	}
 
-	// Redirect to frontend with token (derive frontend URL from request origin or referer)
-	frontendURL := strings.TrimSuffix(h.getFrontendURL(r), "/")
+	// Redirect to frontend with token
+	frontendURL := strings.TrimSuffix(h.externalURL, "/")
 	redirectURL := frontendURL + "/auth/callback/?token=" + token + "&expires=" + expiry.Format(time.RFC3339)
 	http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 }
@@ -290,21 +290,4 @@ func (h *AuthHandler) GetAuthStatus(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(status)
-}
-
-// getFrontendURL derives the frontend URL from the request
-// It checks Origin header first, then Referer, then falls back to configured external URL
-func (h *AuthHandler) getFrontendURL(r *http.Request) string {
-	// Try to get from Origin header (most reliable for CORS requests)
-	if origin := r.Header.Get("Origin"); origin != "" {
-		return origin
-	}
-
-	// Try to get from Referer header
-	if referer := r.Header.Get("Referer"); referer != "" {
-		return referer
-	}
-
-	// Fallback to configured external URL
-	return h.externalURL
 }
