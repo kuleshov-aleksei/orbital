@@ -61,24 +61,20 @@
           :get-participant-stats="getParticipantStats"
           @mute-toggle="handleUserMuteToggle" />
       </div>
-
-      <!-- Audio Controls - Fixed at bottom center -->
-      <div
-        class="flex-shrink-0 flex justify-center px-4 py-3 bg-gray-900/80 backdrop-blur-sm border-t border-gray-700/50">
-        <AudioControls
-          ref="audioControlsRef"
-          v-model:model-value-muted="isMuted"
-          v-model:model-value-deafened="isDeafened"
-          v-model:model-value-screen-sharing="isScreenSharing"
-          v-model:model-value-camera-enabled="cameraEnabled"
-          :is-speaking="isSpeaking"
-          :is-mobile="isMobile"
-          @start-screen-share="$emit('request-screen-share')"
-          @toggle-camera="handleCameraToggle"
-          @auth-required="$emit('show-room-list')"
-          @leave-room="$emit('leave-room')" />
-      </div>
     </main>
+    
+    <AudioControls
+      ref="audioControlsRef"
+      v-model:model-value-muted="isMuted"
+      v-model:model-value-deafened="isDeafened"
+      v-model:model-value-screen-sharing="isScreenSharing"
+      v-model:model-value-camera-enabled="cameraEnabled"
+      :is-speaking="isSpeaking"
+      :is-mobile="isMobile"
+      @start-screen-share="$emit('request-screen-share')"
+      @toggle-camera="handleCameraToggle"
+      @auth-required="$emit('show-room-list')"
+      @leave-room="$emit('leave-room')" />
   </div>
 </template>
 
