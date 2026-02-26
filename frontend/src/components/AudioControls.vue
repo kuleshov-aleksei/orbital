@@ -1,44 +1,42 @@
 <template>
-  <div class="audio-controls">
-    <div class="flex items-center justify-center space-x-4">
-      <!-- Mute/Unmute -->
-      <MicMuteButton v-model="isMuted" :is-speaking="isSpeaking" size="lg" />
+  <div class="flex items-center justify-center space-x-4">
+    <!-- Mute/Unmute -->
+    <MicMuteButton v-model="isMuted" :is-speaking="isSpeaking" size="lg" />
 
-      <!-- Deafen/Undeafen -->
-      <AudioDeafenButton v-model="isDeafened" size="lg" />
+    <!-- Deafen/Undeafen -->
+    <AudioDeafenButton v-model="isDeafened" size="lg" />
 
-      <!-- Screen Share -->
-      <ScreenShareButton
-        ref="screenShareButtonRef"
-        v-model="isScreenSharing"
-        size="lg"
-        @start-screen-share="$emit('start-screen-share')" />
+    <!-- Screen Share -->
+    <ScreenShareButton
+      ref="screenShareButtonRef"
+      v-model="isScreenSharing"
+      size="lg"
+      @start-screen-share="$emit('start-screen-share')" />
 
-      <!-- Camera -->
-      <CameraButton
-        v-model="isCameraEnabled"
-        size="lg"
-        @toggle-camera="$emit('toggle-camera', $event)"
-        @auth-required="$emit('auth-required')" />
+    <!-- Camera -->
+    <CameraButton
+      v-model="isCameraEnabled"
+      size="lg"
+      @toggle-camera="$emit('toggle-camera', $event)"
+      @auth-required="$emit('auth-required')" />
 
-      <!-- Settings (mobile only) -->
-      <button
-        v-if="isMobile"
-        type="button"
-        class="control-button bg-gray-700 hover:bg-gray-600"
-        title="Settings"
-        @click="openSettings">
-        <PhGearSix class="w-5 h-5" />
-      </button>
+    <!-- Settings (mobile only) -->
+    <button
+      v-if="isMobile"
+      type="button"
+      class="control-button bg-gray-700 hover:bg-gray-600"
+      title="Settings"
+      @click="openSettings">
+      <PhGearSix class="w-5 h-5" />
+    </button>
 
-      <!-- Leave Room -->
-      <button
-        type="button"
-        class="control-button bg-red-600 hover:bg-red-700"
-        @click="$emit('leave-room')">
-        <PhSignOut class="w-5 h-5" />
-      </button>
-    </div>
+    <!-- Leave Room -->
+    <button
+      type="button"
+      class="control-button bg-red-600 hover:bg-red-700"
+      @click="$emit('leave-room')">
+      <PhSignOut class="w-5 h-5" />
+    </button>
   </div>
 </template>
 
