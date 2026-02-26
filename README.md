@@ -1,10 +1,10 @@
 # The Orbital
 
-A simple yet powerful voice communication platform for 5-10 people. Similar to Discord but built for simplicity.
+A simple yet powerful voice communication platform for small amount of people. Similar to Discord but built for simplicity.
 
 ## AI Disclaimer
 
-This project is built by AI (like 99.99%). AI is not perfect, but this application was built in 2 weeks and it does its job. I just do not want to waste 6 months handcrafting artisinal code
+This project is built by AI (like 99.99%). AI is not perfect, but this application was built in 2 weeks and it does its job. I just do not want to waste 6 months handcrafting artisanal code
 
 ## Features
 
@@ -12,12 +12,11 @@ This project is built by AI (like 99.99%). AI is not perfect, but this applicati
 - **LiveKit SFU** - Scalable Selective Forwarding Unit for reliable voice communication
 - **Screen Sharing** - Share your screen with quality options (720p, 1080p, source)
 - **Advanced Audio Processing**
-  - Multiple noise suppression algorithms (LiveKit Native, Browser Native, RNNoise, Speex)
+  - Multiple noise suppression algorithms (LiveKit Native, Browser Native)
   - Echo cancellation
   - Automatic gain control
-- **Real-time Debug Dashboard** - Monitor audio settings and connection stats
 - **OAuth authentication** - Backend does not store authentication data - thats by design. So the only options to auth are using OAuth2 Google and Discord.
-- **Simple Deployment** - Single binary backend with Docker support
+- **Simple Deployment** - Frontent + Backend + LiveKit is all what you need. No complex modules like MAS, no custom path rewriting
 - **Persistence** - Backend stores data in sqlite database. Easy management, easy deployment, easy life
 - **Role-Based Access Control** - Granular permissions for different user types
 
@@ -56,13 +55,12 @@ The Orbital implements a hierarchical role system:
 ### Frontend
 - Vue 3 + TypeScript + Tailwind CSS
 - LiveKit Client SDK for real-time communication
-- WebAssembly for advanced noise suppression (RNNoise, Speex)
 
 ### Backend
 - Go 1.25+
 - LiveKit Server SDK for room management
 - WebSockets for signaling
-- REST API for room management
+- REST API for room and user management
 
 ## Quick Start
 
@@ -70,11 +68,14 @@ The Orbital implements a hierarchical role system:
 # Install dependencies
 make install
 
-# Build everything
-make build
+# Generate license file for serving in about section
+make licenses
 
 # Run development servers
 make dev
+
+# Build everything
+make build
 
 # Run development servers using build artifacts
 make run-built
@@ -104,6 +105,7 @@ make docker-up
 - `make docker-build` - Build Docker images
 - `make docker-up` - Run with Docker Compose
 - `make clean` - Clean build artifacts
+- `make licenses` - Generates license information for deps
 
 ## Audio Processing
 
@@ -111,6 +113,9 @@ The Orbital supports multiple noise suppression algorithms:
 
 - **LiveKit Native** - Built-in LiveKit noise suppression (SFU-optimized, low latency)
 - **Browser Native** - Uses built-in browser audio processing
+
+**Obsolete** but may come back:
+
 - **RNNoise** - High-quality ML-based noise suppression (requires 48kHz microphone)
 - **Speex** - Fast CPU-efficient noise suppression
 
@@ -186,3 +191,5 @@ cd /opt/orbital && docker compose up -d
 ```
 
 LiveKit will bind directly to host network interfaces. Ensure the required ports are open on your firewall.
+
+Checkout [deploy.yml](.github/workflows/deploy.yml) to see how it is deployed in the real world
