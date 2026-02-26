@@ -24,44 +24,42 @@
     <!-- Screen Share Quality Modal handled by parent -->
 
     <!-- Main Call Area -->
-    <main class="relative flex flex-1 flex-col min-h-0 overflow-hidden">
-      <div class="flex-1 min-h-0 h-0 overflow-hidden">
-        <!-- Use v-show instead of v-if to keep both components mounted and preserve audio elements -->
-        <!-- Screen Share Area - Shows users in side panel when screen sharing or camera is active -->
-        <ScreenShareArea
-          v-show="screenShareData.length > 0 || cameraData.length > 0"
-          :screen-shares="screenShareData"
-          :camera-streams="cameraData"
-          :layout="screenShareLayout"
-          :users="users"
-          :remote-stream-volumes="props.remoteStreamVolumes"
-          :user-screen-share-states="userScreenShareStates"
-          :user-camera-states="userCameraStates"
-          :is-deafened="isDeafened"
-          :current-user-audio-level="audioLevel"
-          :current-user-id="currentUserId"
-          :current-user-is-sharing="isScreenSharing"
-          :current-user-camera-enabled="isCameraEnabled"
-          :get-participant-stats="getParticipantStats"
-          class="m-4"
-          @update:layout="screenShareLayout = $event"
-          @mute-toggle="handleUserMuteToggle" />
+    <div class="relative flex flex-1 flex-col min-h-0 overflow-hidden max-h-[100svh]">
+      <!-- Use v-show instead of v-if to keep both components mounted and preserve audio elements -->
+      <!-- Screen Share Area - Shows users in side panel when screen sharing or camera is active -->
+      <ScreenShareArea
+        v-show="screenShareData.length > 0 || cameraData.length > 0"
+        :screen-shares="screenShareData"
+        :camera-streams="cameraData"
+        :layout="screenShareLayout"
+        :users="users"
+        :remote-stream-volumes="props.remoteStreamVolumes"
+        :user-screen-share-states="userScreenShareStates"
+        :user-camera-states="userCameraStates"
+        :is-deafened="isDeafened"
+        :current-user-audio-level="audioLevel"
+        :current-user-id="currentUserId"
+        :current-user-is-sharing="isScreenSharing"
+        :current-user-camera-enabled="isCameraEnabled"
+        :get-participant-stats="getParticipantStats"
+        class="m-4"
+        @update:layout="screenShareLayout = $event"
+        @mute-toggle="handleUserMuteToggle" />
 
-        <!-- User Grid - Only shown when no screen shares or cameras (audio-only mode) -->
-        <UserGrid
-          v-show="screenShareData.length === 0 && cameraData.length === 0"
-          :users="users"
-          :remote-stream-volumes="props.remoteStreamVolumes"
-          :user-screen-share-states="userScreenShareStates"
-          :user-camera-states="userCameraStates"
-          :is-deafened="isDeafened"
-          :is-visible="screenShareData.length === 0 && cameraData.length === 0"
-          :current-user-audio-level="audioLevel"
-          :current-user-camera-enabled="isCameraEnabled"
-          :get-participant-stats="getParticipantStats"
-          @mute-toggle="handleUserMuteToggle" />
-      </div>
-    </main>
+      <!-- User Grid - Only shown when no screen shares or cameras (audio-only mode) -->
+      <UserGrid
+        v-show="screenShareData.length === 0 && cameraData.length === 0"
+        :users="users"
+        :remote-stream-volumes="props.remoteStreamVolumes"
+        :user-screen-share-states="userScreenShareStates"
+        :user-camera-states="userCameraStates"
+        :is-deafened="isDeafened"
+        :is-visible="screenShareData.length === 0 && cameraData.length === 0"
+        :current-user-audio-level="audioLevel"
+        :current-user-camera-enabled="isCameraEnabled"
+        :get-participant-stats="getParticipantStats"
+        @mute-toggle="handleUserMuteToggle" />
+    </div>
     
     <AudioControls
       ref="audioControlsRef"
