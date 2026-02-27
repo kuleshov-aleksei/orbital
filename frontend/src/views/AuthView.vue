@@ -129,7 +129,8 @@
                   type="text"
                   class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
                   placeholder="Choose a nickname"
-                  required />
+                  required
+                  @input="nickname = nickname.replace(/\s/g, '')" />
               </div>
 
               <!-- Email (only in register mode) -->
@@ -141,7 +142,8 @@
                   type="email"
                   class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
                   placeholder="your@email.com"
-                  required />
+                  required
+                  @input="email = email.replace(/\s/g, '')" />
               </div>
 
               <!-- Login (email or nickname) - only in login mode -->
@@ -155,7 +157,8 @@
                   type="text"
                   class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
                   placeholder="Enter your email or nickname"
-                  required />
+                  required
+                  @input="login = login.replace(/\s/g, '')" />
               </div>
 
               <!-- Password -->
@@ -167,7 +170,8 @@
                   type="password"
                   class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
                   :placeholder="isRegisterMode ? 'Create a password' : 'Enter your password'"
-                  required />
+                  required
+                  @input="password = password.replace(/\s/g, '')" />
               </div>
 
               <!-- Confirm Password (only in register mode) -->
@@ -181,7 +185,8 @@
                   type="password"
                   class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
                   placeholder="Confirm your password"
-                  required />
+                  required
+                  @input="confirmPassword = confirmPassword.replace(/\s/g, '')" />
               </div>
 
               <!-- Password Requirements (only in register mode) -->
@@ -341,10 +346,31 @@ const handlePasswordSubmit = async () => {
 }
 
 const switchToRegister = () => {
+  // Move login value to appropriate field
+  if (login.value) {
+    if (login.value.includes("@")) {
+      email.value = login.value.trim()
+    } else {
+      nickname.value = login.value.trim()
+    }
+    // Clear login only, preserve password
+    login.value = ""
+  }
   isRegisterMode.value = true
 }
 
 const switchToLogin = () => {
+  // Move email/nickname back to login field if switching back
+  if (email.value || nickname.value) {
+    if (email.value) {
+      login.value = email.value
+    } else if (nickname.value) {
+      login.value = nickname.value
+    }
+    // Clear email/nickname only, preserve password
+    email.value = ""
+    nickname.value = ""
+  }
   isRegisterMode.value = false
 }
 </script>
