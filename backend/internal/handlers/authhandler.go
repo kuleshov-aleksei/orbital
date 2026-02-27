@@ -284,10 +284,105 @@ func (h *AuthHandler) RequireSuperAdmin(next http.Handler) http.Handler {
 // GetAuthStatus returns authentication status and available providers
 func (h *AuthHandler) GetAuthStatus(w http.ResponseWriter, r *http.Request) {
 	status := map[string]interface{}{
-		"discord_enabled": h.authService.IsProviderConfigured(models.AuthProviderDiscord),
-		"google_enabled":  h.authService.IsProviderConfigured(models.AuthProviderGoogle),
+		"discord_enabled":  h.authService.IsProviderConfigured(models.AuthProviderDiscord),
+		"google_enabled":   h.authService.IsProviderConfigured(models.AuthProviderGoogle),
+		"password_enabled": h.authService.IsPasswordEnabled(),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(status)
+}
+
+// Register handles user registration with email, nickname, and password
+func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
+	var req models.RegisterRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate required fields
+	if req.Email == "" {
+		http.Error(w, "Email is required", http.StatusBadRequest)
+		return
+	}
+	if req.Nickname == "" {
+		http.Error(w, "Nickname is required", http.StatusBadRequest)
+		return
+	}
+	if req.Password == "" {
+		http.Error(w, "Password is required", http.StatusBadRequest)
+		return
+	}
+
+	user, err := h.authService.Register(req.Email, req.Nickname, req.Password)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Generate JWT token (2 months expiry for password users)
+	token, expiry, err := h.authService.GenerateJWTWithExpiry(user, 60*24*time.Hour)
+	if err != nil {
+		http.Error(w, "Failed to generate token: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Check if this user should be made super_admin (first non-guest user)
+	if err := h.roleService.AssignSuperAdminIfFirst(user.ID); err != nil {
+		// Log error but don't fail the login
+	}
+
+	// Refresh user data in case role was changed
+	user, err = h.authService.GetUserByID(user.ID)
+	if err != nil {
+		http.Error(w, "Failed to get user: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(models.LoginResponse{
+		Token:     token,
+		User:      *user,
+		ExpiresAt: expiry,
+	})
+}
+
+// LoginPassword handles user login with email or nickname and password
+func (h *AuthHandler) LoginPassword(w http.ResponseWriter, r *http.Request) {
+	var req models.LoginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate required fields
+	if req.Login == "" {
+		http.Error(w, "Email or nickname is required", http.StatusBadRequest)
+		return
+	}
+	if req.Password == "" {
+		http.Error(w, "Password is required", http.StatusBadRequest)
+		return
+	}
+
+	user, err := h.authService.LoginPassword(req.Login, req.Password)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
+
+	// Generate JWT token (2 months expiry for password users)
+	token, expiry, err := h.authService.GenerateJWTWithExpiry(user, 60*24*time.Hour)
+	if err != nil {
+		http.Error(w, "Failed to generate token: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(models.LoginResponse{
+		Token:     token,
+		User:      *user,
+		ExpiresAt: expiry,
+	})
 }

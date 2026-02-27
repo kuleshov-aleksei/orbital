@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/mail"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/kuleshov-aleksei/orbital/internal/config"
 	"github.com/kuleshov-aleksei/orbital/internal/models"
 	"github.com/kuleshov-aleksei/orbital/internal/repository"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -296,7 +298,12 @@ func (s *AuthService) CreateGuestUser() (*models.User, error) {
 
 // GenerateJWT creates a JWT token for a user
 func (s *AuthService) GenerateJWT(user *models.User) (string, time.Time, error) {
-	expiry := time.Now().Add(24 * time.Hour)
+	return s.GenerateJWTWithExpiry(user, 60*24*time.Hour) // Default 60 days
+}
+
+// GenerateJWTWithExpiry creates a JWT token for a user with custom expiry
+func (s *AuthService) GenerateJWTWithExpiry(user *models.User, expiry time.Duration) (string, time.Time, error) {
+	expiryTime := time.Now().Add(expiry)
 
 	claims := jwt.MapClaims{
 		"user_id":       user.ID,
@@ -306,7 +313,7 @@ func (s *AuthService) GenerateJWT(user *models.User) (string, time.Time, error) 
 		"avatar_url":    user.AvatarURL,
 		"is_guest":      user.IsGuest,
 		"role":          user.Role,
-		"exp":           expiry.Unix(),
+		"exp":           expiryTime.Unix(),
 		"iat":           time.Now().Unix(),
 	}
 
@@ -316,7 +323,7 @@ func (s *AuthService) GenerateJWT(user *models.User) (string, time.Time, error) 
 		return "", time.Time{}, fmt.Errorf("failed to sign token: %w", err)
 	}
 
-	return tokenString, expiry, nil
+	return tokenString, expiryTime, nil
 }
 
 // ValidateJWT validates a JWT token and returns the claims
@@ -389,4 +396,206 @@ func (s *AuthService) GetUserByID(userID string) (*models.User, error) {
 func (s *AuthService) IsProviderConfigured(provider models.AuthProvider) bool {
 	_, ok := s.oauthConfigs[provider]
 	return ok
+}
+
+// Password validation constants
+const (
+	MinPasswordLength = 8
+)
+
+// ValidatePassword checks if password meets requirements
+func ValidatePassword(password string) error {
+	if len(password) < MinPasswordLength {
+		return fmt.Errorf("password must be at least %d characters", MinPasswordLength)
+	}
+
+	hasNumber := false
+	hasSpecial := false
+
+	specialChars := "!@#$%^&*()_+-=[]{}|;:,.<>?"
+
+	for _, char := range password {
+		if char >= '0' && char <= '9' {
+			hasNumber = true
+		}
+		for _, sc := range specialChars {
+			if char == sc {
+				hasSpecial = true
+				break
+			}
+		}
+		if hasNumber && hasSpecial {
+			break
+		}
+	}
+
+	if !hasNumber {
+		return fmt.Errorf("password must contain at least 1 number")
+	}
+	if !hasSpecial {
+		return fmt.Errorf("password must contain at least 1 special character")
+	}
+	return nil
+}
+
+// HashPassword creates a bcrypt hash of the password
+func HashPassword(password string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", fmt.Errorf("failed to hash password: %w", err)
+	}
+	return string(hash), nil
+}
+
+// CheckPasswordHash compares a password with a hash
+func CheckPasswordHash(password, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
+}
+
+// Register creates a new user with email, nickname, and password
+func (s *AuthService) Register(email, nickname, password string) (*models.User, error) {
+	// Validate email format
+	if email == "" {
+		return nil, fmt.Errorf("email is required")
+	}
+	if !isValidEmail(email) {
+		return nil, fmt.Errorf("invalid email format")
+	}
+
+	// Validate nickname
+	if nickname == "" {
+		return nil, fmt.Errorf("nickname is required")
+	}
+	if len(nickname) < 2 || len(nickname) > 32 {
+		return nil, fmt.Errorf("nickname must be between 2 and 32 characters")
+	}
+
+	// Validate password
+	if err := ValidatePassword(password); err != nil {
+		return nil, err
+	}
+
+	// Check if email already exists for password auth users
+	emailExists, err := s.userRepo.EmailExists(email)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check email: %w", err)
+	}
+	if emailExists {
+		return nil, fmt.Errorf("email already registered")
+	}
+
+	// Check if nickname already exists
+	nicknameExists, err := s.userRepo.NicknameExists(nickname)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check nickname: %w", err)
+	}
+	if nicknameExists {
+		return nil, fmt.Errorf("nickname already taken")
+	}
+
+	// Hash password
+	hashedPassword, err := HashPassword(password)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create user
+	now := time.Now()
+	user := &models.User{
+		ID:           generateUserID(),
+		Nickname:     nickname,
+		Status:       "online",
+		CreatedAt:    now,
+		LastSeen:     now,
+		AuthProvider: models.AuthProviderPassword,
+		Email:        email,
+		PasswordHash: hashedPassword,
+		IsGuest:      false,
+		Role:         models.RoleUser,
+	}
+
+	if err := s.userRepo.Create(user); err != nil {
+		return nil, fmt.Errorf("failed to create user: %w", err)
+	}
+
+	// Clear password hash before returning
+	user.PasswordHash = ""
+
+	return user, nil
+}
+
+// LoginPassword authenticates a user with email or nickname and password
+func (s *AuthService) LoginPassword(login, password string) (*models.User, error) {
+	if login == "" {
+		return nil, fmt.Errorf("email or nickname is required")
+	}
+	if password == "" {
+		return nil, fmt.Errorf("password is required")
+	}
+
+	// Try to find user by email first, then by nickname
+	var user *models.User
+	var err error
+
+	// Check if login looks like email
+	if strings.Contains(login, "@") {
+		user, err = s.userRepo.GetByEmail(login)
+	} else {
+		// Try nickname
+		user, err = s.userRepo.GetByNickname(login)
+		// If not found by nickname, also check email
+		if err != nil {
+			return nil, err
+		}
+		if user == nil {
+			// Also try email lookup as fallback
+			// Double check in case if nickname got inside email field
+			user, err = s.userRepo.GetByEmail(login)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to find user: %w", err)
+	}
+	if user == nil {
+		return nil, fmt.Errorf("invalid credentials")
+	}
+
+	// Check if user is a password auth user
+	if user.AuthProvider != models.AuthProviderPassword {
+		return nil, fmt.Errorf("invalid credentials")
+	}
+
+	// Verify password
+	if !CheckPasswordHash(password, user.PasswordHash) {
+		return nil, fmt.Errorf("invalid credentials")
+	}
+
+	// Update last seen
+	user.LastSeen = time.Now()
+	err = s.userRepo.UpdateLastSeen(user.ID, user.LastSeen)
+	if err != nil {
+		// Log but don't fail
+		log.Printf("Failed to update last seen: %v", err)
+	}
+
+	// Clear password hash before returning
+	user.PasswordHash = ""
+
+	return user, nil
+}
+
+// IsPasswordEnabled always returns true since we support password auth
+func (s *AuthService) IsPasswordEnabled() bool {
+	return true
+}
+
+// Helper function to validate email format
+func isValidEmail(email string) bool {
+	_, err := mail.ParseAddress(email)
+	return err == nil
 }

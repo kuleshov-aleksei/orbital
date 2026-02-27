@@ -60,7 +60,7 @@
         :get-participant-stats="getParticipantStats"
         @mute-toggle="handleUserMuteToggle" />
     </div>
-    
+
     <AudioControls
       ref="audioControlsRef"
       v-model:model-value-muted="isMuted"

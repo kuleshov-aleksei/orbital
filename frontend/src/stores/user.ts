@@ -2,7 +2,7 @@ import { defineStore } from "pinia"
 import { ref, computed } from "vue"
 import { apiService, setAuthToken, clearAuthToken } from "@/services/api"
 
-export type AuthProvider = "guest" | "discord" | "google"
+export type AuthProvider = "guest" | "discord" | "google" | "password"
 
 export interface UserSession {
   id: string
@@ -236,6 +236,48 @@ export const useUserStore = defineStore("user", () => {
     }
   }
 
+  async function loginWithPassword(login: string, password: string) {
+    try {
+      const response = await apiService.loginPassword(login, password)
+      const user: UserSession = {
+        id: response.user.id,
+        nickname: response.user.nickname,
+        authProvider: "password",
+        isGuest: false,
+        role: response.user.role || "user",
+        email: response.user.email,
+        avatarUrl: response.user.avatar_url,
+      }
+      setUser(user, response.token)
+      hasCompletedAuth.value = true
+      localStorage.setItem("orbital_has_completed_auth", "true")
+    } catch (error) {
+      console.error("Password login failed:", error)
+      throw error
+    }
+  }
+
+  async function register(email: string, nickname: string, password: string) {
+    try {
+      const response = await apiService.register(email, nickname, password)
+      const user: UserSession = {
+        id: response.user.id,
+        nickname: response.user.nickname,
+        authProvider: "password",
+        isGuest: false,
+        role: response.user.role || "user",
+        email: response.user.email,
+        avatarUrl: response.user.avatar_url,
+      }
+      setUser(user, response.token)
+      hasCompletedAuth.value = true
+      localStorage.setItem("orbital_has_completed_auth", "true")
+    } catch (error) {
+      console.error("Registration failed:", error)
+      throw error
+    }
+  }
+
   async function logout() {
     try {
       await apiService.logout()
@@ -280,6 +322,8 @@ export const useUserStore = defineStore("user", () => {
     clearUser,
     loginWithProvider,
     continueAsGuest,
+    loginWithPassword,
+    register,
     logout,
     handleOAuthCallback,
   }

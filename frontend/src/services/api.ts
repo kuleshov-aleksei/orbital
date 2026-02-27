@@ -58,6 +58,25 @@ export interface AuthResponse {
 export interface AuthStatus {
   discord_enabled: boolean
   google_enabled: boolean
+  password_enabled: boolean
+}
+
+// Login request/response types (snake_case for backend)
+interface LoginRequest {
+  login: string
+  password: string
+}
+
+interface LoginResponse {
+  token: string
+  user: User
+  expires_at: string
+}
+
+interface RegisterRequest {
+  email: string
+  nickname: string
+  password: string
 }
 
 // Room configuration types
@@ -242,6 +261,37 @@ export const apiService = {
   async guestLogin(): Promise<AuthResponse> {
     const response = await apiRequest<AuthResponse>("/auth/guest", {
       method: "POST",
+    })
+    // Store token
+    setAuthToken(response.token)
+    return response
+  },
+
+  async register(email: string, nickname: string, password: string): Promise<AuthResponse> {
+    // Backend expects snake_case (per AGENTS.md convention)
+    const request: RegisterRequest = {
+      email,
+      nickname,
+      password,
+    }
+    const response = await apiRequest<LoginResponse>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(request),
+    })
+    // Store token
+    setAuthToken(response.token)
+    return response
+  },
+
+  async loginPassword(login: string, password: string): Promise<AuthResponse> {
+    // Backend expects snake_case (per AGENTS.md convention)
+    const request: LoginRequest = {
+      login,
+      password,
+    }
+    const response = await apiRequest<LoginResponse>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify(request),
     })
     // Store token
     setAuthToken(response.token)
