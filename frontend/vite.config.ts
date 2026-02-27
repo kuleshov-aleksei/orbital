@@ -38,8 +38,8 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          'vendor-livekit': ['livekit-client'],
-          'vendor-avatar': ['vue-advanced-cropper', 'vue-boring-avatars'],
+          "vendor-livekit": ["livekit-client"],
+          "vendor-avatar": ["vue-advanced-cropper", "vue-boring-avatars"],
         },
       },
     },
