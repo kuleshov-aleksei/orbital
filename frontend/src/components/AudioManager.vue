@@ -103,10 +103,21 @@ watch(
 
     // Handle new tracks - create audio elements
     newTracks.forEach((track, userId) => {
+      const existingElement = audioElements.value.get(userId)
+      const needsRecreation =
+        existingElement && (!track.mediaStreamTrack || track.mediaStreamTrack.readyState !== "live")
+
       console.log(
-        `[AudioManager] Checking track for ${userId}, has element: ${audioElements.value.has(userId)}`,
+        `[AudioManager] Checking track for ${userId}, has element: ${!!existingElement}, needs recreation: ${needsRecreation}`,
       )
-      if (!audioElements.value.has(userId)) {
+
+      if (!existingElement || needsRecreation) {
+        // Remove stale element if exists
+        if (existingElement) {
+          console.log(`[AudioManager] Removing stale element for ${userId}`)
+          existingElement.remove()
+          audioElements.value.delete(userId)
+        }
         console.log(`[AudioManager] Creating NEW audio element for ${userId}`)
         createAudioElement(userId, track)
       }
