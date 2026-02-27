@@ -15,7 +15,8 @@ This project is built by AI (like 99.99%). AI is not perfect, but this applicati
   - Multiple noise suppression algorithms (LiveKit Native, Browser Native)
   - Echo cancellation
   - Automatic gain control
-- **OAuth authentication** - Backend does not store authentication data - thats by design. So the only options to auth are using OAuth2 Google and Discord.
+- **OAuth authentication** - Supports OAuth2 providers Google and Discord.
+- **Password authentication** - Basic email + nickname + password schema. WITHOUT sending emails, password recovery, etc. Just simple storage
 - **Simple Deployment** - Frontent + Backend + LiveKit is all what you need. No complex modules like MAS, no custom path rewriting
 - **Persistence** - Backend stores data in sqlite database. Easy management, easy deployment, easy life
 - **Role-Based Access Control** - Granular permissions for different user types
