@@ -3,7 +3,7 @@
   <!-- This component creates audio elements in a hidden container -->
   <div class="audio-manager hidden" aria-hidden="true">
     <audio
-      v-for="[userId, track] in audioTracks"
+      v-for="[userId] in audioTracks"
       :key="userId"
       :ref="(el) => setAudioElement(userId, el as HTMLAudioElement)"
       autoplay
@@ -30,12 +30,20 @@ const audioElements = ref<Map<string, HTMLAudioElement>>(new Map())
 // Store track attachment state to prevent duplicate attachments
 const attachedTracks = ref<Map<string, boolean>>(new Map())
 
+// Track pending attachments that need retry
+const pendingAttachments = ref<Set<string>>(new Set())
+
 // Set audio element reference
 const setAudioElement = (userId: string, element: HTMLAudioElement | null) => {
   if (element) {
     audioElements.value.set(userId, element)
-    // Attach track if available
+    // Try to attach track immediately
     void attachTrackToElement(userId, element)
+  } else {
+    // Element was removed - cleanup
+    audioElements.value.delete(userId)
+    attachedTracks.value.delete(userId)
+    pendingAttachments.value.delete(userId)
   }
 }
 
@@ -48,6 +56,8 @@ const attachTrackToElement = async (userId: string, element: HTMLAudioElement) =
 
   const track = props.audioTracks.get(userId)
   if (!track || !track.mediaStreamTrack) {
+    // Track not available yet, mark as pending for retry
+    pendingAttachments.value.add(userId)
     return
   }
 
@@ -66,6 +76,7 @@ const attachTrackToElement = async (userId: string, element: HTMLAudioElement) =
 
     // Mark as attached
     attachedTracks.value.set(userId, true)
+    pendingAttachments.value.delete(userId)
 
     // Play the audio
     await element.play().catch(() => {
@@ -76,10 +87,23 @@ const attachTrackToElement = async (userId: string, element: HTMLAudioElement) =
   }
 }
 
+// Retry pending attachments when tracks become available
+const retryPendingAttachments = () => {
+  pendingAttachments.value.forEach((userId) => {
+    const element = audioElements.value.get(userId)
+    if (element) {
+      void attachTrackToElement(userId, element)
+    }
+  })
+}
+
 // Watch for new tracks and attach them
 watch(
   () => props.audioTracks,
   (newTracks, oldTracks) => {
+    // First, retry any pending attachments
+    retryPendingAttachments()
+
     // Handle new tracks
     newTracks.forEach((track, userId) => {
       const element = audioElements.value.get(userId)
@@ -95,6 +119,7 @@ watch(
         if (element) {
           element.srcObject = null
           attachedTracks.value.delete(userId)
+          pendingAttachments.value.delete(userId)
         }
       }
     })
@@ -163,6 +188,7 @@ onUnmounted(() => {
   })
   audioElements.value.clear()
   attachedTracks.value.clear()
+  pendingAttachments.value.clear()
 })
 
 // Expose method to mute/unmute a specific user
