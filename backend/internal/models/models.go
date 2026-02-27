@@ -8,9 +8,10 @@ import (
 type AuthProvider string
 
 const (
-	AuthProviderGuest   AuthProvider = "guest"
-	AuthProviderDiscord AuthProvider = "discord"
-	AuthProviderGoogle  AuthProvider = "google"
+	AuthProviderGuest    AuthProvider = "guest"
+	AuthProviderDiscord  AuthProvider = "discord"
+	AuthProviderGoogle   AuthProvider = "google"
+	AuthProviderPassword AuthProvider = "password"
 )
 
 // Role constants for user roles
@@ -38,6 +39,7 @@ type User struct {
 	AvatarURL     string       `json:"avatar_url,omitempty"`
 	IsGuest       bool         `json:"is_guest"`
 	Role          string       `json:"role"` // guest, user, admin, super_admin
+	PasswordHash  string       `json:"-"`    // Never exposed to frontend
 }
 
 // PublicUser represents a user with limited public information
@@ -212,4 +214,24 @@ type OAuthUserInfo struct {
 	Email     string       `json:"email,omitempty"`
 	AvatarURL string       `json:"avatar_url,omitempty"`
 	Provider  AuthProvider `json:"provider"`
+}
+
+// RegisterRequest represents a request to register a new user with password
+type RegisterRequest struct {
+	Email    string `json:"email"`
+	Nickname string `json:"nickname"`
+	Password string `json:"password"`
+}
+
+// LoginRequest represents a request to login with email or nickname and password
+type LoginRequest struct {
+	Login    string `json:"login"` // Can be email or nickname
+	Password string `json:"password"`
+}
+
+// LoginResponse represents the response after successful password login
+type LoginResponse struct {
+	Token     string    `json:"token"`
+	User      User      `json:"user"`
+	ExpiresAt time.Time `json:"expires_at"`
 }

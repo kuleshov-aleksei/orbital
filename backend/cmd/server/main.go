@@ -146,6 +146,8 @@ func main() {
 	r.HandleFunc("/api/auth/logout", authHandler.Logout).Methods("POST")
 	r.Handle("/api/auth/me", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.GetCurrentUser))).Methods("GET")
 	r.HandleFunc("/api/auth/status", authHandler.GetAuthStatus).Methods("GET")
+	r.HandleFunc("/api/auth/register", authHandler.Register).Methods("POST")
+	r.HandleFunc("/api/auth/login", authHandler.LoginPassword).Methods("POST")
 
 	// Users route (public)
 	r.HandleFunc("/api/users", usersHandler.GetAllUsers).Methods("GET")

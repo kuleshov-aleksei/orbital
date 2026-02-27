@@ -84,6 +84,13 @@ UPDATE users SET role = 'user' WHERE is_guest = 0;
 UPDATE users SET role = 'guest' WHERE is_guest = 1;
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);`,
 	},
+	{
+		Version: 9,
+		Name:    "add_password_auth",
+		SQL: `ALTER TABLE users ADD COLUMN password_hash TEXT;
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_nickname ON users(nickname);`,
+	},
 }
 
 // RunMigrations runs all pending migrations
