@@ -30,7 +30,7 @@
                   : 'text-gray-400 hover:text-gray-300'
               "
               @click="activeTab = 'oauth'">
-              OAuth2
+              OAuth providers
             </button>
             <button
               type="button"
@@ -41,7 +41,7 @@
                   : 'text-gray-400 hover:text-gray-300'
               "
               @click="activeTab = 'password'">
-              Email & Password
+              {{ isRegisterMode ? "Register" : "Login" }}
             </button>
           </div>
 
@@ -50,7 +50,7 @@
             <h2 class="text-xl font-semibold text-white text-center mb-6">Choose how to join</h2>
 
             <!-- OAuth Provider Buttons -->
-            <div class="space-y-3 mb-6">
+            <div class="space-y-2 mb-4">
               <!-- Discord Login -->
               <button
                 type="button"
@@ -79,7 +79,7 @@
             </div>
 
             <!-- Divider -->
-            <div class="relative mb-6">
+            <div class="relative mb-4">
               <div class="absolute inset-0 flex items-center">
                 <div class="w-full border-t border-gray-700"></div>
               </div>
@@ -99,7 +99,7 @@
             </button>
 
             <!-- Restriction Notice -->
-            <div class="mt-6 flex items-start text-sm text-gray-400">
+            <div class="mt-4 flex items-start text-sm text-gray-400">
               <PhLock class="w-4 h-4 mr-2 mt-0.5 flex-shrink-0 text-gray-500" />
 
               <span>Some features are restricted for guests, like screensharing</span>
@@ -108,10 +108,6 @@
 
           <!-- Password Tab -->
           <div v-show="activeTab === 'password'">
-            <h2 class="text-xl font-semibold text-white text-center mb-6">
-              {{ isRegisterMode ? "Create an Account" : "Sign In" }}
-            </h2>
-
             <!-- Error Message -->
             <div
               v-if="errorMessage"
@@ -121,104 +117,127 @@
 
             <form @submit.prevent="handlePasswordSubmit">
               <!-- Nickname (only in register mode) -->
-              <div v-if="isRegisterMode" class="mb-4">
-                <label class="block text-gray-400 text-sm mb-2" for="nickname">Nickname</label>
+              <div v-if="isRegisterMode" class="mb-3">
+                <label class="block text-gray-400 text-sm mb-1" for="nickname">Nickname</label>
                 <input
                   id="nickname"
                   v-model="nickname"
                   type="text"
-                  class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
+                  class="w-full px-4 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
+                  :class="nicknameError ? 'border-red-500' : 'border-gray-600'"
                   placeholder="Choose a nickname"
                   required
-                  @input="nickname = nickname.replace(/\s/g, '')" />
+                  @input="handleNicknameInput"
+                  @blur="nicknameTouched = true" />
+                <p v-if="nicknameTouched && !nickname" class="text-red-400 text-xs mt-1">
+                  Nickname is required
+                </p>
               </div>
 
               <!-- Email (only in register mode) -->
-              <div v-if="isRegisterMode" class="mb-4">
-                <label class="block text-gray-400 text-sm mb-2" for="email">Email</label>
+              <div v-if="isRegisterMode" class="mb-3">
+                <label class="block text-gray-400 text-sm mb-1" for="email">Email</label>
                 <input
                   id="email"
                   v-model="email"
                   type="email"
-                  class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
+                  class="w-full px-4 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
+                  :class="emailError ? 'border-red-500' : 'border-gray-600'"
                   placeholder="your@email.com"
                   required
-                  @input="email = email.replace(/\s/g, '')" />
+                  @input="handleEmailInput"
+                  @blur="emailTouched = true" />
+                <p v-if="emailTouched && !email" class="text-red-400 text-xs mt-1">
+                  Email is required
+                </p>
+                <p
+                  v-else-if="emailTouched && email && !isEmailValid"
+                  class="text-red-400 text-xs mt-1">
+                  Invalid email format
+                </p>
               </div>
 
               <!-- Login (email or nickname) - only in login mode -->
-              <div v-if="!isRegisterMode" class="mb-4">
-                <label class="block text-gray-400 text-sm mb-2" for="login"
+              <div v-if="!isRegisterMode" class="mb-3">
+                <label class="block text-gray-400 text-sm mb-1" for="login"
                   >Email or Nickname</label
                 >
                 <input
                   id="login"
                   v-model="login"
                   type="text"
-                  class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
+                  class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
                   placeholder="Enter your email or nickname"
                   required
-                  @input="login = login.replace(/\s/g, '')" />
+                  @input="handleLoginInput" />
               </div>
 
               <!-- Password -->
-              <div class="mb-4">
-                <label class="block text-gray-400 text-sm mb-2" for="password">Password</label>
+              <div class="mb-3 relative">
+                <label class="block text-gray-400 text-sm mb-1" for="password">Password</label>
                 <input
                   id="password"
                   v-model="password"
                   type="password"
-                  class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
+                  class="w-full px-4 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
+                  :class="passwordError ? 'border-red-500' : 'border-gray-600'"
                   :placeholder="isRegisterMode ? 'Create a password' : 'Enter your password'"
                   required
-                  @input="password = password.replace(/\s/g, '')" />
+                  @input="handlePasswordInput"
+                  @focus="showPasswordTooltip = true"
+                  @blur="handlePasswordBlur" />
+
+                <!-- Password Requirements Tooltip -->
+                <div
+                  v-if="isRegisterMode && showPasswordTooltip"
+                  class="absolute z-10 left-0 right-0 -top-1 translate-y-[-100%] p-3 bg-gray-700 border border-gray-600 rounded-lg shadow-lg">
+                  <p class="text-gray-400 text-xs mb-1">Password must contain:</p>
+                  <ul class="text-xs space-y-0.5">
+                    <li :class="passwordLengthValid ? 'text-green-400' : 'text-gray-500'">
+                      {{ passwordLengthValid ? "✓" : "○" }} At least 8 characters
+                    </li>
+                    <li :class="passwordNumberValid ? 'text-green-400' : 'text-gray-500'">
+                      {{ passwordNumberValid ? "✓" : "○" }} At least 1 number
+                    </li>
+                    <li :class="passwordSpecialValid ? 'text-green-400' : 'text-gray-500'">
+                      {{ passwordSpecialValid ? "✓" : "○" }} At least 1 special character
+                    </li>
+                  </ul>
+                </div>
+                <p
+                  v-if="isRegisterMode && passwordTouched && !isPasswordValid && password"
+                  class="text-red-400 text-xs mt-1">
+                  Password does not meet requirements
+                </p>
               </div>
 
               <!-- Confirm Password (only in register mode) -->
-              <div v-if="isRegisterMode" class="mb-4">
-                <label class="block text-gray-400 text-sm mb-2" for="confirmPassword"
+              <div v-if="isRegisterMode" class="mb-3">
+                <label class="block text-gray-400 text-sm mb-1" for="confirmPassword"
                   >Confirm Password</label
                 >
                 <input
                   id="confirmPassword"
                   v-model="confirmPassword"
                   type="password"
-                  class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
+                  class="w-full px-4 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
+                  :class="confirmPasswordError ? 'border-red-500' : 'border-gray-600'"
                   placeholder="Confirm your password"
                   required
-                  @input="confirmPassword = confirmPassword.replace(/\s/g, '')" />
-              </div>
-
-              <!-- Password Requirements (only in register mode) -->
-              <div v-if="isRegisterMode" class="mb-4 p-3 bg-gray-700/50 rounded-lg">
-                <p class="text-gray-400 text-sm mb-2">Password must contain:</p>
-                <ul class="text-sm space-y-1">
-                  <li
-                    class="flex items-center"
-                    :class="passwordLengthValid ? 'text-green-400' : 'text-gray-500'">
-                    <span class="mr-2">{{ passwordLengthValid ? "✓" : "○" }}</span>
-                    At least 8 characters
-                  </li>
-                  <li
-                    class="flex items-center"
-                    :class="passwordNumberValid ? 'text-green-400' : 'text-gray-500'">
-                    <span class="mr-2">{{ passwordNumberValid ? "✓" : "○" }}</span>
-                    At least 1 number
-                  </li>
-                  <li
-                    class="flex items-center"
-                    :class="passwordSpecialValid ? 'text-green-400' : 'text-gray-500'">
-                    <span class="mr-2">{{ passwordSpecialValid ? "✓" : "○" }}</span>
-                    At least 1 special character
-                  </li>
-                </ul>
+                  @input="handleConfirmPasswordInput"
+                  @blur="confirmPasswordTouched = true" />
+                <p
+                  v-if="confirmPasswordTouched && confirmPassword && password !== confirmPassword"
+                  class="text-red-400 text-xs mt-1">
+                  Passwords do not match
+                </p>
               </div>
 
               <!-- Submit Button -->
               <button
                 type="submit"
-                class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                :disabled="isLoading || (isRegisterMode && !isPasswordValid)"
+                class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                :disabled="isLoading || (isRegisterMode && !canSubmit)"
                 @click="handlePasswordSubmit">
                 <span v-if="isLoading">Loading...</span>
                 <span v-else>{{ isRegisterMode ? "Register" : "Login" }}</span>
@@ -226,7 +245,7 @@
             </form>
 
             <!-- Toggle Mode Link -->
-            <div class="mt-6 text-center">
+            <div class="mt-4 text-center">
               <span v-if="!isRegisterMode" class="text-gray-400">
                 Don't have an account?
                 <button
@@ -273,6 +292,41 @@ const password = ref("")
 const confirmPassword = ref("")
 const email = ref("")
 const nickname = ref("")
+const showPasswordTooltip = ref(false)
+const nicknameTouched = ref(false)
+const emailTouched = ref(false)
+const passwordTouched = ref(false)
+const confirmPasswordTouched = ref(false)
+
+const nicknameError = computed(() => nicknameTouched.value && !nickname.value)
+const emailError = computed(() => emailTouched.value && !email.value)
+const passwordError = computed(
+  () => passwordTouched.value && !isPasswordValid.value && password.value,
+)
+const confirmPasswordError = computed(
+  () =>
+    confirmPasswordTouched.value &&
+    confirmPassword.value &&
+    password.value !== confirmPassword.value,
+)
+
+const isEmailValid = computed(() => {
+  if (!email.value) return false
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return emailRegex.test(email.value)
+})
+
+const passwordsMatch = computed(() => password.value === confirmPassword.value)
+
+const canSubmit = computed(() => {
+  return (
+    nickname.value &&
+    email.value &&
+    isEmailValid.value &&
+    isPasswordValid.value &&
+    passwordsMatch.value
+  )
+})
 
 const passwordLengthValid = computed(() => password.value.length >= 8)
 const passwordNumberValid = computed(() => /\d/.test(password.value))
@@ -299,6 +353,33 @@ const handleLoginWithGosuslugi = () => {
 
 const handleContinueAsGuest = async () => {
   await userStore.continueAsGuest()
+}
+
+const handleNicknameInput = () => {
+  nickname.value = nickname.value.replace(/\s/g, "")
+  nicknameTouched.value = true
+}
+
+const handleEmailInput = () => {
+  email.value = email.value.replace(/\s/g, "")
+  emailTouched.value = true
+}
+
+const handleLoginInput = () => {
+  login.value = login.value.replace(/\s/g, "")
+}
+
+const handlePasswordInput = () => {
+  passwordTouched.value = true
+}
+
+const handlePasswordBlur = () => {
+  showPasswordTooltip.value = false
+  passwordTouched.value = true
+}
+
+const handleConfirmPasswordInput = () => {
+  confirmPasswordTouched.value = true
 }
 
 const handlePasswordSubmit = async () => {
