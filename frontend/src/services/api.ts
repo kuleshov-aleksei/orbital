@@ -118,7 +118,7 @@ export async function apiRequest<T>(endpoint: string, options: RequestInit = {})
 
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(`API Error: ${response.status} - ${errorText}`)
+      throw new Error(`${response.status} - ${errorText}`)
     }
 
     return (await response.json()) as T
