@@ -315,3 +315,11 @@ export interface ICEConnectionType {
   localType: string
   remoteType: string
 }
+
+export interface DebugLog {
+  id: number
+  user_id: string
+  username: string
+  created_at: string
+  log_filename: string
+}

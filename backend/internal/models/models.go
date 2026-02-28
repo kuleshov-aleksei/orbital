@@ -235,3 +235,19 @@ type LoginResponse struct {
 	User      User      `json:"user"`
 	ExpiresAt time.Time `json:"expires_at"`
 }
+
+// DebugLog represents a debug log entry
+type DebugLog struct {
+	ID          int64     `json:"id"`
+	UserID      string    `json:"user_id"`
+	Username    string    `json:"username"`
+	CreatedAt   time.Time `json:"created_at"`
+	LogFilename string    `json:"log_filename"`
+}
+
+// DebugLogUploadRequest represents a request to upload debug logs
+type DebugLogUploadRequest struct {
+	UserID   string `json:"user_id"`
+	Username string `json:"username"`
+	Logs     string `json:"logs"`
+}

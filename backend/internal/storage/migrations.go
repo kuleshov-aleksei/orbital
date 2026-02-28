@@ -91,9 +91,21 @@ CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);`,
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_nickname ON users(nickname);`,
 	},
+	{
+		Version: 10,
+		Name:    "create_debug_logs_table",
+		SQL: `CREATE TABLE IF NOT EXISTS debug_logs (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id TEXT NOT NULL,
+			username TEXT NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			log_filename TEXT NOT NULL
+		);
+CREATE INDEX IF NOT EXISTS idx_debug_logs_user_id ON debug_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_debug_logs_created_at ON debug_logs(created_at);`,
+	},
 }
 
-// RunMigrations runs all pending migrations
 func (db *DB) RunMigrations() error {
 	// Create migrations tracking table if it doesn't exist
 	if err := db.createMigrationsTable(); err != nil {
