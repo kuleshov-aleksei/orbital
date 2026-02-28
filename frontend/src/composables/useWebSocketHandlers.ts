@@ -52,6 +52,7 @@ export function useWebSocketHandlers() {
     wsService.onGlobal("nickname_change", (message) => {
       const data = message.data as { user_id: string; nickname: string }
       roomStore.updateUserNickname(data.user_id, data.nickname)
+      usersStore.updateUserNickname(data.user_id, data.nickname)
     })
 
     // Room user joined
