@@ -1,11 +1,11 @@
 <template>
   <!-- AudioManager: Hidden container that manages all audio playback -->
-  <!-- Audio elements are created/destroyed programmatically using LiveKit's attach() -->
+  <!-- Audio elements are created/destroyed programmatically -->
   <div ref="audioContainer" class="audio-manager hidden" aria-hidden="true" />
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onUnmounted, useTemplateRef } from "vue"
+import { ref, watch, onUnmounted, onMounted, useTemplateRef } from "vue"
 import type { RemoteAudioTrack } from "livekit-client"
 import { useAudioTracksStore } from "@/stores/audioTracks"
 
@@ -24,25 +24,34 @@ const audioContainer = useTemplateRef<HTMLElement>("audioContainer")
 
 // Track created audio elements by userId
 const audioElements = ref<Map<string, HTMLAudioElement>>(new Map())
+// Track the sid of the attached track to detect reconnection
+const attachedTrackSids = ref<Map<string, string>>(new Map())
 
 // Create audio element for a user
 const createAudioElement = (userId: string, track: RemoteAudioTrack): HTMLAudioElement => {
   console.log(`[AudioManager] Creating audio element for user: ${userId}, track sid: ${track.sid}`)
 
-  // Use LiveKit's attach() to create audio element from track
-  const element = track.attach() as HTMLAudioElement
-  console.log(`[AudioManager] Attached track to element for ${userId}, element:`, element)
+  // Always create a new audio element (don't reuse)
+  const element = document.createElement("audio")
+  element.autoplay = true
+
+  // Create MediaStream from track
+  if (track.mediaStreamTrack) {
+    const stream = new MediaStream([track.mediaStreamTrack])
+    element.srcObject = stream
+    console.log(
+      `[AudioManager] Created MediaStream for ${userId}, track readyState: ${track.mediaStreamTrack.readyState}`,
+    )
+  } else {
+    console.warn(`[AudioManager] No mediaStreamTrack for ${userId}!`)
+  }
 
   // Apply initial settings
   const volume = props.volumes.get(userId) ?? 80
   element.volume = volume / 100
-  console.log(`[AudioManager] Set initial volume for ${userId}: ${volume}`)
 
   const isMuted = props.mutedUsers.has(userId)
   element.muted = props.isDeafened || isMuted
-  console.log(`[AudioManager] Set initial mute for ${userId}: ${element.muted}`)
-
-  element.autoplay = true
 
   // Append to container
   if (audioContainer.value) {
@@ -63,6 +72,8 @@ const createAudioElement = (userId: string, track: RemoteAudioTrack): HTMLAudioE
     })
 
   audioElements.value.set(userId, element)
+  attachedTrackSids.value.set(userId, track.sid)
+
   console.log(
     `[AudioManager] Created audio element for ${userId}, total elements: ${audioElements.value.size}`,
   )
@@ -74,17 +85,14 @@ const removeAudioElement = (userId: string) => {
   console.log(`[AudioManager] Removing audio element for user: ${userId}`)
   const element = audioElements.value.get(userId)
   if (element) {
-    // Use LiveKit's detach() to properly clean up
-    const track = audioTracksStore.getTrack(userId)
-    if (track) {
-      track.detach(element)
-      console.log(`[AudioManager] Detached track for ${userId}`)
-    } else {
-      // Fallback: just remove from DOM
-      element.remove()
-      console.log(`[AudioManager] Removed element from DOM for ${userId}`)
-    }
+    // Stop playback and clean up
+    element.pause()
+    element.srcObject = null
+    element.remove()
+
     audioElements.value.delete(userId)
+    attachedTrackSids.value.delete(userId)
+
     console.log(
       `[AudioManager] Removed audio element for ${userId}, remaining: ${audioElements.value.size}`,
     )
@@ -101,26 +109,25 @@ watch(
       `[AudioManager] Track change detected. Old: ${oldTracks?.size || 0}, New: ${newTracks.size}`,
     )
 
-    // Handle new tracks - create audio elements
+    // Handle new tracks - ALWAYS create new element for each track
     newTracks.forEach((track, userId) => {
-      const existingElement = audioElements.value.get(userId)
-      const needsRecreation =
-        existingElement && (!track.mediaStreamTrack || track.mediaStreamTrack.readyState !== "live")
+      const existingSid = attachedTrackSids.value.get(userId)
+      const isNewTrack = existingSid !== track.sid
 
       console.log(
-        `[AudioManager] Checking track for ${userId}, has element: ${!!existingElement}, needs recreation: ${needsRecreation}`,
+        `[AudioManager] Checking track for ${userId}, sid: ${track.sid}, existingSid: ${existingSid}, isNewTrack: ${isNewTrack}`,
       )
 
-      if (!existingElement || needsRecreation) {
-        // Remove stale element if exists
-        if (existingElement) {
-          console.log(`[AudioManager] Removing stale element for ${userId}`)
-          existingElement.remove()
-          audioElements.value.delete(userId)
-        }
-        console.log(`[AudioManager] Creating NEW audio element for ${userId}`)
-        createAudioElement(userId, track)
+      // Always remove existing and recreate on any track change (including reconnection)
+      if (audioElements.value.has(userId)) {
+        console.log(
+          `[AudioManager] Removing existing element for ${userId} (sid changed or reconnect)`,
+        )
+        removeAudioElement(userId)
       }
+
+      console.log(`[AudioManager] Creating NEW audio element for ${userId}`)
+      createAudioElement(userId, track)
     })
 
     // Handle removed tracks - remove audio elements
@@ -136,16 +143,31 @@ watch(
   { deep: true },
 )
 
+// Periodic check to ensure audio is still playing
+let playCheckInterval: ReturnType<typeof setInterval> | null = null
+
+onMounted(() => {
+  // Start periodic check every 3 seconds
+  playCheckInterval = setInterval(() => {
+    audioElements.value.forEach((element, userId) => {
+      if (element.paused) {
+        console.log(
+          `[AudioManager] Periodic check: element paused for ${userId}, attempting to play`,
+        )
+        element.play().catch(() => {})
+      }
+    })
+  }, 3000)
+})
+
 // Watch for volume changes
 watch(
   () => props.volumes,
   (newVolumes) => {
-    console.log(`[AudioManager] Volume change detected`)
     newVolumes.forEach((volume, userId) => {
       const element = audioElements.value.get(userId)
       if (element) {
         element.volume = volume / 100
-        console.log(`[AudioManager] Updated volume for ${userId}: ${volume}`)
       }
     })
   },
@@ -156,7 +178,6 @@ watch(
 watch(
   () => props.isDeafened,
   (isDeafened) => {
-    console.log(`[AudioManager] Deafen state changed: ${isDeafened}`)
     audioElements.value.forEach((element, userId) => {
       const isMuted = props.mutedUsers.has(userId)
       element.muted = isDeafened || isMuted
@@ -168,14 +189,12 @@ watch(
 watch(
   () => props.mutedUsers,
   (newMutedUsers, oldMutedUsers) => {
-    console.log(`[AudioManager] Muted users changed`)
     // Handle newly muted users
     newMutedUsers.forEach((userId) => {
       if (!oldMutedUsers?.has(userId)) {
         const element = audioElements.value.get(userId)
         if (element) {
           element.muted = true
-          console.log(`[AudioManager] Muted user ${userId}`)
         }
       }
     })
@@ -186,7 +205,6 @@ watch(
         const element = audioElements.value.get(userId)
         if (element) {
           element.muted = props.isDeafened
-          console.log(`[AudioManager] Unmuted user ${userId}`)
         }
       }
     })
@@ -197,16 +215,19 @@ watch(
 // Cleanup on unmount
 onUnmounted(() => {
   console.log(`[AudioManager] Unmounting, cleaning up ${audioElements.value.size} elements`)
-  // Detach all tracks using LiveKit's detach
-  audioElements.value.forEach((element, userId) => {
-    const track = audioTracksStore.getTrack(userId)
-    if (track) {
-      track.detach(element)
-    } else {
-      element.remove()
-    }
+
+  if (playCheckInterval) {
+    clearInterval(playCheckInterval)
+    playCheckInterval = null
+  }
+
+  audioElements.value.forEach((element) => {
+    element.pause()
+    element.srcObject = null
+    element.remove()
   })
   audioElements.value.clear()
+  attachedTrackSids.value.clear()
 })
 
 // Expose methods
