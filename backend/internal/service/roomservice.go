@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -468,21 +469,34 @@ func (rs *RoomService) UpdateUserNickname(roomID, userID, nickname string) error
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 
-	if user, exists := rs.users[userID]; exists {
-		user.Nickname = nickname
-		user.LastSeen = time.Now()
+	var user *models.User
 
-		// Update in database
-		if rs.userRepo != nil {
-			if err := rs.userRepo.UpdateNickname(userID, nickname, user.LastSeen); err != nil {
-				return err
-			}
+	if existingUser, exists := rs.users[userID]; exists {
+		user = existingUser
+	} else if rs.userRepo != nil {
+		var err error
+		user, err = rs.userRepo.GetByID(userID)
+		if err != nil {
+			return fmt.Errorf("failed to get user: %w", err)
 		}
-
-		return nil
+		if user == nil {
+			return &RoomError{Message: "User not found"}
+		}
+	} else {
+		return &RoomError{Message: "User not found"}
 	}
 
-	return &RoomError{Message: "User not found"}
+	user.Nickname = nickname
+	user.LastSeen = time.Now()
+
+	// Update in database
+	if rs.userRepo != nil {
+		if err := rs.userRepo.UpdateNickname(userID, nickname, user.LastSeen); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // UpdateUserPingTime updates user's last ping time in a room
