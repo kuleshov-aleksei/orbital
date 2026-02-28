@@ -534,16 +534,18 @@ func (s *AuthService) LoginPassword(login, password string) (*models.User, error
 		return nil, fmt.Errorf("password is required")
 	}
 
+	passwordProvider := models.AuthProviderPassword
+
 	// Try to find user by email first, then by nickname
 	var user *models.User
 	var err error
 
 	// Check if login looks like email
 	if strings.Contains(login, "@") {
-		user, err = s.userRepo.GetByEmail(login)
+		user, err = s.userRepo.GetByEmail(login, &passwordProvider)
 	} else {
 		// Try nickname
-		user, err = s.userRepo.GetByNickname(login)
+		user, err = s.userRepo.GetByNickname(login, &passwordProvider)
 		// If not found by nickname, also check email
 		if err != nil {
 			return nil, err
@@ -551,7 +553,7 @@ func (s *AuthService) LoginPassword(login, password string) (*models.User, error
 		if user == nil {
 			// Also try email lookup as fallback
 			// Double check in case if nickname got inside email field
-			user, err = s.userRepo.GetByEmail(login)
+			user, err = s.userRepo.GetByEmail(login, &passwordProvider)
 			if err != nil {
 				return nil, err
 			}
@@ -562,11 +564,6 @@ func (s *AuthService) LoginPassword(login, password string) (*models.User, error
 		return nil, fmt.Errorf("failed to find user: %w", err)
 	}
 	if user == nil {
-		return nil, fmt.Errorf("invalid credentials")
-	}
-
-	// Check if user is a password auth user
-	if user.AuthProvider != models.AuthProviderPassword {
 		return nil, fmt.Errorf("invalid credentials")
 	}
 

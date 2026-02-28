@@ -225,16 +225,25 @@ func (r *UserRepository) DeleteAllGuests() (int64, error) {
 }
 
 // GetByEmail retrieves a user by email
-func (r *UserRepository) GetByEmail(email string) (*models.User, error) {
+func (r *UserRepository) GetByEmail(email string, authProvider *models.AuthProvider) (*models.User, error) {
 	if email == "" {
 		return nil, nil
 	}
 
-	user, err := scanUser(r.db.QueryRow(
-		`SELECT id, nickname, oauth_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash 
-		 FROM users WHERE LOWER(email) = LOWER(?)`,
-		email,
-	))
+	var query string
+	var args []interface{}
+
+	if authProvider != nil {
+		query = `SELECT id, nickname, oauth_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash 
+		 FROM users WHERE LOWER(email) = LOWER(?) AND auth_provider = ?`
+		args = []interface{}{email, *authProvider}
+	} else {
+		query = `SELECT id, nickname, oauth_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash 
+		 FROM users WHERE LOWER(email) = LOWER(?)`
+		args = []interface{}{email}
+	}
+
+	user, err := scanUser(r.db.QueryRow(query, args...))
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -247,16 +256,25 @@ func (r *UserRepository) GetByEmail(email string) (*models.User, error) {
 }
 
 // GetByNickname retrieves a user by nickname
-func (r *UserRepository) GetByNickname(nickname string) (*models.User, error) {
+func (r *UserRepository) GetByNickname(nickname string, authProvider *models.AuthProvider) (*models.User, error) {
 	if nickname == "" {
 		return nil, nil
 	}
 
-	user, err := scanUser(r.db.QueryRow(
-		`SELECT id, nickname, oauth_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash 
-		 FROM users WHERE LOWER(nickname) = LOWER(?)`,
-		nickname,
-	))
+	var query string
+	var args []interface{}
+
+	if authProvider != nil {
+		query = `SELECT id, nickname, oauth_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash 
+		 FROM users WHERE LOWER(nickname) = LOWER(?) AND auth_provider = ?`
+		args = []interface{}{nickname, *authProvider}
+	} else {
+		query = `SELECT id, nickname, oauth_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash 
+		 FROM users WHERE LOWER(nickname) = LOWER(?)`
+		args = []interface{}{nickname}
+	}
+
+	user, err := scanUser(r.db.QueryRow(query, args...))
 
 	if err == sql.ErrNoRows {
 		return nil, nil
