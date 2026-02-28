@@ -24,22 +24,22 @@ const (
 
 // User represents a user in the system
 type User struct {
-	ID            string       `json:"id"`
-	Nickname      string       `json:"nickname"`
-	OAuthNickname string       `json:"oauth_nickname,omitempty"` // Original OAuth nickname
-	Status        string       `json:"status"`                   // online, away, dnd
-	IsSpeaking    bool         `json:"is_speaking"`
-	IsMuted       bool         `json:"is_muted"`
-	IsDeafened    bool         `json:"is_deafened"`
-	CreatedAt     time.Time    `json:"created_at"`
-	LastSeen      time.Time    `json:"last_seen"`
-	AuthProvider  AuthProvider `json:"auth_provider"`
-	ProviderID    string       `json:"provider_id,omitempty"`
-	Email         string       `json:"email,omitempty"`
-	AvatarURL     string       `json:"avatar_url,omitempty"`
-	IsGuest       bool         `json:"is_guest"`
-	Role          string       `json:"role"` // guest, user, admin, super_admin
-	PasswordHash  string       `json:"-"`    // Never exposed to frontend
+	ID               string       `json:"id"`
+	Nickname         string       `json:"nickname"`
+	OriginalNickname string       `json:"original_nickname,omitempty"` // Immutable login key
+	Status           string       `json:"status"`                      // online, away, dnd
+	IsSpeaking       bool         `json:"is_speaking"`
+	IsMuted          bool         `json:"is_muted"`
+	IsDeafened       bool         `json:"is_deafened"`
+	CreatedAt        time.Time    `json:"created_at"`
+	LastSeen         time.Time    `json:"last_seen"`
+	AuthProvider     AuthProvider `json:"auth_provider"`
+	ProviderID       string       `json:"provider_id,omitempty"`
+	Email            string       `json:"email,omitempty"`
+	AvatarURL        string       `json:"avatar_url,omitempty"`
+	IsGuest          bool         `json:"is_guest"`
+	Role             string       `json:"role"` // guest, user, admin, super_admin
+	PasswordHash     string       `json:"-"`    // Never exposed to frontend
 }
 
 // PublicUser represents a user with limited public information

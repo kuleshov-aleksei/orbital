@@ -109,6 +109,17 @@ CREATE INDEX IF NOT EXISTS idx_debug_logs_created_at ON debug_logs(created_at);`
 		Name:    "add_version_to_debug_logs",
 		SQL:     `ALTER TABLE debug_logs ADD COLUMN version TEXT DEFAULT '';`,
 	},
+	{
+		Version: 12,
+		Name:    "populate_original_nickname_for_all_users",
+		SQL:     `UPDATE users SET oauth_nickname = nickname WHERE oauth_nickname IS NULL OR oauth_nickname = '';`,
+	},
+	{
+		Version: 13,
+		Name:    "rename_oauth_nickname_to_original_nickname",
+		SQL: `ALTER TABLE users RENAME COLUMN oauth_nickname TO original_nickname;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_original_nickname_provider ON users(original_nickname, auth_provider) WHERE auth_provider IN ('password', 'guest');`,
+	},
 }
 
 func (db *DB) RunMigrations() error {

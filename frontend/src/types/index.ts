@@ -43,14 +43,14 @@ export interface CameraData {
 export interface User {
   id: string
   nickname: string
-  oauth_nickname?: string
+  original_nickname?: string
   is_speaking?: boolean
   is_muted?: boolean
   is_deafened?: boolean
   is_screen_sharing?: boolean
   screen_share_quality?: ScreenShareQuality
   status: "online" | "away" | "dnd"
-  auth_provider: "guest" | "discord" | "google"
+  auth_provider: "guest" | "discord" | "google" | "password"
   is_guest: boolean
   email?: string
   avatar_url?: string

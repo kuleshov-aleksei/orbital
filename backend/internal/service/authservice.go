@@ -235,8 +235,7 @@ func (s *AuthService) CreateOrUpdateUser(oauthInfo *models.OAuthUserInfo) (*mode
 	now := time.Now()
 
 	if existingUser != nil {
-		// Update existing user - preserve custom nickname, only update oauth_nickname
-		existingUser.OAuthNickname = oauthInfo.Nickname
+		// Update existing user - preserve custom nickname, only update display nickname
 		existingUser.Email = oauthInfo.Email
 		// Only update avatar if user doesn't have a custom avatar
 		if existingUser.AvatarURL == "" || !strings.HasPrefix(existingUser.AvatarURL, "/api/avatars/") {
@@ -250,20 +249,20 @@ func (s *AuthService) CreateOrUpdateUser(oauthInfo *models.OAuthUserInfo) (*mode
 		return existingUser, nil
 	}
 
-	// Create new user - set both nickname and oauth_nickname to OAuth value
+	// Create new user - set original_nickname (immutable) from OAuth, nickname can be changed
 	user := &models.User{
-		ID:            generateUserID(),
-		Nickname:      oauthInfo.Nickname,
-		OAuthNickname: oauthInfo.Nickname,
-		Status:        "online",
-		CreatedAt:     now,
-		LastSeen:      now,
-		AuthProvider:  oauthInfo.Provider,
-		ProviderID:    oauthInfo.ID,
-		Email:         oauthInfo.Email,
-		AvatarURL:     oauthInfo.AvatarURL,
-		IsGuest:       false,
-		Role:          models.RoleUser,
+		ID:               generateUserID(),
+		Nickname:         oauthInfo.Nickname,
+		OriginalNickname: oauthInfo.Nickname,
+		Status:           "online",
+		CreatedAt:        now,
+		LastSeen:         now,
+		AuthProvider:     oauthInfo.Provider,
+		ProviderID:       oauthInfo.ID,
+		Email:            oauthInfo.Email,
+		AvatarURL:        oauthInfo.AvatarURL,
+		IsGuest:          false,
+		Role:             models.RoleUser,
 	}
 
 	if err := s.userRepo.Create(user); err != nil {
@@ -277,16 +276,18 @@ func (s *AuthService) CreateOrUpdateUser(oauthInfo *models.OAuthUserInfo) (*mode
 func (s *AuthService) CreateGuestUser() (*models.User, error) {
 	now := time.Now()
 	userID := generateUserID()
+	guestNickname := generateGuestNickname(userID)
 
 	user := &models.User{
-		ID:           userID,
-		Nickname:     generateGuestNickname(userID),
-		Status:       "online",
-		CreatedAt:    now,
-		LastSeen:     now,
-		AuthProvider: models.AuthProviderGuest,
-		IsGuest:      true,
-		Role:         models.RoleGuest,
+		ID:               userID,
+		Nickname:         guestNickname,
+		OriginalNickname: guestNickname,
+		Status:           "online",
+		CreatedAt:        now,
+		LastSeen:         now,
+		AuthProvider:     models.AuthProviderGuest,
+		IsGuest:          true,
+		Role:             models.RoleGuest,
 	}
 
 	if err := s.userRepo.Create(user); err != nil {
@@ -485,8 +486,8 @@ func (s *AuthService) Register(email, nickname, password string) (*models.User, 
 		return nil, fmt.Errorf("email already registered")
 	}
 
-	// Check if nickname already exists
-	nicknameExists, err := s.userRepo.NicknameExists(nickname)
+	// Check if original_nickname already exists (for password/guest users)
+	nicknameExists, err := s.userRepo.OriginalNicknameExists(nickname)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check nickname: %w", err)
 	}
@@ -503,16 +504,17 @@ func (s *AuthService) Register(email, nickname, password string) (*models.User, 
 	// Create user
 	now := time.Now()
 	user := &models.User{
-		ID:           generateUserID(),
-		Nickname:     nickname,
-		Status:       "online",
-		CreatedAt:    now,
-		LastSeen:     now,
-		AuthProvider: models.AuthProviderPassword,
-		Email:        email,
-		PasswordHash: hashedPassword,
-		IsGuest:      false,
-		Role:         models.RoleUser,
+		ID:               generateUserID(),
+		Nickname:         nickname,
+		OriginalNickname: nickname,
+		Status:           "online",
+		CreatedAt:        now,
+		LastSeen:         now,
+		AuthProvider:     models.AuthProviderPassword,
+		Email:            email,
+		PasswordHash:     hashedPassword,
+		IsGuest:          false,
+		Role:             models.RoleUser,
 	}
 
 	if err := s.userRepo.Create(user); err != nil {
@@ -544,9 +546,9 @@ func (s *AuthService) LoginPassword(login, password string) (*models.User, error
 	if strings.Contains(login, "@") {
 		user, err = s.userRepo.GetByEmail(login, &passwordProvider)
 	} else {
-		// Try nickname
-		user, err = s.userRepo.GetByNickname(login, &passwordProvider)
-		// If not found by nickname, also check email
+		// Try original_nickname (immutable login key)
+		user, err = s.userRepo.GetByOriginalNickname(login, &passwordProvider)
+		// If not found by original_nickname, also check email
 		if err != nil {
 			return nil, err
 		}

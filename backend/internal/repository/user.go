@@ -21,9 +21,9 @@ func NewUserRepository(db *storage.DB) *UserRepository {
 // Create inserts a new user into the database
 func (r *UserRepository) Create(user *models.User) error {
 	_, err := r.db.Exec(
-		`INSERT INTO users (id, nickname, oauth_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash) 
+		`INSERT INTO users (id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash) 
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		user.ID, user.Nickname, user.OAuthNickname, user.CreatedAt, user.LastSeen,
+		user.ID, user.Nickname, user.OriginalNickname, user.CreatedAt, user.LastSeen,
 		user.AuthProvider, user.ProviderID, user.Email, user.AvatarURL, user.IsGuest, user.Role, user.PasswordHash,
 	)
 	return err
@@ -34,14 +34,14 @@ func scanUser(scanner interface {
 	Scan(dest ...interface{}) error
 }) (*models.User, error) {
 	user := &models.User{}
-	var providerID, email, avatarURL, oauthNickname, role, passwordHash sql.NullString
+	var providerID, email, avatarURL, originalNickname, role, passwordHash sql.NullString
 	var authProvider sql.NullString
 	var isGuest sql.NullBool
 
 	err := scanner.Scan(
 		&user.ID,
 		&user.Nickname,
-		&oauthNickname,
+		&originalNickname,
 		&user.CreatedAt,
 		&user.LastSeen,
 		&authProvider,
@@ -71,8 +71,8 @@ func scanUser(scanner interface {
 	if avatarURL.Valid {
 		user.AvatarURL = avatarURL.String
 	}
-	if oauthNickname.Valid {
-		user.OAuthNickname = oauthNickname.String
+	if originalNickname.Valid {
+		user.OriginalNickname = originalNickname.String
 	}
 	if isGuest.Valid {
 		user.IsGuest = isGuest.Bool
@@ -94,7 +94,7 @@ func scanUser(scanner interface {
 // GetByID retrieves a user by ID
 func (r *UserRepository) GetByID(id string) (*models.User, error) {
 	user, err := scanUser(r.db.QueryRow(
-		`SELECT id, nickname, oauth_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash 
+		`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash 
 		 FROM users WHERE id = ?`,
 		id,
 	))
@@ -116,7 +116,7 @@ func (r *UserRepository) GetByProviderID(provider string, providerID string) (*m
 	}
 
 	user, err := scanUser(r.db.QueryRow(
-		`SELECT id, nickname, oauth_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash 
+		`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash 
 		 FROM users WHERE auth_provider = ? AND provider_id = ?`,
 		provider, providerID,
 	))
@@ -134,8 +134,8 @@ func (r *UserRepository) GetByProviderID(provider string, providerID string) (*m
 // Update updates a user's information
 func (r *UserRepository) Update(user *models.User) error {
 	_, err := r.db.Exec(
-		`UPDATE users SET nickname = ?, oauth_nickname = ?, last_seen = ?, email = ?, avatar_url = ? WHERE id = ?`,
-		user.Nickname, user.OAuthNickname, user.LastSeen, user.Email, user.AvatarURL, user.ID,
+		`UPDATE users SET nickname = ?, original_nickname = ?, last_seen = ?, email = ?, avatar_url = ? WHERE id = ?`,
+		user.Nickname, user.OriginalNickname, user.LastSeen, user.Email, user.AvatarURL, user.ID,
 	)
 	return err
 }
@@ -175,7 +175,7 @@ func (r *UserRepository) Delete(id string) error {
 
 // GetAll retrieves all users from the database
 func (r *UserRepository) GetAll() ([]*models.User, error) {
-	rows, err := r.db.Query(`SELECT id, nickname, oauth_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash FROM users`)
+	rows, err := r.db.Query(`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash FROM users`)
 	if err != nil {
 		return nil, err
 	}
@@ -234,11 +234,11 @@ func (r *UserRepository) GetByEmail(email string, authProvider *models.AuthProvi
 	var args []interface{}
 
 	if authProvider != nil {
-		query = `SELECT id, nickname, oauth_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash 
+		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash 
 		 FROM users WHERE LOWER(email) = LOWER(?) AND auth_provider = ?`
 		args = []interface{}{email, *authProvider}
 	} else {
-		query = `SELECT id, nickname, oauth_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash 
+		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash 
 		 FROM users WHERE LOWER(email) = LOWER(?)`
 		args = []interface{}{email}
 	}
@@ -255,9 +255,9 @@ func (r *UserRepository) GetByEmail(email string, authProvider *models.AuthProvi
 	return user, nil
 }
 
-// GetByNickname retrieves a user by nickname
-func (r *UserRepository) GetByNickname(nickname string, authProvider *models.AuthProvider) (*models.User, error) {
-	if nickname == "" {
+// GetByOriginalNickname retrieves a user by original_nickname (immutable login key)
+func (r *UserRepository) GetByOriginalNickname(originalNickname string, authProvider *models.AuthProvider) (*models.User, error) {
+	if originalNickname == "" {
 		return nil, nil
 	}
 
@@ -265,13 +265,13 @@ func (r *UserRepository) GetByNickname(nickname string, authProvider *models.Aut
 	var args []interface{}
 
 	if authProvider != nil {
-		query = `SELECT id, nickname, oauth_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash 
-		 FROM users WHERE LOWER(nickname) = LOWER(?) AND auth_provider = ?`
-		args = []interface{}{nickname, *authProvider}
+		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash 
+		 FROM users WHERE LOWER(original_nickname) = LOWER(?) AND auth_provider = ?`
+		args = []interface{}{originalNickname, *authProvider}
 	} else {
-		query = `SELECT id, nickname, oauth_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash 
-		 FROM users WHERE LOWER(nickname) = LOWER(?)`
-		args = []interface{}{nickname}
+		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash 
+		 FROM users WHERE LOWER(original_nickname) = LOWER(?)`
+		args = []interface{}{originalNickname}
 	}
 
 	user, err := scanUser(r.db.QueryRow(query, args...))
@@ -303,16 +303,16 @@ func (r *UserRepository) EmailExists(email string) (bool, error) {
 	return count > 0, nil
 }
 
-// NicknameExists checks if a nickname is already taken
-func (r *UserRepository) NicknameExists(nickname string) (bool, error) {
+// OriginalNicknameExists checks if an original_nickname is already taken by password/guest users
+func (r *UserRepository) OriginalNicknameExists(nickname string) (bool, error) {
 	if nickname == "" {
 		return false, nil
 	}
 
 	var count int
 	err := r.db.QueryRow(
-		`SELECT COUNT(*) FROM users WHERE LOWER(nickname) = LOWER(?)`,
-		nickname,
+		`SELECT COUNT(*) FROM users WHERE LOWER(original_nickname) = LOWER(?) AND auth_provider IN (?, ?)`,
+		nickname, models.AuthProviderPassword, models.AuthProviderGuest,
 	).Scan(&count)
 	if err != nil {
 		return false, err
