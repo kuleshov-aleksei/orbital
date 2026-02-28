@@ -8,6 +8,7 @@
 import { ref, watch, onUnmounted, onMounted, useTemplateRef } from "vue"
 import type { RemoteAudioTrack } from "livekit-client"
 import { useAudioTracksStore } from "@/stores/audioTracks"
+import { debugLog, debugWarn, debugError } from "@/utils/debug"
 
 interface Props {
   volumes: Map<string, number>
@@ -29,7 +30,7 @@ const attachedTrackSids = ref<Map<string, string>>(new Map())
 
 // Create audio element for a user
 const createAudioElement = (userId: string, track: RemoteAudioTrack): HTMLAudioElement => {
-  console.log(`[AudioManager] Creating audio element for user: ${userId}, track sid: ${track.sid}`)
+  debugLog(`[AudioManager] Creating audio element for user: ${userId}, track sid: ${track.sid}`)
 
   // Always create a new audio element (don't reuse)
   const element = document.createElement("audio")
@@ -39,11 +40,11 @@ const createAudioElement = (userId: string, track: RemoteAudioTrack): HTMLAudioE
   if (track.mediaStreamTrack) {
     const stream = new MediaStream([track.mediaStreamTrack])
     element.srcObject = stream
-    console.log(
+    debugLog(
       `[AudioManager] Created MediaStream for ${userId}, track readyState: ${track.mediaStreamTrack.readyState}`,
     )
   } else {
-    console.warn(`[AudioManager] No mediaStreamTrack for ${userId}!`)
+    debugWarn(`[AudioManager] No mediaStreamTrack for ${userId}!`)
   }
 
   // Apply initial settings
@@ -56,25 +57,25 @@ const createAudioElement = (userId: string, track: RemoteAudioTrack): HTMLAudioE
   // Append to container
   if (audioContainer.value) {
     audioContainer.value.appendChild(element)
-    console.log(`[AudioManager] Appended element to container for ${userId}`)
+    debugLog(`[AudioManager] Appended element to container for ${userId}`)
   } else {
-    console.warn(`[AudioManager] Audio container not ready for ${userId}!`)
+    debugWarn(`[AudioManager] Audio container not ready for ${userId}!`)
   }
 
   // Play the audio
   element
     .play()
     .then(() => {
-      console.log(`[AudioManager] Playing audio for ${userId}`)
+      debugLog(`[AudioManager] Playing audio for ${userId}`)
     })
     .catch((err) => {
-      console.warn(`[AudioManager] Failed to play audio for ${userId}:`, err)
+      debugWarn(`[AudioManager] Failed to play audio for ${userId}:`, err)
     })
 
   audioElements.value.set(userId, element)
   attachedTrackSids.value.set(userId, track.sid)
 
-  console.log(
+  debugLog(
     `[AudioManager] Created audio element for ${userId}, total elements: ${audioElements.value.size}`,
   )
   return element
@@ -82,7 +83,7 @@ const createAudioElement = (userId: string, track: RemoteAudioTrack): HTMLAudioE
 
 // Remove audio element for a user
 const removeAudioElement = (userId: string) => {
-  console.log(`[AudioManager] Removing audio element for user: ${userId}`)
+  debugLog(`[AudioManager] Removing audio element for user: ${userId}`)
   const element = audioElements.value.get(userId)
   if (element) {
     // Stop playback and clean up
@@ -93,11 +94,11 @@ const removeAudioElement = (userId: string) => {
     audioElements.value.delete(userId)
     attachedTrackSids.value.delete(userId)
 
-    console.log(
+    debugLog(
       `[AudioManager] Removed audio element for ${userId}, remaining: ${audioElements.value.size}`,
     )
   } else {
-    console.warn(`[AudioManager] No audio element found for ${userId}`)
+    debugWarn(`[AudioManager] No audio element found for ${userId}`)
   }
 }
 
@@ -105,7 +106,7 @@ const removeAudioElement = (userId: string) => {
 watch(
   () => audioTracksStore.remoteAudioTracks,
   (newTracks, oldTracks) => {
-    console.log(
+    debugLog(
       `[AudioManager] Track change detected. Old: ${oldTracks?.size || 0}, New: ${newTracks.size}`,
     )
 
@@ -114,31 +115,31 @@ watch(
       const existingSid = attachedTrackSids.value.get(userId)
       const isNewTrack = existingSid !== track.sid
 
-      console.log(
+      debugLog(
         `[AudioManager] Checking track for ${userId}, sid: ${track.sid}, existingSid: ${existingSid}, isNewTrack: ${isNewTrack}`,
       )
 
       // Always remove existing and recreate on any track change (including reconnection)
       if (audioElements.value.has(userId)) {
-        console.log(
+        debugLog(
           `[AudioManager] Removing existing element for ${userId} (sid changed or reconnect)`,
         )
         removeAudioElement(userId)
       }
 
-      console.log(`[AudioManager] Creating NEW audio element for ${userId}`)
+      debugLog(`[AudioManager] Creating NEW audio element for ${userId}`)
       createAudioElement(userId, track)
     })
 
     // Handle removed tracks - remove audio elements
     oldTracks?.forEach((track, userId) => {
       if (!newTracks.has(userId)) {
-        console.log(`[AudioManager] Removing audio element for disconnected user ${userId}`)
+        debugLog(`[AudioManager] Removing audio element for disconnected user ${userId}`)
         removeAudioElement(userId)
       }
     })
 
-    console.log(`[AudioManager] After track change, total elements: ${audioElements.value.size}`)
+    debugLog(`[AudioManager] After track change, total elements: ${audioElements.value.size}`)
   },
   { deep: true },
 )
@@ -151,7 +152,7 @@ onMounted(() => {
   playCheckInterval = setInterval(() => {
     audioElements.value.forEach((element, userId) => {
       if (element.paused) {
-        console.log(
+        debugLog(
           `[AudioManager] Periodic check: element paused for ${userId}, attempting to play`,
         )
         element.play().catch(() => {})
@@ -214,7 +215,7 @@ watch(
 
 // Cleanup on unmount
 onUnmounted(() => {
-  console.log(`[AudioManager] Unmounting, cleaning up ${audioElements.value.size} elements`)
+  debugLog(`[AudioManager] Unmounting, cleaning up ${audioElements.value.size} elements`)
 
   if (playCheckInterval) {
     clearInterval(playCheckInterval)

@@ -107,6 +107,11 @@ export function getLogBufferSize(): number {
   return logBuffer.getSize()
 }
 
+export function debugError(message: string, ...optionalParams: unknown[]): void {
+  storeInBuffer("error", message, optionalParams)
+  console.error(message, ...optionalParams)
+}
+
 export function debugLog(message: string, ...optionalParams: unknown[]): void {
   const debugStore = useDebugSettingsStore()
   storeInBuffer("log", message, optionalParams)
@@ -123,9 +128,4 @@ export function debugWarn(message: string, ...optionalParams: unknown[]): void {
   if (debugStore.isDebugLogsEnabled) {
     console.warn(message, ...optionalParams)
   }
-}
-
-export function debugError(message: string, ...optionalParams: unknown[]): void {
-  storeInBuffer("error", message, optionalParams)
-  console.error(message, ...optionalParams)
 }

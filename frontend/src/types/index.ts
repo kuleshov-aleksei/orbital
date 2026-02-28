@@ -320,6 +320,7 @@ export interface DebugLog {
   id: number
   user_id: string
   username: string
+  version: string
   created_at: string
   log_filename: string
 }

@@ -23,7 +23,7 @@ func NewDebugLogService(repo *repository.DebugLogRepository, dataDir string) *De
 	}
 }
 
-func (s *DebugLogService) SaveLog(userID, username, logs string) (*models.DebugLog, error) {
+func (s *DebugLogService) SaveLog(userID, username, version, logs string) (*models.DebugLog, error) {
 	logsDir := filepath.Join(s.dataDir, "logs")
 	if err := os.MkdirAll(logsDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create logs directory: %w", err)
@@ -41,6 +41,7 @@ func (s *DebugLogService) SaveLog(userID, username, logs string) (*models.DebugL
 	debugLog := &models.DebugLog{
 		UserID:      userID,
 		Username:    username,
+		Version:     version,
 		CreatedAt:   time.Now(),
 		LogFilename: filename,
 	}

@@ -390,6 +390,7 @@ export const apiService = {
   async sendLogs(
     userId: string,
     username: string,
+    version: string,
     logs: string[],
   ): Promise<{ status: string; message: string; log_id: number }> {
     return apiRequest<{ status: string; message: string; log_id: number }>("/logs", {
@@ -397,6 +398,7 @@ export const apiService = {
       body: JSON.stringify({
         user_id: userId,
         username: username,
+        version: version,
         logs: logs.join("\n"),
       }),
     })

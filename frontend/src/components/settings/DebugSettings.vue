@@ -33,8 +33,8 @@
 
     <!-- Send Logs to Server -->
     <div class="pt-2 border-t border-gray-700">
-      <div class="flex items-center justify-between">
-        <div>
+      <div class="flex items-center justify-between gap-4">
+        <div class="flex-1 min-w-0">
           <label class="text-sm font-medium text-gray-200 block"> Send Logs to Server </label>
 
           <p class="text-xs text-gray-400 mt-0.5">
@@ -45,7 +45,7 @@
 
         <button
           type="button"
-          class="px-3 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 text-white rounded transition-colors"
+          class="px-3 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 text-white rounded transition-colors whitespace-nowrap"
           :disabled="sendingLogs"
           @click="sendLogs">
           <span v-if="sendingLogs">Sending...</span>
@@ -67,19 +67,6 @@
         <span class="font-medium">Note:</span>
         Error messages will always be shown in the console regardless of this setting, as they are
         important for debugging issues.
-      </p>
-    </div>
-
-    <!-- Application Version -->
-    <div class="pt-4 border-t border-gray-700">
-      <div class="flex items-center gap-2">
-        <PhInfo class="w-4 h-4 text-gray-400" />
-
-        <span class="text-sm font-medium text-gray-300">Version</span>
-      </div>
-
-      <p class="text-sm text-gray-400 mt-1 font-mono">
-        {{ appVersion }}
       </p>
     </div>
   </div>
@@ -129,7 +116,7 @@ async function sendLogs() {
     }
 
     const logMessages = logs.map((log) => log.message)
-    await apiService.sendLogs(userStore.currentUser.id, userStore.currentUser.nickname, logMessages)
+    await apiService.sendLogs(userStore.currentUser.id, userStore.currentUser.nickname, appVersion, logMessages)
     sendLogsStatus.value = "Logs sent successfully!"
     sendLogsSuccess.value = true
   } catch (error) {

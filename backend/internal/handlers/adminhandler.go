@@ -222,7 +222,7 @@ func (h *AdminHandler) UploadDebugLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	debugLog, err := h.debugLogService.SaveLog(req.UserID, req.Username, req.Logs)
+	debugLog, err := h.debugLogService.SaveLog(req.UserID, req.Username, req.Version, req.Logs)
 	if err != nil {
 		http.Error(w, "Failed to save logs: "+err.Error(), http.StatusInternalServerError)
 		return

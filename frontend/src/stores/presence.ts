@@ -11,6 +11,7 @@ import { useRoomStore } from "./room"
 import { useCallStore } from "./call"
 import { useUserStore } from "./user"
 import { toggleOn, toggleOff, transitionOpen, transitionClose } from "@/services/sounds"
+import { debugLog } from "@/utils/debug"
 
 // Debounce helper for batching updates
 function debounce<T extends (...args: unknown[]) => void>(
@@ -149,13 +150,13 @@ export const usePresenceStore = defineStore("presence", () => {
 
     // Subscribe to participant events
     lkRoom.on(RoomEvent.ParticipantConnected, async (participant: RemoteParticipant) => {
-      console.log("[Presence] Participant connected:", participant.identity)
+      debugLog("[Presence] Participant connected:", participant.identity)
       updateParticipantFromLiveKit(participant)
       await transitionOpen()
     })
 
     lkRoom.on(RoomEvent.ParticipantDisconnected, async (participant: RemoteParticipant) => {
-      console.log("[Presence] Participant disconnected:", participant.identity)
+      debugLog("[Presence] Participant disconnected:", participant.identity)
       const metadata = extractMetadata(participant)
       participants.value.delete(metadata.user_id)
       await transitionClose()
@@ -164,7 +165,7 @@ export const usePresenceStore = defineStore("presence", () => {
     lkRoom.on(
       RoomEvent.ParticipantAttributesChanged,
       async (changedAttributes: Record<string, string | undefined>, participant: Participant) => {
-        console.log("[Presence] Participant attributes changed:", {
+        debugLog("[Presence] Participant attributes changed:", {
           identity: participant?.identity,
           name: participant?.name,
           attributes: participant?.attributes,
@@ -232,12 +233,12 @@ export const usePresenceStore = defineStore("presence", () => {
     })
 
     lkRoom.on(RoomEvent.TrackMuted, (track, participant: Participant) => {
-      console.log("[Presence] Track muted:", participant.identity, track.source)
+      debugLog("[Presence] Track muted:", participant.identity, track.source)
       updateParticipantFromLiveKit(participant)
     })
 
     lkRoom.on(RoomEvent.TrackUnmuted, (track, participant: Participant) => {
-      console.log("[Presence] Track unmuted:", participant.identity, track.source)
+      debugLog("[Presence] Track unmuted:", participant.identity, track.source)
       updateParticipantFromLiveKit(participant)
     })
 

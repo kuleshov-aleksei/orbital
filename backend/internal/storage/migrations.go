@@ -104,6 +104,11 @@ CREATE INDEX IF NOT EXISTS idx_users_nickname ON users(nickname);`,
 CREATE INDEX IF NOT EXISTS idx_debug_logs_user_id ON debug_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_debug_logs_created_at ON debug_logs(created_at);`,
 	},
+	{
+		Version: 11,
+		Name:    "add_version_to_debug_logs",
+		SQL:     `ALTER TABLE debug_logs ADD COLUMN version TEXT DEFAULT '';`,
+	},
 }
 
 func (db *DB) RunMigrations() error {

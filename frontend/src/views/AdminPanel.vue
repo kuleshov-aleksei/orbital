@@ -206,6 +206,10 @@
                 <span class="text-xs px-2 py-0.5 bg-gray-600 text-gray-300 rounded">
                   ID: {{ log.user_id.slice(0, 8) }}...
                 </span>
+
+                <span v-if="log.version" class="text-xs px-2 py-0.5 bg-indigo-600/20 text-indigo-400 rounded">
+                  {{ log.version }}
+                </span>
               </div>
 
               <div class="text-sm text-gray-400">
@@ -219,6 +223,13 @@
                 class="px-3 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors"
                 @click="viewLog(log.id)">
                 View
+              </button>
+
+              <button
+                type="button"
+                class="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
+                @click="downloadLog(log)">
+                Download
               </button>
 
               <button
@@ -537,6 +548,23 @@ const viewLog = async (logId: number) => {
     showLogModal.value = true
   } catch (error) {
     console.error("Failed to load log:", error)
+  }
+}
+
+const downloadLog = async (log: DebugLog) => {
+  try {
+    const response = await apiService.getLog(log.id)
+    const blob = new Blob([response.content], { type: "text/plain" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = response.log.log_filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  } catch (error) {
+    console.error("Failed to download log:", error)
   }
 }
 
