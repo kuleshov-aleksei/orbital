@@ -31,6 +31,36 @@
       </button>
     </div>
 
+    <!-- Send Logs to Server -->
+    <div class="pt-2 border-t border-gray-700">
+      <div class="flex items-center justify-between gap-4">
+        <div class="flex-1 min-w-0">
+          <label class="text-sm font-medium text-gray-200 block"> Send Logs to Server </label>
+
+          <p class="text-xs text-gray-400 mt-0.5">
+            Upload your debug logs to help troubleshoot issues. Logs are stored securely and only
+            accessible to administrators.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          class="px-3 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 text-white rounded transition-colors whitespace-nowrap"
+          :disabled="sendingLogs"
+          @click="sendLogs">
+          <span v-if="sendingLogs">Sending...</span>
+          <span v-else>Send Logs</span>
+        </button>
+      </div>
+
+      <p
+        v-if="sendLogsStatus"
+        class="text-xs mt-2"
+        :class="sendLogsSuccess ? 'text-green-400' : 'text-red-400'">
+        {{ sendLogsStatus }}
+      </p>
+    </div>
+
     <!-- Note about error logs -->
     <div class="pt-2 border-t border-gray-700">
       <p class="text-xs text-gray-500">
@@ -39,40 +69,62 @@
         important for debugging issues.
       </p>
     </div>
-
-    <!-- Application Version -->
-    <div class="pt-4 border-t border-gray-700">
-      <div class="flex items-center gap-2">
-        <PhInfo class="w-4 h-4 text-gray-400" />
-
-        <span class="text-sm font-medium text-gray-300">Version</span>
-      </div>
-
-      <p class="text-sm text-gray-400 mt-1 font-mono">
-        {{ appVersion }}
-      </p>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue"
+import { computed, ref } from "vue"
 import { useDebugSettingsStore } from "@/stores/debugSettings"
+import { useUserStore } from "@/stores/user"
+import { apiService } from "@/services/api"
+import { getLogBuffer } from "@/utils/debug"
 import { PhBug, PhInfo } from "@phosphor-icons/vue"
 
-// Global constant defined in vite.config.ts
 declare const __APP_VERSION__: string
 
 const debugStore = useDebugSettingsStore()
+const userStore = useUserStore()
 
-// Computed
 const debugLogsEnabled = computed(() => debugStore.isDebugLogsEnabled)
 
-// App version from build
 const appVersion = __APP_VERSION__
 
-// Methods
+const sendingLogs = ref(false)
+const sendLogsStatus = ref("")
+const sendLogsSuccess = ref(false)
+
 function toggleDebugLogs() {
   debugStore.toggleDebugLogs(!debugLogsEnabled.value)
+}
+
+async function sendLogs() {
+  if (!userStore.currentUser) {
+    sendLogsStatus.value = "You must be logged in to send logs"
+    sendLogsSuccess.value = false
+    return
+  }
+
+  sendingLogs.value = true
+  sendLogsStatus.value = ""
+
+  try {
+    const logs = getLogBuffer()
+    if (logs.length === 0) {
+      sendLogsStatus.value = "No logs to send"
+      sendLogsSuccess.value = false
+      return
+    }
+
+    const logMessages = logs.map((log) => log.message)
+    await apiService.sendLogs(userStore.currentUser.id, userStore.currentUser.nickname, appVersion, logMessages)
+    sendLogsStatus.value = "Logs sent successfully!"
+    sendLogsSuccess.value = true
+  } catch (error) {
+    console.error("Failed to send logs:", error)
+    sendLogsStatus.value = "Failed to send logs"
+    sendLogsSuccess.value = false
+  } finally {
+    sendingLogs.value = false
+  }
 }
 </script>

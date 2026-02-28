@@ -24,22 +24,22 @@ const (
 
 // User represents a user in the system
 type User struct {
-	ID            string       `json:"id"`
-	Nickname      string       `json:"nickname"`
-	OAuthNickname string       `json:"oauth_nickname,omitempty"` // Original OAuth nickname
-	Status        string       `json:"status"`                   // online, away, dnd
-	IsSpeaking    bool         `json:"is_speaking"`
-	IsMuted       bool         `json:"is_muted"`
-	IsDeafened    bool         `json:"is_deafened"`
-	CreatedAt     time.Time    `json:"created_at"`
-	LastSeen      time.Time    `json:"last_seen"`
-	AuthProvider  AuthProvider `json:"auth_provider"`
-	ProviderID    string       `json:"provider_id,omitempty"`
-	Email         string       `json:"email,omitempty"`
-	AvatarURL     string       `json:"avatar_url,omitempty"`
-	IsGuest       bool         `json:"is_guest"`
-	Role          string       `json:"role"` // guest, user, admin, super_admin
-	PasswordHash  string       `json:"-"`    // Never exposed to frontend
+	ID               string       `json:"id"`
+	Nickname         string       `json:"nickname"`
+	OriginalNickname string       `json:"original_nickname,omitempty"` // Immutable login key
+	Status           string       `json:"status"`                      // online, away, dnd
+	IsSpeaking       bool         `json:"is_speaking"`
+	IsMuted          bool         `json:"is_muted"`
+	IsDeafened       bool         `json:"is_deafened"`
+	CreatedAt        time.Time    `json:"created_at"`
+	LastSeen         time.Time    `json:"last_seen"`
+	AuthProvider     AuthProvider `json:"auth_provider"`
+	ProviderID       string       `json:"provider_id,omitempty"`
+	Email            string       `json:"email,omitempty"`
+	AvatarURL        string       `json:"avatar_url,omitempty"`
+	IsGuest          bool         `json:"is_guest"`
+	Role             string       `json:"role"` // guest, user, admin, super_admin
+	PasswordHash     string       `json:"-"`    // Never exposed to frontend
 }
 
 // PublicUser represents a user with limited public information
@@ -234,4 +234,22 @@ type LoginResponse struct {
 	Token     string    `json:"token"`
 	User      User      `json:"user"`
 	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// DebugLog represents a debug log entry
+type DebugLog struct {
+	ID          int64     `json:"id"`
+	UserID      string    `json:"user_id"`
+	Username    string    `json:"username"`
+	Version     string    `json:"version"`
+	CreatedAt   time.Time `json:"created_at"`
+	LogFilename string    `json:"log_filename"`
+}
+
+// DebugLogUploadRequest represents a request to upload debug logs
+type DebugLogUploadRequest struct {
+	UserID   string `json:"user_id"`
+	Username string `json:"username"`
+	Version  string `json:"version"`
+	Logs     string `json:"logs"`
 }

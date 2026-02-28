@@ -154,6 +154,21 @@
         <GoogleIcon class="w-4 h-4 mr-2" />
         Login with Google
       </button>
+
+      <!-- Clear Guest Data Button -->
+      <div class="pt-2 border-t border-gray-600 mt-4">
+        <button
+          type="button"
+          class="w-full flex items-center justify-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors duration-200 text-sm font-medium"
+          @click="handleClearGuestData">
+          <PhSignOut class="w-4 h-4 mr-2" />
+          Logout
+        </button>
+
+        <p class="text-xs text-gray-500 mt-2 text-center">
+          This will remove your guest account data from this device.
+        </p>
+      </div>
     </div>
 
     <!-- Admin Panel Button - Only for super admins -->
@@ -355,6 +370,13 @@ function handleLoginWithGoogle() {
 async function handleLogout() {
   if (confirm("This will clear your session and you'll need to login again. Continue?")) {
     await userStore.logout()
+    emit("logout")
+  }
+}
+
+function handleClearGuestData() {
+  if (confirm("This will remove your guest account data from this device. Continue?")) {
+    userStore.clearUser()
     emit("logout")
   }
 }

@@ -1,22 +1,16 @@
 <template>
-  <!-- AudioManager: Hidden component that manages all audio playback -->
-  <!-- This component creates audio elements in a hidden container -->
-  <div class="audio-manager hidden" aria-hidden="true">
-    <audio
-      v-for="[userId, track] in audioTracks"
-      :key="userId"
-      :ref="(el) => setAudioElement(userId, el as HTMLAudioElement)"
-      autoplay
-      playsinline />
-  </div>
+  <!-- AudioManager: Hidden container that manages all audio playback -->
+  <!-- Audio elements are created/destroyed programmatically -->
+  <div ref="audioContainer" class="audio-manager hidden" aria-hidden="true" />
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onUnmounted } from "vue"
+import { ref, watch, onUnmounted, onMounted, useTemplateRef } from "vue"
 import type { RemoteAudioTrack } from "livekit-client"
+import { useAudioTracksStore } from "@/stores/audioTracks"
+import { debugLog, debugWarn, debugError } from "@/utils/debug"
 
 interface Props {
-  audioTracks: Map<string, RemoteAudioTrack>
   volumes: Map<string, number>
   isDeafened: boolean
   mutedUsers: Set<string>
@@ -24,83 +18,148 @@ interface Props {
 
 const props = defineProps<Props>()
 
-// Store references to audio elements
+// Use shared store for audio tracks
+const audioTracksStore = useAudioTracksStore()
+
+const audioContainer = useTemplateRef<HTMLElement>("audioContainer")
+
+// Track created audio elements by userId
 const audioElements = ref<Map<string, HTMLAudioElement>>(new Map())
+// Track the sid of the attached track to detect reconnection
+const attachedTrackSids = ref<Map<string, string>>(new Map())
 
-// Store track attachment state to prevent duplicate attachments
-const attachedTracks = ref<Map<string, boolean>>(new Map())
+// Create audio element for a user
+const createAudioElement = (userId: string, track: RemoteAudioTrack): HTMLAudioElement => {
+  debugLog(`[AudioManager] Creating audio element for user: ${userId}, track sid: ${track.sid}`)
 
-// Set audio element reference
-const setAudioElement = (userId: string, element: HTMLAudioElement | null) => {
-  if (element) {
-    audioElements.value.set(userId, element)
-    // Attach track if available
-    void attachTrackToElement(userId, element)
-  }
-}
+  // Always create a new audio element (don't reuse)
+  const element = document.createElement("audio")
+  element.autoplay = true
 
-// Attach track to audio element
-const attachTrackToElement = async (userId: string, element: HTMLAudioElement) => {
-  // Prevent duplicate attachments
-  if (attachedTracks.value.get(userId)) {
-    return
-  }
-
-  const track = props.audioTracks.get(userId)
-  if (!track || !track.mediaStreamTrack) {
-    return
-  }
-
-  try {
-    // Create MediaStream from track
+  // Create MediaStream from track
+  if (track.mediaStreamTrack) {
     const stream = new MediaStream([track.mediaStreamTrack])
     element.srcObject = stream
+    debugLog(
+      `[AudioManager] Created MediaStream for ${userId}, track readyState: ${track.mediaStreamTrack.readyState}`,
+    )
+  } else {
+    debugWarn(`[AudioManager] No mediaStreamTrack for ${userId}!`)
+  }
 
-    // Apply initial volume
-    const volume = props.volumes.get(userId) ?? 80
-    element.volume = volume / 100
+  // Apply initial settings
+  const volume = props.volumes.get(userId) ?? 80
+  element.volume = volume / 100
 
-    // Apply mute/deafen state
-    const isMuted = props.mutedUsers.has(userId)
-    element.muted = props.isDeafened || isMuted
+  const isMuted = props.mutedUsers.has(userId)
+  element.muted = props.isDeafened || isMuted
 
-    // Mark as attached
-    attachedTracks.value.set(userId, true)
+  // Append to container
+  if (audioContainer.value) {
+    audioContainer.value.appendChild(element)
+    debugLog(`[AudioManager] Appended element to container for ${userId}`)
+  } else {
+    debugWarn(`[AudioManager] Audio container not ready for ${userId}!`)
+  }
 
-    // Play the audio
-    await element.play().catch(() => {
-      // Silently ignore play errors (common during rapid changes)
+  // Play the audio
+  element
+    .play()
+    .then(() => {
+      debugLog(`[AudioManager] Playing audio for ${userId}`)
     })
-  } catch (error) {
-    console.warn(`[AudioManager] Failed to attach track for ${userId}:`, error)
+    .catch((err) => {
+      debugWarn(`[AudioManager] Failed to play audio for ${userId}:`, err)
+    })
+
+  audioElements.value.set(userId, element)
+  attachedTrackSids.value.set(userId, track.sid)
+
+  debugLog(
+    `[AudioManager] Created audio element for ${userId}, total elements: ${audioElements.value.size}`,
+  )
+  return element
+}
+
+// Remove audio element for a user
+const removeAudioElement = (userId: string) => {
+  debugLog(`[AudioManager] Removing audio element for user: ${userId}`)
+  const element = audioElements.value.get(userId)
+  if (element) {
+    // Stop playback and clean up
+    element.pause()
+    element.srcObject = null
+    element.remove()
+
+    audioElements.value.delete(userId)
+    attachedTrackSids.value.delete(userId)
+
+    debugLog(
+      `[AudioManager] Removed audio element for ${userId}, remaining: ${audioElements.value.size}`,
+    )
+  } else {
+    debugWarn(`[AudioManager] No audio element found for ${userId}`)
   }
 }
 
-// Watch for new tracks and attach them
+// Watch for track changes from the store
 watch(
-  () => props.audioTracks,
+  () => audioTracksStore.remoteAudioTracks,
   (newTracks, oldTracks) => {
-    // Handle new tracks
+    debugLog(
+      `[AudioManager] Track change detected. Old: ${oldTracks?.size || 0}, New: ${newTracks.size}`,
+    )
+
+    // Handle new tracks - ALWAYS create new element for each track
     newTracks.forEach((track, userId) => {
-      const element = audioElements.value.get(userId)
-      if (element && !attachedTracks.value.get(userId)) {
-        void attachTrackToElement(userId, element)
+      const existingSid = attachedTrackSids.value.get(userId)
+      const isNewTrack = existingSid !== track.sid
+
+      debugLog(
+        `[AudioManager] Checking track for ${userId}, sid: ${track.sid}, existingSid: ${existingSid}, isNewTrack: ${isNewTrack}`,
+      )
+
+      // Always remove existing and recreate on any track change (including reconnection)
+      if (audioElements.value.has(userId)) {
+        debugLog(
+          `[AudioManager] Removing existing element for ${userId} (sid changed or reconnect)`,
+        )
+        removeAudioElement(userId)
+      }
+
+      debugLog(`[AudioManager] Creating NEW audio element for ${userId}`)
+      createAudioElement(userId, track)
+    })
+
+    // Handle removed tracks - remove audio elements
+    oldTracks?.forEach((track, userId) => {
+      if (!newTracks.has(userId)) {
+        debugLog(`[AudioManager] Removing audio element for disconnected user ${userId}`)
+        removeAudioElement(userId)
       }
     })
 
-    // Handle removed tracks - detach them
-    oldTracks?.forEach((_, userId) => {
-      if (!newTracks.has(userId)) {
-        const element = audioElements.value.get(userId)
-        if (element) {
-          element.srcObject = null
-          attachedTracks.value.delete(userId)
-        }
-      }
-    })
+    debugLog(`[AudioManager] After track change, total elements: ${audioElements.value.size}`)
   },
   { deep: true },
 )
+
+// Periodic check to ensure audio is still playing
+let playCheckInterval: ReturnType<typeof setInterval> | null = null
+
+onMounted(() => {
+  // Start periodic check every 3 seconds
+  playCheckInterval = setInterval(() => {
+    audioElements.value.forEach((element, userId) => {
+      if (element.paused) {
+        debugLog(
+          `[AudioManager] Periodic check: element paused for ${userId}, attempting to play`,
+        )
+        element.play().catch(() => {})
+      }
+    })
+  }, 3000)
+})
 
 // Watch for volume changes
 watch(
@@ -156,16 +215,23 @@ watch(
 
 // Cleanup on unmount
 onUnmounted(() => {
-  // Detach all tracks
+  debugLog(`[AudioManager] Unmounting, cleaning up ${audioElements.value.size} elements`)
+
+  if (playCheckInterval) {
+    clearInterval(playCheckInterval)
+    playCheckInterval = null
+  }
+
   audioElements.value.forEach((element) => {
-    element.srcObject = null
     element.pause()
+    element.srcObject = null
+    element.remove()
   })
   audioElements.value.clear()
-  attachedTracks.value.clear()
+  attachedTrackSids.value.clear()
 })
 
-// Expose method to mute/unmute a specific user
+// Expose methods
 const muteUser = (userId: string, muted: boolean) => {
   const element = audioElements.value.get(userId)
   if (element) {
@@ -173,7 +239,6 @@ const muteUser = (userId: string, muted: boolean) => {
   }
 }
 
-// Expose method to set volume for a specific user
 const setUserVolume = (userId: string, volume: number) => {
   const element = audioElements.value.get(userId)
   if (element) {

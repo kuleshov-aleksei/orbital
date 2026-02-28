@@ -175,17 +175,26 @@
               <!-- Password -->
               <div class="mb-3 relative">
                 <label class="block text-gray-400 text-sm mb-1" for="password">Password</label>
-                <input
-                  id="password"
-                  v-model="password"
-                  type="password"
-                  class="w-full px-4 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
-                  :class="passwordError ? 'border-red-500' : 'border-gray-600'"
-                  :placeholder="isRegisterMode ? 'Create a password' : 'Enter your password'"
-                  required
-                  @input="handlePasswordInput"
-                  @focus="showPasswordTooltip = true"
-                  @blur="handlePasswordBlur" />
+                <div class="relative">
+                  <input
+                    id="password"
+                    v-model="password"
+                    :type="showPassword ? 'text' : 'password'"
+                    class="w-full px-4 py-2 pr-10 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
+                    :class="passwordError ? 'border-red-500' : 'border-gray-600'"
+                    :placeholder="isRegisterMode ? 'Create a password' : 'Enter your password'"
+                    required
+                    @input="handlePasswordInput"
+                    @focus="showPasswordTooltip = true"
+                    @blur="handlePasswordBlur" />
+                  <button
+                    type="button"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                    @click="showPassword = !showPassword">
+                    <PhEye v-if="!showPassword" class="w-5 h-5" />
+                    <PhEyeSlash v-else class="w-5 h-5" />
+                  </button>
+                </div>
 
                 <!-- Password Requirements Tooltip -->
                 <div
@@ -216,16 +225,25 @@
                 <label class="block text-gray-400 text-sm mb-1" for="confirmPassword"
                   >Confirm Password</label
                 >
-                <input
-                  id="confirmPassword"
-                  v-model="confirmPassword"
-                  type="password"
-                  class="w-full px-4 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
-                  :class="confirmPasswordError ? 'border-red-500' : 'border-gray-600'"
-                  placeholder="Confirm your password"
-                  required
-                  @input="handleConfirmPasswordInput"
-                  @blur="confirmPasswordTouched = true" />
+                <div class="relative">
+                  <input
+                    id="confirmPassword"
+                    v-model="confirmPassword"
+                    :type="showConfirmPassword ? 'text' : 'password'"
+                    class="w-full px-4 py-2 pr-10 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
+                    :class="confirmPasswordError ? 'border-red-500' : 'border-gray-600'"
+                    placeholder="Confirm your password"
+                    required
+                    @input="handleConfirmPasswordInput"
+                    @blur="confirmPasswordTouched = true" />
+                  <button
+                    type="button"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                    @click="showConfirmPassword = !showConfirmPassword">
+                    <PhEye v-if="!showConfirmPassword" class="w-5 h-5" />
+                    <PhEyeSlash v-else class="w-5 h-5" />
+                  </button>
+                </div>
                 <p
                   v-if="confirmPasswordTouched && confirmPassword && password !== confirmPassword"
                   class="text-red-400 text-xs mt-1">
@@ -275,7 +293,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue"
 import { useUserStore } from "@/stores"
-import { PhUser, PhLock } from "@phosphor-icons/vue"
+import { PhUser, PhLock, PhEye, PhEyeSlash } from "@phosphor-icons/vue"
 import DiscordIcon from "~icons/simple-icons/discord"
 import GoogleIcon from "~icons/logos/google-icon"
 
@@ -293,6 +311,8 @@ const confirmPassword = ref("")
 const email = ref("")
 const nickname = ref("")
 const showPasswordTooltip = ref(false)
+const showPassword = ref(false)
+const showConfirmPassword = ref(false)
 const nicknameTouched = ref(false)
 const emailTouched = ref(false)
 const passwordTouched = ref(false)

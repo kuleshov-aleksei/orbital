@@ -5,6 +5,19 @@
       About
     </h3>
 
+    <!-- Application Version -->
+    <div class="pt-2 border-t border-gray-700">
+      <div class="flex items-center gap-2">
+        <PhInfo class="w-4 h-4 text-gray-400" />
+
+        <span class="text-sm font-medium text-gray-300">Version</span>
+      </div>
+
+      <p class="text-sm text-gray-400 mt-1 font-mono">
+        {{ appVersion }}
+      </p>
+    </div>
+
     <p class="text-sm text-gray-400">This application uses the following open source libraries.</p>
 
     <div v-if="loading" class="py-4 text-center text-gray-400">Loading licenses...</div>
@@ -56,6 +69,8 @@
 import { ref, onMounted } from "vue"
 import { PhInfo } from "@phosphor-icons/vue"
 
+declare const __APP_VERSION__: string
+
 interface License {
   name: string
   version: string
@@ -68,6 +83,8 @@ interface License {
 const licenses = ref<License[]>([])
 const loading = ref(true)
 const error = ref("")
+
+const appVersion = __APP_VERSION__
 
 onMounted(async () => {
   try {

@@ -91,9 +91,37 @@ CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);`,
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_nickname ON users(nickname);`,
 	},
+	{
+		Version: 10,
+		Name:    "create_debug_logs_table",
+		SQL: `CREATE TABLE IF NOT EXISTS debug_logs (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id TEXT NOT NULL,
+			username TEXT NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			log_filename TEXT NOT NULL
+		);
+CREATE INDEX IF NOT EXISTS idx_debug_logs_user_id ON debug_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_debug_logs_created_at ON debug_logs(created_at);`,
+	},
+	{
+		Version: 11,
+		Name:    "add_version_to_debug_logs",
+		SQL:     `ALTER TABLE debug_logs ADD COLUMN version TEXT DEFAULT '';`,
+	},
+	{
+		Version: 12,
+		Name:    "populate_original_nickname_for_all_users",
+		SQL:     `UPDATE users SET oauth_nickname = nickname WHERE oauth_nickname IS NULL OR oauth_nickname = '';`,
+	},
+	{
+		Version: 13,
+		Name:    "rename_oauth_nickname_to_original_nickname",
+		SQL: `ALTER TABLE users RENAME COLUMN oauth_nickname TO original_nickname;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_original_nickname_provider ON users(original_nickname, auth_provider) WHERE auth_provider IN ('password', 'guest');`,
+	},
 }
 
-// RunMigrations runs all pending migrations
 func (db *DB) RunMigrations() error {
 	// Create migrations tracking table if it doesn't exist
 	if err := db.createMigrationsTable(); err != nil {

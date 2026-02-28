@@ -50,6 +50,7 @@ func main() {
 	var categoryService *service.CategoryService
 	var roomService *service.RoomService
 	var userRepo *repository.UserRepository
+	var debugLogService *service.DebugLogService
 
 	if cfg.Database.Path != "" {
 		db, err := storage.NewDB(cfg.Database.Path)
@@ -67,10 +68,12 @@ func main() {
 		categoryRepo := repository.NewCategoryRepository(db)
 		roomRepo := repository.NewRoomRepository(db)
 		userRepo = repository.NewUserRepository(db)
+		debugLogRepo := repository.NewDebugLogRepository(db)
 
 		// Initialize services with repositories
 		categoryService = service.NewCategoryService(categoryRepo)
 		roomService = service.NewRoomService(roomRepo, userRepo)
+		debugLogService = service.NewDebugLogService(debugLogRepo, "data")
 
 		// Load data from database
 		if err := categoryService.LoadFromDB(); err != nil {
@@ -120,7 +123,7 @@ func main() {
 	roomHandler := handlers.NewRoomHandler(roomService, categoryService, wsHub)
 	categoryHandler := handlers.NewCategoryHandler(categoryService, roomService, wsHub)
 	authHandler := handlers.NewAuthHandler(authService, roleService, cfg.Server.ExternalURL)
-	adminHandler := handlers.NewAdminHandler(roleService, userRepo)
+	adminHandler := handlers.NewAdminHandlerWithDebugLog(roleService, userRepo, debugLogService)
 	usersHandler := handlers.NewUsersHandler(userRepo, wsHub)
 	livekitHandler := handlers.NewLiveKitHandler(livekitService)
 	avatarHandler := handlers.NewAvatarHandler(avatarService, userRepo)
@@ -201,6 +204,12 @@ func main() {
 	superAdminRouter.HandleFunc("/users/{id}/promote", adminHandler.PromoteUser).Methods("POST")
 	superAdminRouter.HandleFunc("/users/{id}/demote", adminHandler.DemoteUser).Methods("POST")
 	superAdminRouter.HandleFunc("/users/{id}", adminHandler.DeleteUser).Methods("DELETE")
+	superAdminRouter.HandleFunc("/logs", adminHandler.ListDebugLogs).Methods("GET")
+	superAdminRouter.HandleFunc("/logs/{id}", adminHandler.GetDebugLog).Methods("GET")
+	superAdminRouter.HandleFunc("/logs/{id}", adminHandler.DeleteDebugLog).Methods("DELETE")
+
+	// Debug log upload route (authenticated users)
+	r.Handle("/api/logs", authHandler.AuthMiddleware(http.HandlerFunc(adminHandler.UploadDebugLog))).Methods("POST")
 
 	// Test-only routes (guarded to avoid accidental use).
 	// Allowed when either ORBITAL_E2E=1 is set OR the request explicitly opts in.

@@ -17,6 +17,7 @@ import {
 import { apiService } from "@/services/api"
 import { usePresenceStore } from "@/stores/presence"
 import { useAudioSettingsStore } from "@/stores/audioSettings"
+import { useAudioTracksStore } from "@/stores/audioTracks"
 import { useCallStore } from "@/stores/call"
 import { getLiveKitAudioConstraints } from "@/services/livekit-audio-processors"
 import { debugLog, debugWarn } from "@/utils/debug"
@@ -41,6 +42,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
   // Stores
   const presenceStore = usePresenceStore()
   const audioSettingsStore = useAudioSettingsStore()
+  const audioTracksStore = useAudioTracksStore()
   const callStore = useCallStore()
 
   // LiveKit Room instance
@@ -498,7 +500,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
       // Connect to room
       await lkRoom.connect(url, token)
 
-      const connectTime = performance.now() - connectStart
       debugLog(
         `[LiveKit][INFO]: Room connected (t=${(performance.now() - startTime).toFixed(0)}ms)`,
       )
@@ -555,6 +556,8 @@ export function useLiveKit(options: UseLiveKitOptions) {
       remoteAudioTracks.value.delete(participant.identity)
       remoteScreenTracks.value.delete(participant.identity)
       userScreenShareStates.value.delete(participant.identity)
+      // Also remove from audio tracks store
+      audioTracksStore.removeTrack(participant.identity)
       screenShareVersion.value++
     })
 
@@ -698,9 +701,20 @@ export function useLiveKit(options: UseLiveKitOptions) {
   ) => {
     const participantId = participant.identity
 
+    debugLog(
+      `[LiveKit] handleRemoteTrack: ${participantId}, track kind: ${track.kind}, track sid: ${track.sid}`,
+    )
+
     if (track.kind === Track.Kind.Audio) {
       const audioTrack = track
       remoteAudioTracks.value.set(participantId, audioTrack)
+
+      // Also update the shared store
+      audioTracksStore.setTrack(participantId, audioTrack)
+
+      debugLog(
+        `[LiveKit] Audio track stored for ${participantId}, store count: ${audioTracksStore.trackCount()}`,
+      )
 
       // Set initial volume if specified
       const volume = options.remoteStreamVolumes.get(participantId) ?? 80
@@ -741,9 +755,17 @@ export function useLiveKit(options: UseLiveKitOptions) {
     participant: RemoteParticipant,
   ) => {
     const participantId = participant.identity
+    debugLog(
+      `[LiveKit] handleTrackUnsubscribed: ${participantId}, track kind: ${track.kind}, track sid: ${track.sid}`,
+    )
 
     if (track.kind === Track.Kind.Audio) {
       remoteAudioTracks.value.delete(participantId)
+      // Also update the shared store
+      audioTracksStore.removeTrack(participantId)
+      debugLog(
+        `[LiveKit] Audio track removed for ${participantId}, store count: ${audioTracksStore.trackCount()}`,
+      )
     } else if (track.kind === Track.Kind.Video) {
       const videoTrack = track
       if (videoTrack.source === Track.Source.ScreenShare) {
@@ -1377,6 +1399,9 @@ export function useLiveKit(options: UseLiveKitOptions) {
     remoteAudioTracks.value.clear()
     remoteScreenTracks.value.clear()
     userScreenShareStates.value.clear()
+
+    // Clear audio tracks store
+    audioTracksStore.clearAll()
 
     // Clear presence store
     presenceStore.cleanup()

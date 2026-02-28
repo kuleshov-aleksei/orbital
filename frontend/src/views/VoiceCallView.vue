@@ -5,7 +5,6 @@
     data-testid="voice-call-view">
     <!-- Audio Manager - Handles all audio playback centrally -->
     <AudioManager
-      :audio-tracks="remoteAudioTracks"
       :volumes="props.remoteStreamVolumes"
       :is-deafened="isDeafened"
       :muted-users="mutedUsers" />
@@ -135,7 +134,6 @@ const mutedUsers = ref<Set<string>>(new Set())
 // Initialize LiveKit composable - destructure for template reactivity
 const {
   localStream,
-  remoteAudioTracks,
   isConnected,
   isScreenSharing,
   isCameraEnabled,

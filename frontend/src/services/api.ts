@@ -385,6 +385,38 @@ export const apiService = {
       body: JSON.stringify({ room_id: roomId }),
     })
   },
+
+  // Debug log API calls
+  async sendLogs(
+    userId: string,
+    username: string,
+    version: string,
+    logs: string[],
+  ): Promise<{ status: string; message: string; log_id: number }> {
+    return apiRequest<{ status: string; message: string; log_id: number }>("/logs", {
+      method: "POST",
+      body: JSON.stringify({
+        user_id: userId,
+        username: username,
+        version: version,
+        logs: logs.join("\n"),
+      }),
+    })
+  },
+
+  async getLogs(): Promise<DebugLog[]> {
+    return apiRequest<DebugLog[]>("/admin/logs")
+  },
+
+  async getLog(logId: number): Promise<{ log: DebugLog; content: string }> {
+    return apiRequest<{ log: DebugLog; content: string }>(`/admin/logs/${logId}`)
+  },
+
+  async deleteLog(logId: number): Promise<{ status: string; message: string }> {
+    return apiRequest<{ status: string; message: string }>(`/admin/logs/${logId}`, {
+      method: "DELETE",
+    })
+  },
 }
 
 // Utility functions
