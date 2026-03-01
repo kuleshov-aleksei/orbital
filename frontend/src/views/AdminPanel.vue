@@ -207,7 +207,9 @@
                   ID: {{ log.user_id.slice(0, 8) }}...
                 </span>
 
-                <span v-if="log.version" class="text-xs px-2 py-0.5 bg-indigo-600/20 text-indigo-400 rounded">
+                <span
+                  v-if="log.version"
+                  class="text-xs px-2 py-0.5 bg-indigo-600/20 text-indigo-400 rounded">
                   {{ log.version }}
                 </span>
               </div>

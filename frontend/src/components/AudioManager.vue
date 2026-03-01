@@ -152,9 +152,7 @@ onMounted(() => {
   playCheckInterval = setInterval(() => {
     audioElements.value.forEach((element, userId) => {
       if (element.paused) {
-        debugLog(
-          `[AudioManager] Periodic check: element paused for ${userId}, attempting to play`,
-        )
+        debugLog(`[AudioManager] Periodic check: element paused for ${userId}, attempting to play`)
         element.play().catch(() => {})
       }
     })

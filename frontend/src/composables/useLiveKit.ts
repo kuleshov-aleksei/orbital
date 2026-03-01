@@ -491,6 +491,10 @@ export function useLiveKit(options: UseLiveKitOptions) {
         dynacast: true,
         publishDefaults: {
           simulcast: true,
+          screenshareEncoding: {
+            maxBitrate: 9 * 1000 * 1000,
+            maxFramerate: 120,
+          },
         },
       })
 
@@ -1156,21 +1160,29 @@ export function useLiveKit(options: UseLiveKitOptions) {
     }
   }
 
-  // Get screen share video constraints
-  // Returns VideoPreset string for LiveKit's setScreenShareEnabled API
-  const getScreenShareVideoConstraints = (quality: ScreenShareQuality): string => {
-    // Map quality to LiveKit VideoPreset names
-    // These are standard LiveKit presets: https://docs.livekit.io/client-sdk-js/enums/VideoPreset.html
-    const presetMap: Record<ScreenShareQuality, string> = {
-      source: "screen_share", // Use LiveKit's default screen share preset
-      "1080p60": "screenShareH1080FPS60",
-      "1080p30": "screenShareH1080FPS30",
-      "720p30": "screenShareH720FPS30",
-      "360p30": "screenShareH360FPS30",
-      text: "screenShareH1080FPS5",
+  // Get screen share video constraints for capture
+  // Returns VideoResolution object for LiveKit's setScreenShareEnabled API
+  // Returns undefined for "source" to use maximum available from browser
+  const getScreenShareVideoConstraints = (
+    quality: ScreenShareQuality,
+  ): { width: number; height: number; frameRate: number } | undefined => {
+    // "source" quality: let browser decide maximum available
+    if (quality === "source") {
+      return undefined
     }
 
-    return presetMap[quality] || "screenShareH1080FPS30"
+    const resolutionMap: Record<
+      ScreenShareQuality,
+      { width: number; height: number; frameRate: number }
+    > = {
+      "1080p60": { width: 1920, height: 1080, frameRate: 60 },
+      "1080p30": { width: 1920, height: 1080, frameRate: 30 },
+      "720p30": { width: 1280, height: 720, frameRate: 30 },
+      "360p30": { width: 640, height: 360, frameRate: 30 },
+      text: { width: 1920, height: 1080, frameRate: 5 },
+    }
+
+    return resolutionMap[quality] || { width: 1920, height: 1080, frameRate: 30 }
   }
 
   // Reinitialize audio stream (when algorithm changes)
