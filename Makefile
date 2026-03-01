@@ -1,20 +1,23 @@
-.PHONY: help install build dev dev-public lint lint-full prettier test clean docker-build docker-up certs run-built licenses
+.PHONY: help install build dev dev-public lint lint-full prettier test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all
 
 # Default target
 help:
 	@echo "Available commands:"
-	@echo "  install      - Install dependencies for frontend and backend"
-	@echo "  build        - Build frontend and backend"
-	@echo "  dev          - Run development servers"
-	@echo "  dev-public   - Run development servers on all interfaces (0.0.0.0)"
-	@echo "  lint         - Run linters for frontend and backend"
-	@echo "  test         - Run tests"
-	@echo "  test-headed  - Run tests in headed mode"
-	@echo "  clean        - Clean build artifacts"
-	@echo "  docker-build - Build Docker images"
-	@echo "  docker-up    - Run with Docker Compose"
-	@echo "  run-built    - Run production build locally (nginx + binary, no Docker)"
-	@echo "  licenses     - Generate frontend licenses JSON"
+	@echo "  install           - Install dependencies for frontend and backend"
+	@echo "  build             - Build frontend and backend"
+	@echo "  dev               - Run development servers"
+	@echo "  dev-public        - Run development servers on all interfaces (0.0.0.0)"
+	@echo "  lint              - Run linters for frontend and backend"
+	@echo "  test              - Run tests"
+	@echo "  test-headed       - Run tests in headed mode"
+	@echo "  clean             - Clean build artifacts"
+	@echo "  docker-build      - Build Docker images"
+	@echo "  docker-up         - Run with Docker Compose"
+	@echo "  run-built         - Run production build locally (nginx + binary, no Docker)"
+	@echo "  licenses          - Generate frontend licenses JSON"
+	@echo "  build-electron       - Build Electron desktop app"
+	@echo "  build-electron-win   - Build Electron for Windows"
+	@echo "  build-electron-linux - Build Electron for Linux"
 
 # Install dependencies
 install:
@@ -204,3 +207,28 @@ run-built:
 		trap cleanup INT TERM EXIT; \
 		wait $$BACKEND_PID $$NGINX_PID \
 	'
+
+# Electron builds
+build-electron:
+	@echo "Installing electron dependencies..."
+	cd electron && npm install
+	@echo "Building electron for Linux..."
+	cd electron && npm run build
+
+build-electron-win:
+	@echo "Installing electron dependencies..."
+	cd electron && npm install
+	@echo "Building electron for Windows..."
+	cd electron && npm run build:win
+
+build-electron-linux:
+	@echo "Installing electron dependencies..."
+	cd electron && npm install
+	@echo "Building electron for Linux..."
+	cd electron && npm run build:linux
+
+build-electron-all:
+	@echo "Installing electron dependencies..."
+	cd electron && npm install
+	@echo "Building electron for all platforms..."
+	cd electron && npm run build:all
