@@ -557,11 +557,14 @@ export function useLiveKit(options: UseLiveKitOptions) {
     lkRoom.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
       debugLog(`[LiveKit][INFO]: Participant disconnected: ${participant.identity}`)
       remoteParticipants.value.delete(participant.identity)
+      // Remove both mic and screenshare audio tracks
       remoteAudioTracks.value.delete(participant.identity)
+      remoteAudioTracks.value.delete(`${participant.identity}-screenshare`)
       remoteScreenTracks.value.delete(participant.identity)
       userScreenShareStates.value.delete(participant.identity)
-      // Also remove from audio tracks store
+      // Also remove from audio tracks store (both keys)
       audioTracksStore.removeTrack(participant.identity)
+      audioTracksStore.removeTrack(`${participant.identity}-screenshare`)
       screenShareVersion.value++
     })
 
@@ -710,21 +713,30 @@ export function useLiveKit(options: UseLiveKitOptions) {
     )
 
     if (track.kind === Track.Kind.Audio) {
-      const audioTrack = track
-      remoteAudioTracks.value.set(participantId, audioTrack)
+      const audioTrack = track as RemoteAudioTrack
 
-      // Also update the shared store
-      audioTracksStore.setTrack(participantId, audioTrack)
+      // Check the audio source - microphone or screen share audio
+      const audioSource = audioTrack.source || Track.Source.Microphone
+      const trackKey =
+        audioSource === Track.Source.ScreenShareAudio
+          ? `${participantId}-screenshare`
+          : participantId
+
+      console.log(`[LiveKit] Audio track source: ${audioSource}, using key: ${trackKey}`)
+
+      // Store with composite key to avoid overwriting mic audio with screen share audio
+      remoteAudioTracks.value.set(trackKey, audioTrack)
+      audioTracksStore.setTrack(trackKey, audioTrack)
 
       debugLog(
-        `[LiveKit] Audio track stored for ${participantId}, store count: ${audioTracksStore.trackCount()}`,
+        `[LiveKit] Audio track stored for ${trackKey}, store count: ${audioTracksStore.trackCount()}`,
       )
 
       // Set initial volume if specified
       const volume = options.remoteStreamVolumes.get(participantId) ?? 80
       audioTrack.setVolume(volume / 100)
 
-      debugLog(`[LiveKit][INFO]: Audio track received from ${participantId}`)
+      debugLog(`[LiveKit][INFO]: Audio track received from ${participantId} (${audioSource})`)
     } else if (track.kind === Track.Kind.Video) {
       // Check if it's a screen share (source === 'screen_share')
       const videoTrack = track
@@ -764,11 +776,20 @@ export function useLiveKit(options: UseLiveKitOptions) {
     )
 
     if (track.kind === Track.Kind.Audio) {
-      remoteAudioTracks.value.delete(participantId)
-      // Also update the shared store
-      audioTracksStore.removeTrack(participantId)
+      const audioTrack = track as RemoteAudioTrack
+      // Check the audio source - microphone or screen share audio
+      const audioSource = audioTrack.source || Track.Source.Microphone
+      const trackKey =
+        audioSource === Track.Source.ScreenShareAudio
+          ? `${participantId}-screenshare`
+          : participantId
+
+      console.log(`[LiveKit] Audio unsubscribed source: ${audioSource}, using key: ${trackKey}`)
+
+      remoteAudioTracks.value.delete(trackKey)
+      audioTracksStore.removeTrack(trackKey)
       debugLog(
-        `[LiveKit] Audio track removed for ${participantId}, store count: ${audioTracksStore.trackCount()}`,
+        `[LiveKit] Audio track removed for ${trackKey}, store count: ${audioTracksStore.trackCount()}`,
       )
     } else if (track.kind === Track.Kind.Video) {
       const videoTrack = track
