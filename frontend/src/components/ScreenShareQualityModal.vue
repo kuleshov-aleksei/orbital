@@ -61,35 +61,18 @@
           </div>
         </div>
 
-        <!-- Audio Option -->
+        <!-- Audio Info -->
         <div class="px-5 py-2 border-t border-gray-700">
-          <label
-            class="flex items-center"
-            :class="{
-              'cursor-pointer': isScreenShareAudioSupported,
-              'cursor-not-allowed opacity-60': !isScreenShareAudioSupported,
-            }">
-            <input
-              v-model="shareAudio"
-              type="checkbox"
-              :disabled="!isScreenShareAudioSupported"
-              class="w-4 h-4 rounded border-gray-600 bg-gray-700 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-gray-800 disabled:opacity-50" />
-
-            <span
-              class="ml-2 text-sm text-gray-300 flex items-center"
-              :class="{ 'text-gray-500': !isScreenShareAudioSupported }">
-              <PhSpeakerHigh class="w-3.5 h-3.5 mr-1" />
-              Share system audio
-            </span>
-          </label>
-
-          <!-- Info text for unsupported browsers -->
-          <p
-            v-if="!isScreenShareAudioSupported"
-            class="mt-1.5 text-xs text-gray-500 flex items-start">
+          <p v-if="!isScreenShareAudioSupported" class="text-xs text-gray-500 flex items-start">
             <PhInfo class="w-3.5 h-3.5 mr-1 flex-shrink-0 mt-0.5" />
 
             <span>System audio sharing is only available in Chrome and Edge browsers</span>
+          </p>
+
+          <p v-else class="text-xs text-gray-400 flex items-start">
+            <PhSpeakerHigh class="w-3.5 h-3.5 mr-1 flex-shrink-0 mt-0.5" />
+
+            <span>Audio will be requested in the browser's screen share dialog</span>
           </p>
         </div>
 
@@ -141,33 +124,23 @@ const { isScreenShareAudioSupported } = useScreenShareSupport()
 
 const qualityOptions: QualityOption[] = [
   {
-    value: "source",
-    label: "Source (Native)",
-    description: "Original resolution and frame rate",
+    value: "adaptive",
+    label: "Adaptive",
+    description: "LiveKit adjusts quality automatically",
   },
   {
-    value: "1080p60",
-    label: "1080p 60fps",
-    description: "Full HD at 60 frames per second - Best for gaming",
-  },
-  {
-    value: "720p30",
-    label: "720p 30fps",
-    description: "HD at 30 frames per second - Balanced quality",
-  },
-  {
-    value: "360p30",
-    label: "360p 30fps",
-    description: "Low resolution - Best for slow connections",
+    value: "fullhd60",
+    label: "Full HD 60fps (Raw)",
+    description: "Maximum quality, native browser capture",
   },
   {
     value: "text",
     label: "Text Optimized",
-    description: "High resolution at 5fps - Best for code and documents",
+    description: "5fps, high quality for documents and code",
   },
 ]
 
-const selectedQuality = ref<ScreenShareQuality>("source")
+const selectedQuality = ref<ScreenShareQuality>("adaptive")
 const shareAudio = ref(false)
 
 // Reset to defaults when modal opens
@@ -175,7 +148,7 @@ watch(
   () => props.isOpen,
   (isOpen) => {
     if (isOpen) {
-      selectedQuality.value = "source"
+      selectedQuality.value = "adaptive"
       shareAudio.value = false
     }
   },
