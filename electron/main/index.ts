@@ -1,7 +1,21 @@
 import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, desktopCapturer, shell } from "electron"
-import { join } from "path"
+import { createRequire } from "node:module"
+import { fileURLToPath } from "node:url"
+import path from "node:path"
 import log from "electron-log"
 import { autoUpdater } from "electron-updater"
+
+app.commandLine.appendSwitch("disable-gpu")
+app.commandLine.appendSwitch("disable-software-rasterizer")
+
+const require = createRequire(import.meta.url)
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+process.env.APP_ROOT = path.join(__dirname, "../..")
+
+export const MAIN_DIST = path.join(process.env.APP_ROOT, "dist-electron")
+export const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist")
+export const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL || "http://localhost:3001"
 
 log.transports.file.level = "info"
 log.info("Orbital desktop starting...")
@@ -10,7 +24,8 @@ let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let isQuitting = false
 
-const isDev = process.env.NODE_ENV === "development" || !app.isPackaged
+const preload = path.join(__dirname, "../preload/index.js")
+const indexHtml = path.join(RENDERER_DIST, "index.html")
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -22,7 +37,7 @@ function createWindow() {
     backgroundColor: "#1a1a1a",
     show: false,
     webPreferences: {
-      preload: join(__dirname, "preload.js"),
+      preload,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
@@ -45,20 +60,20 @@ function createWindow() {
     mainWindow = null
   })
 
-  if (isDev) {
-    mainWindow.loadURL("http://localhost:3000")
+  if (VITE_DEV_SERVER_URL) {
+    mainWindow.loadURL(VITE_DEV_SERVER_URL)
     mainWindow.webContents.openDevTools()
   } else {
-    mainWindow.loadFile(join(__dirname, "../dist/index.html"))
+    mainWindow.loadFile(indexHtml)
   }
 
   log.info("Window created, loading content...")
 }
 
 function createTray() {
-  const iconPath = isDev
-    ? join(__dirname, "../build/icon.png")
-    : join(process.resourcesPath, "build/icon.png")
+  const iconPath = VITE_DEV_SERVER_URL
+    ? path.join(__dirname, "../../build/icon.png")
+    : path.join(process.resourcesPath, "build/icon.png")
 
   let trayIcon: nativeImage
   try {
@@ -133,7 +148,7 @@ function setupAutoUpdater() {
     log.error("Auto updater error:", error)
   })
 
-  if (!isDev) {
+  if (!VITE_DEV_SERVER_URL) {
     autoUpdater.checkForUpdatesAndNotify()
   }
 }
@@ -159,7 +174,7 @@ function setupIPC() {
   })
 
   ipcMain.handle("check-for-updates", async () => {
-    if (!isDev) {
+    if (!VITE_DEV_SERVER_URL) {
       return autoUpdater.checkForUpdates()
     }
     return null

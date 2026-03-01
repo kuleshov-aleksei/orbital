@@ -1,24 +1,27 @@
-import Snd from "snd-lib"
+const isElectron = typeof window !== "undefined" && typeof window.electronAPI !== "undefined"
 
-let snd: Snd | null = null
+type SndInstance = {
+  load: (kit: string) => Promise<void>
+  play: (sound: string) => void
+}
+
+let snd: SndInstance | null = null
 let isLoading = false
 let retryCount = 0
 const MAX_RETRIES = 5
 
-/**
- * Initializes the sound system with the SND01 sound kit.
- * Retries up to MAX_RETRIES times on failure.
- * Can be called multiple times - subsequent calls while loading are coalesced.
- */
 async function initSounds(): Promise<void> {
+  if (isElectron) return
   if (snd) return
   if (isLoading) return
 
   isLoading = true
-  const instance = new Snd()
 
   try {
-    await instance.load(Snd.KITS.SND01)
+    const SndLib = await import("snd-lib")
+    const SndClass = SndLib.default
+    const instance = new SndClass()
+    await instance.load(SndClass.KITS.SND01)
     snd = instance
     retryCount = 0
   } catch (error) {
@@ -29,47 +32,27 @@ async function initSounds(): Promise<void> {
   }
 }
 
-/**
- * Plays the toggle on sound effect.
- * Used when user unmutes or undeafens.
- */
 export async function toggleOn(): Promise<void> {
   await initSounds()
-  snd?.play(Snd.SOUNDS.TOGGLE_ON)
+  snd?.play("TOGGLE_ON")
 }
 
-/**
- * Plays the toggle off sound effect.
- * Used when user mutes or deafens.
- */
 export async function toggleOff(): Promise<void> {
   await initSounds()
-  snd?.play(Snd.SOUNDS.TOGGLE_OFF)
+  snd?.play("TOGGLE_OFF")
 }
 
-/**
- * Plays the transition up sound effect.
- * Used when user joins room.
- */
 export async function transitionOpen(): Promise<void> {
   await initSounds()
-  snd?.play(Snd.SOUNDS.TRANSITION_UP)
+  snd?.play("TRANSITION_UP")
 }
 
-/**
- * Plays the transition down sound effect.
- * Used when user leaves room.
- */
 export async function transitionClose(): Promise<void> {
   await initSounds()
-  snd?.play(Snd.SOUNDS.TRANSITION_DOWN)
+  snd?.play("TRANSITION_DOWN")
 }
 
-/**
- * Plays the tap sound effect.
- * Used for screen share and camera toggle actions.
- */
 export async function tap(): Promise<void> {
   await initSounds()
-  snd?.play(Snd.SOUNDS.TAP)
+  snd?.play("TAP")
 }
