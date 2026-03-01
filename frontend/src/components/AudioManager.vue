@@ -8,7 +8,7 @@
 import { ref, watch, onUnmounted, onMounted, useTemplateRef } from "vue"
 import type { RemoteAudioTrack } from "livekit-client"
 import { useAudioTracksStore } from "@/stores/audioTracks"
-import { debugLog, debugWarn, debugError } from "@/utils/debug"
+import { debugLog, debugWarn } from "@/utils/debug"
 
 interface Props {
   volumes: Map<string, number>
@@ -110,6 +110,19 @@ watch(
       `[AudioManager] Track change detected. Old: ${oldTracks?.size || 0}, New: ${newTracks.size}`,
     )
 
+    // First, clean up any elements whose tracks are no longer in the store
+    // This handles the case where store goes 1→0 but audioElements still has stale entries
+    const tracksToRemove: string[] = []
+    audioElements.value.forEach((_, userId) => {
+      if (!newTracks.has(userId)) {
+        tracksToRemove.push(userId)
+      }
+    })
+    tracksToRemove.forEach((userId) => {
+      debugLog(`[AudioManager] Cleaning up stale element for ${userId} (track not in store)`)
+      removeAudioElement(userId)
+    })
+
     // Handle new tracks - ALWAYS create new element for each track
     newTracks.forEach((track, userId) => {
       const existingSid = attachedTrackSids.value.get(userId)
@@ -131,14 +144,6 @@ watch(
       createAudioElement(userId, track)
     })
 
-    // Handle removed tracks - remove audio elements
-    oldTracks?.forEach((track, userId) => {
-      if (!newTracks.has(userId)) {
-        debugLog(`[AudioManager] Removing audio element for disconnected user ${userId}`)
-        removeAudioElement(userId)
-      }
-    })
-
     debugLog(`[AudioManager] After track change, total elements: ${audioElements.value.size}`)
   },
   { deep: true },
@@ -152,9 +157,7 @@ onMounted(() => {
   playCheckInterval = setInterval(() => {
     audioElements.value.forEach((element, userId) => {
       if (element.paused) {
-        debugLog(
-          `[AudioManager] Periodic check: element paused for ${userId}, attempting to play`,
-        )
+        debugLog(`[AudioManager] Periodic check: element paused for ${userId}, attempting to play`)
         element.play().catch(() => {})
       }
     })
