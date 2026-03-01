@@ -5,9 +5,9 @@
       <!-- Focus Layout: Main stream (70%) + user panel (30%) side by side -->
       <!-- Desktop: horizontal layout, Mobile: vertical layout -->
       <div v-if="props.layout === 'focus'" class="flex flex-col lg:flex-row h-full gap-2 lg:gap-4">
-        <!-- Main focused stream - 70% width on desktop, full width on mobile -->
+        <!-- Main focused stream - 80% width on desktop, full width on mobile -->
         <div
-          class="flex-1 min-w-0 min-h-0 lg:flex-[7] lg:min-w-48 lg:min-h-48 aspect-video self-center">
+          class="flex-1 min-w-0 min-h-0 lg:flex-[8] lg:min-w-48 lg:min-h-48 aspect-video self-center">
           <!-- Screen Share in main area -->
           <ScreenStream
             v-if="focusedStream?.type === 'screen'"
@@ -34,9 +34,9 @@
             :is-self-view="focusedStream.isSelfView" />
         </div>
 
-        <!-- User panel for participants - 30% width on desktop, below on mobile -->
+        <!-- User panel for participants - 20% width on desktop, below on mobile -->
         <div
-          class="flex-none self-center lg:flex-[3] lg:min-w-0 flex flex-row lg:flex-col gap-2 lg:gap-3 overflow-x-auto lg:overflow-y-auto overflow-y-hidden pb-2 lg:pb-0">
+          class="flex-none lg:flex-[2] lg:min-w-0 flex flex-row lg:flex-col gap-2 lg:gap-3 overflow-x-auto lg:overflow-y-auto overflow-y-hidden pb-2 lg:pb-0">
           <ParticipantCard
             v-for="participant in allParticipants"
             :key="participant.userId"
@@ -62,7 +62,7 @@
               !participant.isCameraEnabled
             "
             :is-compact="true"
-            class="w-20 lg:w-auto flex-shrink-0 lg:flex-shrink"
+            class="w-20 lg:w-auto flex-shrink-0 lg:flex-shrink max-h-14"
             @card-click="handleParticipantCardClick(participant.userId)"
             @mute-toggle="$emit('mute-toggle', $event)" />
         </div>
