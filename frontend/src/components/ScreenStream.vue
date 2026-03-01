@@ -9,7 +9,7 @@
       <video
         :id="`screen-${userId}`"
         ref="videoElement"
-        class="w-full h-full object-cover"
+        class="w-full h-full object-contain"
         autoplay
         playsinline
         @dblclick="toggleFullscreen"
@@ -198,11 +198,8 @@ const handleMouseLeave = () => {
 }
 
 const qualityLabels: Record<ScreenShareQuality, string> = {
-  source: "Source",
-  "1080p60": "1080p60",
-  "1080p30": "1080p30",
-  "720p30": "720p",
-  "360p30": "360p",
+  fullhd60: "Full HD 60fps",
+  adaptive: "Adaptive",
   text: "Text Mode",
 }
 

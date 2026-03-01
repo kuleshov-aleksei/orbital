@@ -13,6 +13,7 @@ import {
   LocalAudioTrack,
   Track,
   VideoPresets,
+  type VideoEncoding,
 } from "livekit-client"
 import { apiService } from "@/services/api"
 import { usePresenceStore } from "@/stores/presence"
@@ -62,7 +63,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
   // Screen sharing state
   const isScreenSharing = ref(false)
-  const screenShareQuality = ref<ScreenShareQuality>("1080p30")
+  const screenShareQuality = ref<ScreenShareQuality>("fullhd60")
   const localScreenVideoTrack = ref<LocalVideoTrack | null>(null)
   const localScreenAudioTrack = ref<LocalAudioTrack | null>(null)
   const userScreenShareStates = ref<Map<string, ScreenShareState>>(new Map())
@@ -491,6 +492,10 @@ export function useLiveKit(options: UseLiveKitOptions) {
         dynacast: true,
         publishDefaults: {
           simulcast: true,
+          screenshareEncoding: {
+            maxBitrate: 9 * 1000 * 1000,
+            maxFramerate: 120,
+          },
         },
       })
 
@@ -644,13 +649,13 @@ export function useLiveKit(options: UseLiveKitOptions) {
         localScreenVideoPublication.value = null
         localScreenVideoTrack.value = null
         isScreenSharing.value = false
-        screenShareQuality.value = "1080p30"
+        screenShareQuality.value = "fullhd60"
         screenShareVersion.value++
 
         // Update local state
         userScreenShareStates.value.set(getCurrentUserId(), {
           isSharing: false,
-          quality: "1080p30",
+          quality: "fullhd60",
         })
 
         // Reset guard flag in case track was unpublished externally
@@ -745,7 +750,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
         userScreenShareStates.value.set(participantId, {
           isSharing: true,
-          quality: "1080p30", // Default, will be updated from attributes if available
+          quality: "adaptive", // Default, will be updated from attributes if available
         })
         screenShareVersion.value++
 
@@ -800,7 +805,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
         userScreenShareStates.value.set(participantId, {
           isSharing: false,
-          quality: "1080p30",
+          quality: "adaptive",
         })
         screenShareVersion.value++
       } else if (videoTrack.source === Track.Source.Camera) {
@@ -922,7 +927,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     }
   }
 
-  // Start screen sharing using LiveKit's setScreenShareEnabled API
+  // Start screen sharing with different quality modes
   const startScreenShare = async (quality: ScreenShareQuality, audio: boolean): Promise<void> => {
     if (!room.value) {
       throw new Error("Not connected to room")
@@ -937,18 +942,153 @@ export function useLiveKit(options: UseLiveKitOptions) {
     isStartingScreenShare = true
 
     try {
-      debugLog(`[LiveKit][INFO]: Starting screen share: ${quality}${audio ? " with audio" : ""}`)
+      debugLog(`[LiveKit][INFO]: Starting screen share: ${quality}`)
 
-      // Use LiveKit's recommended API instead of manual getDisplayMedia
-      // This properly handles track management without interfering with existing audio
-      await room.value.localParticipant.setScreenShareEnabled(true, {
-        audio: audio,
-        resolution: getScreenShareVideoConstraints(quality),
-      })
+      if (quality === "fullhd60") {
+        // fullhd60: Raw browser capture at 60fps - bypasses LiveKit SDK 30fps limitation
+        // Use raw getDisplayMedia - always request audio to let browser dialog handle it
+        const displayMediaOptions: DisplayMediaStreamOptions = {
+          audio: true,
+          video: {
+            displaySurface: "monitor",
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            frameRate: { ideal: 60 },
+          },
+        }
 
-      // The actual track handling is done in the LocalTrackPublished event listener
-      // We update state optimistically, but the real state is managed by events
-      screenShareQuality.value = quality
+        const displayStream = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions)
+        const videoTrackFromStream = displayStream.getVideoTracks()[0]
+
+        if (!videoTrackFromStream) {
+          throw new Error("No video track obtained from display media")
+        }
+
+        // Update track settings to try forcing 60fps (may not work on all browsers)
+        try {
+          await videoTrackFromStream.applyConstraints({
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            frameRate: { ideal: 60 },
+          })
+        } catch (e) {
+          debugWarn(`[LiveKit][WARN]: Could not apply 60fps constraint: ${(e as Error).message}`)
+        }
+
+        const trackSettings = videoTrackFromStream.getSettings()
+        debugLog(
+          `[LiveKit][INFO]: Screen share track settings: ${JSON.stringify(trackSettings)}, frameRate: ${trackSettings.frameRate}`,
+        )
+
+        // Publish the raw MediaStreamTrack directly - LiveKit will wrap it
+        const publication = await room.value.localParticipant.publishTrack(videoTrackFromStream, {
+          name: "screen-share",
+          source: Track.Source.ScreenShare,
+          encodings: {
+            screen: {
+              maxBitrate: 9 * 1000 * 1000, // 9 Mbps
+              maxFramerate: 60,
+            } as VideoEncoding,
+          },
+        })
+
+        localScreenVideoPublication.value = publication
+
+        // Get the LiveKit track from publication for state management
+        const lkVideoTrack = publication.track as LocalVideoTrack
+        localScreenVideoTrack.value = lkVideoTrack
+        isScreenSharing.value = true
+        screenShareVersion.value++
+
+        // Listen for track ended (browser "Stop sharing" button)
+        if (lkVideoTrack) {
+          lkVideoTrack.on("ended", () => {
+            if (!isStoppingScreenShare.value) {
+              debugLog(`[LiveKit][INFO]: Screen share track ended (browser UI)`)
+              void stopScreenShare()
+            }
+          })
+        }
+
+        // Also listen to the original browser track
+        videoTrackFromStream.onended = () => {
+          if (!isStoppingScreenShare.value) {
+            debugLog(`[LiveKit][INFO]: Display media track ended`)
+            void stopScreenShare()
+          }
+        }
+
+        // Publish audio track if requested (from the display stream)
+        if (audio && displayStream.getAudioTracks().length > 0) {
+          const audioTrackFromStream = displayStream.getAudioTracks()[0]
+
+          const audioPublication = await room.value.localParticipant.publishTrack(
+            audioTrackFromStream,
+            {
+              name: "screen-share-audio",
+              source: Track.Source.ScreenShareAudio,
+            },
+          )
+          localScreenAudioPublication.value = audioPublication
+
+          const lkAudioTrack = audioPublication.track as LocalAudioTrack
+          localScreenAudioTrack.value = lkAudioTrack
+
+          audioTrackFromStream.onended = () => {
+            if (!isStoppingScreenShare.value) {
+              void stopScreenShare()
+            }
+          }
+        }
+
+        // Update local state for self-view
+        userScreenShareStates.value.set(getCurrentUserId(), {
+          isSharing: true,
+          quality: quality,
+        })
+
+        screenShareQuality.value = quality
+
+        debugLog(`[LiveKit][INFO]: 'Screen sharing started (fullhd60 raw mode)'`)
+      } else if (quality === "adaptive") {
+        // adaptive: Let LiveKit SDK decide best quality automatically
+        // Always request audio - browser dialog will handle whether to show the option
+        await room.value.localParticipant.setScreenShareEnabled(true, {
+          audio: true,
+          resolution: undefined, // Let LiveKit decide
+        })
+
+        // Update local state for self-view
+        userScreenShareStates.value.set(getCurrentUserId(), {
+          isSharing: true,
+          quality: quality,
+        })
+
+        screenShareQuality.value = quality
+
+        debugLog(`[LiveKit][INFO]: 'Screen sharing started (adaptive mode)'`)
+      } else if (quality === "text") {
+        // text: 5fps high quality for documents/code
+        // Always request audio - browser dialog will handle whether to show the option
+        await room.value.localParticipant.setScreenShareEnabled(true, {
+          audio: true,
+          resolution: {
+            width: 1920,
+            height: 1080,
+            frameRate: 5,
+          },
+        })
+
+        // Update local state for self-view
+        userScreenShareStates.value.set(getCurrentUserId(), {
+          isSharing: true,
+          quality: quality,
+        })
+
+        screenShareQuality.value = quality
+
+        debugLog(`[LiveKit][INFO]: 'Screen sharing started (text mode)'`)
+      }
 
       debugLog(`[LiveKit][INFO]: 'Screen sharing started successfully'`)
 
@@ -1020,7 +1160,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
       // Update local state
       userScreenShareStates.value.set(getCurrentUserId(), {
         isSharing: false,
-        quality: "1080p30",
+        quality: "adaptive",
       })
 
       debugLog(`[LiveKit][INFO]: 'Screen sharing stopped'`)
@@ -1175,23 +1315,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
     } else {
       await startCamera()
     }
-  }
-
-  // Get screen share video constraints
-  // Returns VideoPreset string for LiveKit's setScreenShareEnabled API
-  const getScreenShareVideoConstraints = (quality: ScreenShareQuality): string => {
-    // Map quality to LiveKit VideoPreset names
-    // These are standard LiveKit presets: https://docs.livekit.io/client-sdk-js/enums/VideoPreset.html
-    const presetMap: Record<ScreenShareQuality, string> = {
-      source: "screen_share", // Use LiveKit's default screen share preset
-      "1080p60": "screenShareH1080FPS60",
-      "1080p30": "screenShareH1080FPS30",
-      "720p30": "screenShareH720FPS30",
-      "360p30": "screenShareH360FPS30",
-      text: "screenShareH1080FPS5",
-    }
-
-    return presetMap[quality] || "screenShareH1080FPS30"
   }
 
   // Reinitialize audio stream (when algorithm changes)
@@ -1371,7 +1494,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     localScreenVideoPublication.value = null
     localScreenAudioPublication.value = null
     isScreenSharing.value = false
-    screenShareQuality.value = "1080p30"
+    screenShareQuality.value = "fullhd60"
     isStoppingScreenShare.value = false
 
     // Stop camera if active - manually stop the MediaStreamTrack to turn off privacy light

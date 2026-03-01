@@ -116,7 +116,12 @@ async function sendLogs() {
     }
 
     const logMessages = logs.map((log) => log.message)
-    await apiService.sendLogs(userStore.currentUser.id, userStore.currentUser.nickname, appVersion, logMessages)
+    await apiService.sendLogs(
+      userStore.currentUser.id,
+      userStore.currentUser.nickname,
+      appVersion,
+      logMessages,
+    )
     sendLogsStatus.value = "Logs sent successfully!"
     sendLogsSuccess.value = true
   } catch (error) {

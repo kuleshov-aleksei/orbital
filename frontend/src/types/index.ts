@@ -31,7 +31,10 @@ export interface PublicUser {
 }
 
 // Screen sharing quality options
-export type ScreenShareQuality = "source" | "1080p60" | "1080p30" | "720p30" | "360p30" | "text"
+// fullhd60: Raw browser capture at 60fps (bypasses LiveKit SDK 30fps limitation)
+// adaptive: LiveKit SDK decides best quality automatically
+// text: 5fps high quality for documents/code
+export type ScreenShareQuality = "fullhd60" | "adaptive" | "text"
 
 // Camera video stream data
 export interface CameraData {
