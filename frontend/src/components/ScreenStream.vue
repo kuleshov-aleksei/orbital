@@ -9,7 +9,7 @@
       <video
         :id="`screen-${userId}`"
         ref="videoElement"
-        class="w-full h-full object-cover"
+        class="w-full h-full object-contain"
         autoplay
         playsinline
         @dblclick="toggleFullscreen"
