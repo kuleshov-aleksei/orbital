@@ -248,3 +248,9 @@ docker/docker-data/configs/*
 !docker/docker-data/configs/.gitkeep
 
 frontend/public/licenses.json
+
+# Electron
+electron/node_modules/
+electron/dist/
+electron/dist-electron/
+electron/release/

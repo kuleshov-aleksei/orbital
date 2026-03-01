@@ -1,0 +1,57 @@
+{
+  "appId": "com.orbital.app",
+  "productName": "Orbital",
+  "copyright": "Copyright 2026 Orbital Team",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*",
+    "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+    "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+    "!**/node_modules/.bin"
+  ],
+  "asar": true,
+  "asarUnpack": [
+    "node_modules/electron-updater/**/*"
+  ],
+  "extraResources": [
+    {
+      "from": "build",
+      "to": "build",
+      "filter": ["**/*"]
+    }
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ],
+    "artifactName": "${productName}-Setup-${version}.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "deleteAppDataOnUninstall": false,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true
+  },
+  "linux": {
+    "target": [
+      "AppImage",
+      "deb"
+    ],
+    "category": "Network",
+    "artifactName": "${productName}-${version}.${ext}",
+    "maintainer": "orbital@encamy.com"
+  },
+  "publish": {
+    "provider": "github",
+    "owner": "kuleshov-aleksei",
+    "repo": "orbital"
+  }
+}

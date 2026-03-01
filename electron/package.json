@@ -1,0 +1,46 @@
+{
+  "name": "orbital-desktop",
+  "version": "1.0.0",
+  "description": "The Orbital - Voice Chat Desktop App",
+  "main": "dist-electron/main.js",
+  "author": {
+    "name": "Orbital Team",
+    "email": "orbital@example.com"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/kuleshov-aleksei/orbital",
+  "scripts": {
+    "dev": "npx vite",
+    "prebuild": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true});require('fs').cpSync('../frontend/dist','dist',{recursive:true})\"",
+    "build": "npx vite build && electron-builder --linux",
+    "build:win": "npx vite build && electron-builder --win",
+    "build:linux": "npx vite build && electron-builder --linux",
+    "build:all": "npx vite build && electron-builder -wl"
+  },
+  "dependencies": {
+    "@phosphor-icons/vue": "^2.2.1",
+    "livekit-client": "^2.17.1",
+    "pinia": "^2.1.0",
+    "snd-lib": "^1.2.4",
+    "vue": "^3.3.0",
+    "vue-advanced-cropper": "^2.8.9",
+    "vue-boring-avatars": "^1.4.0",
+    "vue-router": "^4.2.0",
+    "electron-updater": "^6.8.3",
+    "electron-log": "^5.4.3"
+  },
+  "devDependencies": {
+    "@iconify-json/logos": "^1.2.10",
+    "@iconify-json/simple-icons": "^1.2.0",
+    "@vitejs/plugin-vue": "^6.0.4",
+    "@types/node": "^20.0.0",
+    "electron": "^40.6.1",
+    "electron-builder": "^26.8.1",
+    "typescript": "^5.2.0",
+    "unplugin-icons": "^23.0.1",
+    "vite": "^7.3.1",
+    "vite-plugin-compression": "^0.5.1",
+    "vite-plugin-electron": "^0.29.0",
+    "vite-plugin-electron-renderer": "^0.14.6"
+  }
+}
