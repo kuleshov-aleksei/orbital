@@ -1,4 +1,4 @@
-.PHONY: help install build dev dev-public lint lint-full prettier test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all
+.PHONY: help install build dev dev-public dev-electron lint lint-full prettier test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all
 
 # Default target
 help:
@@ -7,6 +7,7 @@ help:
 	@echo "  build             - Build frontend and backend"
 	@echo "  dev               - Run development servers"
 	@echo "  dev-public        - Run development servers on all interfaces (0.0.0.0)"
+	@echo "  dev-electron      - Run Electron in development mode (starts backend + LiveKit)"
 	@echo "  lint              - Run linters for frontend and backend"
 	@echo "  test              - Run tests"
 	@echo "  test-headed       - Run tests in headed mode"
@@ -207,6 +208,12 @@ run-built:
 		trap cleanup INT TERM EXIT; \
 		wait $$BACKEND_PID $$NGINX_PID \
 	'
+
+# Electron dev mode (starts backend + LiveKit + Electron)
+dev-electron:
+	@echo "Starting electron in dev mode..."
+	@echo "NOTE: make user backend is running using make dev"
+	cd electron && npm run dev
 
 # Electron builds
 build-electron:
