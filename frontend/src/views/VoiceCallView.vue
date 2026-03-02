@@ -143,6 +143,7 @@ const {
   cameraData,
   handleMuteToggle,
   startScreenShare,
+  startElectronScreenShare,
   stopScreenShare,
   startCamera,
   stopCamera,
@@ -373,5 +374,20 @@ const handleCameraToggle = async (enabled: boolean) => {
 }
 
 // Expose methods to parent component
-defineExpose({ startScreenShare: startScreenShareWithQuality })
+const startElectronScreenShareWithQuality = async (
+  quality: string,
+  audio: boolean,
+  sourceId: string,
+) => {
+  try {
+    await startElectronScreenShare(quality as ScreenShareQuality, audio, sourceId)
+  } catch (error) {
+    console.error("Failed to start Electron screen share:", error)
+  }
+}
+
+defineExpose({
+  startScreenShare: startScreenShareWithQuality,
+  startElectronScreenShare: startElectronScreenShareWithQuality,
+})
 </script>

@@ -1,11 +1,20 @@
 import { computed } from "vue"
+import { isElectron } from "@/services/electron"
 
 /**
  * Detects if screen sharing is supported in the current browser environment.
  * Mobile browsers (iOS Safari, Android Chrome) do not support getDisplayMedia().
+ * Electron always supports screen sharing via desktopCapturer.
  */
 export function useScreenShareSupport() {
+  const isRunningInElectron = computed(() => isElectron())
+
   const isScreenShareSupported = computed(() => {
+    // Electron always supports screen sharing
+    if (isElectron()) {
+      return true
+    }
+
     // Check if getDisplayMedia API exists
     if (!navigator.mediaDevices || typeof navigator.mediaDevices.getDisplayMedia !== "function") {
       return false
@@ -29,8 +38,14 @@ export function useScreenShareSupport() {
    * Detects if screen sharing audio is supported.
    * System audio capture via getDisplayMedia is only supported in Chrome and Edge.
    * Firefox and Safari do not support audio capture with screen sharing.
+   * Electron (Chromium-based) always supports system audio capture.
    */
   const isScreenShareAudioSupported = computed(() => {
+    // Electron always supports system audio (Chromium-based)
+    if (isElectron()) {
+      return true
+    }
+
     // Audio sharing is only supported in Chrome and Chromium-based browsers (Edge, Opera, Brave)
     const userAgent = navigator.userAgent.toLowerCase()
 
@@ -52,6 +67,7 @@ export function useScreenShareSupport() {
   })
 
   return {
+    isRunningInElectron,
     isScreenShareSupported,
     isScreenShareAudioSupported,
   }

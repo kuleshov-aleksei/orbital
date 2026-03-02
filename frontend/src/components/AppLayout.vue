@@ -52,10 +52,11 @@
       <!-- Modal Manager -->
       <ModalManager />
 
-      <!-- Screen Share Quality Modal -->
+      <!-- Screen Share Quality Modal (combines quality + source selection for Electron) -->
       <ScreenShareQualityModal
         :is-open="showScreenShareQualityModal"
         @select-quality="handleScreenShareQualitySelected"
+        @select-electron-source="handleElectronSourceSelected"
         @cancel="showScreenShareQualityModal = false" />
 
       <!-- Update Notification -->
@@ -163,6 +164,23 @@ const handleScreenShareQualitySelected = async (quality: string, shareAudio: boo
     | undefined
   if (voiceCallView?.startScreenShare) {
     await voiceCallView.startScreenShare(quality, shareAudio)
+  }
+}
+
+const handleElectronSourceSelected = async (quality: string, sourceId: string, audio: boolean) => {
+  showScreenShareQualityModal.value = false
+
+  const voiceCallView = mainContentRef.value?.voiceCallViewRef as
+    | {
+        startElectronScreenShare?: (
+          quality: string,
+          audio: boolean,
+          sourceId: string,
+        ) => Promise<void>
+      }
+    | undefined
+  if (voiceCallView?.startElectronScreenShare) {
+    await voiceCallView.startElectronScreenShare(quality, audio, sourceId)
   }
 }
 

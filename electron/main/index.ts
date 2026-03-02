@@ -8,6 +8,10 @@ import { autoUpdater } from "electron-updater"
 app.commandLine.appendSwitch("disable-gpu")
 app.commandLine.appendSwitch("disable-software-rasterizer")
 
+app.commandLine.appendSwitch("webrtc-max-cpu-consumption-percentage", "100")
+app.commandLine.appendSwitch("max-gum-fps", "120")
+app.commandLine.appendSwitch("webrtc-max-capture-framerate", "120")
+
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
