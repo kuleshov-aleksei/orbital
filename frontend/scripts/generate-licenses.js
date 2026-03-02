@@ -13,7 +13,7 @@ const outputPath = path.join(__dirname, "..", "public", "licenses.json")
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"))
 const config = fs.existsSync(configPath)
   ? JSON.parse(fs.readFileSync(configPath, "utf-8"))
-  : { custom: {} }
+  : { custom: {}, unused: {} }
 
 const dependencies = { ...packageJson.dependencies }
 
@@ -61,6 +61,18 @@ function generateLicenses() {
       url: info?.url || "",
       description: info?.description || "",
       custom: customText,
+    })
+  }
+
+  for (const [name, description] of Object.entries(config.unused || {})) {
+    const info = getPackageInfo(name)
+    licenses.push({
+      name,
+      version: null,
+      license: info?.license || "Unknown",
+      url: info?.url || "",
+      description: info?.description || "",
+      custom: description,
     })
   }
 
