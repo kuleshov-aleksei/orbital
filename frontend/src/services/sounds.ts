@@ -1,58 +1,66 @@
-const isElectron = typeof window !== "undefined" && typeof window.electronAPI !== "undefined"
+import { useSound } from '@vueuse/sound'
+import { Howl } from 'howler'
 
-type SndInstance = {
-  load: (kit: string) => Promise<void>
-  play: (sound: string) => void
+const SPRITE_URL = '/assets/sounds/sprite/01/audioSprite.mp3'
+
+const spriteMap = {
+  toggle_on: [42000, 100],
+  toggle_off: [40000, 100],
+  transition_up: [46000, 100],
+  transition_down: [44000, 100],
+  tap: [30000, 10],
 }
 
-let snd: SndInstance | null = null
-let isLoading = false
-let retryCount = 0
-const MAX_RETRIES = 5
+let sound: Howl | null = null
 
-async function initSounds(): Promise<void> {
-  if (isElectron) return
-  if (snd) return
-  if (isLoading) return
+function getSound(): Howl {
+  if (!sound) {
+    sound = new Howl({
+      src: [SPRITE_URL],
+      sprite: spriteMap,
+      html5: true,
+    })
+  }
+  return sound
+}
 
-  isLoading = true
+export function useSounds() {
+  const { play } = useSound(SPRITE_URL, {
+    sprite: spriteMap,
+    html5: true,
+  })
 
-  try {
-    const SndLib = await import("snd-lib")
-    const SndClass = SndLib.default
-    const instance = new SndClass()
-    await instance.load(SndClass.KITS.SND01)
-    snd = instance
-    retryCount = 0
-  } catch (error) {
-    retryCount++
-    console.warn(`Failed to load sound kit (attempt ${retryCount}/${MAX_RETRIES}):`, error)
-  } finally {
-    isLoading = false
+  const toggleOn = () => play({ id: 'toggle_on' })
+  const toggleOff = () => play({ id: 'toggle_off' })
+  const transitionOpen = () => play({ id: 'transition_up' })
+  const transitionClose = () => play({ id: 'transition_down' })
+  const tap = () => play({ id: 'tap' })
+
+  return {
+    toggleOn,
+    toggleOff,
+    transitionOpen,
+    transitionClose,
+    tap,
   }
 }
 
-export async function toggleOn(): Promise<void> {
-  await initSounds()
-  snd?.play("TOGGLE_ON")
+export function toggleOn(): void {
+  getSound().play('toggle_on')
 }
 
-export async function toggleOff(): Promise<void> {
-  await initSounds()
-  snd?.play("TOGGLE_OFF")
+export function toggleOff(): void {
+  getSound().play('toggle_off')
 }
 
-export async function transitionOpen(): Promise<void> {
-  await initSounds()
-  snd?.play("TRANSITION_UP")
+export function transitionOpen(): void {
+  getSound().play('transition_up')
 }
 
-export async function transitionClose(): Promise<void> {
-  await initSounds()
-  snd?.play("TRANSITION_DOWN")
+export function transitionClose(): void {
+  getSound().play('transition_down')
 }
 
-export async function tap(): Promise<void> {
-  await initSounds()
-  snd?.play("TAP")
+export function tap(): void {
+  getSound().play('tap')
 }

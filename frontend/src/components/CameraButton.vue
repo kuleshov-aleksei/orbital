@@ -30,6 +30,7 @@
 import { computed } from "vue"
 import { PhCamera, PhLock } from "@phosphor-icons/vue"
 import { useCallStore, useUserStore } from "@/stores"
+import { useSounds } from "@/services/sounds"
 
 interface Props {
   modelValue: boolean
@@ -49,6 +50,9 @@ const emit = defineEmits<{
 // Stores
 const callStore = useCallStore()
 const userStore = useUserStore()
+
+// Sounds
+const { toggleOn, toggleOff } = useSounds()
 
 // Computed properties
 const isGuest = computed(() => userStore.isGuest)
@@ -105,6 +109,13 @@ const handleClick = () => {
   // Toggle camera
   const newValue = !isCameraEnabled.value
   isCameraEnabled.value = newValue
+
+  // Play sound
+  if (newValue) {
+    toggleOn()
+  } else {
+    toggleOff()
+  }
 
   // Update call store
   callStore.setCameraEnabled(newValue)

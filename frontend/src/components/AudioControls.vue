@@ -35,7 +35,7 @@
     <button
       type="button"
       class="control-button bg-red-600 hover:bg-red-700"
-      @click="$emit('leave-room')">
+      @click="handleLeaveRoom">
       <PhSignOut class="w-5 h-5" />
     </button>
   </div>
@@ -49,6 +49,7 @@ import AudioDeafenButton from "@/components/AudioDeafenButton.vue"
 import ScreenShareButton from "@/components/ScreenShareButton.vue"
 import CameraButton from "@/components/CameraButton.vue"
 import { useModalStore } from "@/stores"
+import { useSounds } from "@/services/sounds"
 import type { ScreenShareQuality } from "@/types"
 
 interface Props {
@@ -90,6 +91,10 @@ const modalStore = useModalStore()
 // Methods
 const openSettings = () => {
   modalStore.openUserSettingsModal()
+}
+
+const handleLeaveRoom = () => {
+  emit("leave-room")
 }
 
 // Computed v-model bindings

@@ -34,6 +34,9 @@ export default defineConfig({
       "@": resolve(__dirname, "src"),
     },
   },
+  optimizeDeps: {
+    exclude: ['vue-demi']
+  },
   build: {
     rollupOptions: {
       output: {
