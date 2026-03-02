@@ -1010,13 +1010,55 @@ export function useLiveKit(options: UseLiveKitOptions) {
       const publication = await room.value.localParticipant.publishTrack(videoTrackFromStream, {
         name: "screen-share",
         source: Track.Source.ScreenShare,
+        videoCodec: "av1",
+        simulcast: false,
         encodings: {
           screen: {
-            maxBitrate: quality === "text" ? 3 * 1000 * 1000 : 9 * 1000 * 1000,
+            maxBitrate: quality === "text" ? 3 * 1000 * 1000 : 20 * 1000 * 1000,
             maxFramerate: maxFrameRate,
           } as VideoEncoding,
         },
       })
+
+      // Force encoding parameters directly on RTPSender
+      try {
+        const rtpSender = publication.track?.mediaStreamTrack?.rtpSender
+        if (rtpSender) {
+          const params = rtpSender.getParameters()
+          if (params.encodings?.length) {
+            params.encodings[0].maxFramerate = maxFrameRate
+            await rtpSender.setParameters(params)
+            debugLog(`[LiveKit][INFO]: Forced RTPSender maxFramerate to ${maxFrameRate}`)
+          }
+        }
+      } catch (e) {
+        debugWarn(`[LiveKit][WARN]: Could not set RTPSender parameters: ${(e as Error).message}`)
+      }
+
+      debugLog(`[LiveKit][INFO]: Published screen share track, checking actual encoding...`)
+
+      // Debug: Log actual encoder stats after a short delay
+      setTimeout(async () => {
+        try {
+          const rtcStats = await (publication.track as LocalVideoTrack).getRTCStatsReport()
+          if (rtcStats) {
+            const senderStats = Array.from(rtcStats.values()).find(
+              (s: RTCOutboundRtpStreamStats) => s.type === "outbound-rtp",
+            )
+            if (senderStats) {
+              debugLog(
+                `[LiveKit][DEBUG]: Screen share encoder stats: ${JSON.stringify({
+                  fps: senderStats.framesPerSecond,
+                  bitrate: senderStats.bitrate,
+                  bytesSent: senderStats.bytesSent,
+                })}`,
+              )
+            }
+          }
+        } catch (e) {
+          debugWarn(`[LiveKit][WARN]: Could not get screen share stats: ${(e as Error).message}`)
+        }
+      }, 3000)
 
       localScreenVideoPublication.value = publication
 
@@ -1146,13 +1188,57 @@ export function useLiveKit(options: UseLiveKitOptions) {
         const publication = await room.value.localParticipant.publishTrack(videoTrackFromStream, {
           name: "screen-share",
           source: Track.Source.ScreenShare,
+          videoCodec: "av1",
+          simulcast: false,
           encodings: {
             screen: {
-              maxBitrate: 9 * 1000 * 1000, // 9 Mbps
+              maxBitrate: 20 * 1000 * 1000, // 20 Mbps
               maxFramerate: 60,
             } as VideoEncoding,
           },
         })
+
+        // Force encoding parameters directly on RTPSender
+        try {
+          const rtpSender = publication.track?.mediaStreamTrack?.rtpSender
+          if (rtpSender) {
+            const params = rtpSender.getParameters()
+            if (params.encodings?.length) {
+              params.encodings[0].maxFramerate = 60
+              await rtpSender.setParameters(params)
+              debugLog(`[LiveKit][INFO]: Forced RTPSender maxFramerate to 60 (browser)`)
+            }
+          }
+        } catch (e) {
+          debugWarn(`[LiveKit][WARN]: Could not set RTPSender parameters: ${(e as Error).message}`)
+        }
+
+        debugLog(
+          `[LiveKit][INFO]: Published screen share track (browser), checking actual encoding...`,
+        )
+
+        // Debug: Log actual encoder stats after a short delay
+        setTimeout(async () => {
+          try {
+            const rtcStats = await (publication.track as LocalVideoTrack).getRTCStatsReport()
+            if (rtcStats) {
+              const senderStats = Array.from(rtcStats.values()).find(
+                (s: RTCOutboundRtpStreamStats) => s.type === "outbound-rtp",
+              )
+              if (senderStats) {
+                debugLog(
+                  `[LiveKit][DEBUG]: Screen share encoder stats (browser): ${JSON.stringify({
+                    fps: senderStats.framesPerSecond,
+                    bitrate: senderStats.bitrate,
+                    bytesSent: senderStats.bytesSent,
+                  })}`,
+                )
+              }
+            }
+          } catch (e) {
+            debugWarn(`[LiveKit][WARN]: Could not get screen share stats: ${(e as Error).message}`)
+          }
+        }, 3000)
 
         localScreenVideoPublication.value = publication
 

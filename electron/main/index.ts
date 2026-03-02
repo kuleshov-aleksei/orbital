@@ -5,12 +5,19 @@ import path from "node:path"
 import log from "electron-log"
 import { autoUpdater } from "electron-updater"
 
-app.commandLine.appendSwitch("disable-gpu")
-app.commandLine.appendSwitch("disable-software-rasterizer")
+//app.commandLine.appendSwitch("disable-gpu")
+//app.commandLine.appendSwitch("disable-software-rasterizer")
 
 app.commandLine.appendSwitch("webrtc-max-cpu-consumption-percentage", "100")
 app.commandLine.appendSwitch("max-gum-fps", "120")
 app.commandLine.appendSwitch("webrtc-max-capture-framerate", "120")
+
+app.commandLine.appendSwitch("ozone-platform", "wayland")
+app.commandLine.appendSwitch("enable-zero-copy")
+app.commandLine.appendSwitch("use-gl", "angle")
+app.commandLine.appendSwitch("enable-gpu-rasterization")
+app.commandLine.appendSwitch("enable-gpu-compositing")
+app.commandLine.appendSwitch("enable-features", "PipeWireCapturer")
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
