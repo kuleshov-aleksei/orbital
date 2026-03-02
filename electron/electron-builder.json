@@ -30,6 +30,7 @@
         "arch": ["x64"]
       }
     ],
+    "icon": "build/orbital-icon.png",
     "artifactName": "${productName}-Setup-${version}.${ext}"
   },
   "nsis": {
@@ -46,6 +47,7 @@
       "deb"
     ],
     "category": "Network",
+    "icon": "build/orbital-icon.png",
     "artifactName": "${productName}-${version}.${ext}",
     "maintainer": "orbital@encamy.com"
   },

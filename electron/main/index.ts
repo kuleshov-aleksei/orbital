@@ -28,6 +28,8 @@ const preload = path.join(__dirname, "../preload/index.js")
 const indexHtml = path.join(RENDERER_DIST, "index.html")
 
 function createWindow() {
+  const iconPath = path.join(process.env.APP_ROOT, "build", "orbital-icon.png")
+  
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -35,6 +37,7 @@ function createWindow() {
     minHeight: 600,
     title: "Orbital",
     backgroundColor: "#1a1a1a",
+    icon: iconPath,
     show: false,
     webPreferences: {
       preload,
@@ -72,8 +75,8 @@ function createWindow() {
 
 function createTray() {
   const iconPath = VITE_DEV_SERVER_URL
-    ? path.join(__dirname, "../../build/icon.png")
-    : path.join(process.resourcesPath, "build/icon.png")
+    ? path.join(__dirname, "../../build/orbital-icon.png")
+    : path.join(process.resourcesPath, "build/orbital-icon.png")
 
   let trayIcon: nativeImage
   try {
