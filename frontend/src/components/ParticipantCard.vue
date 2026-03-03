@@ -257,6 +257,11 @@
               class="text-white text-sm font-medium bg-gray-900/70 px-3 py-1 rounded-lg max-w-[140px] truncate">
               {{ userNickname.length > 12 ? userNickname.slice(0, 12) + "..." : userNickname }}
             </span>
+            <!-- Mute/Deafen indicators -->
+            <div v-if="isMuted || isDeafened" class="flex gap-0.5">
+              <PhMicrophoneSlash v-if="isMuted" class="w-3 h-3 text-red-400" />
+              <PhHeadphones v-if="isDeafened" class="w-3 h-3 text-red-400" />
+            </div>
           </div>
         </div>
 
@@ -276,11 +281,16 @@
       </div>
 
       <!-- Nickname at bottom center -->
-      <div class="absolute bottom-2 left-0 right-0 flex justify-center items-center">
+      <div class="absolute bottom-2 left-0 right-0 flex justify-center items-center gap-1">
         <span
-          class="text-white font-medium text-sm bg-gray-900/70 px-3 py-1 rounded-lg max-w-[160px] truncate">
+          class="text-white font-medium text-sm bg-gray-900/70 px-3 py-1 rounded-lg max-w-[140px] truncate">
           {{ userNickname.length > 12 ? userNickname.slice(0, 12) + "..." : userNickname }}
         </span>
+        <!-- Mute/Deafen indicators -->
+        <div v-if="isMuted || isDeafened" class="flex gap-0.5">
+          <PhMicrophoneSlash v-if="isMuted" class="w-3 h-3 text-red-400" />
+          <PhHeadphones v-if="isDeafened" class="w-3 h-3 text-red-400" />
+        </div>
       </div>
 
       <!-- Speaking Indicator -->
@@ -366,8 +376,9 @@ import {
   PhSpeakerHigh,
   PhMonitorPlay,
   PhCamera,
+  PhHeadphones,
 } from "@phosphor-icons/vue"
-import { useRoomStore, usePresenceStore } from "@/stores"
+import { useRoomStore, usePresenceStore, useCallStore } from "@/stores"
 import UserAvatar from "@/components/UserAvatar.vue"
 import type { ScreenShareQuality, ConnectionStats } from "@/types"
 
@@ -419,6 +430,7 @@ const emit = defineEmits<{
 // Store
 const roomStore = useRoomStore()
 const presenceStore = usePresenceStore()
+const callStore = useCallStore()
 
 // Refs
 const screenVideoElement = useTemplateRef<HTMLVideoElement>("screenVideoElement")
@@ -428,7 +440,18 @@ const tooltipElement = useTemplateRef<HTMLDivElement>("tooltipElement")
 
 // State
 const volume = computed(() => roomStore.getUserVolume(props.userId))
-const isMuted = ref(false)
+const isMuted = computed(() => {
+  if (props.isCurrentUser) {
+    return callStore.isMuted
+  }
+  return roomStore.getUserMuted(props.userId)
+})
+const isDeafened = computed(() => {
+  if (props.isCurrentUser) {
+    return callStore.isDeafened
+  }
+  return roomStore.getUserDeafened(props.userId)
+})
 const showMenu = ref(false)
 const showStats = ref(false)
 const menuPosition = { x: 0, y: 0 }
@@ -650,9 +673,9 @@ const setupAllVideoStreams = () => {
 }
 
 const toggleMute = () => {
-  isMuted.value = !isMuted.value
+  const newMutedState = !isMuted.value
   // Mute state is now managed by AudioManager component
-  emit("mute-toggle", props.userId, isMuted.value)
+  emit("mute-toggle", props.userId, newMutedState)
 }
 
 const handleMuteToggle = () => {

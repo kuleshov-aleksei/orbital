@@ -23,6 +23,16 @@ export const useRoomStore = defineStore("room", () => {
     () => (userId: string) => remoteStreamVolumes.value.get(userId) ?? 80,
   )
 
+  const getUserMuted = computed(() => (userId: string) => {
+    const user = currentRoomUsers.value.find((u) => u.id === userId)
+    return user?.is_muted ?? false
+  })
+
+  const getUserDeafened = computed(() => (userId: string) => {
+    const user = currentRoomUsers.value.find((u) => u.id === userId)
+    return user?.is_deafened ?? false
+  })
+
   // Actions
   function setRooms(newRooms: Room[]) {
     rooms.value = newRooms
@@ -223,6 +233,9 @@ export const useRoomStore = defineStore("room", () => {
     activeRoomName,
     isInRoom,
     getRoomById,
+    getUserVolume,
+    getUserMuted,
+    getUserDeafened,
     setRooms,
     addRoom,
     updateRoom,
