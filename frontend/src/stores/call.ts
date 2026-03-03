@@ -30,6 +30,7 @@ export const useCallStore = defineStore("call", () => {
   const isDeafened = ref(loadFromStorage(DEAFEN_STORAGE_KEY, false))
   const isScreenSharing = ref(false)
   const isCameraEnabled = ref(false)
+  const wasMutedBeforeDeafen = ref(false)
 
   // Watch for changes and persist to localStorage
   watch(isMuted, (newValue) => {
@@ -46,6 +47,16 @@ export const useCallStore = defineStore("call", () => {
   }
 
   function setDeafened(deafened: boolean) {
+    if (deafened) {
+      wasMutedBeforeDeafen.value = isMuted.value
+      if (!isMuted.value) {
+        isMuted.value = true
+      }
+    } else {
+      if (!wasMutedBeforeDeafen.value) {
+        isMuted.value = false
+      }
+    }
     isDeafened.value = deafened
   }
 

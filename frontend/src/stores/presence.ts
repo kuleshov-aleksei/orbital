@@ -252,18 +252,14 @@ export const usePresenceStore = defineStore("presence", () => {
 
     // Watch for local mute/deafen changes and sync to LiveKit
     watch(
-      () => callStore.isMuted,
-      (newValue) => {
-        void updateLocalAttributes({ is_muted: newValue.toString() })
+      () => [callStore.isMuted, callStore.isDeafened] as const,
+      ([newMuted, newDeafened]) => {
+        void updateLocalAttributes({
+          is_muted: newMuted.toString(),
+          is_deafened: newDeafened.toString(),
+        })
         // Also update microphone enabled state in LiveKit
-        void lkRoom.localParticipant.setMicrophoneEnabled(!newValue)
-      },
-    )
-
-    watch(
-      () => callStore.isDeafened,
-      (newValue) => {
-        void updateLocalAttributes({ is_deafened: newValue.toString() })
+        void lkRoom.localParticipant.setMicrophoneEnabled(!newMuted)
       },
     )
   }

@@ -106,7 +106,6 @@ const slashClasses = computed(() => {
 // Toggle deafen - presence store will sync with LiveKit
 const toggleDeafen = async () => {
   const newValue = !isDeafened.value
-  isDeafened.value = newValue
 
   // Play sound locally (remote users hear it via presence.ts)
   if (newValue) {
@@ -116,10 +115,15 @@ const toggleDeafen = async () => {
   }
 
   // Update call store (presence store watches this and syncs with LiveKit)
+  // This also handles auto-mute on deafen and restore-mute on undeafen
   callStore.setDeafened(newValue)
 
   // Immediately update room store for local user so UI updates right away
-  roomStore.updateUserStatus(userStore.userId, { is_deafened: newValue })
+  // Use callStore.isMuted to get the actual current mute state after setDeafened
+  roomStore.updateUserStatus(userStore.userId, {
+    is_deafened: newValue,
+    is_muted: callStore.isMuted,
+  })
 }
 </script>
 
