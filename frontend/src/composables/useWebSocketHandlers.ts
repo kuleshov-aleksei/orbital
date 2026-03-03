@@ -1,6 +1,7 @@
 import { onMounted, onUnmounted, watch, ref } from "vue"
 import { useRoomStore, useCategoryStore, useAppStore, useUserStore, useUsersStore } from "@/stores"
 import { wsService } from "@/services/websocket"
+import { debugLog } from "@/utils/debug"
 import type { User, Room, Category } from "@/types"
 
 export function useWebSocketHandlers() {
@@ -43,9 +44,9 @@ export function useWebSocketHandlers() {
     // Room creation
     wsService.onGlobal("room_created", (message) => {
       const newRoom = message.data as Room
-      console.log("Received room_created event:", newRoom)
+      debugLog("Received room_created event:", newRoom)
       roomStore.addRoom(newRoom)
-      console.log("Added new room to list:", newRoom.name)
+      debugLog("Added new room to list:", newRoom.name)
     })
 
     // Nickname changes
@@ -70,19 +71,19 @@ export function useWebSocketHandlers() {
     // Category events
     wsService.onGlobal("category_created", (message) => {
       const newCategory = message.data as Category
-      console.log("Received category_created event:", newCategory)
+      debugLog("Received category_created event:", newCategory)
       categoryStore.addCategory(newCategory)
     })
 
     wsService.onGlobal("category_renamed", (message) => {
       const updatedCategory = message.data as Category
-      console.log("Received category_renamed event:", updatedCategory)
+      debugLog("Received category_renamed event:", updatedCategory)
       const oldCategory = categoryStore.getCategoryById(updatedCategory.id)
       if (oldCategory) {
         categoryStore.updateCategory(updatedCategory.id, {
           name: updatedCategory.name,
         })
-        console.log("Renamed category from", oldCategory.name, "to", updatedCategory.name)
+        debugLog("Renamed category from", oldCategory.name, "to", updatedCategory.name)
       }
     })
 
@@ -93,21 +94,21 @@ export function useWebSocketHandlers() {
         migrated_rooms: string[]
         target_category_id: string
       }
-      console.log("Received category_deleted event:", data)
+      debugLog("Received category_deleted event:", data)
       const deletedCategory = categoryStore.getCategoryById(data.category_id)
 
       if (deletedCategory) {
         categoryStore.removeCategory(data.category_id)
-        console.log("Deleted category:", deletedCategory.name)
+        debugLog("Deleted category:", deletedCategory.name)
       }
     })
 
     // Category order updated
     wsService.onGlobal("category_order_updated", (message) => {
       const data = message.data as { orders: Record<string, number> }
-      console.log("Received category_order_updated event:", data)
+      debugLog("Received category_order_updated event:", data)
       categoryStore.reorderCategories(data.orders)
-      console.log("Updated category order")
+      debugLog("Updated category order")
     })
 
     // Room updates
@@ -117,17 +118,17 @@ export function useWebSocketHandlers() {
         room: Room
         old_category: string
       }
-      console.log("Received room_updated event:", data)
+      debugLog("Received room_updated event:", data)
       roomStore.updateRoom(data.room_id, data.room)
-      console.log("Updated room:", data.room.name)
+      debugLog("Updated room:", data.room.name)
     })
 
     // Room deletion
     wsService.onGlobal("room_deleted", (message) => {
       const data = message.data as { room_id: string; category: string }
-      console.log("Received room_deleted event:", data)
+      debugLog("Received room_deleted event:", data)
       roomStore.removeRoom(data.room_id)
-      console.log("Deleted room:", data.room_id)
+      debugLog("Deleted room:", data.room_id)
 
       // If the deleted room was active, leave it
       if (roomStore.activeRoomId === data.room_id) {
@@ -140,7 +141,7 @@ export function useWebSocketHandlers() {
 
     // Connection events
     wsService.onGlobalConnection(() => {
-      console.log("Global WebSocket connected")
+      debugLog("Global WebSocket connected")
       // Start sending pings to keep connection alive and trigger periodic user list updates
       startGlobalPing()
       // Refetch users to get updated online status now that we're connected
@@ -148,7 +149,7 @@ export function useWebSocketHandlers() {
     })
 
     wsService.onGlobalDisconnection((event) => {
-      console.log("Global WebSocket disconnected:", event)
+      debugLog("Global WebSocket disconnected:", event)
       stopGlobalPing()
     })
 
@@ -157,7 +158,7 @@ export function useWebSocketHandlers() {
       const data = message.data as { timestamp: number }
       const latency = Date.now() - data.timestamp
       if (latency > 1000) {
-        console.log(`Global WebSocket latency: ${latency}ms`)
+        debugLog(`Global WebSocket latency: ${latency}ms`)
       }
     })
 
@@ -170,7 +171,7 @@ export function useWebSocketHandlers() {
         role: string
         is_online: boolean
       }
-      console.log(
+      debugLog(
         "[WebSocket] User came online:",
         data.id,
         data.nickname,
@@ -181,10 +182,8 @@ export function useWebSocketHandlers() {
       // Check if user already exists
       const existingUser = usersStore.allUsers.find((u) => u.id === data.id)
       if (existingUser) {
-        console.log("[WebSocket] Updating existing user:", data.id)
         usersStore.updateOnlineStatus(data.id, true)
       } else {
-        console.log("[WebSocket] Adding new user:", data.id)
         // Add new user with full data
         usersStore.addUser({
           id: data.id,
@@ -194,12 +193,10 @@ export function useWebSocketHandlers() {
           is_online: true,
         })
       }
-      console.log("[WebSocket] After update, users count:", usersStore.allUsers.length)
     })
 
     wsService.onGlobal("user_offline", (message) => {
       const data = message.data as { id: string }
-      console.log("[WebSocket] User went offline:", data.id)
       usersStore.updateOnlineStatus(data.id, false)
     })
 
@@ -214,7 +211,6 @@ export function useWebSocketHandlers() {
           is_online: boolean
         }>
       }
-      console.log("[WebSocket] Received online users list:", data.users.length, "users")
 
       // Update all users with their online status from the broadcast
       data.users.forEach((user) => {
@@ -255,7 +251,7 @@ export function useWebSocketHandlers() {
       // 3. The tokens are actually different
       // This prevents reconnection when the same tab loads the token from localStorage
       if (newToken && oldToken && newToken !== oldToken) {
-        console.log("Auth token changed, reconnecting global WebSocket")
+        debugLog("Auth token changed, reconnecting global WebSocket")
         // Wait for disconnect to complete before reconnecting to avoid race conditions
         await wsService.disconnectGlobal()
         await connectGlobalWebSocket()
@@ -295,7 +291,6 @@ export function useWebSocketHandlers() {
   // Connect to WebSocket only after auth is complete
   const connectIfAuthenticated = () => {
     if (userStore.hasCompletedAuth && !hasConnected.value) {
-      console.log("[WebSocket] Auth completed, connecting WebSocket")
       hasConnected.value = true
       void connectGlobalWebSocket()
     }

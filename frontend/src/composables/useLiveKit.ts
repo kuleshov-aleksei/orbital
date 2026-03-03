@@ -725,7 +725,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
           ? `${participantId}-screenshare`
           : participantId
 
-      console.log(`[LiveKit] Audio track source: ${audioSource}, using key: ${trackKey}`)
+      debugLog(`[LiveKit] Audio track source: ${audioSource}, using key: ${trackKey}`)
 
       // Store with composite key to avoid overwriting mic audio with screen share audio
       remoteAudioTracks.value.set(trackKey, audioTrack)
@@ -787,7 +787,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
           ? `${participantId}-screenshare`
           : participantId
 
-      console.log(`[LiveKit] Audio unsubscribed source: ${audioSource}, using key: ${trackKey}`)
+      debugLog(`[LiveKit] Audio unsubscribed source: ${audioSource}, using key: ${trackKey}`)
 
       remoteAudioTracks.value.delete(trackKey)
       audioTracksStore.removeTrack(trackKey)
@@ -1075,7 +1075,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
       screenShareQuality.value = quality
 
       debugLog(`[LiveKit][INFO]: Electron screen sharing started successfully`)
-      await tap()
     } catch (error) {
       console.error("Failed to start Electron screen share:", error)
       console.error(`[LiveKit][ERROR]: Electron screen share failed: ${(error as Error).message}`)
@@ -1340,8 +1339,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
       })
 
       debugLog(`[LiveKit][INFO]: 'Screen sharing stopped'`)
-
-      await tap()
     } catch (error) {
       console.error("Error stopping screen share:", error)
       console.error(`[LiveKit][ERROR]: Error stopping screen share: ${(error as Error).message}`)
@@ -1401,8 +1398,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
       }
 
       debugLog(`[LiveKit][INFO]: 'Camera started successfully'`)
-
-      await tap()
     } catch (error) {
       console.error("Failed to start camera:", error)
       console.error(`[LiveKit][ERROR]: Camera failed: ${(error as Error).message}`)
@@ -1473,8 +1468,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
       userCameraStates.value.set(getCurrentUserId(), false)
 
       debugLog(`[LiveKit][INFO]: 'Camera stopped'`)
-
-      await tap()
     } catch (error) {
       console.error("Error stopping camera:", error)
       console.error(`[LiveKit][ERROR]: Error stopping camera: ${(error as Error).message}`)

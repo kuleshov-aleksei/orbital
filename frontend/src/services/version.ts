@@ -1,5 +1,6 @@
 // Version checking service for PWA update detection
 import { apiRequest } from "./api"
+import { debugLog } from "@/utils/debug"
 
 // Version is injected at build time via Vite define
 declare const __APP_VERSION__: string
@@ -69,13 +70,13 @@ export class VersionChecker {
       const serverVersion = response.version
 
       if (serverVersion !== this.currentVersion) {
-        console.log(`[VersionChecker] Update detected: ${this.currentVersion} → ${serverVersion}`)
+        debugLog(`[VersionChecker] Update detected: ${this.currentVersion} → ${serverVersion}`)
         const isInCall = this.isInCallCallback()
         this.onUpdateAvailable(isInCall)
       }
     } catch (error) {
       // Silent failure - will retry on next interval
-      console.debug("[VersionChecker] Version check failed:", error)
+      debugLog("[VersionChecker] Version check failed:", error)
     }
   }
 

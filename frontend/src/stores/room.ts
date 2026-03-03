@@ -1,6 +1,7 @@
 import { defineStore } from "pinia"
 import { ref, computed } from "vue"
 import type { Room, User } from "@/types"
+import { debugLog } from "@/utils/debug"
 
 export const useRoomStore = defineStore("room", () => {
   // State
@@ -68,7 +69,7 @@ export const useRoomStore = defineStore("room", () => {
       is_screen_sharing?: boolean
     },
   ) {
-    console.log("[RoomStore] updateUserStatus called:", { userId, status })
+    debugLog("[RoomStore] updateUserStatus called:", { userId, status })
     // Update rooms array for sidebar display
     // Use slice() to create new array references for Vue reactivity
     let hasChanges = false
@@ -108,10 +109,10 @@ export const useRoomStore = defineStore("room", () => {
 
     // Only update if there were actual changes
     if (hasChanges) {
-      console.log("[RoomStore] Updating rooms with changes for user:", userId)
+      debugLog("[RoomStore] Updating rooms with changes for user:", userId)
       rooms.value = updatedRooms
     } else if (!userFound) {
-      console.log(
+      debugLog(
         "[RoomStore] User not found in any room:",
         userId,
         "Available user IDs:",
