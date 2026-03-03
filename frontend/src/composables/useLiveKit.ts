@@ -14,7 +14,7 @@ import {
   Track,
   VideoPresets,
   ScreenSharePresets,
-  type VideoEncoding,
+  AudioPresets,
 } from "livekit-client"
 import { apiService } from "@/services/api"
 import { usePresenceStore } from "@/stores/presence"
@@ -23,7 +23,7 @@ import { useAudioTracksStore } from "@/stores/audioTracks"
 import { useCallStore } from "@/stores/call"
 import { getLiveKitAudioConstraints } from "@/services/livekit-audio-processors"
 import { debugLog, debugWarn } from "@/utils/debug"
-import { transitionOpen, transitionClose, tap } from "@/services/sounds"
+import { transitionOpen, transitionClose } from "@/services/sounds"
 import { isElectron } from "@/services/electron"
 import type { User, ScreenShareQuality, ConnectionStats, TrackStats } from "@/types"
 
@@ -456,7 +456,9 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
           // Create LiveKit audio track
           const track = await createLocalAudioTrack({
-            audio: audioConstraints,
+            noiseSuppression: audioConstraints.noiseSuppression,
+            autoGainControl: audioConstraints.autoGainControl,
+            echoCancellation: audioConstraints.echoCancellation,
           })
 
           localAudioTrack.value = track
@@ -494,10 +496,11 @@ export function useLiveKit(options: UseLiveKitOptions) {
         dynacast: true,
         publishDefaults: {
           simulcast: true,
-          screenshareEncoding: {
-            maxBitrate: 9 * 1000 * 1000,
-            maxFramerate: 120,
+          screenShareEncoding: {
+            maxBitrate: 20 * 1000 * 1000,
+            maxFramerate: 60,
           },
+          audioPreset: AudioPresets.music,
         },
       })
 
@@ -519,7 +522,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
       debugLog(`[LiveKit][INFO]: 'Connected to LiveKit room successfully'}`)
 
       // Play transition open sound on successful connection
-      await transitionOpen()
+      transitionOpen()
 
       // Initialize presence tracking
       await presenceStore.initializePresence(lkRoom)
@@ -1090,7 +1093,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
   }
 
   // Start screen sharing with different quality modes
-  const startScreenShare = async (quality: ScreenShareQuality, audio: boolean): Promise<void> => {
+  const startScreenShare = async (quality: ScreenShareQuality): Promise<void> => {
     if (!room.value) {
       throw new Error("Not connected to room")
     }
@@ -1112,7 +1115,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
         const displayMediaOptions: DisplayMediaStreamOptions = {
           audio: true,
           video: {
-            displaySurface: "monitor",
             width: { ideal: 1920 },
             height: { ideal: 1080 },
             frameRate: { ideal: 60 },
@@ -1182,20 +1184,32 @@ export function useLiveKit(options: UseLiveKitOptions) {
         }
 
         // Publish audio track if requested (from the display stream)
-        if (audio && displayStream.getAudioTracks().length > 0) {
-          const audioTrackFromStream = displayStream.getAudioTracks()[0]
+        const audioTracks = displayStream.getAudioTracks()
+        debugLog(
+          `[LiveKit][INFO]: Audio tracks in stream: ${audioTracks.length}`,
+        )
+
+        if (audioTracks.length > 0) {
+          const audioTrackFromStream = audioTracks[0]
+
+          debugLog(
+            `[LiveKit][INFO]: Publishing screen share audio track: ${audioTrackFromStream.label}`,
+          )
 
           const audioPublication = await room.value.localParticipant.publishTrack(
             audioTrackFromStream,
             {
               name: "screen-share-audio",
               source: Track.Source.ScreenShareAudio,
+              audioPreset: AudioPresets.musicHighQualityStereo,
             },
           )
           localScreenAudioPublication.value = audioPublication
 
           const lkAudioTrack = audioPublication.track as LocalAudioTrack
           localScreenAudioTrack.value = lkAudioTrack
+
+          debugLog(`[LiveKit][INFO]: Screen share audio track published successfully`)
 
           audioTrackFromStream.onended = () => {
             if (!isStoppingScreenShare.value) {
@@ -1215,20 +1229,23 @@ export function useLiveKit(options: UseLiveKitOptions) {
         debugLog(`[LiveKit][INFO]: 'Screen sharing started (fullhd60 raw mode)'`)
       } else if (quality === "adaptive") {
         // adaptive: Use LiveKit's h1080fps30 preset - original resolution up to 30fps
-        await room.value.localParticipant.setScreenShareEnabled(true, {
-          audio: true,
-          resolution: ScreenSharePresets.h1080fps30.resolution,
-          contentHint: 'motion',
-          selfBrowserSurface: 'exclude',
-          systemAudio: 'include',
-        },
-        {
-          screenShareEncoding: {
+        await room.value.localParticipant.setScreenShareEnabled(
+          true,
+          {
+            audio: true,
+            resolution: ScreenSharePresets.h1080fps30.resolution,
+            contentHint: "motion",
+            selfBrowserSurface: "exclude",
+            systemAudio: "include",
+          },
+          {
+            screenShareEncoding: {
               maxBitrate: 20 * 1000 * 1000, // 10 Mbps
               maxFramerate: 30,
             },
             degradationPreference: "balanced",
-        })
+          },
+        )
 
         // Update local state for self-view
         userScreenShareStates.value.set(getCurrentUserId(), {
@@ -1249,9 +1266,9 @@ export function useLiveKit(options: UseLiveKitOptions) {
             height: 1080,
             frameRate: 5,
           },
-          contentHint: 'text',
-          selfBrowserSurface: 'exclude',
-          systemAudio: 'include',
+          contentHint: "text",
+          selfBrowserSurface: "exclude",
+          systemAudio: "include",
         })
 
         // Update local state for self-view

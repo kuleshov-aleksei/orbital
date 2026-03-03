@@ -119,12 +119,12 @@ const isCameraEnabled = computed({
 })
 
 // Confirm screen share start (called by parent after quality selection)
-const confirmStartScreenShare = async (quality: ScreenShareQuality, hasAudio: boolean) => {
+const confirmStartScreenShare = async (quality: ScreenShareQuality) => {
   const button = screenShareButtonRef.value as unknown as {
-    confirmStartScreenShare?: (quality: ScreenShareQuality, hasAudio: boolean) => Promise<void>
+    confirmStartScreenShare?: (quality: ScreenShareQuality) => Promise<void>
   } | null
   if (button?.confirmStartScreenShare) {
-    await button.confirmStartScreenShare(quality, hasAudio)
+    await button.confirmStartScreenShare(quality)
   }
 }
 

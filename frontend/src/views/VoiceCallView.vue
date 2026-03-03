@@ -344,16 +344,16 @@ const handleUserMuteToggle = (userId: string, isMuted: boolean): void => {
 }
 
 // Start screen share wrapper - called by parent (AppLayout)
-const startScreenShareWithQuality = async (quality: string, shareAudio: boolean) => {
+const startScreenShareWithQuality = async (quality: string) => {
   try {
     // Start the actual LiveKit screen share
-    await startScreenShare(quality as ScreenShareQuality, shareAudio)
+    await startScreenShare(quality as ScreenShareQuality)
     // Tell AudioControls to update state and send WebSocket message
     const audioControls = audioControlsRef.value as unknown as {
-      confirmStartScreenShare?: (quality: ScreenShareQuality, hasAudio: boolean) => Promise<void>
+      confirmStartScreenShare?: (quality: ScreenShareQuality) => Promise<void>
     } | null
     if (audioControls?.confirmStartScreenShare) {
-      await audioControls.confirmStartScreenShare(quality as ScreenShareQuality, shareAudio)
+      await audioControls.confirmStartScreenShare(quality as ScreenShareQuality)
     }
   } catch (error) {
     console.error("Failed to start screen share:", error)

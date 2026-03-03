@@ -154,16 +154,16 @@ const handleDeleteRoom = (payload: { roomId: string; roomName: string; userCount
   modalManager.openDeleteRoomModal(payload.roomId, payload.roomName, payload.userCount)
 }
 
-const handleScreenShareQualitySelected = async (quality: string, shareAudio: boolean) => {
+const handleScreenShareQualitySelected = async (quality: string) => {
   showScreenShareQualityModal.value = false
 
   const voiceCallView = mainContentRef.value?.voiceCallViewRef as
     | {
-        startScreenShare?: (quality: string, shareAudio: boolean) => Promise<void>
+        startScreenShare?: (quality: string) => Promise<void>
       }
     | undefined
   if (voiceCallView?.startScreenShare) {
-    await voiceCallView.startScreenShare(quality, shareAudio)
+    await voiceCallView.startScreenShare(quality)
   }
 }
 

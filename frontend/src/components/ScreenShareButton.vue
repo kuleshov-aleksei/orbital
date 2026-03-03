@@ -135,7 +135,7 @@ const toggleScreenShare = () => {
 
 // Method to be called by parent after quality is selected
 // Note: LiveKit handles all screen sharing signaling internally
-const confirmStartScreenShare = (quality: string = "source", hasAudio: boolean = false) => {
+const confirmStartScreenShare = () => {
   const newValue = true
 
   // Play sound
