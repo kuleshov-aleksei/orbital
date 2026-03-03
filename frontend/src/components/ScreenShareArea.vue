@@ -20,7 +20,9 @@
             :connection-state="focusedStream.connectionState"
             :is-focused="true"
             :show-focus-button="false"
-            :is-self-view="focusedStream.isSelfView" />
+            :is-self-view="focusedStream.isSelfView"
+            :volume="getVolumeForUser(focusedStream.userId)"
+            @volume-change="handleVolumeChange(focusedStream.userId, $event, true)" />
           <!-- Camera in main area -->
           <CameraStream
             v-else-if="focusedStream?.type === 'camera'"
@@ -84,8 +86,10 @@
             :is-focused="false"
             :show-focus-button="sortedVideoStreams.length > 1"
             :is-self-view="item.isSelfView"
+            :volume="getVolumeForUser(item.userId)"
             class="h-full"
-            @make-focused="setFocusedShare(item.userId)" />
+            @make-focused="setFocusedShare(item.userId)"
+            @volume-change="handleVolumeChange(item.userId, $event, true)" />
           <!-- Camera -->
           <CameraStream
             v-else
@@ -122,7 +126,16 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   "update:layout": [layout: "grid" | "focus"]
   "mute-toggle": [userId: string, isMuted: boolean]
+  "volume-change": [userId: string, volume: number, isScreenShare: boolean]
 }>()
+
+// Handle volume change from ScreenStream
+const handleVolumeChange = (userId: string, volume: number, isScreenShare: boolean) => {
+  const normalizedId = normalizeUserId(userId)
+  // Use -screenshare suffix for screen share audio volume
+  const volumeKey = isScreenShare ? `${normalizedId}-screenshare` : normalizedId
+  props.remoteStreamVolumes.set(volumeKey, volume)
+}
 
 // Cache for MediaStream objects to prevent recreation on every render
 const streamCache = ref<Map<string, MediaStream>>(new Map())
@@ -158,7 +171,7 @@ interface ParticipantData {
   }
 }
 
-interface CameraStream {
+interface CameraStreamData {
   userId: string
   userNickname: string
   videoTrack: RemoteVideoTrack | LocalVideoTrack | null
@@ -168,11 +181,11 @@ interface CameraStream {
 
 type VideoStreamItem =
   | (ScreenShare & { type: "screen"; sortKey: string })
-  | (CameraStream & { type: "camera"; sortKey: string })
+  | (CameraStreamData & { type: "camera"; sortKey: string })
 
 interface Props {
   screenShares: ScreenShare[]
-  cameraStreams: CameraStream[]
+  cameraStreams: CameraStreamData[]
   layout: "grid" | "focus"
   users: User[]
   remoteStreamVolumes: Map<string, number>
@@ -203,6 +216,14 @@ const userShowCameraAsMain = ref<Map<string, boolean>>(new Map())
 // Normalize userId by removing -self suffix for consistent lookup
 const normalizeUserId = (userId: string): string => {
   return userId.replace(/-self$/, "")
+}
+
+// Get volume for a user (handles -self suffix for self-view)
+// For screen share streams, look up the -screenshare key
+const getVolumeForUser = (userId: string): number => {
+  const normalizedId = normalizeUserId(userId)
+  // Screen share audio volume is stored with -screenshare suffix
+  return props.remoteStreamVolumes.get(`${normalizedId}-screenshare`) ?? 80
 }
 
 // Get the showCameraAsMain state for a user
