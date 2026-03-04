@@ -184,11 +184,13 @@ export const useRoomStore = defineStore("room", () => {
   }
 
   function setUserMuted(userId: string, muted: boolean) {
+    const newSet = new Set(localMutedUsers.value)
     if (muted) {
-      localMutedUsers.value.add(userId)
+      newSet.add(userId)
     } else {
-      localMutedUsers.value.delete(userId)
+      newSet.delete(userId)
     }
+    localMutedUsers.value = newSet
   }
 
   function clearUserVolume(userId: string) {
