@@ -31,6 +31,7 @@ import { computed } from "vue"
 import { PhMonitorPlay, PhLock } from "@phosphor-icons/vue"
 import { useCallStore, useUserStore } from "@/stores"
 import { useScreenShareSupport } from "@/composables/useScreenShareSupport"
+import { useSounds } from "@/services/sounds"
 
 interface Props {
   modelValue: boolean
@@ -51,6 +52,9 @@ const emit = defineEmits<{
 const callStore = useCallStore()
 const userStore = useUserStore()
 const { isScreenShareSupported } = useScreenShareSupport()
+
+// Sounds
+const { toggleOn, toggleOff } = useSounds()
 
 // Computed properties
 const isGuest = computed(() => userStore.isGuest)
@@ -118,6 +122,9 @@ const toggleScreenShare = () => {
     return
   }
 
+  // Play sound
+  toggleOff()
+
   // If stopping, handle immediately
   // Note: LiveKit will emit LocalTrackUnpublished event which updates state
   isScreenSharing.value = newValue
@@ -128,8 +135,12 @@ const toggleScreenShare = () => {
 
 // Method to be called by parent after quality is selected
 // Note: LiveKit handles all screen sharing signaling internally
-const confirmStartScreenShare = (quality: string = "source", hasAudio: boolean = false) => {
+const confirmStartScreenShare = () => {
   const newValue = true
+
+  // Play sound
+  toggleOn()
+
   isScreenSharing.value = newValue
 
   // Update call store

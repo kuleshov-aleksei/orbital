@@ -327,3 +327,36 @@ export interface DebugLog {
   created_at: string
   log_filename: string
 }
+
+// Electron Desktop App Types
+export interface DesktopSource {
+  id: string
+  name: string
+  thumbnail: string
+  display_id: string
+}
+
+export interface UpdateInfo {
+  version: string
+  releaseDate: string
+  sha512?: string
+}
+
+export interface ElectronAPI {
+  getDesktopSources: () => Promise<DesktopSource[]>
+  checkForUpdates: () => Promise<unknown>
+  onUpdateAvailable: (callback: (info: UpdateInfo) => void) => void
+  onUpdateDownloaded: (callback: (info: UpdateInfo) => void) => void
+  installUpdate: () => void
+  getPlatform: () => Promise<NodeJS.Platform>
+  minimizeWindow: () => void
+  maximizeWindow: () => void
+  closeWindow: () => void
+  onDeepLink: (callback: (url: string) => void) => void
+}
+
+declare global {
+  interface Window {
+    electronAPI?: ElectronAPI
+  }
+}

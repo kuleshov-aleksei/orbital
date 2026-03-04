@@ -13,7 +13,8 @@ import {
   LocalAudioTrack,
   Track,
   VideoPresets,
-  type VideoEncoding,
+  ScreenSharePresets,
+  AudioPresets,
 } from "livekit-client"
 import { apiService } from "@/services/api"
 import { usePresenceStore } from "@/stores/presence"
@@ -22,7 +23,8 @@ import { useAudioTracksStore } from "@/stores/audioTracks"
 import { useCallStore } from "@/stores/call"
 import { getLiveKitAudioConstraints } from "@/services/livekit-audio-processors"
 import { debugLog, debugWarn } from "@/utils/debug"
-import { transitionOpen, transitionClose, tap } from "@/services/sounds"
+import { transitionOpen, transitionClose } from "@/services/sounds"
+import { isElectron } from "@/services/electron"
 import type { User, ScreenShareQuality, ConnectionStats, TrackStats } from "@/types"
 
 export interface UseLiveKitOptions {
@@ -454,7 +456,9 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
           // Create LiveKit audio track
           const track = await createLocalAudioTrack({
-            audio: audioConstraints,
+            noiseSuppression: audioConstraints.noiseSuppression,
+            autoGainControl: audioConstraints.autoGainControl,
+            echoCancellation: audioConstraints.echoCancellation,
           })
 
           localAudioTrack.value = track
@@ -492,10 +496,11 @@ export function useLiveKit(options: UseLiveKitOptions) {
         dynacast: true,
         publishDefaults: {
           simulcast: true,
-          screenshareEncoding: {
-            maxBitrate: 9 * 1000 * 1000,
-            maxFramerate: 120,
+          screenShareEncoding: {
+            maxBitrate: 20 * 1000 * 1000,
+            maxFramerate: 60,
           },
+          audioPreset: AudioPresets.music,
         },
       })
 
@@ -517,7 +522,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
       debugLog(`[LiveKit][INFO]: 'Connected to LiveKit room successfully'}`)
 
       // Play transition open sound on successful connection
-      await transitionOpen()
+      transitionOpen()
 
       // Initialize presence tracking
       await presenceStore.initializePresence(lkRoom)
@@ -723,7 +728,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
           ? `${participantId}-screenshare`
           : participantId
 
-      console.log(`[LiveKit] Audio track source: ${audioSource}, using key: ${trackKey}`)
+      debugLog(`[LiveKit] Audio track source: ${audioSource}, using key: ${trackKey}`)
 
       // Store with composite key to avoid overwriting mic audio with screen share audio
       remoteAudioTracks.value.set(trackKey, audioTrack)
@@ -785,7 +790,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
           ? `${participantId}-screenshare`
           : participantId
 
-      console.log(`[LiveKit] Audio unsubscribed source: ${audioSource}, using key: ${trackKey}`)
+      debugLog(`[LiveKit] Audio unsubscribed source: ${audioSource}, using key: ${trackKey}`)
 
       remoteAudioTracks.value.delete(trackKey)
       audioTracksStore.removeTrack(trackKey)
@@ -927,8 +932,168 @@ export function useLiveKit(options: UseLiveKitOptions) {
     }
   }
 
+  // Start Electron screen capture with specific source ID
+  const startElectronScreenShare = async (
+    quality: ScreenShareQuality,
+    audio: boolean,
+    sourceId: string,
+  ): Promise<void> => {
+    if (!room.value) {
+      throw new Error("Not connected to room")
+    }
+
+    if (isStartingScreenShare) {
+      debugLog(`[LiveKit][INFO]: Screen share already starting, ignoring duplicate request`)
+      return
+    }
+
+    isStartingScreenShare = true
+
+    try {
+      debugLog(`[LiveKit][INFO]: Starting Electron screen share: ${quality}, source: ${sourceId}`)
+
+      // Determine frame rate based on quality
+      let maxFrameRate = 60
+      if (quality === "text") {
+        maxFrameRate = 5
+      } else if (quality === "fullhd60") {
+        maxFrameRate = 60
+      }
+
+      // Build constraints for Electron screen capture
+      const constraints: MediaStreamConstraints = {
+        audio: audio
+          ? {
+              mandatory: {
+                chromeMediaSource: "desktop",
+                chromeMediaSourceId: sourceId,
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false,
+              },
+            }
+          : false,
+        video: {
+          mandatory: {
+            chromeMediaSource: "desktop",
+            chromeMediaSourceId: sourceId,
+            maxWidth: 1920,
+            maxHeight: 1080,
+            maxFrameRate: maxFrameRate,
+            minFrameRate: 30,
+          },
+        },
+      }
+
+      const displayStream = await navigator.mediaDevices.getUserMedia(constraints)
+      const videoTrackFromStream = displayStream.getVideoTracks()[0]
+
+      if (!videoTrackFromStream) {
+        throw new Error("No video track obtained from display media")
+      }
+
+      // Try to apply higher frame rate constraints
+      try {
+        await videoTrackFromStream.applyConstraints({
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          frameRate: { ideal: maxFrameRate },
+        })
+      } catch (e) {
+        debugWarn(
+          `[LiveKit][WARN]: Could not apply ${maxFrameRate}fps constraint: ${(e as Error).message}`,
+        )
+      }
+
+      const trackSettings = videoTrackFromStream.getSettings()
+      debugLog(
+        `[LiveKit][INFO]: Electron screen share track settings: ${JSON.stringify(trackSettings)}, frameRate: ${trackSettings.frameRate}`,
+      )
+
+      // Publish the video track
+      const publication = await room.value.localParticipant.publishTrack(videoTrackFromStream, {
+        name: "screen-share",
+        source: Track.Source.ScreenShare,
+        videoCodec: "av1",
+        simulcast: false,
+        screenShareEncoding: {
+          maxBitrate: quality === "text" ? 3 * 1000 * 1000 : 20 * 1000 * 1000,
+          maxFramerate: maxFrameRate,
+        },
+      })
+
+      localScreenVideoPublication.value = publication
+
+      const lkVideoTrack = publication.track as LocalVideoTrack
+      localScreenVideoTrack.value = lkVideoTrack
+      isScreenSharing.value = true
+      screenShareVersion.value++
+
+      // Listen for track ended
+      if (lkVideoTrack) {
+        lkVideoTrack.on("ended", () => {
+          if (!isStoppingScreenShare.value) {
+            debugLog(`[LiveKit][INFO]: Screen share track ended (browser UI)`)
+            void stopScreenShare()
+          }
+        })
+      }
+
+      videoTrackFromStream.onended = () => {
+        if (!isStoppingScreenShare.value) {
+          debugLog(`[LiveKit][INFO]: Display media track ended`)
+          void stopScreenShare()
+        }
+      }
+
+      // Publish audio track if requested
+      if (audio && displayStream.getAudioTracks().length > 0) {
+        const audioTrackFromStream = displayStream.getAudioTracks()[0]
+
+        const audioPublication = await room.value.localParticipant.publishTrack(
+          audioTrackFromStream,
+          {
+            name: "screen-share-audio",
+            source: Track.Source.ScreenShareAudio,
+          },
+        )
+        localScreenAudioPublication.value = audioPublication
+
+        const lkAudioTrack = audioPublication.track as LocalAudioTrack
+        localScreenAudioTrack.value = lkAudioTrack
+
+        audioTrackFromStream.onended = () => {
+          if (!isStoppingScreenShare.value) {
+            void stopScreenShare()
+          }
+        }
+      }
+
+      // Update local state
+      userScreenShareStates.value.set(getCurrentUserId(), {
+        isSharing: true,
+        quality: quality,
+      })
+
+      screenShareQuality.value = quality
+
+      debugLog(`[LiveKit][INFO]: Electron screen sharing started successfully`)
+    } catch (error) {
+      console.error("Failed to start Electron screen share:", error)
+      console.error(`[LiveKit][ERROR]: Electron screen share failed: ${(error as Error).message}`)
+      throw error
+    } finally {
+      isStartingScreenShare = false
+    }
+  }
+
+  // Check if running in Electron
+  const isRunningInElectron = (): boolean => {
+    return isElectron()
+  }
+
   // Start screen sharing with different quality modes
-  const startScreenShare = async (quality: ScreenShareQuality, audio: boolean): Promise<void> => {
+  const startScreenShare = async (quality: ScreenShareQuality): Promise<void> => {
     if (!room.value) {
       throw new Error("Not connected to room")
     }
@@ -950,7 +1115,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
         const displayMediaOptions: DisplayMediaStreamOptions = {
           audio: true,
           video: {
-            displaySurface: "monitor",
             width: { ideal: 1920 },
             height: { ideal: 1080 },
             frameRate: { ideal: 60 },
@@ -984,12 +1148,13 @@ export function useLiveKit(options: UseLiveKitOptions) {
         const publication = await room.value.localParticipant.publishTrack(videoTrackFromStream, {
           name: "screen-share",
           source: Track.Source.ScreenShare,
-          encodings: {
-            screen: {
-              maxBitrate: 9 * 1000 * 1000, // 9 Mbps
-              maxFramerate: 60,
-            } as VideoEncoding,
+          videoCodec: "av1",
+          simulcast: false,
+          screenShareEncoding: {
+            maxBitrate: 20 * 1000 * 1000, // 20 Mbps
+            maxFramerate: 60,
           },
+          degradationPreference: "balanced",
         })
 
         localScreenVideoPublication.value = publication
@@ -1019,20 +1184,32 @@ export function useLiveKit(options: UseLiveKitOptions) {
         }
 
         // Publish audio track if requested (from the display stream)
-        if (audio && displayStream.getAudioTracks().length > 0) {
-          const audioTrackFromStream = displayStream.getAudioTracks()[0]
+        const audioTracks = displayStream.getAudioTracks()
+        debugLog(
+          `[LiveKit][INFO]: Audio tracks in stream: ${audioTracks.length}`,
+        )
+
+        if (audioTracks.length > 0) {
+          const audioTrackFromStream = audioTracks[0]
+
+          debugLog(
+            `[LiveKit][INFO]: Publishing screen share audio track: ${audioTrackFromStream.label}`,
+          )
 
           const audioPublication = await room.value.localParticipant.publishTrack(
             audioTrackFromStream,
             {
               name: "screen-share-audio",
               source: Track.Source.ScreenShareAudio,
+              audioPreset: AudioPresets.musicHighQualityStereo,
             },
           )
           localScreenAudioPublication.value = audioPublication
 
           const lkAudioTrack = audioPublication.track as LocalAudioTrack
           localScreenAudioTrack.value = lkAudioTrack
+
+          debugLog(`[LiveKit][INFO]: Screen share audio track published successfully`)
 
           audioTrackFromStream.onended = () => {
             if (!isStoppingScreenShare.value) {
@@ -1051,12 +1228,24 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
         debugLog(`[LiveKit][INFO]: 'Screen sharing started (fullhd60 raw mode)'`)
       } else if (quality === "adaptive") {
-        // adaptive: Let LiveKit SDK decide best quality automatically
-        // Always request audio - browser dialog will handle whether to show the option
-        await room.value.localParticipant.setScreenShareEnabled(true, {
-          audio: true,
-          resolution: undefined, // Let LiveKit decide
-        })
+        // adaptive: Use LiveKit's h1080fps30 preset - original resolution up to 30fps
+        await room.value.localParticipant.setScreenShareEnabled(
+          true,
+          {
+            audio: true,
+            resolution: ScreenSharePresets.h1080fps30.resolution,
+            contentHint: "motion",
+            selfBrowserSurface: "exclude",
+            systemAudio: "include",
+          },
+          {
+            screenShareEncoding: {
+              maxBitrate: 20 * 1000 * 1000, // 10 Mbps
+              maxFramerate: 30,
+            },
+            degradationPreference: "balanced",
+          },
+        )
 
         // Update local state for self-view
         userScreenShareStates.value.set(getCurrentUserId(), {
@@ -1077,6 +1266,9 @@ export function useLiveKit(options: UseLiveKitOptions) {
             height: 1080,
             frameRate: 5,
           },
+          contentHint: "text",
+          selfBrowserSurface: "exclude",
+          systemAudio: "include",
         })
 
         // Update local state for self-view
@@ -1092,7 +1284,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
       debugLog(`[LiveKit][INFO]: 'Screen sharing started successfully'`)
 
-      await tap()
+      //tap()
     } catch (error) {
       console.error("Failed to start screen share:", error)
       console.error(`[LiveKit][ERROR]: Screen share failed: ${(error as Error).message}`)
@@ -1164,8 +1356,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
       })
 
       debugLog(`[LiveKit][INFO]: 'Screen sharing stopped'`)
-
-      await tap()
     } catch (error) {
       console.error("Error stopping screen share:", error)
       console.error(`[LiveKit][ERROR]: Error stopping screen share: ${(error as Error).message}`)
@@ -1225,8 +1415,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
       }
 
       debugLog(`[LiveKit][INFO]: 'Camera started successfully'`)
-
-      await tap()
     } catch (error) {
       console.error("Failed to start camera:", error)
       console.error(`[LiveKit][ERROR]: Camera failed: ${(error as Error).message}`)
@@ -1297,8 +1485,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
       userCameraStates.value.set(getCurrentUserId(), false)
 
       debugLog(`[LiveKit][INFO]: 'Camera stopped'`)
-
-      await tap()
     } catch (error) {
       console.error("Error stopping camera:", error)
       console.error(`[LiveKit][ERROR]: Error stopping camera: ${(error as Error).message}`)
@@ -1610,6 +1796,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     applyDeafenState,
     handleMuteToggle,
     startScreenShare,
+    startElectronScreenShare,
     stopScreenShare,
     startCamera,
     stopCamera,
@@ -1617,5 +1804,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
     getParticipantStats,
     reinitializeAudioStream,
     cleanup,
+    isRunningInElectron,
   }
 }

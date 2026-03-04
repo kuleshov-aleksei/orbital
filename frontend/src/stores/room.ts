@@ -1,6 +1,7 @@
 import { defineStore } from "pinia"
 import { ref, computed } from "vue"
 import type { Room, User } from "@/types"
+import { debugLog } from "@/utils/debug"
 
 export const useRoomStore = defineStore("room", () => {
   // State
@@ -8,6 +9,7 @@ export const useRoomStore = defineStore("room", () => {
   const activeRoomId = ref<string | null>(null)
   const currentRoomUsers = ref<User[]>([])
   const remoteStreamVolumes = ref<Map<string, number>>(new Map())
+  const localMutedUsers = ref<Set<string>>(new Set())
 
   // Getters
   const activeRoom = computed(() => rooms.value.find((r) => r.id === activeRoomId.value) || null)
@@ -21,6 +23,20 @@ export const useRoomStore = defineStore("room", () => {
   const getUserVolume = computed(
     () => (userId: string) => remoteStreamVolumes.value.get(userId) ?? 80,
   )
+
+  const getUserMuted = computed(() => (userId: string) => {
+    const user = currentRoomUsers.value.find((u) => u.id === userId)
+    return user?.is_muted ?? false
+  })
+
+  const getUserDeafened = computed(() => (userId: string) => {
+    const user = currentRoomUsers.value.find((u) => u.id === userId)
+    return user?.is_deafened ?? false
+  })
+
+  const getUserMutedLocally = computed(() => (userId: string) => {
+    return localMutedUsers.value.has(userId)
+  })
 
   // Actions
   function setRooms(newRooms: Room[]) {
@@ -108,10 +124,10 @@ export const useRoomStore = defineStore("room", () => {
 
     // Only update if there were actual changes
     if (hasChanges) {
-      console.log("[RoomStore] Updating rooms with changes for user:", userId)
+      debugLog("[RoomStore] Updating rooms with changes for user:", userId)
       rooms.value = updatedRooms
     } else if (!userFound) {
-      console.log(
+      debugLog(
         "[RoomStore] User not found in any room:",
         userId,
         "Available user IDs:",
@@ -167,6 +183,16 @@ export const useRoomStore = defineStore("room", () => {
     console.log(`Volume updated: User ${userId} → ${clampedVolume}%`)
   }
 
+  function setUserMuted(userId: string, muted: boolean) {
+    const newSet = new Set(localMutedUsers.value)
+    if (muted) {
+      newSet.add(userId)
+    } else {
+      newSet.delete(userId)
+    }
+    localMutedUsers.value = newSet
+  }
+
   function clearUserVolume(userId: string) {
     remoteStreamVolumes.value.delete(userId)
   }
@@ -218,10 +244,15 @@ export const useRoomStore = defineStore("room", () => {
     activeRoomId,
     currentRoomUsers,
     remoteStreamVolumes,
+    localMutedUsers,
     activeRoom,
     activeRoomName,
     isInRoom,
     getRoomById,
+    getUserVolume,
+    getUserMuted,
+    getUserDeafened,
+    getUserMutedLocally,
     setRooms,
     addRoom,
     updateRoom,
@@ -233,6 +264,7 @@ export const useRoomStore = defineStore("room", () => {
     addUserToRoom,
     removeUserFromRoom,
     setUserVolume,
+    setUserMuted,
     clearUserVolume,
     getUserVolume,
     updateCurrentRoomUser,

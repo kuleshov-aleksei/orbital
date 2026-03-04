@@ -2,8 +2,11 @@
   "custom": {
     "livekit-client": "What made this project possible",
     "@phosphor-icons/vue": "Awesome icon library",
-    "snd-lib": "Sexy UI sounds. Please check out https://snd.dev/",
+    "@vueuse/sound": "Vue composable for playing sounds using Howler.js",
     "vue-boring-avatars": "SVG-based avatars from any username and color palette",
     "vue-router": "The official router for Vue.js"
+  },
+  "unused": {
+    "snd-lib": "Sexy UI sounds. Audio sprite from https://snd.dev/ is used in this project"
   }
 }

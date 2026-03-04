@@ -42,8 +42,7 @@
         :current-user-camera-enabled="isCameraEnabled"
         :get-participant-stats="getParticipantStats"
         class="m-4"
-        @update:layout="screenShareLayout = $event"
-        @mute-toggle="handleUserMuteToggle" />
+        @update:layout="screenShareLayout = $event" />
 
       <!-- User Grid - Only shown when no screen shares or cameras (audio-only mode) -->
       <UserGrid
@@ -56,8 +55,7 @@
         :is-visible="screenShareData.length === 0 && cameraData.length === 0"
         :current-user-audio-level="audioLevel"
         :current-user-camera-enabled="isCameraEnabled"
-        :get-participant-stats="getParticipantStats"
-        @mute-toggle="handleUserMuteToggle" />
+        :get-participant-stats="getParticipantStats" />
     </div>
 
     <AudioControls
@@ -80,7 +78,13 @@ import { computed, defineAsyncComponent, ref, useTemplateRef, watch } from "vue"
 import AudioControls from "@/components/AudioControls.vue"
 import RoomHeader from "@/components/RoomHeader.vue"
 import { useLiveKit, useVoiceActivity } from "@/composables"
-import { useAudioSettingsStore, useCallStore, useUserStore, useAppStore } from "@/stores"
+import {
+  useAudioSettingsStore,
+  useCallStore,
+  useUserStore,
+  useAppStore,
+  useRoomStore,
+} from "@/stores"
 import type { User, ScreenShareQuality } from "@/types"
 
 const props = withDefaults(defineProps<Props>(), {
@@ -127,6 +131,7 @@ const audioSettingsStore = useAudioSettingsStore()
 // Stores
 const callStore = useCallStore()
 const appStore = useAppStore()
+const roomStore = useRoomStore()
 
 // Track muted users for AudioManager
 const mutedUsers = ref<Set<string>>(new Set())
@@ -143,6 +148,7 @@ const {
   cameraData,
   handleMuteToggle,
   startScreenShare,
+  startElectronScreenShare,
   stopScreenShare,
   startCamera,
   stopCamera,
@@ -286,7 +292,7 @@ watch(
       try {
         connected = await initializeLiveKit()
         if (connected) {
-          console.log(`${Date.now()} ✅ LiveKit connected to room ${newRoomId}`)
+          console.log(`✅ LiveKit connected to room ${newRoomId}`)
         } else {
           console.error(`❌ Failed to connect LiveKit to room ${newRoomId}`)
         }
@@ -331,28 +337,49 @@ watch(
 
 // Event handlers
 
-// Handle user mute toggle from ParticipantCard - updates muted users set
-const handleUserMuteToggle = (userId: string, isMuted: boolean): void => {
-  if (isMuted) {
-    mutedUsers.value.add(userId)
-  } else {
-    mutedUsers.value.delete(userId)
-  }
-  // Also call the original LiveKit mute handler
-  handleMuteToggle(userId, isMuted)
-}
+// Watch for mute state changes from context menu (via roomStore)
+watch(
+  () => roomStore.localMutedUsers,
+  (newMutedUsers) => {
+    mutedUsers.value = new Set(newMutedUsers)
+  },
+  { deep: true },
+)
+
+// Also watch for specific user mute changes and apply to LiveKit
+watch(
+  () => Array.from(roomStore.localMutedUsers),
+  (currentMuted, previous) => {
+    const prevSet = new Set(previous || [])
+    const currSet = new Set(currentMuted || [])
+
+    // Find newly muted users
+    currSet.forEach((userId) => {
+      if (!prevSet.has(userId)) {
+        handleMuteToggle(userId, true)
+      }
+    })
+
+    // Find newly unmuted users
+    prevSet.forEach((userId) => {
+      if (!currSet.has(userId)) {
+        handleMuteToggle(userId, false)
+      }
+    })
+  },
+)
 
 // Start screen share wrapper - called by parent (AppLayout)
-const startScreenShareWithQuality = async (quality: string, shareAudio: boolean) => {
+const startScreenShareWithQuality = async (quality: string) => {
   try {
     // Start the actual LiveKit screen share
-    await startScreenShare(quality as ScreenShareQuality, shareAudio)
+    await startScreenShare(quality as ScreenShareQuality)
     // Tell AudioControls to update state and send WebSocket message
     const audioControls = audioControlsRef.value as unknown as {
-      confirmStartScreenShare?: (quality: ScreenShareQuality, hasAudio: boolean) => Promise<void>
+      confirmStartScreenShare?: (quality: ScreenShareQuality) => Promise<void>
     } | null
     if (audioControls?.confirmStartScreenShare) {
-      await audioControls.confirmStartScreenShare(quality as ScreenShareQuality, shareAudio)
+      await audioControls.confirmStartScreenShare(quality as ScreenShareQuality)
     }
   } catch (error) {
     console.error("Failed to start screen share:", error)
@@ -373,5 +400,20 @@ const handleCameraToggle = async (enabled: boolean) => {
 }
 
 // Expose methods to parent component
-defineExpose({ startScreenShare: startScreenShareWithQuality })
+const startElectronScreenShareWithQuality = async (
+  quality: string,
+  audio: boolean,
+  sourceId: string,
+) => {
+  try {
+    await startElectronScreenShare(quality as ScreenShareQuality, audio, sourceId)
+  } catch (error) {
+    console.error("Failed to start Electron screen share:", error)
+  }
+}
+
+defineExpose({
+  startScreenShare: startScreenShareWithQuality,
+  startElectronScreenShare: startElectronScreenShareWithQuality,
+})
 </script>

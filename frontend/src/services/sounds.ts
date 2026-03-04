@@ -1,75 +1,66 @@
-import Snd from "snd-lib"
+import { useSound } from '@vueuse/sound'
+import { Howl } from 'howler'
 
-let snd: Snd | null = null
-let isLoading = false
-let retryCount = 0
-const MAX_RETRIES = 5
+const SPRITE_URL = '/assets/sounds/sprite/01/audioSprite.mp3'
 
-/**
- * Initializes the sound system with the SND01 sound kit.
- * Retries up to MAX_RETRIES times on failure.
- * Can be called multiple times - subsequent calls while loading are coalesced.
- */
-async function initSounds(): Promise<void> {
-  if (snd) return
-  if (isLoading) return
+const spriteMap = {
+  toggle_on: [42000, 100],
+  toggle_off: [40000, 100],
+  transition_up: [46000, 100],
+  transition_down: [44000, 100],
+  tap: [30000, 10],
+}
 
-  isLoading = true
-  const instance = new Snd()
+let sound: Howl | null = null
 
-  try {
-    await instance.load(Snd.KITS.SND01)
-    snd = instance
-    retryCount = 0
-  } catch (error) {
-    retryCount++
-    console.warn(`Failed to load sound kit (attempt ${retryCount}/${MAX_RETRIES}):`, error)
-  } finally {
-    isLoading = false
+function getSound(): Howl {
+  if (!sound) {
+    sound = new Howl({
+      src: [SPRITE_URL],
+      sprite: spriteMap,
+      html5: true,
+    })
+  }
+  return sound
+}
+
+export function useSounds() {
+  const { play } = useSound(SPRITE_URL, {
+    sprite: spriteMap,
+    html5: true,
+  })
+
+  const toggleOn = () => play({ id: 'toggle_on' })
+  const toggleOff = () => play({ id: 'toggle_off' })
+  const transitionOpen = () => play({ id: 'transition_up' })
+  const transitionClose = () => play({ id: 'transition_down' })
+  const tap = () => play({ id: 'tap' })
+
+  return {
+    toggleOn,
+    toggleOff,
+    transitionOpen,
+    transitionClose,
+    tap,
   }
 }
 
-/**
- * Plays the toggle on sound effect.
- * Used when user unmutes or undeafens.
- */
-export async function toggleOn(): Promise<void> {
-  await initSounds()
-  snd?.play(Snd.SOUNDS.TOGGLE_ON)
+export function toggleOn(): void {
+  getSound().play('toggle_on')
 }
 
-/**
- * Plays the toggle off sound effect.
- * Used when user mutes or deafens.
- */
-export async function toggleOff(): Promise<void> {
-  await initSounds()
-  snd?.play(Snd.SOUNDS.TOGGLE_OFF)
+export function toggleOff(): void {
+  getSound().play('toggle_off')
 }
 
-/**
- * Plays the transition up sound effect.
- * Used when user joins room.
- */
-export async function transitionOpen(): Promise<void> {
-  await initSounds()
-  snd?.play(Snd.SOUNDS.TRANSITION_UP)
+export function transitionOpen(): void {
+  getSound().play('transition_up')
 }
 
-/**
- * Plays the transition down sound effect.
- * Used when user leaves room.
- */
-export async function transitionClose(): Promise<void> {
-  await initSounds()
-  snd?.play(Snd.SOUNDS.TRANSITION_DOWN)
+export function transitionClose(): void {
+  getSound().play('transition_down')
 }
 
-/**
- * Plays the tap sound effect.
- * Used for screen share and camera toggle actions.
- */
-export async function tap(): Promise<void> {
-  await initSounds()
-  snd?.play(Snd.SOUNDS.TAP)
+export function tap(): void {
+  getSound().play('tap')
 }

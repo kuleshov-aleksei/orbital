@@ -1,9 +1,9 @@
 <template>
   <div
-    class="room-card px-2 py-2 mb-1 rounded-lg cursor-pointer transition-all duration-200"
+    class="room-card px-2 py-1.5 mb-0.5 rounded-md cursor-pointer transition-all duration-200 group"
     :class="{
       'bg-indigo-600 text-white': isActive,
-      'bg-gray-700 hover:bg-gray-600 text-gray-200': !isActive,
+      'bg-gray-700/50 hover:bg-gray-600/80 text-gray-300 hover:text-gray-100': !isActive,
       'opacity-50': isDragging,
     }"
     v-bind="isDraggable ? { draggable: true } : {}"
@@ -18,12 +18,12 @@
     <!-- Room Header -->
     <div class="flex items-center">
       <!-- Room Icon -->
-      <div class="mr-3">
+      <div class="mr-2">
         <div
-          class="w-8 h-8 rounded-full flex items-center justify-center"
+          class="w-7 h-7 rounded-md flex items-center justify-center"
           :class="{
             'bg-indigo-500': isActive,
-            'bg-gray-600': !isActive,
+            'bg-gray-600 group-hover:bg-gray-500': !isActive,
           }">
           <PhWaveform class="w-4 h-4" />
         </div>
@@ -34,7 +34,7 @@
         <div class="flex items-center justify-between">
           <div class="font-medium text-sm truncate">{{ room.name }}</div>
 
-          <div class="text-xs opacity-75 ml-2 flex-shrink-0">
+          <div class="text-xs opacity-70 ml-2 flex-shrink-0">
             {{ room.user_count }}/{{ room.max_users }}
           </div>
         </div>
@@ -42,31 +42,49 @@
     </div>
 
     <!-- Users List -->
-    <div v-if="room.users && room.users.length > 0" class="mt-2 ml-11">
-      <div class="text-xs opacity-75 mb-1">In this room:</div>
+    <div v-if="room.users && room.users.length > 0" class="mt-1 pl-9">
+      <div class="space-y-0.5">
+        <div
+          v-for="user in room.users"
+          :key="user.id"
+          class="flex items-center justify-between text-xs py-0.5 pr-1 rounded hover:bg-gray-500/30"
+          @contextmenu="showUserContextMenu($event, user.id)">
+          <div class="flex items-center min-w-0">
+            <!-- Avatar -->
+            <UserAvatar
+              :user-id="user.id"
+              :nickname="user.nickname"
+              :size="24"
+              :show-status="false"
+              class="mr-2 flex-shrink-0" />
 
-      <div class="space-y-1">
-        <div v-for="user in room.users" :key="user.id" class="flex items-center text-xs">
-          <div class="mr-2 flex items-center gap-1">
-            <PhMicrophone
-              v-if="!user.is_muted && !user.is_deafened"
-              class="text-green-500 w-4 h-4" />
-
-            <PhMicrophoneSlash v-if="user.is_muted" class="text-red-500 w-4 h-4" />
-
-            <PhHeadphones v-if="user.is_deafened" class="text-red-500 w-4 h-4" />
-
-            <PhMonitor v-if="user.is_screen_sharing" class="text-blue-400 w-4 h-4" />
+            <!-- Nickname -->
+            <span class="truncate opacity-90">{{ user.nickname }}</span>
           </div>
 
-          <span>{{ user.nickname }}</span>
+          <!-- Status Icons (right side) -->
+          <div class="flex items-center gap-1 flex-shrink-0">
+            <PhMicrophone
+              v-if="!user.is_muted && !user.is_deafened"
+              class="w-3.5 h-3.5 text-green-400" />
+
+            <PhMicrophoneSlash v-if="user.is_muted" class="w-3.5 h-3.5 text-red-400" />
+
+            <PhHeadphones v-if="user.is_deafened" class="w-3.5 h-3.5 text-red-400" />
+
+            <PhMonitor v-if="user.is_screen_sharing" class="w-3.5 h-3.5 text-blue-400" />
+          </div>
         </div>
       </div>
     </div>
+
+    <!-- User Context Menu -->
+    <UserContextMenu ref="userContextMenuRef" />
   </div>
 </template>
 
 <script setup lang="ts">
+import { useTemplateRef } from "vue"
 import {
   PhWaveform,
   PhMicrophone,
@@ -74,6 +92,8 @@ import {
   PhMicrophoneSlash,
   PhMonitor,
 } from "@phosphor-icons/vue"
+import UserAvatar from "./UserAvatar.vue"
+import UserContextMenu from "./UserContextMenu.vue"
 
 // Use snake_case to match backend API and global types
 interface RoomPreviewUser {
@@ -119,5 +139,14 @@ const emit = defineEmits<{
 
 const showContextMenu = (event: MouseEvent) => {
   emit("show-context-menu", event, props.room)
+}
+
+const userContextMenuRef =
+  useTemplateRef<InstanceType<typeof UserContextMenu>>("userContextMenuRef")
+
+const showUserContextMenu = (event: MouseEvent, userId: string) => {
+  event.preventDefault()
+  event.stopPropagation()
+  userContextMenuRef.value?.show(event, userId)
 }
 </script>

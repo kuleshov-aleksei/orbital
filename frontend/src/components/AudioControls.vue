@@ -35,7 +35,7 @@
     <button
       type="button"
       class="control-button bg-red-600 hover:bg-red-700"
-      @click="$emit('leave-room')">
+      @click="handleLeaveRoom">
       <PhSignOut class="w-5 h-5" />
     </button>
   </div>
@@ -49,6 +49,7 @@ import AudioDeafenButton from "@/components/AudioDeafenButton.vue"
 import ScreenShareButton from "@/components/ScreenShareButton.vue"
 import CameraButton from "@/components/CameraButton.vue"
 import { useModalStore } from "@/stores"
+import { useSounds } from "@/services/sounds"
 import type { ScreenShareQuality } from "@/types"
 
 interface Props {
@@ -92,6 +93,10 @@ const openSettings = () => {
   modalStore.openUserSettingsModal()
 }
 
+const handleLeaveRoom = () => {
+  emit("leave-room")
+}
+
 // Computed v-model bindings
 const isMuted = computed({
   get: () => props.modelValueMuted,
@@ -114,12 +119,12 @@ const isCameraEnabled = computed({
 })
 
 // Confirm screen share start (called by parent after quality selection)
-const confirmStartScreenShare = async (quality: ScreenShareQuality, hasAudio: boolean) => {
+const confirmStartScreenShare = async (quality: ScreenShareQuality) => {
   const button = screenShareButtonRef.value as unknown as {
-    confirmStartScreenShare?: (quality: ScreenShareQuality, hasAudio: boolean) => Promise<void>
+    confirmStartScreenShare?: (quality: ScreenShareQuality) => Promise<void>
   } | null
   if (button?.confirmStartScreenShare) {
-    await button.confirmStartScreenShare(quality, hasAudio)
+    await button.confirmStartScreenShare(quality)
   }
 }
 

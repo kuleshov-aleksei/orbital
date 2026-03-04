@@ -81,93 +81,16 @@
     </div>
 
     <!-- Context Menu -->
-    <div
-      v-if="showMenu"
-      class="fixed bg-gray-800 border border-gray-600 rounded-lg shadow-lg z-50 py-2 min-w-48"
-      :style="getMenuPosition()"
-      @click.stop>
-      <div class="px-3 py-2 text-sm text-gray-300 border-b border-gray-600">
-        {{ user.nickname }}
-      </div>
-
-      <!-- Volume Control -->
-      <div class="px-3 py-2">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-sm text-gray-300">Volume</span>
-
-          <span class="text-xs text-gray-400">{{ Math.round(volume) }}%</span>
-        </div>
-
-        <div class="flex items-center space-x-2">
-          <PhSpeakerHigh class="w-4 h-4 text-gray-400" />
-
-          <input
-            v-model="volume"
-            type="range"
-            min="0"
-            max="100"
-            class="flex-1 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer"
-            @input="handleVolumeChange" />
-        </div>
-      </div>
-
-      <!-- Role Management - Only for super_admin -->
-      <template v-if="isSuperAdmin && !isCurrentUser">
-        <div class="border-t border-gray-600 my-1"></div>
-
-        <!-- Promote to Admin - shown for regular users -->
-        <button
-          v-if="canPromote"
-          type="button"
-          class="w-full px-3 py-2 text-left text-sm text-indigo-400 hover:bg-gray-700 hover:text-indigo-300 transition-colors flex items-center gap-2"
-          :disabled="promoting"
-          @click="handlePromote">
-          <PhUserPlus class="w-4 h-4" />
-
-          <span>{{ promoting ? "Promoting..." : "Make Admin" }}</span>
-        </button>
-
-        <!-- Demote to User - shown for admins -->
-        <button
-          v-if="canDemote"
-          type="button"
-          class="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors flex items-center gap-2"
-          :disabled="demoting"
-          @click="handleDemote">
-          <PhUserMinus class="w-4 h-4" />
-
-          <span>{{ demoting ? "Demoting..." : "Remove Admin" }}</span>
-        </button>
-
-        <!-- Super Admin indicator - shown for super_admins (disabled) -->
-        <div
-          v-if="targetUserIsSuperAdmin"
-          class="px-3 py-2 text-sm text-purple-400 flex items-center gap-2 cursor-not-allowed opacity-60"
-          title="Cannot modify super admin">
-          <PhCrown class="w-4 h-4" />
-
-          <span>Super Admin</span>
-        </div>
-      </template>
-    </div>
-
-    <!-- Click outside to close menu -->
-    <div v-if="showMenu" class="fixed inset-0 z-40" @click="hideContextMenu"></div>
+    <UserContextMenu ref="contextMenuRef" :user-id="user.id" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, nextTick, useTemplateRef } from "vue"
-import {
-  PhMicrophoneSlash,
-  PhSpeakerHigh,
-  PhUserPlus,
-  PhUserMinus,
-  PhCrown,
-} from "@phosphor-icons/vue"
+import { ref, computed, nextTick, useTemplateRef } from "vue"
+import { PhMicrophoneSlash, PhSpeakerHigh } from "@phosphor-icons/vue"
 import UserAvatar from "@/components/UserAvatar.vue"
+import UserContextMenu from "@/components/UserContextMenu.vue"
 import { useUserStore } from "@/stores"
-import { apiService } from "@/services/api"
 
 interface User {
   id: string
@@ -190,21 +113,13 @@ const props = withDefaults(defineProps<Props>(), {
   initialVolume: 80,
 })
 
-const emit = defineEmits<{
-  "volume-change": [userId: string, volume: number]
-}>()
-
 // Initialize UserStore
 const userStore = useUserStore()
 
-const showMenu = ref(false)
-const volume = ref(props.initialVolume)
 const isEditingNickname = ref(false)
 const editingNickname = ref("")
 const nicknameInput = useTemplateRef<HTMLInputElement>("nicknameInput")
-const menuPosition = { x: 0, y: 0 }
-const promoting = ref(false)
-const demoting = ref(false)
+const contextMenuRef = useTemplateRef<InstanceType<typeof UserContextMenu>>("contextMenuRef")
 
 // Compute user status based on both status field and is_online
 const userStatus = computed(() => {
@@ -224,39 +139,10 @@ const userStatus = computed(() => {
 const currentUserId = userStore.userId
 const isCurrentUser = computed(() => props.user.id === currentUserId)
 
-// Role management computed properties
-const isSuperAdmin = computed(() => userStore.isSuperAdmin)
-const targetUserIsSuperAdmin = computed(() => props.user.role === "super_admin")
-const targetUserIsAdmin = computed(() => props.user.role === "admin")
-const targetUserIsRegularUser = computed(() => props.user.role === "user")
-const canPromote = computed(() => isSuperAdmin.value && targetUserIsRegularUser.value)
-const canDemote = computed(() => isSuperAdmin.value && targetUserIsAdmin.value)
-
 const showContextMenu = (event: MouseEvent) => {
   event.preventDefault()
   event.stopPropagation()
-
-  // Store mouse position for fixed positioning
-  menuPosition.x = event.clientX
-  menuPosition.y = event.clientY
-
-  showMenu.value = true
-}
-
-const getMenuPosition = () => {
-  return {
-    left: `${menuPosition.x}px`,
-    top: `${menuPosition.y}px`,
-    transform: "translate(0, -100%)", // Position above mouse
-  }
-}
-
-const hideContextMenu = () => {
-  showMenu.value = false
-}
-
-const handleVolumeChange = () => {
-  emit("volume-change", props.user.id, volume.value)
+  contextMenuRef.value?.show(event)
 }
 
 const startEditingNickname = () => {
@@ -285,56 +171,6 @@ const cancelEdit = () => {
   isEditingNickname.value = false
   editingNickname.value = props.user.nickname
 }
-
-// Role management methods
-const handlePromote = async () => {
-  if (!canPromote.value) return
-  promoting.value = true
-  try {
-    await apiService.promoteUser(props.user.id)
-    hideContextMenu()
-  } catch (error) {
-    console.error("Failed to promote user:", error)
-  } finally {
-    promoting.value = false
-  }
-}
-
-const handleDemote = async () => {
-  if (!canDemote.value) return
-  demoting.value = true
-  try {
-    await apiService.demoteUser(props.user.id)
-    hideContextMenu()
-  } catch (error) {
-    console.error("Failed to demote user:", error)
-  } finally {
-    demoting.value = false
-  }
-}
-
-// Close menu on escape key or document click
-const handleKeydown = (event: KeyboardEvent) => {
-  if (event.key === "Escape") {
-    hideContextMenu()
-  }
-}
-
-const handleDocumentClick = () => {
-  if (showMenu.value) {
-    hideContextMenu()
-  }
-}
-
-onMounted(() => {
-  document.addEventListener("keydown", handleKeydown)
-  document.addEventListener("click", handleDocumentClick)
-})
-
-onUnmounted(() => {
-  document.removeEventListener("keydown", handleKeydown)
-  document.removeEventListener("click", handleDocumentClick)
-})
 </script>
 
 <style scoped>

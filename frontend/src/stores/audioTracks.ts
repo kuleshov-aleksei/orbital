@@ -1,6 +1,7 @@
 import { defineStore } from "pinia"
 import { ref, computed } from "vue"
 import type { RemoteAudioTrack } from "livekit-client"
+import { debugLog } from "@/utils/debug"
 
 export const useAudioTracksStore = defineStore("audioTracks", () => {
   // Remote audio tracks - Map<userId, track>
@@ -16,7 +17,7 @@ export const useAudioTracksStore = defineStore("audioTracks", () => {
 
   // Add or update a track for a user
   const setTrack = (userId: string, track: RemoteAudioTrack | null) => {
-    console.log(`[AudioStore] setTrack: ${userId}, track: ${track ? "present" : "null"}`)
+    debugLog(`[AudioStore] setTrack: ${userId}, track: ${track ? "present" : "null"}`)
     if (track) {
       updateMap((map) => map.set(userId, track))
     } else {
@@ -26,7 +27,7 @@ export const useAudioTracksStore = defineStore("audioTracks", () => {
 
   // Remove track for a user
   const removeTrack = (userId: string) => {
-    console.log(`[AudioStore] removeTrack: ${userId}`)
+    debugLog(`[AudioStore] removeTrack: ${userId}`)
     updateMap((map) => map.delete(userId))
   }
 
@@ -47,7 +48,7 @@ export const useAudioTracksStore = defineStore("audioTracks", () => {
 
   // Clear all tracks
   const clearAll = () => {
-    console.log(`[AudioStore] clearAll`)
+    debugLog(`[AudioStore] clearAll`)
     tracksMap.value = new Map()
   }
 

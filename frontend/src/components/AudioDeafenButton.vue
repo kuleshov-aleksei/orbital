@@ -27,7 +27,7 @@
 import { computed } from "vue"
 import { PhHeadphones } from "@phosphor-icons/vue"
 import { useCallStore, useUserStore, useRoomStore } from "@/stores"
-import { toggleOn, toggleOff } from "@/services/sounds"
+import { useSounds } from "@/services/sounds"
 
 interface Props {
   modelValue: boolean
@@ -46,6 +46,9 @@ const emit = defineEmits<{
 const callStore = useCallStore()
 const userStore = useUserStore()
 const roomStore = useRoomStore()
+
+// Sounds
+const { toggleOn, toggleOff } = useSounds()
 
 // Computed v-model
 const isDeafened = computed({
@@ -103,20 +106,24 @@ const slashClasses = computed(() => {
 // Toggle deafen - presence store will sync with LiveKit
 const toggleDeafen = async () => {
   const newValue = !isDeafened.value
-  isDeafened.value = newValue
 
   // Play sound locally (remote users hear it via presence.ts)
   if (newValue) {
-    await toggleOff()
+    toggleOff()
   } else {
-    await toggleOn()
+    toggleOn()
   }
 
   // Update call store (presence store watches this and syncs with LiveKit)
+  // This also handles auto-mute on deafen and restore-mute on undeafen
   callStore.setDeafened(newValue)
 
   // Immediately update room store for local user so UI updates right away
-  roomStore.updateUserStatus(userStore.userId, { is_deafened: newValue })
+  // Use callStore.isMuted to get the actual current mute state after setDeafened
+  roomStore.updateUserStatus(userStore.userId, {
+    is_deafened: newValue,
+    is_muted: callStore.isMuted,
+  })
 }
 </script>
 

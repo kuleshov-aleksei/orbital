@@ -72,6 +72,20 @@
 
           <!-- Right: Control Buttons -->
           <div class="flex items-center space-x-2">
+            <!-- Volume Slider -->
+            <div class="flex items-center space-x-2">
+              <PhSpeakerHigh v-if="localVolume > 50" class="w-4 h-4 text-white" />
+              <PhSpeakerLow v-else-if="localVolume > 0" class="w-4 h-4 text-white" />
+              <PhSpeakerNone v-else class="w-4 h-4 text-white" />
+              <input
+                v-model.number="localVolume"
+                type="range"
+                min="0"
+                max="100"
+                class="w-20 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                @input="handleVolumeChange" />
+            </div>
+
             <button
               type="button"
               class="p-2 bg-gray-700/80 hover:bg-gray-600 rounded-lg text-white transition-colors"
@@ -127,6 +141,9 @@ import {
   PhPictureInPicture,
   PhSpinner,
   PhPause,
+  PhSpeakerHigh,
+  PhSpeakerLow,
+  PhSpeakerNone,
 } from "@phosphor-icons/vue"
 import type { ScreenShareQuality } from "@/types"
 import type {
@@ -146,6 +163,7 @@ interface Props {
   isFocused?: boolean
   showFocusButton?: boolean
   isSelfView?: boolean
+  volume?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -153,10 +171,12 @@ const props = withDefaults(defineProps<Props>(), {
   isFocused: false,
   showFocusButton: false,
   isSelfView: false,
+  volume: 80,
 })
 
-defineEmits<{
+const emit = defineEmits<{
   "make-focused": []
+  "volume-change": [volume: number, isScreenShare: boolean]
 }>()
 
 const videoElement = useTemplateRef<HTMLVideoElement>("videoElement")
@@ -165,6 +185,7 @@ const isPiPActive = ref(false)
 const isHovered = ref(false)
 const videoWidth = ref(1920)
 const videoHeight = ref(1080)
+const localVolume = ref(80)
 
 // Track if LiveKit track is attached (for cleanup)
 const isLiveKitAttached = ref(false)
@@ -298,6 +319,17 @@ watch(isPausedComputed, (isPaused) => {
   }
 })
 
+// Watch for volume prop changes to update local state
+watch(
+  () => props.volume,
+  (newVolume) => {
+    if (newVolume !== undefined) {
+      localVolume.value = newVolume
+    }
+  },
+  { immediate: true },
+)
+
 const toggleFullscreen = async () => {
   if (!videoElement.value) return
 
@@ -322,12 +354,43 @@ const togglePiP = async () => {
       await document.exitPictureInPicture()
       isPiPActive.value = false
     } else {
+      // Ensure video element has a valid srcObject before attempting PiP
+      // For LiveKit attached tracks, the element should have the stream attached
+      if (!videoElement.value.srcObject && props.videoTrack) {
+        // Try to get the MediaStream from the LiveKit track
+        const mediaStreamTrack = props.videoTrack.mediaStreamTrack
+        if (mediaStreamTrack) {
+          videoElement.value.srcObject = new MediaStream([mediaStreamTrack])
+        }
+      }
+
+      // Check if video is ready for PiP
+      if (videoElement.value.readyState < 2) {
+        // Have to wait for the video to have enough data
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error("Video not ready")), 5000)
+          videoElement.value!.addEventListener(
+            "loadeddata",
+            () => {
+              clearTimeout(timeout)
+              resolve()
+            },
+            { once: true },
+          )
+        })
+      }
+
       await videoElement.value.requestPictureInPicture()
       isPiPActive.value = true
     }
   } catch (error) {
     console.error("Picture-in-Picture error:", error)
   }
+}
+
+const handleVolumeChange = () => {
+  // Emit isScreenShare as true since this is a screen share stream component
+  emit("volume-change", localVolume.value, true)
 }
 
 // Handle fullscreen change events
