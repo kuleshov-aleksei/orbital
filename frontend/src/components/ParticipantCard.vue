@@ -14,9 +14,11 @@
         : !isScreenSharing || forceAudioMode
           ? 'bg-gray-800 border-gray-600'
           : '',
-      isSpeaking && (!isScreenSharing || forceAudioMode)
-        ? 'border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]'
-        : '',
+      isSpeaking && isCurrentUser && (!isScreenSharing || forceAudioMode)
+        ? 'border-indigo-400 shadow-[0_0_10px_rgba(99,102,241,0.5)] animate-pulse'
+        : isSpeaking && (!isScreenSharing || forceAudioMode)
+          ? 'border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]'
+          : '',
     ]"
     @contextmenu="handleContextMenu"
     @click="handleCardClick"
@@ -360,7 +362,6 @@ interface Props {
   isCameraEnabled?: boolean
   screenShareQuality?: ScreenShareQuality
   isCurrentUser?: boolean
-  externalAudioLevel?: number
   stats?: ConnectionStats
   // Mode control
   forceAudioMode?: boolean // If true, always show audio mode even when screen sharing
@@ -376,9 +377,8 @@ const props = withDefaults(defineProps<Props>(), {
   isDeafened: false,
   isScreenSharing: false,
   isCameraEnabled: false,
-  screenShareQuality: "1080p30",
+  screenShareQuality: "adaptive",
   isCurrentUser: false,
-  externalAudioLevel: 0,
   stats: () => ({
     ping: 0,
   }),
@@ -482,7 +482,7 @@ watch(isVideoMode, (isActive) => {
 // Computed
 const isSpeaking = computed(() => {
   if (props.isCurrentUser) {
-    return props.externalAudioLevel > 0.1
+    return roomStore.localAudioLevel > 0.05
   }
   // Use LiveKit's built-in isSpeaking flag from presence store (more reliable than checking audioLevel)
   return presenceStore.getParticipant(props.userId)?.isSpeaking ?? false

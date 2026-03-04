@@ -13,7 +13,6 @@
           :is-screen-sharing="userScreenShareStates.get(user.id)?.isSharing || false"
           :screen-share-quality="userScreenShareStates.get(user.id)?.quality"
           :is-current-user="user.id === currentUserId"
-          :external-audio-level="user.id === currentUserId ? currentUserAudioLevel : undefined"
           :stats="getParticipantStats?.(user.id)"
           :force-audio-mode="true" />
       </div>
@@ -29,15 +28,15 @@ import { computed } from "vue"
 import ParticipantCard from "@/components/ParticipantCard.vue"
 import EmptyState from "@/components/EmptyState.vue"
 import { useUserStore } from "@/stores"
-import type { User, ScreenShareState } from "@/types"
+import type { User } from "@/types"
+import type { ScreenShareQuality } from "@/types"
 
 interface Props {
   users: User[]
   remoteStreamVolumes: Map<string, number>
-  userScreenShareStates: Map<string, ScreenShareState>
+  userScreenShareStates: Map<string, { isSharing: boolean; quality?: ScreenShareQuality }>
   isDeafened: boolean
   isVisible: boolean
-  currentUserAudioLevel?: number
   getParticipantStats?: (userId: string) => {
     ping: number
     jitter: number
@@ -49,6 +48,5 @@ interface Props {
 defineProps<Props>()
 
 const userStore = useUserStore()
-
 const currentUserId = computed(() => userStore.userId)
 </script>

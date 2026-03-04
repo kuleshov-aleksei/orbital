@@ -36,7 +36,6 @@
         :user-screen-share-states="userScreenShareStates"
         :user-camera-states="userCameraStates"
         :is-deafened="isDeafened"
-        :current-user-audio-level="audioLevel"
         :current-user-id="currentUserId"
         :current-user-is-sharing="isScreenSharing"
         :current-user-camera-enabled="isCameraEnabled"
@@ -53,7 +52,6 @@
         :user-camera-states="userCameraStates"
         :is-deafened="isDeafened"
         :is-visible="screenShareData.length === 0 && cameraData.length === 0"
-        :current-user-audio-level="audioLevel"
         :current-user-camera-enabled="isCameraEnabled"
         :get-participant-stats="getParticipantStats" />
     </div>
@@ -176,6 +174,15 @@ const { audioLevel, isSpeaking } = useVoiceActivity({
   stream: localStream,
   isMuted: computed(() => props.modelValueMuted),
 })
+
+// Sync local audio level to store for reactivity
+watch(
+  audioLevel,
+  (level) => {
+    roomStore.setLocalAudioLevel(level)
+  },
+  { immediate: true },
+)
 
 // Computed properties for v-model support
 const isMuted = computed({

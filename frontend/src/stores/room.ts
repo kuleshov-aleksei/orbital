@@ -10,6 +10,7 @@ export const useRoomStore = defineStore("room", () => {
   const currentRoomUsers = ref<User[]>([])
   const remoteStreamVolumes = ref<Map<string, number>>(new Map())
   const localMutedUsers = ref<Set<string>>(new Set())
+  const localAudioLevel = ref<number>(0)
 
   // Getters
   const activeRoom = computed(() => rooms.value.find((r) => r.id === activeRoomId.value) || null)
@@ -193,6 +194,10 @@ export const useRoomStore = defineStore("room", () => {
     localMutedUsers.value = newSet
   }
 
+  function setLocalAudioLevel(level: number) {
+    localAudioLevel.value = Math.max(0, Math.min(1, level))
+  }
+
   function clearUserVolume(userId: string) {
     remoteStreamVolumes.value.delete(userId)
   }
@@ -245,6 +250,7 @@ export const useRoomStore = defineStore("room", () => {
     currentRoomUsers,
     remoteStreamVolumes,
     localMutedUsers,
+    localAudioLevel,
     activeRoom,
     activeRoomName,
     isInRoom,
@@ -265,6 +271,7 @@ export const useRoomStore = defineStore("room", () => {
     removeUserFromRoom,
     setUserVolume,
     setUserMuted,
+    setLocalAudioLevel,
     clearUserVolume,
     updateCurrentRoomUser,
     reorderRooms,

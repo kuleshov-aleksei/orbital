@@ -55,7 +55,6 @@
             :is-camera-enabled="participant.isCameraEnabled"
             :screen-share-quality="participant.screenShareQuality"
             :is-current-user="participant.isCurrentUser"
-            :external-audio-level="participant.externalAudioLevel"
             :stats="participant.stats"
             :is-viewing="isParticipantViewingMainStream(participant.userId)"
             :force-audio-mode="
@@ -159,7 +158,6 @@ interface ParticipantData {
   isCameraEnabled?: boolean
   screenShareQuality?: ScreenShareQuality
   isCurrentUser?: boolean
-  externalAudioLevel?: number
   stats?: {
     ping: number
     jitter: number
@@ -190,7 +188,6 @@ interface Props {
   userScreenShareStates: Map<string, { isSharing: boolean; quality?: ScreenShareQuality }>
   userCameraStates: Map<string, boolean>
   isDeafened: boolean
-  currentUserAudioLevel?: number
   currentUserId: string
   currentUserIsSharing?: boolean
   currentUserCameraEnabled?: boolean
@@ -423,7 +420,6 @@ const allParticipants = computed((): ParticipantData[] => {
       isCameraEnabled,
       screenShareQuality: props.userScreenShareStates.get(user.id)?.quality,
       isCurrentUser,
-      externalAudioLevel: isCurrentUser ? props.currentUserAudioLevel : undefined,
       stats: props.getParticipantStats?.(user.id),
     }
   })

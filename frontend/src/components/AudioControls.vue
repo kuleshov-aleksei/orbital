@@ -49,7 +49,6 @@ import AudioDeafenButton from "@/components/AudioDeafenButton.vue"
 import ScreenShareButton from "@/components/ScreenShareButton.vue"
 import CameraButton from "@/components/CameraButton.vue"
 import { useModalStore } from "@/stores"
-import { useSounds } from "@/services/sounds"
 import type { ScreenShareQuality } from "@/types"
 
 interface Props {
