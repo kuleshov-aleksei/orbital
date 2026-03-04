@@ -1,0 +1,49 @@
+name: Build Electron App
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: self-hosted
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version
+        id: get_version
+        run: |
+          VERSION=$(./scripts/version.sh)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Building version: $VERSION"
+
+      - name: Build Electron in Docker
+        run: |
+          docker build \
+            --build-arg VERSION=${{ env.VERSION }} \
+            -t orbital-electron-build \
+            -f docker/Dockerfile.electron .
+
+      - name: Copy artifacts
+        run: |
+          docker create --name orbital-extract orbital-electron-build
+          docker cp orbital-extract:/app/electron/release ./electron
+          docker rm orbital-extract
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref_type == 'tag'
+        with:
+          tag_name: ${{ env.VERSION }}
+          name: Orbital Desktop ${{ env.VERSION }}
+          draft: true
+          generate_release_notes: true
+          files: |
+            electron/release/*.exe
+            electron/release/*.AppImage
+            electron/release/*.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

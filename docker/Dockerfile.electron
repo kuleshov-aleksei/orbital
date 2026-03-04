@@ -1,0 +1,40 @@
+# Electron build container
+FROM node:25-alpine
+
+ARG VERSION=dev-unknown
+
+# Install build dependencies
+RUN apk add --no-cache \
+    wine \
+    wine-utils \
+    xvfb \
+    git \
+    python3 \
+    make \
+    g++ \
+    libc-dev \
+    libsecret-dev
+
+WORKDIR /app/frontend
+
+# Build frontend
+COPY frontend/package*.json ./
+COPY frontend/patches ./patches
+RUN npm ci --prefer-offline
+
+COPY frontend/ .
+RUN npm run build
+
+WORKDIR /app/electron
+
+# Build Electron
+COPY electron/package*.json ./
+RUN npm ci --prefer-offline
+
+COPY electron/ .
+
+# Build Windows (unsigned)
+RUN xvfb-run --auto-servernum npm run build:win
+
+# Build Linux
+RUN npm run build:linux
