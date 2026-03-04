@@ -3,7 +3,7 @@
     ref="cardElement"
     class="participant-card overflow-visible relative rounded-lg cursor-pointer transition-all duration-200 border-2"
     :class="[
-      isScreenSharing && screenShareStream && !forceAudioMode
+      !isCurrentUser && !isViewing && ((isScreenSharing && screenShareStream) || (isCameraEnabled && cameraStream)) && !forceAudioMode
         ? 'aspect-video bg-gray-900'
         : 'aspect-square',
       isCurrentUser && (!isScreenSharing || forceAudioMode)
@@ -201,18 +201,21 @@
       </Transition>
     </Teleport>
 
-    <!-- Video Mode: Only when BOTH Screen Share AND Camera are active -->
-    <!-- Shows the OPPOSITE stream of what's in the main view. Click to toggle. -->
+    <!-- Video Mode: Show video when NOT current user AND NOT being viewed in main AND has any stream -->
+    <!-- Current user's own card always shows avatar -->
     <template
       v-if="
-        isScreenSharing && screenShareStream && isCameraEnabled && cameraStream && !forceAudioMode
+        !isCurrentUser &&
+        !isViewing &&
+        ((isScreenSharing && screenShareStream) || (isCameraEnabled && cameraStream)) &&
+        !forceAudioMode
       ">
-      <!-- Show the stream that's NOT in the main view -->
+      <!-- Show the stream that is NOT in the main view, or the only available stream -->
       <div class="relative w-full h-full">
-        <!-- Both videos are always mounted (v-show) to keep streams running -->
-        <!-- Show Screen Share in ParticipantCard when Camera is in main view -->
+        <!-- Show Screen Share when: both exist but camera in main, OR only screen share exists -->
+        <!-- Only show if screen share exists -->
         <video
-          v-show="showCameraAsMain"
+          v-show="screenShareStream && (!cameraStream || !showCameraAsMain)"
           ref="screenVideoElement"
           class="absolute inset-0 w-full h-full object-contain bg-gray-900 rounded-lg pointer-events-none"
           autoplay
@@ -220,9 +223,10 @@
           muted
           @loadedmetadata="onScreenVideoLoaded" />
 
-        <!-- Show Camera in ParticipantCard when Screen Share is in main view -->
+        <!-- Show Camera when: both exist but screen in main, OR only camera exists -->
+        <!-- Only show if camera exists -->
         <video
-          v-show="!showCameraAsMain"
+          v-show="cameraStream && (!screenShareStream || showCameraAsMain)"
           ref="cameraVideoElement"
           class="absolute inset-0 w-full h-full object-cover bg-gray-900 rounded-lg pointer-events-none"
           autoplay
@@ -230,16 +234,15 @@
           muted
           @loadedmetadata="onCameraVideoLoaded" />
 
-        <!-- Toggle hint overlay (Screen) -->
+        <!-- Toggle hint overlay - only show when both streams available -->
         <div
-          v-show="showCameraAsMain"
+          v-show="isScreenSharing && isCameraEnabled && screenShareStream && cameraStream && showCameraAsMain"
           class="absolute bottom-2 right-2 bg-indigo-600/80 backdrop-blur-sm px-2 py-1 rounded text-xs text-white flex items-center gap-1 z-10 pointer-events-none">
           <PhMonitorPlay class="w-3 h-3" />
         </div>
 
-        <!-- Toggle hint overlay (Camera) -->
         <div
-          v-show="!showCameraAsMain"
+          v-show="isScreenSharing && isCameraEnabled && screenShareStream && cameraStream && !showCameraAsMain"
           class="absolute bottom-2 right-2 bg-purple-600/80 backdrop-blur-sm px-2 py-1 rounded text-xs text-white flex items-center gap-1 z-10 pointer-events-none">
           <PhCamera class="w-3 h-3" />
         </div>
@@ -491,6 +494,25 @@ watch(
   },
   { immediate: true },
 )
+
+// Computed for whether video mode is active
+const isVideoMode = computed(() =>
+  !props.isCurrentUser &&
+  !props.isViewing &&
+  ((props.isScreenSharing && props.screenShareStream) || (props.isCameraEnabled && props.cameraStream)) &&
+  !props.forceAudioMode
+)
+
+// Watch for video mode becoming active, then setup streams
+watch(isVideoMode, (isActive) => {
+  if (isActive) {
+    void nextTick(() => {
+      setTimeout(() => {
+        setupAllVideoStreams()
+      }, 50)
+    })
+  }
+})
 
 // Computed
 const isSpeaking = computed(() => {

@@ -59,9 +59,9 @@
             :stats="participant.stats"
             :is-viewing="isParticipantViewingMainStream(participant.userId)"
             :force-audio-mode="
-              !isParticipantViewingMainStream(participant.userId) &&
-              !participant.isScreenSharing &&
-              !participant.isCameraEnabled
+              participant.isCurrentUser ||
+              isParticipantViewingMainStream(participant.userId) ||
+              (!participant.isScreenSharing && !participant.isCameraEnabled)
             "
             :is-compact="true"
             class="w-20 lg:w-auto flex-shrink-0 lg:flex-shrink max-h-14"
