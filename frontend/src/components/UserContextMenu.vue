@@ -142,11 +142,33 @@ const showRoleManagement = computed(() => {
 const canPromote = computed(() => isCurrentUserSuperAdmin.value && targetUserIsRegularUser.value)
 const canDemote = computed(() => isCurrentUserSuperAdmin.value && targetUserIsAdmin.value)
 
-const menuStyle = computed(() => ({
-  left: `${position.x}px`,
-  top: `${position.y}px`,
-  transform: "translate(0, -100%)",
-}))
+const MENU_MIN_WIDTH = 192
+const MENU_ESTIMATED_HEIGHT = 300
+const SCREEN_GAP = 50
+
+const menuStyle = computed(() => {
+  const screenWidth = window.innerWidth
+  const screenHeight = window.innerHeight
+
+  let left = position.x
+  let top = position.y
+  let transform = "translate(0, -100%)"
+
+  if (left + MENU_MIN_WIDTH > screenWidth - SCREEN_GAP) {
+    left = screenWidth - MENU_MIN_WIDTH - SCREEN_GAP
+  }
+
+  if (top - MENU_ESTIMATED_HEIGHT < SCREEN_GAP) {
+    top = position.y
+    transform = "translate(0, 0)"
+  }
+
+  return {
+    left: `${left}px`,
+    top: `${top}px`,
+    transform,
+  }
+})
 
 const show = (event: MouseEvent, userId?: string) => {
   event.preventDefault()
