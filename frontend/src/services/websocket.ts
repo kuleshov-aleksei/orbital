@@ -33,7 +33,7 @@ export class WebSocketService {
     return new Promise((resolve, reject) => {
       try {
         const wsUrl = this.getWebSocketUrl(roomId)
-        console.log(`Connecting to WebSocket: ${wsUrl.substring(0, wsUrl.indexOf('?'))}`)
+        console.log(`Connecting to WebSocket: ${wsUrl.substring(0, wsUrl.indexOf("?"))}`)
 
         this.ws = new WebSocket(wsUrl)
 
@@ -90,7 +90,7 @@ export class WebSocketService {
     this.globalConnectionPromise = new Promise((resolve, reject) => {
       try {
         const wsUrl = this.getGlobalWebSocketUrl()
-        console.log(`Connecting to global WebSocket: ${wsUrl.substring(0, wsUrl.indexOf('?'))}`)
+        console.log(`Connecting to global WebSocket: ${wsUrl.substring(0, wsUrl.indexOf("?"))}`)
 
         this.globalWs = new WebSocket(wsUrl)
 
@@ -282,6 +282,16 @@ export class WebSocketService {
   // Get global connection state
   getGlobalReadyState(): number {
     return this.globalWs ? this.globalWs.readyState : WebSocket.CLOSED
+  }
+
+  // Send mute state update to server (global WebSocket for server-side state)
+  sendMuteState(isMuted: boolean): void {
+    this.sendGlobalMessage("update_mute_state", { is_muted: isMuted })
+  }
+
+  // Send deafen state update to server (global WebSocket for server-side state)
+  sendDeafenState(isDeafened: boolean): void {
+    this.sendGlobalMessage("update_deafen_state", { is_deafened: isDeafened })
   }
 
   // Private methods

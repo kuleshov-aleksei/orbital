@@ -266,7 +266,6 @@ export const useRoomStore = defineStore("room", () => {
     setUserVolume,
     setUserMuted,
     clearUserVolume,
-    getUserVolume,
     updateCurrentRoomUser,
     reorderRooms,
     moveRoomToCategory,

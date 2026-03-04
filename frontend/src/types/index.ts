@@ -86,10 +86,24 @@ export type WebSocketMessageType =
   | "room_deleted"
   | "ping"
   | "pong"
+  | "user_audio_state"
+  | "audio_states"
+  | "update_mute_state"
+  | "update_deafen_state"
 
 export interface WebSocketMessage {
   type: WebSocketMessageType
   data: unknown
+}
+
+export interface UserAudioState {
+  user_id: string
+  is_muted: boolean
+  is_deafened: boolean
+}
+
+export interface AudioStatesMessage {
+  states: UserAudioState[]
 }
 
 // API response types

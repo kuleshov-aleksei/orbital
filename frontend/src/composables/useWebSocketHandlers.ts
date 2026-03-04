@@ -231,6 +231,45 @@ export function useWebSocketHandlers() {
         }
       })
     })
+
+    // Initial audio states (sent when joining)
+    wsService.onGlobal("audio_states", (message) => {
+      const data = message.data as {
+        states: Array<{
+          user_id: string
+          is_muted: boolean
+          is_deafened: boolean
+        }>
+      }
+      debugLog("[WebSocket] Received audio_states:", data.states.length, "users")
+      data.states.forEach((state) => {
+        roomStore.updateUserStatus(state.user_id, {
+          is_muted: state.is_muted,
+          is_deafened: state.is_deafened,
+        })
+      })
+    })
+
+    // Individual user audio state change (mute/deafen)
+    wsService.onGlobal("user_audio_state", (message) => {
+      const data = message.data as {
+        user_id: string
+        is_muted: boolean
+        is_deafened: boolean
+      }
+      debugLog(
+        "[WebSocket] User audio state changed:",
+        data.user_id,
+        "muted:",
+        data.is_muted,
+        "deafened:",
+        data.is_deafened,
+      )
+      roomStore.updateUserStatus(data.user_id, {
+        is_muted: data.is_muted,
+        is_deafened: data.is_deafened,
+      })
+    })
   }
 
   const connectGlobalWebSocket = async () => {

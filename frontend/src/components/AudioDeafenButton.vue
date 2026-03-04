@@ -28,6 +28,7 @@ import { computed } from "vue"
 import { PhHeadphones } from "@phosphor-icons/vue"
 import { useCallStore, useUserStore, useRoomStore } from "@/stores"
 import { useSounds } from "@/services/sounds"
+import { wsService } from "@/services/websocket"
 
 interface Props {
   modelValue: boolean
@@ -117,6 +118,9 @@ const toggleDeafen = async () => {
   // Update call store (presence store watches this and syncs with LiveKit)
   // This also handles auto-mute on deafen and restore-mute on undeafen
   callStore.setDeafened(newValue)
+
+  // Send to server for global state sync (users outside the call will see the state)
+  wsService.sendDeafenState(newValue)
 
   // Immediately update room store for local user so UI updates right away
   // Use callStore.isMuted to get the actual current mute state after setDeafened

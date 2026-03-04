@@ -30,6 +30,7 @@ import { computed } from "vue"
 import { PhMicrophone, PhMicrophoneSlash } from "@phosphor-icons/vue"
 import { useCallStore, useUserStore, useRoomStore } from "@/stores"
 import { useSounds } from "@/services/sounds"
+import { wsService } from "@/services/websocket"
 
 interface Props {
   modelValue: boolean
@@ -102,6 +103,9 @@ const toggleMute = async () => {
 
   // Update call store (presence store watches this and syncs with LiveKit)
   callStore.setMuted(newValue)
+
+  // Send to server for global state sync (users outside the call will see the state)
+  wsService.sendMuteState(newValue)
 
   // Immediately update room store for local user so UI updates right away
   roomStore.updateUserStatus(userStore.userId, { is_muted: newValue })
