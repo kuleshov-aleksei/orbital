@@ -9,6 +9,7 @@ export const useRoomStore = defineStore("room", () => {
   const activeRoomId = ref<string | null>(null)
   const currentRoomUsers = ref<User[]>([])
   const remoteStreamVolumes = ref<Map<string, number>>(new Map())
+  const localMutedUsers = ref<Set<string>>(new Set())
 
   // Getters
   const activeRoom = computed(() => rooms.value.find((r) => r.id === activeRoomId.value) || null)
@@ -31,6 +32,10 @@ export const useRoomStore = defineStore("room", () => {
   const getUserDeafened = computed(() => (userId: string) => {
     const user = currentRoomUsers.value.find((u) => u.id === userId)
     return user?.is_deafened ?? false
+  })
+
+  const getUserMutedLocally = computed(() => (userId: string) => {
+    return localMutedUsers.value.has(userId)
   })
 
   // Actions
@@ -178,6 +183,14 @@ export const useRoomStore = defineStore("room", () => {
     console.log(`Volume updated: User ${userId} → ${clampedVolume}%`)
   }
 
+  function setUserMuted(userId: string, muted: boolean) {
+    if (muted) {
+      localMutedUsers.value.add(userId)
+    } else {
+      localMutedUsers.value.delete(userId)
+    }
+  }
+
   function clearUserVolume(userId: string) {
     remoteStreamVolumes.value.delete(userId)
   }
@@ -229,6 +242,7 @@ export const useRoomStore = defineStore("room", () => {
     activeRoomId,
     currentRoomUsers,
     remoteStreamVolumes,
+    localMutedUsers,
     activeRoom,
     activeRoomName,
     isInRoom,
@@ -236,6 +250,7 @@ export const useRoomStore = defineStore("room", () => {
     getUserVolume,
     getUserMuted,
     getUserDeafened,
+    getUserMutedLocally,
     setRooms,
     addRoom,
     updateRoom,
@@ -247,6 +262,7 @@ export const useRoomStore = defineStore("room", () => {
     addUserToRoom,
     removeUserFromRoom,
     setUserVolume,
+    setUserMuted,
     clearUserVolume,
     getUserVolume,
     updateCurrentRoomUser,

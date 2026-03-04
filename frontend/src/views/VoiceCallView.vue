@@ -42,8 +42,7 @@
         :current-user-camera-enabled="isCameraEnabled"
         :get-participant-stats="getParticipantStats"
         class="m-4"
-        @update:layout="screenShareLayout = $event"
-        @mute-toggle="handleUserMuteToggle" />
+        @update:layout="screenShareLayout = $event" />
 
       <!-- User Grid - Only shown when no screen shares or cameras (audio-only mode) -->
       <UserGrid
@@ -56,8 +55,7 @@
         :is-visible="screenShareData.length === 0 && cameraData.length === 0"
         :current-user-audio-level="audioLevel"
         :current-user-camera-enabled="isCameraEnabled"
-        :get-participant-stats="getParticipantStats"
-        @mute-toggle="handleUserMuteToggle" />
+        :get-participant-stats="getParticipantStats" />
     </div>
 
     <AudioControls
@@ -80,7 +78,13 @@ import { computed, defineAsyncComponent, ref, useTemplateRef, watch } from "vue"
 import AudioControls from "@/components/AudioControls.vue"
 import RoomHeader from "@/components/RoomHeader.vue"
 import { useLiveKit, useVoiceActivity } from "@/composables"
-import { useAudioSettingsStore, useCallStore, useUserStore, useAppStore } from "@/stores"
+import {
+  useAudioSettingsStore,
+  useCallStore,
+  useUserStore,
+  useAppStore,
+  useRoomStore,
+} from "@/stores"
 import type { User, ScreenShareQuality } from "@/types"
 
 const props = withDefaults(defineProps<Props>(), {
@@ -127,6 +131,7 @@ const audioSettingsStore = useAudioSettingsStore()
 // Stores
 const callStore = useCallStore()
 const appStore = useAppStore()
+const roomStore = useRoomStore()
 
 // Track muted users for AudioManager
 const mutedUsers = ref<Set<string>>(new Set())
@@ -332,16 +337,37 @@ watch(
 
 // Event handlers
 
-// Handle user mute toggle from ParticipantCard - updates muted users set
-const handleUserMuteToggle = (userId: string, isMuted: boolean): void => {
-  if (isMuted) {
-    mutedUsers.value.add(userId)
-  } else {
-    mutedUsers.value.delete(userId)
-  }
-  // Also call the original LiveKit mute handler
-  handleMuteToggle(userId, isMuted)
-}
+// Watch for mute state changes from context menu (via roomStore)
+watch(
+  () => roomStore.localMutedUsers,
+  (newMutedUsers) => {
+    mutedUsers.value = new Set(newMutedUsers)
+  },
+  { deep: true },
+)
+
+// Also watch for specific user mute changes and apply to LiveKit
+watch(
+  () => Array.from(roomStore.localMutedUsers),
+  (currentMuted, previous) => {
+    const prevSet = new Set(previous || [])
+    const currSet = new Set(currentMuted || [])
+
+    // Find newly muted users
+    currSet.forEach((userId) => {
+      if (!prevSet.has(userId)) {
+        handleMuteToggle(userId, true)
+      }
+    })
+
+    // Find newly unmuted users
+    prevSet.forEach((userId) => {
+      if (!currSet.has(userId)) {
+        handleMuteToggle(userId, false)
+      }
+    })
+  },
+)
 
 // Start screen share wrapper - called by parent (AppLayout)
 const startScreenShareWithQuality = async (quality: string) => {

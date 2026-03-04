@@ -15,8 +15,7 @@
           :is-current-user="user.id === currentUserId"
           :external-audio-level="user.id === currentUserId ? currentUserAudioLevel : undefined"
           :stats="getParticipantStats?.(user.id)"
-          :force-audio-mode="true"
-          @mute-toggle="(userId, isMuted) => $emit('mute-toggle', userId, isMuted)" />
+          :force-audio-mode="true" />
       </div>
     </div>
 
@@ -48,10 +47,6 @@ interface Props {
 }
 
 defineProps<Props>()
-
-defineEmits<{
-  "mute-toggle": [userId: string, isMuted: boolean]
-}>()
 
 const userStore = useUserStore()
 

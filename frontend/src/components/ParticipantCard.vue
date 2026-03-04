@@ -336,7 +336,7 @@
     </template>
 
     <!-- Context Menu -->
-    <UserContextMenu ref="contextMenuRef" :user-id="userId" @mute-toggle="handleMuteToggle" />
+    <UserContextMenu ref="contextMenuRef" :user-id="userId" />
   </div>
 </template>
 
@@ -389,7 +389,6 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<{
-  "mute-toggle": [userId: string, isMuted: boolean]
   "card-click": [userId: string]
   "update:modelValueShowCameraAsMain": [value: boolean]
 }>()
@@ -630,10 +629,6 @@ const setupAllVideoStreams = () => {
   if (props.cameraStream && cameraVideoElement.value) {
     setupVideoStream(cameraVideoElement.value, props.cameraStream)
   }
-}
-
-const handleMuteToggle = (userId: string, isMuted: boolean) => {
-  emit("mute-toggle", userId, isMuted)
 }
 
 // Watchers

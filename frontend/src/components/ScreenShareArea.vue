@@ -65,8 +65,7 @@
             "
             :is-compact="true"
             class="w-20 lg:w-auto flex-shrink-0 lg:flex-shrink max-h-14"
-            @card-click="handleParticipantCardClick(participant.userId)"
-            @mute-toggle="$emit('mute-toggle', $event)" />
+            @card-click="handleParticipantCardClick(participant.userId)" />
         </div>
       </div>
 
@@ -125,7 +124,6 @@ const props = defineProps<Props>()
 
 const emit = defineEmits<{
   "update:layout": [layout: "grid" | "focus"]
-  "mute-toggle": [userId: string, isMuted: boolean]
   "volume-change": [userId: string, volume: number, isScreenShare: boolean]
 }>()
 

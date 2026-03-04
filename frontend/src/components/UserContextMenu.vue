@@ -99,11 +99,6 @@ interface Props {
 
 const props = defineProps<Props>()
 
-const emit = defineEmits<{
-  "volume-change": [userId: string, volume: number]
-  "mute-toggle": [userId: string, isMuted: boolean]
-}>()
-
 const usersStore = useUsersStore()
 const roomStore = useRoomStore()
 const userStore = useUserStore()
@@ -131,7 +126,7 @@ const isMuted = computed(() => {
   if (effectiveUserId.value === currentUserId) {
     return callStore.isMuted
   }
-  return roomStore.getUserMuted(effectiveUserId.value)
+  return roomStore.getUserMutedLocally(effectiveUserId.value)
 })
 
 const isCurrentUserSuperAdmin = computed(() => userStore.isSuperAdmin)
@@ -176,7 +171,7 @@ const handleVolumeInput = (event: Event) => {
 
 const handleMuteToggle = () => {
   const newMutedState = !isMuted.value
-  emit("mute-toggle", effectiveUserId.value, newMutedState)
+  roomStore.setUserMuted(effectiveUserId.value, newMutedState)
   hideMenu()
 }
 
