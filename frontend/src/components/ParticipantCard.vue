@@ -3,7 +3,10 @@
     ref="cardElement"
     class="participant-card overflow-visible relative rounded-lg cursor-pointer transition-all duration-200 border-2"
     :class="[
-      !isCurrentUser && !isViewing && ((isScreenSharing && screenShareStream) || (isCameraEnabled && cameraStream)) && !forceAudioMode
+      !isCurrentUser &&
+      !isViewing &&
+      ((isScreenSharing && screenShareStream) || (isCameraEnabled && cameraStream)) &&
+      !forceAudioMode
         ? 'aspect-video bg-gray-900'
         : 'aspect-square',
       isCurrentUser && (!isScreenSharing || forceAudioMode)
@@ -24,7 +27,7 @@
     <Teleport to="body">
       <Transition name="fade">
         <div
-          v-if="showStats && hasStats && !showMenu"
+          v-if="showStats && hasStats"
           ref="tooltipElement"
           class="fixed z-[9999] bg-gray-900/95 backdrop-blur-sm border border-gray-700 rounded-lg p-3 w-52 shadow-xl pointer-events-none"
           :style="tooltipStyle">
@@ -236,13 +239,25 @@
 
         <!-- Toggle hint overlay - only show when both streams available -->
         <div
-          v-show="isScreenSharing && isCameraEnabled && screenShareStream && cameraStream && showCameraAsMain"
+          v-show="
+            isScreenSharing &&
+            isCameraEnabled &&
+            screenShareStream &&
+            cameraStream &&
+            showCameraAsMain
+          "
           class="absolute bottom-2 right-2 bg-indigo-600/80 backdrop-blur-sm px-2 py-1 rounded text-xs text-white flex items-center gap-1 z-10 pointer-events-none">
           <PhMonitorPlay class="w-3 h-3" />
         </div>
 
         <div
-          v-show="isScreenSharing && isCameraEnabled && screenShareStream && cameraStream && !showCameraAsMain"
+          v-show="
+            isScreenSharing &&
+            isCameraEnabled &&
+            screenShareStream &&
+            cameraStream &&
+            !showCameraAsMain
+          "
           class="absolute bottom-2 right-2 bg-purple-600/80 backdrop-blur-sm px-2 py-1 rounded text-xs text-white flex items-center gap-1 z-10 pointer-events-none">
           <PhCamera class="w-3 h-3" />
         </div>
@@ -321,68 +336,17 @@
     </template>
 
     <!-- Context Menu -->
-    <div
-      v-if="showMenu"
-      class="fixed bg-gray-800 border border-gray-600 rounded-lg shadow-lg z-50 py-2 min-w-48"
-      :style="getMenuPosition()"
-      @click.stop>
-      <div class="px-3 py-2 text-sm text-gray-300 border-b border-gray-600">
-        {{ userNickname }}
-      </div>
-
-      <!-- Mute/Unmute User -->
-      <button
-        type="button"
-        class="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors flex items-center space-x-2"
-        @click="handleMuteToggle">
-        <PhMicrophoneSlash v-if="isMuted" class="w-4 h-4" />
-
-        <PhMicrophone v-else class="w-4 h-4" />
-
-        <span>{{ isMuted ? "Unmute User" : "Mute User" }}</span>
-      </button>
-
-      <div class="border-t border-gray-600 my-1"></div>
-
-      <!-- Volume Control -->
-      <div class="px-3 py-2">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-sm text-gray-300">Volume</span>
-
-          <span class="text-xs text-gray-400">{{ Math.round(volume) }}%</span>
-        </div>
-
-        <div class="flex items-center space-x-2">
-          <PhSpeakerHigh class="w-4 h-4 text-gray-400" />
-
-          <input
-            :value="volume"
-            type="range"
-            min="0"
-            max="100"
-            class="flex-1 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer"
-            @input="handleVolumeInput" />
-        </div>
-      </div>
-    </div>
-
-    <!-- Click outside to close menu -->
-    <div v-if="showMenu" class="fixed inset-0 z-40" @click="hideContextMenu"></div>
+    <UserContextMenu ref="contextMenuRef" :user-id="userId" @mute-toggle="handleMuteToggle" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick, useTemplateRef } from "vue"
-import {
-  PhMicrophone,
-  PhMicrophoneSlash,
-  PhSpeakerHigh,
-  PhMonitorPlay,
-  PhCamera,
-  PhHeadphones,
-} from "@phosphor-icons/vue"
+import { ref, computed, onMounted, watch, nextTick, useTemplateRef } from "vue"
+import { PhMicrophoneSlash, PhMonitorPlay, PhCamera, PhHeadphones } from "@phosphor-icons/vue"
 import { useRoomStore, usePresenceStore, useCallStore } from "@/stores"
 import UserAvatar from "@/components/UserAvatar.vue"
+import UserContextMenu from "@/components/UserContextMenu.vue"
+import { useUserContextMenu } from "@/composables/useUserContextMenu"
 import type { ScreenShareQuality, ConnectionStats } from "@/types"
 
 interface Props {
@@ -440,9 +404,9 @@ const screenVideoElement = useTemplateRef<HTMLVideoElement>("screenVideoElement"
 const cameraVideoElement = useTemplateRef<HTMLVideoElement>("cameraVideoElement")
 const cardElement = useTemplateRef<HTMLDivElement>("cardElement")
 const tooltipElement = useTemplateRef<HTMLDivElement>("tooltipElement")
+const contextMenuRef = useTemplateRef<InstanceType<typeof UserContextMenu>>("contextMenuRef")
 
 // State
-const volume = computed(() => roomStore.getUserVolume(props.userId))
 const isMuted = computed(() => {
   if (props.isCurrentUser) {
     return callStore.isMuted
@@ -455,9 +419,9 @@ const isDeafened = computed(() => {
   }
   return roomStore.getUserDeafened(props.userId)
 })
-const showMenu = ref(false)
-const showStats = ref(false)
-const menuPosition = { x: 0, y: 0 }
+const { isUserContextMenuOpen } = useUserContextMenu()
+const showStatsInternal = ref(false)
+const showStats = computed(() => (isUserContextMenuOpen.value ? false : showStatsInternal.value))
 const mousePosition = ref({ x: 0, y: 0 })
 const tooltipOffset = { x: 16, y: 16 }
 
@@ -496,11 +460,13 @@ watch(
 )
 
 // Computed for whether video mode is active
-const isVideoMode = computed(() =>
-  !props.isCurrentUser &&
-  !props.isViewing &&
-  ((props.isScreenSharing && props.screenShareStream) || (props.isCameraEnabled && props.cameraStream)) &&
-  !props.forceAudioMode
+const isVideoMode = computed(
+  () =>
+    !props.isCurrentUser &&
+    !props.isViewing &&
+    ((props.isScreenSharing && props.screenShareStream) ||
+      (props.isCameraEnabled && props.cameraStream)) &&
+    !props.forceAudioMode,
 )
 
 // Watch for video mode becoming active, then setup streams
@@ -568,10 +534,8 @@ const tooltipStyle = computed(() => {
 })
 
 const handleMouseEnter = (event: MouseEvent) => {
-  // Don't show stats tooltip when context menu is open
-  if (showMenu.value) return
   mousePosition.value = { x: event.clientX, y: event.clientY }
-  showStats.value = true
+  showStatsInternal.value = true
 }
 
 // Methods
@@ -593,36 +557,10 @@ const getPacketLossClass = (value: number): string => {
   return "text-red-400"
 }
 
-const updateVolume = (newVolume: number) => {
-  roomStore.setUserVolume(props.userId, newVolume)
-  // Volume is now managed by AudioManager component
-  // This method still updates the store for persistence
-}
-
-const handleVolumeInput = (event: Event) => {
-  const target = event.target as HTMLInputElement
-  const newVolume = parseInt(target.value)
-  updateVolume(newVolume)
-}
-
 const handleContextMenu = (event: MouseEvent) => {
   event.preventDefault()
   event.stopPropagation()
-  menuPosition.x = event.clientX
-  menuPosition.y = event.clientY
-  showMenu.value = true
-}
-
-const hideContextMenu = () => {
-  showMenu.value = false
-}
-
-const getMenuPosition = () => {
-  return {
-    left: `${menuPosition.x}px`,
-    top: `${menuPosition.y}px`,
-    transform: "translate(0, -100%)",
-  }
+  contextMenuRef.value?.show(event)
 }
 
 const handleCardClick = () => {
@@ -643,7 +581,7 @@ const handleMouseMove = (event: MouseEvent) => {
 }
 
 const handleMouseLeave = () => {
-  showStats.value = false
+  showStatsInternal.value = false
 }
 
 const onScreenVideoLoaded = () => {
@@ -694,15 +632,8 @@ const setupAllVideoStreams = () => {
   }
 }
 
-const toggleMute = () => {
-  const newMutedState = !isMuted.value
-  // Mute state is now managed by AudioManager component
-  emit("mute-toggle", props.userId, newMutedState)
-}
-
-const handleMuteToggle = () => {
-  toggleMute()
-  hideContextMenu()
+const handleMuteToggle = (userId: string, isMuted: boolean) => {
+  emit("mute-toggle", userId, isMuted)
 }
 
 // Watchers
@@ -735,19 +666,6 @@ watch(
   { immediate: true },
 )
 
-// Event handlers
-const handleKeydown = (event: KeyboardEvent) => {
-  if (event.key === "Escape") {
-    hideContextMenu()
-  }
-}
-
-const handleDocumentClick = () => {
-  if (showMenu.value) {
-    hideContextMenu()
-  }
-}
-
 // Lifecycle
 onMounted(() => {
   void nextTick(() => {
@@ -756,14 +674,6 @@ onMounted(() => {
       setupAllVideoStreams()
     }, 50)
   })
-
-  document.addEventListener("keydown", handleKeydown)
-  document.addEventListener("click", handleDocumentClick)
-})
-
-onUnmounted(() => {
-  document.removeEventListener("keydown", handleKeydown)
-  document.removeEventListener("click", handleDocumentClick)
 })
 </script>
 

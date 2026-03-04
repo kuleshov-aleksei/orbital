@@ -44,7 +44,11 @@
     <!-- Users List -->
     <div v-if="room.users && room.users.length > 0" class="mt-1 pl-9">
       <div class="space-y-0.5">
-        <div v-for="user in room.users" :key="user.id" class="flex items-center justify-between text-xs py-0.5 pr-1 rounded hover:bg-gray-500/30">
+        <div
+          v-for="user in room.users"
+          :key="user.id"
+          class="flex items-center justify-between text-xs py-0.5 pr-1 rounded hover:bg-gray-500/30"
+          @contextmenu="showUserContextMenu($event, user.id)">
           <div class="flex items-center min-w-0">
             <!-- Avatar -->
             <UserAvatar
@@ -73,10 +77,14 @@
         </div>
       </div>
     </div>
+
+    <!-- User Context Menu -->
+    <UserContextMenu ref="userContextMenuRef" />
   </div>
 </template>
 
 <script setup lang="ts">
+import { useTemplateRef } from "vue"
 import {
   PhWaveform,
   PhMicrophone,
@@ -85,6 +93,7 @@ import {
   PhMonitor,
 } from "@phosphor-icons/vue"
 import UserAvatar from "./UserAvatar.vue"
+import UserContextMenu from "./UserContextMenu.vue"
 
 // Use snake_case to match backend API and global types
 interface RoomPreviewUser {
@@ -130,5 +139,14 @@ const emit = defineEmits<{
 
 const showContextMenu = (event: MouseEvent) => {
   emit("show-context-menu", event, props.room)
+}
+
+const userContextMenuRef =
+  useTemplateRef<InstanceType<typeof UserContextMenu>>("userContextMenuRef")
+
+const showUserContextMenu = (event: MouseEvent, userId: string) => {
+  event.preventDefault()
+  event.stopPropagation()
+  userContextMenuRef.value?.show(event, userId)
 }
 </script>
