@@ -79,7 +79,7 @@ export const useRoomStore = defineStore("room", () => {
       is_screen_sharing?: boolean
     },
   ) {
-    debugLog("[RoomStore] updateUserStatus called:", { userId, status })
+    console.log("[RoomStore] updateUserStatus called:", { userId, status })
     // Update rooms array for sidebar display
     // Use slice() to create new array references for Vue reactivity
     let hasChanges = false
