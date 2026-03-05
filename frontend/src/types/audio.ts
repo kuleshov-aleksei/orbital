@@ -64,6 +64,9 @@ export const defaultAudioSettings: AudioSettings = {
 /** Local storage key for audio settings */
 export const AUDIO_SETTINGS_STORAGE_KEY = "orbital_audio_settings"
 
+/** Local storage key for user volume preferences */
+export const USER_VOLUMES_STORAGE_KEY = "orbital_user_volumes"
+
 /** List of available algorithms with metadata */
 export const availableAlgorithms: AudioAlgorithmInfo[] = [
   {

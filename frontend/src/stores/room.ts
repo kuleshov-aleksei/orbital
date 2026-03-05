@@ -2,6 +2,7 @@ import { defineStore } from "pinia"
 import { ref, computed } from "vue"
 import type { Room, User } from "@/types"
 import { debugLog } from "@/utils/debug"
+import { USER_VOLUMES_STORAGE_KEY } from "@/types/audio"
 
 export const useRoomStore = defineStore("room", () => {
   // State
@@ -131,7 +132,14 @@ export const useRoomStore = defineStore("room", () => {
       const updatedRoom = rooms.value.find((r) => r.users?.some((u) => u.id === userId))
       if (updatedRoom) {
         const updatedUser = updatedRoom.users?.find((u) => u.id === userId)
-        debugLog("[RoomStore] After update - user in room:", userId, "is_muted:", updatedUser?.is_muted, "is_deafened:", updatedUser?.is_deafened)
+        debugLog(
+          "[RoomStore] After update - user in room:",
+          userId,
+          "is_muted:",
+          updatedUser?.is_muted,
+          "is_deafened:",
+          updatedUser?.is_deafened,
+        )
       }
     } else if (!userFound) {
       debugLog(
@@ -184,12 +192,37 @@ export const useRoomStore = defineStore("room", () => {
   }
 
   function setUserVolume(userId: string, volume: number) {
-    // Clamp volume to valid range
     const clampedVolume = Math.max(0, Math.min(100, volume))
     remoteStreamVolumes.value.set(userId, clampedVolume)
-
-    // Log for debugging
+    saveUserVolumes()
     console.log(`Volume updated: User ${userId} → ${clampedVolume}%`)
+  }
+
+  function saveUserVolumes() {
+    try {
+      const volumeObj: Record<string, number> = {}
+      remoteStreamVolumes.value.forEach((volume, userId) => {
+        volumeObj[userId] = volume
+      })
+      localStorage.setItem(USER_VOLUMES_STORAGE_KEY, JSON.stringify(volumeObj))
+    } catch (e) {
+      console.warn("Failed to save user volumes to localStorage:", e)
+    }
+  }
+
+  function loadUserVolumes() {
+    try {
+      const stored = localStorage.getItem(USER_VOLUMES_STORAGE_KEY)
+      if (stored) {
+        const parsed = JSON.parse(stored) as Record<string, number>
+        Object.entries(parsed).forEach(([userId, volume]) => {
+          remoteStreamVolumes.value.set(userId, volume)
+        })
+        console.log(`Loaded ${Object.keys(parsed).length} user volumes from localStorage`)
+      }
+    } catch (e) {
+      console.warn("Failed to load user volumes from localStorage:", e)
+    }
   }
 
   function setUserMuted(userId: string, muted: boolean) {
@@ -284,5 +317,6 @@ export const useRoomStore = defineStore("room", () => {
     updateCurrentRoomUser,
     reorderRooms,
     moveRoomToCategory,
+    loadUserVolumes,
   }
 })

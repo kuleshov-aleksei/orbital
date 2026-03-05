@@ -6,10 +6,10 @@
 
 <script setup lang="ts">
 import { onMounted, onUnmounted } from "vue"
-import { useAppStore } from "@/stores"
+import { useAppStore, useRoomStore } from "@/stores"
 
-// Initialize mobile detection
 const appStore = useAppStore()
+const roomStore = useRoomStore()
 
 const checkMobile = () => {
   appStore.checkMobile()
@@ -18,6 +18,7 @@ const checkMobile = () => {
 onMounted(() => {
   checkMobile()
   window.addEventListener("resize", checkMobile)
+  roomStore.loadUserVolumes()
 })
 
 onUnmounted(() => {
