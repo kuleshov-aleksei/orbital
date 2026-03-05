@@ -19,6 +19,7 @@ function getSound(): Howl {
       src: [SPRITE_URL],
       sprite: spriteMap,
       html5: true,
+      volume: 0.7,
     })
   }
   return sound
@@ -28,6 +29,7 @@ export function useSounds() {
   const { play } = useSound(SPRITE_URL, {
     sprite: spriteMap,
     html5: true,
+    volume: 0.7,
   })
 
   const toggleOn = () => play({ id: 'toggle_on' })
