@@ -74,9 +74,15 @@
           <div class="flex items-center space-x-2">
             <!-- Volume Slider -->
             <div class="flex items-center space-x-2">
-              <PhSpeakerHigh v-if="localVolume > 50" class="w-4 h-4 text-white" />
-              <PhSpeakerLow v-else-if="localVolume > 0" class="w-4 h-4 text-white" />
-              <PhSpeakerNone v-else class="w-4 h-4 text-white" />
+              <button
+                type="button"
+                class="p-1 hover:bg-gray-600/50 rounded transition-colors"
+                :title="isMuted ? 'Unmute' : 'Mute'"
+                @click="toggleMute">
+                <PhSpeakerHigh v-if="localVolume > 50 && !isMuted" class="w-4 h-4 text-white" />
+                <PhSpeakerLow v-else-if="localVolume > 0 && !isMuted" class="w-4 h-4 text-white" />
+                <PhSpeakerNone v-else class="w-4 h-4 text-red-400" />
+              </button>
               <input
                 v-model.number="localVolume"
                 type="range"
@@ -186,6 +192,8 @@ const isHovered = ref(false)
 const videoWidth = ref(1920)
 const videoHeight = ref(1080)
 const localVolume = ref(80)
+const previousVolume = ref(80)
+const isMuted = ref(false)
 
 // Track if LiveKit track is attached (for cleanup)
 const isLiveKitAttached = ref(false)
@@ -389,8 +397,23 @@ const togglePiP = async () => {
 }
 
 const handleVolumeChange = () => {
-  // Emit isScreenShare as true since this is a screen share stream component
+  if (localVolume.value > 0) {
+    isMuted.value = false
+  }
   emit("volume-change", localVolume.value, true)
+}
+
+const toggleMute = () => {
+  if (isMuted.value) {
+    isMuted.value = false
+    localVolume.value = previousVolume.value || 80
+    emit("volume-change", localVolume.value, true)
+  } else {
+    previousVolume.value = localVolume.value
+    localVolume.value = 0
+    isMuted.value = true
+    emit("volume-change", 0, true)
+  }
 }
 
 // Handle fullscreen change events
