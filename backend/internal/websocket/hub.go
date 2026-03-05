@@ -29,13 +29,14 @@ type Hub struct {
 
 // Client represents a WebSocket client
 type Client struct {
-	hub          *Hub
-	conn         *websocket.Conn
-	send         chan []byte
-	roomID       string
-	userID       string
-	lastPingTime time.Time
-	mu           sync.RWMutex
+	hub               *Hub
+	conn              *websocket.Conn
+	send              chan []byte
+	roomID            string
+	userID            string
+	lastPingTime      time.Time
+	firstPingReceived bool
+	mu                sync.RWMutex
 }
 
 // NewHub creates a new WebSocket hub
@@ -158,7 +159,9 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 	go client.readPump()
 
 	// Send initial online users list to the new client (after writePump starts)
+	log.Printf("[WebSocket] HandleWebSocket: roomID=%q, userID=%q", roomID, userID)
 	if roomID == "" && userID != "" {
+		log.Printf("[WebSocket] Sending initial data to user %s (global ws)", userID)
 		onlineUserIDs := h.GetOnlineUsers()
 		log.Printf("[WebSocket] Preparing initial online_users list for %s: %d users online", userID, len(onlineUserIDs))
 
@@ -191,9 +194,6 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 		default:
 			log.Printf("[WebSocket] Failed to send initial online_users list to user %s: channel blocked", userID)
 		}
-
-		// Also send audio states (mute/deafen) - these are global, not room-specific
-		h.sendAudioStatesToClient(client)
 	}
 }
 
@@ -410,19 +410,19 @@ func (h *Hub) sendAudioStatesToClient(client *Client) {
 	}
 	h.mu.RUnlock()
 
-	if len(audioStates) > 0 {
-		message := models.WebSocketMessage{
-			Type: "audio_states",
-			Data: map[string]interface{}{
-				"states": audioStates,
-			},
-		}
-		select {
-		case client.send <- marshalMessage(message):
-			log.Printf("[WebSocket] Sent %d audio states to user %s", len(audioStates), client.userID)
-		default:
-			log.Printf("[WebSocket] Failed to send audio states to user %s: channel blocked", client.userID)
-		}
+	log.Printf("[WebSocket] sendAudioStatesToClient: userID=%q, states_count=%d", client.userID, len(audioStates))
+
+	message := models.WebSocketMessage{
+		Type: "audio_states",
+		Data: map[string]interface{}{
+			"states": audioStates,
+		},
+	}
+	select {
+	case client.send <- marshalMessage(message):
+		log.Printf("[WebSocket] Sent %d audio states to user %s", len(audioStates), client.userID)
+	default:
+		log.Printf("[WebSocket] Failed to send audio states to user %s: channel blocked", client.userID)
 	}
 }
 
@@ -583,9 +583,6 @@ func (c *Client) handleJoinRoom(data interface{}) {
 		Data: users,
 	}
 	c.hub.BroadcastToRoom(c.roomID, usersUpdate)
-
-	// Send current audio states (mute/deafen) to the joining user
-	c.hub.sendAudioStatesToClient(c)
 }
 
 // handleLeaveRoom handles user leaving a room
@@ -679,7 +676,7 @@ func (c *Client) handleUpdateMuteState(data interface{}) {
 		return
 	}
 
-	log.Printf("[WebSocket] User %s updated mute state: is_muted=%v", userID, req.IsMuted)
+	log.Printf("[WebSocket] handleUpdateMuteState: userID=%q, is_muted=%v, req=%+v", userID, req.IsMuted, req)
 
 	// Update user's audio state in hub
 	c.hub.mu.Lock()
@@ -754,6 +751,9 @@ func (c *Client) handlePing(data interface{}) {
 	// Check if this is a new authentication (userID was empty but ping has one)
 	c.mu.Lock()
 	c.lastPingTime = time.Now()
+	// Check if this is the first ping from this client
+	shouldSendInitialData := !c.firstPingReceived
+	c.firstPingReceived = true
 	// If client doesn't have a userID yet but ping data has one, use it
 	// This handles the case where user authenticates after connecting
 	isNewAuthentication := false
@@ -765,6 +765,12 @@ func (c *Client) handlePing(data interface{}) {
 	userID := c.userID
 	roomID := c.roomID
 	c.mu.Unlock()
+
+	// Send initial audio states on first ping (client is now fully ready)
+	if shouldSendInitialData && userID != "" {
+		log.Printf("[WebSocket] First ping received from %s, sending initial audio states", userID)
+		c.hub.sendAudioStatesToClient(c)
+	}
 
 	// Update ping time in room service (this is what actually matters for timeout detection)
 	if roomID != "" && userID != "" {
@@ -802,11 +808,6 @@ func (c *Client) handlePing(data interface{}) {
 			}
 		} else {
 			log.Printf("[WebSocket] Not broadcasting user_online for %s: wasOnline=%v, isNewAuth=%v", userID, wasOnline, isNewAuthentication)
-		}
-
-		// Send audio states to newly authenticated user (global state, not room-specific)
-		if isNewAuthentication {
-			c.hub.sendAudioStatesToClient(c)
 		}
 	}
 

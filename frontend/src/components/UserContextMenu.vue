@@ -94,10 +94,12 @@ import { apiService } from "@/services/api"
 import { useUserContextMenu } from "@/composables/useUserContextMenu"
 
 interface Props {
-  userId: string
+  userId?: string
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  userId: "",
+})
 
 const usersStore = useUsersStore()
 const roomStore = useRoomStore()

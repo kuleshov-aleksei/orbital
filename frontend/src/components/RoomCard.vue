@@ -65,12 +65,12 @@
           <!-- Status Icons (right side) -->
           <div class="flex items-center gap-1 flex-shrink-0">
             <PhMicrophone
-              v-if="!user.is_muted && !user.is_deafened"
+              v-if="!getGlobalUserAudioState(user.id).is_muted && !getGlobalUserAudioState(user.id).is_deafened"
               class="w-3.5 h-3.5 text-green-400" />
 
-            <PhMicrophoneSlash v-if="user.is_muted" class="w-3.5 h-3.5 text-red-400" />
+            <PhMicrophoneSlash v-if="getGlobalUserAudioState(user.id).is_muted" class="w-3.5 h-3.5 text-red-400" />
 
-            <PhHeadphones v-if="user.is_deafened" class="w-3.5 h-3.5 text-red-400" />
+            <PhHeadphones v-if="getGlobalUserAudioState(user.id).is_deafened" class="w-3.5 h-3.5 text-red-400" />
 
             <PhMonitor v-if="user.is_screen_sharing" class="w-3.5 h-3.5 text-blue-400" />
           </div>
@@ -84,7 +84,7 @@
 </template>
 
 <script setup lang="ts">
-import { useTemplateRef } from "vue"
+import { useTemplateRef, computed } from "vue"
 import {
   PhWaveform,
   PhMicrophone,
@@ -94,6 +94,7 @@ import {
 } from "@phosphor-icons/vue"
 import UserAvatar from "./UserAvatar.vue"
 import UserContextMenu from "./UserContextMenu.vue"
+import { useUserStore } from "@/stores"
 
 // Use snake_case to match backend API and global types
 interface RoomPreviewUser {
@@ -140,6 +141,9 @@ const emit = defineEmits<{
 const showContextMenu = (event: MouseEvent) => {
   emit("show-context-menu", event, props.room)
 }
+
+const userStore = useUserStore()
+const getGlobalUserAudioState = userStore.getGlobalUserAudioState
 
 const userContextMenuRef =
   useTemplateRef<InstanceType<typeof UserContextMenu>>("userContextMenuRef")

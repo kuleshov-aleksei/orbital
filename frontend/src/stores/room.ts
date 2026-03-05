@@ -125,8 +125,14 @@ export const useRoomStore = defineStore("room", () => {
 
     // Only update if there were actual changes
     if (hasChanges) {
-      debugLog("[RoomStore] Updating rooms with changes for user:", userId)
+      debugLog("[RoomStore] Updating rooms with changes for user:", userId, "status:", status)
       rooms.value = updatedRooms
+      // Log the updated state
+      const updatedRoom = rooms.value.find((r) => r.users?.some((u) => u.id === userId))
+      if (updatedRoom) {
+        const updatedUser = updatedRoom.users?.find((u) => u.id === userId)
+        debugLog("[RoomStore] After update - user in room:", userId, "is_muted:", updatedUser?.is_muted, "is_deafened:", updatedUser?.is_deafened)
+      }
     } else if (!userFound) {
       debugLog(
         "[RoomStore] User not found in any room:",
@@ -134,6 +140,8 @@ export const useRoomStore = defineStore("room", () => {
         "Available user IDs:",
         rooms.value.flatMap((r) => r.users?.map((u) => u.id) || []),
       )
+    } else {
+      debugLog("[RoomStore] No changes for user:", userId, "status:", status)
     }
 
     // Also update current room users if applicable
