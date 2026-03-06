@@ -63,17 +63,13 @@ func (h *UsersHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 // PATCH /api/users/me/sound-pack
 func (h *UsersHandler) UpdateSoundPack(w http.ResponseWriter, r *http.Request) {
 	// Get user from context (set by auth middleware)
-	userID := r.Context().Value("user_id")
-	if userID == nil {
+	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	if !ok || claims == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	userIDStr, ok := userID.(string)
-	if !ok || userIDStr == "" {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
+	userIDStr := claims.UserID
 
 	// Parse request body
 	var req models.UpdateSoundPackRequest

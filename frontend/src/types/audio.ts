@@ -87,9 +87,6 @@ export interface SoundPackOverride {
 export type SoundEvent =
   | 'toggle_on'
   | 'toggle_off'
-  | 'transition_up'
-  | 'transition_down'
-  | 'tap'
   | 'join_room'
   | 'leave_room'
   | 'mute'

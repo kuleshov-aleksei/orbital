@@ -53,7 +53,7 @@ const userStore = useUserStore()
 const roomStore = useRoomStore()
 
 // Sounds
-const { toggleOn, toggleOff } = useSounds()
+const { playMute, playUnmute } = useSounds()
 
 // Computed v-model
 const isMuted = computed({
@@ -96,9 +96,9 @@ const toggleMute = async () => {
 
   // Play sound locally (remote users hear it via presence.ts)
   if (newValue) {
-    toggleOff()
+    playMute()
   } else {
-    toggleOn()
+    playUnmute()
   }
 
   // Update call store (presence store watches this and syncs with LiveKit)

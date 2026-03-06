@@ -12,10 +12,8 @@ import { useCallStore } from "./call"
 import { useUserStore } from "./user"
 import { useSoundPackStore } from "./soundPack"
 import {
-  toggleOn,
-  toggleOff,
-  transitionOpen,
-  transitionClose,
+  playJoinRoom,
+  playLeaveRoom,
   playRemoteMute,
   playRemoteUnmute,
   playRemoteDeafen,
@@ -162,14 +160,14 @@ export const usePresenceStore = defineStore("presence", () => {
     lkRoom.on(RoomEvent.ParticipantConnected, async (participant: RemoteParticipant) => {
       debugLog("[Presence] Participant connected:", participant.identity)
       updateParticipantFromLiveKit(participant)
-      await transitionOpen()
+      playJoinRoom()
     })
 
     lkRoom.on(RoomEvent.ParticipantDisconnected, async (participant: RemoteParticipant) => {
       debugLog("[Presence] Participant disconnected:", participant.identity)
       const metadata = extractMetadata(participant)
       participants.value.delete(metadata.user_id)
-      await transitionClose()
+      playLeaveRoom()
     })
 
     lkRoom.on(

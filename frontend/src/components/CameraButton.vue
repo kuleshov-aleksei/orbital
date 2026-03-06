@@ -52,7 +52,7 @@ const callStore = useCallStore()
 const userStore = useUserStore()
 
 // Sounds
-const { toggleOn, toggleOff } = useSounds()
+const { playCameraStart, playCameraStop } = useSounds()
 
 // Computed properties
 const isGuest = computed(() => userStore.isGuest)
@@ -112,9 +112,9 @@ const handleClick = () => {
 
   // Play sound
   if (newValue) {
-    toggleOn()
+    playCameraStart()
   } else {
-    toggleOff()
+    playCameraStop()
   }
 
   // Update call store

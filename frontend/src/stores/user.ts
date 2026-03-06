@@ -1,6 +1,7 @@
 import { defineStore } from "pinia"
 import { ref, computed } from "vue"
 import { apiService, setAuthToken, clearAuthToken } from "@/services/api"
+import { setUserSoundPack } from "@/services/sounds"
 
 export type AuthProvider = "guest" | "discord" | "google" | "password"
 
@@ -195,6 +196,12 @@ export const useUserStore = defineStore("user", () => {
         user.nickname = freshUser.nickname
         user.role = freshUser.role
         localStorage.setItem("orbital_user_role", freshUser.role)
+        
+        // Load user's sound pack preference
+        if (freshUser.sound_pack) {
+          setUserSoundPack(freshUser.sound_pack)
+        }
+        
         currentUser.value = { ...user }
       } catch {
         // Token might be expired, clear everything

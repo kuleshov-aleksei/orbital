@@ -23,7 +23,7 @@ import { useAudioTracksStore } from "@/stores/audioTracks"
 import { useCallStore } from "@/stores/call"
 import { getLiveKitAudioConstraints } from "@/services/livekit-audio-processors"
 import { debugLog, debugWarn } from "@/utils/debug"
-import { transitionOpen, transitionClose } from "@/services/sounds"
+import { playJoinRoom, playLeaveRoom } from "@/services/sounds"
 import { isElectron } from "@/services/electron"
 import type { User, ScreenShareQuality, ConnectionStats, TrackStats } from "@/types"
 
@@ -521,8 +521,8 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
       debugLog(`[LiveKit][INFO]: 'Connected to LiveKit room successfully'}`)
 
-      // Play transition open sound on successful connection
-      transitionOpen()
+      // Play join sound on successful connection
+      playJoinRoom()
 
       // Initialize presence tracking
       await presenceStore.initializePresence(lkRoom)
@@ -690,7 +690,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     lkRoom.on(RoomEvent.Disconnected, async (reason) => {
       debugWarn(`[LiveKit][WARN]: Disconnected from room: ${reason || "unknown reason"}`)
       isConnected.value = false
-      await transitionClose()
+      playLeaveRoom()
       // Note: Don't call cleanup() here - it can cause race conditions
       // when switching rooms. Cleanup should only be called from onUnmounted
       // or when explicitly disconnecting. Just stop the intervals here.
@@ -1283,8 +1283,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
       }
 
       debugLog(`[LiveKit][INFO]: 'Screen sharing started successfully'`)
-
-      //tap()
     } catch (error) {
       console.error("Failed to start screen share:", error)
       console.error(`[LiveKit][ERROR]: Screen share failed: ${(error as Error).message}`)

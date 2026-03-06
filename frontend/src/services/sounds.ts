@@ -4,11 +4,6 @@ import type { SoundEvent, SoundPack, SoundPackSprite } from '@/types/audio'
 const DEFAULT_SOUND_PACK_ID = 'default'
 
 const defaultSprites: Record<string, SoundPackSprite> = {
-  toggle_on: { name: 'toggle_on', start: 42000, duration: 100 },
-  toggle_off: { name: 'toggle_off', start: 40000, duration: 100 },
-  transition_up: { name: 'transition_up', start: 46000, duration: 100 },
-  transition_down: { name: 'transition_down', start: 44000, duration: 100 },
-  tap: { name: 'tap', start: 30000, duration: 10 },
   join_room: { name: 'transition_up', start: 46000, duration: 100 },
   leave_room: { name: 'transition_down', start: 44000, duration: 100 },
   mute: { name: 'toggle_off', start: 42000, duration: 100 },
@@ -17,8 +12,21 @@ const defaultSprites: Record<string, SoundPackSprite> = {
   undeafen: { name: 'toggle_on', start: 40000, duration: 100 },
   camera_start: { name: 'toggle_off', start: 42000, duration: 100 },
   camera_stop: { name: 'toggle_on', start: 40000, duration: 100 },
-  screenshare_start: { name: 'toggle_off', start: 40000, duration: 100 },
-  screenshare_stop: { name: 'toggle_on', start: 42000, duration: 100 },
+  screenshare_start: { name: 'toggle_off', start: 42000, duration: 100 },
+  screenshare_stop: { name: 'toggle_on', start: 40000, duration: 100 },
+}
+
+const jdSherbertSprites: Record<string, SoundPackSprite> = {
+  join_room: { name: 'transition_up', start: 4000, duration: 2000 },
+  leave_room: { name: 'transition_down', start: 8000, duration: 2000 },
+  mute: { name: 'toggle_off', start: 0, duration: 900 },
+  unmute: { name: 'toggle_on', start: 2000, duration: 800 },
+  deafen: { name: 'toggle_off', start: 0, duration: 900 },
+  undeafen: { name: 'toggle_on', start: 2000, duration: 800 },
+  camera_start: { name: 'toggle_off', start: 0, duration: 900 },
+  camera_stop: { name: 'toggle_on', start: 2000, duration: 800 },
+  screenshare_start: { name: 'toggle_off', start: 0, duration: 900 },
+  screenshare_stop: { name: 'toggle_on', start: 2000, duration: 800 },
 }
 
 const soundPacks: Record<string, SoundPack> = {
@@ -28,10 +36,17 @@ const soundPacks: Record<string, SoundPack> = {
     description: 'Default sound pack',
     sprites: defaultSprites,
   },
+  jd_sherbert: {
+    id: 'jd_sherbert',
+    name: 'JDSherbert',
+    description: 'Whoosh',
+    sprites: jdSherbertSprites,
+  },
 }
 
 const spriteUrls: Record<string, string> = {
   default: '/assets/sounds/sprite/01/audioSprite.mp3',
+  jd_sherbert: '/assets/sounds/sprite/02/jd_sherbert.mp3',
 }
 
 const loadedSounds: Map<string, Howl> = new Map()
@@ -94,6 +109,7 @@ function playSoundById(packId: string, soundId: string): void {
 
 export function setUserSoundPack(packId: string): void {
   currentUserSoundPack = packId
+  loadSound(packId)
 }
 
 export function getUserSoundPack(): string {
@@ -115,9 +131,6 @@ export function preloadSoundPacks(): void {
 export function useSounds() {
   const toggleOn = () => playLocalSound('toggle_on')
   const toggleOff = () => playLocalSound('toggle_off')
-  const transitionOpen = () => playLocalSound('transition_up')
-  const transitionClose = () => playLocalSound('transition_down')
-  const tap = () => playLocalSound('tap')
 
   const playJoinRoom = () => playLocalSound('join_room')
   const playLeaveRoom = () => playLocalSound('leave_room')
@@ -142,11 +155,6 @@ export function useSounds() {
   const playRemoteScreenShareStop = (soundPack: string) => playRemoteSound('screenshare_stop', soundPack)
 
   return {
-    toggleOn,
-    toggleOff,
-    transitionOpen,
-    transitionClose,
-    tap,
     playJoinRoom,
     playLeaveRoom,
     playMute,
@@ -170,24 +178,12 @@ export function useSounds() {
   }
 }
 
-export function toggleOn(): void {
-  playLocalSound('toggle_on')
+export function playJoinRoom(): void {
+  playLocalSound('join_room')
 }
 
-export function toggleOff(): void {
-  playLocalSound('toggle_off')
-}
-
-export function transitionOpen(): void {
-  playLocalSound('transition_up')
-}
-
-export function transitionClose(): void {
-  playLocalSound('transition_down')
-}
-
-export function tap(): void {
-  playLocalSound('tap')
+export function playLeaveRoom(): void {
+  playLocalSound('leave_room')
 }
 
 export function playRemoteMute(soundPack: string): void {
