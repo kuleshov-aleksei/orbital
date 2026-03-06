@@ -10,7 +10,17 @@ import {
 import { useRoomStore } from "./room"
 import { useCallStore } from "./call"
 import { useUserStore } from "./user"
-import { toggleOn, toggleOff, transitionOpen, transitionClose } from "@/services/sounds"
+import { useSoundPackStore } from "./soundPack"
+import {
+  toggleOn,
+  toggleOff,
+  transitionOpen,
+  transitionClose,
+  playRemoteMute,
+  playRemoteUnmute,
+  playRemoteDeafen,
+  playRemoteUndeafen,
+} from "@/services/sounds"
 import { debugLog } from "@/utils/debug"
 
 // Debounce helper for batching updates
@@ -181,13 +191,29 @@ export const usePresenceStore = defineStore("presence", () => {
         const isDeafenedChanged = "is_deafened" in changedAttributes
 
         if (!isLocal && (isMutedChanged || isDeafenedChanged)) {
+          const metadata = extractMetadata(participant)
           const newIsMuted = participant.attributes?.is_muted === "true"
           const newIsDeafened = participant.attributes?.is_deafened === "true"
 
+          // Get the user's sound pack from the sound pack store
+          const soundPackStore = useSoundPackStore()
+          const effectivePack = soundPackStore.getEffectivePack(metadata.user_id)
+
           if (newIsMuted || newIsDeafened) {
-            await toggleOff()
+            if (newIsMuted) {
+              playRemoteMute(effectivePack)
+            }
+            if (newIsDeafened) {
+              playRemoteDeafen(effectivePack)
+            }
           } else {
-            await toggleOn()
+            if (!newIsMuted && !newIsDeafened) {
+              playRemoteUnmute(effectivePack)
+            } else if (!newIsMuted) {
+              playRemoteUnmute(effectivePack)
+            } else if (!newIsDeafened) {
+              playRemoteUndeafen(effectivePack)
+            }
           }
         }
 

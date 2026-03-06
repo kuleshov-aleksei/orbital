@@ -261,6 +261,25 @@ export const useRoomStore = defineStore("room", () => {
     }
   }
 
+  function updateUserSoundPack(userId: string, soundPack: string) {
+    const userIndex = currentRoomUsers.value.findIndex((u) => u.id === userId)
+    if (userIndex !== -1) {
+      currentRoomUsers.value[userIndex] = {
+        ...currentRoomUsers.value[userIndex],
+        sound_pack: soundPack,
+      }
+    }
+
+    rooms.value.forEach((room, roomIndex) => {
+      if (room.users) {
+        const userIdx = room.users.findIndex((u) => u.id === userId)
+        if (userIdx !== -1 && room.users) {
+          room.users[userIdx] = { ...room.users[userIdx], sound_pack: soundPack }
+        }
+      }
+    })
+  }
+
   function reorderRooms(roomOrders: Record<string, number>) {
     // Update sort_order for each room
     rooms.value = rooms.value.map((room) => {
@@ -316,6 +335,7 @@ export const useRoomStore = defineStore("room", () => {
     setCurrentRoomUsers,
     updateUserStatus,
     updateUserNickname,
+    updateUserSoundPack,
     addUserToRoom,
     removeUserFromRoom,
     setUserVolume,

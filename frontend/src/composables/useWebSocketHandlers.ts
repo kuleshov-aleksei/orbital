@@ -270,6 +270,21 @@ export function useWebSocketHandlers() {
         is_deafened: data.is_deafened,
       })
     })
+
+    // Sound pack change
+    wsService.onGlobal("sound_pack_change", (message) => {
+      const data = message.data as {
+        user_id: string
+        sound_pack: string
+      }
+      debugLog(
+        "[WebSocket] User sound pack changed:",
+        data.user_id,
+        "sound_pack:",
+        data.sound_pack,
+      )
+      roomStore.updateUserSoundPack(data.user_id, data.sound_pack)
+    })
   }
 
   const connectGlobalWebSocket = async () => {

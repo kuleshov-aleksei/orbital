@@ -159,6 +159,9 @@ func main() {
 	r.HandleFunc("/api/avatars/{guid}", avatarHandler.GetAvatar).Methods("GET")
 	r.Handle("/api/users/me/avatar", authHandler.AuthMiddleware(http.HandlerFunc(avatarHandler.UploadAvatar))).Methods("POST")
 
+	// Sound pack routes (protected)
+	r.Handle("/api/users/me/sound-pack", authHandler.AuthMiddleware(http.HandlerFunc(usersHandler.UpdateSoundPack))).Methods("PATCH")
+
 	// General configuration route (public)
 	r.HandleFunc("/api/config", roomHandler.GetConfig).Methods("GET")
 

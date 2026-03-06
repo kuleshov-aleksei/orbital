@@ -21,10 +21,10 @@ func NewUserRepository(db *storage.DB) *UserRepository {
 // Create inserts a new user into the database
 func (r *UserRepository) Create(user *models.User) error {
 	_, err := r.db.Exec(
-		`INSERT INTO users (id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash) 
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO users (id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack) 
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		user.ID, user.Nickname, user.OriginalNickname, user.CreatedAt, user.LastSeen,
-		user.AuthProvider, user.ProviderID, user.Email, user.AvatarURL, user.IsGuest, user.Role, user.PasswordHash,
+		user.AuthProvider, user.ProviderID, user.Email, user.AvatarURL, user.IsGuest, user.Role, user.PasswordHash, user.SoundPack,
 	)
 	return err
 }
@@ -34,7 +34,7 @@ func scanUser(scanner interface {
 	Scan(dest ...interface{}) error
 }) (*models.User, error) {
 	user := &models.User{}
-	var providerID, email, avatarURL, originalNickname, role, passwordHash sql.NullString
+	var providerID, email, avatarURL, originalNickname, role, passwordHash, soundPack sql.NullString
 	var authProvider sql.NullString
 	var isGuest sql.NullBool
 
@@ -51,6 +51,7 @@ func scanUser(scanner interface {
 		&isGuest,
 		&role,
 		&passwordHash,
+		&soundPack,
 	)
 	if err != nil {
 		return nil, err
@@ -87,6 +88,11 @@ func scanUser(scanner interface {
 	if passwordHash.Valid {
 		user.PasswordHash = passwordHash.String
 	}
+	if soundPack.Valid {
+		user.SoundPack = soundPack.String
+	} else {
+		user.SoundPack = "default"
+	}
 
 	return user, nil
 }
@@ -94,7 +100,7 @@ func scanUser(scanner interface {
 // GetByID retrieves a user by ID
 func (r *UserRepository) GetByID(id string) (*models.User, error) {
 	user, err := scanUser(r.db.QueryRow(
-		`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash 
+		`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack 
 		 FROM users WHERE id = ?`,
 		id,
 	))
@@ -116,7 +122,7 @@ func (r *UserRepository) GetByProviderID(provider string, providerID string) (*m
 	}
 
 	user, err := scanUser(r.db.QueryRow(
-		`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash 
+		`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack 
 		 FROM users WHERE auth_provider = ? AND provider_id = ?`,
 		provider, providerID,
 	))
@@ -175,7 +181,7 @@ func (r *UserRepository) Delete(id string) error {
 
 // GetAll retrieves all users from the database
 func (r *UserRepository) GetAll() ([]*models.User, error) {
-	rows, err := r.db.Query(`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash FROM users`)
+	rows, err := r.db.Query(`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack FROM users`)
 	if err != nil {
 		return nil, err
 	}
@@ -234,11 +240,11 @@ func (r *UserRepository) GetByEmail(email string, authProvider *models.AuthProvi
 	var args []interface{}
 
 	if authProvider != nil {
-		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash 
+		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack 
 		 FROM users WHERE LOWER(email) = LOWER(?) AND auth_provider = ?`
 		args = []interface{}{email, *authProvider}
 	} else {
-		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash 
+		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack 
 		 FROM users WHERE LOWER(email) = LOWER(?)`
 		args = []interface{}{email}
 	}
@@ -265,11 +271,11 @@ func (r *UserRepository) GetByOriginalNickname(originalNickname string, authProv
 	var args []interface{}
 
 	if authProvider != nil {
-		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash 
+		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack 
 		 FROM users WHERE LOWER(original_nickname) = LOWER(?) AND auth_provider = ?`
 		args = []interface{}{originalNickname, *authProvider}
 	} else {
-		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash 
+		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack 
 		 FROM users WHERE LOWER(original_nickname) = LOWER(?)`
 		args = []interface{}{originalNickname}
 	}
@@ -325,6 +331,18 @@ func (r *UserRepository) UpdatePasswordHash(userID string, passwordHash string) 
 	_, err := r.db.Exec(
 		`UPDATE users SET password_hash = ? WHERE id = ?`,
 		passwordHash, userID,
+	)
+	return err
+}
+
+// UpdateSoundPack updates the sound pack preference for a user
+func (r *UserRepository) UpdateSoundPack(userID string, soundPack string) error {
+	if soundPack == "" {
+		soundPack = "default"
+	}
+	_, err := r.db.Exec(
+		`UPDATE users SET sound_pack = ? WHERE id = ?`,
+		soundPack, userID,
 	)
 	return err
 }

@@ -1,42 +1,145 @@
-import { useSound } from '@vueuse/sound'
 import { Howl } from 'howler'
+import type { SoundEvent, SoundPack, SoundPackSprite } from '@/types/audio'
 
-const SPRITE_URL = '/assets/sounds/sprite/01/audioSprite.mp3'
+const DEFAULT_SOUND_PACK_ID = 'default'
 
-const spriteMap = {
-  toggle_on: [42000, 100],
-  toggle_off: [40000, 100],
-  transition_up: [46000, 100],
-  transition_down: [44000, 100],
-  tap: [30000, 10],
+const defaultSprites: Record<string, SoundPackSprite> = {
+  toggle_on: { name: 'toggle_on', start: 42000, duration: 100 },
+  toggle_off: { name: 'toggle_off', start: 40000, duration: 100 },
+  transition_up: { name: 'transition_up', start: 46000, duration: 100 },
+  transition_down: { name: 'transition_down', start: 44000, duration: 100 },
+  tap: { name: 'tap', start: 30000, duration: 10 },
+  join_room: { name: 'transition_up', start: 46000, duration: 100 },
+  leave_room: { name: 'transition_down', start: 44000, duration: 100 },
+  mute: { name: 'toggle_off', start: 42000, duration: 100 },
+  unmute: { name: 'toggle_on', start: 40000, duration: 100 },
+  deafen: { name: 'toggle_off', start: 42000, duration: 100 },
+  undeafen: { name: 'toggle_on', start: 40000, duration: 100 },
+  camera_start: { name: 'toggle_off', start: 42000, duration: 100 },
+  camera_stop: { name: 'toggle_on', start: 40000, duration: 100 },
+  screenshare_start: { name: 'toggle_off', start: 40000, duration: 100 },
+  screenshare_stop: { name: 'toggle_on', start: 42000, duration: 100 },
 }
 
-let sound: Howl | null = null
+const soundPacks: Record<string, SoundPack> = {
+  default: {
+    id: 'default',
+    name: 'Default',
+    description: 'Default sound pack',
+    sprites: defaultSprites,
+  },
+}
 
-function getSound(): Howl {
-  if (!sound) {
-    sound = new Howl({
-      src: [SPRITE_URL],
-      sprite: spriteMap,
-      html5: true,
-      volume: 0.7,
-    })
+const spriteUrls: Record<string, string> = {
+  default: '/assets/sounds/sprite/01/audioSprite.mp3',
+}
+
+const loadedSounds: Map<string, Howl> = new Map()
+const loadedSpriteUrls: Set<string> = new Set()
+
+let currentUserSoundPack: string = DEFAULT_SOUND_PACK_ID
+
+function getSpriteUrl(packId: string): string {
+  return spriteUrls[packId] || spriteUrls[DEFAULT_SOUND_PACK_ID]
+}
+
+function getSprites(packId: string): Record<string, SoundPackSprite> {
+  return soundPacks[packId]?.sprites || soundPacks[DEFAULT_SOUND_PACK_ID].sprites
+}
+
+function convertToHowlSpriteFormat(sprites: Record<string, SoundPackSprite>): Record<string, [number, number]> {
+  const result: Record<string, [number, number]> = {}
+  for (const [key, sprite] of Object.entries(sprites)) {
+    result[key] = [sprite.start, sprite.duration]
   }
+  return result
+}
+
+function loadSound(packId: string): Howl {
+  const existing = loadedSounds.get(packId)
+  if (existing) {
+    return existing
+  }
+
+  const url = getSpriteUrl(packId)
+  const sprites = getSprites(packId)
+
+  const sound = new Howl({
+    src: [url],
+    sprite: convertToHowlSpriteFormat(sprites),
+    html5: true,
+    volume: 0.7,
+    preload: true,
+    onloaderror: (_id, error) => {
+      console.error(`Failed to load sound pack ${packId}:`, error)
+    },
+  })
+
+  loadedSounds.set(packId, sound)
+  loadedSpriteUrls.add(url)
+
   return sound
 }
 
-export function useSounds() {
-  const { play } = useSound(SPRITE_URL, {
-    sprite: spriteMap,
-    html5: true,
-    volume: 0.7,
-  })
+function playSoundById(packId: string, soundId: string): void {
+  const sound = loadSound(packId)
+  if (sound.state() === 'loaded') {
+    sound.play(soundId)
+  } else {
+    sound.once('load', () => {
+      sound.play(soundId)
+    })
+  }
+}
 
-  const toggleOn = () => play({ id: 'toggle_on' })
-  const toggleOff = () => play({ id: 'toggle_off' })
-  const transitionOpen = () => play({ id: 'transition_up' })
-  const transitionClose = () => play({ id: 'transition_down' })
-  const tap = () => play({ id: 'tap' })
+export function setUserSoundPack(packId: string): void {
+  currentUserSoundPack = packId
+}
+
+export function getUserSoundPack(): string {
+  return currentUserSoundPack
+}
+
+export function playLocalSound(event: SoundEvent): void {
+  playSoundById(currentUserSoundPack, event)
+}
+
+export function playRemoteSound(event: SoundEvent, remoteUserSoundPack: string): void {
+  playSoundById(remoteUserSoundPack, event)
+}
+
+export function preloadSoundPacks(): void {
+  loadSound(DEFAULT_SOUND_PACK_ID)
+}
+
+export function useSounds() {
+  const toggleOn = () => playLocalSound('toggle_on')
+  const toggleOff = () => playLocalSound('toggle_off')
+  const transitionOpen = () => playLocalSound('transition_up')
+  const transitionClose = () => playLocalSound('transition_down')
+  const tap = () => playLocalSound('tap')
+
+  const playJoinRoom = () => playLocalSound('join_room')
+  const playLeaveRoom = () => playLocalSound('leave_room')
+  const playMute = () => playLocalSound('mute')
+  const playUnmute = () => playLocalSound('unmute')
+  const playDeafen = () => playLocalSound('deafen')
+  const playUndeafen = () => playLocalSound('undeafen')
+  const playCameraStart = () => playLocalSound('camera_start')
+  const playCameraStop = () => playLocalSound('camera_stop')
+  const playScreenShareStart = () => playLocalSound('screenshare_start')
+  const playScreenShareStop = () => playLocalSound('screenshare_stop')
+
+  const playRemoteMute = (soundPack: string) => playRemoteSound('mute', soundPack)
+  const playRemoteUnmute = (soundPack: string) => playRemoteSound('unmute', soundPack)
+  const playRemoteDeafen = (soundPack: string) => playRemoteSound('deafen', soundPack)
+  const playRemoteUndeafen = (soundPack: string) => playRemoteSound('undeafen', soundPack)
+  const playRemoteJoinRoom = (soundPack: string) => playRemoteSound('join_room', soundPack)
+  const playRemoteLeaveRoom = (soundPack: string) => playRemoteSound('leave_room', soundPack)
+  const playRemoteCameraStart = (soundPack: string) => playRemoteSound('camera_start', soundPack)
+  const playRemoteCameraStop = (soundPack: string) => playRemoteSound('camera_stop', soundPack)
+  const playRemoteScreenShareStart = (soundPack: string) => playRemoteSound('screenshare_start', soundPack)
+  const playRemoteScreenShareStop = (soundPack: string) => playRemoteSound('screenshare_stop', soundPack)
 
   return {
     toggleOn,
@@ -44,25 +147,87 @@ export function useSounds() {
     transitionOpen,
     transitionClose,
     tap,
+    playJoinRoom,
+    playLeaveRoom,
+    playMute,
+    playUnmute,
+    playDeafen,
+    playUndeafen,
+    playCameraStart,
+    playCameraStop,
+    playScreenShareStart,
+    playScreenShareStop,
+    playRemoteMute,
+    playRemoteUnmute,
+    playRemoteDeafen,
+    playRemoteUndeafen,
+    playRemoteJoinRoom,
+    playRemoteLeaveRoom,
+    playRemoteCameraStart,
+    playRemoteCameraStop,
+    playRemoteScreenShareStart,
+    playRemoteScreenShareStop,
   }
 }
 
 export function toggleOn(): void {
-  getSound().play('toggle_on')
+  playLocalSound('toggle_on')
 }
 
 export function toggleOff(): void {
-  getSound().play('toggle_off')
+  playLocalSound('toggle_off')
 }
 
 export function transitionOpen(): void {
-  getSound().play('transition_up')
+  playLocalSound('transition_up')
 }
 
 export function transitionClose(): void {
-  getSound().play('transition_down')
+  playLocalSound('transition_down')
 }
 
 export function tap(): void {
-  getSound().play('tap')
+  playLocalSound('tap')
 }
+
+export function playRemoteMute(soundPack: string): void {
+  playRemoteSound('mute', soundPack)
+}
+
+export function playRemoteUnmute(soundPack: string): void {
+  playRemoteSound('unmute', soundPack)
+}
+
+export function playRemoteDeafen(soundPack: string): void {
+  playRemoteSound('deafen', soundPack)
+}
+
+export function playRemoteUndeafen(soundPack: string): void {
+  playRemoteSound('undeafen', soundPack)
+}
+
+export function playRemoteJoinRoom(soundPack: string): void {
+  playRemoteSound('join_room', soundPack)
+}
+
+export function playRemoteLeaveRoom(soundPack: string): void {
+  playRemoteSound('leave_room', soundPack)
+}
+
+export function playRemoteCameraStart(soundPack: string): void {
+  playRemoteSound('camera_start', soundPack)
+}
+
+export function playRemoteCameraStop(soundPack: string): void {
+  playRemoteSound('camera_stop', soundPack)
+}
+
+export function playRemoteScreenShareStart(soundPack: string): void {
+  playRemoteSound('screenshare_start', soundPack)
+}
+
+export function playRemoteScreenShareStop(soundPack: string): void {
+  playRemoteSound('screenshare_stop', soundPack)
+}
+
+export { soundPacks, DEFAULT_SOUND_PACK_ID }

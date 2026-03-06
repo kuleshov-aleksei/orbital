@@ -36,6 +36,20 @@
             type="button"
             class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
             :class="
+              currentTab === 'sounds'
+                ? 'bg-indigo-600 text-white'
+                : 'text-gray-300 hover:bg-gray-600 hover:text-white'
+            "
+            @click="currentTab = 'sounds'">
+            <PhMusicNotes class="w-5 h-5" />
+
+            <span class="font-medium">Sounds</span>
+          </button>
+
+          <button
+            type="button"
+            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
+            :class="
               currentTab === 'account'
                 ? 'bg-indigo-600 text-white'
                 : 'text-gray-300 hover:bg-gray-600 hover:text-white'
@@ -94,6 +108,9 @@
           <!-- Audio Settings Tab -->
           <AudioSettings v-if="currentTab === 'audio'" />
 
+          <!-- Sounds Settings Tab -->
+          <SoundPackSettings v-else-if="currentTab === 'sounds'" />
+
           <!-- Account Settings Tab -->
           <AccountSettings v-else-if="currentTab === 'account'" @logout="close" />
 
@@ -112,13 +129,14 @@
 import { ref, computed } from "vue"
 import { useModalStore } from "@/stores/modal"
 import AudioSettings from "./AudioSettings.vue"
+import SoundPackSettings from "./SoundPackSettings.vue"
 import AccountSettings from "./AccountSettings.vue"
 import DebugSettings from "./DebugSettings.vue"
 import AboutSettings from "./AboutSettings.vue"
-import { PhGearSix, PhSpeakerHigh, PhUser, PhBug, PhX, PhInfo } from "@phosphor-icons/vue"
+import { PhGearSix, PhSpeakerHigh, PhMusicNotes, PhUser, PhBug, PhX, PhInfo } from "@phosphor-icons/vue"
 
 const modalStore = useModalStore()
-const currentTab = ref<"audio" | "account" | "debug" | "about">("audio")
+const currentTab = ref<"audio" | "sounds" | "account" | "debug" | "about">("audio")
 
 const isOpen = computed(() => modalStore.isUserSettingsModal)
 

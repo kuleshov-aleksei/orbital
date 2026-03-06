@@ -379,6 +379,26 @@ export const apiService = {
     return response.json()
   },
 
+  // Update sound pack preference
+  async updateSoundPack(soundPack: string): Promise<{ sound_pack: string }> {
+    const token = getAuthToken()
+    const response = await fetch(`${API_BASE}/users/me/sound-pack`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ sound_pack: soundPack }),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`API Error: ${response.status} - ${errorText}`)
+    }
+
+    return response.json()
+  },
+
   // LiveKit token generation
   async getLiveKitToken(roomId: string): Promise<LiveKitTokenResponse> {
     return apiRequest<LiveKitTokenResponse>("/livekit/token", {

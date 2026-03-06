@@ -31,6 +31,7 @@ type User struct {
 	IsSpeaking       bool         `json:"is_speaking"`
 	IsMuted          bool         `json:"is_muted"`
 	IsDeafened       bool         `json:"is_deafened"`
+	SoundPack        string       `json:"sound_pack"` // Sound pack preference
 	CreatedAt        time.Time    `json:"created_at"`
 	LastSeen         time.Time    `json:"last_seen"`
 	AuthProvider     AuthProvider `json:"auth_provider"`
@@ -50,6 +51,7 @@ type PublicUser struct {
 	AvatarURL string `json:"avatar_url,omitempty"`
 	Role      string `json:"role"`
 	IsOnline  bool   `json:"is_online"`
+	SoundPack string `json:"sound_pack,omitempty"`
 }
 
 // Room represents a voice room
@@ -134,6 +136,7 @@ type RoomUser struct {
 	IsDeafened         bool      `json:"is_deafened"`
 	IsScreenSharing    bool      `json:"is_screen_sharing"`
 	ScreenShareQuality string    `json:"screen_share_quality,omitempty"`
+	SoundPack          string    `json:"sound_pack,omitempty"`
 	CreatedAt          time.Time `json:"created_at"`
 	LastSeen           time.Time `json:"last_seen"`
 	JoinedAt           time.Time `json:"joined_at"` // When user joined this room
@@ -170,6 +173,7 @@ type RoomPreviewUser struct {
 	IsDeafened      bool   `json:"is_deafened"`
 	IsSpeaking      bool   `json:"is_speaking"`
 	IsScreenSharing bool   `json:"is_screen_sharing"`
+	SoundPack       string `json:"sound_pack,omitempty"`
 }
 
 // NicknameChangeRequest represents a request to change a user's nickname
@@ -265,4 +269,9 @@ type DebugLogUploadRequest struct {
 	Username string `json:"username"`
 	Version  string `json:"version"`
 	Logs     string `json:"logs"`
+}
+
+// UpdateSoundPackRequest represents a request to update user's sound pack preference
+type UpdateSoundPackRequest struct {
+	SoundPack string `json:"sound_pack"`
 }
