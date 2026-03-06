@@ -28,6 +28,7 @@ export interface PublicUser {
   avatar_url?: string
   role: "guest" | "user" | "admin" | "super_admin"
   is_online: boolean
+  sound_pack?: string
 }
 
 // Screen sharing quality options

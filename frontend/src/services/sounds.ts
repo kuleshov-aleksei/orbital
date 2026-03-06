@@ -38,7 +38,7 @@ const soundPacks: Record<string, SoundPack> = {
   },
   jd_sherbert: {
     id: 'jd_sherbert',
-    name: 'JDSherbert',
+    name: 'Whoosh',
     description: 'Whoosh',
     sprites: jdSherbertSprites,
   },
@@ -121,6 +121,7 @@ export function playLocalSound(event: SoundEvent): void {
 }
 
 export function playRemoteSound(event: SoundEvent, remoteUserSoundPack: string): void {
+  console.log(`Playing ${event} from pack ${remoteUserSoundPack}`)
   playSoundById(remoteUserSoundPack, event)
 }
 
@@ -129,9 +130,6 @@ export function preloadSoundPacks(): void {
 }
 
 export function useSounds() {
-  const toggleOn = () => playLocalSound('toggle_on')
-  const toggleOff = () => playLocalSound('toggle_off')
-
   const playJoinRoom = () => playLocalSound('join_room')
   const playLeaveRoom = () => playLocalSound('leave_room')
   const playMute = () => playLocalSound('mute')
