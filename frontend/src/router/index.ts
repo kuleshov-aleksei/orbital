@@ -25,7 +25,7 @@ const router = createRouter({
 })
 
 // Navigation guard to protect admin routes
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, _from, next) => {
   const userStore = useUserStore()
 
   // Check if route requires super admin access

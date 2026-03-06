@@ -39,7 +39,7 @@
           @room-selected="roomManager.handleRoomSelected"
           @create-room="modalManager.openCreateRoomModal()"
           @leave-room="roomManager.handleLeaveRoom"
-          @ping-update="callControls.handlePingUpdate"
+          @ping-update="(p) => callControls.handlePingUpdate(p.ping, p.quality)"
           @request-screen-share="showScreenShareQualityModal = true" />
 
         <!-- User Sidebar (Desktop + Mobile) -->
@@ -78,7 +78,7 @@ import ModalManager from "@/components/ModalManager.vue"
 import ScreenShareQualityModal from "@/components/ScreenShareQualityModal.vue"
 import UpdateNotification from "@/components/UpdateNotification.vue"
 import AuthView from "@/views/AuthView.vue"
-import { useRoomStore, useUserStore } from "@/stores"
+import { useRoomStore, useUserStore, useAppStore } from "@/stores"
 import {
   useUserSession,
   useRoomManager,
@@ -96,6 +96,7 @@ useWebSocketHandlers()
 // Get stores and managers
 const userStore = useUserStore()
 const roomStore = useRoomStore()
+const appStore = useAppStore()
 const roomManager = useRoomManager()
 const categoryManager = useCategoryManager()
 const callControls = useCallControls()
@@ -152,6 +153,10 @@ const handleEditRoom = (payload: { roomId: string; roomName: string; maxUsers: n
 
 const handleDeleteRoom = (payload: { roomId: string; roomName: string; userCount: number }) => {
   modalManager.openDeleteRoomModal(payload.roomId, payload.roomName, payload.userCount)
+}
+
+const handleAuthRequired = () => {
+  appStore.showRoomsView()
 }
 
 const handleScreenShareQualitySelected = async (quality: string) => {

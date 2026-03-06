@@ -185,7 +185,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, nextTick, onUnmounted } from "vue"
+import { ref, watch, computed, onUnmounted } from "vue"
 import { PhMonitorPlay, PhSpeakerHigh, PhInfo, PhWarning } from "@phosphor-icons/vue"
 import { useScreenShareSupport } from "@/composables/useScreenShareSupport"
 import { getDesktopSources } from "@/services/electron"

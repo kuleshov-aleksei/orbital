@@ -8,6 +8,7 @@ import {
   RenameCategoryData,
   DeleteCategoryData,
   PublicUser,
+  DebugLog,
 } from "@/types"
 
 const API_BASE = "/api"

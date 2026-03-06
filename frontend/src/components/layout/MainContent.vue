@@ -22,7 +22,7 @@
       @leave-room="$emit('leave-room')"
       @show-room-list="appStore.showRoomsView()"
       @toggle-user-sidebar="appStore.toggleMobileUserSidebar()"
-      @ping-update="$emit('ping-update', $event)"
+      @ping-update="(ping, quality) => $emit('ping-update', { ping, quality })"
       @request-screen-share="$emit('request-screen-share')" />
   </main>
 </template>

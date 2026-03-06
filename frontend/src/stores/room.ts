@@ -162,7 +162,9 @@ export const useRoomStore = defineStore("room", () => {
         const userIndex = room.users.findIndex((u) => u.id === userId)
         if (userIndex !== -1) {
           const user = room.users[userIndex]
-          rooms.value[roomIndex].users[userIndex] = { ...user, nickname }
+          if (rooms.value[roomIndex].users) {
+            rooms.value[roomIndex].users![userIndex] = { ...user, nickname }
+          }
         }
       }
     })
@@ -174,7 +176,13 @@ export const useRoomStore = defineStore("room", () => {
       if (!room.users) room.users = []
       const existingUserIndex = room.users.findIndex((u) => u.id === user.id)
       if (existingUserIndex === -1) {
-        room.users.push(user)
+        const newUser = {
+          ...user,
+          is_muted: user.is_muted ?? false,
+          is_deafened: user.is_deafened ?? false,
+          is_speaking: user.is_speaking ?? false,
+        }
+        room.users.push(newUser as typeof room.users[number])
         room.user_count = room.users.length
       }
     }

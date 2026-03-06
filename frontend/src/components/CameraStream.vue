@@ -76,13 +76,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, useTemplateRef } from "vue"
+import { ref, watch, onMounted, onUnmounted, useTemplateRef } from "vue"
 import {
   PhArrowsOut,
   PhArrowsIn,
   PhPictureInPicture,
   PhSpinner,
-  PhCameraSlash,
 } from "@phosphor-icons/vue"
 import type { RemoteVideoTrack, LocalVideoTrack } from "livekit-client"
 
