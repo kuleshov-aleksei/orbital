@@ -618,7 +618,7 @@ const activeDropZone = ref<{
 } | null>(null)
 
 // Category Drag and Drop State
-const draggedCategory = ref<Category | null>(null)
+const draggedCategory = ref<CategorizedRoom | Category | null>(null)
 const activeCategoryDropZone = ref<{
   position: number | "before-first" | "after-last"
 } | null>(null)
@@ -828,7 +828,7 @@ const moveRoomToCategoryAtPosition = async (
 
 // Category Drag and Drop Functions
 // Category Drag Start - when user starts dragging a category header
-const handleCategoryDragStart = (event: DragEvent, category: Category) => {
+const handleCategoryDragStart = (event: DragEvent, category: CategorizedRoom | Category) => {
   draggedCategory.value = category
 
   // Set drag data
@@ -889,7 +889,7 @@ const handleCategoryDropZoneDrop = async (event: DragEvent, targetIndex: number)
 }
 
 // Reorder categories
-const reorderCategories = async (sourceCategory: Category, targetIndex: number) => {
+const reorderCategories = async (sourceCategory: CategorizedRoom | Category, targetIndex: number) => {
   // Get all categories sorted by sort_order
   const sortedCategories = [...categories.value].sort(
     (a, b) => (a.sort_order || 0) - (b.sort_order || 0),

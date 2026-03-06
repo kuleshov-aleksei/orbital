@@ -575,12 +575,12 @@ export function useLiveKit(options: UseLiveKitOptions) {
     })
 
     // Track events
-    lkRoom.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+    lkRoom.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
       debugLog(`[LiveKit][INFO]: Track subscribed: ${track.kind} from ${participant.identity}`)
       handleRemoteTrack(track, participant)
     })
 
-    lkRoom.on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
+    lkRoom.on(RoomEvent.TrackUnsubscribed, (track, _publication, participant) => {
       debugLog(`[LiveKit][INFO]: Track unsubscribed: ${track.kind} from ${participant.identity}`)
       handleTrackUnsubscribed(track, participant)
     })

@@ -74,7 +74,7 @@
 <script setup lang="ts">
 import { storeToRefs } from "pinia"
 import { useRoomStore, useUserStore } from "@/stores"
-import { PhPlus, PhFolderSimpleUser, PhMagnifyingGlass } from "@phosphor-icons/vue"
+import { PhFolderSimpleUser, PhMagnifyingGlass } from "@phosphor-icons/vue"
 
 defineEmits<{
   "room-selected": [roomId: string]

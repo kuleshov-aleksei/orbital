@@ -163,7 +163,7 @@ interface ParticipantData {
     jitter: number
     packetLoss: number
     bitrate: number
-    kind: string
+    kind?: string
   }
 }
 

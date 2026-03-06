@@ -78,7 +78,7 @@ import { useDebugSettingsStore } from "@/stores/debugSettings"
 import { useUserStore } from "@/stores/user"
 import { apiService } from "@/services/api"
 import { getLogBuffer } from "@/utils/debug"
-import { PhBug, PhInfo } from "@phosphor-icons/vue"
+import { PhBug } from "@phosphor-icons/vue"
 
 declare const __APP_VERSION__: string
 

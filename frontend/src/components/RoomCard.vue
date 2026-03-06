@@ -84,7 +84,7 @@
 </template>
 
 <script setup lang="ts">
-import { useTemplateRef, computed } from "vue"
+import { useTemplateRef } from "vue"
 import {
   PhWaveform,
   PhMicrophone,

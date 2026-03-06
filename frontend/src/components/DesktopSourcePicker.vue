@@ -140,7 +140,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from "vue"
+import { ref, computed, watch } from "vue"
 import { PhMonitorPlay, PhWarning } from "@phosphor-icons/vue"
 import { getDesktopSources, isElectron } from "@/services/electron"
 import type { DesktopSource, ScreenShareQuality } from "@/types"

@@ -110,9 +110,12 @@ export function useRoomManager() {
       appStore.setLoading(true)
       appStore.clearError()
 
-      // If already in a room, leave it first
+      // If already in a room, leave it first using handleLeaveRoom
+      // This ensures proper cleanup including setting activeRoomId to null
       if (roomStore.activeRoomId) {
-        await leaveCurrentRoom()
+        await handleLeaveRoom()
+        // Small delay to ensure cleanup is complete before joining new room
+        await new Promise((resolve) => setTimeout(resolve, 200))
       }
 
       await joinRoom(roomId)

@@ -150,7 +150,6 @@ const SCREEN_GAP = 50
 
 const menuStyle = computed(() => {
   const screenWidth = window.innerWidth
-  const screenHeight = window.innerHeight
 
   let left = position.x
   let top = position.y

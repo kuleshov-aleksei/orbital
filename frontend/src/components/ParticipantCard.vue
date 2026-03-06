@@ -401,7 +401,6 @@ const callStore = useCallStore()
 // Refs
 const screenVideoElement = useTemplateRef<HTMLVideoElement>("screenVideoElement")
 const cameraVideoElement = useTemplateRef<HTMLVideoElement>("cameraVideoElement")
-const cardElement = useTemplateRef<HTMLDivElement>("cardElement")
 const tooltipElement = useTemplateRef<HTMLDivElement>("tooltipElement")
 const contextMenuRef = useTemplateRef<InstanceType<typeof UserContextMenu>>("contextMenuRef")
 
