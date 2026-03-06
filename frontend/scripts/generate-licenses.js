@@ -65,13 +65,12 @@ function generateLicenses() {
   }
 
   for (const [name, description] of Object.entries(config.unused || {})) {
-    const info = getPackageInfo(name)
     licenses.push({
       name,
       version: null,
-      license: info?.license || "Unknown",
-      url: info?.url || "",
-      description: info?.description || "",
+      license: "N/A",
+      url: "",
+      description: "",
       custom: description,
     })
   }
