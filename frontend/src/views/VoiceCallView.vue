@@ -155,6 +155,7 @@ const {
   applyDeafenState,
   reinitializeAudioStream,
   initializeLiveKit,
+  cleanup,
 } = useLiveKit({
   roomId: props.roomId,
   roomName: props.roomName,
@@ -284,44 +285,37 @@ watch(
 // Apply initial mute/deafen state from store when joining a room
 watch(
   () => props.roomId,
-  async (newRoomId) => {
-    if (newRoomId) {
-      console.log(
-        `📞 Joined room ${newRoomId}, initializing LiveKit and applying mute/deafen state from store`,
-      )
+  async (newRoomId, oldRoomId) => {
+    // Only react to actual room changes (not null/undefined)
+    if (!newRoomId) return
 
-      // Initialize LiveKit connection
-      // Note: cleanup() is called from onUnmounted when component unmounts,
-      // which happens when switching rooms. We don't need to call it here
-      // to avoid race conditions with the new connection.
-      let connected = false
-      appStore.setConnecting(true)
-      try {
-        connected = await initializeLiveKit()
-        if (connected) {
-          console.log(`✅ LiveKit connected to room ${newRoomId}`)
-        } else {
-          console.error(`❌ Failed to connect LiveKit to room ${newRoomId}`)
-        }
-      } catch (error) {
-        console.error(`❌ Error initializing LiveKit:`, error)
-      } finally {
-        appStore.setConnecting(false)
-      }
+    // If switching rooms (not initial join), cleanup old LiveKit connection first
+    // This handles the case where user clicks a different room card directly
+    if (oldRoomId && oldRoomId !== newRoomId && isConnected.value) {
+      await cleanup()
+    }
 
-      // Apply deafen state (mute remote audio) - this doesn't affect local tracks
-      void applyDeafenState(callStore.isDeafened)
+    // Initialize LiveKit connection
+    appStore.setConnecting(true)
+    try {
+      await initializeLiveKit()
+    } catch (error) {
+      console.error("Error initializing LiveKit:", error)
+    } finally {
+      appStore.setConnecting(false)
+    }
 
-      // Note: applyMuteState is not called here because initializeLiveKit already
-      // handles the initial mute state during connection (see useLiveKit.ts:460-463).
-      // Calling it again immediately can cause race conditions with track publishing.
-      // Sync with parent v-model
-      if (props.modelValueMuted !== callStore.isMuted) {
-        emit("update:modelValueMuted", callStore.isMuted)
-      }
-      if (props.modelValueDeafened !== callStore.isDeafened) {
-        emit("update:modelValueDeafened", callStore.isDeafened)
-      }
+    // Apply deafen state (mute remote audio) - this doesn't affect local tracks
+    void applyDeafenState(callStore.isDeafened)
+
+    // Note: applyMuteState is not called here because initializeLiveKit already
+    // handles the initial mute state during connection
+    // Sync with parent v-model
+    if (props.modelValueMuted !== callStore.isMuted) {
+      emit("update:modelValueMuted", callStore.isMuted)
+    }
+    if (props.modelValueDeafened !== callStore.isDeafened) {
+      emit("update:modelValueDeafened", callStore.isDeafened)
     }
   },
   { immediate: true },

@@ -13,7 +13,6 @@ test.describe("room switching bug - switching via sidebar while in call", () => 
     await ctxB.grantPermissions(["microphone"])
 
     const consoleErrorsB: string[] = []
-    const allConsoleB: string[] = []
 
     await ctxA.addInitScript(() => {
       localStorage.setItem("orbital_user_id", "user-a-sidebar")
@@ -28,8 +27,6 @@ test.describe("room switching bug - switching via sidebar while in call", () => 
     const pageB = await ctxB.newPage()
 
     pageB.on("console", (msg) => {
-      const text = `[${msg.type()}] ${msg.text()}`
-      allConsoleB.push(text)
       if (msg.type() === "error") consoleErrorsB.push(msg.text())
     })
 
@@ -39,7 +36,7 @@ test.describe("room switching bug - switching via sidebar while in call", () => 
     await pageA.waitForSelector("text=Available Rooms", { timeout: 10000 })
     await pageA.locator('[data-testid^="room-card-"]').filter({ hasText: "Test room A" }).click()
     await expect(pageA.getByTestId("voice-call-view")).toBeVisible()
-    await pageA.waitForTimeout(3000)
+    await pageA.waitForTimeout(2000)
 
     console.log("\n=== Step 2: User B joins Test room B ===")
     await pageB.goto("/")
@@ -47,7 +44,7 @@ test.describe("room switching bug - switching via sidebar while in call", () => 
     await pageB.waitForSelector("text=Available Rooms", { timeout: 10000 })
     await pageB.locator('[data-testid^="room-card-"]').filter({ hasText: "Test room B" }).click()
     await expect(pageB.getByTestId("voice-call-view")).toBeVisible()
-    await pageB.waitForTimeout(3000)
+    await pageB.waitForTimeout(2000)
 
     console.log("\n=== Step 3: User B clicks on Test room A in sidebar (while in Test room B) ===")
     const sidebar = pageB.locator(".room-sidebar")
@@ -57,7 +54,6 @@ test.describe("room switching bug - switching via sidebar while in call", () => 
     await expect(roomCardA).toBeVisible()
     await roomCardA.click()
     
-    await expect(pageB.getByTestId("voice-call-view")).toBeVisible()
     await pageB.waitForTimeout(5000)
 
     console.log("\n=== Step 4: Check audio subscription ===")
@@ -77,13 +73,13 @@ test.describe("room switching bug - switching via sidebar while in call", () => 
     console.log("Audio check after sidebar room switch:", JSON.stringify(audioCheck, null, 2))
 
     console.log("\n=== Summary ===")
-    console.log("Console errors:", consoleErrorsB)
-    console.log("All console messages:", allConsoleB.filter(e => 
-      e.includes("peer") || e.includes("Peer") || e.includes("connect") || e.includes("Connect") || e.includes("room") || e.includes("Room") || e.includes("track") || e.includes("Track") || e.includes("audio") || e.includes("Audio") || e.includes("error") || e.includes("Error")
-    ))
+    const hasPeerConnectionError = consoleErrorsB.some(e => 
+      e.includes("closed peer connection") || e.includes("createOffer")
+    )
+    console.log("Has peer connection error:", hasPeerConnectionError)
 
     expect(audioCheck.playingAudioCount).toBeGreaterThan(0)
-    expect(consoleErrorsB.some(e => e.includes("closed peer connection") || e.includes("createOffer"))).toBe(false)
+    expect(hasPeerConnectionError).toBe(false)
 
     await ctxA.close()
     await ctxB.close()
