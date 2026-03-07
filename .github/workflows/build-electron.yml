@@ -24,6 +24,7 @@ jobs:
         run: |
           docker build \
             --build-arg VERSION=${{ env.VERSION }} \
+            --build-arg VITE_BACKEND_URL=${{ secrets.VITE_BACKEND_URL }} \
             -t orbital-electron-build \
             -f docker/Dockerfile.electron .
 
@@ -33,17 +34,20 @@ jobs:
           docker cp orbital-extract:/app/electron/release ./electron
           docker rm orbital-extract
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
+      - name: Create Release and Upload Assets
         if: github.ref_type == 'tag'
-        with:
-          tag_name: ${{ env.VERSION }}
-          name: Orbital Desktop ${{ env.VERSION }}
-          draft: true
-          generate_release_notes: true
-          files: |
-            electron/release/*.exe
-            electron/release/*.AppImage
-            electron/release/*.deb
+        run: |
+          # Create draft release
+          gh release create ${{ env.VERSION }} \
+            --title "Orbital Desktop ${{ env.VERSION }}" \
+            --draft \
+            --notes "Automated build"
+
+          # Upload each asset
+          for asset in electron/release/*.exe electron/release/*.AppImage electron/release/*.deb; do
+            if [ -f "$asset" ]; then
+              gh release upload ${{ env.VERSION }} "$asset" --clobber
+            fi
+          done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
