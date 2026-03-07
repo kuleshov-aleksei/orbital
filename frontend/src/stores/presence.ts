@@ -205,8 +205,7 @@ export const usePresenceStore = defineStore("presence", () => {
           if (newIsMuted || newIsDeafened) {
             if (newIsDeafened) {
               playRemoteDeafen(effectivePack)
-            }
-            else if (newIsMuted) {
+            } else if (newIsMuted) {
               playRemoteMute(effectivePack)
             }
           } else {

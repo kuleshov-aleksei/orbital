@@ -3,6 +3,7 @@ import type { SoundEvent, SoundPack, SoundPackSprite } from "@/types/audio"
 import { minecraftSprites } from "@/services/sprites/minecraft"
 import { jdSherbertSprites } from "@/services/sprites/jdSherbert"
 import { defaultSprites } from "@/services/sprites/default"
+import { crunchySprites } from "@/services/sprites/crunchy"
 
 const DEFAULT_SOUND_PACK_ID = "default"
 
@@ -25,6 +26,12 @@ const soundPacks: Record<string, SoundPack> = {
     description: "Blocky sounds",
     sprites: minecraftSprites,
   },
+  crunchy: {
+    id: "crunchy",
+    name: "Crunchy",
+    description: "Beer with me",
+    sprites: crunchySprites,
+  },
 }
 
 const spriteUrls: Record<string, string[]> = {
@@ -42,6 +49,11 @@ const spriteUrls: Record<string, string[]> = {
     "/assets/sounds/sprite/minecraft/minecraft.ogg",
     "/assets/sounds/sprite/minecraft/minecraft.m4a",
     "/assets/sounds/sprite/minecraft/minecraft.mp3",
+  ],
+  crunchy: [
+    "/assets/sounds/sprite/crunchy/crunchy.ogg",
+    "/assets/sounds/sprite/crunchy/crunchy.m4a",
+    "/assets/sounds/sprite/crunchy/crunchy.mp3",
   ],
 }
 
