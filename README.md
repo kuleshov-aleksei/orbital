@@ -194,3 +194,54 @@ cd /opt/orbital && docker compose up -d
 LiveKit will bind directly to host network interfaces. Ensure the required ports are open on your firewall.
 
 Checkout [deploy.yml](.github/workflows/deploy.yml) to see how it is deployed in the real world
+
+## Audio sprites
+
+UI SFX supports custom audio sprites. To create a new pack:
+
+### 1. Gather audio samples
+
+Name your audio files according to the supported events:
+
+| Event | Description |
+|-------|-------------|
+| `join_room` | Played when user joins a voice room |
+| `leave_room` | Played when user leaves a voice room |
+| `mute` | Played when user mutes themselves |
+| `unmute` | Played when user unmutes themselves |
+| `deafen` | Played when user deafens themselves |
+| `undeafen` | Played when user undeafens themselves |
+| `camera_start` | Played when user starts their camera |
+| `camera_stop` | Played when user stops their camera |
+| `screenshare_start` | Played when user starts screen sharing |
+| `screenshare_stop` | Played when user stops screen sharing |
+
+### 2. Generate sprite with audiosprite
+
+```bash
+# Install audiosprite globally if needed
+npm install -g audiosprite
+
+# Generate sprite files
+audiosprite --output pack_name *.mp3
+```
+
+This produces multiple audio files and a sprite definition (`pack_name.json`).
+
+### 3. Provide assets
+
+Place audio files inside `public/assets/`
+
+### 3. Convert to TypeScript
+
+Place `pack_name.json` into the project root directory, then run:
+
+```bash
+npm run convert:soundsprite -- pack_name.json
+```
+
+This generates a TypeScript sprite definition in `services/sprites/packName.ts`.
+
+### 4. Register the sound pack
+
+Include the generated sprites in `sounds.ts` to make the pack available in the app.
