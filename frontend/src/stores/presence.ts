@@ -203,19 +203,17 @@ export const usePresenceStore = defineStore("presence", () => {
           const effectivePack = soundPackStore.getEffectivePack(metadata.user_id)
 
           if (newIsMuted || newIsDeafened) {
-            if (newIsMuted) {
-              playRemoteMute(effectivePack)
-            }
             if (newIsDeafened) {
               playRemoteDeafen(effectivePack)
             }
+            else if (newIsMuted) {
+              playRemoteMute(effectivePack)
+            }
           } else {
-            if (!newIsMuted && !newIsDeafened) {
-              playRemoteUnmute(effectivePack)
+            if (!newIsDeafened) {
+              playRemoteUndeafen(effectivePack)
             } else if (!newIsMuted) {
               playRemoteUnmute(effectivePack)
-            } else if (!newIsDeafened) {
-              playRemoteUndeafen(effectivePack)
             }
           }
         }

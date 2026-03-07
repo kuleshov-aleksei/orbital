@@ -132,7 +132,6 @@ export function playLocalSound(event: SoundEvent): void {
 }
 
 export function playRemoteSound(event: SoundEvent, remoteUserSoundPack: string): void {
-  console.log(`Playing ${event} from pack ${remoteUserSoundPack}`)
   playSoundById(remoteUserSoundPack, event)
 }
 
