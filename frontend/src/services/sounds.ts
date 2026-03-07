@@ -24,14 +24,14 @@ const soundPacks: Record<string, SoundPack> = {
     name: "Minecraft",
     description: "Blocky sounds",
     sprites: minecraftSprites,
-  }
+  },
 }
 
 const spriteUrls: Record<string, string[]> = {
   default: [
     "/assets/sounds/sprite/snd-lib-sine/audioSprite.ogg",
     "/assets/sounds/sprite/snd-lib-sine/audioSprite.m4a",
-    "/assets/sounds/sprite/snd-lib-sine/audioSprite.mp3"
+    "/assets/sounds/sprite/snd-lib-sine/audioSprite.mp3",
   ],
   jd_sherbert: [
     "/assets/sounds/sprite/jd_sherbert/jd_sherbert.ogg",
@@ -41,7 +41,7 @@ const spriteUrls: Record<string, string[]> = {
   minecraft: [
     "/assets/sounds/sprite/minecraft/minecraft.ogg",
     "/assets/sounds/sprite/minecraft/minecraft.m4a",
-    "/assets/sounds/sprite/minecraft/minecraft.mp3"
+    "/assets/sounds/sprite/minecraft/minecraft.mp3",
   ],
 }
 
