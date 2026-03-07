@@ -77,12 +77,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, useTemplateRef } from "vue"
-import {
-  PhArrowsOut,
-  PhArrowsIn,
-  PhPictureInPicture,
-  PhSpinner,
-} from "@phosphor-icons/vue"
+import { PhArrowsOut, PhArrowsIn, PhPictureInPicture, PhSpinner } from "@phosphor-icons/vue"
 import type { RemoteVideoTrack, LocalVideoTrack } from "livekit-client"
 
 interface Props {

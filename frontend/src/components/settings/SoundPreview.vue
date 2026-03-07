@@ -1,9 +1,7 @@
 <template>
   <div class="space-y-4">
     <h4 class="text-sm font-medium text-gray-300">Sound Preview</h4>
-    <p class="text-xs text-gray-400 mb-3">
-      Click to preview sounds from your selected pack
-    </p>
+    <p class="text-xs text-gray-400 mb-3">Click to preview sounds from your selected pack</p>
 
     <div class="grid grid-cols-2 gap-2">
       <button

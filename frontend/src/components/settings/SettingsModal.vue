@@ -133,7 +133,15 @@ import SoundPackSettings from "./SoundPackSettings.vue"
 import AccountSettings from "./AccountSettings.vue"
 import DebugSettings from "./DebugSettings.vue"
 import AboutSettings from "./AboutSettings.vue"
-import { PhGearSix, PhSpeakerHigh, PhMusicNotes, PhUser, PhBug, PhX, PhInfo } from "@phosphor-icons/vue"
+import {
+  PhGearSix,
+  PhSpeakerHigh,
+  PhMusicNotes,
+  PhUser,
+  PhBug,
+  PhX,
+  PhInfo,
+} from "@phosphor-icons/vue"
 
 const modalStore = useModalStore()
 const currentTab = ref<"audio" | "sounds" | "account" | "debug" | "about">("audio")

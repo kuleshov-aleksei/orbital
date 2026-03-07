@@ -277,12 +277,7 @@ export function useWebSocketHandlers() {
         user_id: string
         sound_pack: string
       }
-      debugLog(
-        "[WebSocket] User sound pack changed:",
-        data.user_id,
-        "sound_pack:",
-        data.sound_pack,
-      )
+      debugLog("[WebSocket] User sound pack changed:", data.user_id, "sound_pack:", data.sound_pack)
       roomStore.updateUserSoundPack(data.user_id, data.sound_pack)
     })
   }

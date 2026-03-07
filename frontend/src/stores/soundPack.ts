@@ -3,16 +3,16 @@ import { ref, computed } from "vue"
 import { apiService } from "@/services/api"
 import {
   setUserSoundPack,
-  getUserSoundPack,
   preloadSoundPacks,
   soundPacks,
   DEFAULT_SOUND_PACK_ID,
+  setGlobalVolume,
 } from "@/services/sounds"
 import {
   SOUND_PACK_STORAGE_KEY,
   SOUND_PACK_OVERRIDES_KEY,
+  SOUND_VOLUME_KEY,
   SoundPack,
-  SoundPackOverride,
 } from "@/types/audio"
 
 export const useSoundPackStore = defineStore("soundPack", () => {
@@ -20,6 +20,7 @@ export const useSoundPackStore = defineStore("soundPack", () => {
   const userSoundPacks = ref<Map<string, string>>(new Map())
   const overrides = ref<Map<string, boolean>>(new Map())
   const isLoading = ref(false)
+  const volume = ref(0.7)
 
   const availablePacks = computed((): SoundPack[] => {
     return Object.values(soundPacks)
@@ -45,6 +46,15 @@ export const useSoundPackStore = defineStore("soundPack", () => {
         console.error("Failed to parse sound pack overrides from storage")
       }
     }
+
+    const storedVolume = localStorage.getItem(SOUND_VOLUME_KEY)
+    if (storedVolume) {
+      const parsedVolume = parseFloat(storedVolume)
+      if (!isNaN(parsedVolume) && parsedVolume >= 0 && parsedVolume <= 1) {
+        volume.value = parsedVolume
+        setGlobalVolume(parsedVolume)
+      }
+    }
   }
 
   function saveToStorage(): void {
@@ -55,6 +65,13 @@ export const useSoundPackStore = defineStore("soundPack", () => {
       overridesObj[key] = value
     })
     localStorage.setItem(SOUND_PACK_OVERRIDES_KEY, JSON.stringify(overridesObj))
+    localStorage.setItem(SOUND_VOLUME_KEY, volume.value.toString())
+  }
+
+  function setVolume(newVolume: number): void {
+    volume.value = newVolume
+    setGlobalVolume(newVolume)
+    saveToStorage()
   }
 
   async function setSelectedPack(packId: string): Promise<void> {
@@ -119,9 +136,11 @@ export const useSoundPackStore = defineStore("soundPack", () => {
     userSoundPacks,
     overrides,
     isLoading,
+    volume,
     availablePacks,
     currentPack,
     setSelectedPack,
+    setVolume,
     getUserPack,
     setUserPack,
     getEffectivePack,

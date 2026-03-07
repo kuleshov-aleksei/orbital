@@ -85,18 +85,18 @@ export interface SoundPackOverride {
  * Available sound events that can be played
  */
 export type SoundEvent =
-  | 'toggle_on'
-  | 'toggle_off'
-  | 'join_room'
-  | 'leave_room'
-  | 'mute'
-  | 'unmute'
-  | 'deafen'
-  | 'undeafen'
-  | 'camera_start'
-  | 'camera_stop'
-  | 'screenshare_start'
-  | 'screenshare_stop'
+  | "toggle_on"
+  | "toggle_off"
+  | "join_room"
+  | "leave_room"
+  | "mute"
+  | "unmute"
+  | "deafen"
+  | "undeafen"
+  | "camera_start"
+  | "camera_stop"
+  | "screenshare_start"
+  | "screenshare_stop"
 
 /** Default audio settings */
 export const defaultAudioSettings: AudioSettings = {
@@ -121,6 +121,9 @@ export const SOUND_PACK_STORAGE_KEY = "orbital_sound_pack"
 
 /** Local storage key for sound pack overrides */
 export const SOUND_PACK_OVERRIDES_KEY = "orbital_sound_pack_overrides"
+
+/** Local storage key for sound volume */
+export const SOUND_VOLUME_KEY = "orbital_sound_volume"
 
 /** List of available algorithms with metadata */
 export const availableAlgorithms: AudioAlgorithmInfo[] = [

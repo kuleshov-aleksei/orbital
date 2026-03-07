@@ -23,7 +23,9 @@ export const useUserStore = defineStore("user", () => {
   const nicknameUpdateError = ref<string | null>(null)
   const avatarUpdateStatus = ref<"idle" | "pending" | "success" | "error">("idle")
   const avatarUpdateError = ref<string | null>(null)
-  const globalUserAudioStates = ref<Map<string, { is_muted: boolean; is_deafened: boolean }>>(new Map())
+  const globalUserAudioStates = ref<Map<string, { is_muted: boolean; is_deafened: boolean }>>(
+    new Map(),
+  )
 
   const userId = computed(() => currentUser.value?.id ?? "")
   const nickname = computed(() => currentUser.value?.nickname ?? "User")
@@ -40,7 +42,8 @@ export const useUserStore = defineStore("user", () => {
   const isSuperAdmin = computed(() => role.value === "super_admin")
 
   const getGlobalUserAudioState = computed(
-    () => (userId: string) => globalUserAudioStates.value.get(userId) ?? { is_muted: false, is_deafened: false },
+    () => (userId: string) =>
+      globalUserAudioStates.value.get(userId) ?? { is_muted: false, is_deafened: false },
   )
 
   function setUser(user: UserSession, authToken?: string) {
@@ -131,7 +134,10 @@ export const useUserStore = defineStore("user", () => {
     userId: string,
     status: { is_muted?: boolean; is_deafened?: boolean },
   ) {
-    const currentState = globalUserAudioStates.value.get(userId) ?? { is_muted: false, is_deafened: false }
+    const currentState = globalUserAudioStates.value.get(userId) ?? {
+      is_muted: false,
+      is_deafened: false,
+    }
     const newState = {
       is_muted: status.is_muted ?? currentState.is_muted,
       is_deafened: status.is_deafened ?? currentState.is_deafened,
@@ -196,12 +202,12 @@ export const useUserStore = defineStore("user", () => {
         user.nickname = freshUser.nickname
         user.role = freshUser.role
         localStorage.setItem("orbital_user_role", freshUser.role)
-        
+
         // Load user's sound pack preference
         if (freshUser.sound_pack) {
           setUserSoundPack(freshUser.sound_pack)
         }
-        
+
         currentUser.value = { ...user }
       } catch {
         // Token might be expired, clear everything

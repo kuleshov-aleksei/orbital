@@ -31,13 +31,17 @@ export function checkForUpdates(): Promise<unknown> {
   return window.electronAPI!.checkForUpdates()
 }
 
-export function onUpdateAvailable(callback: (info: { version: string; releaseDate: string; sha512?: string }) => void): void {
+export function onUpdateAvailable(
+  callback: (info: { version: string; releaseDate: string; sha512?: string }) => void,
+): void {
   if (isElectron()) {
     window.electronAPI!.onUpdateAvailable(callback)
   }
 }
 
-export function onUpdateDownloaded(callback: (info: { version: string; releaseDate: string; sha512?: string }) => void): void {
+export function onUpdateDownloaded(
+  callback: (info: { version: string; releaseDate: string; sha512?: string }) => void,
+): void {
   if (isElectron()) {
     window.electronAPI!.onUpdateDownloaded(callback)
   }

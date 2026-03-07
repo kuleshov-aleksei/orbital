@@ -182,7 +182,7 @@ export const useRoomStore = defineStore("room", () => {
           is_deafened: user.is_deafened ?? false,
           is_speaking: user.is_speaking ?? false,
         }
-        room.users.push(newUser as typeof room.users[number])
+        room.users.push(newUser as (typeof room.users)[number])
         room.user_count = room.users.length
       }
     }

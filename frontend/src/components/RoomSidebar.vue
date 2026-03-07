@@ -889,7 +889,10 @@ const handleCategoryDropZoneDrop = async (event: DragEvent, targetIndex: number)
 }
 
 // Reorder categories
-const reorderCategories = async (sourceCategory: CategorizedRoom | Category, targetIndex: number) => {
+const reorderCategories = async (
+  sourceCategory: CategorizedRoom | Category,
+  targetIndex: number,
+) => {
   // Get all categories sorted by sort_order
   const sortedCategories = [...categories.value].sort(
     (a, b) => (a.sort_order || 0) - (b.sort_order || 0),

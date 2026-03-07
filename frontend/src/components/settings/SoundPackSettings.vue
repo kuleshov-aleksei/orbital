@@ -7,12 +7,8 @@
 
     <div class="space-y-4">
       <div>
-        <label class="text-sm font-medium text-gray-200 block mb-2">
-          Your Sound Pack
-        </label>
-        <p class="text-xs text-gray-400 mb-3">
-          Choose the sound pack for your UI sounds
-        </p>
+        <label class="text-sm font-medium text-gray-200 block mb-2"> Your Sound Pack </label>
+        <p class="text-xs text-gray-400 mb-3">Choose the sound pack for your UI sounds</p>
 
         <select
           v-model="selectedPack"
@@ -28,17 +24,32 @@
         </p>
       </div>
 
+      <div>
+        <label class="text-sm font-medium text-gray-200 block mb-2"> Sound Volume </label>
+        <p class="text-xs text-gray-400 mb-3">Adjust the volume of UI sounds</p>
+
+        <div class="flex items-center gap-3">
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            :value="volume"
+            class="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+            @input="onVolumeChange" />
+          <span class="text-sm text-gray-300 w-10 text-right">
+            {{ Math.round(volume * 100) }}%
+          </span>
+        </div>
+      </div>
+
       <SoundPreview />
 
       <div class="pt-4 border-t border-gray-700">
         <div class="flex items-center justify-between">
           <div>
-            <label class="text-sm font-medium text-gray-200 block">
-              Incoming User Sounds
-            </label>
-            <p class="text-xs text-gray-400 mt-0.5">
-              Override sound packs of other users
-            </p>
+            <label class="text-sm font-medium text-gray-200 block"> Incoming User Sounds </label>
+            <p class="text-xs text-gray-400 mt-0.5">Override sound packs of other users</p>
           </div>
 
           <button
@@ -102,9 +113,7 @@
           </div>
         </div>
 
-        <p v-else class="text-xs text-gray-400 text-center py-4">
-          No users in the current room
-        </p>
+        <p v-else class="text-xs text-gray-400 text-center py-4">No users in the current room</p>
 
         <button
           type="button"
@@ -126,7 +135,7 @@ import { PhSpeakerHigh, PhX } from "@phosphor-icons/vue"
 
 const soundPackStore = useSoundPackStore()
 const roomStore = useRoomStore()
-const { selectedPackId, availablePacks } = storeToRefs(soundPackStore)
+const { selectedPackId, availablePacks, volume } = storeToRefs(soundPackStore)
 
 const selectedPack = ref(selectedPackId.value)
 const showOverrideModal = ref(false)
@@ -145,6 +154,11 @@ const useDefaultForAll = computed(() => {
 
 function onPackChange() {
   soundPackStore.setSelectedPack(selectedPack.value)
+}
+
+function onVolumeChange(event: Event) {
+  const target = event.target as HTMLInputElement
+  soundPackStore.setVolume(parseFloat(target.value))
 }
 
 function isOverridden(userId: string): boolean {

@@ -1185,9 +1185,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
         // Publish audio track if requested (from the display stream)
         const audioTracks = displayStream.getAudioTracks()
-        debugLog(
-          `[LiveKit][INFO]: Audio tracks in stream: ${audioTracks.length}`,
-        )
+        debugLog(`[LiveKit][INFO]: Audio tracks in stream: ${audioTracks.length}`)
 
         if (audioTracks.length > 0) {
           const audioTrackFromStream = audioTracks[0]
