@@ -233,6 +233,7 @@ async function handleUpload() {
 
 .cropper-wrapper {
   height: 400px;
+  width: 400px;
 }
 
 .cropper {
