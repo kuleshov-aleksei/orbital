@@ -1,33 +1,10 @@
 import { Howl } from "howler"
 import type { SoundEvent, SoundPack, SoundPackSprite } from "@/types/audio"
+import { minecraftSprites } from "@/services/sprites/minecraft"
+import { jdSherbertSprites } from "@/services/sprites/jdSherbert"
+import { defaultSprites } from "@/services/sprites/default"
 
 const DEFAULT_SOUND_PACK_ID = "default"
-
-const defaultSprites: Record<string, SoundPackSprite> = {
-  join_room: { name: "transition_up", start: 46000, duration: 100 },
-  leave_room: { name: "transition_down", start: 44000, duration: 100 },
-  mute: { name: "toggle_off", start: 42000, duration: 100 },
-  unmute: { name: "toggle_on", start: 40000, duration: 100 },
-  deafen: { name: "toggle_off", start: 42000, duration: 100 },
-  undeafen: { name: "toggle_on", start: 40000, duration: 100 },
-  camera_start: { name: "toggle_off", start: 42000, duration: 100 },
-  camera_stop: { name: "toggle_on", start: 40000, duration: 100 },
-  screenshare_start: { name: "toggle_off", start: 42000, duration: 100 },
-  screenshare_stop: { name: "toggle_on", start: 40000, duration: 100 },
-}
-
-const jdSherbertSprites: Record<string, SoundPackSprite> = {
-  join_room: { name: "transition_up", start: 4000, duration: 2000 },
-  leave_room: { name: "transition_down", start: 8000, duration: 2000 },
-  mute: { name: "toggle_off", start: 0, duration: 900 },
-  unmute: { name: "toggle_on", start: 2000, duration: 800 },
-  deafen: { name: "toggle_off", start: 0, duration: 900 },
-  undeafen: { name: "toggle_on", start: 2000, duration: 800 },
-  camera_start: { name: "toggle_off", start: 0, duration: 900 },
-  camera_stop: { name: "toggle_on", start: 2000, duration: 800 },
-  screenshare_start: { name: "toggle_off", start: 0, duration: 900 },
-  screenshare_stop: { name: "toggle_on", start: 2000, duration: 800 },
-}
 
 const soundPacks: Record<string, SoundPack> = {
   default: {
@@ -42,11 +19,30 @@ const soundPacks: Record<string, SoundPack> = {
     description: "Whoosh",
     sprites: jdSherbertSprites,
   },
+  minecraft: {
+    id: "minecraft",
+    name: "Minecraft",
+    description: "Blocky sounds",
+    sprites: minecraftSprites,
+  }
 }
 
-const spriteUrls: Record<string, string> = {
-  default: "/assets/sounds/sprite/01/audioSprite.mp3",
-  jd_sherbert: "/assets/sounds/sprite/02/jd_sherbert.mp3",
+const spriteUrls: Record<string, string[]> = {
+  default: [
+    "/assets/sounds/sprite/snd-lib-sine/audioSprite.ogg",
+    "/assets/sounds/sprite/snd-lib-sine/audioSprite.m4a",
+    "/assets/sounds/sprite/snd-lib-sine/audioSprite.mp3"
+  ],
+  jd_sherbert: [
+    "/assets/sounds/sprite/jd_sherbert/jd_sherbert.ogg",
+    "/assets/sounds/sprite/jd_sherbert/jd_sherbert.m4a",
+    "/assets/sounds/sprite/jd_sherbert/jd_sherbert.mp3",
+  ],
+  minecraft: [
+    "/assets/sounds/sprite/minecraft/minecraft.ogg",
+    "/assets/sounds/sprite/minecraft/minecraft.m4a",
+    "/assets/sounds/sprite/minecraft/minecraft.mp3"
+  ],
 }
 
 const loadedSounds: Map<string, Howl> = new Map()
@@ -55,7 +51,7 @@ const loadedSpriteUrls: Set<string> = new Set()
 let currentUserSoundPack: string = DEFAULT_SOUND_PACK_ID
 let globalVolume: number = 0.7
 
-function getSpriteUrl(packId: string): string {
+function getSpriteUrls(packId: string): string[] {
   return spriteUrls[packId] || spriteUrls[DEFAULT_SOUND_PACK_ID]
 }
 
@@ -80,11 +76,11 @@ function loadSound(packId: string): Howl {
     return existing
   }
 
-  const url = getSpriteUrl(packId)
+  const urls = getSpriteUrls(packId)
   const sprites = getSprites(packId)
 
   const sound = new Howl({
-    src: [url],
+    src: urls,
     sprite: convertToHowlSpriteFormat(sprites),
     html5: true,
     volume: globalVolume,
@@ -95,7 +91,7 @@ function loadSound(packId: string): Howl {
   })
 
   loadedSounds.set(packId, sound)
-  loadedSpriteUrls.add(url)
+  urls.forEach((url) => loadedSpriteUrls.add(url))
 
   return sound
 }
