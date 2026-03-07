@@ -31,11 +31,7 @@ function convertSpriteJson(jsonPath) {
 
   const output = `import type { SoundPackSprite } from "@/types/audio"
 
-const ${constName}: Record<string, SoundPackSprite> = ${JSON.stringify(
-    sprites,
-    null,
-    2
-  )}
+const ${constName}: Record<string, SoundPackSprite> = ${JSON.stringify(sprites, null, 2)}
 
 export { ${constName} }
 `
