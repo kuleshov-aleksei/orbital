@@ -170,7 +170,9 @@ function setupAutoUpdater() {
   })
 
   if (!VITE_DEV_SERVER_URL) {
-    autoUpdater.checkForUpdatesAndNotify()
+    autoUpdater.checkForUpdatesAndNotify().catch((error) => {
+      log.error("Auto updater check failed:", error)
+    })
   }
 }
 

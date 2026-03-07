@@ -11,7 +11,7 @@ import {
   DebugLog,
 } from "@/types"
 
-const API_BASE = "/api"
+const API_BASE = typeof __BACKEND_URL__ !== "undefined" ? `${__BACKEND_URL__}/api` : "/api"
 
 // Token storage
 let currentToken: string | null = null

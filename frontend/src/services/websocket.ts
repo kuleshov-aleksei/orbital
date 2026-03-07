@@ -1,6 +1,8 @@
 import { WebSocketMessage } from "@/types"
 import { getAuthToken } from "./api"
 
+declare const __BACKEND_WS_URL__: string | undefined
+
 export type MessageCallback = (message: WebSocketMessage) => void
 export type ConnectionCallback = () => void
 export type DisconnectionCallback = (event: CloseEvent) => void
@@ -296,6 +298,12 @@ export class WebSocketService {
 
   // Private methods
   private getWebSocketUrl(roomId: string): string {
+    const wsUrlFromEnv = typeof __BACKEND_WS_URL__ !== "undefined" ? __BACKEND_WS_URL__ : null
+    if (wsUrlFromEnv) {
+      const token = getAuthToken()
+      const baseUrl = `${wsUrlFromEnv}/ws/${roomId}`
+      return token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl
+    }
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
     const token = getAuthToken()
     const baseUrl = `${protocol}//${window.location.host}/ws/${roomId}`
@@ -303,6 +311,12 @@ export class WebSocketService {
   }
 
   private getGlobalWebSocketUrl(): string {
+    const wsUrlFromEnv = typeof __BACKEND_WS_URL__ !== "undefined" ? __BACKEND_WS_URL__ : null
+    if (wsUrlFromEnv) {
+      const token = getAuthToken()
+      const baseUrl = `${wsUrlFromEnv}/ws`
+      return token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl
+    }
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
     const token = getAuthToken()
     const baseUrl = `${protocol}//${window.location.host}/ws`

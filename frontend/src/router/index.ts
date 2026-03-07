@@ -1,8 +1,11 @@
-import { createRouter, createWebHistory } from "vue-router"
+import { createRouter, createWebHistory, createWebHashHistory } from "vue-router"
 import { useUserStore } from "@/stores"
 
+const isElectron = window.location.protocol === "file:"
+const routerHistory = isElectron ? createWebHashHistory() : createWebHistory()
+
 const router = createRouter({
-  history: createWebHistory(),
+  history: routerHistory,
   routes: [
     {
       path: "/",

@@ -19,12 +19,23 @@ app.use(router)
 const configStore = useConfigStore(pinia)
 const soundPackStore = useSoundPackStore(pinia)
 soundPackStore.loadFromStorage()
+console.log("[Orbital] Loading config...")
 configStore
   .loadConfig()
   .then(() => {
+    console.log("[Orbital] Config loaded, mounting app...")
     app.mount("#app")
+    console.log("[Orbital] App mounted successfully")
   })
   .catch((error) => {
-    console.error("Failed to load configuration, using defaults:", error)
+    console.error("[Orbital] Failed to load configuration:", error)
+    console.log("[Orbital] Mounting app anyway...")
     app.mount("#app")
+    console.log("[Orbital] App mounted with defaults")
   })
+
+// Global error handler
+app.config.errorHandler = (err, instance, info) => {
+  console.error("[Orbital] Vue error:", err)
+  console.error("[Orbital] Vue error info:", info)
+}

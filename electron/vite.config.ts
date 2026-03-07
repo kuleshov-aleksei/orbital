@@ -47,10 +47,17 @@ export default defineConfig(({ command }) => {
   const isBuild = command === "build"
   const sourcemap = isServe
 
+  const defineValues: Record<string, string> = {
+    __APP_VERSION__: JSON.stringify(appVersion),
+  }
+
+  if (isBuild && process.env.VITE_BACKEND_URL) {
+    defineValues.__BACKEND_URL__ = JSON.stringify(backendUrl)
+    defineValues.__BACKEND_WS_URL__ = JSON.stringify(backendWsUrl)
+  }
+
   return {
-    define: {
-      __APP_VERSION__: JSON.stringify(appVersion),
-    },
+    define: defineValues,
     plugins: [
       vue(),
       shimEventsPlugin(),
@@ -104,7 +111,7 @@ export default defineConfig(({ command }) => {
       },
     },
     build: {
-      outDir: resolve(frontendPath, "dist"),
+      outDir: resolve(electronPath, "dist"),
       emptyOutDir: true,
       rollupOptions: {
         external: ["snd-lib"],
