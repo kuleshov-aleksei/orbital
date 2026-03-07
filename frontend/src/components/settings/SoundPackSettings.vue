@@ -149,7 +149,7 @@ const roomUsers = computed(() => {
 })
 
 const useDefaultForAll = computed(() => {
-  return roomUsers.value.every((u) => isOverridden(u.id))
+  return soundPackStore.overrideIncomingAudioPacksWithDefault
 })
 
 function onPackChange() {
@@ -174,13 +174,7 @@ function toggleOverride(userId: string) {
 }
 
 function toggleUseDefaultForAll() {
-  if (useDefaultForAll.value) {
-    soundPackStore.clearAllOverrides()
-  } else {
-    roomUsers.value.forEach((user) => {
-      soundPackStore.setOverride(user.id, true)
-    })
-  }
+  soundPackStore.setOverrideIncomingWithDefault(!useDefaultForAll.value)
 }
 
 onMounted(() => {

@@ -12,6 +12,7 @@ import {
   SOUND_PACK_STORAGE_KEY,
   SOUND_PACK_OVERRIDES_KEY,
   SOUND_VOLUME_KEY,
+  OVERRIDE_INCOMING_WITH_DEFAULT_KEY,
   SoundPack,
 } from "@/types/audio"
 
@@ -19,6 +20,7 @@ export const useSoundPackStore = defineStore("soundPack", () => {
   const selectedPackId = ref<string>(DEFAULT_SOUND_PACK_ID)
   const userSoundPacks = ref<Map<string, string>>(new Map())
   const overrides = ref<Map<string, boolean>>(new Map())
+  const overrideIncomingAudioPacksWithDefault = ref(false)
   const isLoading = ref(false)
   const volume = ref(0.7)
 
@@ -47,6 +49,11 @@ export const useSoundPackStore = defineStore("soundPack", () => {
       }
     }
 
+    const storedOverrideWithDefault = localStorage.getItem(OVERRIDE_INCOMING_WITH_DEFAULT_KEY)
+    if (storedOverrideWithDefault !== null) {
+      overrideIncomingAudioPacksWithDefault.value = storedOverrideWithDefault === "true"
+    }
+
     const storedVolume = localStorage.getItem(SOUND_VOLUME_KEY)
     if (storedVolume) {
       const parsedVolume = parseFloat(storedVolume)
@@ -65,6 +72,10 @@ export const useSoundPackStore = defineStore("soundPack", () => {
       overridesObj[key] = value
     })
     localStorage.setItem(SOUND_PACK_OVERRIDES_KEY, JSON.stringify(overridesObj))
+    localStorage.setItem(
+      OVERRIDE_INCOMING_WITH_DEFAULT_KEY,
+      overrideIncomingAudioPacksWithDefault.value.toString(),
+    )
     localStorage.setItem(SOUND_VOLUME_KEY, volume.value.toString())
   }
 
@@ -95,6 +106,9 @@ export const useSoundPackStore = defineStore("soundPack", () => {
   }
 
   function getEffectivePack(userId: string): string {
+    if (overrideIncomingAudioPacksWithDefault.value) {
+      return DEFAULT_SOUND_PACK_ID
+    }
     const override = overrides.value.get(userId)
     if (override === true) {
       return DEFAULT_SOUND_PACK_ID
@@ -121,6 +135,11 @@ export const useSoundPackStore = defineStore("soundPack", () => {
     saveToStorage()
   }
 
+  function setOverrideIncomingWithDefault(useDefault: boolean): void {
+    overrideIncomingAudioPacksWithDefault.value = useDefault
+    saveToStorage()
+  }
+
   async function initialize(): Promise<void> {
     isLoading.value = true
     try {
@@ -135,6 +154,7 @@ export const useSoundPackStore = defineStore("soundPack", () => {
     selectedPackId,
     userSoundPacks,
     overrides,
+    overrideIncomingAudioPacksWithDefault,
     isLoading,
     volume,
     availablePacks,
@@ -148,6 +168,7 @@ export const useSoundPackStore = defineStore("soundPack", () => {
     setOverride,
     clearOverride,
     clearAllOverrides,
+    setOverrideIncomingWithDefault,
     initialize,
     loadFromStorage,
   }

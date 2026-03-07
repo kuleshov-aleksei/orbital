@@ -122,6 +122,9 @@ export const SOUND_PACK_STORAGE_KEY = "orbital_sound_pack"
 /** Local storage key for sound pack overrides */
 export const SOUND_PACK_OVERRIDES_KEY = "orbital_sound_pack_overrides"
 
+/** Local storage key for global override of incoming audio packs */
+export const OVERRIDE_INCOMING_WITH_DEFAULT_KEY = "orbital_override_incoming_with_default"
+
 /** Local storage key for sound volume */
 export const SOUND_VOLUME_KEY = "orbital_sound_volume"
 
