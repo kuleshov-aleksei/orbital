@@ -39,7 +39,9 @@
 
         <!-- Source List -->
         <div class="flex-1 overflow-y-auto p-4 min-h-0">
-          <label class="text-xs font-medium text-gray-300 uppercase tracking-wide block mb-3">Select Source</label>
+          <label class="text-xs font-medium text-gray-300 uppercase tracking-wide block mb-3"
+            >Select Source</label
+          >
 
           <div v-if="isLoadingSources" class="flex items-center justify-center py-8">
             <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500" />
@@ -66,7 +68,9 @@
                 :alt="source.name"
                 class="w-full h-20 object-cover rounded border border-gray-600 mb-2" />
               <span class="text-xs text-white text-center truncate w-full">{{ source.name }}</span>
-              <span class="text-[10px] text-gray-400">{{ source.id.startsWith("screen:") ? "Screen" : "Window" }}</span>
+              <span class="text-[10px] text-gray-400">{{
+                source.id.startsWith("screen:") ? "Screen" : "Window"
+              }}</span>
             </div>
           </div>
         </div>
@@ -101,7 +105,9 @@
             class="px-3 py-1.5 rounded-lg bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition-colors duration-200 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
             :disabled="!selectedSourceId || isStarting"
             @click="handleStartShare">
-            <div v-if="isStarting" class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-1.5" />
+            <div
+              v-if="isStarting"
+              class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-1.5" />
             <PhMonitorPlay class="w-4 h-4 mr-1.5" />
             Start Sharing
           </button>
@@ -123,7 +129,9 @@
 
         <!-- Quality Selection -->
         <div class="px-5 py-3 space-y-2">
-          <label class="text-xs font-medium text-gray-300 uppercase tracking-wide">Quality Settings</label>
+          <label class="text-xs font-medium text-gray-300 uppercase tracking-wide"
+            >Quality Settings</label
+          >
           <div class="space-y-1">
             <button
               v-for="option in qualityOptions"
@@ -139,9 +147,13 @@
               <div
                 class="w-3 h-3 rounded-full border mr-2 flex-shrink-0 flex items-center justify-center"
                 :class="[
-                  selectedQuality === option.value ? 'border-indigo-500 bg-indigo-500' : 'border-gray-500',
+                  selectedQuality === option.value
+                    ? 'border-indigo-500 bg-indigo-500'
+                    : 'border-gray-500',
                 ]">
-                <div v-if="selectedQuality === option.value" class="w-1.5 h-1.5 bg-white rounded-full" />
+                <div
+                  v-if="selectedQuality === option.value"
+                  class="w-1.5 h-1.5 bg-white rounded-full" />
               </div>
               <div class="min-w-0">
                 <div class="text-sm text-white font-medium leading-tight">{{ option.label }}</div>
@@ -212,8 +224,16 @@ const { isRunningInElectron, isScreenShareAudioSupported } = useScreenShareSuppo
 
 const qualityOptions: QualityOption[] = [
   { value: "adaptive", label: "Adaptive", description: "LiveKit adjusts quality automatically" },
-  { value: "fullhd60", label: "Full HD 60fps", description: "Maximum quality, native browser capture" },
-  { value: "text", label: "Text Optimized", description: "5fps, high quality for documents and code" },
+  {
+    value: "fullhd60",
+    label: "Full HD 60fps",
+    description: "Maximum quality, native browser capture",
+  },
+  {
+    value: "text",
+    label: "Text Optimized",
+    description: "5fps, high quality for documents and code",
+  },
 ]
 
 const selectedQuality = ref<ScreenShareQuality>("adaptive")
@@ -225,7 +245,9 @@ const isLoadingSources = ref(false)
 const sourcesError = ref<string | null>(null)
 const isStarting = ref(false)
 
-const hasSelectedSource = computed(() => selectedSourceId.value !== null && selectedSourceId.value !== "")
+const hasSelectedSource = computed(
+  () => selectedSourceId.value !== null && selectedSourceId.value !== "",
+)
 
 watch(
   () => props.isOpen,

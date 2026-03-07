@@ -270,6 +270,18 @@ func (h *Hub) BroadcastToAll(message interface{}) {
 	}
 }
 
+// BroadcastSoundPackChange broadcasts a user's sound pack change to all connected clients
+func (h *Hub) BroadcastSoundPackChange(userID string, soundPack string) {
+	message := models.WebSocketMessage{
+		Type: "sound_pack_change",
+		Data: map[string]string{
+			"user_id":    userID,
+			"sound_pack": soundPack,
+		},
+	}
+	h.BroadcastToAll(message)
+}
+
 // BroadcastToRoomExcluding sends a message to all clients in a room except the specified client
 func (h *Hub) BroadcastToRoomExcluding(roomID string, excludeClient *Client, message interface{}) {
 	h.mu.RLock()

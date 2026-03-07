@@ -2,6 +2,7 @@ import { defineStore } from "pinia"
 import { ref, computed } from "vue"
 import type { PublicUser } from "@/types"
 import { apiService } from "@/services/api"
+import { useSoundPackStore } from "./soundPack"
 
 export const useUsersStore = defineStore("users", () => {
   // State
@@ -74,6 +75,14 @@ export const useUsersStore = defineStore("users", () => {
         return {
           ...user,
           is_online: isOnline,
+        }
+      })
+
+      // Update sound pack store with each user's sound pack preference
+      const soundPackStore = useSoundPackStore()
+      users.forEach((user) => {
+        if (user.sound_pack) {
+          soundPackStore.setUserPack(user.id, user.sound_pack)
         }
       })
     } catch (err) {

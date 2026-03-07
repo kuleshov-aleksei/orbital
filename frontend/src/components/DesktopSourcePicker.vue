@@ -32,7 +32,9 @@
           <div v-else class="grid grid-cols-2 gap-3">
             <!-- Screens Section -->
             <div v-if="screens.length > 0">
-              <h3 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Screens</h3>
+              <h3 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">
+                Screens
+              </h3>
               <div class="space-y-2">
                 <button
                   v-for="source in screens"
@@ -62,7 +64,9 @@
 
             <!-- Windows Section -->
             <div v-if="windows.length > 0">
-              <h3 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Windows</h3>
+              <h3 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">
+                Windows
+              </h3>
               <div class="space-y-2">
                 <button
                   v-for="source in windows"
@@ -96,10 +100,7 @@
         <div class="px-5 py-3 border-t border-gray-700 flex-shrink-0">
           <label class="flex items-center cursor-pointer">
             <div class="relative">
-                <input
-                  v-model="shareAudio"
-                  type="checkbox"
-                  class="sr-only" />
+              <input v-model="shareAudio" type="checkbox" class="sr-only" />
               <div
                 class="w-9 h-5 rounded-full transition-colors duration-200"
                 :class="shareAudio ? 'bg-indigo-500' : 'bg-gray-600'" />
@@ -110,7 +111,11 @@
             <span class="ml-2 text-sm text-gray-300">Share system audio</span>
           </label>
           <p class="text-xs text-gray-500 mt-1 ml-11">
-            {{ shareAudio ? "System audio will be captured and shared" : "No system audio will be shared" }}
+            {{
+              shareAudio
+                ? "System audio will be captured and shared"
+                : "No system audio will be shared"
+            }}
           </p>
         </div>
 
@@ -129,7 +134,9 @@
             :disabled="!selectedSourceId || isStarting"
             :class="{ 'opacity-50 cursor-not-allowed': !selectedSourceId || isStarting }"
             @click="handleStartShare">
-            <div v-if="isStarting" class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-1.5" />
+            <div
+              v-if="isStarting"
+              class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-1.5" />
             <PhMonitorPlay class="w-4 h-4 mr-1.5" />
             Start
           </button>

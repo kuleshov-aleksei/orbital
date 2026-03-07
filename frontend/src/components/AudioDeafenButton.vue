@@ -49,7 +49,7 @@ const userStore = useUserStore()
 const roomStore = useRoomStore()
 
 // Sounds
-const { toggleOn, toggleOff } = useSounds()
+const { playDeafen, playUndeafen } = useSounds()
 
 // Computed v-model
 const isDeafened = computed({
@@ -110,9 +110,9 @@ const toggleDeafen = async () => {
 
   // Play sound locally (remote users hear it via presence.ts)
   if (newValue) {
-    toggleOff()
+    playDeafen()
   } else {
-    toggleOn()
+    playUndeafen()
   }
 
   // Update call store (presence store watches this and syncs with LiveKit)

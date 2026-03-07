@@ -28,6 +28,7 @@ export interface PublicUser {
   avatar_url?: string
   role: "guest" | "user" | "admin" | "super_admin"
   is_online: boolean
+  sound_pack?: string
 }
 
 // Screen sharing quality options
@@ -60,6 +61,7 @@ export interface User {
   created_at?: string
   last_seen?: string
   role: "guest" | "user" | "admin" | "super_admin"
+  sound_pack?: string
 }
 
 // RoomUser interface - user with room-specific information
@@ -68,6 +70,7 @@ export interface RoomUser extends User {
   last_seen?: string
   joined_at?: string
   role: "member" | "admin" | "owner"
+  sound_pack?: string
 }
 
 // WebSocket message types

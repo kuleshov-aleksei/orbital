@@ -41,15 +41,61 @@ func (h *UsersHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 		if h.hub != nil {
 			isOnline = h.hub.IsUserOnline(user.ID)
 		}
+		soundPack := user.SoundPack
+		if soundPack == "" {
+			soundPack = "default"
+		}
 		publicUsers = append(publicUsers, &models.PublicUser{
 			ID:        user.ID,
 			Nickname:  user.Nickname,
 			AvatarURL: user.AvatarURL,
 			Role:      user.Role,
 			IsOnline:  isOnline,
+			SoundPack: soundPack,
 		})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(publicUsers)
+}
+
+// UpdateSoundPack updates the current user's sound pack preference
+// PATCH /api/users/me/sound-pack
+func (h *UsersHandler) UpdateSoundPack(w http.ResponseWriter, r *http.Request) {
+	// Get user from context (set by auth middleware)
+	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	if !ok || claims == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	userIDStr := claims.UserID
+
+	// Parse request body
+	var req models.UpdateSoundPackRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate sound pack
+	if req.SoundPack == "" {
+		req.SoundPack = "default"
+	}
+
+	// Update in database
+	if err := h.userRepo.UpdateSoundPack(userIDStr, req.SoundPack); err != nil {
+		http.Error(w, "Failed to update sound pack", http.StatusInternalServerError)
+		return
+	}
+
+	// Broadcast sound pack change to all connected clients via WebSocket
+	if h.hub != nil {
+		h.hub.BroadcastSoundPackChange(userIDStr, req.SoundPack)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"sound_pack": req.SoundPack,
+	})
 }

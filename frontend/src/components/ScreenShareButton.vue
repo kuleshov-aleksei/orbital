@@ -54,7 +54,7 @@ const userStore = useUserStore()
 const { isScreenShareSupported } = useScreenShareSupport()
 
 // Sounds
-const { toggleOn, toggleOff } = useSounds()
+const { playScreenShareStart, playScreenShareStop } = useSounds()
 
 // Computed properties
 const isGuest = computed(() => userStore.isGuest)
@@ -123,7 +123,7 @@ const toggleScreenShare = () => {
   }
 
   // Play sound
-  toggleOff()
+  playScreenShareStop()
 
   // If stopping, handle immediately
   // Note: LiveKit will emit LocalTrackUnpublished event which updates state
@@ -139,7 +139,7 @@ const confirmStartScreenShare = () => {
   const newValue = true
 
   // Play sound
-  toggleOn()
+  playScreenShareStart()
 
   isScreenSharing.value = newValue
 

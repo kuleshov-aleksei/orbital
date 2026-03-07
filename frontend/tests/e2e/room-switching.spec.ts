@@ -3,10 +3,10 @@ import { test, expect } from "@playwright/test"
 test.describe("room switching bug - switching via sidebar while in call", () => {
   test("user in room B switches to room A via sidebar RoomCard", async ({ browser }) => {
     const ctxA = await browser.newContext({
-      viewport: { width: 1920, height: 1080 }
+      viewport: { width: 1920, height: 1080 },
     })
     const ctxB = await browser.newContext({
-      viewport: { width: 1920, height: 1080 }
+      viewport: { width: 1920, height: 1080 },
     })
 
     await ctxA.grantPermissions(["microphone"])
@@ -49,18 +49,18 @@ test.describe("room switching bug - switching via sidebar while in call", () => 
     console.log("\n=== Step 3: User B clicks on Test room A in sidebar (while in Test room B) ===")
     const sidebar = pageB.locator(".room-sidebar")
     await expect(sidebar).toBeVisible()
-    
+
     const roomCardA = sidebar.locator(".room-card").filter({ hasText: "Test room A" })
     await expect(roomCardA).toBeVisible()
     await roomCardA.click()
-    
+
     await pageB.waitForTimeout(5000)
 
     console.log("\n=== Step 4: Check audio subscription ===")
     const audioCheck = await pageB.evaluate(() => {
       const audioContainer = document.querySelector(".audio-manager")
       const audioElements = audioContainer ? audioContainer.querySelectorAll("audio") : []
-      
+
       const playingAudios = Array.from(audioElements).filter(
         (el) => (el as HTMLAudioElement).srcObject !== null,
       )
@@ -73,8 +73,8 @@ test.describe("room switching bug - switching via sidebar while in call", () => 
     console.log("Audio check after sidebar room switch:", JSON.stringify(audioCheck, null, 2))
 
     console.log("\n=== Summary ===")
-    const hasPeerConnectionError = consoleErrorsB.some(e => 
-      e.includes("closed peer connection") || e.includes("createOffer")
+    const hasPeerConnectionError = consoleErrorsB.some(
+      (e) => e.includes("closed peer connection") || e.includes("createOffer"),
     )
     console.log("Has peer connection error:", hasPeerConnectionError)
 

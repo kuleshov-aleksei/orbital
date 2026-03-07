@@ -10,7 +10,15 @@ import {
 import { useRoomStore } from "./room"
 import { useCallStore } from "./call"
 import { useUserStore } from "./user"
-import { toggleOn, toggleOff, transitionOpen, transitionClose } from "@/services/sounds"
+import { useSoundPackStore } from "./soundPack"
+import {
+  playRemoteMute,
+  playRemoteUnmute,
+  playRemoteDeafen,
+  playRemoteUndeafen,
+  playRemoteJoinRoom,
+  playRemoteLeaveRoom,
+} from "@/services/sounds"
 import { debugLog } from "@/utils/debug"
 
 // Debounce helper for batching updates
@@ -152,14 +160,19 @@ export const usePresenceStore = defineStore("presence", () => {
     lkRoom.on(RoomEvent.ParticipantConnected, async (participant: RemoteParticipant) => {
       debugLog("[Presence] Participant connected:", participant.identity)
       updateParticipantFromLiveKit(participant)
-      await transitionOpen()
+      const metadata = extractMetadata(participant)
+      const soundPackStore = useSoundPackStore()
+      const effectivePack = soundPackStore.getEffectivePack(metadata.user_id)
+      playRemoteJoinRoom(effectivePack)
     })
 
     lkRoom.on(RoomEvent.ParticipantDisconnected, async (participant: RemoteParticipant) => {
       debugLog("[Presence] Participant disconnected:", participant.identity)
       const metadata = extractMetadata(participant)
       participants.value.delete(metadata.user_id)
-      await transitionClose()
+      const soundPackStore = useSoundPackStore()
+      const effectivePack = soundPackStore.getEffectivePack(metadata.user_id)
+      playRemoteLeaveRoom(effectivePack)
     })
 
     lkRoom.on(
@@ -181,13 +194,29 @@ export const usePresenceStore = defineStore("presence", () => {
         const isDeafenedChanged = "is_deafened" in changedAttributes
 
         if (!isLocal && (isMutedChanged || isDeafenedChanged)) {
+          const metadata = extractMetadata(participant)
           const newIsMuted = participant.attributes?.is_muted === "true"
           const newIsDeafened = participant.attributes?.is_deafened === "true"
 
+          // Get the user's sound pack from the sound pack store
+          const soundPackStore = useSoundPackStore()
+          const effectivePack = soundPackStore.getEffectivePack(metadata.user_id)
+
           if (newIsMuted || newIsDeafened) {
-            await toggleOff()
+            if (newIsMuted) {
+              playRemoteMute(effectivePack)
+            }
+            if (newIsDeafened) {
+              playRemoteDeafen(effectivePack)
+            }
           } else {
-            await toggleOn()
+            if (!newIsMuted && !newIsDeafened) {
+              playRemoteUnmute(effectivePack)
+            } else if (!newIsMuted) {
+              playRemoteUnmute(effectivePack)
+            } else if (!newIsDeafened) {
+              playRemoteUndeafen(effectivePack)
+            }
           }
         }
 

@@ -179,6 +179,10 @@ func (rs *RoomService) getRoomPreviewUsers(roomID string) []models.RoomPreviewUs
 	if members, exists := rs.members[roomID]; exists {
 		for userID, member := range members {
 			if user, exists := rs.users[userID]; exists {
+				soundPack := user.SoundPack
+				if soundPack == "" {
+					soundPack = "default"
+				}
 				previewUser := models.RoomPreviewUser{
 					ID:              user.ID,
 					Nickname:        user.Nickname,
@@ -187,6 +191,7 @@ func (rs *RoomService) getRoomPreviewUsers(roomID string) []models.RoomPreviewUs
 					IsDeafened:      member.IsDeafened,
 					IsSpeaking:      member.IsSpeaking,
 					IsScreenSharing: member.IsScreenSharing,
+					SoundPack:       soundPack,
 				}
 
 				users = append(users, previewUser)
@@ -306,6 +311,10 @@ func (rs *RoomService) JoinRoom(roomID, userID, nickname string) (*models.User, 
 	user.LastSeen = time.Now()
 
 	log.Printf("User %s joined room %s", userID, roomID)
+	soundPack := user.SoundPack
+	if soundPack == "" {
+		soundPack = "default"
+	}
 	return user, &models.RoomPreviewUser{
 		ID:              user.ID,
 		Nickname:        user.Nickname,
@@ -314,6 +323,7 @@ func (rs *RoomService) JoinRoom(roomID, userID, nickname string) (*models.User, 
 		IsDeafened:      member.IsDeafened,
 		IsSpeaking:      member.IsSpeaking,
 		IsScreenSharing: member.IsScreenSharing,
+		SoundPack:       soundPack,
 	}, nil
 }
 
@@ -333,6 +343,10 @@ func (rs *RoomService) LeaveRoom(roomID, userID string) *models.RoomPreviewUser 
 
 	if user, exists := rs.users[userID]; exists {
 		user.LastSeen = time.Now()
+		soundPack := user.SoundPack
+		if soundPack == "" {
+			soundPack = "default"
+		}
 		leftUser = &models.RoomPreviewUser{
 			ID:              user.ID,
 			Nickname:        user.Nickname,
@@ -341,6 +355,7 @@ func (rs *RoomService) LeaveRoom(roomID, userID string) *models.RoomPreviewUser 
 			IsDeafened:      false,
 			IsSpeaking:      false,
 			IsScreenSharing: false,
+			SoundPack:       soundPack,
 		}
 		if member != nil {
 			leftUser.Role = member.Role
@@ -369,10 +384,15 @@ func (rs *RoomService) GetRoomUsers(roomID string) []models.RoomUser {
 	if members, exists := rs.members[roomID]; exists {
 		for userID := range members {
 			if user, exists := rs.users[userID]; exists {
+				soundPack := user.SoundPack
+				if soundPack == "" {
+					soundPack = "default"
+				}
 				roomUser := models.RoomUser{
 					ID:        user.ID,
 					Nickname:  user.Nickname,
 					Status:    user.Status,
+					SoundPack: soundPack,
 					CreatedAt: user.CreatedAt,
 					LastSeen:  user.LastSeen,
 				}

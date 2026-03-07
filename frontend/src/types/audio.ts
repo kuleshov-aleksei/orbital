@@ -49,6 +49,55 @@ export interface AudioProcessor {
   getConstraints(): MediaTrackConstraints
 }
 
+/**
+ * Sound pack types for UI audio customization
+ */
+export interface SoundPackInfo {
+  id: string
+  name: string
+  description: string
+}
+
+export interface SoundPackSprite {
+  name: string
+  start: number // milliseconds
+  duration: number // milliseconds
+}
+
+export interface SoundPack {
+  id: string
+  name: string
+  description: string
+  sprites: Record<string, SoundPackSprite>
+}
+
+export interface UserSoundPackPreference {
+  userId: string
+  soundPack: string
+}
+
+export interface SoundPackOverride {
+  userId: string
+  useDefault: boolean // true = use default, false = use user's preference
+}
+
+/**
+ * Available sound events that can be played
+ */
+export type SoundEvent =
+  | "toggle_on"
+  | "toggle_off"
+  | "join_room"
+  | "leave_room"
+  | "mute"
+  | "unmute"
+  | "deafen"
+  | "undeafen"
+  | "camera_start"
+  | "camera_stop"
+  | "screenshare_start"
+  | "screenshare_stop"
+
 /** Default audio settings */
 export const defaultAudioSettings: AudioSettings = {
   noiseSuppression: {
@@ -66,6 +115,18 @@ export const AUDIO_SETTINGS_STORAGE_KEY = "orbital_audio_settings"
 
 /** Local storage key for user volume preferences */
 export const USER_VOLUMES_STORAGE_KEY = "orbital_user_volumes"
+
+/** Local storage key for sound pack preferences */
+export const SOUND_PACK_STORAGE_KEY = "orbital_sound_pack"
+
+/** Local storage key for sound pack overrides */
+export const SOUND_PACK_OVERRIDES_KEY = "orbital_sound_pack_overrides"
+
+/** Local storage key for global override of incoming audio packs */
+export const OVERRIDE_INCOMING_WITH_DEFAULT_KEY = "orbital_override_incoming_with_default"
+
+/** Local storage key for sound volume */
+export const SOUND_VOLUME_KEY = "orbital_sound_volume"
 
 /** List of available algorithms with metadata */
 export const availableAlgorithms: AudioAlgorithmInfo[] = [

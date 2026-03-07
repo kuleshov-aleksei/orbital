@@ -1,5 +1,12 @@
 import { onMounted, onUnmounted, watch, ref } from "vue"
-import { useRoomStore, useCategoryStore, useAppStore, useUserStore, useUsersStore } from "@/stores"
+import {
+  useRoomStore,
+  useCategoryStore,
+  useAppStore,
+  useUserStore,
+  useUsersStore,
+  useSoundPackStore,
+} from "@/stores"
 import { wsService } from "@/services/websocket"
 import { debugLog } from "@/utils/debug"
 import type { User, Room, Category } from "@/types"
@@ -10,6 +17,7 @@ export function useWebSocketHandlers() {
   const appStore = useAppStore()
   const usersStore = useUsersStore()
   const userStore = useUserStore()
+  const soundPackStore = useSoundPackStore()
   const hasConnected = ref(false)
 
   const setupWebSocketListeners = () => {
@@ -269,6 +277,17 @@ export function useWebSocketHandlers() {
         is_muted: data.is_muted,
         is_deafened: data.is_deafened,
       })
+    })
+
+    // Sound pack change
+    wsService.onGlobal("sound_pack_change", (message) => {
+      const data = message.data as {
+        user_id: string
+        sound_pack: string
+      }
+      debugLog("[WebSocket] User sound pack changed:", data.user_id, "sound_pack:", data.sound_pack)
+      roomStore.updateUserSoundPack(data.user_id, data.sound_pack)
+      soundPackStore.setUserPack(data.user_id, data.sound_pack)
     })
   }
 

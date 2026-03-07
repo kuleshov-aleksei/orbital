@@ -120,6 +120,11 @@ CREATE INDEX IF NOT EXISTS idx_debug_logs_created_at ON debug_logs(created_at);`
 		SQL: `ALTER TABLE users RENAME COLUMN oauth_nickname TO original_nickname;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_original_nickname_provider ON users(original_nickname, auth_provider) WHERE auth_provider IN ('password', 'guest');`,
 	},
+	{
+		Version: 14,
+		Name:    "add_sound_pack_to_users",
+		SQL:     `ALTER TABLE users ADD COLUMN sound_pack TEXT DEFAULT 'default';`,
+	},
 }
 
 func (db *DB) RunMigrations() error {
