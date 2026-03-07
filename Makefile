@@ -232,7 +232,12 @@ build-electron-linux:
 	@echo "Installing electron dependencies..."
 	cd electron && npm install
 	@echo "Building electron for Linux..."
-	cd electron && npm run build:linux
+	@if [ -z "$$VITE_BACKEND_URL" ]; then \
+		echo "WARNING: VITE_BACKEND_URL not set, using https://orb.encamy.com"; \
+		cd electron && VITE_BACKEND_URL=https://orb.encamy.com npm run build:linux; \
+	else \
+		cd electron && VITE_BACKEND_URL=$$VITE_BACKEND_URL npm run build:linux; \
+	fi
 
 build-electron-all:
 	@echo "Installing electron dependencies..."
