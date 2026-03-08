@@ -23,7 +23,7 @@
     <!-- Screen Share Quality Modal handled by parent -->
 
     <!-- Main Call Area -->
-    <div class="relative flex flex-1 flex-col min-h-0 overflow-hidden max-h-[100svh]">
+    <div class="relative flex flex-1 flex-col min-h-0 overflow-hidden max-h-[80svh]">
       <!-- Use v-show instead of v-if to keep both components mounted and preserve audio elements -->
       <!-- Screen Share Area - Shows users in side panel when screen sharing or camera is active -->
       <ScreenShareArea
