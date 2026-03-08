@@ -575,10 +575,22 @@ func (c *Client) handleJoinRoom(data interface{}) {
 		}
 	}
 
-	_, _, err := c.hub.roomService.JoinRoom(c.roomID, req.UserID, req.Nickname)
+	_, previewUser, err := c.hub.roomService.JoinRoom(c.roomID, req.UserID, req.Nickname)
 	if err != nil {
 		log.Printf("Error joining room: %v", err)
 		return
+	}
+
+	// Broadcast room_user_joined to all clients (not just room) so they update their rooms list
+	if previewUser != nil {
+		roomUserJoinedMessage := models.WebSocketMessage{
+			Type: "room_user_joined",
+			Data: map[string]interface{}{
+				"room_id": c.roomID,
+				"user":    previewUser,
+			},
+		}
+		c.hub.BroadcastToAll(roomUserJoinedMessage)
 	}
 
 	// Send current room users to the joining user
