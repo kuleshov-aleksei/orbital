@@ -5,7 +5,7 @@
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave">
     <!-- Video Container - placeholder background -->
-    <div class="relative flex items-center justify-center bg-black w-full h-full">
+    <div class="relative flex items-center justify-center bg-black w-full h-full min-h-52">
       <!-- Placeholder background pattern -->
       <div class="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900" />
 
