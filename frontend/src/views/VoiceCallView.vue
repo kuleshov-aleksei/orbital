@@ -27,8 +27,11 @@
       <!-- Use v-show instead of v-if to keep both components mounted and preserve audio elements -->
       <!-- Screen Share Area - Shows users in side panel when screen sharing or camera is active -->
       <ScreenShareArea
-        v-show="screenShareData.length > 0 || cameraData.length > 0"
+        v-show="
+          screenShareData.length > 0 || cameraData.length > 0 || availableScreenShares.length > 0
+        "
         :screen-shares="screenShareData"
+        :available-screen-shares="availableScreenShares"
         :camera-streams="cameraData"
         :layout="screenShareLayout"
         :users="users"
@@ -41,17 +44,27 @@
         :current-user-camera-enabled="isCameraEnabled"
         :get-participant-stats="getParticipantStats"
         class="m-4"
-        @update:layout="screenShareLayout = $event" />
+        @update:layout="screenShareLayout = $event"
+        @subscribe-screen-share="subscribeToScreenShare"
+        @unsubscribe-screen-share="unsubscribeFromScreenShare" />
 
       <!-- User Grid - Only shown when no screen shares or cameras (audio-only mode) -->
       <UserGrid
-        v-show="screenShareData.length === 0 && cameraData.length === 0"
+        v-show="
+          screenShareData.length === 0 &&
+          cameraData.length === 0 &&
+          availableScreenShares.length === 0
+        "
         :users="users"
         :remote-stream-volumes="props.remoteStreamVolumes"
         :user-screen-share-states="userScreenShareStates"
         :user-camera-states="userCameraStates"
         :is-deafened="isDeafened"
-        :is-visible="screenShareData.length === 0 && cameraData.length === 0"
+        :is-visible="
+          screenShareData.length === 0 &&
+          cameraData.length === 0 &&
+          availableScreenShares.length === 0
+        "
         :current-user-camera-enabled="isCameraEnabled"
         :get-participant-stats="getParticipantStats" />
     </div>
@@ -143,6 +156,7 @@ const {
   userScreenShareStates,
   userCameraStates,
   screenShareData,
+  availableScreenShares,
   cameraData,
   handleMuteToggle,
   startScreenShare,
@@ -155,6 +169,8 @@ const {
   applyDeafenState,
   reinitializeAudioStream,
   initializeLiveKit,
+  subscribeToScreenShare,
+  unsubscribeFromScreenShare,
   cleanup,
 } = useLiveKit({
   roomId: props.roomId,

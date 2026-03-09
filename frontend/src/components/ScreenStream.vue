@@ -92,6 +92,16 @@
                 @input="handleVolumeChange" />
             </div>
 
+            <!-- Stop Watching Button -->
+            <button
+              type="button"
+              class="px-2 py-1 bg-red-600/80 hover:bg-red-600 rounded-lg text-white text-xs flex items-center transition-colors"
+              title="Stop watching"
+              @click="$emit('unsubscribe')">
+              <PhStop class="w-3 h-3 mr-1" />
+              Stop
+            </button>
+
             <button
               type="button"
               class="p-2 bg-gray-700/80 hover:bg-gray-600 rounded-lg text-white transition-colors"
@@ -147,6 +157,7 @@ import {
   PhPictureInPicture,
   PhSpinner,
   PhPause,
+  PhStop,
   PhSpeakerHigh,
   PhSpeakerLow,
   PhSpeakerNone,
@@ -183,6 +194,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   "make-focused": []
   "volume-change": [volume: number, isScreenShare: boolean]
+  unsubscribe: []
 }>()
 
 const videoElement = useTemplateRef<HTMLVideoElement>("videoElement")

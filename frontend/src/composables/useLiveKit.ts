@@ -73,6 +73,8 @@ export function useLiveKit(options: UseLiveKitOptions) {
     Map<string, { video?: RemoteVideoTrack; audio?: RemoteAudioTrack }>
   >(new Map())
   const screenShareVersion = ref(0)
+  // Track which users' screen shares are subscribed (not auto-subscribed)
+  const subscribedScreenShares = ref<Set<string>>(new Set())
   // Track publication references for cleanup
   const localScreenVideoPublication = ref<LocalTrackPublication | null>(null)
   const localScreenAudioPublication = ref<LocalTrackPublication | null>(null)
@@ -491,9 +493,11 @@ export function useLiveKit(options: UseLiveKitOptions) {
       )
 
       // Create room with optimized options
+      // Disable autoSubscribe to manually control track subscriptions
       const lkRoom = new Room({
         adaptiveStream: true,
         dynacast: true,
+        autoSubscribe: false,
         publishDefaults: {
           simulcast: true,
           screenShareEncoding: {
@@ -524,6 +528,41 @@ export function useLiveKit(options: UseLiveKitOptions) {
       // Play join sound on successful connection
       playJoinRoom()
 
+      // Subscribe to existing remote tracks (with autoSubscribe: false)
+      // We auto-subscribe to microphone and camera, but not screen share
+      lkRoom.remoteParticipants.forEach((participant) => {
+        participant.trackPublications.forEach((publication) => {
+          const source = publication.source
+
+          // Auto-subscribe to microphone and camera
+          if (source === Track.Source.Microphone || source === Track.Source.Camera) {
+            debugLog(
+              `[LiveKit][INFO]: Subscribing to existing ${source} track from ${participant.identity}`,
+            )
+            publication.setSubscribed(true)
+          } else if (source === Track.Source.ScreenShare || source === Track.Source.ScreenShareAudio) {
+            // For screen share tracks, do NOT auto-subscribe - show placeholder instead
+            // Explicitly unsubscribe to prevent LiveKit from auto-subscribing
+            if (source === Track.Source.ScreenShareAudio) {
+              debugLog(
+                `[LiveKit][INFO]: Not auto-subscribing to ScreenShareAudio from ${participant.identity}`,
+              )
+              publication.setSubscribed(false)
+            } else if (source === Track.Source.ScreenShare) {
+              // For existing screen share, track presence for placeholder UI
+              debugLog(
+                `[LiveKit][INFO]: Screen share available from existing participant ${participant.identity}`,
+              )
+              userScreenShareStates.value.set(participant.identity, {
+                isSharing: true,
+                quality: "adaptive",
+              })
+              screenShareVersion.value++
+            }
+          }
+        })
+      })
+
       // Initialize presence tracking
       await presenceStore.initializePresence(lkRoom)
 
@@ -552,12 +591,67 @@ export function useLiveKit(options: UseLiveKitOptions) {
       debugLog(`[LiveKit][INFO]: Participant connected: ${participant.identity}`)
       remoteParticipants.value.set(participant.identity, participant)
 
-      // Subscribe to participant's tracks
+      // With autoSubscribe: false, we manually subscribe to audio/camera tracks
+      // Screen share tracks are optional - user chooses to subscribe
       participant.trackPublications.forEach((publication) => {
-        if (publication.track) {
-          handleRemoteTrack(publication.track, participant)
+        const source = publication.source
+
+        // Auto-subscribe to microphone and camera
+        if (source === Track.Source.Microphone || source === Track.Source.Camera) {
+          debugLog(
+            `[LiveKit][INFO]: Auto-subscribing to ${source} track from ${participant.identity}`,
+          )
+          publication.setSubscribed(true)
+        } else if (source === Track.Source.ScreenShare || source === Track.Source.ScreenShareAudio) {
+          // For screen share tracks, do NOT auto-subscribe - show placeholder instead
+          // Explicitly unsubscribe to prevent LiveKit from auto-subscribing
+          if (source === Track.Source.ScreenShareAudio) {
+            debugLog(
+              `[LiveKit][INFO]: Not auto-subscribing to ScreenShareAudio from ${participant.identity}`,
+            )
+            publication.setSubscribed(false)
+          } else if (source === Track.Source.ScreenShare) {
+            // Track presence in userScreenShareStates for UI to show placeholder
+            debugLog(
+              `[LiveKit][INFO]: Screen share available from ${participant.identity}, not auto-subscribing`,
+            )
+            userScreenShareStates.value.set(participant.identity, {
+              isSharing: true,
+              quality: "adaptive",
+            })
+            screenShareVersion.value++
+          }
         }
       })
+    })
+
+    // Handle new track publications (tracks published after participant joined)
+    lkRoom.on(RoomEvent.TrackPublished, (publication, participant) => {
+      debugLog(`[LiveKit][INFO]: Track published: ${publication.source} from ${participant.identity}`)
+      const source = publication.source
+
+      // Auto-subscribe to microphone and camera
+      if (source === Track.Source.Microphone || source === Track.Source.Camera) {
+        debugLog(`[LiveKit][INFO]: Auto-subscribing to ${source} track from ${participant.identity}`)
+        publication.setSubscribed(true)
+      } else if (source === Track.Source.ScreenShare || source === Track.Source.ScreenShareAudio) {
+        // For screen share tracks, do NOT auto-subscribe - show placeholder instead
+        // Explicitly unsubscribe to prevent LiveKit from auto-subscribing
+        if (source === Track.Source.ScreenShareAudio) {
+          debugLog(
+            `[LiveKit][INFO]: Not auto-subscribing to ScreenShareAudio from ${participant.identity}`,
+          )
+          publication.setSubscribed(false)
+        } else if (source === Track.Source.ScreenShare) {
+          // Track presence in userScreenShareStates for UI to show placeholder
+          debugLog(`[LiveKit][INFO]: Screen share available from ${participant.identity}, not auto-subscribing`)
+          userScreenShareStates.value.set(participant.identity, {
+            isSharing: true,
+            quality: "adaptive",
+          })
+          screenShareVersion.value++
+        }
+      }
     })
 
     lkRoom.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
@@ -568,6 +662,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
       remoteAudioTracks.value.delete(`${participant.identity}-screenshare`)
       remoteScreenTracks.value.delete(participant.identity)
       userScreenShareStates.value.delete(participant.identity)
+      subscribedScreenShares.value.delete(participant.identity)
       // Also remove from audio tracks store (both keys)
       audioTracksStore.removeTrack(participant.identity)
       audioTracksStore.removeTrack(`${participant.identity}-screenshare`)
@@ -794,6 +889,13 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
       remoteAudioTracks.value.delete(trackKey)
       audioTracksStore.removeTrack(trackKey)
+
+      // If screen share audio was unsubscribed, remove from subscribed set so placeholder appears
+      if (audioSource === Track.Source.ScreenShareAudio) {
+        subscribedScreenShares.value.delete(participantId)
+        screenShareVersion.value++
+      }
+
       debugLog(
         `[LiveKit] Audio track removed for ${trackKey}, store count: ${audioTracksStore.trackCount()}`,
       )
@@ -808,10 +910,10 @@ export function useLiveKit(options: UseLiveKitOptions) {
           }
         }
 
-        userScreenShareStates.value.set(participantId, {
-          isSharing: false,
-          quality: "adaptive",
-        })
+        // Don't set isSharing to false - keep the state so placeholder can be shown
+        // The user is still sharing, we just unsubscribed
+        // Remove from subscribed set so placeholder appears
+        subscribedScreenShares.value.delete(participantId)
         screenShareVersion.value++
       } else if (videoTrack.source === Track.Source.Camera) {
         // Handle camera track unsubscription
@@ -1583,9 +1685,13 @@ export function useLiveKit(options: UseLiveKitOptions) {
     }
 
     // Add remote shares - iterate over userScreenShareStates to catch all shares
-    // This ensures we don't miss shares even if remoteParticipants hasn't updated yet
+    // Only include shares that are subscribed (have actual tracks)
     userScreenShareStates.value.forEach((shareState, userId) => {
       if (shareState?.isSharing && userId !== currentUserId) {
+        // Only include if actually subscribed (has tracks)
+        const isSubscribed = subscribedScreenShares.value.has(userId)
+        if (!isSubscribed) return
+
         const participant = remoteParticipants.value.get(userId)
         const tracks = remoteScreenTracks.value.get(userId)
 
@@ -1602,6 +1708,121 @@ export function useLiveKit(options: UseLiveKitOptions) {
 
     return shares
   })
+
+  // Available screen shares (users sharing but not subscribed - shows placeholder)
+  const availableScreenShares = computed(() => {
+    void screenShareVersion.value // Trigger reactivity
+    const currentUserId = getCurrentUserId()
+
+    const shares: Array<{
+      userId: string
+      userNickname: string
+      quality: ScreenShareQuality
+    }> = []
+
+    userScreenShareStates.value.forEach((shareState, userId) => {
+      if (shareState?.isSharing && userId !== currentUserId) {
+        // Include if NOT subscribed (show as placeholder)
+        const isSubscribed = subscribedScreenShares.value.has(userId)
+        if (isSubscribed) return
+
+        const participant = remoteParticipants.value.get(userId)
+
+        shares.push({
+          userId,
+          userNickname: participant?.name || userId,
+          quality: shareState.quality,
+        })
+      }
+    })
+
+    return shares
+  })
+
+  // Subscribe to a user's screen share (video + audio)
+  const subscribeToScreenShare = async (userId: string): Promise<void> => {
+    if (!room.value) {
+      debugWarn(`[LiveKit][WARN]: Cannot subscribe to screen share: room not connected`)
+      return
+    }
+
+    // Check if already subscribed
+    if (subscribedScreenShares.value.has(userId)) {
+      debugLog(`[LiveKit][INFO]: Already subscribed to screen share from ${userId}`)
+      return
+    }
+
+    // Verify user is still sharing (has screen share state)
+    const shareState = userScreenShareStates.value.get(userId)
+    if (!shareState || !shareState.isSharing) {
+      debugLog(`[LiveKit][INFO]: User ${userId} is not sharing screen anymore`)
+      return
+    }
+
+    const participant = remoteParticipants.value.get(userId)
+    if (!participant) {
+      debugWarn(`[LiveKit][WARN]: Participant ${userId} not found in remoteParticipants`)
+      return
+    }
+
+    debugLog(`[LiveKit][INFO]: Subscribing to screen share from ${userId}`)
+
+    // Find screen share publications and subscribe
+    let subscribed = false
+    participant.trackPublications.forEach((publication) => {
+      const source = publication.source
+      if (source === Track.Source.ScreenShare || source === Track.Source.ScreenShareAudio) {
+        debugLog(`[LiveKit][INFO]: Subscribing to ${source} track from ${userId}`)
+        publication.setSubscribed(true)
+        subscribed = true
+      }
+    })
+
+    // Mark as subscribed only if we actually subscribed to something
+    if (subscribed) {
+      subscribedScreenShares.value.add(userId)
+    } else {
+      debugWarn(`[LiveKit][WARN]: No screen share tracks found for ${userId}`)
+    }
+  }
+
+  // Unsubscribe from a user's screen share
+  const unsubscribeFromScreenShare = async (userId: string): Promise<void> => {
+    if (!room.value) {
+      debugWarn(`[LiveKit][WARN]: Cannot unsubscribe from screen share: room not connected`)
+      return
+    }
+
+    // Check if actually subscribed
+    if (!subscribedScreenShares.value.has(userId)) {
+      debugLog(`[LiveKit][INFO]: Not subscribed to screen share from ${userId}`)
+      return
+    }
+
+    const participant = remoteParticipants.value.get(userId)
+    if (!participant) {
+      debugWarn(`[LiveKit][WARN]: Participant ${userId} not found - cleaning up state anyway`)
+      // Clean up state even if participant not found
+      subscribedScreenShares.value.delete(userId)
+      screenShareVersion.value++
+      return
+    }
+
+    debugLog(`[LiveKit][INFO]: Unsubscribing from screen share from ${userId}`)
+
+    // Find screen share publications and unsubscribe
+    participant.trackPublications.forEach((publication) => {
+      const source = publication.source
+      if (source === Track.Source.ScreenShare || source === Track.Source.ScreenShareAudio) {
+        debugLog(`[LiveKit][INFO]: Unsubscribing from ${source} track from ${userId}`)
+        publication.setSubscribed(false)
+      }
+    })
+
+    // Mark as unsubscribed
+    // Note: The actual removal from subscribedScreenShares happens in handleTrackUnsubscribed
+    // when the server confirms the unsubscription
+  }
 
   // Computed camera data for display
   const cameraData = computed(() => {
@@ -1725,6 +1946,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     remoteAudioTracks.value.clear()
     remoteScreenTracks.value.clear()
     userScreenShareStates.value.clear()
+    subscribedScreenShares.value.clear()
 
     // Clear audio tracks store
     audioTracksStore.clearAll()
@@ -1762,6 +1984,9 @@ export function useLiveKit(options: UseLiveKitOptions) {
     screenShareQuality,
     userScreenShareStates,
     screenShareData,
+    availableScreenShares,
+    subscribeToScreenShare,
+    unsubscribeFromScreenShare,
 
     // Camera state
     isCameraEnabled,

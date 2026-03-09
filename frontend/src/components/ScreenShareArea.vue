@@ -22,7 +22,18 @@
             :show-focus-button="false"
             :is-self-view="focusedStream.isSelfView"
             :volume="getVolumeForUser(focusedStream.userId)"
-            @volume-change="handleVolumeChange(focusedStream.userId, $event, true)" />
+            @volume-change="handleVolumeChange(focusedStream.userId, $event, true)"
+            @unsubscribe="$emit('unsubscribe-screen-share', focusedStream.userId)" />
+          <!-- Available Screen Share Placeholder in main area -->
+          <ScreenSharePlaceholder
+            v-else-if="focusedPlaceholder"
+            :key="focusedPlaceholder.userId"
+            :user-id="focusedPlaceholder.userId"
+            :user-nickname="focusedPlaceholder.userNickname"
+            :quality="focusedPlaceholder.quality"
+            :is-focused="true"
+            :show-focus-button="false"
+            @subscribe="$emit('subscribe-screen-share', focusedPlaceholder.userId)" />
           <!-- Camera in main area -->
           <CameraStream
             v-else-if="focusedStream?.type === 'camera'"
@@ -87,7 +98,8 @@
             :volume="getVolumeForUser(item.userId)"
             class="h-full"
             @make-focused="setFocusedShare(item.userId)"
-            @volume-change="handleVolumeChange(item.userId, $event, true)" />
+            @volume-change="handleVolumeChange(item.userId, $event, true)"
+            @unsubscribe="$emit('unsubscribe-screen-share', item.userId)" />
           <!-- Camera -->
           <CameraStream
             v-else
@@ -101,6 +113,20 @@
             class="h-full"
             @dblclick="setFocusedShare(item.userId)" />
         </template>
+
+        <!-- Available screen shares (placeholders) -->
+        <ScreenSharePlaceholder
+          v-for="available in props.availableScreenShares"
+          :key="available.userId"
+          :user-id="available.userId"
+          :user-nickname="available.userNickname"
+          :quality="available.quality"
+          :show-focus-button="
+            sortedVideoStreams.length > 1 || props.availableScreenShares.length > 1
+          "
+          class="h-full"
+          @subscribe="$emit('subscribe-screen-share', available.userId)"
+          @make-focused="setFocusedShare(available.userId)" />
       </div>
     </div>
   </div>
@@ -109,6 +135,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from "vue"
 import ScreenStream from "./ScreenStream.vue"
+import ScreenSharePlaceholder from "./ScreenSharePlaceholder.vue"
 import CameraStream from "./CameraStream.vue"
 import ParticipantCard from "./ParticipantCard.vue"
 import type { ScreenShareQuality, User } from "@/types"
@@ -124,6 +151,8 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   "update:layout": [layout: "grid" | "focus"]
   "volume-change": [userId: string, volume: number, isScreenShare: boolean]
+  "subscribe-screen-share": [userId: string]
+  "unsubscribe-screen-share": [userId: string]
 }>()
 
 // Handle volume change from ScreenStream
@@ -181,6 +210,11 @@ type VideoStreamItem =
 
 interface Props {
   screenShares: ScreenShare[]
+  availableScreenShares: Array<{
+    userId: string
+    userNickname: string
+    quality: ScreenShareQuality
+  }>
   cameraStreams: CameraStreamData[]
   layout: "grid" | "focus"
   users: User[]
@@ -237,32 +271,44 @@ const toggleUserStreamView = (userId: string) => {
 
 // Set initial focus to first available stream (screen share preferred, then camera)
 watch(
-  [() => props.screenShares.length, () => props.cameraStreams.length],
-  ([newScreenLength, newCameraLength]) => {
+  [
+    () => props.screenShares.length,
+    () => props.cameraStreams.length,
+    () => props.availableScreenShares.length,
+  ],
+  ([newScreenLength, newCameraLength, newAvailableLength]) => {
     const hasScreens = newScreenLength > 0
     const hasCameras = newCameraLength > 0
+    const hasAvailable = newAvailableLength > 0
 
     if (!focusedUserId.value) {
-      // No focus set yet - pick first available
+      // No focus set yet - pick first available (subscribed screen share preferred, then available)
       if (hasScreens) {
         focusedUserId.value = props.screenShares[0].userId
       } else if (hasCameras) {
         focusedUserId.value = props.cameraStreams[0].userId
+      } else if (hasAvailable) {
+        focusedUserId.value = props.availableScreenShares[0].userId
       }
-    } else if (newScreenLength === 0 && newCameraLength === 0) {
+    } else if (newScreenLength === 0 && newCameraLength === 0 && !hasAvailable) {
       // All streams removed, clear focus
       focusedUserId.value = null
     } else if (focusedUserId.value) {
       // Check if focused stream still exists
       const screenExists = props.screenShares.find((s) => s.userId === focusedUserId.value)
       const cameraExists = props.cameraStreams.find((c) => c.userId === focusedUserId.value)
+      const availableExists = props.availableScreenShares.find(
+        (a) => a.userId === focusedUserId.value,
+      )
 
-      if (!screenExists && !cameraExists) {
+      if (!screenExists && !cameraExists && !availableExists) {
         // Focused stream stopped - pick next available
         if (hasScreens) {
           focusedUserId.value = props.screenShares[0]?.userId || null
         } else if (hasCameras) {
           focusedUserId.value = props.cameraStreams[0]?.userId || null
+        } else if (hasAvailable) {
+          focusedUserId.value = props.availableScreenShares[0]?.userId || null
         } else {
           focusedUserId.value = null
         }
@@ -315,6 +361,15 @@ const focusedStream = computed((): VideoStreamItem | null => {
     return { ...cam, type: "camera" as const, sortKey: `${cam.userId}-1` }
   }
 
+  return null
+})
+
+// Get the focused placeholder (available but not subscribed screen share)
+const focusedPlaceholder = computed(() => {
+  if (focusedStream.value) return null
+  if (props.availableScreenShares.length > 0) {
+    return props.availableScreenShares[0]
+  }
   return null
 })
 
