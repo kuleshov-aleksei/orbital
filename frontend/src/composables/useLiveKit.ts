@@ -671,6 +671,30 @@ export function useLiveKit(options: UseLiveKitOptions) {
       handleTrackUnsubscribed(track, participant)
     })
 
+    // Handle remote participant unpublishing a track (stopping screen share)
+    lkRoom.on(RoomEvent.TrackUnpublished, (publication, participant) => {
+      debugLog(
+        `[LiveKit][INFO]: Track unpublished: ${publication.source} from ${participant.identity}`,
+      )
+
+      // If screen share was unpublished, remove from screen share states
+      if (publication.source === Track.Source.ScreenShare) {
+        debugLog(
+          `[LiveKit][INFO]: Screen share unpublished from ${participant.identity}, removing from states`,
+        )
+        userScreenShareStates.value.delete(participant.identity)
+        remoteScreenTracks.value.delete(participant.identity)
+        subscribedScreenShares.value.delete(participant.identity)
+        screenShareVersion.value++
+      } else if (publication.source === Track.Source.ScreenShareAudio) {
+        // Clean up screen share audio
+        remoteAudioTracks.value.delete(`${participant.identity}-screenshare`)
+        audioTracksStore.removeTrack(`${participant.identity}-screenshare`)
+        subscribedScreenShares.value.delete(participant.identity)
+        screenShareVersion.value++
+      }
+    })
+
     lkRoom.on(RoomEvent.TrackMuted, (publication, participant) => {
       debugLog(`[LiveKit][INFO]: Track muted: ${publication.trackSid} from ${participant.identity}`)
     })
