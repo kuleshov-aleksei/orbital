@@ -1,6 +1,6 @@
 import { computed } from "vue"
 import { createLocalVideoTrack, VideoPresets } from "livekit-client"
-import type { LocalVideoTrack, LocalTrackPublication, RemoteVideoTrack } from "livekit-client"
+import type { LocalVideoTrack, RemoteVideoTrack } from "livekit-client"
 import { debugLog } from "@/utils/debug"
 import type { LiveKitState } from "./useLiveKitState"
 
@@ -28,7 +28,9 @@ export function useLiveKitCamera(state: LiveKitState) {
         } catch {
           if (publicationToUnpublish?.trackSid) {
             try {
-              await state.room.value.localParticipant.unpublishTrack(publicationToUnpublish.trackSid)
+              await state.room.value.localParticipant.unpublishTrack(
+                publicationToUnpublish.trackSid,
+              )
             } catch (sidError) {
               debugLog(
                 `[LiveKit][WARN]: Failed to unpublish camera: ${(sidError as Error).message}`,
@@ -71,7 +73,7 @@ export function useLiveKitCamera(state: LiveKitState) {
       throw new Error("Not connected to room")
     }
 
-    if (state.isStartingCamera) {
+    if (state.isStartingCamera.value) {
       return
     }
 
@@ -79,7 +81,7 @@ export function useLiveKitCamera(state: LiveKitState) {
       return
     }
 
-    state.isStartingCamera = true
+    state.isStartingCamera.value = true
 
     try {
       const videoTrack = await createLocalVideoTrack({
@@ -113,7 +115,7 @@ export function useLiveKitCamera(state: LiveKitState) {
       console.error(`[LiveKit][ERROR]: Camera failed: ${(error as Error).message}`)
       throw error
     } finally {
-      state.isStartingCamera = false
+      state.isStartingCamera.value = false
     }
   }
 

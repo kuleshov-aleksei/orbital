@@ -3,7 +3,6 @@ import { Track, ScreenSharePresets, AudioPresets } from "livekit-client"
 import type {
   LocalVideoTrack,
   LocalAudioTrack,
-  LocalTrackPublication,
   RemoteVideoTrack,
   RemoteAudioTrack,
 } from "livekit-client"
@@ -82,12 +81,12 @@ export function useLiveKitScreenShare(state: LiveKitState) {
       throw new Error("Not connected to room")
     }
 
-    if (state.isStartingScreenShare) {
+    if (state.isStartingScreenShare.value) {
       debugLog(`[LiveKit][INFO]: Screen share already starting, ignoring duplicate request`)
       return
     }
 
-    state.isStartingScreenShare = true
+    state.isStartingScreenShare.value = true
 
     try {
       debugLog(`[LiveKit][INFO]: Starting Electron screen share: ${quality}, source: ${sourceId}`)
@@ -147,16 +146,19 @@ export function useLiveKitScreenShare(state: LiveKitState) {
         `[LiveKit][INFO]: Electron screen share track settings: ${JSON.stringify(trackSettings)}, frameRate: ${trackSettings.frameRate}`,
       )
 
-      const publication = await state.room.value.localParticipant.publishTrack(videoTrackFromStream, {
-        name: "screen-share",
-        source: Track.Source.ScreenShare,
-        videoCodec: "av1",
-        simulcast: false,
-        screenShareEncoding: {
-          maxBitrate: quality === "text" ? 3 * 1000 * 1000 : 20 * 1000 * 1000,
-          maxFramerate: maxFrameRate,
+      const publication = await state.room.value.localParticipant.publishTrack(
+        videoTrackFromStream,
+        {
+          name: "screen-share",
+          source: Track.Source.ScreenShare,
+          videoCodec: "av1",
+          simulcast: false,
+          screenShareEncoding: {
+            maxBitrate: quality === "text" ? 3 * 1000 * 1000 : 20 * 1000 * 1000,
+            maxFramerate: maxFrameRate,
+          },
         },
-      })
+      )
 
       state.localScreenVideoPublication.value = publication
 
@@ -216,7 +218,7 @@ export function useLiveKitScreenShare(state: LiveKitState) {
       console.error(`[LiveKit][ERROR]: Electron screen share failed: ${(error as Error).message}`)
       throw error
     } finally {
-      state.isStartingScreenShare = false
+      state.isStartingScreenShare.value = false
     }
   }
 
@@ -225,12 +227,12 @@ export function useLiveKitScreenShare(state: LiveKitState) {
       throw new Error("Not connected to room")
     }
 
-    if (state.isStartingScreenShare) {
+    if (state.isStartingScreenShare.value) {
       debugLog(`[LiveKit][INFO]: Screen share already starting, ignoring duplicate request`)
       return
     }
 
-    state.isStartingScreenShare = true
+    state.isStartingScreenShare.value = true
 
     try {
       debugLog(`[LiveKit][INFO]: Starting screen share: ${quality}`)
@@ -267,17 +269,20 @@ export function useLiveKitScreenShare(state: LiveKitState) {
           `[LiveKit][INFO]: Screen share track settings: ${JSON.stringify(trackSettings)}, frameRate: ${trackSettings.frameRate}`,
         )
 
-        const publication = await state.room.value.localParticipant.publishTrack(videoTrackFromStream, {
-          name: "screen-share",
-          source: Track.Source.ScreenShare,
-          videoCodec: "av1",
-          simulcast: false,
-          screenShareEncoding: {
-            maxBitrate: 20 * 1000 * 1000,
-            maxFramerate: 60,
+        const publication = await state.room.value.localParticipant.publishTrack(
+          videoTrackFromStream,
+          {
+            name: "screen-share",
+            source: Track.Source.ScreenShare,
+            videoCodec: "av1",
+            simulcast: false,
+            screenShareEncoding: {
+              maxBitrate: 20 * 1000 * 1000,
+              maxFramerate: 60,
+            },
+            degradationPreference: "balanced",
           },
-          degradationPreference: "balanced",
-        })
+        )
 
         state.localScreenVideoPublication.value = publication
 
@@ -398,7 +403,7 @@ export function useLiveKitScreenShare(state: LiveKitState) {
       console.error(`[LiveKit][ERROR]: Screen share failed: ${(error as Error).message}`)
       throw error
     } finally {
-      state.isStartingScreenShare = false
+      state.isStartingScreenShare.value = false
     }
   }
 
@@ -437,7 +442,9 @@ export function useLiveKitScreenShare(state: LiveKitState) {
 
         if (source === Track.Source.ScreenShareAudio && publication.track) {
           const trackKey = `${userId}-screenshare`
-          debugLog(`[LiveKit][INFO]: Manually adding existing screen share audio to store for ${userId}`)
+          debugLog(
+            `[LiveKit][INFO]: Manually adding existing screen share audio to store for ${userId}`,
+          )
           state.remoteAudioTracks.value.set(trackKey, publication.track as RemoteAudioTrack)
           audioTracksStore.setTrack(trackKey, publication.track as RemoteAudioTrack)
           const volume = state.remoteStreamVolumes.get(userId) ?? 80

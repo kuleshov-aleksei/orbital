@@ -46,9 +46,9 @@ export interface LiveKitState {
   cameraVersion: ReturnType<typeof ref<number>>
   localCameraPublication: ReturnType<typeof ref<LocalTrackPublication | null>>
   isStoppingCamera: ReturnType<typeof ref<boolean>>
-  isStartingCamera: boolean
+  isStartingCamera: ReturnType<typeof ref<boolean>>
   isStoppingScreenShare: ReturnType<typeof ref<boolean>>
-  isStartingScreenShare: boolean
+  isStartingScreenShare: ReturnType<typeof ref<boolean>>
   localStreamPromise: ReturnType<typeof ref<Promise<LocalAudioTrack | null> | null>>
   currentPing: ReturnType<typeof ref<number>>
   participantStats: ReturnType<typeof ref<Map<string, ConnectionStats>>>
