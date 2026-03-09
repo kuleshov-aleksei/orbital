@@ -531,6 +531,9 @@ export function useLiveKit(options: UseLiveKitOptions) {
       // Subscribe to existing remote tracks (with autoSubscribe: false)
       // We auto-subscribe to microphone and camera, but not screen share
       lkRoom.remoteParticipants.forEach((participant) => {
+        // Add existing participants to remoteParticipants map
+        remoteParticipants.value.set(participant.identity, participant)
+
         participant.trackPublications.forEach((publication) => {
           const source = publication.source
 
@@ -542,13 +545,8 @@ export function useLiveKit(options: UseLiveKitOptions) {
             publication.setSubscribed(true)
           } else if (source === Track.Source.ScreenShare || source === Track.Source.ScreenShareAudio) {
             // For screen share tracks, do NOT auto-subscribe - show placeholder instead
-            // Explicitly unsubscribe to prevent LiveKit from auto-subscribing
-            if (source === Track.Source.ScreenShareAudio) {
-              debugLog(
-                `[LiveKit][INFO]: Not auto-subscribing to ScreenShareAudio from ${participant.identity}`,
-              )
-              publication.setSubscribed(false)
-            } else if (source === Track.Source.ScreenShare) {
+            // Only set state for video track to show placeholder UI
+            if (source === Track.Source.ScreenShare) {
               // For existing screen share, track presence for placeholder UI
               debugLog(
                 `[LiveKit][INFO]: Screen share available from existing participant ${participant.identity}`,
@@ -559,6 +557,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
               })
               screenShareVersion.value++
             }
+            // ScreenShareAudio will be handled in handleRemoteTrack - only add to store if subscribed
           }
         })
       })
@@ -604,13 +603,8 @@ export function useLiveKit(options: UseLiveKitOptions) {
           publication.setSubscribed(true)
         } else if (source === Track.Source.ScreenShare || source === Track.Source.ScreenShareAudio) {
           // For screen share tracks, do NOT auto-subscribe - show placeholder instead
-          // Explicitly unsubscribe to prevent LiveKit from auto-subscribing
-          if (source === Track.Source.ScreenShareAudio) {
-            debugLog(
-              `[LiveKit][INFO]: Not auto-subscribing to ScreenShareAudio from ${participant.identity}`,
-            )
-            publication.setSubscribed(false)
-          } else if (source === Track.Source.ScreenShare) {
+          // Only set state for video track to show placeholder UI
+          if (source === Track.Source.ScreenShare) {
             // Track presence in userScreenShareStates for UI to show placeholder
             debugLog(
               `[LiveKit][INFO]: Screen share available from ${participant.identity}, not auto-subscribing`,
@@ -621,6 +615,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
             })
             screenShareVersion.value++
           }
+          // ScreenShareAudio will be handled in handleRemoteTrack - only add to store if subscribed
         }
       })
     })
@@ -636,13 +631,8 @@ export function useLiveKit(options: UseLiveKitOptions) {
         publication.setSubscribed(true)
       } else if (source === Track.Source.ScreenShare || source === Track.Source.ScreenShareAudio) {
         // For screen share tracks, do NOT auto-subscribe - show placeholder instead
-        // Explicitly unsubscribe to prevent LiveKit from auto-subscribing
-        if (source === Track.Source.ScreenShareAudio) {
-          debugLog(
-            `[LiveKit][INFO]: Not auto-subscribing to ScreenShareAudio from ${participant.identity}`,
-          )
-          publication.setSubscribed(false)
-        } else if (source === Track.Source.ScreenShare) {
+        // Only set state for video track to show placeholder UI
+        if (source === Track.Source.ScreenShare) {
           // Track presence in userScreenShareStates for UI to show placeholder
           debugLog(`[LiveKit][INFO]: Screen share available from ${participant.identity}, not auto-subscribing`)
           userScreenShareStates.value.set(participant.identity, {
@@ -651,6 +641,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
           })
           screenShareVersion.value++
         }
+        // ScreenShareAudio will be handled in handleRemoteTrack - only add to store if subscribed
       }
     })
 
@@ -824,6 +815,17 @@ export function useLiveKit(options: UseLiveKitOptions) {
           : participantId
 
       debugLog(`[LiveKit] Audio track source: ${audioSource}, using key: ${trackKey}`)
+
+      // For screen share audio, only add to store if user has subscribed to that screen share
+      if (audioSource === Track.Source.ScreenShareAudio) {
+        if (!subscribedScreenShares.value.has(participantId)) {
+          debugLog(
+            `[LiveKit] Not adding unsubscribed screen share audio for ${participantId} to audio store`,
+          )
+          return // Don't add to store - user hasn't subscribed to this screen share
+        }
+        debugLog(`[LiveKit] User subscribed to screen share audio for ${participantId}, adding to store`)
+      }
 
       // Store with composite key to avoid overwriting mic audio with screen share audio
       remoteAudioTracks.value.set(trackKey, audioTrack)
@@ -1775,6 +1777,17 @@ export function useLiveKit(options: UseLiveKitOptions) {
         debugLog(`[LiveKit][INFO]: Subscribing to ${source} track from ${userId}`)
         publication.setSubscribed(true)
         subscribed = true
+
+        // If this is screen share audio and track already exists, manually add to store
+        // (handleRemoteTrack may have skipped it if we weren't subscribed yet)
+        if (source === Track.Source.ScreenShareAudio && publication.track) {
+          const trackKey = `${userId}-screenshare`
+          debugLog(`[LiveKit][INFO]: Manually adding existing screen share audio to store for ${userId}`)
+          remoteAudioTracks.value.set(trackKey, publication.track as RemoteAudioTrack)
+          audioTracksStore.setTrack(trackKey, publication.track as RemoteAudioTrack)
+          const volume = options.remoteStreamVolumes.get(userId) ?? 80
+          ;(publication.track as RemoteAudioTrack).setVolume(volume / 100)
+        }
       }
     })
 
