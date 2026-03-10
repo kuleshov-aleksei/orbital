@@ -35,7 +35,16 @@ export function useLiveKitEvents(state: LiveKitState) {
           )
           return
         }
-        debugLog(`[LiveKit] User subscribed to screen share audio for ${participantId}, adding to store`)
+        debugLog(
+          `[LiveKit] User subscribed to screen share audio for ${participantId}, adding to store`,
+        )
+
+        const currentTracks = state.remoteScreenTracks.value.get(participantId) || {}
+        state.remoteScreenTracks.value.set(participantId, {
+          ...currentTracks,
+          audio: audioTrack,
+        })
+        debugLog(`[LiveKit] Screen share audio added to remoteScreenTracks for ${participantId}`)
       }
 
       state.remoteAudioTracks.value.set(trackKey, audioTrack)
@@ -100,6 +109,16 @@ export function useLiveKitEvents(state: LiveKitState) {
       if (audioSource === Track.Source.ScreenShareAudio) {
         state.subscribedScreenShares.value.delete(participantId)
         state.screenShareVersion.value++
+
+        const currentTracks = state.remoteScreenTracks.value.get(participantId)
+        if (currentTracks) {
+          const { audio: _, ...rest } = currentTracks
+          if (Object.keys(rest).length > 0) {
+            state.remoteScreenTracks.value.set(participantId, rest)
+          } else {
+            state.remoteScreenTracks.value.delete(participantId)
+          }
+        }
       }
 
       debugLog(
@@ -139,7 +158,10 @@ export function useLiveKitEvents(state: LiveKitState) {
             `[LiveKit][INFO]: Auto-subscribing to ${source} track from ${participant.identity}`,
           )
           publication.setSubscribed(true)
-        } else if (source === Track.Source.ScreenShare || source === Track.Source.ScreenShareAudio) {
+        } else if (
+          source === Track.Source.ScreenShare ||
+          source === Track.Source.ScreenShareAudio
+        ) {
           if (source === Track.Source.ScreenShare) {
             debugLog(
               `[LiveKit][INFO]: Screen share available from ${participant.identity}, not auto-subscribing`,
@@ -155,15 +177,21 @@ export function useLiveKitEvents(state: LiveKitState) {
     })
 
     lkRoom.on(RoomEvent.TrackPublished, (publication, participant) => {
-      debugLog(`[LiveKit][INFO]: Track published: ${publication.source} from ${participant.identity}`)
+      debugLog(
+        `[LiveKit][INFO]: Track published: ${publication.source} from ${participant.identity}`,
+      )
       const source = publication.source
 
       if (source === Track.Source.Microphone || source === Track.Source.Camera) {
-        debugLog(`[LiveKit][INFO]: Auto-subscribing to ${source} track from ${participant.identity}`)
+        debugLog(
+          `[LiveKit][INFO]: Auto-subscribing to ${source} track from ${participant.identity}`,
+        )
         publication.setSubscribed(true)
       } else if (source === Track.Source.ScreenShare || source === Track.Source.ScreenShareAudio) {
         if (source === Track.Source.ScreenShare) {
-          debugLog(`[LiveKit][INFO]: Screen share available from ${participant.identity}, not auto-subscribing`)
+          debugLog(
+            `[LiveKit][INFO]: Screen share available from ${participant.identity}, not auto-subscribing`,
+          )
           state.userScreenShareStates.value.set(participant.identity, {
             isSharing: true,
             quality: "adaptive",

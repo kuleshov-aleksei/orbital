@@ -4,7 +4,10 @@ import type { LiveKitState } from "./useLiveKitState"
 const PING_INTERVAL = 3000
 const STATS_INTERVAL = 2000
 
-export function useLiveKitStats(state: LiveKitState, onPingUpdate: (ping: number, quality: "excellent" | "good" | "fair" | "poor") => void) {
+export function useLiveKitStats(
+  state: LiveKitState,
+  onPingUpdate: (ping: number, quality: "excellent" | "good" | "fair" | "poor") => void,
+) {
   let pingInterval: ReturnType<typeof setInterval> | null = null
   let statsInterval: ReturnType<typeof setInterval> | null = null
 
@@ -140,6 +143,56 @@ export function useLiveKitStats(state: LiveKitState, onPingUpdate: (ping: number
       }
     }
 
+    // Local camera video stats (outbound)
+    if (state.localCameraPublication.value?.track) {
+      try {
+        const trackStats = await state.localCameraPublication.value.track.getRTCStatsReport()
+        if (trackStats) {
+          const senderStats = Array.from(trackStats.values()).find(
+            (s: { type: string }) => s.type === "outbound-rtp",
+          ) as RTCOutboundRtpStreamStats
+
+          if (senderStats && senderStats.kind === "video") {
+            const bitrate = calculateBitrate(
+              currentUserId,
+              "local-video",
+              senderStats.bytesSent || 0,
+              currentTime,
+            )
+
+            const existing = stats.get(currentUserId) || {
+              ping: state.currentPing.value || 0,
+            }
+            const trackStatsData: TrackStats = {
+              jitter: 0,
+              packetLoss: 0,
+              bitrate,
+              bytesReceived: senderStats.bytesSent || 0,
+              timestamp: currentTime,
+            }
+
+            if (senderStats.frameWidth && senderStats.frameHeight) {
+              trackStatsData.frameWidth = senderStats.frameWidth
+              trackStatsData.frameHeight = senderStats.frameHeight
+              trackStatsData.resolution = `${senderStats.frameWidth}x${senderStats.frameHeight}`
+            }
+
+            if (senderStats.framesPerSecond) {
+              trackStatsData.fps = senderStats.framesPerSecond
+            }
+
+            stats.set(currentUserId, {
+              ...existing,
+              localVideo: trackStatsData,
+              timestamp: new Date(),
+            })
+          }
+        }
+      } catch (error) {
+        console.warn("Error getting local camera stats:", error)
+      }
+    }
+
     for (const [userId, track] of state.remoteAudioTracks.value) {
       try {
         const trackStats = await track.getRTCStatsReport()
@@ -188,7 +241,65 @@ export function useLiveKitStats(state: LiveKitState, onPingUpdate: (ping: number
       }
     }
 
+    // Remote camera video stats
+    for (const [userId, track] of state.remoteCameraTracks.value) {
+      try {
+        const trackStats = await track.getRTCStatsReport()
+        if (trackStats) {
+          const receiverStats = Array.from(trackStats.values()).filter(
+            (s: { type: string }) => s.type === "inbound-rtp",
+          ) as RTCInboundRtpStreamStats[]
+
+          for (const stat of receiverStats) {
+            if (stat.kind === "video") {
+              const bitrate = calculateBitrate(
+                userId,
+                `camera-${stat.ssrc || track.sid}`,
+                stat.bytesReceived || 0,
+                currentTime,
+              )
+
+              const existing = stats.get(userId) || { ping: 0 }
+              const trackStatsData: TrackStats = {
+                jitter: (stat.jitter || 0) * 1000,
+                packetLoss: stat.packetsLost
+                  ? (stat.packetsLost / (stat.packetsReceived || 1)) * 100
+                  : 0,
+                bitrate,
+                bytesReceived: stat.bytesReceived || 0,
+                timestamp: currentTime,
+              }
+
+              const videoStats = extractVideoStats(stat, trackStatsData)
+
+              if (stat.codecId) {
+                const codecStats = Array.from(trackStats.values()).find(
+                  (s: { type: string; id?: string }) => s.type === "codec" && s.id === stat.codecId,
+                ) as { mimeType?: string } | undefined
+
+                if (codecStats?.mimeType) {
+                  const codecMatch = codecStats.mimeType.match(/\/(\w+)$/)
+                  if (codecMatch) {
+                    videoStats.codec = codecMatch[1]
+                  }
+                }
+              }
+
+              stats.set(userId, {
+                ...existing,
+                video: videoStats,
+                timestamp: new Date(),
+              })
+            }
+          }
+        }
+      } catch (error) {
+        console.warn(`Error getting camera stats for ${userId}:`, error)
+      }
+    }
+
     for (const [userId, tracks] of state.remoteScreenTracks.value) {
+      // Screen share video stats
       if (tracks.video) {
         try {
           const trackStats = await tracks.video.getRTCStatsReport()
@@ -242,7 +353,63 @@ export function useLiveKitStats(state: LiveKitState, onPingUpdate: (ping: number
             }
           }
         } catch (error) {
-          console.warn(`Error getting screen share stats for ${userId}:`, error)
+          console.warn(`Error getting screen share video stats for ${userId}:`, error)
+        }
+      }
+
+      // Screen share audio stats
+      if (tracks.audio) {
+        try {
+          const trackStats = await tracks.audio.getRTCStatsReport()
+          if (trackStats) {
+            const receiverStats = Array.from(trackStats.values()).filter(
+              (s: { type: string }) => s.type === "inbound-rtp",
+            ) as RTCInboundRtpStreamStats[]
+
+            for (const stat of receiverStats) {
+              if (stat.kind === "audio") {
+                const bitrate = calculateBitrate(
+                  userId,
+                  `screenshare-audio-${stat.ssrc || tracks.audio!.sid}`,
+                  stat.bytesReceived || 0,
+                  currentTime,
+                )
+
+                const existing = stats.get(userId) || { ping: 0 }
+                const trackStatsData: TrackStats = {
+                  jitter: (stat.jitter || 0) * 1000,
+                  packetLoss: stat.packetsLost
+                    ? (stat.packetsLost / (stat.packetsReceived || 1)) * 100
+                    : 0,
+                  bitrate,
+                  bytesReceived: stat.bytesReceived || 0,
+                  timestamp: currentTime,
+                }
+
+                if (stat.codecId) {
+                  const codecStats = Array.from(trackStats.values()).find(
+                    (s: { type: string; id?: string }) =>
+                      s.type === "codec" && s.id === stat.codecId,
+                  ) as { mimeType?: string } | undefined
+
+                  if (codecStats?.mimeType) {
+                    const codecMatch = codecStats.mimeType.match(/\/(\w+)$/)
+                    if (codecMatch) {
+                      trackStatsData.codec = codecMatch[1]
+                    }
+                  }
+                }
+
+                stats.set(userId, {
+                  ...existing,
+                  screenShareAudio: trackStatsData,
+                  timestamp: new Date(),
+                })
+              }
+            }
+          }
+        } catch (error) {
+          console.warn(`Error getting screen share audio stats for ${userId}:`, error)
         }
       }
     }

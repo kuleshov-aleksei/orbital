@@ -75,15 +75,38 @@
             <!-- Video Stats -->
             <template v-if="stats.video">
               <div class="text-xs font-medium text-gray-400 mt-2 pt-1 border-t border-gray-700/50">
-                Video
+                Camera
               </div>
 
+              <!-- Resolution -->
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-500">Resolution:</span>
+
+                <span class="text-purple-400">{{ stats.video.resolution || "–" }}</span>
+              </div>
+
+              <!-- Frame Rate -->
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-500">Frame Rate:</span>
+
+                <span class="text-purple-400">{{ formatNumber(stats.video.fps || 0) }} fps</span>
+              </div>
+
+              <!-- Codec -->
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-500">Codec:</span>
+
+                <span class="text-purple-400">{{ stats.video.codec || "–" }}</span>
+              </div>
+
+              <!-- Jitter -->
               <div class="flex justify-between text-xs">
                 <span class="text-gray-500">Jitter:</span>
 
                 <span class="text-blue-400">{{ formatNumber(stats.video.jitter) }}ms</span>
               </div>
 
+              <!-- Packet Loss -->
               <div class="flex justify-between text-xs">
                 <span class="text-gray-500">Packet Loss:</span>
 
@@ -92,10 +115,61 @@
                 </span>
               </div>
 
+              <!-- Bitrate -->
               <div class="flex justify-between text-xs">
                 <span class="text-gray-500">Bitrate:</span>
 
                 <span class="text-purple-400">{{ formatBitrate(stats.video.bitrate) }}</span>
+              </div>
+
+              <!-- Quality Limitation (only show if present and not "none") -->
+              <div
+                v-if="
+                  stats.video.qualityLimitationReason &&
+                  stats.video.qualityLimitationReason !== 'none'
+                "
+                class="flex justify-between text-xs">
+                <span class="text-gray-500">Quality:</span>
+
+                <span class="text-yellow-400">{{ stats.video.qualityLimitationReason }}</span>
+              </div>
+            </template>
+
+            <!-- Local Video Stats (current user's own camera) -->
+            <template v-if="stats.localVideo">
+              <div
+                class="text-xs font-medium text-amber-400 mt-2 pt-1 border-t border-amber-700/50">
+                My Camera
+              </div>
+
+              <!-- Resolution -->
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-500">Resolution:</span>
+
+                <span class="text-amber-400">{{ stats.localVideo.resolution || "–" }}</span>
+              </div>
+
+              <!-- Frame Rate -->
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-500">Frame Rate:</span>
+
+                <span class="text-amber-400"
+                  >{{ formatNumber(stats.localVideo.fps || 0) }} fps</span
+                >
+              </div>
+
+              <!-- Codec -->
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-500">Codec:</span>
+
+                <span class="text-amber-400">{{ stats.localVideo.codec || "–" }}</span>
+              </div>
+
+              <!-- Bitrate -->
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-500">Bitrate:</span>
+
+                <span class="text-amber-400">{{ formatBitrate(stats.localVideo.bitrate) }}</span>
               </div>
             </template>
 
@@ -199,6 +273,47 @@
                   }}
                   F:{{ stats.screenShare.firCount || 0 }}
                 </span>
+              </div>
+            </template>
+
+            <!-- Screen Share Audio Stats -->
+            <template v-if="stats.screenShareAudio">
+              <div class="text-xs font-medium text-cyan-300 mt-2 pt-1 border-t border-cyan-700/50">
+                Screen Share Audio
+              </div>
+
+              <!-- Codec -->
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-500">Codec:</span>
+
+                <span class="text-cyan-400">{{ stats.screenShareAudio.codec || "–" }}</span>
+              </div>
+
+              <!-- Jitter -->
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-500">Jitter:</span>
+
+                <span class="text-blue-400"
+                  >{{ formatNumber(stats.screenShareAudio.jitter) }}ms</span
+                >
+              </div>
+
+              <!-- Packet Loss -->
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-500">Packet Loss:</span>
+
+                <span :class="getPacketLossClass(stats.screenShareAudio.packetLoss)">
+                  {{ formatNumber(stats.screenShareAudio.packetLoss) }}%
+                </span>
+              </div>
+
+              <!-- Bitrate -->
+              <div class="flex justify-between text-xs">
+                <span class="text-gray-500">Bitrate:</span>
+
+                <span class="text-cyan-400">{{
+                  formatBitrate(stats.screenShareAudio.bitrate)
+                }}</span>
               </div>
             </template>
           </div>
@@ -495,7 +610,20 @@ const hasStats = computed(() => {
   const hasScreenShare =
     s.screenShare &&
     (s.screenShare.jitter > 0 || s.screenShare.packetLoss > 0 || s.screenShare.bitrate > 0)
-  return s.ping > 0 || hasAudio || hasVideo || hasScreenShare
+  const hasScreenShareAudio =
+    s.screenShareAudio &&
+    (s.screenShareAudio.jitter > 0 ||
+      s.screenShareAudio.packetLoss > 0 ||
+      s.screenShareAudio.bitrate > 0)
+  const hasLocalVideo =
+    s.localVideo &&
+    (s.localVideo.jitter > 0 ||
+      s.localVideo.packetLoss > 0 ||
+      s.localVideo.bitrate > 0 ||
+      s.localVideo.resolution)
+  return (
+    s.ping > 0 || hasAudio || hasVideo || hasScreenShare || hasScreenShareAudio || hasLocalVideo
+  )
 })
 
 // Calculate tooltip position with viewport boundary detection

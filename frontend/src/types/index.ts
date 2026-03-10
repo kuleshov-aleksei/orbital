@@ -252,7 +252,9 @@ export interface ConnectionStats {
   ping: number
   audio?: TrackStats
   video?: TrackStats
-  screenShare?: TrackStats // Screen sharing specific stats
+  screenShare?: TrackStats // Screen sharing video stats
+  screenShareAudio?: TrackStats // Screen sharing audio stats
+  localVideo?: TrackStats // Local camera video stats (outbound)
   timestamp?: Date
 }
 
