@@ -14,10 +14,11 @@
         class="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/70 to-transparent px-4 py-3 z-10">
         <div class="flex items-center justify-between">
           <div class="flex items-center">
-            <div
-              class="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-sm font-bold text-white mr-2">
-              {{ userNickname.charAt(0).toUpperCase() }}
-            </div>
+            <UserAvatar
+              class="mr-2"
+              :user-id="userId"
+              :size="24"
+              :show-status="false" />
 
             <div>
               <div class="text-white font-medium text-sm">
@@ -75,6 +76,7 @@
 <script setup lang="ts">
 import { ref } from "vue"
 import { PhMonitor, PhPlay, PhArrowsOut } from "@phosphor-icons/vue"
+import UserAvatar from "@/components/UserAvatar.vue"
 
 interface Props {
   userId: string
