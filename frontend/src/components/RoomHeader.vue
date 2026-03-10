@@ -1,6 +1,6 @@
 <template>
   <header
-    class="bg-theme-bg-secondary px-6 py-4 border-b border-theme-border overflow-hidden max-w-full">
+    class="bg-theme-bg-secondary px-6 py-4 border-b border-theme-border overflow-hidden h-16 max-w-full">
     <div class="flex items-center justify-between">
       <div class="flex items-center">
         <!-- Back to room list button (mobile only, doesn't leave room) -->

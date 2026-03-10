@@ -19,7 +19,7 @@
 
     <!-- Desktop Header -->
     <div
-      class="hidden lg:flex items-center justify-between p-3 border-b border-theme-border"
+      class="hidden lg:flex items-center h-16 justify-between p-3 border-b border-theme-border"
       :class="{ 'justify-center': isCollapsed }">
       <h2
         v-if="!isCollapsed"

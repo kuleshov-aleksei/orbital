@@ -9,7 +9,7 @@
       'translate-x-0': !isHidden && !isMobileView,
     }">
     <!-- Desktop Header (only when not in mobile view mode) -->
-    <div v-if="!isMobileView" class="hidden lg:flex p-4 border-b border-theme-border">
+    <div v-if="!isMobileView" class="hidden h-16 lg:flex p-4 border-b border-theme-border">
       <h2 class="text-sm font-semibold text-theme-text-secondary uppercase tracking-wider">
         Rooms
       </h2>
