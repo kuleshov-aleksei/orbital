@@ -1,14 +1,20 @@
 import { defineStore } from "pinia"
 import { ref } from "vue"
 
-export type Theme = "default" | "true-black" | "retrowave"
+export type Theme = "default" | "true-black" | "retrowave" | "catppuccin" | "solarized"
 
 const THEME_STORAGE_KEY = "orbital_theme"
 
 function getStoredTheme(): Theme {
   try {
     const stored = localStorage.getItem(THEME_STORAGE_KEY)
-    if (stored === "default" || stored === "true-black" || stored === "retrowave") {
+    if (
+      stored === "default" ||
+      stored === "true-black" ||
+      stored === "retrowave" ||
+      stored === "catppuccin" ||
+      stored === "solarized"
+    ) {
       return stored
     }
   } catch (e) {

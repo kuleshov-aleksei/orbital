@@ -40,7 +40,7 @@
               class="px-2 py-1 rounded-md text-xs transition-colors flex items-center"
               :class="[
                 screenShareLayout === 'grid'
-                  ? 'bg-theme-accent text-white'
+                  ? 'bg-theme-accent text-theme-text-on-accent'
                   : 'text-theme-text-muted hover:text-theme-text-primary',
               ]"
               @click="$emit('update:screenShareLayout', 'grid')">
@@ -53,7 +53,7 @@
               class="px-2 py-1 rounded-md text-xs transition-colors flex items-center"
               :class="[
                 screenShareLayout === 'focus'
-                  ? 'bg-theme-accent text-white'
+                  ? 'bg-theme-accent text-theme-text-on-accent'
                   : 'text-theme-text-muted hover:text-theme-text-primary',
               ]"
               @click="$emit('update:screenShareLayout', 'focus')">

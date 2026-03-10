@@ -11,7 +11,7 @@
   <!-- Mobile User Sidebar Overlay -->
   <div
     v-if="appStore.isMobile && appStore.mobileUserSidebarOpen"
-    class="fixed inset-0 bg-black bg-opacity-50 z-30"
+    class="fixed inset-0 bg-theme-backdrop z-30"
     @click="appStore.closeMobileUserSidebar()"></div>
 
   <!-- Mobile User Sidebar -->

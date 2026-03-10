@@ -155,9 +155,9 @@
         data-testid="create-room-sidebar"
         class="w-full flex items-center justify-center px-3 py-2 bg-theme-accent hover:bg-theme-accent-hover rounded-lg transition-colors duration-200"
         @click="$emit('create-room')">
-        <PhPlus class="w-4 h-4 mr-2" />
+        <PhPlus class="w-4 h-4 mr-2 text-theme-text-on-accent" />
 
-        <span class="text-sm font-medium">Create Room</span>
+        <span class="text-sm font-medium text-theme-text-on-accent">Create Room</span>
       </button>
     </div>
 

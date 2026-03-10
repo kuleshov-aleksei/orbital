@@ -71,7 +71,7 @@
               <button
                 type="button"
                 :disabled="isSaving || !editedNickname.trim()"
-                class="px-3 py-1 bg-theme-accent hover:bg-theme-accent/80 disabled:bg-theme-bg-tertiary disabled:cursor-not-allowed text-white text-xs rounded transition-colors"
+                class="px-3 py-1 bg-theme-accent hover:bg-theme-accent/80 disabled:bg-theme-bg-tertiary disabled:cursor-not-allowed text-theme-text-on-accent text-xs rounded transition-colors"
                 @click="saveNickname">
                 <span v-if="isSaving">Saving...</span>
 

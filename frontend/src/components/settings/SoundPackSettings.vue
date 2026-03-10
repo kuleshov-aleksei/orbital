@@ -123,7 +123,7 @@
 
         <button
           type="button"
-          class="w-full mt-4 px-4 py-2 bg-theme-accent hover:bg-theme-accent/80 text-white text-sm rounded-lg transition-colors"
+          class="w-full mt-4 px-4 py-2 bg-theme-accent hover:bg-theme-accent/80 text-theme-text-on-accent text-sm rounded-lg transition-colors"
           @click="showOverrideModal = false">
           Done
         </button>

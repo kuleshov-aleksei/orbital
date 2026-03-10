@@ -8,7 +8,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted } from "vue"
+import { onMounted, onUnmounted, watch } from "vue"
 import { useAppStore, useRoomStore, useThemeStore } from "@/stores"
 
 const appStore = useAppStore()
@@ -18,6 +18,14 @@ const themeStore = useThemeStore()
 const checkMobile = () => {
   appStore.checkMobile()
 }
+
+watch(
+  () => themeStore.currentTheme,
+  (newTheme) => {
+    document.body.dataset.theme = newTheme
+  },
+  { immediate: true },
+)
 
 onMounted(() => {
   checkMobile()

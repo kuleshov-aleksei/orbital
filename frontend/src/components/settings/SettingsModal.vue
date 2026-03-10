@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="isOpen"
-    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+    class="fixed inset-0 bg-theme-backdrop flex items-center justify-center z-50"
     @click.self="close">
     <div
       class="bg-theme-bg-secondary rounded-xl shadow-xl w-full max-w-2xl mx-4 overflow-hidden flex"
@@ -23,7 +23,7 @@
             class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
             :class="
               currentTab === 'audio'
-                ? 'bg-theme-accent text-white'
+                ? 'bg-theme-accent text-theme-text-on-accent'
                 : 'text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary'
             "
             @click="currentTab = 'audio'">
@@ -37,7 +37,7 @@
             class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
             :class="
               currentTab === 'appearance'
-                ? 'bg-theme-accent text-white'
+                ? 'bg-theme-accent text-theme-text-on-accent'
                 : 'text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary'
             "
             @click="currentTab = 'appearance'">
@@ -51,7 +51,7 @@
             class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
             :class="
               currentTab === 'sounds'
-                ? 'bg-theme-accent text-white'
+                ? 'bg-theme-accent text-theme-text-on-accent'
                 : 'text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary'
             "
             @click="currentTab = 'sounds'">
@@ -65,7 +65,7 @@
             class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
             :class="
               currentTab === 'account'
-                ? 'bg-theme-accent text-white'
+                ? 'bg-theme-accent text-theme-text-on-accent'
                 : 'text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary'
             "
             @click="currentTab = 'account'">
@@ -79,7 +79,7 @@
             class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
             :class="
               currentTab === 'debug'
-                ? 'bg-theme-accent text-white'
+                ? 'bg-theme-accent text-theme-text-on-accent'
                 : 'text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary'
             "
             @click="currentTab = 'debug'">
@@ -93,7 +93,7 @@
             class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
             :class="
               currentTab === 'about'
-                ? 'bg-theme-accent text-white'
+                ? 'bg-theme-accent text-theme-text-on-accent'
                 : 'text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary'
             "
             @click="currentTab = 'about'">

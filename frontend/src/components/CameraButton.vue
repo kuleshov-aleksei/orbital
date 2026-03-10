@@ -7,7 +7,7 @@
       :class="[
         sizeClasses,
         isCameraEnabled
-          ? 'bg-theme-accent hover:bg-theme-accent-hover text-white'
+          ? 'bg-theme-accent hover:bg-theme-accent-hover text-theme-text-on-accent'
           : isGuest
             ? 'bg-theme-bg-tertiary text-theme-text-muted cursor-not-allowed'
             : 'bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary',

@@ -47,7 +47,7 @@
 
         <button
           type="button"
-          class="px-3 py-1.5 text-sm bg-theme-accent hover:bg-theme-accent-hover disabled:bg-theme-bg-hover text-white rounded transition-colors whitespace-nowrap"
+          class="px-3 py-1.5 text-sm bg-theme-accent hover:bg-theme-accent-hover disabled:bg-theme-bg-hover text-theme-text-on-accent rounded transition-colors whitespace-nowrap"
           :disabled="sendingLogs"
           @click="sendLogs">
           <span v-if="sendingLogs">Sending...</span>

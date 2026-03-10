@@ -16,11 +16,13 @@ module.exports = {
             primary: "var(--color-text-primary)",
             secondary: "var(--color-text-secondary)",
             muted: "var(--color-text-muted)",
+            "on-accent": "var(--color-text-on-accent)",
           },
           accent: {
             DEFAULT: "var(--color-accent)",
             hover: "var(--color-accent-hover)",
           },
+          backdrop: "var(--color-backdrop)",
         },
       },
       fontFamily: {

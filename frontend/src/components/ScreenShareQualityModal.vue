@@ -2,7 +2,7 @@
   <Teleport to="body">
     <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center">
       <!-- Backdrop -->
-      <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="handleCancel" />
+      <div class="absolute inset-0 bg-theme-backdrop backdrop-blur-sm" @click="handleCancel" />
 
       <!-- Electron Modal: Combined Quality + Source Selection -->
       <div
@@ -89,7 +89,7 @@
                 class="w-9 h-5 rounded-full transition-colors duration-200"
                 :class="shareAudio ? 'bg-theme-accent' : 'bg-theme-bg-tertiary'" />
               <div
-                class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform duration-200"
+                class="absolute left-0.5 top-0.5 w-4 h-4 bg-theme-text-on-accent rounded-full transition-transform duration-200"
                 :class="shareAudio ? 'translate-x-4' : 'translate-x-0'" />
             </div>
             <span class="ml-2 text-sm text-theme-text-secondary">Share system audio</span>
@@ -108,12 +108,12 @@
 
           <button
             type="button"
-            class="px-3 py-1.5 rounded-lg bg-theme-accent text-sm text-white hover:bg-theme-accent/80 transition-colors duration-200 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+            class="px-3 py-1.5 rounded-lg bg-theme-accent text-sm text-theme-text-on-accent hover:bg-theme-accent/80 transition-colors duration-200 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
             :disabled="!selectedSourceId || isStarting"
             @click="handleStartShare">
             <div
               v-if="isStarting"
-              class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-1.5" />
+              class="animate-spin rounded-full h-4 w-4 border-b-2 border-theme-text-on-accent mr-1.5" />
             <PhMonitorPlay class="w-4 h-4 mr-1.5" />
             Start Sharing
           </button>
@@ -159,7 +159,7 @@
                 ]">
                 <div
                   v-if="selectedQuality === option.value"
-                  class="w-1.5 h-1.5 bg-white rounded-full" />
+                  class="w-1.5 h-1.5 bg-theme-text-on-accent rounded-full" />
               </div>
               <div class="min-w-0">
                 <div class="text-sm text-theme-text-primary font-medium leading-tight">
@@ -197,7 +197,7 @@
           </button>
           <button
             type="button"
-            class="px-3 py-1.5 rounded-lg bg-theme-accent text-sm text-white hover:bg-theme-accent/80 transition-colors duration-200 flex items-center"
+            class="px-3 py-1.5 rounded-lg bg-theme-accent text-sm text-theme-text-on-accent hover:bg-theme-accent/80 transition-colors duration-200 flex items-center"
             @click="handleBrowserStartShare">
             <PhMonitorPlay class="w-4 h-4 mr-1.5" />
             Start

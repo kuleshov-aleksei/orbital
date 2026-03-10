@@ -18,7 +18,7 @@
           @click="$emit('room-selected', room.id)">
           <div class="flex items-center justify-between mb-3">
             <div class="w-10 h-10 bg-theme-accent rounded-full flex items-center justify-center">
-              <PhFolderSimpleUser class="w-5 h-5 text-white" />
+              <PhFolderSimpleUser class="w-5 h-5 text-theme-text-on-accent" />
             </div>
 
             <div class="text-right">
