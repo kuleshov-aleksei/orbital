@@ -246,7 +246,11 @@ export function useLiveKitScreenShare(state: LiveKitState) {
 
       if (quality === "fullhd60") {
         const displayMediaOptions: DisplayMediaStreamOptions = {
-          audio: true,
+          audio: {
+            sampleRate: { ideal: 48000 },
+            echoCancellation: false,
+            noiseSuppression: false,
+          },
           video: {
             width: { ideal: 1920 },
             height: { ideal: 1080 },
@@ -329,7 +333,7 @@ export function useLiveKitScreenShare(state: LiveKitState) {
             {
               name: "screen-share-audio",
               source: Track.Source.ScreenShareAudio,
-              audioPreset: AudioPresets.musicStereo,
+              audioPreset: AudioPresets.musicHighQuality,
             },
           )
           state.localScreenAudioPublication.value = audioPublication
@@ -358,7 +362,11 @@ export function useLiveKitScreenShare(state: LiveKitState) {
         await state.room.value.localParticipant.setScreenShareEnabled(
           true,
           {
-            audio: true,
+            audio: {
+              sampleRate: { ideal: 48000 },
+              echoCancellation: false,
+              noiseSuppression: false,
+            },
             resolution: ScreenSharePresets.h1080fps30.resolution,
             contentHint: "motion",
             selfBrowserSurface: "exclude",
@@ -370,6 +378,7 @@ export function useLiveKitScreenShare(state: LiveKitState) {
               maxFramerate: 30,
             },
             degradationPreference: "balanced",
+            audioPreset: AudioPresets.musicHighQualityStereo,
           },
         )
 
@@ -383,7 +392,11 @@ export function useLiveKitScreenShare(state: LiveKitState) {
         debugLog(`[LiveKit][INFO]: 'Screen sharing started (adaptive mode)'`)
       } else if (quality === "text") {
         await state.room.value.localParticipant.setScreenShareEnabled(true, {
-          audio: true,
+          audio: {
+            sampleRate: { ideal: 48000 },
+            echoCancellation: false,
+            noiseSuppression: false,
+          },
           resolution: {
             width: 1920,
             height: 1080,
