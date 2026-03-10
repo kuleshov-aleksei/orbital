@@ -1,5 +1,5 @@
 <template>
-  <div class="screen-share-area bg-gray-800 rounded-lg overflow-hidden flex flex-col">
+  <div class="screen-share-area bg-theme-bg-secondary rounded-lg overflow-hidden flex flex-col">
     <!-- Screen Share Content -->
     <div class="p-2 flex-1 min-h-0 flex flex-col">
       <!-- Focus Layout: Main stream (70%) + user panel (30%) side by side -->

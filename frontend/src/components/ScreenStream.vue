@@ -140,7 +140,7 @@
       <!-- Paused State (for self-view when not hovered) -->
       <div
         v-if="isPausedComputed"
-        class="absolute inset-0 flex items-center justify-center bg-theme-bg-primary/90 z-10">
+        class="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
         <div class="text-center">
           <PhPause class="w-12 h-12 text-theme-text-muted mx-auto mb-3" />
 
