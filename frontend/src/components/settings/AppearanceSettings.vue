@@ -114,8 +114,8 @@ const themes = [
   {
     id: "retrowave" as Theme,
     name: "Retrowave",
-    description: "Dark purple with neon accents",
-    previewGradient: "linear-gradient(135deg, #0f0221 0%, #ff00ff 100%)",
+    description: "Sunset vibes with warm orange accents",
+    previewGradient: "linear-gradient(135deg, #0d0221 0%, #ff6b35 100%)",
     icon: SparkleIcon,
   },
 ]
