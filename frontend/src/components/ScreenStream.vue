@@ -20,11 +20,7 @@
         class="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/70 to-transparent px-4 py-3">
         <div class="flex items-center justify-between">
           <div class="flex items-center">
-            <UserAvatar
-              class="mr-2"
-              :user-id="userId"
-              :size="24"
-              :show-status="false" />
+            <UserAvatar class="mr-2" :user-id="userId" :size="24" :show-status="false" />
 
             <div>
               <div class="text-white font-medium text-sm">

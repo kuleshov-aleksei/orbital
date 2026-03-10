@@ -11,10 +11,7 @@ export interface UseLiveKitConnectionDependencies {
   publishAudioTrack: () => Promise<void>
 }
 
-export function useLiveKitConnection(
-  state: LiveKitState,
-  deps: UseLiveKitConnectionDependencies,
-) {
+export function useLiveKitConnection(state: LiveKitState, deps: UseLiveKitConnectionDependencies) {
   const connectToRoom = async (
     token: string,
     url: string,
@@ -71,7 +68,10 @@ export function useLiveKitConnection(
               `[LiveKit][INFO]: Subscribing to existing ${source} track from ${participant.identity}`,
             )
             publication.setSubscribed(true)
-          } else if (source === Track.Source.ScreenShare || source === Track.Source.ScreenShareAudio) {
+          } else if (
+            source === Track.Source.ScreenShare ||
+            source === Track.Source.ScreenShareAudio
+          ) {
             if (source === Track.Source.ScreenShare) {
               debugLog(
                 `[LiveKit][INFO]: Screen share available from existing participant ${participant.identity}`,

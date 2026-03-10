@@ -74,7 +74,9 @@ export function useLiveKitAudio(state: LiveKitState) {
 
     try {
       debugLog(`[LiveKit][INFO]: 'Publishing audio track...'`)
-      const publication = await state.room.value.localParticipant.publishTrack(state.localAudioTrack.value)
+      const publication = await state.room.value.localParticipant.publishTrack(
+        state.localAudioTrack.value,
+      )
       state.localAudioPublication.value = publication
       debugLog(`[LiveKit][INFO]: 'Audio track published successfully'}`)
     } catch (error) {
@@ -89,7 +91,9 @@ export function useLiveKitAudio(state: LiveKitState) {
     }
 
     try {
-      await state.room.value.localParticipant.unpublishTrack(state.localAudioPublication.value.trackSid)
+      await state.room.value.localParticipant.unpublishTrack(
+        state.localAudioPublication.value.trackSid,
+      )
       state.localAudioPublication.value = null
       debugLog(`[LiveKit][INFO]: 'Audio track unpublished'}`)
     } catch (error) {
