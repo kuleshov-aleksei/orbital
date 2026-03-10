@@ -456,6 +456,12 @@ export function useLiveKitScreenShare(state: LiveKitState) {
           audioTracksStore.setTrack(trackKey, publication.track as RemoteAudioTrack)
           const volume = state.remoteStreamVolumes.get(userId) ?? 80
           ;(publication.track as RemoteAudioTrack).setVolume(volume / 100)
+
+          const currentTracks = state.remoteScreenTracks.value.get(userId) || {}
+          state.remoteScreenTracks.value.set(userId, {
+            ...currentTracks,
+            audio: publication.track as RemoteAudioTrack,
+          })
         }
       }
     })
