@@ -2,9 +2,17 @@ import { computed } from "vue"
 import { createLocalVideoTrack, VideoPresets } from "livekit-client"
 import type { LocalVideoTrack, RemoteVideoTrack } from "livekit-client"
 import { debugLog } from "@/utils/debug"
+import { useUsersStore } from "@/stores/users"
 import type { LiveKitState } from "./useLiveKitState"
 
 export function useLiveKitCamera(state: LiveKitState) {
+  const usersStore = useUsersStore()
+
+  const getNickname = (userId: string): string => {
+    const user = usersStore.allUsers.find((u) => u.id === userId)
+    return user?.nickname || userId
+  }
+
   const stopCamera = async (): Promise<void> => {
     if (!state.room.value || state.isStoppingCamera.value) {
       return
@@ -141,7 +149,7 @@ export function useLiveKitCamera(state: LiveKitState) {
 
     if (state.isCameraEnabled.value && state.localCameraTrack.value) {
       cameras.push({
-        userId: currentUserId + "-self",
+        userId: currentUserId,
         userNickname: "Your Camera",
         videoTrack: state.localCameraTrack.value,
         connectionState: "self-view",
@@ -151,12 +159,11 @@ export function useLiveKitCamera(state: LiveKitState) {
 
     state.userCameraStates.value.forEach((isEnabled, userId) => {
       if (isEnabled && userId !== currentUserId) {
-        const participant = state.remoteParticipants.value.get(userId)
         const track = state.remoteCameraTracks.value.get(userId)
 
         cameras.push({
           userId,
-          userNickname: participant?.name || userId,
+          userNickname: getNickname(userId),
           videoTrack: track || null,
           connectionState: "connected",
         })

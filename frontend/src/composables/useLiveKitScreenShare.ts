@@ -7,6 +7,7 @@ import type {
   RemoteAudioTrack,
 } from "livekit-client"
 import { useAudioTracksStore } from "@/stores/audioTracks"
+import { useUsersStore } from "@/stores/users"
 import { debugLog, debugWarn } from "@/utils/debug"
 import { isElectron } from "@/services/electron"
 import type { ScreenShareQuality } from "@/types"
@@ -14,6 +15,12 @@ import type { LiveKitState } from "./useLiveKitState"
 
 export function useLiveKitScreenShare(state: LiveKitState) {
   const audioTracksStore = useAudioTracksStore()
+  const usersStore = useUsersStore()
+
+  const getNickname = (userId: string): string => {
+    const user = usersStore.allUsers.find((u) => u.id === userId)
+    return user?.nickname || userId
+  }
 
   const stopScreenShare = async (): Promise<void> => {
     if (!state.room.value || state.isStoppingScreenShare.value) {
@@ -506,7 +513,7 @@ export function useLiveKitScreenShare(state: LiveKitState) {
 
     if (state.isScreenSharing.value && state.localScreenVideoTrack.value) {
       shares.push({
-        userId: currentUserId + "-self",
+        userId: currentUserId,
         userNickname: "Your Screen",
         videoTrack: state.localScreenVideoTrack.value,
         audioTrack: state.localScreenAudioTrack.value,
@@ -521,12 +528,11 @@ export function useLiveKitScreenShare(state: LiveKitState) {
         const isSubscribed = state.subscribedScreenShares.value.has(userId)
         if (!isSubscribed) return
 
-        const participant = state.remoteParticipants.value.get(userId)
         const tracks = state.remoteScreenTracks.value.get(userId)
 
         shares.push({
           userId,
-          userNickname: participant?.name || userId,
+          userNickname: getNickname(userId),
           videoTrack: tracks?.video || null,
           audioTrack: tracks?.audio || null,
           quality: shareState.quality,
@@ -553,11 +559,9 @@ export function useLiveKitScreenShare(state: LiveKitState) {
         const isSubscribed = state.subscribedScreenShares.value.has(userId)
         if (isSubscribed) return
 
-        const participant = state.remoteParticipants.value.get(userId)
-
         shares.push({
           userId,
-          userNickname: participant?.name || userId,
+          userNickname: getNickname(userId),
           quality: shareState.quality,
         })
       }

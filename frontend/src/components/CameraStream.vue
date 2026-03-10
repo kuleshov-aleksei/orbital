@@ -19,10 +19,11 @@
         class="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/70 to-transparent px-3 py-2">
         <div class="flex items-center justify-between">
           <div class="flex items-center">
-            <div
-              class="w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center text-xs font-bold text-white mr-2">
-              {{ userNickname.charAt(0).toUpperCase() }}
-            </div>
+            <UserAvatar
+              class="mr-2"
+              :user-id="userId"
+              :size="24"
+              :show-status="false" />
 
             <div class="text-white font-medium text-sm truncate max-w-[150px]">
               {{ userNickname }}
@@ -79,6 +80,7 @@
 import { ref, watch, onMounted, onUnmounted, useTemplateRef } from "vue"
 import { PhArrowsOut, PhArrowsIn, PhPictureInPicture, PhSpinner } from "@phosphor-icons/vue"
 import type { RemoteVideoTrack, LocalVideoTrack } from "livekit-client"
+import UserAvatar from "@/components/UserAvatar.vue"
 
 interface Props {
   userId: string
