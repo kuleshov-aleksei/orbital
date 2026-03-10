@@ -7,15 +7,15 @@
       !isViewing &&
       ((isScreenSharing && screenShareStream) || (isCameraEnabled && cameraStream)) &&
       !forceAudioMode
-        ? 'aspect-video bg-gray-900'
+        ? 'aspect-video bg-theme-bg-primary'
         : 'aspect-square',
       isCurrentUser && (!isScreenSharing || forceAudioMode)
-        ? 'bg-indigo-900/30 border-indigo-500'
+        ? 'bg-theme-accent/30 border-theme-accent'
         : !isScreenSharing || forceAudioMode
-          ? 'bg-gray-800 border-gray-600'
+          ? 'bg-theme-bg-secondary border-theme-border'
           : '',
       isSpeaking && isCurrentUser && (!isScreenSharing || forceAudioMode)
-        ? 'border-indigo-400 shadow-[0_0_10px_rgba(99,102,241,0.5)] animate-pulse'
+        ? 'border-theme-accent shadow-[0_0_10px_var(--color-accent)] animate-pulse'
         : isSpeaking && (!isScreenSharing || forceAudioMode)
           ? 'border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]'
           : '',
@@ -31,34 +31,36 @@
         <div
           v-if="showStats && hasStats"
           ref="tooltipElement"
-          class="fixed z-[9999] bg-gray-900/95 backdrop-blur-sm border border-gray-700 rounded-lg p-3 w-52 shadow-xl pointer-events-none"
+          class="fixed z-[9999] bg-theme-bg-primary/95 backdrop-blur-sm border border-theme-border rounded-lg p-3 w-52 shadow-xl pointer-events-none"
           :style="tooltipStyle">
-          <div class="text-xs font-medium text-gray-300 mb-2 border-b border-gray-700 pb-1">
+          <div
+            class="text-xs font-medium text-theme-text-secondary mb-2 border-b border-theme-border pb-1">
             Connection Stats
           </div>
 
           <div class="space-y-2">
             <!-- Ping (always shown) -->
             <div class="flex justify-between text-xs">
-              <span class="text-gray-400">Ping:</span>
+              <span class="text-theme-text-muted">Ping:</span>
 
               <span class="text-green-400">{{ formatNumber(stats.ping) }}ms</span>
             </div>
 
             <!-- Audio Stats -->
             <template v-if="stats.audio">
-              <div class="text-xs font-medium text-gray-400 mt-2 pt-1 border-t border-gray-700/50">
+              <div
+                class="text-xs font-medium text-theme-text-muted mt-2 pt-1 border-t border-theme-border/50">
                 Audio
               </div>
 
               <div class="flex justify-between text-xs">
-                <span class="text-gray-500">Jitter:</span>
+                <span class="text-theme-text-muted">Jitter:</span>
 
                 <span class="text-blue-400">{{ formatNumber(stats.audio.jitter) }}ms</span>
               </div>
 
               <div class="flex justify-between text-xs">
-                <span class="text-gray-500">Packet Loss:</span>
+                <span class="text-theme-text-muted">Packet Loss:</span>
 
                 <span :class="getPacketLossClass(stats.audio.packetLoss)">
                   {{ formatNumber(stats.audio.packetLoss) }}%
@@ -66,7 +68,7 @@
               </div>
 
               <div class="flex justify-between text-xs">
-                <span class="text-gray-500">Bitrate:</span>
+                <span class="text-theme-text-muted">Bitrate:</span>
 
                 <span class="text-purple-400">{{ formatBitrate(stats.audio.bitrate) }}</span>
               </div>
@@ -74,27 +76,28 @@
 
             <!-- Video Stats -->
             <template v-if="stats.video">
-              <div class="text-xs font-medium text-gray-400 mt-2 pt-1 border-t border-gray-700/50">
+              <div
+                class="text-xs font-medium text-theme-text-muted mt-2 pt-1 border-t border-theme-border/50">
                 Camera
               </div>
 
               <!-- Resolution -->
               <div class="flex justify-between text-xs">
-                <span class="text-gray-500">Resolution:</span>
+                <span class="text-theme-text-muted">Resolution:</span>
 
                 <span class="text-purple-400">{{ stats.video.resolution || "–" }}</span>
               </div>
 
               <!-- Frame Rate -->
               <div class="flex justify-between text-xs">
-                <span class="text-gray-500">Frame Rate:</span>
+                <span class="text-theme-text-muted">Frame Rate:</span>
 
                 <span class="text-purple-400">{{ formatNumber(stats.video.fps || 0) }} fps</span>
               </div>
 
               <!-- Codec -->
               <div class="flex justify-between text-xs">
-                <span class="text-gray-500">Codec:</span>
+                <span class="text-theme-text-muted">Codec:</span>
 
                 <span class="text-purple-400">{{ stats.video.codec || "–" }}</span>
               </div>
@@ -337,7 +340,7 @@
         <video
           v-show="screenShareStream && (!cameraStream || !showCameraAsMain)"
           ref="screenVideoElement"
-          class="absolute inset-0 w-full h-full object-contain bg-gray-900 rounded-lg pointer-events-none"
+          class="absolute inset-0 w-full h-full object-contain bg-theme-bg-primary rounded-lg pointer-events-none"
           autoplay
           playsinline
           muted
@@ -348,7 +351,7 @@
         <video
           v-show="cameraStream && (!screenShareStream || showCameraAsMain)"
           ref="cameraVideoElement"
-          class="absolute inset-0 w-full h-full object-cover bg-gray-900 rounded-lg pointer-events-none"
+          class="absolute inset-0 w-full h-full object-cover bg-theme-bg-primary rounded-lg pointer-events-none"
           autoplay
           playsinline
           muted
@@ -389,7 +392,7 @@
               :show-status="false" />
 
             <span
-              class="text-white text-sm font-medium bg-gray-900/70 px-3 py-1 rounded-lg max-w-[140px] truncate">
+              class="text-theme-text-primary text-sm font-medium bg-theme-bg-primary/70 px-3 py-1 rounded-lg max-w-[140px] truncate">
               {{ userNickname.length > 12 ? userNickname.slice(0, 12) + "..." : userNickname }}
             </span>
             <!-- Mute/Deafen indicators -->
@@ -418,7 +421,7 @@
       <!-- Nickname at bottom center -->
       <div class="absolute bottom-2 left-0 right-0 flex justify-center items-center gap-1">
         <span
-          class="text-white font-medium text-sm bg-gray-900/70 px-3 py-1 rounded-lg max-w-[140px] truncate">
+          class="text-theme-text-primary font-medium text-sm bg-theme-bg-primary/70 px-3 py-1 rounded-lg max-w-[140px] truncate">
           {{ userNickname.length > 12 ? userNickname.slice(0, 12) + "..." : userNickname }}
         </span>
         <!-- Mute/Deafen indicators -->

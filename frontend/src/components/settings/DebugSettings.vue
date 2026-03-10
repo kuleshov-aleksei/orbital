@@ -1,20 +1,20 @@
 <template>
   <div class="space-y-4">
-    <h3 class="text-lg font-medium text-white flex items-center gap-2">
-      <PhBug class="w-5 h-5 text-indigo-400" />
+    <h3 class="text-lg font-medium text-theme-text-primary flex items-center gap-2">
+      <PhBug class="w-5 h-5 text-theme-accent" />
       Debug Settings
     </h3>
 
-    <p class="text-sm text-gray-400">
+    <p class="text-sm text-theme-text-muted">
       These settings are for troubleshooting and development purposes.
     </p>
 
     <!-- Debug Logs Toggle -->
-    <div class="flex items-center justify-between pt-2 border-t border-gray-700">
+    <div class="flex items-center justify-between pt-2 border-t border-theme-border">
       <div>
-        <label class="text-sm font-medium text-gray-200 block"> Enable Debug Logs </label>
+        <label class="text-sm font-medium text-theme-text-primary block"> Enable Debug Logs </label>
 
-        <p class="text-xs text-gray-400 mt-0.5">
+        <p class="text-xs text-theme-text-muted mt-0.5">
           Show verbose LiveKit and WebSocket logs in the browser console. Useful for troubleshooting
           connection issues.
         </p>
@@ -22,8 +22,8 @@
 
       <button
         type="button"
-        class="relative inline-flex h-6 w-12 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800"
-        :class="debugLogsEnabled ? 'bg-indigo-600' : 'bg-gray-600'"
+        class="relative inline-flex h-6 w-12 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-theme-accent focus:ring-offset-2 focus:ring-offset-theme-bg-primary"
+        :class="debugLogsEnabled ? 'bg-theme-accent' : 'bg-theme-bg-hover'"
         @click="toggleDebugLogs">
         <span
           class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
@@ -32,12 +32,14 @@
     </div>
 
     <!-- Send Logs to Server -->
-    <div class="pt-2 border-t border-gray-700">
+    <div class="pt-2 border-t border-theme-border">
       <div class="flex items-center justify-between gap-4">
         <div class="flex-1 min-w-0">
-          <label class="text-sm font-medium text-gray-200 block"> Send Logs to Server </label>
+          <label class="text-sm font-medium text-theme-text-primary block">
+            Send Logs to Server
+          </label>
 
-          <p class="text-xs text-gray-400 mt-0.5">
+          <p class="text-xs text-theme-text-muted mt-0.5">
             Upload your debug logs to help troubleshoot issues. Logs are stored securely and only
             accessible to administrators.
           </p>
@@ -45,7 +47,7 @@
 
         <button
           type="button"
-          class="px-3 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 text-white rounded transition-colors whitespace-nowrap"
+          class="px-3 py-1.5 text-sm bg-theme-accent hover:bg-theme-accent-hover disabled:bg-theme-bg-hover text-white rounded transition-colors whitespace-nowrap"
           :disabled="sendingLogs"
           @click="sendLogs">
           <span v-if="sendingLogs">Sending...</span>
@@ -62,8 +64,8 @@
     </div>
 
     <!-- Note about error logs -->
-    <div class="pt-2 border-t border-gray-700">
-      <p class="text-xs text-gray-500">
+    <div class="pt-2 border-t border-theme-border">
+      <p class="text-xs text-theme-text-muted">
         <span class="font-medium">Note:</span>
         Error messages will always be shown in the console regardless of this setting, as they are
         important for debugging issues.

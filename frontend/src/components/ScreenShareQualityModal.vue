@@ -7,19 +7,21 @@
       <!-- Electron Modal: Combined Quality + Source Selection -->
       <div
         v-if="isRunningInElectron"
-        class="relative bg-gray-800 rounded-xl shadow-2xl w-full mx-4 border border-gray-600 max-w-3xl max-h-[85svh] overflow-hidden flex flex-col">
+        class="relative bg-theme-bg-secondary rounded-xl shadow-2xl w-full mx-4 border border-theme-border max-w-3xl max-h-[85svh] overflow-hidden flex flex-col">
         <!-- Header -->
-        <div class="px-5 py-3 border-b border-gray-700 flex-shrink-0">
+        <div class="px-5 py-3 border-b border-theme-border flex-shrink-0">
           <div class="flex items-center">
-            <PhMonitorPlay class="w-5 h-5 text-indigo-400 mr-2" />
-            <h2 class="text-lg font-semibold text-white">Share Your Screen</h2>
+            <PhMonitorPlay class="w-5 h-5 text-theme-accent mr-2" />
+            <h2 class="text-lg font-semibold text-theme-text-primary">Share Your Screen</h2>
           </div>
-          <p class="text-xs text-gray-400 mt-0.5">Select quality and what to share</p>
+          <p class="text-xs text-theme-text-muted mt-0.5">Select quality and what to share</p>
         </div>
 
         <!-- Quality Selection -->
-        <div class="px-5 py-3 border-b border-gray-700 flex-shrink-0">
-          <label class="text-xs font-medium text-gray-300 uppercase tracking-wide">Quality</label>
+        <div class="px-5 py-3 border-b border-theme-border flex-shrink-0">
+          <label class="text-xs font-medium text-theme-text-secondary uppercase tracking-wide"
+            >Quality</label
+          >
           <div class="mt-2 flex gap-2">
             <button
               v-for="option in qualityOptions"
@@ -28,8 +30,8 @@
               class="flex-1 flex items-center justify-center px-3 py-2 rounded-lg border transition-all duration-200 text-sm"
               :class="[
                 selectedQuality === option.value
-                  ? 'border-indigo-500 bg-indigo-500/10 text-white'
-                  : 'border-gray-600 bg-gray-700/30 text-gray-300 hover:border-gray-500 hover:bg-gray-700/50',
+                  ? 'border-theme-accent bg-theme-accent/10 text-theme-text-primary'
+                  : 'border-theme-border bg-theme-bg-tertiary/30 text-theme-text-secondary hover:border-theme-text-muted hover:bg-theme-bg-tertiary/50',
               ]"
               @click="selectedQuality = option.value">
               {{ option.label }}
@@ -39,12 +41,13 @@
 
         <!-- Source List -->
         <div class="flex-1 overflow-y-auto p-4 min-h-0">
-          <label class="text-xs font-medium text-gray-300 uppercase tracking-wide block mb-3"
+          <label
+            class="text-xs font-medium text-theme-text-secondary uppercase tracking-wide block mb-3"
             >Select Source</label
           >
 
           <div v-if="isLoadingSources" class="flex items-center justify-center py-8">
-            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500" />
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-theme-accent" />
           </div>
 
           <div v-else-if="sourcesError" class="text-center py-8">
@@ -59,16 +62,18 @@
               class="flex flex-col items-center p-2 rounded-lg border cursor-pointer transition-all duration-200"
               :class="[
                 selectedSourceId === source.id
-                  ? 'border-indigo-500 bg-indigo-500/10'
-                  : 'border-gray-600 bg-gray-700/30 hover:border-gray-500 hover:bg-gray-700/50',
+                  ? 'border-theme-accent bg-theme-accent/10'
+                  : 'border-theme-border bg-theme-bg-tertiary/30 hover:border-theme-text-muted hover:bg-theme-bg-tertiary/50',
               ]"
               @click="selectSource(source.id)">
               <img
                 :src="source.thumbnail"
                 :alt="source.name"
-                class="w-full h-20 object-cover rounded border border-gray-600 mb-2" />
-              <span class="text-xs text-white text-center truncate w-full">{{ source.name }}</span>
-              <span class="text-[10px] text-gray-400">{{
+                class="w-full h-20 object-cover rounded border border-theme-border mb-2" />
+              <span class="text-xs text-theme-text-primary text-center truncate w-full">{{
+                source.name
+              }}</span>
+              <span class="text-[10px] text-theme-text-muted">{{
                 source.id.startsWith("screen:") ? "Screen" : "Window"
               }}</span>
             </div>
@@ -76,33 +81,34 @@
         </div>
 
         <!-- Audio Toggle -->
-        <div class="px-5 py-3 border-t border-gray-700 flex-shrink-0">
+        <div class="px-5 py-3 border-t border-theme-border flex-shrink-0">
           <label class="flex items-center cursor-pointer">
             <div class="relative">
               <input v-model="shareAudio" type="checkbox" class="sr-only" />
               <div
                 class="w-9 h-5 rounded-full transition-colors duration-200"
-                :class="shareAudio ? 'bg-indigo-500' : 'bg-gray-600'" />
+                :class="shareAudio ? 'bg-theme-accent' : 'bg-theme-bg-tertiary'" />
               <div
                 class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform duration-200"
                 :class="shareAudio ? 'translate-x-4' : 'translate-x-0'" />
             </div>
-            <span class="ml-2 text-sm text-gray-300">Share system audio</span>
+            <span class="ml-2 text-sm text-theme-text-secondary">Share system audio</span>
           </label>
         </div>
 
         <!-- Actions -->
-        <div class="px-5 py-3 border-t border-gray-700 flex justify-end space-x-2 flex-shrink-0">
+        <div
+          class="px-5 py-3 border-t border-theme-border flex justify-end space-x-2 flex-shrink-0">
           <button
             type="button"
-            class="px-3 py-1.5 rounded-lg bg-gray-700 text-sm text-gray-300 hover:bg-gray-600 transition-colors duration-200"
+            class="px-3 py-1.5 rounded-lg bg-theme-bg-tertiary text-sm text-theme-text-secondary hover:bg-theme-bg-primary transition-colors duration-200"
             @click="handleCancel">
             Cancel
           </button>
 
           <button
             type="button"
-            class="px-3 py-1.5 rounded-lg bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition-colors duration-200 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+            class="px-3 py-1.5 rounded-lg bg-theme-accent text-sm text-white hover:bg-theme-accent/80 transition-colors duration-200 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
             :disabled="!selectedSourceId || isStarting"
             @click="handleStartShare">
             <div
@@ -117,19 +123,19 @@
       <!-- Browser Modal: Original Quality Selection -->
       <div
         v-else
-        class="relative bg-gray-800 rounded-xl shadow-2xl max-w-md w-full mx-4 border border-gray-600 max-h-[90svh] overflow-y-auto">
+        class="relative bg-theme-bg-secondary rounded-xl shadow-2xl max-w-md w-full mx-4 border border-theme-border max-h-[90svh] overflow-y-auto">
         <!-- Header -->
-        <div class="px-5 py-3 border-b border-gray-700">
+        <div class="px-5 py-3 border-b border-theme-border">
           <div class="flex items-center">
-            <PhMonitorPlay class="w-5 h-5 text-indigo-400 mr-2" />
-            <h2 class="text-lg font-semibold text-white">Share Your Screen</h2>
+            <PhMonitorPlay class="w-5 h-5 text-theme-accent mr-2" />
+            <h2 class="text-lg font-semibold text-theme-text-primary">Share Your Screen</h2>
           </div>
-          <p class="text-xs text-gray-400 mt-0.5">Select streaming quality and audio</p>
+          <p class="text-xs text-theme-text-muted mt-0.5">Select streaming quality and audio</p>
         </div>
 
         <!-- Quality Selection -->
         <div class="px-5 py-3 space-y-2">
-          <label class="text-xs font-medium text-gray-300 uppercase tracking-wide"
+          <label class="text-xs font-medium text-theme-text-secondary uppercase tracking-wide"
             >Quality Settings</label
           >
           <div class="space-y-1">
@@ -140,52 +146,58 @@
               class="w-full flex items-center px-3 py-2 rounded-lg border transition-all duration-200 text-left"
               :class="[
                 selectedQuality === option.value
-                  ? 'border-indigo-500 bg-indigo-500/10'
-                  : 'border-gray-600 bg-gray-700/30 hover:border-gray-500 hover:bg-gray-700/50',
+                  ? 'border-theme-accent bg-theme-accent/10'
+                  : 'border-theme-border bg-theme-bg-tertiary/30 hover:border-theme-text-muted hover:bg-theme-bg-tertiary/50',
               ]"
               @click="selectedQuality = option.value">
               <div
                 class="w-3 h-3 rounded-full border mr-2 flex-shrink-0 flex items-center justify-center"
                 :class="[
                   selectedQuality === option.value
-                    ? 'border-indigo-500 bg-indigo-500'
-                    : 'border-gray-500',
+                    ? 'border-theme-accent bg-theme-accent'
+                    : 'border-theme-text-muted',
                 ]">
                 <div
                   v-if="selectedQuality === option.value"
                   class="w-1.5 h-1.5 bg-white rounded-full" />
               </div>
               <div class="min-w-0">
-                <div class="text-sm text-white font-medium leading-tight">{{ option.label }}</div>
-                <div class="text-[10px] text-gray-400 truncate">{{ option.description }}</div>
+                <div class="text-sm text-theme-text-primary font-medium leading-tight">
+                  {{ option.label }}
+                </div>
+                <div class="text-[10px] text-theme-text-muted truncate">
+                  {{ option.description }}
+                </div>
               </div>
             </button>
           </div>
         </div>
 
         <!-- Audio Info -->
-        <div class="px-5 py-2 border-t border-gray-700">
-          <p v-if="!isScreenShareAudioSupported" class="text-xs text-gray-500 flex items-start">
+        <div class="px-5 py-2 border-t border-theme-border">
+          <p
+            v-if="!isScreenShareAudioSupported"
+            class="text-xs text-theme-text-muted flex items-start">
             <PhInfo class="w-3.5 h-3.5 mr-1 flex-shrink-0 mt-0.5" />
             <span>System audio sharing is only available in Chrome and Edge browsers</span>
           </p>
-          <p v-else class="text-xs text-gray-400 flex items-start">
+          <p v-else class="text-xs text-theme-text-muted flex items-start">
             <PhSpeakerHigh class="w-3.5 h-3.5 mr-1 flex-shrink-0 mt-0.5" />
             <span>Audio will be requested in the browser's screen share dialog</span>
           </p>
         </div>
 
         <!-- Actions -->
-        <div class="px-5 py-3 border-t border-gray-700 flex justify-end space-x-2">
+        <div class="px-5 py-3 border-t border-theme-border flex justify-end space-x-2">
           <button
             type="button"
-            class="px-3 py-1.5 rounded-lg bg-gray-700 text-sm text-gray-300 hover:bg-gray-600 transition-colors duration-200"
+            class="px-3 py-1.5 rounded-lg bg-theme-bg-tertiary text-sm text-theme-text-secondary hover:bg-theme-bg-primary transition-colors duration-200"
             @click="handleCancel">
             Cancel
           </button>
           <button
             type="button"
-            class="px-3 py-1.5 rounded-lg bg-indigo-600 text-sm text-white hover:bg-indigo-700 transition-colors duration-200 flex items-center"
+            class="px-3 py-1.5 rounded-lg bg-theme-accent text-sm text-white hover:bg-theme-accent/80 transition-colors duration-200 flex items-center"
             @click="handleBrowserStartShare">
             <PhMonitorPlay class="w-4 h-4 mr-1.5" />
             Start

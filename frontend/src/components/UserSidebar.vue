@@ -1,17 +1,17 @@
 <template>
   <div
-    class="user-sidebar flex flex-col fixed lg:relative inset-y-0 right-0 z-40 lg:z-auto transition-all duration-300 bg-gray-800"
+    class="user-sidebar flex flex-col fixed lg:relative inset-y-0 right-0 z-40 lg:z-auto transition-all duration-300 bg-theme-bg-secondary"
     data-testid="user-sidebar"
     :class="sidebarClasses">
     <!-- Mobile Close Button -->
-    <div class="lg:hidden flex items-center justify-between p-4 border-b border-gray-700">
-      <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">
+    <div class="lg:hidden flex items-center justify-between p-4 border-b border-theme-border">
+      <h2 class="text-sm font-semibold text-theme-text-secondary uppercase tracking-wider">
         Users — {{ userCount }}
       </h2>
 
       <button
         type="button"
-        class="p-1 text-gray-400 hover:text-white"
+        class="p-1 text-theme-text-muted hover:text-theme-text-primary"
         @click="$emit('close-mobile-sidebar')">
         <PhCaretDoubleRight class="w-5 h-5" />
       </button>
@@ -19,16 +19,18 @@
 
     <!-- Desktop Header -->
     <div
-      class="hidden lg:flex items-center justify-between p-3 border-b border-gray-700"
+      class="hidden lg:flex items-center justify-between p-3 border-b border-theme-border"
       :class="{ 'justify-center': isCollapsed }">
-      <h2 v-if="!isCollapsed" class="text-sm font-semibold text-gray-300 uppercase tracking-wider">
+      <h2
+        v-if="!isCollapsed"
+        class="text-sm font-semibold text-theme-text-secondary uppercase tracking-wider">
         Users — {{ userCount }}
       </h2>
 
       <!-- Toggle Button - Integrated into header -->
       <button
         type="button"
-        class="flex items-center justify-center w-7 h-7 rounded-md bg-gray-700/50 hover:bg-gray-600 text-gray-400 hover:text-gray-200 transition-all duration-200"
+        class="flex items-center justify-center w-7 h-7 rounded-md bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-muted hover:text-theme-text-primary transition-all duration-200"
         :class="{ 'rotate-180': isCollapsed }"
         :title="isCollapsed ? 'Expand' : 'Collapse'"
         @click="toggleCollapse">
@@ -64,12 +66,12 @@
         <!-- Speaking indicator ring -->
         <div
           v-if="user.is_speaking"
-          class="absolute inset-0 rounded-full ring-2 ring-green-400 ring-offset-2 ring-offset-gray-800"></div>
+          class="absolute inset-0 rounded-full ring-2 ring-green-400 ring-offset-2 ring-offset-theme-bg-secondary"></div>
       </div>
       <!-- Show "+X" if there are more users -->
       <div
         v-if="remainingUsersCount > 0"
-        class="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center text-xs font-medium text-gray-400 hover:bg-gray-600 hover:text-gray-200 transition-colors cursor-pointer"
+        class="w-7 h-7 rounded-full bg-theme-bg-tertiary flex items-center justify-center text-xs font-medium text-theme-text-muted hover:bg-theme-bg-hover hover:text-theme-text-primary transition-colors cursor-pointer"
         :title="`${remainingUsersCount} more users`"
         @click="toggleCollapse">
         +{{ remainingUsersCount }}

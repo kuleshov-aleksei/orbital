@@ -1,7 +1,7 @@
 <template>
   <div
-    class="camera-stream relative bg-gray-900 rounded-lg overflow-hidden border border-gray-600 flex flex-col"
-    :class="{ 'border-indigo-500 ring-2 ring-indigo-500/50': isFocused }">
+    class="camera-stream relative bg-theme-bg-primary rounded-lg overflow-hidden border border-theme-border flex flex-col"
+    :class="{ 'border-theme-accent ring-2 ring-theme-accent/50': isFocused }">
     <!-- Video Container -->
     <div class="relative flex items-center justify-center bg-black w-full h-full">
       <video
@@ -21,7 +21,7 @@
           <div class="flex items-center">
             <UserAvatar class="mr-2" :user-id="userId" :size="24" :show-status="false" />
 
-            <div class="text-white font-medium text-sm truncate max-w-[150px]">
+            <div class="text-theme-text-primary font-medium text-sm truncate max-w-[150px]">
               {{ userNickname }}
             </div>
           </div>
@@ -29,7 +29,7 @@
           <!-- Self-view indicator -->
           <div
             v-if="isSelfView"
-            class="text-xs text-indigo-300 bg-indigo-900/50 px-2 py-0.5 rounded">
+            class="text-xs text-theme-accent bg-theme-accent/20 px-2 py-0.5 rounded">
             You
           </div>
         </div>
@@ -41,7 +41,7 @@
         <div class="flex items-center justify-end space-x-2">
           <button
             type="button"
-            class="p-1.5 bg-gray-700/80 hover:bg-gray-600 rounded-lg text-white transition-colors"
+            class="p-1.5 bg-theme-bg-tertiary/80 hover:bg-theme-bg-hover rounded-lg text-theme-text-primary transition-colors"
             :title="isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'"
             @click="toggleFullscreen">
             <PhArrowsOut v-if="!isFullscreen" class="w-3.5 h-3.5" />
@@ -52,7 +52,7 @@
           <button
             v-if="showPiPButton"
             type="button"
-            class="p-1.5 bg-gray-700/80 hover:bg-gray-600 rounded-lg text-white transition-colors"
+            class="p-1.5 bg-theme-bg-tertiary/80 hover:bg-theme-bg-hover rounded-lg text-theme-text-primary transition-colors"
             title="Picture in Picture"
             @click="togglePiP">
             <PhPictureInPicture class="w-3.5 h-3.5" />
@@ -61,11 +61,13 @@
       </div>
 
       <!-- Loading State -->
-      <div v-if="!videoTrack" class="absolute inset-0 flex items-center justify-center bg-gray-900">
+      <div
+        v-if="!videoTrack"
+        class="absolute inset-0 flex items-center justify-center bg-theme-bg-primary">
         <div class="text-center">
-          <PhSpinner class="w-6 h-6 text-indigo-400 animate-spin mx-auto mb-2" />
+          <PhSpinner class="w-6 h-6 text-theme-accent animate-spin mx-auto mb-2" />
 
-          <span class="text-gray-400 text-xs">Connecting...</span>
+          <span class="text-theme-text-muted text-xs">Connecting...</span>
         </div>
       </div>
     </div>

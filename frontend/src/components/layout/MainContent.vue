@@ -1,7 +1,7 @@
 <template>
   <main
     v-if="!appStore.isMobile || appStore.mobileView === 'room'"
-    class="flex-1 flex flex-col min-h-0 bg-gray-900">
+    class="flex-1 flex flex-col min-h-0 bg-theme-bg-primary">
     <WelcomeView
       v-if="!roomStore.activeRoomId"
       @room-selected="$emit('room-selected', $event)"

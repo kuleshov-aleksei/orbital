@@ -1,18 +1,20 @@
 <template>
-  <div class="user-control-panel bg-gray-800 border-t border-gray-700">
+  <div class="user-control-panel bg-theme-bg-secondary border-t border-theme-border">
     <!-- Expanded Panel - Only Visible When In Call (appears above base panel) -->
-    <div v-if="isInCall" class="border-b border-gray-700 p-3">
+    <div v-if="isInCall" class="border-b border-theme-border p-3">
       <div class="flex items-center justify-between">
         <!-- Room Info -->
         <div class="flex items-center min-w-0 flex-1">
           <div class="w-2 h-2 rounded-full mr-2 flex-shrink-0" :class="connectionStatusColor"></div>
 
           <div class="min-w-0">
-            <div class="text-sm font-medium text-white truncate">
+            <div class="text-sm font-medium text-theme-text-primary truncate">
               {{ roomName }}
             </div>
 
-            <div class="text-xs text-gray-400">{{ connectionStatusText }} • {{ ping }}ms</div>
+            <div class="text-xs text-theme-text-muted">
+              {{ connectionStatusText }} • {{ ping }}ms
+            </div>
           </div>
         </div>
 
@@ -45,11 +47,11 @@
           <UserAvatar :user-id="userId" status="online" :size="36" class="mr-3 flex-shrink-0" />
 
           <div class="min-w-0">
-            <div class="font-medium text-sm text-white truncate">
+            <div class="font-medium text-sm text-theme-text-primary truncate">
               {{ userStore.nickname }}
             </div>
 
-            <div class="text-xs text-gray-400">
+            <div class="text-xs text-theme-text-muted">
               {{ statusText }}
             </div>
           </div>
@@ -66,7 +68,7 @@
           <!-- Settings Button -->
           <button
             type="button"
-            class="w-8 h-8 rounded-full flex items-center justify-center bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition-colors duration-200"
+            class="w-8 h-8 rounded-full flex items-center justify-center bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary transition-colors duration-200"
             title="Settings"
             @click="openSettings">
             <PhGearSix class="w-4 h-4" />

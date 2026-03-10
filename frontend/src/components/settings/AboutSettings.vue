@@ -1,26 +1,28 @@
 <template>
   <div class="space-y-4">
-    <h3 class="text-lg font-medium text-white flex items-center gap-2">
-      <PhInfo class="w-5 h-5 text-indigo-400" />
+    <h3 class="text-lg font-medium text-theme-text-primary flex items-center gap-2">
+      <PhInfo class="w-5 h-5 text-theme-accent" />
       About
     </h3>
 
     <!-- Application Version -->
-    <div class="pt-2 border-t border-gray-700">
+    <div class="pt-2 border-t border-theme-border">
       <div class="flex items-center gap-2">
-        <PhInfo class="w-4 h-4 text-gray-400" />
+        <PhInfo class="w-4 h-4 text-theme-text-muted" />
 
-        <span class="text-sm font-medium text-gray-300">Version</span>
+        <span class="text-sm font-medium text-theme-text-secondary">Version</span>
       </div>
 
-      <p class="text-sm text-gray-400 mt-1 font-mono">
+      <p class="text-sm text-theme-text-muted mt-1 font-mono">
         {{ appVersion }}
       </p>
     </div>
 
-    <p class="text-sm text-gray-400">This application uses the following open source libraries.</p>
+    <p class="text-sm text-theme-text-muted">
+      This application uses the following open source libraries.
+    </p>
 
-    <div v-if="loading" class="py-4 text-center text-gray-400">Loading licenses...</div>
+    <div v-if="loading" class="py-4 text-center text-theme-text-muted">Loading licenses...</div>
 
     <div v-else-if="error" class="py-4 text-center text-red-400">
       {{ error }}
@@ -30,17 +32,19 @@
       <div
         v-for="lib in licenses"
         :key="lib.name"
-        class="p-3 bg-gray-700 rounded-lg"
-        :class="{ 'border-l-2 border-indigo-500': lib.custom }">
+        class="p-3 bg-theme-bg-tertiary rounded-lg"
+        :class="{ 'border-l-2 border-theme-accent': lib.custom }">
         <div class="flex items-start justify-between gap-2">
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2">
-              <span class="font-medium text-white truncate">{{ lib.name }}</span>
+              <span class="font-medium text-theme-text-primary truncate">{{ lib.name }}</span>
             </div>
-            <p v-if="lib.custom" class="text-sm text-gray-300 mt-1">
+            <p v-if="lib.custom" class="text-sm text-theme-text-secondary mt-1">
               {{ lib.custom }}
             </p>
-            <p v-else-if="lib.description" class="text-sm text-gray-400 mt-0.5 line-clamp-2">
+            <p
+              v-else-if="lib.description"
+              class="text-sm text-theme-text-muted mt-0.5 line-clamp-2">
               {{ lib.description }}
             </p>
           </div>
@@ -55,7 +59,7 @@
               :href="lib.url"
               target="_blank"
               rel="noopener noreferrer"
-              class="block mt-1 text-xs text-indigo-400 hover:text-indigo-300">
+              class="block mt-1 text-xs text-theme-accent hover:text-theme-accent/80">
               View Repo
             </a>
           </div>

@@ -1,12 +1,14 @@
 <template>
   <div class="space-y-4">
-    <h4 class="text-sm font-medium text-gray-300">Sound Preview</h4>
-    <p class="text-xs text-gray-400 mb-3">Click to preview sounds from your selected pack</p>
+    <h4 class="text-sm font-medium text-theme-text-secondary">Sound Preview</h4>
+    <p class="text-xs text-theme-text-muted mb-3">
+      Click to preview sounds from your selected pack
+    </p>
 
     <div class="grid grid-cols-2 gap-2">
       <button
         type="button"
-        class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
+        class="px-3 py-2 bg-theme-bg-tertiary hover:bg-theme-bg-secondary text-theme-text-primary text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
         @click="previewJoinRoom">
         <PhUserPlus class="w-4 h-4" />
         Join Room
@@ -14,7 +16,7 @@
 
       <button
         type="button"
-        class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
+        class="px-3 py-2 bg-theme-bg-tertiary hover:bg-theme-bg-secondary text-theme-text-primary text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
         @click="previewLeaveRoom">
         <PhUserMinus class="w-4 h-4" />
         Leave Room
@@ -22,7 +24,7 @@
 
       <button
         type="button"
-        class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
+        class="px-3 py-2 bg-theme-bg-tertiary hover:bg-theme-bg-secondary text-theme-text-primary text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
         @click="previewMute">
         <PhMicrophoneSlash class="w-4 h-4" />
         Mute
@@ -30,7 +32,7 @@
 
       <button
         type="button"
-        class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
+        class="px-3 py-2 bg-theme-bg-tertiary hover:bg-theme-bg-secondary text-theme-text-primary text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
         @click="previewUnmute">
         <PhMicrophone class="w-4 h-4" />
         Unmute
@@ -38,7 +40,7 @@
 
       <button
         type="button"
-        class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
+        class="px-3 py-2 bg-theme-bg-tertiary hover:bg-theme-bg-secondary text-theme-text-primary text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
         @click="previewDeafen">
         <PhSpeakerSlash class="w-4 h-4" />
         Deafen
@@ -46,7 +48,7 @@
 
       <button
         type="button"
-        class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
+        class="px-3 py-2 bg-theme-bg-tertiary hover:bg-theme-bg-secondary text-theme-text-primary text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
         @click="previewUndeafen">
         <PhSpeakerHigh class="w-4 h-4" />
         Undeafen
@@ -54,7 +56,7 @@
 
       <button
         type="button"
-        class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
+        class="px-3 py-2 bg-theme-bg-tertiary hover:bg-theme-bg-secondary text-theme-text-primary text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
         @click="previewCameraStart">
         <PhCamera class="w-4 h-4" />
         Camera Start
@@ -62,7 +64,7 @@
 
       <button
         type="button"
-        class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
+        class="px-3 py-2 bg-theme-bg-tertiary hover:bg-theme-bg-secondary text-theme-text-primary text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
         @click="previewCameraStop">
         <PhCameraSlash class="w-4 h-4" />
         Camera Stop
@@ -70,7 +72,7 @@
 
       <button
         type="button"
-        class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
+        class="px-3 py-2 bg-theme-bg-tertiary hover:bg-theme-bg-secondary text-theme-text-primary text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
         @click="previewScreenShareStart">
         <PhMonitorPlay class="w-4 h-4" />
         Screen Share Start
@@ -78,7 +80,7 @@
 
       <button
         type="button"
-        class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
+        class="px-3 py-2 bg-theme-bg-tertiary hover:bg-theme-bg-secondary text-theme-text-primary text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
         @click="previewScreenShareStop">
         <PhMonitor class="w-4 h-4" />
         Screen Share Stop

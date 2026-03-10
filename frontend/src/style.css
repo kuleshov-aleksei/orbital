@@ -2,6 +2,45 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --color-bg-primary: #111827;
+  --color-bg-secondary: #1f2937;
+  --color-bg-tertiary: #374151;
+  --color-bg-hover: #4b5563;
+  --color-border: #4b5563;
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #d1d5db;
+  --color-text-muted: #9ca3af;
+  --color-accent: #4f46e5;
+  --color-accent-hover: #6366f1;
+}
+
+[data-theme="true-black"] {
+  --color-bg-primary: #000000;
+  --color-bg-secondary: #0a0a0a;
+  --color-bg-tertiary: #171717;
+  --color-bg-hover: #262626;
+  --color-border: #262626;
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #e5e5e5;
+  --color-text-muted: #a3a3a3;
+  --color-accent: #4f46e5;
+  --color-accent-hover: #6366f1;
+}
+
+[data-theme="retrowave"] {
+  --color-bg-primary: #0f0221;
+  --color-bg-secondary: #1a0a2e;
+  --color-bg-tertiary: #2d1b4e;
+  --color-bg-hover: #3d2666;
+  --color-border: #4c287a;
+  --color-text-primary: #e0d4ff;
+  --color-text-secondary: #b8a3d9;
+  --color-text-muted: #8b6fc0;
+  --color-accent: #ff00ff;
+  --color-accent-hover: #ff66ff;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -16,7 +55,8 @@ body {
     "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #111827; /* bg-gray-900 */
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
 }
 
 #app {
@@ -31,14 +71,14 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #1f2937; /* bg-gray-800 */
+  background: var(--color-bg-secondary);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #4b5563; /* bg-gray-600 */
+  background: var(--color-bg-hover);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #6b7280; /* bg-gray-500 */
+  background: var(--color-border);
 }

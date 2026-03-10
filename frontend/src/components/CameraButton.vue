@@ -7,10 +7,10 @@
       :class="[
         sizeClasses,
         isCameraEnabled
-          ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+          ? 'bg-theme-accent hover:bg-theme-accent-hover text-white'
           : isGuest
-            ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-            : 'bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white',
+            ? 'bg-theme-bg-tertiary text-theme-text-muted cursor-not-allowed'
+            : 'bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary',
       ]"
       :title="buttonTitle"
       @click="handleClick">
@@ -20,8 +20,8 @@
     <!-- Lock Icon Overlay for Guests -->
     <div
       v-if="isGuest"
-      class="absolute -bottom-1 -right-1 bg-gray-800 rounded-full p-0.5 border border-gray-700">
-      <PhLock class="w-3 h-3 text-gray-500" />
+      class="absolute -bottom-1 -right-1 bg-theme-bg-secondary rounded-full p-0.5 border border-theme-border">
+      <PhLock class="w-3 h-3 text-theme-text-muted" />
     </div>
   </div>
 </template>

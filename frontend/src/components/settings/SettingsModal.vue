@@ -4,14 +4,14 @@
     class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
     @click.self="close">
     <div
-      class="bg-gray-800 rounded-xl shadow-xl w-full max-w-2xl mx-4 overflow-hidden flex"
+      class="bg-theme-bg-secondary rounded-xl shadow-xl w-full max-w-2xl mx-4 overflow-hidden flex"
       style="max-height: 80vh">
       <!-- Sidebar Tabs -->
-      <div class="w-48 bg-gray-700 border-r border-gray-600 flex flex-col">
+      <div class="w-48 bg-theme-bg-tertiary border-r border-theme-border flex flex-col">
         <!-- Header -->
-        <div class="px-4 py-4 border-b border-gray-600">
-          <h2 class="text-lg font-semibold text-white flex items-center gap-2">
-            <PhGearSix class="w-5 h-5 text-indigo-400" />
+        <div class="px-4 py-4 border-b border-theme-border">
+          <h2 class="text-lg font-semibold text-theme-text-primary flex items-center gap-2">
+            <PhGearSix class="w-5 h-5 text-theme-accent" />
             Settings
           </h2>
         </div>
@@ -23,8 +23,8 @@
             class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
             :class="
               currentTab === 'audio'
-                ? 'bg-indigo-600 text-white'
-                : 'text-gray-300 hover:bg-gray-600 hover:text-white'
+                ? 'bg-theme-accent text-white'
+                : 'text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary'
             "
             @click="currentTab = 'audio'">
             <PhSpeakerHigh class="w-5 h-5" />
@@ -36,9 +36,23 @@
             type="button"
             class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
             :class="
+              currentTab === 'appearance'
+                ? 'bg-theme-accent text-white'
+                : 'text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary'
+            "
+            @click="currentTab = 'appearance'">
+            <PhPalette class="w-5 h-5" />
+
+            <span class="font-medium">Appearance</span>
+          </button>
+
+          <button
+            type="button"
+            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
+            :class="
               currentTab === 'sounds'
-                ? 'bg-indigo-600 text-white'
-                : 'text-gray-300 hover:bg-gray-600 hover:text-white'
+                ? 'bg-theme-accent text-white'
+                : 'text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary'
             "
             @click="currentTab = 'sounds'">
             <PhMusicNotes class="w-5 h-5" />
@@ -51,8 +65,8 @@
             class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
             :class="
               currentTab === 'account'
-                ? 'bg-indigo-600 text-white'
-                : 'text-gray-300 hover:bg-gray-600 hover:text-white'
+                ? 'bg-theme-accent text-white'
+                : 'text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary'
             "
             @click="currentTab = 'account'">
             <PhUser class="w-5 h-5" />
@@ -65,8 +79,8 @@
             class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
             :class="
               currentTab === 'debug'
-                ? 'bg-indigo-600 text-white'
-                : 'text-gray-300 hover:bg-gray-600 hover:text-white'
+                ? 'bg-theme-accent text-white'
+                : 'text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary'
             "
             @click="currentTab = 'debug'">
             <PhBug class="w-5 h-5" />
@@ -79,8 +93,8 @@
             class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
             :class="
               currentTab === 'about'
-                ? 'bg-indigo-600 text-white'
-                : 'text-gray-300 hover:bg-gray-600 hover:text-white'
+                ? 'bg-theme-accent text-white'
+                : 'text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary'
             "
             @click="currentTab = 'about'">
             <PhInfo class="w-5 h-5" />
@@ -90,10 +104,10 @@
         </div>
 
         <!-- Close Button at Bottom -->
-        <div class="p-2 border-t border-gray-600">
+        <div class="p-2 border-t border-theme-border">
           <button
             type="button"
-            class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-600 transition-colors duration-200"
+            class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-theme-text-muted hover:text-theme-text-primary hover:bg-theme-bg-hover transition-colors duration-200"
             @click="close">
             <PhX class="w-4 h-4" />
 
@@ -110,6 +124,9 @@
 
           <!-- Sounds Settings Tab -->
           <SoundPackSettings v-else-if="currentTab === 'sounds'" />
+
+          <!-- Appearance Settings Tab -->
+          <AppearanceSettings v-else-if="currentTab === 'appearance'" />
 
           <!-- Account Settings Tab -->
           <AccountSettings v-else-if="currentTab === 'account'" @logout="close" />
@@ -130,6 +147,7 @@ import { ref, computed } from "vue"
 import { useModalStore } from "@/stores/modal"
 import AudioSettings from "./AudioSettings.vue"
 import SoundPackSettings from "./SoundPackSettings.vue"
+import AppearanceSettings from "./AppearanceSettings.vue"
 import AccountSettings from "./AccountSettings.vue"
 import DebugSettings from "./DebugSettings.vue"
 import AboutSettings from "./AboutSettings.vue"
@@ -137,6 +155,7 @@ import {
   PhGearSix,
   PhSpeakerHigh,
   PhMusicNotes,
+  PhPalette,
   PhUser,
   PhBug,
   PhX,
@@ -144,7 +163,7 @@ import {
 } from "@phosphor-icons/vue"
 
 const modalStore = useModalStore()
-const currentTab = ref<"audio" | "sounds" | "account" | "debug" | "about">("audio")
+const currentTab = ref<"audio" | "sounds" | "appearance" | "account" | "debug" | "about">("audio")
 
 const isOpen = computed(() => modalStore.isUserSettingsModal)
 

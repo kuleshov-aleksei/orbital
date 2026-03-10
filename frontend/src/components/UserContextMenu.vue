@@ -1,52 +1,52 @@
 <template>
   <div
     v-if="visible"
-    class="fixed bg-gray-800 border border-gray-600 rounded-lg shadow-lg z-50 py-2 min-w-48"
+    class="fixed bg-theme-bg-secondary border border-theme-border rounded-lg shadow-lg z-50 py-2 min-w-48"
     :style="menuStyle"
     @click.stop>
-    <div class="px-3 py-2 text-sm text-gray-300 border-b border-gray-600">
+    <div class="px-3 py-2 text-sm text-theme-text-secondary border-b border-theme-border">
       {{ userNickname }}
     </div>
 
     <!-- Mute/Unmute User -->
     <button
       type="button"
-      class="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors flex items-center space-x-2"
+      class="w-full px-3 py-2 text-left text-sm text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary transition-colors flex items-center space-x-2"
       @click="handleMuteToggle">
       <PhMicrophoneSlash v-if="isMuted" class="w-4 h-4" />
       <PhMicrophone v-else class="w-4 h-4" />
       <span>{{ isMuted ? "Unmute User" : "Mute User" }}</span>
     </button>
 
-    <div class="border-t border-gray-600 my-1"></div>
+    <div class="border-t border-theme-border my-1"></div>
 
     <!-- Volume Control -->
     <div class="px-3 py-2">
       <div class="flex items-center justify-between mb-2">
-        <span class="text-sm text-gray-300">Volume</span>
-        <span class="text-xs text-gray-400">{{ Math.round(volume) }}%</span>
+        <span class="text-sm text-theme-text-secondary">Volume</span>
+        <span class="text-xs text-theme-text-muted">{{ Math.round(volume) }}%</span>
       </div>
       <div class="flex items-center space-x-2">
-        <PhSpeakerHigh class="w-4 h-4 text-gray-400" />
+        <PhSpeakerHigh class="w-4 h-4 text-theme-text-muted" />
         <input
           :value="volume"
           type="range"
           min="0"
           max="100"
-          class="flex-1 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer"
+          class="flex-1 h-1 bg-theme-bg-hover rounded-lg appearance-none cursor-pointer"
           @input="handleVolumeInput" />
       </div>
     </div>
 
     <!-- Role Management -->
     <template v-if="showRoleManagement && isCurrentUserSuperAdmin && targetUser">
-      <div class="border-t border-gray-600 my-1"></div>
+      <div class="border-t border-theme-border my-1"></div>
 
       <!-- Promote to Admin -->
       <button
         v-if="canPromote"
         type="button"
-        class="w-full px-3 py-2 text-left text-sm text-indigo-400 hover:bg-gray-700 hover:text-indigo-300 transition-colors flex items-center gap-2"
+        class="w-full px-3 py-2 text-left text-sm text-theme-accent hover:bg-theme-bg-hover hover:text-theme-accent-hover transition-colors flex items-center gap-2"
         :disabled="promoting"
         @click="handlePromote">
         <PhUserPlus class="w-4 h-4" />
@@ -57,7 +57,7 @@
       <button
         v-if="canDemote"
         type="button"
-        class="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors flex items-center gap-2"
+        class="w-full px-3 py-2 text-left text-sm text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary transition-colors flex items-center gap-2"
         :disabled="demoting"
         @click="handleDemote">
         <PhUserMinus class="w-4 h-4" />

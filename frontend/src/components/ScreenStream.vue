@@ -1,7 +1,7 @@
 <template>
   <div
-    class="screen-stream relative bg-gray-900 rounded-lg overflow-hidden border border-gray-600 flex flex-col"
-    :class="{ 'border-indigo-500 ring-2 ring-indigo-500/50': isFocused }"
+    class="screen-stream relative bg-theme-bg-primary rounded-lg overflow-hidden border border-theme-border flex flex-col"
+    :class="{ 'border-theme-accent ring-2 ring-theme-accent/50': isFocused }"
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave">
     <!-- Video Container - maintains actual stream aspect ratio within available space -->
@@ -23,11 +23,11 @@
             <UserAvatar class="mr-2" :user-id="userId" :size="24" :show-status="false" />
 
             <div>
-              <div class="text-white font-medium text-sm">
+              <div class="text-theme-text-primary font-medium text-sm">
                 {{ userNickname }}
               </div>
 
-              <div class="text-xs text-gray-300 flex items-center">
+              <div class="text-xs text-theme-text-secondary flex items-center">
                 <PhMonitorPlay class="w-3 h-3 mr-1" />
                 {{ qualityLabel }}
               </div>
@@ -42,10 +42,12 @@
                 'bg-green-400': connectionState === 'connected',
                 'bg-yellow-400': connectionState === 'connecting',
                 'bg-red-400': connectionState === 'failed' || connectionState === 'closed',
-                'bg-gray-400': !connectionState || connectionState === 'new',
+                'bg-theme-text-muted': !connectionState || connectionState === 'new',
               }" />
 
-            <span class="text-gray-300 capitalize">{{ connectionState || "connecting" }}</span>
+            <span class="text-theme-text-secondary capitalize">{{
+              connectionState || "connecting"
+            }}</span>
           </div>
         </div>
       </div>
@@ -58,7 +60,7 @@
           <div v-if="!isFocused && showFocusButton">
             <button
               type="button"
-              class="px-3 py-1.5 bg-gray-700/80 hover:bg-gray-600 rounded-lg text-white text-sm flex items-center transition-colors"
+              class="px-3 py-1.5 bg-theme-bg-tertiary/80 hover:bg-theme-bg-hover rounded-lg text-theme-text-primary text-sm flex items-center transition-colors"
               @click="$emit('make-focused')">
               <PhArrowsOut class="w-4 h-4 mr-1" />
               Focus
@@ -73,11 +75,15 @@
             <div class="flex items-center space-x-2">
               <button
                 type="button"
-                class="p-1 hover:bg-gray-600/50 rounded transition-colors"
+                class="p-1 hover:bg-theme-bg-hover/50 rounded transition-colors"
                 :title="isMuted ? 'Unmute' : 'Mute'"
                 @click="toggleMute">
-                <PhSpeakerHigh v-if="localVolume > 50 && !isMuted" class="w-4 h-4 text-white" />
-                <PhSpeakerLow v-else-if="localVolume > 0 && !isMuted" class="w-4 h-4 text-white" />
+                <PhSpeakerHigh
+                  v-if="localVolume > 50 && !isMuted"
+                  class="w-4 h-4 text-theme-text-primary" />
+                <PhSpeakerLow
+                  v-else-if="localVolume > 0 && !isMuted"
+                  class="w-4 h-4 text-theme-text-primary" />
                 <PhSpeakerNone v-else class="w-4 h-4 text-red-400" />
               </button>
               <input
@@ -85,14 +91,14 @@
                 type="range"
                 min="0"
                 max="100"
-                class="w-20 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                class="w-20 h-1 bg-theme-bg-hover rounded-lg appearance-none cursor-pointer accent-theme-accent"
                 @input="handleVolumeChange" />
             </div>
 
             <!-- Stop Watching Button -->
             <button
               type="button"
-              class="px-2 py-1 bg-red-600/80 hover:bg-red-600 rounded-lg text-white text-xs flex items-center transition-colors"
+              class="px-2 py-1 bg-red-600/80 hover:bg-red-600 rounded-lg text-theme-text-primary text-xs flex items-center transition-colors"
               title="Stop watching"
               @click="$emit('unsubscribe')">
               <PhStop class="w-3 h-3 mr-1" />
@@ -101,7 +107,7 @@
 
             <button
               type="button"
-              class="p-2 bg-gray-700/80 hover:bg-gray-600 rounded-lg text-white transition-colors"
+              class="p-2 bg-theme-bg-tertiary/80 hover:bg-theme-bg-hover rounded-lg text-theme-text-primary transition-colors"
               :title="isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'"
               @click="toggleFullscreen">
               <PhArrowsOut v-if="!isFullscreen" class="w-4 h-4" />
@@ -111,7 +117,7 @@
 
             <button
               type="button"
-              class="p-2 bg-gray-700/80 hover:bg-gray-600 rounded-lg text-white transition-colors"
+              class="p-2 bg-theme-bg-tertiary/80 hover:bg-theme-bg-hover rounded-lg text-theme-text-primary transition-colors"
               title="Picture in Picture"
               @click="togglePiP">
               <PhPictureInPicture class="w-4 h-4" />
@@ -121,24 +127,26 @@
       </div>
 
       <!-- Loading State -->
-      <div v-if="!videoTrack" class="absolute inset-0 flex items-center justify-center bg-gray-900">
+      <div
+        v-if="!videoTrack"
+        class="absolute inset-0 flex items-center justify-center bg-theme-bg-primary">
         <div class="text-center">
-          <PhSpinner class="w-8 h-8 text-indigo-400 animate-spin mx-auto mb-2" />
+          <PhSpinner class="w-8 h-8 text-theme-accent animate-spin mx-auto mb-2" />
 
-          <span class="text-gray-400 text-sm">Connecting...</span>
+          <span class="text-theme-text-muted text-sm">Connecting...</span>
         </div>
       </div>
 
       <!-- Paused State (for self-view when not hovered) -->
       <div
         v-if="isPausedComputed"
-        class="absolute inset-0 flex items-center justify-center bg-gray-900/90 z-10">
+        class="absolute inset-0 flex items-center justify-center bg-theme-bg-primary/90 z-10">
         <div class="text-center">
-          <PhPause class="w-12 h-12 text-gray-400 mx-auto mb-3" />
+          <PhPause class="w-12 h-12 text-theme-text-muted mx-auto mb-3" />
 
-          <span class="text-gray-300 text-lg font-medium">Paused</span>
+          <span class="text-theme-text-secondary text-lg font-medium">Paused</span>
 
-          <p class="text-gray-500 text-sm mt-1">Hover to view</p>
+          <p class="text-theme-text-muted text-sm mt-1">Hover to view</p>
         </div>
       </div>
     </div>

@@ -2,22 +2,24 @@
   <div
     class="room-sidebar"
     :class="{
-      'w-72 bg-gray-800 flex flex-col min-h-0': !isMobileView,
-      'flex-1 flex flex-col bg-gray-900': isMobileView,
+      'w-72 bg-theme-bg-secondary flex flex-col min-h-0': !isMobileView,
+      'flex-1 flex flex-col bg-theme-bg-primary': isMobileView,
       'fixed lg:relative inset-y-0 left-0 z-40 transform -translate-x-full lg:translate-x-0 transition-transform duration-300':
         !isMobileView,
       'translate-x-0': !isHidden && !isMobileView,
     }">
     <!-- Desktop Header (only when not in mobile view mode) -->
-    <div v-if="!isMobileView" class="hidden lg:flex p-4 border-b border-gray-700">
-      <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">Rooms</h2>
+    <div v-if="!isMobileView" class="hidden lg:flex p-4 border-b border-theme-border">
+      <h2 class="text-sm font-semibold text-theme-text-secondary uppercase tracking-wider">
+        Rooms
+      </h2>
     </div>
 
     <!-- Mobile Full-screen Header -->
-    <div v-if="isMobileView" class="p-4 border-b border-gray-800">
-      <h2 class="text-xl font-semibold text-white">Available Rooms</h2>
+    <div v-if="isMobileView" class="p-4 border-b border-theme-border">
+      <h2 class="text-xl font-semibold text-theme-text-primary">Available Rooms</h2>
 
-      <p class="text-sm text-gray-400 mt-1">
+      <p class="text-sm text-theme-text-muted mt-1">
         {{ rooms?.length || 0 }} room{{ (rooms?.length || 0) !== 1 ? "s" : "" }}
       </p>
     </div>
@@ -38,9 +40,9 @@
         <div class="mb-4">
           <div class="px-2 py-1">
             <div
-              class="w-full flex items-center justify-between px-2 py-1 text-xs font-medium text-gray-400 hover:text-gray-200 transition-colors duration-200 cursor-pointer group"
+              class="w-full flex items-center justify-between px-2 py-1 text-xs font-medium text-theme-text-muted hover:text-theme-text-primary transition-colors duration-200 cursor-pointer group"
               :class="{
-                'ring-2 ring-purple-400 ring-offset-2 ring-offset-gray-800':
+                'ring-2 ring-purple-400 ring-offset-2 ring-offset-theme-bg-primary':
                   draggedCategory && draggedCategory.id === category.id,
               }"
               v-bind="isAdmin ? { draggable: true } : {}"
@@ -147,11 +149,11 @@
     </div>
 
     <!-- Create Room Button - Only for admins -->
-    <div v-if="isAdmin" class="p-3 border-t border-gray-700">
+    <div v-if="isAdmin" class="p-3 border-t border-theme-border">
       <button
         type="button"
         data-testid="create-room-sidebar"
-        class="w-full flex items-center justify-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors duration-200"
+        class="w-full flex items-center justify-center px-3 py-2 bg-theme-accent hover:bg-theme-accent-hover rounded-lg transition-colors duration-200"
         @click="$emit('create-room')">
         <PhPlus class="w-4 h-4 mr-2" />
 
@@ -162,13 +164,13 @@
     <!-- Category Context Menu -->
     <div
       v-if="contextMenu.visible"
-      class="fixed bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-[9999] py-1 min-w-[160px]"
+      class="fixed bg-theme-bg-secondary border border-theme-border rounded-lg shadow-xl z-[9999] py-1 min-w-[160px]"
       :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"
       @click.stop>
       <button
         v-if="isAdmin"
         type="button"
-        class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+        class="w-full px-4 py-2 text-left text-sm text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary transition-colors"
         @click="handleCreateRoomInCategory">
         <div class="flex items-center gap-2">
           <PhPlus class="w-4 h-4" />
@@ -180,7 +182,7 @@
       <button
         v-if="isAdmin"
         type="button"
-        class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+        class="w-full px-4 py-2 text-left text-sm text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary transition-colors"
         @click="handleRenameCategory">
         <div class="flex items-center gap-2">
           <PhPencil class="w-4 h-4" />
@@ -189,12 +191,12 @@
         </div>
       </button>
 
-      <div v-if="isAdmin" class="border-t border-gray-700 my-1"></div>
+      <div v-if="isAdmin" class="border-t border-theme-border my-1"></div>
 
       <button
         v-if="isAdmin"
         type="button"
-        class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-gray-700 hover:text-red-300 transition-colors"
+        class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-theme-bg-hover hover:text-red-300 transition-colors"
         @click="handleDeleteCategory">
         <div class="flex items-center gap-2">
           <PhTrash class="w-4 h-4" />
@@ -203,20 +205,22 @@
         </div>
       </button>
 
-      <div v-if="!isAdmin" class="px-4 py-2 text-sm text-gray-500">No actions available</div>
+      <div v-if="!isAdmin" class="px-4 py-2 text-sm text-theme-text-muted">
+        No actions available
+      </div>
     </div>
 
     <!-- Room Context Menu -->
     <div
       v-if="roomContextMenu.visible"
-      class="fixed bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-[9999] py-1 min-w-[200px]"
+      class="fixed bg-theme-bg-secondary border border-theme-border rounded-lg shadow-xl z-[9999] py-1 min-w-[200px]"
       :style="{ top: roomContextMenu.y + 'px', left: roomContextMenu.x + 'px' }"
       @click.stop>
       <!-- Move to Category - With Submenu (admin only) -->
       <div v-if="isAdmin" class="relative group">
         <button
           type="button"
-          class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors flex items-center justify-between"
+          class="w-full px-4 py-2 text-left text-sm text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary transition-colors flex items-center justify-between"
           @mouseenter="onMoveButtonEnter"
           @mouseleave="onMoveButtonLeave">
           <div class="flex items-center gap-2">
@@ -238,21 +242,21 @@
         <!-- Move Submenu -->
         <div
           v-if="showMoveSubmenu"
-          class="absolute left-full top-0 ml-2 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-[9999] py-1 min-w-[160px]"
+          class="absolute left-full top-0 ml-2 bg-theme-bg-secondary border border-theme-border rounded-lg shadow-xl z-[9999] py-1 min-w-[160px]"
           @mouseenter="onSubmenuEnter"
           @mouseleave="onSubmenuLeave">
           <button
             v-for="category in availableCategoriesForMove"
             :key="category.id"
             type="button"
-            class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+            class="w-full px-4 py-2 text-left text-sm text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary transition-colors"
             @click="onMoveCategorySelect(category.id)">
             {{ category.name }}
           </button>
 
           <div
             v-if="availableCategoriesForMove.length === 0"
-            class="px-4 py-2 text-sm text-gray-500">
+            class="px-4 py-2 text-sm text-theme-text-muted">
             No other categories
           </div>
         </div>
@@ -261,7 +265,7 @@
       <button
         v-if="isAdmin"
         type="button"
-        class="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+        class="w-full px-4 py-2 text-left text-sm text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary transition-colors"
         @click="handleEditRoom">
         <div class="flex items-center gap-2">
           <PhPencil class="w-4 h-4" />
@@ -270,12 +274,12 @@
         </div>
       </button>
 
-      <div v-if="isAdmin" class="border-t border-gray-700 my-1"></div>
+      <div v-if="isAdmin" class="border-t border-theme-border my-1"></div>
 
       <button
         v-if="isAdmin"
         type="button"
-        class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-gray-700 hover:text-red-300 transition-colors"
+        class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-theme-bg-hover hover:text-red-300 transition-colors"
         @click="handleDeleteRoom">
         <div class="flex items-center gap-2">
           <PhTrash class="w-4 h-4" />
@@ -284,7 +288,9 @@
         </div>
       </button>
 
-      <div v-if="!isAdmin" class="px-4 py-2 text-sm text-gray-500">No actions available</div>
+      <div v-if="!isAdmin" class="px-4 py-2 text-sm text-theme-text-muted">
+        No actions available
+      </div>
     </div>
 
     <!-- Click outside to close context menu -->

@@ -2,8 +2,9 @@
   <div
     class="room-card px-2 py-1.5 mb-0.5 rounded-md cursor-pointer transition-all duration-200 group"
     :class="{
-      'bg-indigo-600 text-white': isActive,
-      'bg-gray-700/50 hover:bg-gray-600/80 text-gray-300 hover:text-gray-100': !isActive,
+      'bg-theme-accent text-white': isActive,
+      'bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary':
+        !isActive,
       'opacity-50': isDragging,
     }"
     v-bind="isDraggable ? { draggable: true } : {}"
@@ -22,8 +23,8 @@
         <div
           class="w-7 h-7 rounded-md flex items-center justify-center"
           :class="{
-            'bg-indigo-500': isActive,
-            'bg-gray-600 group-hover:bg-gray-500': !isActive,
+            'bg-theme-accent/80': isActive,
+            'bg-theme-bg-hover group-hover:bg-theme-border': !isActive,
           }">
           <PhWaveform class="w-4 h-4" />
         </div>
@@ -47,7 +48,7 @@
         <div
           v-for="user in room.users"
           :key="user.id"
-          class="flex items-center justify-between text-xs py-0.5 pr-1 rounded hover:bg-gray-500/30"
+          class="flex items-center justify-between text-xs py-0.5 pr-1 rounded hover:bg-theme-bg-hover"
           @contextmenu="showUserContextMenu($event, user.id)">
           <div class="flex items-center min-w-0">
             <!-- Avatar -->

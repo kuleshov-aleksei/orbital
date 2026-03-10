@@ -1,12 +1,12 @@
 <template>
   <div class="space-y-4">
-    <h3 class="text-lg font-medium text-white flex items-center gap-2">
-      <PhUser class="w-5 h-5 text-indigo-400" />
+    <h3 class="text-lg font-medium text-theme-text-primary flex items-center gap-2">
+      <PhUser class="w-5 h-5 text-theme-accent" />
       Account
     </h3>
 
     <!-- User Info Card -->
-    <div class="bg-gray-700 rounded-lg p-4">
+    <div class="bg-theme-bg-tertiary rounded-lg p-4">
       <div class="flex items-center gap-3">
         <div class="relative flex-shrink-0">
           <UserAvatar
@@ -42,13 +42,13 @@
         <div class="flex-1 min-w-0 min-h-24">
           <!-- Nickname Display / Edit Mode -->
           <div v-if="!isEditingNickname" class="flex items-center gap-2 h-full">
-            <div class="font-medium text-white truncate">
+            <div class="font-medium text-theme-text-primary truncate">
               {{ userStore.nickname }}
             </div>
 
             <button
               type="button"
-              class="p-1 text-gray-400 hover:text-white transition-colors"
+              class="p-1 text-theme-text-muted hover:text-theme-text-primary transition-colors"
               title="Edit nickname"
               @click="startEditingNickname">
               <PhPencil class="w-4 h-4" />
@@ -63,7 +63,7 @@
               type="text"
               maxlength="32"
               placeholder="Enter nickname"
-              class="w-full px-3 py-1.5 bg-gray-600 border border-gray-500 rounded text-white text-sm focus:outline-none focus:border-indigo-500"
+              class="w-full px-3 py-1.5 bg-theme-bg-primary border border-theme-border rounded text-theme-text-primary text-sm focus:outline-none focus:border-theme-accent"
               @keyup.enter="saveNickname"
               @keyup.esc="cancelEditingNickname" />
 
@@ -71,7 +71,7 @@
               <button
                 type="button"
                 :disabled="isSaving || !editedNickname.trim()"
-                class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-xs rounded transition-colors"
+                class="px-3 py-1 bg-theme-accent hover:bg-theme-accent/80 disabled:bg-theme-bg-tertiary disabled:cursor-not-allowed text-white text-xs rounded transition-colors"
                 @click="saveNickname">
                 <span v-if="isSaving">Saving...</span>
 
@@ -81,7 +81,7 @@
               <button
                 type="button"
                 :disabled="isSaving"
-                class="px-3 py-1 bg-gray-600 hover:bg-gray-500 disabled:cursor-not-allowed text-white text-xs rounded transition-colors"
+                class="px-3 py-1 bg-theme-bg-tertiary hover:bg-theme-bg-secondary disabled:cursor-not-allowed text-theme-text-primary text-xs rounded transition-colors"
                 @click="cancelEditingNickname">
                 Cancel
               </button>
@@ -97,7 +97,7 @@
             {{ avatarError }}
           </div>
 
-          <div v-if="userStore.email" class="text-sm text-gray-400 truncate">
+          <div v-if="userStore.email" class="text-sm text-theme-text-muted truncate">
             {{ userStore.email }}
           </div>
 
@@ -105,7 +105,7 @@
             <!-- Guest Badge -->
             <span
               v-if="userStore.isGuest"
-              class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-600 text-gray-300">
+              class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-theme-bg-tertiary text-theme-text-secondary">
               <PhUser class="w-3 h-3 mr-1" />
               Guest
             </span>
@@ -137,7 +137,7 @@
 
     <!-- Login Options for Guests -->
     <div v-if="userStore.isGuest" class="space-y-3">
-      <p class="text-sm text-gray-400">Connect an account to unlock all features:</p>
+      <p class="text-sm text-theme-text-muted">Connect an account to unlock all features:</p>
 
       <button
         type="button"
@@ -156,7 +156,7 @@
       </button>
 
       <!-- Clear Guest Data Button -->
-      <div class="pt-2 border-t border-gray-600 mt-4">
+      <div class="pt-2 border-t border-theme-border mt-4">
         <button
           type="button"
           class="w-full flex items-center justify-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors duration-200 text-sm font-medium"
@@ -165,14 +165,14 @@
           Logout
         </button>
 
-        <p class="text-xs text-gray-500 mt-2 text-center">
+        <p class="text-xs text-theme-text-muted mt-2 text-center">
           This will remove your guest account data from this device.
         </p>
       </div>
     </div>
 
     <!-- Admin Panel Button - Only for super admins -->
-    <div v-if="userStore.isSuperAdmin" class="pt-2 border-t border-gray-600 mt-4">
+    <div v-if="userStore.isSuperAdmin" class="pt-2 border-t border-theme-border mt-4">
       <router-link v-slot="{ navigate }" to="/admin" custom>
         <button
           type="button"
@@ -183,14 +183,16 @@
         </button>
       </router-link>
 
-      <p class="text-xs text-gray-500 mt-2 text-center">Manage users and system settings.</p>
+      <p class="text-xs text-theme-text-muted mt-2 text-center">
+        Manage users and system settings.
+      </p>
     </div>
 
     <!-- Logout Button for Logged In Users -->
     <div
       v-if="!userStore.isGuest"
       class="pt-2"
-      :class="userStore.isSuperAdmin ? 'mt-4' : 'border-t border-gray-600 mt-4'">
+      :class="userStore.isSuperAdmin ? 'mt-4' : 'border-t border-theme-border mt-4'">
       <button
         type="button"
         class="w-full flex items-center justify-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors duration-200 text-sm font-medium"
@@ -199,7 +201,7 @@
         Logout
       </button>
 
-      <p class="text-xs text-gray-500 mt-2 text-center">
+      <p class="text-xs text-theme-text-muted mt-2 text-center">
         This will clear your session and you'll need to login again.
       </p>
     </div>

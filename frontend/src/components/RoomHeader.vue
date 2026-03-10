@@ -1,5 +1,6 @@
 <template>
-  <header class="bg-gray-800 px-6 py-4 border-b border-gray-700 overflow-hidden max-w-full">
+  <header
+    class="bg-theme-bg-secondary px-6 py-4 border-b border-theme-border overflow-hidden max-w-full">
     <div class="flex items-center justify-between">
       <div class="flex items-center">
         <!-- Back to room list button (mobile only, doesn't leave room) -->
@@ -7,7 +8,7 @@
           v-if="isMobile"
           type="button"
           data-testid="back-to-rooms"
-          class="mr-4 text-gray-400 hover:text-white transition-colors duration-200"
+          class="mr-4 text-theme-text-muted hover:text-theme-text-primary transition-colors duration-200"
           title="Back to room list"
           @click="$emit('show-room-list')">
           <PhArrowLeft class="w-5 h-5" />
@@ -18,13 +19,13 @@
           v-else
           type="button"
           data-testid="leave-room-header"
-          class="mr-4 text-gray-400 hover:text-white transition-colors duration-200"
+          class="mr-4 text-theme-text-muted hover:text-theme-text-primary transition-colors duration-200"
           @click="$emit('leave-room')">
           <PhArrowLeft class="w-5 h-5" />
         </button>
 
         <div>
-          <h1 class="text-xl font-semibold text-white" data-testid="room-title">
+          <h1 class="text-xl font-semibold text-theme-text-primary" data-testid="room-title">
             {{ roomName || "Voice Room" }}
           </h1>
         </div>
@@ -33,14 +34,14 @@
       <div class="flex items-center space-x-2">
         <!-- Screen Share Layout Toggle (when sharing active) -->
         <template v-if="screenShareCount > 0 || cameraCount > 0">
-          <div class="flex bg-gray-700 rounded-lg p-0.5">
+          <div class="flex bg-theme-bg-tertiary rounded-lg p-0.5">
             <button
               type="button"
               class="px-2 py-1 rounded-md text-xs transition-colors flex items-center"
               :class="[
                 screenShareLayout === 'grid'
-                  ? 'bg-indigo-600 text-white'
-                  : 'text-gray-400 hover:text-white',
+                  ? 'bg-theme-accent text-white'
+                  : 'text-theme-text-muted hover:text-theme-text-primary',
               ]"
               @click="$emit('update:screenShareLayout', 'grid')">
               <PhGridFour class="w-3.5 h-3.5 mr-1" />
@@ -52,8 +53,8 @@
               class="px-2 py-1 rounded-md text-xs transition-colors flex items-center"
               :class="[
                 screenShareLayout === 'focus'
-                  ? 'bg-indigo-600 text-white'
-                  : 'text-gray-400 hover:text-white',
+                  ? 'bg-theme-accent text-white'
+                  : 'text-theme-text-muted hover:text-theme-text-primary',
               ]"
               @click="$emit('update:screenShareLayout', 'focus')">
               <PhArrowsOut class="w-3.5 h-3.5 mr-1" />
@@ -66,7 +67,7 @@
         <button
           v-if="isMobile"
           type="button"
-          class="flex items-center px-3 py-1.5 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors duration-200"
+          class="flex items-center px-3 py-1.5 bg-theme-bg-tertiary rounded-lg hover:bg-theme-bg-primary transition-colors duration-200"
           @click="$emit('toggle-user-sidebar')">
           <PhUsers class="w-4 h-4 m-1" />
         </button>
@@ -76,7 +77,7 @@
           <div class="flex items-center text-sm">
             <div class="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
 
-            <span class="text-gray-300">Connected</span>
+            <span class="text-theme-text-secondary">Connected</span>
           </div>
         </template>
       </div>

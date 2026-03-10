@@ -6,7 +6,7 @@
       sizeClasses,
       isDeafened
         ? 'bg-red-600 hover:bg-red-700 text-white'
-        : 'bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white',
+        : 'bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary',
     ]"
     :title="isDeafened ? 'Undeafen' : 'Deafen'"
     @click="toggleDeafen">

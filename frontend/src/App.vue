@@ -1,15 +1,19 @@
 <template>
-  <div id="app" class="h-screen bg-gray-900 text-white">
+  <div
+    id="app"
+    :data-theme="themeStore.currentTheme"
+    class="h-screen bg-theme-bg-primary text-theme-text-primary">
     <router-view />
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, onUnmounted } from "vue"
-import { useAppStore, useRoomStore } from "@/stores"
+import { useAppStore, useRoomStore, useThemeStore } from "@/stores"
 
 const appStore = useAppStore()
 const roomStore = useRoomStore()
+const themeStore = useThemeStore()
 
 const checkMobile = () => {
   appStore.checkMobile()

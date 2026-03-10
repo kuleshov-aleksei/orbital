@@ -1,5 +1,6 @@
 <template>
-  <div class="app-layout h-screen bg-gray-900 text-white flex flex-col lg:flex-row overflow-hidden">
+  <div
+    class="app-layout h-screen bg-theme-bg-primary text-theme-text-primary flex flex-col lg:flex-row overflow-hidden">
     <!-- Auth View - Blocks entire app until user completes auth -->
     <AuthView v-if="!userStore.hasCompletedAuth" />
 

@@ -1,6 +1,6 @@
 <template>
   <div
-    class="flex items-center justify-center space-x-4 flex-shrink-0 px-4 py-3 bg-gray-900/80 backdrop-blur-sm border-t border-gray-700/50">
+    class="flex items-center justify-center space-x-4 flex-shrink-0 px-4 py-3 bg-theme-bg-primary/80 backdrop-blur-sm border-t border-theme-border/50">
     <!-- Mute/Unmute -->
     <MicMuteButton v-model="isMuted" :is-speaking="isSpeaking" size="lg" />
 
@@ -25,7 +25,7 @@
     <button
       v-if="isMobile"
       type="button"
-      class="control-button bg-gray-700 hover:bg-gray-600"
+      class="control-button bg-theme-bg-tertiary hover:bg-theme-bg-hover"
       title="Settings"
       @click="openSettings">
       <PhGearSix class="w-5 h-5" />
