@@ -287,13 +287,13 @@ export class WebSocketService {
   }
 
   // Send mute state update to server (global WebSocket for server-side state)
-  sendMuteState(isMuted: boolean): void {
-    this.sendGlobalMessage("update_mute_state", { is_muted: isMuted })
+  sendMuteState(roomId: string, isMuted: boolean): void {
+    this.sendGlobalMessage("update_mute_state", { room_id: roomId, is_muted: isMuted })
   }
 
   // Send deafen state update to server (global WebSocket for server-side state)
-  sendDeafenState(isDeafened: boolean): void {
-    this.sendGlobalMessage("update_deafen_state", { is_deafened: isDeafened })
+  sendDeafenState(roomId: string, isDeafened: boolean): void {
+    this.sendGlobalMessage("update_deafen_state", { room_id: roomId, is_deafened: isDeafened })
   }
 
   // Private methods

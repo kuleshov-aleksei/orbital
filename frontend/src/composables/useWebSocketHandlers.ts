@@ -245,6 +245,7 @@ export function useWebSocketHandlers() {
       const data = message.data as {
         states: Array<{
           user_id: string
+          room_id: string
           is_muted: boolean
           is_deafened: boolean
         }>
@@ -252,6 +253,7 @@ export function useWebSocketHandlers() {
       debugLog("[WebSocket] Received audio_states:", data.states.length, "users")
       data.states.forEach((state) => {
         userStore.updateGlobalUserAudioState(state.user_id, {
+          room_id: state.room_id,
           is_muted: state.is_muted,
           is_deafened: state.is_deafened,
         })
@@ -262,18 +264,22 @@ export function useWebSocketHandlers() {
     wsService.onGlobal("user_audio_state", (message) => {
       const data = message.data as {
         user_id: string
+        room_id: string
         is_muted: boolean
         is_deafened: boolean
       }
       debugLog(
         "[WebSocket] User audio state changed:",
         data.user_id,
+        "room:",
+        data.room_id,
         "muted:",
         data.is_muted,
         "deafened:",
         data.is_deafened,
       )
       userStore.updateGlobalUserAudioState(data.user_id, {
+        room_id: data.room_id,
         is_muted: data.is_muted,
         is_deafened: data.is_deafened,
       })

@@ -16,9 +16,9 @@ import (
 // Hub manages WebSocket connections
 type Hub struct {
 	clients        map[*Client]bool
-	roomClients    map[string]map[*Client]bool      // room_id -> clients
-	onlineUsers    map[string]time.Time             // user_id -> last_seen timestamp (global connections)
-	userAudioState map[string]models.UserAudioState // user_id -> audio state (mute/deafen)
+	roomClients    map[string]map[*Client]bool                 // room_id -> clients
+	onlineUsers    map[string]time.Time                        // user_id -> last_seen timestamp (global connections)
+	userAudioState map[string]map[string]models.UserAudioState // user_id -> room_id -> audio state (mute/deafen)
 	roomService    *service.RoomService
 	authService    *service.AuthService
 	livekitService *service.LiveKitService
@@ -45,7 +45,7 @@ func NewHub(roomService *service.RoomService, authService *service.AuthService, 
 		clients:        make(map[*Client]bool),
 		roomClients:    make(map[string]map[*Client]bool),
 		onlineUsers:    make(map[string]time.Time),
-		userAudioState: make(map[string]models.UserAudioState),
+		userAudioState: make(map[string]map[string]models.UserAudioState),
 		roomService:    roomService,
 		authService:    authService,
 		livekitService: livekitService,
@@ -416,9 +416,11 @@ func (h *Hub) GetOnlineUsers() []string {
 // sendAudioStatesToClient sends all current audio states to a client
 func (h *Hub) sendAudioStatesToClient(client *Client) {
 	h.mu.RLock()
-	audioStates := make([]models.UserAudioState, 0, len(h.userAudioState))
-	for _, state := range h.userAudioState {
-		audioStates = append(audioStates, state)
+	audioStates := make([]models.UserAudioState, 0)
+	for _, roomStates := range h.userAudioState {
+		for _, state := range roomStates {
+			audioStates = append(audioStates, state)
+		}
 	}
 	h.mu.RUnlock()
 
@@ -700,26 +702,43 @@ func (c *Client) handleUpdateMuteState(data interface{}) {
 		return
 	}
 
-	log.Printf("[WebSocket] handleUpdateMuteState: userID=%q, is_muted=%v, req=%+v", userID, req.IsMuted, req)
+	roomID := req.RoomID
+	if roomID == "" {
+		log.Printf("[WebSocket] Cannot update mute state: roomID is empty")
+		return
+	}
+
+	log.Printf("[WebSocket] handleUpdateMuteState: userID=%q, roomID=%q, is_muted=%v", userID, roomID, req.IsMuted)
 
 	// Update user's audio state in hub
 	c.hub.mu.Lock()
-	if c.hub.userAudioState[userID].IsMuted != req.IsMuted {
-		c.hub.userAudioState[userID] = models.UserAudioState{
+	if c.hub.userAudioState[userID] == nil {
+		c.hub.userAudioState[userID] = make(map[string]models.UserAudioState)
+	}
+	currentState := c.hub.userAudioState[userID][roomID]
+	if currentState.IsMuted != req.IsMuted {
+		c.hub.userAudioState[userID][roomID] = models.UserAudioState{
 			UserID:     userID,
+			RoomID:     roomID,
 			IsMuted:    req.IsMuted,
-			IsDeafened: c.hub.userAudioState[userID].IsDeafened,
+			IsDeafened: currentState.IsDeafened,
 		}
 	}
 	c.hub.mu.Unlock()
+
+	// Update room service member state for API consistency
+	if c.hub.roomService != nil {
+		c.hub.roomService.UpdateUserMuteStatus(roomID, userID, req.IsMuted)
+	}
 
 	// Broadcast to all connected clients (global broadcast for server-side state)
 	c.hub.BroadcastToAll(models.WebSocketMessage{
 		Type: "user_audio_state",
 		Data: models.UserAudioState{
 			UserID:     userID,
+			RoomID:     roomID,
 			IsMuted:    req.IsMuted,
-			IsDeafened: c.hub.userAudioState[userID].IsDeafened,
+			IsDeafened: currentState.IsDeafened,
 		},
 	})
 }
@@ -739,25 +758,42 @@ func (c *Client) handleUpdateDeafenState(data interface{}) {
 		return
 	}
 
-	log.Printf("[WebSocket] User %s updated deafen state: is_deafened=%v", userID, req.IsDeafened)
+	roomID := req.RoomID
+	if roomID == "" {
+		log.Printf("[WebSocket] Cannot update deafen state: roomID is empty")
+		return
+	}
+
+	log.Printf("[WebSocket] handleUpdateDeafenState: userID=%q, roomID=%q, is_deafened=%v", userID, roomID, req.IsDeafened)
 
 	// Update user's audio state in hub
 	c.hub.mu.Lock()
-	if c.hub.userAudioState[userID].IsDeafened != req.IsDeafened {
-		c.hub.userAudioState[userID] = models.UserAudioState{
+	if c.hub.userAudioState[userID] == nil {
+		c.hub.userAudioState[userID] = make(map[string]models.UserAudioState)
+	}
+	currentState := c.hub.userAudioState[userID][roomID]
+	if currentState.IsDeafened != req.IsDeafened {
+		c.hub.userAudioState[userID][roomID] = models.UserAudioState{
 			UserID:     userID,
-			IsMuted:    c.hub.userAudioState[userID].IsMuted,
+			RoomID:     roomID,
+			IsMuted:    currentState.IsMuted,
 			IsDeafened: req.IsDeafened,
 		}
 	}
 	c.hub.mu.Unlock()
+
+	// Update room service member state for API consistency
+	if c.hub.roomService != nil {
+		c.hub.roomService.UpdateUserDeafenStatus(roomID, userID, req.IsDeafened)
+	}
 
 	// Broadcast to all connected clients (global broadcast for server-side state)
 	c.hub.BroadcastToAll(models.WebSocketMessage{
 		Type: "user_audio_state",
 		Data: models.UserAudioState{
 			UserID:     userID,
-			IsMuted:    c.hub.userAudioState[userID].IsMuted,
+			RoomID:     roomID,
+			IsMuted:    currentState.IsMuted,
 			IsDeafened: req.IsDeafened,
 		},
 	})

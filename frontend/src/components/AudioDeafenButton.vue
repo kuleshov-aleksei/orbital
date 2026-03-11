@@ -120,7 +120,10 @@ const toggleDeafen = async () => {
   callStore.setDeafened(newValue)
 
   // Send to server for global state sync (users outside the call will see the state)
-  wsService.sendDeafenState(newValue)
+  const roomId = roomStore.activeRoomId
+  if (roomId) {
+    wsService.sendDeafenState(roomId, newValue)
+  }
 
   // Immediately update room store for local user so UI updates right away
   // Use callStore.isMuted to get the actual current mute state after setDeafened

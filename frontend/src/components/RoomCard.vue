@@ -67,17 +67,17 @@
           <div class="flex items-center gap-1 flex-shrink-0">
             <PhMicrophone
               v-if="
-                !getGlobalUserAudioState(user.id).is_muted &&
-                !getGlobalUserAudioState(user.id).is_deafened
+                !getUserAudioState(user, room.id).is_muted &&
+                !getUserAudioState(user, room.id).is_deafened
               "
               class="w-3.5 h-3.5 text-green-400" />
 
             <PhMicrophoneSlash
-              v-if="getGlobalUserAudioState(user.id).is_muted"
+              v-if="getUserAudioState(user, room.id).is_muted"
               class="w-3.5 h-3.5 text-red-400" />
 
             <PhHeadphones
-              v-if="getGlobalUserAudioState(user.id).is_deafened"
+              v-if="getUserAudioState(user, room.id).is_deafened"
               class="w-3.5 h-3.5 text-red-400" />
 
             <PhMonitor v-if="user.is_screen_sharing" class="w-3.5 h-3.5 text-blue-400" />
@@ -160,5 +160,16 @@ const showUserContextMenu = (event: MouseEvent, userId: string) => {
   event.preventDefault()
   event.stopPropagation()
   userContextMenuRef.value?.show(event, userId)
+}
+
+const getUserAudioState = (user: RoomPreviewUser, roomId: string) => {
+  const wsState = getGlobalUserAudioState(user.id, roomId)
+  if (wsState.room_id === roomId) {
+    return wsState
+  }
+  return {
+    is_muted: user.is_muted,
+    is_deafened: user.is_deafened,
+  }
 }
 </script>

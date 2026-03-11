@@ -105,7 +105,10 @@ const toggleMute = async () => {
   callStore.setMuted(newValue)
 
   // Send to server for global state sync (users outside the call will see the state)
-  wsService.sendMuteState(newValue)
+  const roomId = roomStore.activeRoomId
+  if (roomId) {
+    wsService.sendMuteState(roomId, newValue)
+  }
 
   // Immediately update room store for local user so UI updates right away
   roomStore.updateUserStatus(userStore.userId, { is_muted: newValue })

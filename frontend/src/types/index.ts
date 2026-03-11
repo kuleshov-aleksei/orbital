@@ -101,6 +101,7 @@ export interface WebSocketMessage {
 
 export interface UserAudioState {
   user_id: string
+  room_id: string
   is_muted: boolean
   is_deafened: boolean
 }

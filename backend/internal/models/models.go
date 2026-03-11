@@ -86,17 +86,19 @@ type WebSocketMessage struct {
 	Data interface{} `json:"data"`
 }
 
-// UserAudioState represents a user's audio state (mute/deafen)
+// UserAudioState represents a user's audio state (mute/deafen) for a specific room
 type UserAudioState struct {
 	UserID     string `json:"user_id"`
+	RoomID     string `json:"room_id"`
 	IsMuted    bool   `json:"is_muted"`
 	IsDeafened bool   `json:"is_deafened"`
 }
 
 // UpdateAudioStateRequest represents a request to update audio state
 type UpdateAudioStateRequest struct {
-	IsMuted    bool `json:"is_muted"`
-	IsDeafened bool `json:"is_deafened"`
+	RoomID     string `json:"room_id"`
+	IsMuted    bool   `json:"is_muted"`
+	IsDeafened bool   `json:"is_deafened"`
 }
 
 // CreateRoomRequest represents a request to create a room
