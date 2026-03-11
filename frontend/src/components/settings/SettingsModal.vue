@@ -22,6 +22,20 @@
             type="button"
             class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
             :class="
+              currentTab === 'account'
+                ? 'bg-theme-accent text-theme-text-on-accent'
+                : 'text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary'
+            "
+            @click="currentTab = 'account'">
+            <PhUser class="w-5 h-5" />
+
+            <span class="font-medium">Account</span>
+          </button>
+
+          <button
+            type="button"
+            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
+            :class="
               currentTab === 'audio'
                 ? 'bg-theme-accent text-theme-text-on-accent'
                 : 'text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary'
@@ -31,6 +45,20 @@
 
             <span class="font-medium">Audio</span>
           </button>
+
+          <button
+            type="button"
+            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
+            :class="
+              currentTab === 'video'
+                ? 'bg-theme-accent text-theme-text-on-accent'
+                : 'text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary'
+            "
+            @click="currentTab = 'video'">
+            <PhCamera class="w-5 h-5" />
+
+            <span class="font-medium">Video</span>
+          </button>          
 
           <button
             type="button"
@@ -58,20 +86,6 @@
             <PhMusicNotes class="w-5 h-5" />
 
             <span class="font-medium">Sounds</span>
-          </button>
-
-          <button
-            type="button"
-            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
-            :class="
-              currentTab === 'account'
-                ? 'bg-theme-accent text-theme-text-on-accent'
-                : 'text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary'
-            "
-            @click="currentTab = 'account'">
-            <PhUser class="w-5 h-5" />
-
-            <span class="font-medium">Account</span>
           </button>
 
           <button
@@ -119,17 +133,20 @@
       <!-- Content Area -->
       <div class="flex-1 overflow-y-auto">
         <div class="p-6">
+          <!-- Account Settings Tab -->
+          <AccountSettings v-if="currentTab === 'account'" @logout="close" />
+
           <!-- Audio Settings Tab -->
-          <AudioSettings v-if="currentTab === 'audio'" />
+          <AudioSettings v-else-if="currentTab === 'audio'" />
+
+          <!-- Video Settings Tab -->
+          <VideoSettings v-else-if="currentTab === 'video'" />
 
           <!-- Sounds Settings Tab -->
           <SoundPackSettings v-else-if="currentTab === 'sounds'" />
 
           <!-- Appearance Settings Tab -->
           <AppearanceSettings v-else-if="currentTab === 'appearance'" />
-
-          <!-- Account Settings Tab -->
-          <AccountSettings v-else-if="currentTab === 'account'" @logout="close" />
 
           <!-- Debug Settings Tab -->
           <DebugSettings v-else-if="currentTab === 'debug'" />
@@ -146,6 +163,7 @@
 import { ref, computed } from "vue"
 import { useModalStore } from "@/stores/modal"
 import AudioSettings from "./AudioSettings.vue"
+import VideoSettings from "./VideoSettings.vue"
 import SoundPackSettings from "./SoundPackSettings.vue"
 import AppearanceSettings from "./AppearanceSettings.vue"
 import AccountSettings from "./AccountSettings.vue"
@@ -160,15 +178,18 @@ import {
   PhBug,
   PhX,
   PhInfo,
+  PhCamera,
 } from "@phosphor-icons/vue"
 
 const modalStore = useModalStore()
-const currentTab = ref<"audio" | "sounds" | "appearance" | "account" | "debug" | "about">("audio")
+const currentTab = ref<"audio" | "video" | "sounds" | "appearance" | "account" | "debug" | "about">(
+  "account",
+)
 
 const isOpen = computed(() => modalStore.isUserSettingsModal)
 
 function close() {
   modalStore.closeModal()
-  currentTab.value = "audio"
+  currentTab.value = "account"
 }
 </script>

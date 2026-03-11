@@ -3,10 +3,12 @@ import { createLocalVideoTrack, VideoPresets } from "livekit-client"
 import type { LocalVideoTrack, RemoteVideoTrack } from "livekit-client"
 import { debugLog } from "@/utils/debug"
 import { useUsersStore } from "@/stores/users"
+import { useVideoSettingsStore } from "@/stores"
 import type { LiveKitState } from "./useLiveKitState"
 
 export function useLiveKitCamera(state: LiveKitState) {
   const usersStore = useUsersStore()
+  const videoSettingsStore = useVideoSettingsStore()
 
   const getNickname = (userId: string): string => {
     const user = usersStore.allUsers.find((u) => u.id === userId)
@@ -92,9 +94,15 @@ export function useLiveKitCamera(state: LiveKitState) {
     state.isStartingCamera.value = true
 
     try {
-      const videoTrack = await createLocalVideoTrack({
+      const videoOptions: { resolution: typeof VideoPresets.h720; deviceId?: string } = {
         resolution: VideoPresets.h720,
-      })
+      }
+
+      if (videoSettingsStore.selectedDeviceId) {
+        videoOptions.deviceId = videoSettingsStore.selectedDeviceId
+      }
+
+      const videoTrack = await createLocalVideoTrack(videoOptions)
 
       const trackToPublish = videoTrack
 
