@@ -1,6 +1,8 @@
 <template>
   <div class="space-y-4">
-    <h3 class="text-lg font-medium text-theme-text-primary flex items-center gap-2">
+    <h3
+      v-if="!hideHeader"
+      class="text-lg font-medium text-theme-text-primary flex items-center gap-2">
       <PhCamera class="w-5 h-5 text-theme-accent" />
       Video Settings
     </h3>
@@ -8,9 +10,7 @@
     <!-- Camera Selection -->
     <div class="space-y-3">
       <div>
-        <label class="text-sm font-medium text-theme-text-primary block mb-1.5">
-          Camera
-        </label>
+        <label class="text-sm font-medium text-theme-text-primary block mb-1.5"> Camera </label>
 
         <select
           v-model="selectedDevice"
@@ -29,17 +29,11 @@
 
     <!-- Video Preview -->
     <div class="space-y-2">
-      <label class="text-sm font-medium text-theme-text-primary block">
-        Preview
-      </label>
+      <label class="text-sm font-medium text-theme-text-primary block"> Preview </label>
 
-      <div class="relative rounded-lg overflow-hidden bg-theme-bg-tertiary aspect-video border border-theme-border">
-        <video
-          ref="videoRef"
-          autoplay
-          playsinline
-          muted
-          class="w-full h-full object-cover" />
+      <div
+        class="relative rounded-lg overflow-hidden bg-theme-bg-tertiary aspect-video border border-theme-border">
+        <video ref="videoRef" autoplay playsinline muted class="w-full h-full object-cover" />
 
         <div
           v-if="!isPreviewActive"
@@ -54,11 +48,13 @@
       <button
         type="button"
         class="w-full py-2 px-4 rounded-lg text-sm font-medium transition-colors"
-        :class="isPreviewActive
-          ? 'bg-red-600 hover:bg-red-700 text-white'
-          : 'bg-theme-accent hover:bg-theme-accent-hover text-theme-text-on-accent'"
+        :class="
+          isPreviewActive
+            ? 'bg-red-600 hover:bg-red-700 text-white'
+            : 'bg-theme-accent hover:bg-theme-accent-hover text-theme-text-on-accent'
+        "
         @click="togglePreview">
-        {{ isPreviewActive ? 'Stop Preview' : 'Start Preview' }}
+        {{ isPreviewActive ? "Stop Preview" : "Start Preview" }}
       </button>
     </div>
 
@@ -80,6 +76,10 @@ import { ref, onMounted, onUnmounted, watch } from "vue"
 import { useVideoSettingsStore } from "@/stores"
 import { useModalStore } from "@/stores/modal"
 import { PhCamera, PhArrowCounterClockwise } from "@phosphor-icons/vue"
+
+defineProps<{
+  hideHeader?: boolean
+}>()
 
 const videoStore = useVideoSettingsStore()
 const modalStore = useModalStore()
@@ -107,9 +107,7 @@ function onDeviceChange() {
 async function startPreview() {
   try {
     const constraints: MediaStreamConstraints = {
-      video: selectedDevice.value
-        ? { deviceId: { exact: selectedDevice.value } }
-        : true,
+      video: selectedDevice.value ? { deviceId: { exact: selectedDevice.value } } : true,
     }
 
     const stream = await navigator.mediaDevices.getUserMedia(constraints)

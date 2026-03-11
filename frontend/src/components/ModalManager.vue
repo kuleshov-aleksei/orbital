@@ -45,11 +45,12 @@
     @confirm="handleDeleteCategory" />
 
   <!-- Settings Modal -->
-  <SettingsModal v-if="modalStore.isUserSettingsModal" />
+  <MobileSettingsModal v-if="modalStore.isUserSettingsModal && appStore.isMobile" />
+  <SettingsModal v-else-if="modalStore.isUserSettingsModal" />
 </template>
 
 <script setup lang="ts">
-import { useModalStore, useCategoryStore } from "@/stores"
+import { useModalStore, useCategoryStore, useAppStore } from "@/stores"
 import { useRoomManager, useCategoryManager } from "@/composables"
 import RoomModal from "@/components/RoomModal.vue"
 import EditRoomModal from "@/components/EditRoomModal.vue"
@@ -57,9 +58,11 @@ import ConfirmDeleteRoomModal from "@/components/ConfirmDeleteRoomModal.vue"
 import CategoryModal from "@/components/CategoryModal.vue"
 import ConfirmDeleteCategoryModal from "@/components/ConfirmDeleteCategoryModal.vue"
 import SettingsModal from "@/components/settings/SettingsModal.vue"
+import MobileSettingsModal from "@/components/settings/MobileSettingsModal.vue"
 
 const modalStore = useModalStore()
 const categoryStore = useCategoryStore()
+const appStore = useAppStore()
 const roomManager = useRoomManager()
 const categoryManager = useCategoryManager()
 

@@ -1,6 +1,8 @@
 <template>
   <div class="space-y-6">
-    <h3 class="text-lg font-medium text-theme-text-primary flex items-center gap-2">
+    <h3
+      v-if="!hideHeader"
+      class="text-lg font-medium text-theme-text-primary flex items-center gap-2">
       <PhSpeakerHigh class="w-5 h-5 text-theme-accent" />
       Sound Settings
     </h3>
@@ -138,6 +140,10 @@ import { storeToRefs } from "pinia"
 import { useSoundPackStore, useRoomStore } from "@/stores"
 import SoundPreview from "./SoundPreview.vue"
 import { PhSpeakerHigh, PhX } from "@phosphor-icons/vue"
+
+defineProps<{
+  hideHeader?: boolean
+}>()
 
 const soundPackStore = useSoundPackStore()
 const roomStore = useRoomStore()

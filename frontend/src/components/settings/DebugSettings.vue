@@ -1,6 +1,8 @@
 <template>
   <div class="space-y-4">
-    <h3 class="text-lg font-medium text-theme-text-primary flex items-center gap-2">
+    <h3
+      v-if="!hideHeader"
+      class="text-lg font-medium text-theme-text-primary flex items-center gap-2">
       <PhBug class="w-5 h-5 text-theme-accent" />
       Debug Settings
     </h3>
@@ -81,6 +83,10 @@ import { useUserStore } from "@/stores/user"
 import { apiService } from "@/services/api"
 import { getLogBuffer } from "@/utils/debug"
 import { PhBug } from "@phosphor-icons/vue"
+
+defineProps<{
+  hideHeader?: boolean
+}>()
 
 declare const __APP_VERSION__: string
 

@@ -1,6 +1,8 @@
 <template>
   <div class="space-y-4">
-    <h3 class="text-lg font-medium text-theme-text-primary flex items-center gap-2">
+    <h3
+      v-if="!hideHeader"
+      class="text-lg font-medium text-theme-text-primary flex items-center gap-2">
       <PhPalette class="w-5 h-5 text-theme-accent" />
       Appearance
     </h3>
@@ -54,6 +56,10 @@
 import { computed, h } from "vue"
 import { useThemeStore, type Theme } from "@/stores/theme"
 import { PhPalette, PhCheck } from "@phosphor-icons/vue"
+
+defineProps<{
+  hideHeader?: boolean
+}>()
 
 const themeStore = useThemeStore()
 const currentTheme = computed(() => themeStore.currentTheme)

@@ -1,6 +1,8 @@
 <template>
   <div class="space-y-4">
-    <h3 class="text-lg font-medium text-theme-text-primary flex items-center gap-2">
+    <h3
+      v-if="!hideHeader"
+      class="text-lg font-medium text-theme-text-primary flex items-center gap-2">
       <PhSpeakerHigh class="w-5 h-5 text-theme-accent" />
       Audio Settings
     </h3>
@@ -137,6 +139,10 @@ import { ref, computed, onMounted, watch } from "vue"
 import { useAudioSettingsStore } from "@/stores"
 import { PhSpeakerHigh, PhArrowCounterClockwise } from "@phosphor-icons/vue"
 import type { NoiseSuppressionAlgorithm } from "@/types/audio"
+
+defineProps<{
+  hideHeader?: boolean
+}>()
 
 const audioStore = useAudioSettingsStore()
 

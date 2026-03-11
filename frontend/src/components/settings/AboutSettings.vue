@@ -1,6 +1,8 @@
 <template>
   <div class="space-y-4">
-    <h3 class="text-lg font-medium text-theme-text-primary flex items-center gap-2">
+    <h3
+      v-if="!hideHeader"
+      class="text-lg font-medium text-theme-text-primary flex items-center gap-2">
       <PhInfo class="w-5 h-5 text-theme-accent" />
       About
     </h3>
@@ -72,6 +74,10 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue"
 import { PhInfo } from "@phosphor-icons/vue"
+
+defineProps<{
+  hideHeader?: boolean
+}>()
 
 declare const __APP_VERSION__: string
 
