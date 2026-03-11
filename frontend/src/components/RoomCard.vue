@@ -5,7 +5,7 @@
     'bg-theme-accent text-theme-text-on-accent': isActive,
     'bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary':
       !isActive,
-    'opacity-50': isDraggings,
+    'opacity-50': isDragging,
   }"
     v-bind="isDraggable ? { draggable: true } : {}"
     @click="$emit('click')"
