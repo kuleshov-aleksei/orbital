@@ -4,13 +4,13 @@ A simple yet powerful voice communication platform for small amount of people. S
 
 ## AI Disclaimer
 
-This project is built by AI (like 99.99%). AI is not perfect, but this application was built in 2 weeks and it does its job. I just do not want to waste 6 months handcrafting artisanal code
+This project is built by AI (like 90%). AI is not perfect, but MVP was built in 2 weeks and it does its job. I just do not want to waste 6 months handcrafting artisanal code
 
 ## Features
 
-- **Voice Rooms** - Create and join voice rooms with up to 10 participants
+- **Voice Rooms** - Create and join voice rooms with up to 10 participants (in theory it is limited only by your network, cause livekit is able to handle about 3k users per room)
 - **LiveKit SFU** - Scalable Selective Forwarding Unit for reliable voice communication
-- **Screen Sharing** - Share your screen with quality options (720p, 1080p, source)
+- **Screen Sharing** - Share your screen with quality options (720p, 1080p 60fps, text-optimized)
 - **Advanced Audio Processing**
   - Multiple noise suppression algorithms (LiveKit Native, Browser Native)
   - Echo cancellation
@@ -20,6 +20,8 @@ This project is built by AI (like 99.99%). AI is not perfect, but this applicati
 - **Simple Deployment** - Frontent + Backend + LiveKit is all what you need. No complex modules like MAS, no custom path rewriting
 - **Persistence** - Backend stores data in sqlite database. Easy management, easy deployment, easy life
 - **Role-Based Access Control** - Granular permissions for different user types
+- **Per-user custom soundpacks** - Every user can select one of the provided soundpacks for media presence events. Other users will hear this customization, with the ability to override the preference to avoid suffering from misuse
+- **Custom themes** - Features a selection of classic UI themes like Catppuccin, True Black, Solarized, etc
 
 ## Role-Based Access Control
 
