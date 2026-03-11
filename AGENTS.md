@@ -6,11 +6,14 @@ This document outlines the development guidelines and agent configurations for T
 
 The Orbital is a voice chat web application for 5-10 people using LiveKit SFU technology.
 
+**Mission**: Build a simple, blazingly fast voice call application for 5-10 people using WebRTC and Go.
+
 ## Tech Stack
 
 - **Frontend**: Vue 3 + TypeScript + Tailwind CSS
 - **Backend**: Go 1.21+
 - **Communication**: LiveKit SFU + WebSockets + REST API
+- **Note**: Signal.io usage is PROHIBITED
 - **Deployment**: Docker + Docker Compose
 
 ## Project Structure
@@ -103,10 +106,13 @@ There are proper build command: `make build`. **DO NOT TRY TO BUILD FRONTEND AND
 
 ## Architecture Principles
 
-1. **Simplicity First** - Avoid over-engineering
-2. **Single Binary** - Backend compiles to one executable
-3. **SFU-Based** - Use LiveKit SFU for scalable voice communication
-4. **Clean Code** - Maintainable and readable codebase
+1. **Simplicity First** - This is NOT a large-scale application, avoid over-engineering
+2. **No Over-Engineering** - Avoid microservices, complex architectures
+3. **Browser Native** - Use WebRTC, avoid plugins and complex setups
+4. **Single Binary** - Backend compiles to one executable
+5. **Discord-like UX** - Familiar, clean interface
+6. **SFU-Based** - Use LiveKit SFU for scalable voice communication
+7. **Clean Code** - Maintainable and readable codebase
 
 ## Restrictions
 
