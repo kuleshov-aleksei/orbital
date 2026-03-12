@@ -1,7 +1,10 @@
 import type { AudioProcessor, NoiseSuppressionAlgorithm } from "@/types/audio"
+import type { TrackProcessor } from "livekit-client"
 import { BrowserNativeProcessor } from "./browser"
 import { createNoNoiseSuppressionProcessor } from "./noNoiseSuppression"
 import { createLiveKitNativeProcessor } from "../livekit-audio-processors"
+import { createRNNoiseProcessor } from "./RNNoiseProcessor"
+import { createSpeexProcessor } from "./SpeexProcessor"
 
 /**
  * Audio Processor Registry
@@ -13,6 +16,8 @@ const processorRegistry: Map<NoiseSuppressionAlgorithm, () => AudioProcessor> = 
   ["browser-native", () => new BrowserNativeProcessor()],
   ["off", () => createNoNoiseSuppressionProcessor()],
   ["livekit-native", () => createLiveKitNativeProcessor()],
+  ["rnnoise", () => createRNNoiseProcessor()],
+  ["speex", () => createSpeexProcessor()],
 ])
 
 /**
@@ -64,3 +69,27 @@ export {
   LiveKitNativeProcessor,
   getLiveKitAudioConstraints,
 } from "../livekit-audio-processors"
+export { createRNNoiseProcessor, RNNoiseProcessor } from "./RNNoiseProcessor"
+export { createSpeexProcessor, SpeexProcessor } from "./SpeexProcessor"
+
+/**
+ * Get a LiveKit TrackProcessor for WASM-based noise suppression
+ * Returns null for algorithms that don't use TrackProcessor (browser-native, livekit-native, off)
+ */
+export function getTrackProcessor(algorithm: NoiseSuppressionAlgorithm): TrackProcessor | null {
+  switch (algorithm) {
+    case "rnnoise":
+      return createRNNoiseProcessor()
+    case "speex":
+      return createSpeexProcessor()
+    default:
+      return null
+  }
+}
+
+/**
+ * Check if an algorithm uses WASM-based processing (requires TrackProcessor)
+ */
+export function isWasmAlgorithm(algorithm: NoiseSuppressionAlgorithm): boolean {
+  return algorithm === "rnnoise" || algorithm === "speex"
+}

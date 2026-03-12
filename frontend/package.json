@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@phosphor-icons/vue": "^2.2.1",
+    "@sapphi-red/web-noise-suppressor": "^0.3.5",
     "@typescript-eslint/eslint-plugin": "^8.56.1",
     "@typescript-eslint/parser": "^8.56.1",
     "@vueuse/sound": "^2.1.3",

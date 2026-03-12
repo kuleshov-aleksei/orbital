@@ -3,7 +3,12 @@
  * Simplified: Only LiveKit native, browser native, and off options
  */
 
-export type NoiseSuppressionAlgorithm = "off" | "browser-native" | "livekit-native"
+export type NoiseSuppressionAlgorithm =
+  | "off"
+  | "browser-native"
+  | "livekit-native"
+  | "rnnoise"
+  | "speex"
 
 export interface NoiseSuppressionConfig {
   enabled: boolean
@@ -142,6 +147,22 @@ export const availableAlgorithms: AudioAlgorithmInfo[] = [
     id: "browser-native",
     name: "Browser Native",
     description: "Built-in browser noise suppression (WebRTC Audio Processing)",
+    isSupported: true,
+    isAvailable: true,
+    sampleRate: null,
+  },
+  {
+    id: "rnnoise",
+    name: "RNNoise",
+    description: "Machine learning-based noise suppression (high quality, requires 48kHz)",
+    isSupported: true,
+    isAvailable: true,
+    sampleRate: 48000,
+  },
+  {
+    id: "speex",
+    name: "Speex",
+    description: "Fast CPU-efficient noise suppression",
     isSupported: true,
     isAvailable: true,
     sampleRate: null,
