@@ -10,10 +10,18 @@ export interface VideoDevice {
 
 export interface VideoSettings {
   selectedDeviceId: string | null
+  backgroundBlurEnabled: boolean
+  backgroundBlurRadius: number
+  virtualBackgroundEnabled: boolean
+  virtualBackgroundImage: string | null
 }
 
 const defaultVideoSettings: VideoSettings = {
   selectedDeviceId: null,
+  backgroundBlurEnabled: false,
+  backgroundBlurRadius: 10,
+  virtualBackgroundEnabled: false,
+  virtualBackgroundImage: null,
 }
 
 export const useVideoSettingsStore = defineStore("videoSettings", () => {
@@ -22,6 +30,10 @@ export const useVideoSettingsStore = defineStore("videoSettings", () => {
   const availableDevices = ref<VideoDevice[]>([])
 
   const selectedDeviceId = computed(() => settings.value.selectedDeviceId)
+  const backgroundBlurEnabled = computed(() => settings.value.backgroundBlurEnabled)
+  const backgroundBlurRadius = computed(() => settings.value.backgroundBlurRadius)
+  const virtualBackgroundEnabled = computed(() => settings.value.virtualBackgroundEnabled)
+  const virtualBackgroundImage = computed(() => settings.value.virtualBackgroundImage)
 
   async function enumerateDevices(): Promise<VideoDevice[]> {
     try {
@@ -52,6 +64,32 @@ export const useVideoSettingsStore = defineStore("videoSettings", () => {
 
   function setSelectedDeviceId(deviceId: string | null) {
     settings.value.selectedDeviceId = deviceId
+    saveSettings()
+  }
+
+  function setBackgroundBlurEnabled(enabled: boolean) {
+    settings.value.backgroundBlurEnabled = enabled
+    if (enabled) {
+      settings.value.virtualBackgroundEnabled = false
+    }
+    saveSettings()
+  }
+
+  function setBackgroundBlurRadius(radius: number) {
+    settings.value.backgroundBlurRadius = Math.max(1, Math.min(50, radius))
+    saveSettings()
+  }
+
+  function setVirtualBackgroundEnabled(enabled: boolean) {
+    settings.value.virtualBackgroundEnabled = enabled
+    if (enabled) {
+      settings.value.backgroundBlurEnabled = false
+    }
+    saveSettings()
+  }
+
+  function setVirtualBackgroundImage(image: string | null) {
+    settings.value.virtualBackgroundImage = image
     saveSettings()
   }
 
@@ -90,9 +128,17 @@ export const useVideoSettingsStore = defineStore("videoSettings", () => {
     isLoaded,
     availableDevices,
     selectedDeviceId,
+    backgroundBlurEnabled,
+    backgroundBlurRadius,
+    virtualBackgroundEnabled,
+    virtualBackgroundImage,
     enumerateDevices,
     requestPermissionsAndEnumerate,
     setSelectedDeviceId,
+    setBackgroundBlurEnabled,
+    setBackgroundBlurRadius,
+    setVirtualBackgroundEnabled,
+    setVirtualBackgroundImage,
     loadSettings,
     saveSettings,
     resetSettings,

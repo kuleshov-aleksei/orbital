@@ -6,7 +6,7 @@
     <!-- Mobile Close Button -->
     <div class="lg:hidden flex items-center justify-between p-4 border-b border-theme-border">
       <h2 class="text-sm font-semibold text-theme-text-secondary uppercase tracking-wider">
-        Users — {{ userCount }}
+        Users - {{ userCount }}
       </h2>
 
       <button
@@ -24,7 +24,7 @@
       <h2
         v-if="!isCollapsed"
         class="text-sm font-semibold text-theme-text-secondary uppercase tracking-wider">
-        Users — {{ userCount }}
+        Users - {{ userCount }}
       </h2>
 
       <!-- Toggle Button - Integrated into header -->

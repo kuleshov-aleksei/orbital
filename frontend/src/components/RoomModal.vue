@@ -2,7 +2,8 @@
   <div
     class="modal-overlay fixed inset-0 bg-theme-backdrop flex items-center justify-center z-50"
     data-testid="room-modal">
-    <div class="modal-content bg-theme-bg-secondary rounded-lg p-6 w-full max-w-md border border-theme-border">
+    <div
+      class="modal-content bg-theme-bg-secondary rounded-lg p-6 w-full max-w-md border border-theme-border">
       <!-- Modal Header -->
       <div class="flex items-center justify-between mb-6">
         <h2 class="text-xl font-semibold text-theme-text-primary">Create New Room</h2>
@@ -46,7 +47,9 @@
 
         <!-- Room Category -->
         <div class="mb-4">
-          <label for="roomCategory" class="block text-sm font-medium text-theme-text-secondary mb-2">
+          <label
+            for="roomCategory"
+            class="block text-sm font-medium text-theme-text-secondary mb-2">
             Category
           </label>
 

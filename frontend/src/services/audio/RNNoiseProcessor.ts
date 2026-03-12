@@ -18,7 +18,7 @@ let wasmBinary: ArrayBuffer | null = null
 
 async function ensureWorkletLoaded(audioContext: AudioContext): Promise<void> {
   if (workletLoaded) return
-  
+
   debugLog("[RNNoise][INFO]: Loading worklet module...")
   await audioContext.audioWorklet.addModule(workletPath)
   workletLoaded = true
@@ -27,7 +27,7 @@ async function ensureWorkletLoaded(audioContext: AudioContext): Promise<void> {
 
 async function ensureWasmLoaded(): Promise<ArrayBuffer> {
   if (wasmBinary) return wasmBinary
-  
+
   debugLog("[RNNoise][INFO]: Loading WASM module...")
   wasmBinary = await loadRnnoise(
     {
@@ -38,7 +38,7 @@ async function ensureWasmLoaded(): Promise<ArrayBuffer> {
   )
   wasmLoaded = true
   debugLog(`[RNNoise][INFO]: WASM module loaded (${wasmBinary.byteLength} bytes)`)
-  
+
   return wasmBinary
 }
 
@@ -105,7 +105,7 @@ export class RNNoiseProcessor implements TrackProcessor<Track.Kind.Audio, AudioP
 
     this.workletNode?.disconnect()
     if (this.workletNode && "destroy" in this.workletNode) {
-      (this.workletNode as unknown as { destroy: () => void }).destroy()
+      ;(this.workletNode as unknown as { destroy: () => void }).destroy()
     }
     this.workletNode = undefined
 

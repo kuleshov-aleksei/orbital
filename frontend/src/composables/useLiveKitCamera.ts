@@ -1,14 +1,57 @@
 import { computed } from "vue"
 import { createLocalVideoTrack, VideoPresets } from "livekit-client"
 import type { LocalVideoTrack, RemoteVideoTrack } from "livekit-client"
+import {
+  BackgroundProcessor,
+  supportsBackgroundProcessors,
+  type BackgroundProcessorWrapper,
+} from "@livekit/track-processors"
 import { debugLog } from "@/utils/debug"
 import { useUsersStore } from "@/stores/users"
 import { useVideoSettingsStore } from "@/stores"
 import type { LiveKitState } from "./useLiveKitState"
 
+let backgroundProcessorInstance: BackgroundProcessorWrapper | null = null
+
 export function useLiveKitCamera(state: LiveKitState) {
   const usersStore = useUsersStore()
   const videoSettingsStore = useVideoSettingsStore()
+
+  function createBackgroundProcessor(): BackgroundProcessorWrapper | null {
+    try {
+      const enabled = videoSettingsStore.backgroundBlurEnabled
+      const virtualEnabled = videoSettingsStore.virtualBackgroundEnabled
+      const blurRadius = videoSettingsStore.backgroundBlurRadius
+      const virtualImage = videoSettingsStore.virtualBackgroundImage
+
+      let mode: "background-blur" | "virtual-background" | "disabled" = "disabled"
+
+      if (enabled) {
+        mode = "background-blur"
+      } else if (virtualEnabled && virtualImage) {
+        mode = "virtual-background"
+      }
+
+      if (mode === "disabled") {
+        return null
+      }
+
+      const processor = BackgroundProcessor({
+        mode,
+        ...(mode === "background-blur" && { blurRadius }),
+        ...(mode === "virtual-background" && { imagePath: virtualImage }),
+        assetPaths: {
+          tasksVisionFileSet: "/assets/wasm",
+          modelAssetPath: "/assets/models/selfie_segmenter.tflite",
+        },
+      })
+
+      return processor
+    } catch (e) {
+      console.error("Failed to create background processor:", e)
+      return null
+    }
+  }
 
   const getNickname = (userId: string): string => {
     const user = usersStore.allUsers.find((u) => u.id === userId)
@@ -63,6 +106,11 @@ export function useLiveKitCamera(state: LiveKitState) {
         }
       }
 
+      if (backgroundProcessorInstance) {
+        backgroundProcessorInstance.destroy()
+        backgroundProcessorInstance = null
+      }
+
       state.localCameraPublication.value = null
       state.localCameraTrack.value = null
       state.isCameraEnabled.value = false
@@ -102,7 +150,15 @@ export function useLiveKitCamera(state: LiveKitState) {
         videoOptions.deviceId = videoSettingsStore.selectedDeviceId
       }
 
-      const videoTrack = await createLocalVideoTrack(videoOptions)
+      let videoTrack = await createLocalVideoTrack(videoOptions)
+
+      const processorSupported = supportsBackgroundProcessors()
+      if (processorSupported) {
+        backgroundProcessorInstance = createBackgroundProcessor()
+        if (backgroundProcessorInstance) {
+          await videoTrack.setProcessor(backgroundProcessorInstance, true)
+        }
+      }
 
       const trackToPublish = videoTrack
 
