@@ -147,7 +147,7 @@ defineProps<{
 const audioStore = useAudioSettingsStore()
 
 // Local state
-const selectedAlgorithm = ref<NoiseSuppressionAlgorithm>("livekit-native")
+const selectedAlgorithm = ref<NoiseSuppressionAlgorithm>("rnnoise")
 
 // Computed
 const noiseSuppressionEnabled = computed(() => audioStore.noiseSuppressionEnabled)

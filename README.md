@@ -116,9 +116,6 @@ The Orbital supports multiple noise suppression algorithms:
 
 - **LiveKit Native** - Built-in LiveKit noise suppression (SFU-optimized, low latency)
 - **Browser Native** - Uses built-in browser audio processing
-
-**Obsolete** but may come back:
-
 - **RNNoise** - High-quality ML-based noise suppression (requires 48kHz microphone)
 - **Speex** - Fast CPU-efficient noise suppression
 

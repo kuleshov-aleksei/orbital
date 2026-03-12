@@ -107,7 +107,7 @@ export type SoundEvent =
 export const defaultAudioSettings: AudioSettings = {
   noiseSuppression: {
     enabled: true,
-    algorithm: "livekit-native",
+    algorithm: "rnnoise",
   },
   echoCancellation: true,
   autoGainControl: true,
