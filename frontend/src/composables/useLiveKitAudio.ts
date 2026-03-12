@@ -165,20 +165,23 @@ export function useLiveKitAudio(state: LiveKitState) {
 
     try {
       const localParticipant = state.room.value.localParticipant
-      const audioPublications = localParticipant.trackPublications.values()
+      const audioPublications = Array.from(localParticipant.trackPublications.values())
       
       for (const publication of audioPublications) {
-        if (publication.kind === "audio") {
-          await localParticipant.unpublishTrack(publication.trackSid)
-          if (state.localAudioPublication.value?.trackSid === publication.trackSid) {
-            state.localAudioPublication.value = null
+        if (publication.kind === "audio" && publication.trackSid) {
+          try {
+            await localParticipant.unpublishTrack(publication.trackSid)
+            debugLog(`[LiveKit][INFO]: Unpublished audio track: ${publication.trackSid}`)
+          } catch (e) {
+            debugWarn(`[LiveKit][WARN]: Failed to unpublish track ${publication.trackSid}:`, e)
           }
         }
       }
       
+      state.localAudioPublication.value = null
       debugLog(`[LiveKit][INFO]: 'Audio track unpublished'}`)
     } catch (error) {
-      console.error("Failed to unpublish audio track:", error)
+      debugError("Failed to unpublish audio track:", error)
     }
   }
 
@@ -188,18 +191,19 @@ export function useLiveKitAudio(state: LiveKitState) {
       return
     }
 
-    const currentEnabled = state.room.value.localParticipant.isMicrophoneEnabled
-    const shouldBeMuted = !muted
-    
-    if (currentEnabled === shouldBeMuted) {
-      debugLog(`[LiveKit][INFO]: Mute state already ${muted}, skipping`)
-      return
-    }
-
     try {
-      debugLog(`[LiveKit][INFO]: Applying mute state: ${muted}`)
-      await state.room.value.localParticipant.setMicrophoneEnabled(!muted)
-      debugLog(`[LiveKit][INFO]: Microphone ${muted ? "muted" : "unmuted"}`)
+      if (state.localAudioTrack.value) {
+        debugLog(`[LiveKit][INFO]: Applying mute: ${muted}, using stored track`)
+        if (muted) {
+          await state.localAudioTrack.value.mute()
+        } else {
+          await state.localAudioTrack.value.unmute()
+        }
+        debugLog(`[LiveKit][INFO]: Microphone ${muted ? "muted" : "unmuted"}`)
+      } else {
+        debugWarn(`[LiveKit][WARN]: No local audio track, using setMicrophoneEnabled`)
+        await state.room.value.localParticipant.setMicrophoneEnabled(!muted)
+      }
     } catch (error) {
       debugError("Failed to apply mute state:", error)
     }
@@ -222,9 +226,10 @@ export function useLiveKitAudio(state: LiveKitState) {
   const reinitializeAudioStream = async (): Promise<void> => {
     debugLog(`[LiveKit][INFO]: 'Reinitializing audio stream...'`)
 
-    const wasMuted = state.localAudioPublication.value
-      ? !state.room.value?.localParticipant.isMicrophoneEnabled
-      : false
+    if (!state.isConnected.value || !state.room.value) {
+      debugWarn(`[LiveKit][WARN]: Room not connected, skipping reinitialize`)
+      return
+    }
 
     try {
       await unpublishAudioTrack()
@@ -244,17 +249,23 @@ export function useLiveKitAudio(state: LiveKitState) {
     state.localStreamPromise.value = null
     state.localAudioPublication.value = null
 
-    await new Promise(resolve => setTimeout(resolve, 100))
+    await new Promise(resolve => setTimeout(resolve, 300))
+    
+    if (!state.isConnected.value || !state.room.value) {
+      debugWarn(`[LiveKit][WARN]: Room disconnected during reinitialize`)
+      return
+    }
     
     await initializeAudioTrack()
+    
+    if (!state.localAudioTrack.value) {
+      debugWarn(`[LiveKit][WARN]: No audio track created`)
+      return
+    }
+    
     await publishAudioTrack()
 
     debugLog(`[LiveKit][INFO]: 'Audio stream reinitialized, publication:', ${state.localAudioPublication.value?.trackSid}`)
-
-    if (wasMuted) {
-      debugLog(`[LiveKit][INFO]: 'Re-applying mute state after reinitialization'`)
-      await applyMuteState(true)
-    }
   }
 
   return {
