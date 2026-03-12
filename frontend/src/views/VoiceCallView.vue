@@ -89,6 +89,7 @@ import { computed, defineAsyncComponent, ref, useTemplateRef, watch } from "vue"
 import AudioControls from "@/components/AudioControls.vue"
 import RoomHeader from "@/components/RoomHeader.vue"
 import { useLiveKit, useVoiceActivity } from "@/composables"
+import { debugLog } from "@/utils/debug"
 import {
   useAudioSettingsStore,
   useCallStore,

@@ -79,8 +79,20 @@ export const useAudioSettingsStore = defineStore("audioSettings", () => {
       case "browser-native":
       case "off":
       case "livekit-native":
-        // All modern browsers support these options
         return { isSupported: true }
+
+      case "rnnoise":
+      case "speex": {
+        const hasWasm = typeof WebAssembly === "object"
+        const hasAudioWorklet = typeof AudioWorkletNode !== "undefined"
+        if (!hasWasm) {
+          return { isSupported: false, reason: "WebAssembly not supported in this browser" }
+        }
+        if (!hasAudioWorklet) {
+          return { isSupported: false, reason: "AudioWorklet not supported in this browser" }
+        }
+        return { isSupported: true }
+      }
 
       default:
         return { isSupported: false, reason: "Unknown algorithm" }
