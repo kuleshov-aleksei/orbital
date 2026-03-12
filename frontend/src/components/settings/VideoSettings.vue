@@ -211,6 +211,8 @@ const presetImages = [
   { name: "Image 1", path: "/assets/virtual-backgrounds/image-1.jpg" },
   { name: "Image 2", path: "/assets/virtual-backgrounds/image-2.jpg" },
   { name: "Image 3", path: "/assets/virtual-backgrounds/image-3.png" },
+  { name: "Image 4", path: "/assets/virtual-backgrounds/image-4.jpg" },
+  { name: "Image 5", path: "/assets/virtual-backgrounds/image-5.jpg" },
 ]
 
 const backgroundBlurEnabled = computed(() => videoStore.backgroundBlurEnabled)
@@ -307,7 +309,16 @@ async function startPreview() {
       const processor = await createProcessor()
       if (processor) {
         previewProcessor.value = processor
-        await track.setProcessor(processor, true)
+        const originalError = console.error
+        console.error = (...args: unknown[]) => {
+          if (args[0] === "failed to play processor element, retrying") return
+          originalError.apply(console, args)
+        }
+        try {
+          await track.setProcessor(processor, true)
+        } finally {
+          console.error = originalError
+        }
       }
     }
 
