@@ -13,7 +13,6 @@ const simdWasmPath = rnnoiseSimdWasmPath as string
 const workletPath = rnnoiseWorkletPath as string
 
 let workletLoaded = false
-let wasmLoaded = false
 let wasmBinary: ArrayBuffer | null = null
 
 async function ensureWorkletLoaded(audioContext: AudioContext): Promise<void> {
@@ -36,7 +35,7 @@ async function ensureWasmLoaded(): Promise<ArrayBuffer> {
     },
     { credentials: "same-origin" },
   )
-  wasmLoaded = true
+
   debugLog(`[RNNoise][INFO]: WASM module loaded (${wasmBinary.byteLength} bytes)`)
   
   return wasmBinary

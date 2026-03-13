@@ -22,7 +22,8 @@ import {
 import { debugLog } from "@/utils/debug"
 
 // Debounce helper for batching updates
-function debounce<T extends (...args: unknown[]) => void>(
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function debounce<T extends (...args: any[]) => void>(
   fn: T,
   delay: number,
   { leading = false, trailing = true }: { leading?: boolean; trailing?: boolean } = {},
@@ -148,6 +149,7 @@ export const usePresenceStore = defineStore("presence", () => {
 
     // Initialize local attributes
     const currentUser = userStore.currentUser
+    // @ts-ignore - LiveKit attributes are stored as strings
     await updateLocalAttributes({
       user_id: userStore.userId,
       nickname: currentUser?.nickname ?? userStore.userId,
@@ -276,6 +278,7 @@ export const usePresenceStore = defineStore("presence", () => {
     watch(
       () => [callStore.isMuted, callStore.isDeafened] as const,
       ([newMuted, newDeafened]) => {
+        // @ts-ignore - LiveKit attributes are stored as strings
         void updateLocalAttributes({
           is_muted: newMuted.toString(),
           is_deafened: newDeafened.toString(),

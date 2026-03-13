@@ -9,7 +9,7 @@ import {
 } from "@/stores"
 import { wsService } from "@/services/websocket"
 import { debugLog } from "@/utils/debug"
-import type { User, Room, Category } from "@/types"
+import type { User, Room, Category, PublicUser } from "@/types"
 
 export function useWebSocketHandlers() {
   const roomStore = useRoomStore()
@@ -197,7 +197,7 @@ export function useWebSocketHandlers() {
           id: data.id,
           nickname: data.nickname,
           avatar_url: data.avatar_url || "",
-          role: data.role,
+          role: data.role as PublicUser["role"],
           is_online: true,
         })
       }
@@ -226,7 +226,7 @@ export function useWebSocketHandlers() {
           id: user.id,
           nickname: user.nickname,
           avatar_url: user.avatar_url,
-          role: user.role,
+          role: user.role as PublicUser["role"],
           is_online: user.is_online,
         })
       })

@@ -11,7 +11,6 @@ const wasmPath = speexWasmPath as string
 const workletPath = speexWorkletPath as string
 
 let workletLoaded = false
-let wasmLoaded = false
 let wasmBinary: ArrayBuffer | null = null
 
 async function ensureWorkletLoaded(audioContext: AudioContext): Promise<void> {
@@ -33,7 +32,7 @@ async function ensureWasmLoaded(): Promise<ArrayBuffer> {
     },
     { credentials: "same-origin" },
   )
-  wasmLoaded = true
+
   debugLog(`[Speex][INFO]: WASM module loaded (${wasmBinary.byteLength} bytes)`)
   
   return wasmBinary

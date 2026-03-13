@@ -35,7 +35,7 @@ configStore
   })
 
 // Global error handler
-app.config.errorHandler = (err, instance, info) => {
+app.config.errorHandler = (err, _instance, info) => {
   console.error("[Orbital] Vue error:", err)
   console.error("[Orbital] Vue error info:", info)
 }

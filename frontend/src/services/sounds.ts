@@ -97,7 +97,7 @@ function loadSound(packId: string): Howl {
     html5: true,
     volume: globalVolume,
     preload: true,
-    onloaderror: (_id, error) => {
+    onloaderror: (_id: string, error: string) => {
       console.error(`Failed to load sound pack ${packId}:`, error)
     },
   })

@@ -270,7 +270,7 @@ export const useRoomStore = defineStore("room", () => {
       }
     }
 
-    rooms.value.forEach((room, roomIndex) => {
+    rooms.value.forEach((room, _roomIndex) => {
       if (room.users) {
         const userIdx = room.users.findIndex((u) => u.id === userId)
         if (userIdx !== -1 && room.users) {

@@ -13,11 +13,13 @@ export function useUserSession() {
       // Create new user if none exists
       const userId = generateUserId()
       const nickname = generateNickname(userId)
+
       userStore.setUser({
         id: userId,
         nickname,
         authProvider: "guest",
         isGuest: true,
+        role: "guest"
       })
     }
 
