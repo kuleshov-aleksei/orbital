@@ -93,9 +93,9 @@
                   <span class="font-medium text-white">{{ user.nickname }}</span>
 
                   <span
-                    v-if="user.oauth_nickname && user.oauth_nickname !== user.nickname"
+                    v-if="user.original_nickname && user.original_nickname !== user.nickname"
                     class="text-sm text-gray-500">
-                    ({{ user.oauth_nickname }})
+                    ({{ user.original_nickname }})
                   </span>
 
                   <span

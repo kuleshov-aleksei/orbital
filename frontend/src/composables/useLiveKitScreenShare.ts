@@ -108,6 +108,7 @@ export function useLiveKitScreenShare(state: LiveKitState) {
       const constraints: MediaStreamConstraints = {
         audio: audio
           ? {
+              // @ts-expect-error - Chrome-specific constraint
               mandatory: {
                 chromeMediaSource: "desktop",
                 chromeMediaSourceId: sourceId,
@@ -118,6 +119,7 @@ export function useLiveKitScreenShare(state: LiveKitState) {
             }
           : false,
         video: {
+          // @ts-expect-error - Chrome-specific constraint
           mandatory: {
             chromeMediaSource: "desktop",
             chromeMediaSourceId: sourceId,

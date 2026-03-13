@@ -170,6 +170,7 @@ export function useLiveKitAudio(state: LiveKitState) {
       for (const publication of audioPublications) {
         if (publication.kind === "audio" && publication.trackSid) {
           try {
+            // @ts-expect-error - trackSid can be passed as string in LiveKit
             await localParticipant.unpublishTrack(publication.trackSid)
             debugLog(`[LiveKit][INFO]: Unpublished audio track: ${publication.trackSid}`)
           } catch (e) {
@@ -265,7 +266,7 @@ export function useLiveKitAudio(state: LiveKitState) {
     
     await publishAudioTrack()
 
-    debugLog(`[LiveKit][INFO]: 'Audio stream reinitialized, publication:', ${state.localAudioPublication.value?.trackSid}`)
+    debugLog(`[LiveKit][INFO]: 'Audio stream reinitialized, publication:', ${(state.localAudioPublication.value as any)?.trackSid}`)
   }
 
   return {

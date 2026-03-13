@@ -1,5 +1,5 @@
 import type { AudioProcessor, NoiseSuppressionAlgorithm } from "@/types/audio"
-import type { TrackProcessor } from "livekit-client"
+import type { AudioProcessorOptions, Track, TrackProcessor } from "livekit-client"
 import { BrowserNativeProcessor } from "./browser"
 import { createNoNoiseSuppressionProcessor } from "./noNoiseSuppression"
 import { createLiveKitNativeProcessor } from "../livekit-audio-processors"
@@ -76,7 +76,7 @@ export { createSpeexProcessor, SpeexProcessor } from "./SpeexProcessor"
  * Get a LiveKit TrackProcessor for WASM-based noise suppression
  * Returns null for algorithms that don't use TrackProcessor (browser-native, livekit-native, off)
  */
-export function getTrackProcessor(algorithm: NoiseSuppressionAlgorithm): TrackProcessor | null {
+export function getTrackProcessor(algorithm: NoiseSuppressionAlgorithm): TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> | null {
   switch (algorithm) {
     case "rnnoise":
       return createRNNoiseProcessor()

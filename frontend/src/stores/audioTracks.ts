@@ -10,7 +10,7 @@ export const useAudioTracksStore = defineStore("audioTracks", () => {
 
   // Helper to trigger reactivity by creating a new Map reference
   const updateMap = (updater: (map: Map<string, RemoteAudioTrack>) => void) => {
-    updater(tracksMap.value)
+    updater(tracksMap.value as Map<string, RemoteAudioTrack>)
     // Create a new Map to trigger Vue reactivity
     tracksMap.value = new Map(tracksMap.value)
   }
@@ -33,7 +33,7 @@ export const useAudioTracksStore = defineStore("audioTracks", () => {
 
   // Get track for a user
   const getTrack = (userId: string): RemoteAudioTrack | undefined => {
-    return tracksMap.value.get(userId)
+    return tracksMap.value.get(userId) as RemoteAudioTrack | undefined
   }
 
   // Check if track exists for a user
@@ -43,7 +43,7 @@ export const useAudioTracksStore = defineStore("audioTracks", () => {
 
   // Get all tracks
   const getAllTracks = (): Map<string, RemoteAudioTrack> => {
-    return tracksMap.value
+    return tracksMap.value as Map<string, RemoteAudioTrack>
   }
 
   // Clear all tracks
@@ -58,7 +58,7 @@ export const useAudioTracksStore = defineStore("audioTracks", () => {
   }
 
   // Expose the reactive tracks for watching
-  const remoteAudioTracks = computed(() => tracksMap.value)
+  const remoteAudioTracks = computed(() => tracksMap.value as Map<string, RemoteAudioTrack>)
 
   return {
     remoteAudioTracks,

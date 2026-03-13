@@ -31,18 +31,15 @@ import { useUserStore } from "@/stores"
 import type { User } from "@/types"
 import type { ScreenShareQuality } from "@/types"
 
+import type { ConnectionStats } from "@/types"
+
 interface Props {
   users: User[]
   remoteStreamVolumes: Map<string, number>
   userScreenShareStates: Map<string, { isSharing: boolean; quality?: ScreenShareQuality }>
   isDeafened: boolean
   isVisible: boolean
-  getParticipantStats?: (userId: string) => {
-    ping: number
-    jitter: number
-    packetLoss: number
-    bitrate: number
-  }
+  getParticipantStats?: (userId: string) => ConnectionStats
 }
 
 defineProps<Props>()

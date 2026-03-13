@@ -1,4 +1,4 @@
-import { ref } from "vue"
+import { ref, type Ref } from "vue"
 import type {
   Room,
   LocalParticipant,
@@ -18,43 +18,39 @@ export interface ScreenShareState {
 
 export interface LiveKitState {
   getCurrentUserId: () => string
-  room: ReturnType<typeof ref<Room | null>>
-  isConnected: ReturnType<typeof ref<boolean>>
-  isConnecting: ReturnType<typeof ref<boolean>>
-  connectionError: ReturnType<typeof ref<string | null>>
-  localParticipant: ReturnType<typeof ref<LocalParticipant | null>>
-  localAudioTrack: ReturnType<typeof ref<LocalAudioTrack | null>>
-  localAudioPublication: ReturnType<typeof ref<LocalTrackPublication | null>>
-  remoteParticipants: ReturnType<typeof ref<Map<string, RemoteParticipant>>>
-  remoteAudioTracks: ReturnType<typeof ref<Map<string, RemoteAudioTrack>>>
-  isScreenSharing: ReturnType<typeof ref<boolean>>
-  screenShareQuality: ReturnType<typeof ref<ScreenShareQuality>>
-  localScreenVideoTrack: ReturnType<typeof ref<LocalVideoTrack | null>>
-  localScreenAudioTrack: ReturnType<typeof ref<LocalAudioTrack | null>>
-  userScreenShareStates: ReturnType<typeof ref<Map<string, ScreenShareState>>>
-  remoteScreenTracks: ReturnType<
-    typeof ref<Map<string, { video?: RemoteVideoTrack; audio?: RemoteAudioTrack }>>
-  >
-  screenShareVersion: ReturnType<typeof ref<number>>
-  subscribedScreenShares: ReturnType<typeof ref<Set<string>>>
-  localScreenVideoPublication: ReturnType<typeof ref<LocalTrackPublication | null>>
-  localScreenAudioPublication: ReturnType<typeof ref<LocalTrackPublication | null>>
-  isCameraEnabled: ReturnType<typeof ref<boolean>>
-  localCameraTrack: ReturnType<typeof ref<LocalVideoTrack | null>>
-  userCameraStates: ReturnType<typeof ref<Map<string, boolean>>>
-  remoteCameraTracks: ReturnType<typeof ref<Map<string, RemoteVideoTrack>>>
-  cameraVersion: ReturnType<typeof ref<number>>
-  localCameraPublication: ReturnType<typeof ref<LocalTrackPublication | null>>
-  isStoppingCamera: ReturnType<typeof ref<boolean>>
-  isStartingCamera: ReturnType<typeof ref<boolean>>
-  isStoppingScreenShare: ReturnType<typeof ref<boolean>>
-  isStartingScreenShare: ReturnType<typeof ref<boolean>>
-  localStreamPromise: ReturnType<typeof ref<Promise<LocalAudioTrack | null> | null>>
-  currentPing: ReturnType<typeof ref<number>>
-  participantStats: ReturnType<typeof ref<Map<string, ConnectionStats>>>
-  previousStats: ReturnType<
-    typeof ref<Map<string, Map<string, { bytesReceived: number; timestamp: number }>>>
-  >
+  room: Ref<Room | null>
+  isConnected: Ref<boolean>
+  isConnecting: Ref<boolean>
+  connectionError: Ref<string | null>
+  localParticipant: Ref<LocalParticipant | null>
+  localAudioTrack: Ref<LocalAudioTrack | null>
+  localAudioPublication: Ref<LocalTrackPublication | null>
+  remoteParticipants: Ref<Map<string, RemoteParticipant>>
+  remoteAudioTracks: Ref<Map<string, RemoteAudioTrack>>
+  isScreenSharing: Ref<boolean>
+  screenShareQuality: Ref<ScreenShareQuality>
+  localScreenVideoTrack: Ref<LocalVideoTrack | null>
+  localScreenAudioTrack: Ref<LocalAudioTrack | null>
+  userScreenShareStates: Ref<Map<string, ScreenShareState>>
+  remoteScreenTracks: Ref<Map<string, { video?: RemoteVideoTrack; audio?: RemoteAudioTrack }>>
+  screenShareVersion: Ref<number>
+  subscribedScreenShares: Ref<Set<string>>
+  localScreenVideoPublication: Ref<LocalTrackPublication | null>
+  localScreenAudioPublication: Ref<LocalTrackPublication | null>
+  isCameraEnabled: Ref<boolean>
+  localCameraTrack: Ref<LocalVideoTrack | null>
+  userCameraStates: Ref<Map<string, boolean>>
+  remoteCameraTracks: Ref<Map<string, RemoteVideoTrack>>
+  cameraVersion: Ref<number>
+  localCameraPublication: Ref<LocalTrackPublication | null>
+  isStoppingCamera: Ref<boolean>
+  isStartingCamera: Ref<boolean>
+  isStoppingScreenShare: Ref<boolean>
+  isStartingScreenShare: Ref<boolean>
+  localStreamPromise: Ref<Promise<LocalAudioTrack | null> | null>
+  currentPing: Ref<number>
+  participantStats: Ref<Map<string, ConnectionStats>>
+  previousStats: Ref<Map<string, Map<string, { bytesReceived: number; timestamp: number }>>>
   remoteStreamVolumes: Map<string, number>
   onVolumeChange: (userId: string, volume: number) => void
 }
@@ -121,39 +117,39 @@ export function useLiveKitState(options: UseLiveKitStateOptions): LiveKitState {
 
   return {
     getCurrentUserId,
-    room,
-    isConnected,
-    isConnecting,
-    connectionError,
-    localParticipant,
-    localAudioTrack,
-    localAudioPublication,
-    remoteParticipants,
-    remoteAudioTracks,
-    isScreenSharing,
-    screenShareQuality,
-    localScreenVideoTrack,
-    localScreenAudioTrack,
-    userScreenShareStates,
-    remoteScreenTracks,
-    screenShareVersion,
-    subscribedScreenShares,
-    localScreenVideoPublication,
-    localScreenAudioPublication,
-    isCameraEnabled,
-    localCameraTrack,
-    userCameraStates,
-    remoteCameraTracks,
-    cameraVersion,
-    localCameraPublication,
-    isStoppingCamera,
-    isStartingCamera,
-    isStoppingScreenShare,
-    isStartingScreenShare,
-    localStreamPromise,
-    currentPing,
-    participantStats,
-    previousStats,
+    room: room as Ref<Room | null>,
+    isConnected: isConnected as Ref<boolean>,
+    isConnecting: isConnecting as Ref<boolean>,
+    connectionError: connectionError as Ref<string | null>,
+    localParticipant: localParticipant as Ref<LocalParticipant | null>,
+    localAudioTrack: localAudioTrack as Ref<LocalAudioTrack | null>,
+    localAudioPublication: localAudioPublication as Ref<LocalTrackPublication | null>,
+    remoteParticipants: remoteParticipants as Ref<Map<string, RemoteParticipant>>,
+    remoteAudioTracks: remoteAudioTracks as Ref<Map<string, RemoteAudioTrack>>,
+    isScreenSharing: isScreenSharing as Ref<boolean>,
+    screenShareQuality: screenShareQuality as Ref<ScreenShareQuality>,
+    localScreenVideoTrack: localScreenVideoTrack as Ref<LocalVideoTrack | null>,
+    localScreenAudioTrack: localScreenAudioTrack as Ref<LocalAudioTrack | null>,
+    userScreenShareStates: userScreenShareStates as Ref<Map<string, ScreenShareState>>,
+    remoteScreenTracks: remoteScreenTracks as Ref<Map<string, { video?: RemoteVideoTrack; audio?: RemoteAudioTrack }>>,
+    screenShareVersion: screenShareVersion as Ref<number>,
+    subscribedScreenShares: subscribedScreenShares as Ref<Set<string>>,
+    localScreenVideoPublication: localScreenVideoPublication as Ref<LocalTrackPublication | null>,
+    localScreenAudioPublication: localScreenAudioPublication as Ref<LocalTrackPublication | null>,
+    isCameraEnabled: isCameraEnabled as Ref<boolean>,
+    localCameraTrack: localCameraTrack as Ref<LocalVideoTrack | null>,
+    userCameraStates: userCameraStates as Ref<Map<string, boolean>>,
+    remoteCameraTracks: remoteCameraTracks as Ref<Map<string, RemoteVideoTrack>>,
+    cameraVersion: cameraVersion as Ref<number>,
+    localCameraPublication: localCameraPublication as Ref<LocalTrackPublication | null>,
+    isStoppingCamera: isStoppingCamera as Ref<boolean>,
+    isStartingCamera: isStartingCamera as Ref<boolean>,
+    isStoppingScreenShare: isStoppingScreenShare as Ref<boolean>,
+    isStartingScreenShare: isStartingScreenShare as Ref<boolean>,
+    localStreamPromise: localStreamPromise as Ref<Promise<LocalAudioTrack | null> | null>,
+    currentPing: currentPing as Ref<number>,
+    participantStats: participantStats as Ref<Map<string, ConnectionStats>>,
+    previousStats: previousStats as Ref<Map<string, Map<string, { bytesReceived: number; timestamp: number }>>>,
     remoteStreamVolumes: options.remoteStreamVolumes,
     onVolumeChange: options.onVolumeChange,
   }
