@@ -57,7 +57,7 @@ const spriteUrls: Record<string, string[]> = {
   ],
 }
 
-const loadedSounds: Map<string, Howl> = new Map()
+const loadedSounds: Map<string, ReturnType<typeof Howl>> = new Map()
 const loadedSpriteUrls: Set<string> = new Set()
 
 let currentUserSoundPack: string = DEFAULT_SOUND_PACK_ID
@@ -81,7 +81,7 @@ function convertToHowlSpriteFormat(
   return result
 }
 
-function loadSound(packId: string): Howl {
+function loadSound(packId: string): ReturnType<typeof Howl> {
   const existing = loadedSounds.get(packId)
   if (existing) {
     existing.volume(globalVolume)

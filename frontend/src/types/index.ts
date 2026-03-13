@@ -19,6 +19,7 @@ export interface RoomPreviewUser {
   is_deafened: boolean
   is_speaking: boolean
   is_screen_sharing?: boolean
+  sound_pack?: string
 }
 
 // PublicUser interface - limited user data for global user list
@@ -61,15 +62,6 @@ export interface User {
   created_at?: string
   last_seen?: string
   role: "guest" | "user" | "admin" | "super_admin"
-  sound_pack?: string
-}
-
-// RoomUser interface - user with room-specific information
-export interface RoomUser extends User {
-  created_at?: string
-  last_seen?: string
-  joined_at?: string
-  role: "member" | "admin" | "owner"
   sound_pack?: string
 }
 
