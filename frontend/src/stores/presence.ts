@@ -154,8 +154,8 @@ export const usePresenceStore = defineStore("presence", () => {
       user_id: userStore.userId,
       nickname: currentUser?.nickname ?? userStore.userId,
       avatar_url: currentUser?.avatarUrl,
-      is_muted: callStore.isMuted.toString(),
-      is_deafened: callStore.isDeafened.toString(),
+      is_muted: callStore.isMuted,
+      is_deafened: callStore.isDeafened,
     })
 
     // Subscribe to participant events
@@ -278,10 +278,9 @@ export const usePresenceStore = defineStore("presence", () => {
     watch(
       () => [callStore.isMuted, callStore.isDeafened] as const,
       ([newMuted, newDeafened]) => {
-        // @ts-ignore - LiveKit attributes are stored as strings
         void updateLocalAttributes({
-          is_muted: newMuted.toString(),
-          is_deafened: newDeafened.toString(),
+          is_muted: newMuted,
+          is_deafened: newDeafened,
         })
         // Also update microphone enabled state in LiveKit
         void lkRoom.localParticipant.setMicrophoneEnabled(!newMuted)
@@ -334,14 +333,14 @@ export const usePresenceStore = defineStore("presence", () => {
     if (!localParticipant.value) return
 
     await localParticipant.value.setMicrophoneEnabled(enabled)
-    await updateLocalAttributes({ is_muted: (!enabled).toString() })
+    await updateLocalAttributes({ is_muted: !enabled })
   }
 
   // Set deafened state
   const setDeafened = async (deafened: boolean) => {
     if (!localParticipant.value) return
 
-    await updateLocalAttributes({ is_deafened: deafened.toString() })
+    await updateLocalAttributes({ is_deafened: deafened })
   }
 
   // Cleanup
