@@ -1,16 +1,14 @@
 <template>
   <div class="text-center">
     <h2 class="text-2xl font-bold mb-2 text-red-500">Verify Image</h2>
-    
+
     <p class="text-sm text-gray-400 mb-4">
       Click each piece to rotate it to the correct orientation
     </p>
 
     <div v-if="!isCompleted" class="flex flex-col items-center">
       <!-- Loading -->
-      <div v-if="isLoading" class="mb-4 text-gray-400">
-        Loading puzzle...
-      </div>
+      <div v-if="isLoading" class="mb-4 text-gray-400">Loading puzzle...</div>
 
       <!-- Puzzle Grid -->
       <div class="grid grid-cols-3 gap-1 bg-gray-700 p-1 rounded-lg mb-4">
@@ -19,12 +17,10 @@
           :key="index"
           class="w-24 h-24 cursor-pointer transition-transform duration-200 hover:ring-2 hover:ring-red-400 rounded overflow-hidden"
           :style="{ transform: `rotate(${piece.totalRotation}deg)` }"
-          @click="rotatePiece(index)"
-        >
+          @click="rotatePiece(index)">
           <img
             :src="piece.imageData"
-            class="w-full h-full object-cover pointer-events-none select-none"
-          />
+            class="w-full h-full object-cover pointer-events-none select-none" />
         </div>
       </div>
 
@@ -38,8 +34,7 @@
         type="button"
         class="px-6 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
         :disabled="isLoading"
-        @click="checkSolution"
-      >
+        @click="checkSolution">
         Verify
       </button>
     </div>
@@ -52,7 +47,11 @@
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="3"
+            d="M5 13l4 4L19 7" />
         </svg>
         <p class="text-green-400 font-bold">Verification Complete!</p>
       </div>
@@ -120,7 +119,7 @@ function getTypeLabel(): string {
 function formatTime(ms: number): string {
   const seconds = Math.floor(ms / 1000)
   const milliseconds = Math.floor((ms % 1000) / 10)
-  return `${seconds}.${milliseconds.toString().padStart(2, '0')}s`
+  return `${seconds}.${milliseconds.toString().padStart(2, "0")}s`
 }
 
 async function loadAndSplitImage() {
@@ -129,7 +128,7 @@ async function loadAndSplitImage() {
     throw new Error(`Failed to fetch image: ${response.status}`)
   }
   const blob = await response.blob()
-  
+
   return new Promise<HTMLImageElement>((resolve, reject) => {
     const img = new Image()
     img.onload = () => resolve(img)
@@ -150,7 +149,7 @@ async function initPuzzle() {
   try {
     const img = await loadAndSplitImage()
     objectUrl = img.src
-    
+
     const canvas = document.createElement("canvas")
     const ctx = canvas.getContext("2d")
     if (!ctx) return
@@ -177,7 +176,7 @@ async function initPuzzle() {
           0,
           0,
           pieceWidth,
-          pieceHeight
+          pieceHeight,
         )
 
         let rotation = getRandomRotation()
@@ -195,7 +194,7 @@ async function initPuzzle() {
 
     pieces.value = newPieces
     isLoading.value = false
-    
+
     if (objectUrl) {
       URL.revokeObjectURL(objectUrl)
     }
@@ -210,15 +209,15 @@ async function initPuzzle() {
 
 function rotatePiece(index: number) {
   if (isCompleted.value) return
-  
+
   pieces.value[index].totalRotation += 90
   pieces.value[index].rotation = (pieces.value[index].rotation + 90) % 360
 }
 
 function checkSolution() {
   if (pieces.value.length === 0) return
-  
-  const allCorrect = pieces.value.every(piece => piece.rotation === 0)
+
+  const allCorrect = pieces.value.every((piece) => piece.rotation === 0)
 
   if (allCorrect) {
     isCompleted.value = true
@@ -228,14 +227,17 @@ function checkSolution() {
   }
 }
 
-watch(() => aprilStore.isCaptchaActive, (active) => {
-  if (active) {
-    isCompleted.value = false
-    showRobotMessage.value = false
-    isLoading.value = true
-    initPuzzle()
-  }
-})
+watch(
+  () => aprilStore.isCaptchaActive,
+  (active) => {
+    if (active) {
+      isCompleted.value = false
+      showRobotMessage.value = false
+      isLoading.value = true
+      initPuzzle()
+    }
+  },
+)
 
 onMounted(() => {
   if (aprilStore.isCaptchaActive && pieces.value.length === 0) {

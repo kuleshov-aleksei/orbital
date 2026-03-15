@@ -1,7 +1,7 @@
 <template>
   <div class="text-center">
     <h2 class="text-2xl font-bold mb-2 text-red-500">Roll for Doubles</h2>
-    
+
     <p class="text-sm text-gray-400 mb-4">
       Roll both dice and get the same number on both to verify
     </p>
@@ -16,16 +16,23 @@
       <div class="flex items-center justify-center gap-4 mb-4">
         <div class="text-2xl font-bold">
           <span class="text-gray-400">Dice 1: </span>
-          <span :class="dice1Result ? 'text-white' : 'text-gray-600'">{{ dice1Result || '?' }}</span>
+          <span :class="dice1Result ? 'text-white' : 'text-gray-600'">{{
+            dice1Result || "?"
+          }}</span>
         </div>
         <div class="text-2xl font-bold">
           <span class="text-gray-400">Dice 2: </span>
-          <span :class="dice2Result ? 'text-white' : 'text-gray-600'">{{ dice2Result || '?' }}</span>
+          <span :class="dice2Result ? 'text-white' : 'text-gray-600'">{{
+            dice2Result || "?"
+          }}</span>
         </div>
       </div>
 
       <!-- Status message -->
-      <div v-if="statusMessage" class="mb-4 text-sm font-bold" :class="isSuccess ? 'text-green-400' : 'text-red-400'">
+      <div
+        v-if="statusMessage"
+        class="mb-4 text-sm font-bold"
+        :class="isSuccess ? 'text-green-400' : 'text-red-400'">
         {{ statusMessage }}
       </div>
 
@@ -34,8 +41,7 @@
         v-if="!isRolling"
         type="button"
         class="px-8 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-colors duration-200"
-        @click="rollDice"
-      >
+        @click="rollDice">
         Roll Dice!
       </button>
 
@@ -43,8 +49,7 @@
         v-else
         type="button"
         class="px-8 py-3 bg-gray-600 text-gray-300 font-bold rounded-lg cursor-not-allowed"
-        disabled
-      >
+        disabled>
         Rolling...
       </button>
     </div>
@@ -57,7 +62,11 @@
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="3"
+            d="M5 13l4 4L19 7" />
         </svg>
         <p class="text-green-400 font-bold">Verification Complete!</p>
       </div>
@@ -172,7 +181,7 @@ function initPhysics() {
   world.broadphase = new CANNON.NaiveBroadphase()
 
   const wallMaterial = new CANNON.Material("wall")
-  
+
   const bounds = {
     x: 2.5,
     y: 12,
@@ -182,12 +191,36 @@ function initPhysics() {
   const wallThickness = 0.5
 
   const walls = [
-    { pos: new CANNON.Vec3(0, -wallThickness/2, 0), size: new CANNON.Vec3(bounds.x, wallThickness/2, bounds.z), rot: 0 },
-    { pos: new CANNON.Vec3(0, bounds.y + wallThickness/2, 0), size: new CANNON.Vec3(bounds.x, wallThickness/2, bounds.z), rot: 0 },
-    { pos: new CANNON.Vec3(-bounds.x - wallThickness/2, bounds.y/2, 0), size: new CANNON.Vec3(wallThickness/2, bounds.y, bounds.z), rot: 0 },
-    { pos: new CANNON.Vec3(bounds.x + wallThickness/2, bounds.y/2, 0), size: new CANNON.Vec3(wallThickness/2, bounds.y, bounds.z), rot: 0 },
-    { pos: new CANNON.Vec3(0, bounds.y/2, -bounds.z - wallThickness/2), size: new CANNON.Vec3(bounds.x, bounds.y, wallThickness/2), rot: 0 },
-    { pos: new CANNON.Vec3(0, bounds.y/2, bounds.z + wallThickness/2), size: new CANNON.Vec3(bounds.x, bounds.y, wallThickness/2), rot: 0 },
+    {
+      pos: new CANNON.Vec3(0, -wallThickness / 2, 0),
+      size: new CANNON.Vec3(bounds.x, wallThickness / 2, bounds.z),
+      rot: 0,
+    },
+    {
+      pos: new CANNON.Vec3(0, bounds.y + wallThickness / 2, 0),
+      size: new CANNON.Vec3(bounds.x, wallThickness / 2, bounds.z),
+      rot: 0,
+    },
+    {
+      pos: new CANNON.Vec3(-bounds.x - wallThickness / 2, bounds.y / 2, 0),
+      size: new CANNON.Vec3(wallThickness / 2, bounds.y, bounds.z),
+      rot: 0,
+    },
+    {
+      pos: new CANNON.Vec3(bounds.x + wallThickness / 2, bounds.y / 2, 0),
+      size: new CANNON.Vec3(wallThickness / 2, bounds.y, bounds.z),
+      rot: 0,
+    },
+    {
+      pos: new CANNON.Vec3(0, bounds.y / 2, -bounds.z - wallThickness / 2),
+      size: new CANNON.Vec3(bounds.x, bounds.y, wallThickness / 2),
+      rot: 0,
+    },
+    {
+      pos: new CANNON.Vec3(0, bounds.y / 2, bounds.z + wallThickness / 2),
+      size: new CANNON.Vec3(bounds.x, bounds.y, wallThickness / 2),
+      rot: 0,
+    },
   ]
 
   walls.forEach(({ pos, size }) => {
@@ -201,7 +234,7 @@ function initPhysics() {
   })
 
   const diceMaterial = new CANNON.Material("dice")
-  
+
   const diceShape = new CANNON.Box(new CANNON.Vec3(diceHalfSize, diceHalfSize, diceHalfSize))
 
   dice1Body = new CANNON.Body({
@@ -287,37 +320,13 @@ function rollDice() {
 
   if (!dice1Body || !dice2Body) return
 
-  dice1Body.position.set(
-    (Math.random() - 0.5) * 1,
-    6 + Math.random(),
-    (Math.random() - 0.5) * 1
-  )
-  dice1Body.velocity.set(
-    (Math.random() - 0.5) * 2,
-    1 + Math.random(),
-    (Math.random() - 0.5) * 2
-  )
-  dice1Body.angularVelocity.set(
-    Math.random() * 8,
-    Math.random() * 8,
-    Math.random() * 8
-  )
+  dice1Body.position.set((Math.random() - 0.5) * 1, 6 + Math.random(), (Math.random() - 0.5) * 1)
+  dice1Body.velocity.set((Math.random() - 0.5) * 2, 1 + Math.random(), (Math.random() - 0.5) * 2)
+  dice1Body.angularVelocity.set(Math.random() * 8, Math.random() * 8, Math.random() * 8)
 
-  dice2Body.position.set(
-    (Math.random() - 0.5) * 1,
-    6 + Math.random(),
-    (Math.random() - 0.5) * 1
-  )
-  dice2Body.velocity.set(
-    (Math.random() - 0.5) * 2,
-    1 + Math.random(),
-    (Math.random() - 0.5) * 2
-  )
-  dice2Body.angularVelocity.set(
-    Math.random() * 8,
-    Math.random() * 8,
-    Math.random() * 8
-  )
+  dice2Body.position.set((Math.random() - 0.5) * 1, 6 + Math.random(), (Math.random() - 0.5) * 1)
+  dice2Body.velocity.set((Math.random() - 0.5) * 2, 1 + Math.random(), (Math.random() - 0.5) * 2)
+  dice2Body.angularVelocity.set(Math.random() * 8, Math.random() * 8, Math.random() * 8)
 
   let settleCount = 0
   const checkSettled = () => {
@@ -410,7 +419,7 @@ async function initCaptcha() {
 
 function cleanup() {
   isInitialized = false
-  
+
   if (animationId) {
     cancelAnimationFrame(animationId)
   }
@@ -420,37 +429,40 @@ function cleanup() {
   if (renderer) {
     renderer.dispose()
   }
-  
+
   dice1Mesh = null
   dice2Mesh = null
   dice1Body = null
   dice2Body = null
 }
 
-watch(() => aprilStore.isCaptchaActive, (active) => {
-  if (active) {
-    isCompleted.value = false
-    dice1Result.value = null
-    dice2Result.value = null
-    statusMessage.value = ""
-    isSuccess.value = false
-    isInitialized = false
-    
-    initCaptcha()
-    
-    if (dice1Body && dice2Body) {
-      dice1Body.position.set(0, 2, 0)
-      dice1Body.velocity.set(0, 0, 0)
-      dice1Body.angularVelocity.set(0, 0, 0)
-      dice1Body.quaternion.set(0, 0, 0, 1)
-      
-      dice2Body.position.set(0, 2, 0)
-      dice2Body.velocity.set(0, 0, 0)
-      dice2Body.angularVelocity.set(0, 0, 0)
-      dice2Body.quaternion.set(0, 0, 0, 1)
+watch(
+  () => aprilStore.isCaptchaActive,
+  (active) => {
+    if (active) {
+      isCompleted.value = false
+      dice1Result.value = null
+      dice2Result.value = null
+      statusMessage.value = ""
+      isSuccess.value = false
+      isInitialized = false
+
+      initCaptcha()
+
+      if (dice1Body && dice2Body) {
+        dice1Body.position.set(0, 2, 0)
+        dice1Body.velocity.set(0, 0, 0)
+        dice1Body.angularVelocity.set(0, 0, 0)
+        dice1Body.quaternion.set(0, 0, 0, 1)
+
+        dice2Body.position.set(0, 2, 0)
+        dice2Body.velocity.set(0, 0, 0)
+        dice2Body.angularVelocity.set(0, 0, 0)
+        dice2Body.quaternion.set(0, 0, 0, 1)
+      }
     }
-  }
-})
+  },
+)
 
 onMounted(() => {
   initCaptcha()

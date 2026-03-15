@@ -25,12 +25,13 @@ import PhoneDialCaptcha from "./PhoneDialCaptcha.vue"
 import HorseRacingCaptcha from "./HorseRacingCaptcha.vue"
 import DiceCaptcha from "./DiceCaptcha.vue"
 import ImagePuzzleCaptcha from "./ImagePuzzleCaptcha.vue"
+import Game2048Captcha from "./Game2048Captcha.vue"
 
 const aprilStore = useAprilStore()
 
-//const captchaComponents = [SampleCaptcha, PhoneDialCaptcha, HorseRacingCaptcha, DiceCaptcha, ImagePuzzleCaptcha]
+//const captchaComponents = [SampleCaptcha, PhoneDialCaptcha, Game2048Captcha, HorseRacingCaptcha, DiceCaptcha, ImagePuzzleCaptcha]
 // For local testing. Do not remove it
-const captchaComponents = [ImagePuzzleCaptcha]
+const captchaComponents = [Game2048Captcha]
 
 const selectedIndex = ref(0)
 
@@ -42,9 +43,12 @@ function selectRandomCaptcha() {
   selectedIndex.value = Math.floor(Math.random() * captchaComponents.length)
 }
 
-watch(() => aprilStore.isCaptchaActive, (active) => {
-  if (active) {
-    selectRandomCaptcha()
-  }
-})
+watch(
+  () => aprilStore.isCaptchaActive,
+  (active) => {
+    if (active) {
+      selectRandomCaptcha()
+    }
+  },
+)
 </script>
