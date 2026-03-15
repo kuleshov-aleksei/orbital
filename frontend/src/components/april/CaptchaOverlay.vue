@@ -12,27 +12,39 @@
       </div>
 
       <!-- Captcha content -->
-      <CaptchaComponent :type="aprilStore.currentType" />
+      <component :is="CaptchaComponent" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue"
+import { computed, ref, watch } from "vue"
 import { useAprilStore } from "@/stores/april"
 import SampleCaptcha from "./SampleCaptcha.vue"
 import PhoneDialCaptcha from "./PhoneDialCaptcha.vue"
 import HorseRacingCaptcha from "./HorseRacingCaptcha.vue"
 import DiceCaptcha from "./DiceCaptcha.vue"
+import ImagePuzzleCaptcha from "./ImagePuzzleCaptcha.vue"
 
 const aprilStore = useAprilStore()
 
-//const captchaComponents = [SampleCaptcha, PhoneDialCaptcha, HorseRacingCaptcha, DiceCaptcha]
+//const captchaComponents = [SampleCaptcha, PhoneDialCaptcha, HorseRacingCaptcha, DiceCaptcha, ImagePuzzleCaptcha]
 // For local testing. Do not remove it
-const captchaComponents = [DiceCaptcha]
+const captchaComponents = [ImagePuzzleCaptcha]
+
+const selectedIndex = ref(0)
 
 const CaptchaComponent = computed(() => {
-  const randomIndex = Math.floor(Math.random() * captchaComponents.length)
-  return captchaComponents[randomIndex]
+  return captchaComponents[selectedIndex.value]
+})
+
+function selectRandomCaptcha() {
+  selectedIndex.value = Math.floor(Math.random() * captchaComponents.length)
+}
+
+watch(() => aprilStore.isCaptchaActive, (active) => {
+  if (active) {
+    selectRandomCaptcha()
+  }
 })
 </script>
