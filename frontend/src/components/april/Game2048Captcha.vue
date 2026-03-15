@@ -238,10 +238,11 @@ function move(direction: "up" | "down" | "left" | "right") {
       const tile = occupied.get(key)
       if (!tile) continue
 
+      occupied.delete(key)
+
       let targetRow = row
       let targetCol = col
       let merged = false
-      let mergedFromId: number | undefined
 
       while (true) {
         let testRow = targetRow
@@ -264,14 +265,14 @@ function move(direction: "up" | "down" | "left" | "right") {
           targetRow = testRow
           targetCol = testCol
           merged = true
-          mergedFromId = tile.id
           break
         } else {
           break
         }
       }
 
-      moves.push({ tile, targetRow, targetCol, merged, mergedFromId })
+      moves.push({ tile, targetRow, targetCol, merged })
+      occupied.set(`${targetRow},${targetCol}`, tile)
     }
   }
 
