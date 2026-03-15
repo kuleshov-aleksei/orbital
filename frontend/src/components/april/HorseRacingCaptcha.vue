@@ -50,9 +50,6 @@
               👑
             </div>
           </div>
-          <span class="text-sm font-bold w-10" :class="horse.textClass">
-            {{ Math.round(horse.progress) }}%
-          </span>
         </div>
       </div>
 
