@@ -22,12 +22,13 @@ import { computed } from "vue"
 import { useAprilStore } from "@/stores/april"
 import SampleCaptcha from "./SampleCaptcha.vue"
 import PhoneDialCaptcha from "./PhoneDialCaptcha.vue"
+import HorseRacingCaptcha from "./HorseRacingCaptcha.vue"
 
 const aprilStore = useAprilStore()
 
-const captchaComponents = [SampleCaptcha, PhoneDialCaptcha]
+//const captchaComponents = [SampleCaptcha, PhoneDialCaptcha, HorseRacingCaptcha]
 // For local testing. Do not remove it
-//const captchaComponents = [ PhoneDialCaptcha]
+const captchaComponents = [ HorseRacingCaptcha]
 
 const CaptchaComponent = computed(() => {
   const randomIndex = Math.floor(Math.random() * captchaComponents.length)
