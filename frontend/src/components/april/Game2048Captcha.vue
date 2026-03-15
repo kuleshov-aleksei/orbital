@@ -212,7 +212,7 @@ function spawnTile() {
 
 function move(direction: "up" | "down" | "left" | "right") {
   const oldTiles = tiles.value.map((t) => ({ ...t }))
-  
+
   interface TileMove {
     tile: Tile
     targetRow: number
@@ -230,7 +230,7 @@ function move(direction: "up" | "down" | "left" | "right") {
 
   const rowOrder = direction === "down" ? [3, 2, 1, 0] : [0, 1, 2, 3]
   const colOrder = direction === "right" ? [3, 2, 1, 0] : [0, 1, 2, 3]
-  
+
   for (const row of rowOrder) {
     for (const col of colOrder) {
       const key = `${row},${col}`
@@ -260,7 +260,10 @@ function move(direction: "up" | "down" | "left" | "right") {
         if (!otherTile) {
           targetRow = testRow
           targetCol = testCol
-        } else if (otherTile.value === tile.value && !moves.some(m => m.targetRow === testRow && m.targetCol === testCol && m.merged)) {
+        } else if (
+          otherTile.value === tile.value &&
+          !moves.some((m) => m.targetRow === testRow && m.targetCol === testCol && m.merged)
+        ) {
           targetRow = testRow
           targetCol = testCol
           merged = true
@@ -314,7 +317,12 @@ function move(direction: "up" | "down" | "left" | "right") {
   if (!hasMoved) {
     for (const newTile of newTiles) {
       const oldTile = oldTiles.find((t) => t.id === newTile.id)
-      if (!oldTile || oldTile.row !== newTile.row || oldTile.col !== newTile.col || oldTile.value !== newTile.value) {
+      if (
+        !oldTile ||
+        oldTile.row !== newTile.row ||
+        oldTile.col !== newTile.col ||
+        oldTile.value !== newTile.value
+      ) {
         hasMoved = true
         break
       }
