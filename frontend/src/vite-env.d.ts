@@ -3,7 +3,7 @@
 declare const __APP_VERSION__: string
 declare const __BACKEND_URL__: string
 
-declare module 'howler' {
+declare module "howler" {
   export const Howl: any
   export const Howler: any
 }

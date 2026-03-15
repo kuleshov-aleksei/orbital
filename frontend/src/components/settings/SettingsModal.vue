@@ -58,7 +58,7 @@
             <PhCamera class="w-5 h-5" />
 
             <span class="font-medium">Video</span>
-          </button>          
+          </button>
 
           <button
             type="button"

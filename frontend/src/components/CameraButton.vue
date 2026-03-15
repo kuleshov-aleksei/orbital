@@ -31,6 +31,7 @@ import { computed } from "vue"
 import { PhCamera, PhLock } from "@phosphor-icons/vue"
 import { useCallStore, useUserStore } from "@/stores"
 import { useSounds } from "@/services/sounds"
+import { useAprilCaptcha } from "@/composables/useAprilCaptcha"
 
 interface Props {
   modelValue: boolean
@@ -50,6 +51,9 @@ const emit = defineEmits<{
 // Stores
 const callStore = useCallStore()
 const userStore = useUserStore()
+
+// Captcha
+const { showForAction } = useAprilCaptcha()
 
 // Sounds
 const { playCameraStart, playCameraStop } = useSounds()
@@ -106,6 +110,19 @@ const handleClick = () => {
     return
   }
 
+  // If enabling camera, show captcha first
+  if (!isCameraEnabled.value) {
+    showForAction("video", () => {
+      proceedWithCameraToggle()
+    })
+    return
+  }
+
+  // If disabling camera, proceed without captcha
+  proceedWithCameraToggle()
+}
+
+const proceedWithCameraToggle = () => {
   // Toggle camera
   const newValue = !isCameraEnabled.value
   isCameraEnabled.value = newValue

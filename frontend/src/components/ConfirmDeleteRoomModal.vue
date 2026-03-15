@@ -1,6 +1,5 @@
 <template>
-  <div
-    class="modal-overlay fixed inset-0 bg-theme-backdrop flex items-center justify-center z-50">
+  <div class="modal-overlay fixed inset-0 bg-theme-backdrop flex items-center justify-center z-50">
     <div class="modal-content bg-gray-800 rounded-lg p-6 w-full max-w-md">
       <!-- Modal Header -->
       <div class="flex items-center justify-between mb-6">

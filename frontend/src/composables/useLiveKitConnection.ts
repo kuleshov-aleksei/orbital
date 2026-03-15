@@ -42,7 +42,7 @@ export function useLiveKitConnection(state: LiveKitState, deps: UseLiveKitConnec
       deps.setupRoomEventListeners(lkRoom)
 
       await lkRoom.connect(url, token, {
-        autoSubscribe: false
+        autoSubscribe: false,
       })
 
       debugLog(

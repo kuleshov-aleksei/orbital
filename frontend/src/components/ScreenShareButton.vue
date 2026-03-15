@@ -32,6 +32,7 @@ import { PhMonitorPlay, PhLock } from "@phosphor-icons/vue"
 import { useCallStore, useUserStore } from "@/stores"
 import { useScreenShareSupport } from "@/composables/useScreenShareSupport"
 import { useSounds } from "@/services/sounds"
+import { useAprilCaptcha } from "@/composables/useAprilCaptcha"
 
 interface Props {
   modelValue: boolean
@@ -52,6 +53,9 @@ const emit = defineEmits<{
 const callStore = useCallStore()
 const userStore = useUserStore()
 const { isScreenShareSupported } = useScreenShareSupport()
+
+// Captcha
+const { showForAction } = useAprilCaptcha()
 
 // Sounds
 const { playScreenShareStart, playScreenShareStop } = useSounds()
@@ -116,16 +120,17 @@ const handleClick = () => {
 const toggleScreenShare = () => {
   const newValue = !isScreenSharing.value
 
-  // If starting screen share, emit event so parent can show quality modal
+  // If starting screen share, show captcha first
   if (newValue) {
-    emit("start-screen-share")
+    showForAction("screenshare", () => {
+      emit("start-screen-share")
+    })
     return
   }
 
-  // Play sound
+  // If stopping, handle immediately without captcha
   playScreenShareStop()
 
-  // If stopping, handle immediately
   // Note: LiveKit will emit LocalTrackUnpublished event which updates state
   isScreenSharing.value = newValue
 

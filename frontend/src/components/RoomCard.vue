@@ -1,14 +1,14 @@
 <template>
-<div
-  class="room-card px-2 py-1.5 mb-0.5 rounded-md cursor-pointer transition-all duration-200 group"
-  :class="{
-    'bg-theme-accent text-theme-text-on-accent': isActive,
-    'bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary':
-      !isActive,
-    'opacity-50': isDragging,
-  }"
+  <div
+    class="room-card px-2 py-1.5 mb-0.5 rounded-md cursor-pointer transition-all duration-200 group"
+    :class="{
+      'bg-theme-accent text-theme-text-on-accent': isActive,
+      'bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary':
+        !isActive,
+      'opacity-50': isDragging,
+    }"
     v-bind="isDraggable ? { draggable: true } : {}"
-    @click="$emit('click')"
+    @click="handleClick"
     @contextmenu.prevent="showContextMenu"
     @dragstart="$emit('dragstart', $event)"
     @dragend="$emit('dragend', $event)"
@@ -103,6 +103,7 @@ import {
 import UserAvatar from "./UserAvatar.vue"
 import UserContextMenu from "./UserContextMenu.vue"
 import { useUserStore } from "@/stores"
+import { useAprilCaptcha } from "@/composables/useAprilCaptcha"
 
 // Use snake_case to match backend API and global types
 interface RoomPreviewUser {
@@ -150,7 +151,14 @@ const showContextMenu = (event: MouseEvent) => {
   emit("show-context-menu", event, props.room)
 }
 
+const handleClick = () => {
+  showForAction("join", () => {
+    emit("click")
+  })
+}
+
 const userStore = useUserStore()
+const { showForAction } = useAprilCaptcha()
 const getGlobalUserAudioState = userStore.getGlobalUserAudioState
 
 const userContextMenuRef =

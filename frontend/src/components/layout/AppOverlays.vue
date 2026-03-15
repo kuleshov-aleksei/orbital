@@ -35,10 +35,14 @@
     v-if="appStore.mobileSidebarOpen || appStore.mobileUserSidebarOpen"
     class="lg:hidden fixed inset-0 bg-black/60 z-30"
     @click="appStore.closeAllMobileSidebars()"></div>
+
+  <!-- April Fools' Captcha Overlay -->
+  <CaptchaOverlay />
 </template>
 
 <script setup lang="ts">
 import { useAppStore } from "@/stores"
+import CaptchaOverlay from "@/components/april/CaptchaOverlay.vue"
 
 const appStore = useAppStore()
 </script>

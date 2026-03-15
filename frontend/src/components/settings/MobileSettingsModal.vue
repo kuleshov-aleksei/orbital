@@ -7,7 +7,8 @@
       class="bg-theme-bg-secondary rounded-xl shadow-xl w-full mx-4 overflow-hidden flex flex-col"
       style="max-height: 90vh; height: 90vh">
       <!-- Header -->
-      <div class="px-4 py-4 border-b border-theme-border flex items-center justify-between flex-shrink-0">
+      <div
+        class="px-4 py-4 border-b border-theme-border flex items-center justify-between flex-shrink-0">
         <div class="flex items-center gap-2">
           <button
             v-if="currentTab"
@@ -25,7 +26,7 @@
             <PhMusicNotes v-else-if="currentTab === 'sounds'" class="w-5 h-5 text-theme-accent" />
             <PhBug v-else-if="currentTab === 'debug'" class="w-5 h-5 text-theme-accent" />
             <PhInfo v-else-if="currentTab === 'about'" class="w-5 h-5 text-theme-accent" />
-            {{ currentTab ? tabLabels[currentTab] : 'Settings' }}
+            {{ currentTab ? tabLabels[currentTab] : "Settings" }}
           </h2>
         </div>
         <button
@@ -121,10 +122,7 @@
         <!-- Settings Content View -->
         <div v-else class="space-y-4 pb-4">
           <!-- Account Settings Tab -->
-          <AccountSettings
-            v-if="currentTab === 'account'"
-            :hide-header="true"
-            @logout="close" />
+          <AccountSettings v-if="currentTab === 'account'" :hide-header="true" @logout="close" />
 
           <!-- Audio Settings Tab -->
           <AudioSettings v-else-if="currentTab === 'audio'" :hide-header="true" />
@@ -175,14 +173,7 @@ import {
 
 const modalStore = useModalStore()
 const currentTab = ref<
-  | "audio"
-  | "video"
-  | "sounds"
-  | "appearance"
-  | "account"
-  | "debug"
-  | "about"
-  | undefined
+  "audio" | "video" | "sounds" | "appearance" | "account" | "debug" | "about" | undefined
 >(undefined)
 
 const tabLabels: Record<string, string> = {

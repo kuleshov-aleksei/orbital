@@ -15,7 +15,7 @@ let wasmBinary: ArrayBuffer | null = null
 
 async function ensureWorkletLoaded(audioContext: AudioContext): Promise<void> {
   if (workletLoaded) return
-  
+
   debugLog("[Speex][INFO]: Loading worklet module...")
   await audioContext.audioWorklet.addModule(workletPath)
   workletLoaded = true
@@ -24,7 +24,7 @@ async function ensureWorkletLoaded(audioContext: AudioContext): Promise<void> {
 
 async function ensureWasmLoaded(): Promise<ArrayBuffer> {
   if (wasmBinary) return wasmBinary
-  
+
   debugLog("[Speex][INFO]: Loading WASM module...")
   wasmBinary = await loadSpeex(
     {
@@ -34,7 +34,7 @@ async function ensureWasmLoaded(): Promise<ArrayBuffer> {
   )
 
   debugLog(`[Speex][INFO]: WASM module loaded (${wasmBinary.byteLength} bytes)`)
-  
+
   return wasmBinary
 }
 
@@ -101,7 +101,7 @@ export class SpeexProcessor implements TrackProcessor<Track.Kind.Audio, AudioPro
 
     this.workletNode?.disconnect()
     if (this.workletNode && "destroy" in this.workletNode) {
-      (this.workletNode as unknown as { destroy: () => void }).destroy()
+      ;(this.workletNode as unknown as { destroy: () => void }).destroy()
     }
     this.workletNode = undefined
 
