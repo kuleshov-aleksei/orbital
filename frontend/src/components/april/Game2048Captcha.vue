@@ -213,134 +213,109 @@ function spawnTile() {
 
 function move(direction: "up" | "down" | "left" | "right") {
   const oldTiles = tiles.value.map((t) => ({ ...t }))
-  const tileMap = new Map<string, Tile>()
-  oldTiles.forEach((t) => tileMap.set(`${t.row},${t.col}`, t))
+  
+  interface TileMove {
+    tile: Tile
+    targetRow: number
+    targetCol: number
+    merged: boolean
+    mergedFromId?: number
+  }
 
-  const board = getEmptyBoard()
-  oldTiles.forEach((t) => {
-    board[t.row][t.col] = t.value
+  const moves: TileMove[] = []
+  const occupied = new Map<string, Tile>()
+
+  oldTiles.forEach((tile) => {
+    occupied.set(`${tile.row},${tile.col}`, tile)
   })
 
-  const rows = direction === "down" ? [3, 2, 1, 0] : [0, 1, 2, 3]
-  const cols = direction === "right" ? [3, 2, 1, 0] : [0, 1, 2, 3]
-  const merged: { row: number; col: number; value: number }[] = []
-  const mergedFrom = new Map<string, string>()
+  const rowOrder = direction === "down" ? [3, 2, 1, 0] : [0, 1, 2, 3]
+  const colOrder = direction === "right" ? [3, 2, 1, 0] : [0, 1, 2, 3]
+  
+  for (const row of rowOrder) {
+    for (const col of colOrder) {
+      const key = `${row},${col}`
+      const tile = occupied.get(key)
+      if (!tile) continue
 
-  for (const r of rows) {
-    for (const c of cols) {
-      if (board[r][c] === null) continue
-
-      const value = board[r][c]
-      let newR = r
-      let newC = c
+      let targetRow = row
+      let targetCol = col
+      let merged = false
+      let mergedFromId: number | undefined
 
       while (true) {
-        let testR = newR
-        let testC = newC
+        let testRow = targetRow
+        let testCol = targetCol
 
-        if (direction === "up") testR--
-        else if (direction === "down") testR++
-        else if (direction === "left") testC--
-        else if (direction === "right") testC++
+        if (direction === "up") testRow--
+        else if (direction === "down") testRow++
+        else if (direction === "left") testCol--
+        else if (direction === "right") testCol++
 
-        if (testR < 0 || testR >= COLS || testC < 0 || testC >= COLS) break
-        if (board[testR][testC] === null) {
-          newR = testR
-          newC = testC
-        } else if (
-          board[testR][testC] === value &&
-          !merged.some((m) => m.row === testR && m.col === testC)
-        ) {
-          newR = testR
-          newC = testC
+        if (testRow < 0 || testRow >= COLS || testCol < 0 || testCol >= COLS) break
+
+        const testKey = `${testRow},${testCol}`
+        const otherTile = occupied.get(testKey)
+
+        if (!otherTile) {
+          targetRow = testRow
+          targetCol = testCol
+        } else if (otherTile.value === tile.value && !moves.some(m => m.targetRow === testRow && m.targetCol === testCol && m.merged)) {
+          targetRow = testRow
+          targetCol = testCol
+          merged = true
+          mergedFromId = tile.id
           break
         } else {
           break
         }
       }
 
-      if (newR !== r || newC !== c) {
-        if (
-          board[newR][newC] !== null &&
-          board[newR][newC] === value &&
-          !merged.some((m) => m.row === newR && m.col === newC)
-        ) {
-          board[newR][newC] *= 2
-          const mergedValue = board[newR][newC]
-          board[r][c] = null
-          score.value += mergedValue
-          merged.push({ row: newR, col: newC, value: mergedValue })
-          mergedFrom.set(`${newR},${newC}`, `${r},${c}`)
-
-          if (mergedValue > bestTile.value) {
-            bestTile.value = mergedValue
-            if (mergedValue >= 512) {
-              hasReached512.value = true
-            }
-          }
-        } else {
-          board[newR][newC] = value
-          board[r][c] = null
-        }
-      }
+      moves.push({ tile, targetRow, targetCol, merged, mergedFromId })
     }
   }
 
   const newTiles: Tile[] = []
-  const usedIds = new Set<number>()
-  let moved = false
+  const usedTileIds = new Set<number>()
+  let hasMoved = false
 
-  for (let r = 0; r < COLS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      const value = board[r][c]
-      if (value !== null) {
-        const key = `${r},${c}`
-        const fromKey = mergedFrom.get(key)
+  for (const move of moves) {
+    const { tile, targetRow, targetCol, merged, mergedFromId } = move
 
-        let tile: Tile | undefined
-
-        if (fromKey) {
-          tile = tileMap.get(fromKey)
+    if (merged) {
+      const newValue = tile.value * 2
+      score.value += newValue
+      if (newValue > bestTile.value) {
+        bestTile.value = newValue
+        if (newValue >= 512) {
+          hasReached512.value = true
         }
-
-        if (!tile || usedIds.has(tile.id)) {
-          tile = tileMap.get(key)
-        }
-
-        if (!tile || usedIds.has(tile.id)) {
-          for (const t of oldTiles) {
-            if (!usedIds.has(t.id) && t.value === value) {
-              tile = t
-              break
-            }
-          }
-        }
-
-        if (tile) {
-          usedIds.add(tile.id)
-          if (tile.row !== r || tile.col !== c || tile.value !== value) {
-            newTiles.push({ id: tile.id, row: r, col: c, value })
-            moved = true
-          } else {
-            newTiles.push(tile)
-          }
-        } else {
-          newTiles.push({ id: tileIdCounter++, row: r, col: c, value })
-          moved = true
-        }
+      }
+      newTiles.push({ id: tile.id, row: targetRow, col: targetCol, value: newValue })
+      usedTileIds.add(tile.id)
+      if (tile.row !== targetRow || tile.col !== targetCol || tile.value !== newValue) {
+        hasMoved = true
+      }
+    } else {
+      if (tile.row !== targetRow || tile.col !== targetCol) {
+        newTiles.push({ id: tile.id, row: targetRow, col: targetCol, value: tile.value })
+        usedTileIds.add(tile.id)
+        hasMoved = true
+      } else {
+        newTiles.push(tile)
       }
     }
   }
 
   if (newTiles.length !== oldTiles.length) {
-    moved = true
+    hasMoved = true
   }
 
-  if (!moved) {
-    for (const nt of newTiles) {
-      const ot = oldTiles.find((t) => t.id === nt.id)
-      if (!ot || ot.row !== nt.row || ot.col !== nt.col || ot.value !== nt.value) {
-        moved = true
+  if (!hasMoved) {
+    for (const newTile of newTiles) {
+      const oldTile = oldTiles.find((t) => t.id === newTile.id)
+      if (!oldTile || oldTile.row !== newTile.row || oldTile.col !== newTile.col || oldTile.value !== newTile.value) {
+        hasMoved = true
         break
       }
     }
@@ -348,7 +323,7 @@ function move(direction: "up" | "down" | "left" | "right") {
 
   tiles.value = newTiles
 
-  if (moved) {
+  if (hasMoved) {
     nextTick(() => {
       spawnTile()
       checkGameOver()
