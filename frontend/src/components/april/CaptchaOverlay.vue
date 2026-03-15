@@ -18,8 +18,19 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue"
 import { useAprilStore } from "@/stores/april"
-import CaptchaComponent from "./SampleCaptcha.vue"
+import SampleCaptcha from "./SampleCaptcha.vue"
+import PhoneDialCaptcha from "./PhoneDialCaptcha.vue"
 
 const aprilStore = useAprilStore()
+
+const captchaComponents = [SampleCaptcha, PhoneDialCaptcha]
+// For local testing. Do not remove it
+//const captchaComponents = [ PhoneDialCaptcha]
+
+const CaptchaComponent = computed(() => {
+  const randomIndex = Math.floor(Math.random() * captchaComponents.length)
+  return captchaComponents[randomIndex]
+})
 </script>
