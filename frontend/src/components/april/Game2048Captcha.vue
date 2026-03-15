@@ -1,8 +1,8 @@
 <template>
   <div class="text-center">
-    <h2 class="text-2xl font-bold mb-2 text-red-500">Verify: Reach 512</h2>
+    <h2 class="text-2xl font-bold mb-2 text-red-500">Verify: Reach 256</h2>
 
-    <p class="text-sm text-gray-400 mb-4">Use arrow keys to move tiles. Reach 512 to verify!</p>
+    <p class="text-sm text-gray-400 mb-4">Use arrow keys to move tiles. Reach 256 to verify!</p>
 
     <!-- Game Container -->
     <div class="flex flex-col items-center">
@@ -20,9 +20,9 @@
 
       <!-- Win indicator -->
       <div
-        v-if="hasReached512 && !isCompleted"
+        v-if="hasReached256 && !isCompleted"
         class="mb-3 px-4 py-1 bg-green-900/50 border border-green-500 rounded-lg">
-        <span class="text-green-400 text-sm font-bold">512 reached! You can verify now.</span>
+        <span class="text-green-400 text-sm font-bold">256 reached! You can verify now.</span>
       </div>
 
       <!-- Game Over indicator -->
@@ -61,10 +61,9 @@
 
       <!-- Verify Button -->
       <button
-        v-if="!gameOver"
         type="button"
         class="mt-4 px-6 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-        :disabled="!hasVerified"
+        :disabled="!hasVerified && !hasReached256"
         @click="handleVerify">
         {{ hasVerified ? "Verified!" : "I'm Not a Robot" }}
       </button>
@@ -113,7 +112,7 @@ const aprilStore = useAprilStore()
 const tiles = ref<Tile[]>([])
 const score = ref(0)
 const bestTile = ref(2)
-const hasReached512 = ref(false)
+const hasReached256 = ref(false)
 const hasVerified = ref(false)
 const isCompleted = ref(false)
 const gameOver = ref(false)
@@ -176,7 +175,7 @@ function initGame() {
   tiles.value = []
   score.value = 0
   bestTile.value = 2
-  hasReached512.value = false
+  hasReached256.value = false
   hasVerified.value = false
   isCompleted.value = false
   gameOver.value = false
@@ -288,8 +287,8 @@ function move(direction: "up" | "down" | "left" | "right") {
       score.value += newValue
       if (newValue > bestTile.value) {
         bestTile.value = newValue
-        if (newValue >= 512) {
-          hasReached512.value = true
+        if (newValue >= 256) {
+          hasReached256.value = true
         }
       }
       newTiles.push({ id: tile.id, row: targetRow, col: targetCol, value: newValue })
@@ -381,7 +380,7 @@ function handleKeydown(event: KeyboardEvent) {
 }
 
 function handleVerify() {
-  if (!hasReached512.value) return
+  if (!hasReached256.value) return
 
   hasVerified.value = true
   isCompleted.value = true
