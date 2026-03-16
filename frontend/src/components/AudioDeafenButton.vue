@@ -10,16 +10,18 @@
     ]"
     :title="isDeafened ? 'Undeafen' : 'Deafen'"
     @click="toggleDeafen">
-    <!-- Headphones with slash when deafened -->
-    <div v-if="isDeafened" :class="iconWrapperClasses">
-      <PhHeadphones :class="iconClasses" />
+    <Transition name="icon-toggle" mode="out-in">
+      <!-- Headphones with slash when deafened -->
+      <div v-if="isDeafened" :key="'deafened'" :class="iconWrapperClasses">
+        <PhHeadphones :class="iconClasses" />
 
-      <div class="absolute inset-0 flex items-center justify-center">
-        <div :class="slashClasses"></div>
+        <div class="absolute inset-0 flex items-center justify-center">
+          <div :class="slashClasses"></div>
+        </div>
       </div>
-    </div>
-    <!-- Normal headphones when not deafened -->
-    <PhHeadphones v-else :class="iconClasses" />
+      <!-- Normal headphones when not deafened -->
+      <PhHeadphones v-else :key="'undeafened'" :class="iconClasses" />
+    </Transition>
   </button>
 </template>
 
@@ -135,7 +137,36 @@ const toggleDeafen = async () => {
 </script>
 
 <style scoped>
-.control-button {
-  @apply flex items-center justify-center transition-colors duration-200;
+.icon-toggle-enter-active {
+  transition: opacity 150ms var(--ease-out-smooth),
+              transform 150ms var(--ease-out-smooth);
+}
+
+.icon-toggle-leave-active {
+  transition: opacity 100ms var(--ease-out-smooth),
+              transform 100ms var(--ease-out-smooth);
+}
+
+.icon-toggle-enter-from {
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+.icon-toggle-leave-to {
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-toggle-enter-active,
+  .icon-toggle-leave-active {
+    transition: none;
+  }
+
+  .icon-toggle-enter-from,
+  .icon-toggle-leave-to {
+    opacity: 1;
+    transform: none;
+  }
 }
 </style>

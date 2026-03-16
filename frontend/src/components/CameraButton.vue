@@ -126,7 +126,5 @@ const handleClick = () => {
 </script>
 
 <style scoped>
-.control-button {
-  @apply flex items-center justify-center transition-colors duration-200;
-}
+/* Styles removed - now uses global .control-button from style.css */
 </style>
