@@ -48,21 +48,23 @@
       </div>
 
       <!-- Empty State -->
-      <div v-else class="text-center py-12">
+      <div v-else class="flex flex-col items-center justify-center py-16 px-4">
         <div
-          class="w-16 h-16 bg-theme-bg-secondary rounded-full flex items-center justify-center mx-auto mb-4">
-          <PhMagnifyingGlass class="w-8 h-8 text-theme-text-muted" />
+          class="w-20 h-20 bg-theme-bg-secondary rounded-full flex items-center justify-center mb-6">
+          <PhMicrophone class="w-10 h-10 text-theme-text-muted" />
         </div>
 
         <h3 class="text-xl font-semibold text-theme-text-primary mb-2">No rooms yet</h3>
 
-        <p class="text-theme-text-muted mb-6">Create a room to start chatting with your squad.</p>
+        <p class="text-theme-text-muted text-center max-w-sm mb-8">
+          Create a room to start chatting with your squad. Voice chat for 5-10 people made simple.
+        </p>
 
         <button
           v-if="isAdmin"
           type="button"
           data-testid="create-room-empty"
-          class="px-6 py-3 bg-theme-accent hover:bg-theme-accent-hover rounded-lg transition-colors duration-200"
+          class="px-6 py-3 bg-theme-accent hover:bg-theme-accent-hover text-theme-text-on-accent rounded-lg transition-colors duration-200 font-medium"
           @click="$emit('create-room')">
           Create First Room
         </button>
@@ -76,7 +78,7 @@
 <script setup lang="ts">
 import { storeToRefs } from "pinia"
 import { useRoomStore, useUserStore } from "@/stores"
-import { PhFolderSimpleUser, PhMagnifyingGlass } from "@phosphor-icons/vue"
+import { PhMicrophone, PhFolderSimpleUser } from "@phosphor-icons/vue"
 
 defineEmits<{
   "room-selected": [roomId: string]

@@ -124,6 +124,17 @@ body {
   background: var(--color-border);
 }
 
+/* Focus ring styles for accessibility */
+*:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Remove default focus outline for mouse users */
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
 /* Control button animations */
 .control-button {
   @apply flex items-center justify-center;

@@ -1,33 +1,35 @@
 <template>
-  <div class="auth-view fixed inset-0 bg-gray-900 flex items-center justify-center z-50">
+  <div class="auth-view fixed inset-0 bg-theme-bg-primary flex items-center justify-center z-50">
     <div class="max-w-md lg:max-w-5xl w-full mx-4">
       <div class="lg:flex lg:items-center lg:justify-center lg:gap-16">
         <!-- Logo/Title -->
         <div class="text-center lg:text-left mb-8 lg:mb-0 lg:flex-shrink-0">
           <div
-            class="w-20 h-20 lg:w-28 lg:h-28 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto lg:mx-0 mb-4">
+            class="w-20 h-20 lg:w-28 lg:h-28 bg-theme-accent rounded-2xl flex items-center justify-center mx-auto lg:mx-0 mb-4">
             <img
               src="/orbital-logo.png"
               alt="Orbital Logo"
               class="w-16 h-16 lg:w-24 lg:h-24 object-contain" />
           </div>
 
-          <h1 class="text-3xl lg:text-4xl font-bold text-white mb-2">Welcome to Orbital</h1>
+          <h1 class="text-3xl lg:text-4xl font-bold text-theme-text-primary mb-2">
+            Welcome to Orbital
+          </h1>
 
-          <p class="text-gray-400 text-lg">Voice chat for my dudes</p>
+          <p class="text-theme-text-muted text-lg">Voice chat for my dudes</p>
         </div>
 
         <!-- Auth Card -->
-        <div class="bg-gray-800 rounded-xl p-8 shadow-xl lg:w-[420px]">
+        <div class="bg-theme-bg-secondary rounded-xl p-8 shadow-xl lg:w-[420px]">
           <!-- Tabs -->
-          <div class="flex border-b border-gray-700 mb-6">
+          <div class="flex border-b border-theme-border mb-6">
             <button
               type="button"
               class="flex-1 py-2 text-center font-medium transition-colors"
               :class="
                 activeTab === 'oauth'
-                  ? 'text-white border-b-2 border-indigo-500'
-                  : 'text-gray-400 hover:text-gray-300'
+                  ? 'text-theme-text-primary border-b-2 border-theme-accent'
+                  : 'text-theme-text-muted hover:text-theme-text-primary'
               "
               @click="activeTab = 'oauth'">
               OAuth providers
@@ -37,8 +39,8 @@
               class="flex-1 py-2 text-center font-medium transition-colors"
               :class="
                 activeTab === 'password'
-                  ? 'text-white border-b-2 border-indigo-500'
-                  : 'text-gray-400 hover:text-gray-300'
+                  ? 'text-theme-text-primary border-b-2 border-theme-accent'
+                  : 'text-theme-text-muted hover:text-theme-text-primary'
               "
               @click="activeTab = 'password'">
               {{ isRegisterMode ? "Register" : "Login" }}
@@ -47,7 +49,9 @@
 
           <!-- OAuth Providers Tab -->
           <div v-show="activeTab === 'oauth'">
-            <h2 class="text-xl font-semibold text-white text-center mb-6">Choose how to join</h2>
+            <h2 class="text-xl font-semibold text-theme-text-primary text-center mb-6">
+              Choose how to join
+            </h2>
 
             <!-- OAuth Provider Buttons -->
             <div class="space-y-2 mb-4">
@@ -63,7 +67,7 @@
               <!-- Google Login -->
               <button
                 type="button"
-                class="w-full flex items-center justify-center px-4 py-3 bg-white hover:bg-gray-100 text-gray-700 rounded-lg transition-colors duration-200 font-medium"
+                class="w-full flex items-center justify-center px-4 py-3 bg-theme-text-primary hover:bg-theme-text-secondary text-theme-bg-primary rounded-lg transition-colors duration-200 font-medium"
                 @click="handleLoginWithGoogle">
                 <GoogleIcon class="w-5 h-5 mr-3" />
                 Login with Google
@@ -72,7 +76,7 @@
               <!-- Fake gosuslugi Login -->
               <button
                 type="button"
-                class="w-full flex items-center justify-center px-4 py-3 bg-white hover:bg-gray-100 text-gray-700 rounded-lg transition-colors duration-200 font-medium"
+                class="w-full flex items-center justify-center px-4 py-3 bg-theme-text-primary hover:bg-theme-text-secondary text-theme-bg-primary rounded-lg transition-colors duration-200 font-medium"
                 @click="handleLoginWithGosuslugi">
                 Войти через <img src="/gosusligi-text.svg" class="w-28 h-7" />
               </button>
@@ -81,26 +85,26 @@
             <!-- Divider -->
             <div class="relative mb-4">
               <div class="absolute inset-0 flex items-center">
-                <div class="w-full border-t border-gray-700"></div>
+                <div class="w-full border-t border-theme-border"></div>
               </div>
 
               <div class="relative flex justify-center text-sm">
-                <span class="px-2 bg-gray-800 text-gray-500">or</span>
+                <span class="px-2 bg-theme-bg-secondary text-theme-text-muted">or</span>
               </div>
             </div>
 
             <!-- Guest Option -->
             <button
               type="button"
-              class="w-full flex items-center justify-center px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors duration-200 font-medium"
+              class="w-full flex items-center justify-center px-4 py-3 bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-primary rounded-lg transition-colors duration-200 font-medium"
               @click="handleContinueAsGuest">
               <PhUser class="w-5 h-5 mr-3" />
               Continue as Guest
             </button>
 
             <!-- Restriction Notice -->
-            <div class="mt-4 flex items-start text-sm text-gray-400">
-              <PhInfo class="w-4 h-4 mr-2 mt-0.5 flex-shrink-0 text-gray-500" />
+            <div class="mt-4 flex items-start text-sm text-theme-text-muted">
+              <PhInfo class="w-4 h-4 mr-2 mt-0.5 flex-shrink-0 text-theme-text-muted" />
 
               <span
                 >Guests can join voice rooms but can't share their screen.
@@ -127,13 +131,15 @@
             <form @submit.prevent="handlePasswordSubmit">
               <!-- Nickname (only in register mode) -->
               <div v-if="isRegisterMode" class="mb-3">
-                <label class="block text-gray-400 text-sm mb-1" for="nickname">Nickname</label>
+                <label class="block text-theme-text-muted text-sm mb-1" for="nickname"
+                  >Nickname</label
+                >
                 <input
                   id="nickname"
                   v-model="nickname"
                   type="text"
-                  class="w-full px-4 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
-                  :class="nicknameError ? 'border-red-500' : 'border-gray-600'"
+                  class="w-full px-4 py-2 bg-theme-bg-tertiary border rounded-lg text-theme-text-primary placeholder-theme-text-muted focus:outline-none focus:border-theme-accent"
+                  :class="nicknameError ? 'border-red-500' : 'border-theme-border'"
                   placeholder="Choose a nickname"
                   required
                   @input="handleNicknameInput"
@@ -145,13 +151,13 @@
 
               <!-- Email (only in register mode) -->
               <div v-if="isRegisterMode" class="mb-3">
-                <label class="block text-gray-400 text-sm mb-1" for="email">Email</label>
+                <label class="block text-theme-text-muted text-sm mb-1" for="email">Email</label>
                 <input
                   id="email"
                   v-model="email"
                   type="email"
-                  class="w-full px-4 py-2 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
-                  :class="emailError ? 'border-red-500' : 'border-gray-600'"
+                  class="w-full px-4 py-2 bg-theme-bg-tertiary border rounded-lg text-theme-text-primary placeholder-theme-text-muted focus:outline-none focus:border-theme-accent"
+                  :class="emailError ? 'border-red-500' : 'border-theme-border'"
                   placeholder="your@email.com"
                   required
                   @input="handleEmailInput"
@@ -168,14 +174,14 @@
 
               <!-- Login (email or nickname) - only in login mode -->
               <div v-if="!isRegisterMode" class="mb-3">
-                <label class="block text-gray-400 text-sm mb-1" for="login"
+                <label class="block text-theme-text-muted text-sm mb-1" for="login"
                   >Email or Nickname</label
                 >
                 <input
                   id="login"
                   v-model="login"
                   type="text"
-                  class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
+                  class="w-full px-4 py-2 bg-theme-bg-tertiary border border-theme-border rounded-lg text-theme-text-primary placeholder-theme-text-muted focus:outline-none focus:border-theme-accent"
                   placeholder="Enter your email or nickname"
                   required
                   @input="handleLoginInput" />
@@ -183,14 +189,16 @@
 
               <!-- Password -->
               <div class="mb-3 relative">
-                <label class="block text-gray-400 text-sm mb-1" for="password">Password</label>
+                <label class="block text-theme-text-muted text-sm mb-1" for="password"
+                  >Password</label
+                >
                 <div class="relative">
                   <input
                     id="password"
                     v-model="password"
                     :type="showPassword ? 'text' : 'password'"
-                    class="w-full px-4 py-2 pr-10 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
-                    :class="passwordError ? 'border-red-500' : 'border-gray-600'"
+                    class="w-full px-4 py-2 pr-10 bg-theme-bg-tertiary border rounded-lg text-theme-text-primary placeholder-theme-text-muted focus:outline-none focus:border-theme-accent"
+                    :class="passwordError ? 'border-red-500' : 'border-theme-border'"
                     :placeholder="isRegisterMode ? 'Create a password' : 'Enter your password'"
                     required
                     @input="handlePasswordInput"
@@ -198,7 +206,7 @@
                     @blur="handlePasswordBlur" />
                   <button
                     type="button"
-                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-theme-text-muted hover:text-theme-text-primary"
                     @click="showPassword = !showPassword">
                     <PhEye v-if="!showPassword" class="w-5 h-5" />
                     <PhEyeSlash v-else class="w-5 h-5" />
@@ -208,16 +216,16 @@
                 <!-- Password Requirements Tooltip -->
                 <div
                   v-if="isRegisterMode && showPasswordTooltip"
-                  class="absolute z-10 left-0 right-0 -top-1 translate-y-[-100%] p-3 bg-gray-700 border border-gray-600 rounded-lg shadow-lg">
-                  <p class="text-gray-400 text-xs mb-1">Password must contain:</p>
+                  class="absolute z-10 left-0 right-0 -top-1 translate-y-[-100%] p-3 bg-theme-bg-tertiary border border-theme-border rounded-lg shadow-lg">
+                  <p class="text-theme-text-muted text-xs mb-1">Password must contain:</p>
                   <ul class="text-xs space-y-0.5">
-                    <li :class="passwordLengthValid ? 'text-green-400' : 'text-gray-500'">
+                    <li :class="passwordLengthValid ? 'text-green-400' : 'text-theme-text-muted'">
                       {{ passwordLengthValid ? "✓" : "○" }} At least 8 characters
                     </li>
-                    <li :class="passwordNumberValid ? 'text-green-400' : 'text-gray-500'">
+                    <li :class="passwordNumberValid ? 'text-green-400' : 'text-theme-text-muted'">
                       {{ passwordNumberValid ? "✓" : "○" }} At least 1 number
                     </li>
-                    <li :class="passwordSpecialValid ? 'text-green-400' : 'text-gray-500'">
+                    <li :class="passwordSpecialValid ? 'text-green-400' : 'text-theme-text-muted'">
                       {{ passwordSpecialValid ? "✓" : "○" }} At least 1 special character
                     </li>
                   </ul>
@@ -231,7 +239,7 @@
 
               <!-- Confirm Password (only in register mode) -->
               <div v-if="isRegisterMode" class="mb-3">
-                <label class="block text-gray-400 text-sm mb-1" for="confirmPassword"
+                <label class="block text-theme-text-muted text-sm mb-1" for="confirmPassword"
                   >Confirm Password</label
                 >
                 <div class="relative">
@@ -239,15 +247,15 @@
                     id="confirmPassword"
                     v-model="confirmPassword"
                     :type="showConfirmPassword ? 'text' : 'password'"
-                    class="w-full px-4 py-2 pr-10 bg-gray-700 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
-                    :class="confirmPasswordError ? 'border-red-500' : 'border-gray-600'"
+                    class="w-full px-4 py-2 pr-10 bg-theme-bg-tertiary border rounded-lg text-theme-text-primary placeholder-theme-text-muted focus:outline-none focus:border-theme-accent"
+                    :class="confirmPasswordError ? 'border-red-500' : 'border-theme-border'"
                     placeholder="Confirm your password"
                     required
                     @input="handleConfirmPasswordInput"
                     @blur="confirmPasswordTouched = true" />
                   <button
                     type="button"
-                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-theme-text-muted hover:text-theme-text-primary"
                     @click="showConfirmPassword = !showConfirmPassword">
                     <PhEye v-if="!showConfirmPassword" class="w-5 h-5" />
                     <PhEyeSlash v-else class="w-5 h-5" />
@@ -263,7 +271,7 @@
               <!-- Submit Button -->
               <button
                 type="submit"
-                class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                class="w-full py-2 bg-theme-accent hover:bg-theme-accent-hover text-theme-text-on-accent rounded-lg font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 :disabled="isLoading || (isRegisterMode && !canSubmit)"
                 @click="handlePasswordSubmit">
                 <span v-if="isLoading">Please wait...</span>
@@ -273,20 +281,20 @@
 
             <!-- Toggle Mode Link -->
             <div class="mt-4 text-center">
-              <span v-if="!isRegisterMode" class="text-gray-400">
+              <span v-if="!isRegisterMode" class="text-theme-text-muted">
                 Don't have an account?
                 <button
                   type="button"
-                  class="text-indigo-400 hover:text-indigo-300 font-medium ml-1"
+                  class="text-theme-accent hover:text-theme-accent-hover font-medium ml-1"
                   @click="switchToRegister">
                   Register
                 </button>
               </span>
-              <span v-else class="text-gray-400">
+              <span v-else class="text-theme-text-muted">
                 Already have an account?
                 <button
                   type="button"
-                  class="text-indigo-400 hover:text-indigo-300 font-medium ml-1"
+                  class="text-theme-accent hover:text-theme-accent-hover font-medium ml-1"
                   @click="switchToLogin">
                   Login
                 </button>
