@@ -61,7 +61,7 @@ const isGuest = computed(() => userStore.isGuest)
 
 const buttonTitle = computed(() => {
   if (isGuest.value) {
-    return "Login required for screensharing"
+    return "Sign in to share your screen"
   }
   return isScreenSharing.value ? "Stop Sharing" : "Share Screen"
 })

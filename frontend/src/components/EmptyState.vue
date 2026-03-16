@@ -5,9 +5,9 @@
         <PhMicrophone class="w-10 h-10 text-gray-600" />
       </div>
 
-      <h3 class="text-xl font-semibold text-white mb-2">Waiting for others...</h3>
+      <h3 class="text-xl font-semibold text-white mb-2">You're the first one here</h3>
 
-      <p class="text-gray-400">You're the first one here. Invite some friends to join!</p>
+      <p class="text-gray-400 mb-4">Start a voice room and invite friends to join you.</p>
     </div>
   </div>
 </template>

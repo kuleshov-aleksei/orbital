@@ -100,9 +100,18 @@
 
             <!-- Restriction Notice -->
             <div class="mt-4 flex items-start text-sm text-gray-400">
-              <PhLock class="w-4 h-4 mr-2 mt-0.5 flex-shrink-0 text-gray-500" />
+              <PhInfo class="w-4 h-4 mr-2 mt-0.5 flex-shrink-0 text-gray-500" />
 
-              <span>Some features are restricted for guests, like screensharing</span>
+              <span
+                >Guests can join voice rooms but can't share their screen.
+                <button
+                  type="button"
+                  class="text-theme-accent hover:underline"
+                  @click="activeTab = 'password'">
+                  Sign in
+                </button>
+                to unlock all features.</span
+              >
             </div>
           </div>
 
@@ -153,7 +162,7 @@
                 <p
                   v-else-if="emailTouched && email && !isEmailValid"
                   class="text-red-400 text-xs mt-1">
-                  Invalid email format
+                  Please enter a valid email like name@example.com
                 </p>
               </div>
 
@@ -257,7 +266,7 @@
                 class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 :disabled="isLoading || (isRegisterMode && !canSubmit)"
                 @click="handlePasswordSubmit">
-                <span v-if="isLoading">Loading...</span>
+                <span v-if="isLoading">Please wait...</span>
                 <span v-else>{{ isRegisterMode ? "Register" : "Login" }}</span>
               </button>
             </form>
@@ -293,7 +302,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue"
 import { useUserStore } from "@/stores"
-import { PhUser, PhLock, PhEye, PhEyeSlash } from "@phosphor-icons/vue"
+import { PhUser, PhEye, PhEyeSlash, PhInfo } from "@phosphor-icons/vue"
 import DiscordIcon from "~icons/simple-icons/discord"
 import GoogleIcon from "~icons/logos/google-icon"
 

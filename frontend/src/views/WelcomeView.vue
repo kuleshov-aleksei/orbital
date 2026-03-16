@@ -54,9 +54,9 @@
           <PhMagnifyingGlass class="w-8 h-8 text-theme-text-muted" />
         </div>
 
-        <h3 class="text-xl font-semibold text-theme-text-primary mb-2">No rooms available</h3>
+        <h3 class="text-xl font-semibold text-theme-text-primary mb-2">No rooms yet</h3>
 
-        <p class="text-theme-text-muted mb-6">Be the first to create a room and start chatting!</p>
+        <p class="text-theme-text-muted mb-6">Create a room to start chatting with your squad.</p>
 
         <button
           v-if="isAdmin"
