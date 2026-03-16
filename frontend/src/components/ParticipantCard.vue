@@ -31,7 +31,7 @@
         <div
           v-if="showStats && hasStats"
           ref="tooltipElement"
-          class="fixed z-[9999] bg-theme-bg-primary/95 backdrop-blur-sm border border-theme-border rounded-lg p-3 w-52 shadow-xl pointer-events-none"
+          class="fixed z-[9999] bg-theme-bg-primary border border-theme-border rounded-lg p-3 w-52 shadow-xl pointer-events-none"
           :style="tooltipStyle">
           <div
             class="text-xs font-medium text-theme-text-secondary mb-2 border-b border-theme-border pb-1">
