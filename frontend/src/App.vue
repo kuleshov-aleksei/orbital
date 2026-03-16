@@ -10,10 +10,13 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, watch } from "vue"
 import { useAppStore, useRoomStore, useThemeStore } from "@/stores"
+import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts"
 
 const appStore = useAppStore()
 const roomStore = useRoomStore()
 const themeStore = useThemeStore()
+
+useKeyboardShortcuts()
 
 const checkMobile = () => {
   appStore.checkMobile()

@@ -269,10 +269,8 @@ watch(
   (newValue) => {
     console.log(`🎤 Call store mute state changed: ${newValue}`)
     void applyMuteState(newValue)
-    // Sync with parent v-model if different
-    if (props.modelValueMuted !== newValue) {
-      emit("update:modelValueMuted", newValue)
-    }
+    // Always emit to ensure parent v-model stays in sync
+    emit("update:modelValueMuted", newValue)
   },
 )
 
@@ -281,10 +279,8 @@ watch(
   (newValue) => {
     console.log(`🎧 Call store deafen state changed: ${newValue}`)
     void applyDeafenState(newValue)
-    // Sync with parent v-model if different
-    if (props.modelValueDeafened !== newValue) {
-      emit("update:modelValueDeafened", newValue)
-    }
+    // Always emit to ensure parent v-model stays in sync
+    emit("update:modelValueDeafened", newValue)
   },
 )
 
