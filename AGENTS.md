@@ -8,6 +8,10 @@ The Orbital is a voice chat web application for 5-10 people using LiveKit SFU te
 
 **Mission**: Build a simple, blazingly fast voice call application for 5-10 people using WebRTC and Go.
 
+## Design Context
+
+For design decisions and visual guidelines, see [`.impeccable.md`](./.impeccable.md). This file contains the brand personality, target users, aesthetic direction, and design principles that should guide all UI/UX work.
+
 ## Tech Stack
 
 - **Frontend**: Vue 3 + TypeScript + Tailwind CSS
