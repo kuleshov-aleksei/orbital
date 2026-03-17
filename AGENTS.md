@@ -2,6 +2,8 @@
 
 This document outlines the development guidelines and agent configurations for The Orbital project.
 
+The role of this file is to describe common mistakes and confusion points that agents might encounter while working on this project. If you encounter something in the project that surprises you, please alert the developer you're working with and suggest updating AGENTS.md to help prevent future agents from having the same issue.
+
 ## Project Overview
 
 The Orbital is a voice chat web application for 5-10 people using LiveKit SFU technology.
@@ -28,18 +30,21 @@ orbital/
 │   ├── src/
 │   │   ├── components/    # Vue components
 │   │   ├── composables/   # Vue composables (useLiveKit, etc.)
-│   │   ├── services/      # Audio processing, WebSocket, LiveKit
+│   │   ├── services/      # Audio processing, WebSocket, LiveKit, Electron
 │   │   └── stores/        # Pinia stores
 ├── backend/           # Go backend
 │   ├── cmd/           # Application entry points
 │   ├── internal/      # Internal packages
-│   └── pkg/           # Public packages
+│   └── pkg/          # Public packages
+├── electron/         # Electron desktop app
+│   ├── main/         # Electron main process
+│   ├── preload/      # Preload scripts
+│   └── release/     # Built releases
 ├── docker/           # Docker configurations
+├── livekit/          # LiveKit server configs
 ├── scripts/          # Build and utility scripts
 ├── Makefile          # Build commands
-└── AGENTS.md         # Development guidelines
 ```
-
 
 ## Development Guidelines
 
@@ -84,18 +89,32 @@ Types coming FROM backend to frontend should have **snake_case**. Do not follow 
 - Test WebSocket connections
 - Use integration tests for API endpoints
 
+### Electron Development
+- Electron desktop app is in the `electron/` directory
+- Uses Vite for bundling with `vite-plugin-electron`
+- Features include: system tray, window controls, auto-updates, deep linking (`orbital://`), desktop capture for screen sharing
+- Frontend interacts with Electron via `window.electronAPI` (see `frontend/src/services/electron.ts`)
+- The desktop app shares the same frontend code as the web version
+
 ## Build Commands
 
 The project uses a Makefile for common operations:
 
-- `make install` - Install dependencies
+- `make install` - Install dependencies (frontend + backend)
 - `make build` - Build frontend and backend
-- `make dev` - Start development servers
-- `make dev-public` - Start development servers on 0.0.0.0
+- `make dev` - Start development servers (LiveKit + frontend + backend)
+- `make dev-public` - Start development servers on 0.0.0.0 with HTTPS
+- `make dev-electron` - Run Electron in development mode
 - `make lint` - Run code quality checks
 - `make test` - Run tests
+- `make test-headed` - Run tests in headed mode
 - `make docker-build` - Build Docker images
 - `make docker-up` - Run with Docker Compose
+- `make run-built` - Run production build locally (nginx + binary)
+- `make build-electron` - Build Electron desktop app for Linux
+- `make build-electron-win` - Build Electron for Windows
+- `make build-electron-linux` - Build Electron for Linux
+- `make build-electron-all` - Build Electron for all platforms
 
 ## CRITICAL
 
