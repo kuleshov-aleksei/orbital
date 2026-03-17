@@ -138,7 +138,7 @@ import ScreenStream from "./ScreenStream.vue"
 import ScreenSharePlaceholder from "./ScreenSharePlaceholder.vue"
 import CameraStream from "./CameraStream.vue"
 import ParticipantCard from "./ParticipantCard.vue"
-import type { ScreenShareQuality, User } from "@/types"
+import type { ScreenShareQuality, User, ConnectionStats } from "@/types"
 import type {
   RemoteVideoTrack,
   RemoteAudioTrack,
@@ -225,12 +225,7 @@ interface Props {
   currentUserId: string
   currentUserIsSharing?: boolean
   currentUserCameraEnabled?: boolean
-  getParticipantStats?: (userId: string) => {
-    ping: number
-    jitter: number
-    packetLoss: number
-    bitrate: number
-  }
+  getParticipantStats?: (userId: string) => ConnectionStats
 }
 
 const localLayout = computed({

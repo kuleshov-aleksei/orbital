@@ -3,6 +3,11 @@
 @tailwind utilities;
 
 :root {
+  /* Animation timing */
+  --ease-out-smooth: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-snappy: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Colors */
   --color-bg-primary: #111827;
   --color-bg-secondary: #1f2937;
   --color-bg-tertiary: #374151;
@@ -117,4 +122,78 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-border);
+}
+
+/* Focus ring styles for accessibility */
+*:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Remove default focus outline for mouse users */
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Control button animations */
+.control-button {
+  @apply flex items-center justify-center;
+  transition: background-color 200ms var(--ease-out-smooth),
+              transform 100ms var(--ease-out-smooth);
+}
+
+.control-button:hover {
+  transform: scale(1.05);
+}
+
+.control-button:active {
+  transform: scale(0.95);
+}
+
+/* Icon transition for toggle states */
+.icon-toggle-enter-active {
+  transition: opacity 150ms var(--ease-out-smooth),
+              transform 150ms var(--ease-out-smooth);
+}
+
+.icon-toggle-leave-active {
+  transition: opacity 100ms var(--ease-out-smooth),
+              transform 100ms var(--ease-out-smooth);
+}
+
+.icon-toggle-enter-from {
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+.icon-toggle-leave-to {
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .control-button {
+    transition: none;
+    transform: none !important;
+  }
+
+  .control-button:hover {
+    transform: none;
+  }
+
+  .control-button:active {
+    transform: none;
+  }
+
+  .icon-toggle-enter-active,
+  .icon-toggle-leave-active {
+    transition: none;
+  }
+
+  .icon-toggle-enter-from,
+  .icon-toggle-leave-to {
+    opacity: 1;
+    transform: none;
+  }
 }

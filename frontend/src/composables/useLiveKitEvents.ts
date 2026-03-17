@@ -216,11 +216,13 @@ export function useLiveKitEvents(state: LiveKitState) {
 
     lkRoom.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
       debugLog(`[LiveKit][INFO]: Track subscribed: ${track.kind} from ${participant.identity}`)
+      // @ts-expect-error - RemoteTrack is compatible with RemoteAudioTrack | RemoteVideoTrack
       handleRemoteTrack(track, participant)
     })
 
     lkRoom.on(RoomEvent.TrackUnsubscribed, (track, _publication, participant) => {
       debugLog(`[LiveKit][INFO]: Track unsubscribed: ${track.kind} from ${participant.identity}`)
+      // @ts-expect-error - RemoteTrack is compatible with RemoteAudioTrack | RemoteVideoTrack
       handleTrackUnsubscribed(track, participant)
     })
 

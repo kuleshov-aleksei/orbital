@@ -46,7 +46,7 @@ export function useLiveKitConnection(state: LiveKitState, deps: UseLiveKitConnec
       })
 
       debugLog(
-        `[LiveKit][INFO]: Room connected (t=${(performance.now() - startTime).toFixed(0)}ms)`,
+        `[LiveKit][INFO]: Room connected (t=${(performance.now() - connectStart).toFixed(0)}ms)`,
       )
 
       state.room.value = lkRoom

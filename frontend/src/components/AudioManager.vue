@@ -73,7 +73,7 @@ const createAudioElement = (userId: string, track: RemoteAudioTrack): HTMLAudioE
     })
 
   audioElements.value.set(userId, element)
-  attachedTrackSids.value.set(userId, track.sid)
+  attachedTrackSids.value.set(userId, track.sid ?? "")
 
   debugLog(
     `[AudioManager] Created audio element for ${userId}, total elements: ${audioElements.value.size}`,

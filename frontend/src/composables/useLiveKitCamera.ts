@@ -39,6 +39,7 @@ export function useLiveKitCamera(state: LiveKitState) {
           if (publicationToUnpublish?.trackSid) {
             try {
               await state.room.value.localParticipant.unpublishTrack(
+                // @ts-expect-error - trackSid can be passed as string in LiveKit
                 publicationToUnpublish.trackSid,
               )
             } catch (sidError) {
@@ -50,6 +51,7 @@ export function useLiveKitCamera(state: LiveKitState) {
         }
       } else if (publicationToUnpublish?.trackSid) {
         try {
+          // @ts-expect-error - trackSid can be passed as string in LiveKit
           await state.room.value.localParticipant.unpublishTrack(publicationToUnpublish.trackSid)
         } catch (error) {
           debugLog(`[LiveKit][WARN]: Failed to unpublish camera: ${(error as Error).message}`)

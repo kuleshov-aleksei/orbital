@@ -22,13 +22,13 @@
       <!-- Warning Message -->
       <div class="mb-6 p-4 bg-red-900 bg-opacity-30 border border-red-800 rounded-lg">
         <p class="text-red-400 text-sm">
-          <strong>Warning:</strong> You are about to delete the room "{{ roomName }}".
+          <strong>Delete "{{ roomName }}"?</strong>
           {{
             userCount > 0
-              ? `This room currently has ${userCount} user${userCount !== 1 ? "s" : ""} in it.`
-              : "This room is empty."
+              ? ` This room has ${userCount} user${userCount !== 1 ? "s" : ""} in it.`
+              : " This room is empty."
           }}
-          This action cannot be undone.
+          This can't be undone.
         </p>
       </div>
 

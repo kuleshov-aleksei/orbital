@@ -65,7 +65,7 @@ const isGuest = computed(() => userStore.isGuest)
 
 const buttonTitle = computed(() => {
   if (isGuest.value) {
-    return "Login required for screensharing"
+    return "Sign in to share your screen"
   }
   return isScreenSharing.value ? "Stop Sharing" : "Share Screen"
 })
@@ -159,7 +159,5 @@ defineExpose({
 </script>
 
 <style scoped>
-.control-button {
-  @apply flex items-center justify-center transition-colors duration-200;
-}
+/* Styles removed - now uses global .control-button from style.css */
 </style>

@@ -22,12 +22,13 @@
       <!-- Warning Message -->
       <div class="mb-6 p-4 bg-red-900 bg-opacity-30 border border-red-800 rounded-lg">
         <p class="text-red-400 text-sm">
-          <strong>Warning:</strong> You are about to delete the category "{{ categoryName }}".
+          <strong>Delete "{{ categoryName }}"?</strong>
           {{
             roomCount > 0
-              ? `This category contains ${roomCount} room${roomCount !== 1 ? "s" : ""}.`
-              : "This category is empty."
+              ? ` This category contains ${roomCount} room${roomCount !== 1 ? "s" : ""}.`
+              : " This category is empty."
           }}
+          This can't be undone.
         </p>
       </div>
 
@@ -46,8 +47,8 @@
               >
 
               <p class="text-xs text-gray-500 mt-1">
-                If checked, all {{ roomCount }} room{{ roomCount !== 1 ? "s" : "" }}
-                will be permanently deleted. If unchecked, rooms will be moved to another category.
+                If checked, all {{ roomCount }} room{{ roomCount !== 1 ? "s" : "" }} will be
+                permanently deleted. If unchecked, rooms move to another category.
               </p>
             </div>
           </label>

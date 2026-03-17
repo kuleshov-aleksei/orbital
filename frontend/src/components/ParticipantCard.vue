@@ -15,9 +15,9 @@
           ? 'bg-theme-bg-secondary border-theme-border'
           : '',
       isSpeaking && isCurrentUser && (!isScreenSharing || forceAudioMode)
-        ? 'border-theme-accent shadow-[0_0_10px_var(--color-accent)] animate-pulse'
+        ? 'border-theme-accent'
         : isSpeaking && (!isScreenSharing || forceAudioMode)
-          ? 'border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]'
+          ? 'border-green-500'
           : '',
     ]"
     @contextmenu="handleContextMenu"
@@ -31,7 +31,7 @@
         <div
           v-if="showStats && hasStats"
           ref="tooltipElement"
-          class="fixed z-[9999] bg-theme-bg-primary/95 backdrop-blur-sm border border-theme-border rounded-lg p-3 w-52 shadow-xl pointer-events-none"
+          class="fixed z-[9999] bg-theme-bg-primary border border-theme-border rounded-lg p-3 w-52 shadow-xl pointer-events-none"
           :style="tooltipStyle">
           <div
             class="text-xs font-medium text-theme-text-secondary mb-2 border-b border-theme-border pb-1">
@@ -402,19 +402,28 @@
             </div>
           </div>
         </div>
-
-        <!-- Speaking indicator overlay -->
-        <div
-          v-if="isSpeaking"
-          class="absolute bottom-2 left-2 w-3 h-3 bg-green-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(74,222,128,0.8)]"
-          title="Speaking" />
       </div>
     </template>
 
     <!-- Audio Mode: Avatar centered with nickname at bottom -->
     <template v-else>
-      <!-- Avatar centered in card -->
+      <!-- Avatar centered in card with speaking rings -->
       <div class="absolute inset-0 flex items-center justify-center">
+        <!-- Speaking rings (fades) -->
+        <div
+          class="absolute w-16 h-16 flex items-center justify-center transition-opacity duration-300"
+          :class="isSpeaking ? 'opacity-100' : 'opacity-0'">
+          <div
+            class="absolute rounded-full border-2 border-green-500 animate-breathe bg-green-500/20 opacity-40 w-24 h-24"
+            style="animation-delay: 0ms" />
+          <div
+            class="absolute rounded-full border-2 border-green-500 animate-breathe bg-green-500/20 opacity-25 w-20 h-20"
+            style="animation-delay: 150ms" />
+          <div
+            class="absolute rounded-full border-2 border-green-500 animate-breathe bg-green-500/20 w-16 h-16"
+            style="animation-delay: 300ms" />
+        </div>
+        <!-- Avatar (always visible) -->
         <UserAvatar :user-id="userId" :nickname="userNickname" :size="48" :show-status="false" />
       </div>
 
@@ -430,12 +439,6 @@
           <PhHeadphones v-if="isDeafened" class="w-3 h-3 text-red-400" />
         </div>
       </div>
-
-      <!-- Speaking Indicator -->
-      <div
-        v-if="isSpeaking"
-        class="absolute top-2 right-2 w-3 h-3 bg-green-400 rounded-full animate-pulse"
-        title="Speaking" />
 
       <!-- Stream Indicators -->
       <div class="absolute top-2 left-2 flex gap-1">
@@ -805,6 +808,20 @@ onMounted(() => {
 <style scoped>
 .participant-card {
   min-height: 100px;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.animate-breathe {
+  animation: breathe 2s ease-in-out infinite;
 }
 
 .participant-card input[type="range"]::-webkit-slider-thumb {

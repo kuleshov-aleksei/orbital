@@ -12,11 +12,14 @@
     ]"
     :title="isMuted ? 'Unmute' : 'Mute'"
     @click="toggleMute">
-    <PhMicrophoneSlash
-      v-if="isMuted"
-      :class="[iconClasses, isSpeaking && !isMuted ? 'animate-pulse' : '']" />
+    <Transition name="icon-toggle" mode="out-in">
+      <PhMicrophoneSlash
+        v-if="isMuted"
+        :key="`muted-${isSpeaking}`"
+        :class="[iconClasses, isSpeaking && !isMuted ? 'animate-pulse' : '']" />
 
-    <PhMicrophone v-else :class="[iconClasses, isSpeaking ? 'animate-pulse' : '']" />
+      <PhMicrophone v-else :key="`unmuted-${isSpeaking}`" :class="[iconClasses, isSpeaking ? 'animate-pulse' : '']" />
+    </Transition>
 
     <!-- Pulsating ring when speaking -->
     <span
@@ -116,7 +119,36 @@ const toggleMute = async () => {
 </script>
 
 <style scoped>
-.control-button {
-  @apply flex items-center justify-center transition-colors duration-200;
+.icon-toggle-enter-active {
+  transition: opacity 150ms var(--ease-out-smooth),
+              transform 150ms var(--ease-out-smooth);
+}
+
+.icon-toggle-leave-active {
+  transition: opacity 100ms var(--ease-out-smooth),
+              transform 100ms var(--ease-out-smooth);
+}
+
+.icon-toggle-enter-from {
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+.icon-toggle-leave-to {
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-toggle-enter-active,
+  .icon-toggle-leave-active {
+    transition: none;
+  }
+
+  .icon-toggle-enter-from,
+  .icon-toggle-leave-to {
+    opacity: 1;
+    transform: none;
+  }
 }
 </style>

@@ -14,7 +14,7 @@
       <div
         class="animate-spin rounded-full h-6 w-6 border-b-2 border-t-2 border-theme-text-primary"></div>
 
-      <span class="text-theme-text-primary">Connecting...</span>
+      <span class="text-theme-text-primary">Connecting to voice server...</span>
     </div>
   </div>
 
@@ -26,7 +26,7 @@
       <div
         class="animate-spin rounded-full h-6 w-6 border-b-2 border-t-2 border-theme-text-primary"></div>
 
-      <span class="text-theme-text-primary">Loading...</span>
+      <span class="text-theme-text-primary">Preparing your experience...</span>
     </div>
   </div>
 
