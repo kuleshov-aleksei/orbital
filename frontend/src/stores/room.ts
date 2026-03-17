@@ -203,7 +203,6 @@ export const useRoomStore = defineStore("room", () => {
     const clampedVolume = Math.max(0, Math.min(100, volume))
     remoteStreamVolumes.value.set(userId, clampedVolume)
     saveUserVolumes()
-    console.log(`Volume updated: User ${userId} → ${clampedVolume}%`)
   }
 
   function saveUserVolumes() {
