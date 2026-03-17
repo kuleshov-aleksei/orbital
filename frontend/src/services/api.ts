@@ -181,6 +181,13 @@ export const apiService = {
     })
   },
 
+  // Kick a user from a room
+  async kickUser(roomId: string, userId: string): Promise<{ status: string }> {
+    return apiRequest<{ status: string }>(`/rooms/${roomId}/kick/${userId}`, {
+      method: "POST",
+    })
+  },
+
   // Get users in a room
   async getRoomUsers(roomId: string): Promise<User[]> {
     return apiRequest<User[]>(`/rooms/${roomId}/users`)

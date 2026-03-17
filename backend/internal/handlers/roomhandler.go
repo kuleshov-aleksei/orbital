@@ -18,14 +18,16 @@ import (
 type RoomHandler struct {
 	roomService     *service.RoomService
 	categoryService *service.CategoryService
+	livekitService  *service.LiveKitService
 	wsHub           *websocket.Hub
 }
 
 // NewRoomHandler creates a new RoomHandler
-func NewRoomHandler(roomService *service.RoomService, categoryService *service.CategoryService, wsHub *websocket.Hub) *RoomHandler {
+func NewRoomHandler(roomService *service.RoomService, categoryService *service.CategoryService, livekitService *service.LiveKitService, wsHub *websocket.Hub) *RoomHandler {
 	return &RoomHandler{
 		roomService:     roomService,
 		categoryService: categoryService,
+		livekitService:  livekitService,
 		wsHub:           wsHub,
 	}
 }
@@ -229,6 +231,41 @@ func (h *RoomHandler) LeaveRoom(w http.ResponseWriter, r *http.Request) {
 			"data": map[string]interface{}{
 				"room_id": roomID,
 				"user":    leftUser,
+			},
+		}
+		h.wsHub.BroadcastToAll(roomUserLeftMessage)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+}
+
+// KickUser handles POST /api/rooms/{room_id}/kick/{user_id}
+func (h *RoomHandler) KickUser(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	roomID := vars["room_id"]
+	userID := vars["user_id"]
+
+	kickedUser := h.roomService.KickUser(roomID, userID)
+	if kickedUser == nil {
+		http.Error(w, "User not found in room", http.StatusNotFound)
+		return
+	}
+
+	// Remove from LiveKit
+	if h.livekitService != nil {
+		if err := h.livekitService.RemoveParticipant(roomID, userID); err != nil {
+			log.Printf("Failed to remove user %s from LiveKit room %s: %v", userID, roomID, err)
+		}
+	}
+
+	// Broadcast room user left event to all clients
+	if h.wsHub != nil {
+		roomUserLeftMessage := map[string]interface{}{
+			"type": "room_user_left",
+			"data": map[string]interface{}{
+				"room_id": roomID,
+				"user":    kickedUser,
 			},
 		}
 		h.wsHub.BroadcastToAll(roomUserLeftMessage)
