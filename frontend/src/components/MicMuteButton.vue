@@ -6,25 +6,15 @@
       sizeClasses,
       isMuted
         ? 'bg-red-600 hover:bg-red-700 text-white'
-        : isSpeaking
-          ? 'bg-green-600 hover:bg-green-700 text-white'
-          : 'bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary',
+        : 'bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary',
     ]"
     :title="isMuted ? 'Unmute' : 'Mute'"
     @click="toggleMute">
     <Transition name="icon-toggle" mode="out-in">
-      <PhMicrophoneSlash
-        v-if="isMuted"
-        :key="`muted-${isSpeaking}`"
-        :class="[iconClasses, isSpeaking && !isMuted ? 'animate-pulse' : '']" />
+      <PhMicrophoneSlash v-if="isMuted" key="muted" :class="iconClasses" />
 
-      <PhMicrophone v-else :key="`unmuted-${isSpeaking}`" :class="[iconClasses, isSpeaking ? 'animate-pulse' : '']" />
+      <PhMicrophone v-else key="unmuted" :class="iconClasses" />
     </Transition>
-
-    <!-- Pulsating ring when speaking -->
-    <span
-      v-if="isSpeaking && !isMuted"
-      class="absolute inset-0 rounded-full animate-ping bg-green-400 opacity-30" />
   </button>
 </template>
 
@@ -38,12 +28,10 @@ import { wsService } from "@/services/websocket"
 interface Props {
   modelValue: boolean
   size?: "sm" | "md" | "lg"
-  isSpeaking?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   size: "md",
-  isSpeaking: false,
 })
 
 const emit = defineEmits<{
@@ -120,13 +108,15 @@ const toggleMute = async () => {
 
 <style scoped>
 .icon-toggle-enter-active {
-  transition: opacity 150ms var(--ease-out-smooth),
-              transform 150ms var(--ease-out-smooth);
+  transition:
+    opacity 150ms var(--ease-out-smooth),
+    transform 150ms var(--ease-out-smooth);
 }
 
 .icon-toggle-leave-active {
-  transition: opacity 100ms var(--ease-out-smooth),
-              transform 100ms var(--ease-out-smooth);
+  transition:
+    opacity 100ms var(--ease-out-smooth),
+    transform 100ms var(--ease-out-smooth);
 }
 
 .icon-toggle-enter-from {

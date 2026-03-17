@@ -75,7 +75,6 @@
       v-model:model-value-deafened="isDeafened"
       v-model:model-value-screen-sharing="isScreenSharing"
       v-model:model-value-camera-enabled="cameraEnabled"
-      :is-speaking="isSpeaking"
       :is-mobile="isMobile"
       @start-screen-share="$emit('request-screen-share')"
       @toggle-camera="handleCameraToggle"
@@ -187,7 +186,7 @@ const {
 })
 
 // Voice Activity Detection for local user
-const { audioLevel, isSpeaking } = useVoiceActivity({
+const { audioLevel } = useVoiceActivity({
   stream: localStream,
   isMuted: computed(() => props.modelValueMuted),
 })
