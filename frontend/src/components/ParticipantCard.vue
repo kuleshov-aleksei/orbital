@@ -408,7 +408,7 @@
     <!-- Audio Mode: Avatar centered with nickname at bottom -->
     <template v-else>
       <!-- Avatar centered in card with speaking rings -->
-      <div class="absolute inset-0 flex items-center justify-center">
+      <div class="absolute inset-0 flex items-center justify-center overflow-hidden">
         <!-- Speaking rings (fades) -->
         <div
           class="absolute w-16 h-16 flex items-center justify-center transition-opacity duration-300"
