@@ -197,6 +197,14 @@ export const useRoomStore = defineStore("room", () => {
         room.user_count = room.users.length
       }
     }
+
+    // Also update currentRoomUsers if this is the active room
+    if (activeRoomId.value === roomId) {
+      const currentUserIndex = currentRoomUsers.value.findIndex((u) => u.id === userId)
+      if (currentUserIndex !== -1) {
+        currentRoomUsers.value.splice(currentUserIndex, 1)
+      }
+    }
   }
 
   function setUserVolume(userId: string, volume: number) {
