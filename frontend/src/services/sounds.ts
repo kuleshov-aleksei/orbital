@@ -5,6 +5,7 @@ import { jdSherbertSprites } from "@/services/sprites/jdSherbert"
 import { defaultSprites } from "@/services/sprites/default"
 import { crunchySprites } from "@/services/sprites/crunchy"
 import { resolveUrl } from "@/services/api"
+import { isElectron } from "@/services/electron"
 
 const DEFAULT_SOUND_PACK_ID = "default"
 
@@ -66,6 +67,10 @@ let globalVolume: number = 0.7
 
 function getSpriteUrls(packId: string): string[] {
   const urls = spriteUrls[packId] || spriteUrls[DEFAULT_SOUND_PACK_ID]
+  if (isElectron()) {
+    const basePath = window.location.pathname.replace(/\/[^/]*$/, "")
+    return urls.map((url) => `file://${basePath}${url}`)
+  }
   return urls.map((url) => resolveUrl(url))
 }
 
