@@ -69,21 +69,29 @@ export function startAudioCapture(include: Node[]): boolean {
     return false;
   }
 
-  const selectedAppId = include[0]["application.process.id"] || include[0]["application.name"];
-  console.log("[Venmic] Selected app ID:", selectedAppId);
-
   const allSources = patchBayInstance.list() ?? [];
   console.log("[Venmic] All sources count:", allSources.length);
 
-  const appSources = allSources.filter((node) => {
-    const nodeAppId = node["application.process.id"] || node["application.name"];
-    return nodeAppId === selectedAppId;
-  });
+  const uniqueAppIds = new Set<string>();
+  for (const node of include) {
+    const appId = node["application.process.id"] || node["application.name"];
+    if (appId) uniqueAppIds.add(appId);
+  }
+  console.log("[Venmic] Selected apps:", Array.from(uniqueAppIds));
 
-  console.log("[Venmic] Found", appSources.length, "sources for app:", selectedAppId);
+  const appSources: Node[] = [];
+  for (const appId of uniqueAppIds) {
+    const matching = allSources.filter((node) => {
+      const nodeAppId = node["application.process.id"] || node["application.name"];
+      return nodeAppId === appId;
+    });
+    appSources.push(...matching);
+  }
+
+  console.log("[Venmic] Total sources to link:", appSources.length);
 
   if (appSources.length === 0) {
-    console.error("[Venmic] No matching sources found for app");
+    console.error("[Venmic] No matching sources found for selected apps");
     return false;
   }
 
