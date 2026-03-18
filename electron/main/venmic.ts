@@ -44,7 +44,7 @@ export function listAudioSources(props?: string[]): Node[] {
     }
   }
   const result = patchBayInstance.list(props) ?? [];
-  console.log("[Venmic] Listed sources:", JSON.stringify(result, null, 2));
+  console.log("[Venmic] Listed", result.length, "sources");
   return result;
 }
 
@@ -64,16 +64,38 @@ export function startAudioCapture(include: Node[]): boolean {
     }
   }
 
-  console.log("[Venmic] Starting audio capture with include:", JSON.stringify(include, null, 2));
+  if (!include || include.length === 0) {
+    console.error("[Venmic] No sources provided to capture");
+    return false;
+  }
 
-  const data: LinkData = {
-    include,
+  const selectedAppId = include[0]["application.process.id"] || include[0]["application.name"];
+  console.log("[Venmic] Selected app ID:", selectedAppId);
+
+  const allSources = patchBayInstance.list() ?? [];
+  console.log("[Venmic] All sources count:", allSources.length);
+
+  const appSources = allSources.filter((node) => {
+    const nodeAppId = node["application.process.id"] || node["application.name"];
+    return nodeAppId === selectedAppId;
+  });
+
+  console.log("[Venmic] Found", appSources.length, "sources for app:", selectedAppId);
+
+  if (appSources.length === 0) {
+    console.error("[Venmic] No matching sources found for app");
+    return false;
+  }
+
+  const linkData: LinkData = {
+    include: appSources,
     exclude: [{ "media.class": "Stream/Input/Audio" }],
     ignore_devices: true,
     only_speakers: true,
   };
 
-  const result = patchBayInstance.link(data);
+  console.log("[Venmic] Linking with", appSources.length, "sources");
+  const result = patchBayInstance.link(linkData);
   console.log("[Venmic] Link result:", result);
   return result;
 }

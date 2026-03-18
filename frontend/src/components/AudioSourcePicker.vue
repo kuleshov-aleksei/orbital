@@ -48,7 +48,7 @@
 import { ref, onMounted } from "vue"
 import { PhCheck, PhWarning } from "@phosphor-icons/vue"
 import type { VenmicNode } from "@/types"
-import { listAudioSources, formatAudioSourceName } from "@/services/venmic"
+import { listAudioSourcesDeduplicated } from "@/services/venmic"
 
 interface Props {
   selectedSources: VenmicNode[]
@@ -77,11 +77,7 @@ async function loadSources() {
   error.value = null
 
   try {
-    const rawSources = await listAudioSources()
-    sources.value = rawSources.map((node) => ({
-      name: formatAudioSourceName(node),
-      value: node,
-    }))
+    sources.value = await listAudioSourcesDeduplicated()
   } catch {
     error.value = "Failed to load audio sources"
   } finally {

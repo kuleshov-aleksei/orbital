@@ -82,3 +82,23 @@ export function formatAudioSourceName(node: VenmicNode): string {
 
   return nodeName || "Unknown"
 }
+
+export async function listAudioSourcesDeduplicated(): Promise<AudioSource[]> {
+  const nodes = await listAudioSources()
+
+  const seen = new Set<string>()
+  const unique: AudioSource[] = []
+
+  for (const node of nodes) {
+    const pid = node["application.process.id"] as string
+    if (pid && !seen.has(pid)) {
+      seen.add(pid)
+      unique.push({
+        name: formatAudioSourceName(node),
+        value: node,
+      })
+    }
+  }
+
+  return unique
+}
