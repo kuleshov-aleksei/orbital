@@ -4,6 +4,7 @@ import { minecraftSprites } from "@/services/sprites/minecraft"
 import { jdSherbertSprites } from "@/services/sprites/jdSherbert"
 import { defaultSprites } from "@/services/sprites/default"
 import { crunchySprites } from "@/services/sprites/crunchy"
+import { resolveUrl } from "@/services/api"
 
 const DEFAULT_SOUND_PACK_ID = "default"
 
@@ -64,7 +65,8 @@ let currentUserSoundPack: string = DEFAULT_SOUND_PACK_ID
 let globalVolume: number = 0.7
 
 function getSpriteUrls(packId: string): string[] {
-  return spriteUrls[packId] || spriteUrls[DEFAULT_SOUND_PACK_ID]
+  const urls = spriteUrls[packId] || spriteUrls[DEFAULT_SOUND_PACK_ID]
+  return urls.map((url) => resolveUrl(url))
 }
 
 function getSprites(packId: string): Record<string, SoundPackSprite> {

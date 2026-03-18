@@ -29,6 +29,7 @@
 import { computed, ref, watch } from "vue"
 import Avatar from "vue-boring-avatars"
 import { useUserStore, useUsersStore } from "@/stores"
+import { resolveUrl } from "@/services/api"
 
 type UserStatus = "online" | "away" | "dnd" | "offline"
 
@@ -102,7 +103,8 @@ const displayNickname = computed(() => {
 })
 
 const displayAvatarUrl = computed(() => {
-  return props.avatarUrl ?? storeUser.value?.avatarUrl ?? undefined
+  const url = props.avatarUrl ?? storeUser.value?.avatarUrl ?? undefined
+  return url ? resolveUrl(url) : undefined
 })
 
 // Pleasant color palette for generated avatars

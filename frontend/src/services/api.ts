@@ -13,6 +13,26 @@ import {
 
 const API_BASE = typeof __BACKEND_URL__ !== "undefined" ? `${__BACKEND_URL__}/api` : "/api"
 
+export const BACKEND_BASE = typeof __BACKEND_URL__ !== "undefined" ? __BACKEND_URL__ : ""
+
+export function resolveUrl(relativePath: string): string {
+  if (
+    !relativePath ||
+    relativePath.startsWith("http://") ||
+    relativePath.startsWith("https://") ||
+    relativePath.startsWith("data:")
+  ) {
+    return relativePath
+  }
+  if (relativePath.startsWith("//")) {
+    return `https:${relativePath}`
+  }
+  if (relativePath.startsWith("/")) {
+    return BACKEND_BASE ? `${BACKEND_BASE}${relativePath}` : relativePath
+  }
+  return relativePath
+}
+
 // Token storage
 let currentToken: string | null = null
 
