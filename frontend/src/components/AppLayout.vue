@@ -89,6 +89,7 @@ import {
 } from "@/composables"
 import { useWebSocketHandlers } from "@/composables"
 import { createVersionChecker } from "@/services/version"
+import { isElectron } from "@/services/electron"
 
 // Initialize composables (auto-initialize on mount)
 useUserSession()
@@ -203,9 +204,11 @@ onMounted(async () => {
     await categoryManager.loadCategories()
   }
 
-  // Start version checker
-  versionChecker = createVersionChecker(handleUpdateAvailable, () => roomStore.isInRoom)
-  versionChecker.start()
+  // Start version checker (disabled in Electron - uses native auto-updater)
+  if (!isElectron()) {
+    versionChecker = createVersionChecker(handleUpdateAvailable, () => roomStore.isInRoom)
+    versionChecker.start()
+  }
 })
 
 // Cleanup on unmount
