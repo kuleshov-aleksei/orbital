@@ -57,16 +57,21 @@ export function useLiveKit(options: UseLiveKitOptions) {
     return connected
   }
 
-  const cleanup = () => {
+  const cleanup = async () => {
     stopPingInterval()
     stopStatsPolling()
+
+    if (state.isScreenSharing.value) {
+      await screenShare.stopScreenShare()
+    }
+
     connection.cleanup()
   }
 
   const localStream = audio.ensureLocalStream
 
-  onUnmounted(() => {
-    cleanup()
+  onUnmounted(async () => {
+    await cleanup()
   })
 
   return {

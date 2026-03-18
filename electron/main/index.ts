@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url"
 import path from "node:path"
 import log from "electron-log"
 import { autoUpdater } from "electron-updater"
+import { hasVenmic, hasPipeWire, listAudioSources, startAudioCapture, stopAudioCapture } from "./venmic"
 
 //app.commandLine.appendSwitch("disable-gpu")
 //app.commandLine.appendSwitch("disable-software-rasterizer")
@@ -226,6 +227,31 @@ function setupIPC() {
 
   ipcMain.handle("get-platform", () => {
     return process.platform
+  })
+
+  ipcMain.handle("venmic:has-venmic", () => {
+    console.log("[IPC] venmic:has-venmic called")
+    const result = hasVenmic()
+    console.log("[IPC] venmic:has-venmic result:", result)
+    return result
+  })
+  ipcMain.handle("venmic:has-pipewire", () => {
+    console.log("[IPC] venmic:has-pipewire called")
+    const result = hasPipeWire()
+    console.log("[IPC] venmic:has-pipewire result:", result)
+    return result
+  })
+  ipcMain.handle("venmic:list-sources", () => {
+    console.log("[IPC] venmic:list-sources called")
+    return listAudioSources()
+  })
+  ipcMain.handle("venmic:start", (_, include) => {
+    console.log("[IPC] venmic:start called with:", JSON.stringify(include))
+    return startAudioCapture(include)
+  })
+  ipcMain.handle("venmic:stop", () => {
+    console.log("[IPC] venmic:stop called")
+    return stopAudioCapture()
   })
 }
 

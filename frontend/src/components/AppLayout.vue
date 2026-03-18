@@ -173,7 +173,12 @@ const handleScreenShareQualitySelected = async (quality: string) => {
   }
 }
 
-const handleElectronSourceSelected = async (quality: string, sourceId: string, audio: boolean) => {
+const handleElectronSourceSelected = async (
+  quality: string,
+  sourceId: string,
+  audio: boolean,
+  audioSources?: any[],
+) => {
   showScreenShareQualityModal.value = false
 
   const voiceCallView = mainContentRef.value?.voiceCallViewRef as
@@ -182,11 +187,12 @@ const handleElectronSourceSelected = async (quality: string, sourceId: string, a
           quality: string,
           audio: boolean,
           sourceId: string,
+          audioSources?: any[],
         ) => Promise<void>
       }
     | undefined
   if (voiceCallView?.startElectronScreenShare) {
-    await voiceCallView.startElectronScreenShare(quality, audio, sourceId)
+    await voiceCallView.startElectronScreenShare(quality, audio, sourceId, audioSources)
   }
 }
 

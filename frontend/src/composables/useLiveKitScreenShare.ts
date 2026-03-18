@@ -9,8 +9,9 @@ import type {
 import { useAudioTracksStore } from "@/stores/audioTracks"
 import { useUsersStore } from "@/stores/users"
 import { debugLog, debugWarn } from "@/utils/debug"
-import { isElectron } from "@/services/electron"
-import type { ScreenShareQuality } from "@/types"
+import { isElectron, getPlatform } from "@/services/electron"
+import { startAudioCapture, stopAudioCapture, getVirtualMicDeviceId } from "@/services/venmic"
+import type { ScreenShareQuality, VenmicNode } from "@/types"
 import type { LiveKitState } from "./useLiveKitState"
 
 export function useLiveKitScreenShare(state: LiveKitState) {
@@ -58,6 +59,12 @@ export function useLiveKitScreenShare(state: LiveKitState) {
         }
       }
 
+      try {
+        await stopAudioCapture()
+      } catch (e) {
+        debugWarn(`[LiveKit][WARN]: Failed to stop venmic: ${(e as Error).message}`)
+      }
+
       state.localScreenVideoPublication.value = null
       state.localScreenAudioPublication.value = null
       state.localScreenVideoTrack.value = null
@@ -83,7 +90,10 @@ export function useLiveKitScreenShare(state: LiveKitState) {
     quality: ScreenShareQuality,
     audio: boolean,
     sourceId: string,
+    audioSources?: VenmicNode[],
   ): Promise<void> => {
+    console.log("[ScreenShare] startElectronScreenShare called:", { quality, audio, sourceId, audioSources })
+
     if (!state.room.value) {
       throw new Error("Not connected to room")
     }
@@ -192,26 +202,97 @@ export function useLiveKitScreenShare(state: LiveKitState) {
         }
       }
 
+      console.log("[ScreenShare] audio check:", { audio, displayAudioTracks: displayStream.getAudioTracks().length })
+
       if (audio && displayStream.getAudioTracks().length > 0) {
-        const audioTrackFromStream = displayStream.getAudioTracks()[0]
+        const platform = await getPlatform()
+        const isLinux = platform === "linux"
+        const venmicReady = isLinux && audioSources && audioSources.length > 0
 
-        const audioPublication = await state.room.value.localParticipant.publishTrack(
-          audioTrackFromStream,
-          {
-            name: "screen-share-audio",
-            source: Track.Source.ScreenShareAudio,
-          },
-        )
-        state.localScreenAudioPublication.value = audioPublication
+        console.log("[ScreenShare] venmicReady check:", { platform, isLinux, audioSources, venmicReady })
 
-        const lkAudioTrack = audioPublication.track as LocalAudioTrack
-        state.localScreenAudioTrack.value = lkAudioTrack
+        if (venmicReady) {
+          try {
+            console.log("[ScreenShare] Starting venmic audio capture with sources:", audioSources)
+            const success = await startAudioCapture(audioSources)
+            console.log("[ScreenShare] venmic startAudioCapture result:", success)
+            if (!success) {
+              throw new Error("Failed to start audio capture via venmic")
+            }
 
-        audioTrackFromStream.onended = () => {
-          if (!state.isStoppingScreenShare.value) {
-            void stopScreenShare()
+            await new Promise((resolve) => setTimeout(resolve, 500))
+
+            const deviceId = await getVirtualMicDeviceId()
+            console.log("[ScreenShare] Virtual mic deviceId:", deviceId)
+            if (!deviceId) {
+              throw new Error("Virtual audio device not found")
+            }
+
+            const audioStream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                deviceId: { exact: deviceId },
+                autoGainControl: false,
+                echoCancellation: false,
+                noiseSuppression: false,
+              },
+            })
+
+            const audioTrackFromStream = audioStream.getAudioTracks()[0]
+            if (!audioTrackFromStream) {
+              throw new Error("No audio track from virtual device")
+            }
+
+            const audioPublication = await state.room.value.localParticipant.publishTrack(
+              audioTrackFromStream,
+              {
+                name: "screen-share-audio",
+                source: Track.Source.ScreenShareAudio,
+              },
+            )
+            state.localScreenAudioPublication.value = audioPublication
+
+            const lkAudioTrack = audioPublication.track as LocalAudioTrack
+            state.localScreenAudioTrack.value = lkAudioTrack
+
+            audioTrackFromStream.onended = () => {
+              if (!state.isStoppingScreenShare.value) {
+                void stopAudioCapture()
+                void stopScreenShare()
+              }
+            }
+
+            debugLog(`[LiveKit][INFO] Screen share audio captured via venmic`)
+          } catch (audioError) {
+            console.error("[ScreenShare] Venmic error:", audioError)
+            debugWarn(
+              `[LiveKit][WARN] Failed to capture audio via venmic: ${(audioError as Error).message}`,
+            )
+            await stopAudioCapture()
+          }
+        } else {
+          console.log("[ScreenShare] Falling back to system audio (non-venmic path)")
+          const audioTrackFromStream = displayStream.getAudioTracks()[0]
+
+          const audioPublication = await state.room.value.localParticipant.publishTrack(
+            audioTrackFromStream,
+            {
+              name: "screen-share-audio",
+              source: Track.Source.ScreenShareAudio,
+            },
+          )
+          state.localScreenAudioPublication.value = audioPublication
+
+          const lkAudioTrack = audioPublication.track as LocalAudioTrack
+          state.localScreenAudioTrack.value = lkAudioTrack
+
+          audioTrackFromStream.onended = () => {
+            if (!state.isStoppingScreenShare.value) {
+              void stopScreenShare()
+            }
           }
         }
+      } else {
+        console.log("[ScreenShare] No audio to publish")
       }
 
       state.userScreenShareStates.value.set(state.getCurrentUserId(), {
