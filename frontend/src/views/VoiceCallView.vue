@@ -80,6 +80,8 @@
       @toggle-camera="handleCameraToggle"
       @auth-required="$emit('show-room-list')"
       @leave-room="$emit('leave-room')" />
+
+    <Spider />
   </div>
 </template>
 
@@ -87,6 +89,7 @@
 import { computed, defineAsyncComponent, ref, useTemplateRef, watch } from "vue"
 import AudioControls from "@/components/AudioControls.vue"
 import RoomHeader from "@/components/RoomHeader.vue"
+import Spider from "@/components/april/Spider.vue"
 import { useLiveKit, useVoiceActivity } from "@/composables"
 import {
   useAudioSettingsStore,
