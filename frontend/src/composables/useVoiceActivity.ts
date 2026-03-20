@@ -1,4 +1,4 @@
-import { ref, computed, watch, type Ref } from "vue"
+import { ref, computed, watch, type Ref, type MaybeRefOrGetter, toValue } from "vue"
 
 export interface VoiceActivityState {
   audioLevel: number
@@ -7,26 +7,26 @@ export interface VoiceActivityState {
 }
 
 export interface UseVoiceActivityOptions {
-  stream: Ref<MediaStream | null>
+  stream: MaybeRefOrGetter<MediaStream | null | Promise<MediaStream | null>>
   isMuted: Ref<boolean>
   speakingThreshold?: number
   updateInterval?: number
 }
 
 export function useVoiceActivity(options: UseVoiceActivityOptions) {
-  const { stream, isMuted, speakingThreshold = 0.05, updateInterval = 200 } = options
+  const { stream, isMuted, speakingThreshold = 0.01, updateInterval = 200 } = options
 
-  // Reactive state
+  console.log("[VoiceActivity] useVoiceActivity initialized")
+
   const audioLevel = ref(0)
   const audioContext = ref<AudioContext | null>(null)
   const analyser = ref<AnalyserNode | null>(null)
   const sourceNode = ref<MediaStreamAudioSourceNode | null>(null)
   const intervalId = ref<number | null>(null)
+  const currentStream = ref<MediaStream | null>(null)
 
-  // Computed
   const isSpeaking = computed(() => !isMuted.value && audioLevel.value > speakingThreshold)
 
-  // Analyze audio level from time domain data (better for speech detection)
   const analyzeAudioLevel = () => {
     if (!analyser.value || isMuted.value) {
       audioLevel.value = 0
@@ -36,68 +36,83 @@ export function useVoiceActivity(options: UseVoiceActivityOptions) {
     const dataArray = new Uint8Array(analyser.value.fftSize)
     analyser.value.getByteTimeDomainData(dataArray)
 
-    // Calculate RMS (root mean square) for better volume representation
     let sum = 0
     for (let i = 0; i < dataArray.length; i++) {
-      // Time domain data is in range 0-255, center is 128
-      const value = (dataArray[i] - 128) / 128 // Normalize to -1 to 1
+      const value = (dataArray[i] - 128) / 128
       sum += value * value
     }
     const rms = Math.sqrt(sum / dataArray.length)
 
-    // Apply exponential smoothing for smoother UI updates
     audioLevel.value = audioLevel.value * 0.7 + rms * 0.3
   }
 
-  // Setup audio analysis using setInterval for 5-10fps updates instead of RAF
-  const setupAudioAnalysis = () => {
-    if (!stream.value) {
+  const setupAudioAnalysis = (mediaStream: MediaStream) => {
+    if (!mediaStream) {
+      console.log("[VoiceActivity] Stream is null, cleaning up")
+      cleanup()
+      return
+    }
+
+    const audioTracks = mediaStream.getAudioTracks()
+    if (audioTracks.length === 0) {
+      console.log("[VoiceActivity] No audio tracks in stream, waiting...")
       cleanup()
       return
     }
 
     try {
-      // Clean up existing context first
       cleanup()
 
-      // Create new audio context
       audioContext.value = new (
         window.AudioContext ||
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
       )()
 
-      // Create analyser
+      if (audioContext.value.state === "suspended") {
+        console.log("[VoiceActivity] AudioContext is suspended, resuming...")
+        void audioContext.value.resume()
+      }
+
       analyser.value = audioContext.value.createAnalyser()
       analyser.value.fftSize = 256
       analyser.value.smoothingTimeConstant = 0.8
 
-      // Create source from stream
-      sourceNode.value = audioContext.value.createMediaStreamSource(stream.value)
+      sourceNode.value = audioContext.value.createMediaStreamSource(mediaStream)
       sourceNode.value.connect(analyser.value)
 
-      // Use setInterval instead of requestAnimationFrame for 10fps updates
+      currentStream.value = mediaStream
+      currentStream.value.addEventListener("addtrack", handleTrackChange)
+      currentStream.value.addEventListener("removetrack", handleTrackChange)
+
       intervalId.value = window.setInterval(() => {
         analyzeAudioLevel()
       }, updateInterval)
 
-      console.log("Voice activity detection initialized")
+      console.log("[VoiceActivity] Initialized with", audioTracks.length, "audio track(s)")
     } catch (error) {
-      console.error("Error setting up voice activity detection:", error)
+      console.error("[VoiceActivity] Error setting up:", error)
     }
   }
 
-  // Cleanup resources
   const cleanup = () => {
+    stopPolling()
+
     if (intervalId.value) {
       clearInterval(intervalId.value)
       intervalId.value = null
+    }
+
+    if (currentStream.value) {
+      currentStream.value.removeEventListener("addtrack", handleTrackChange)
+      currentStream.value.removeEventListener("removetrack", handleTrackChange)
+      currentStream.value = null
     }
 
     if (sourceNode.value) {
       try {
         sourceNode.value.disconnect()
       } catch {
-        // Ignore disconnection errors
+        // Ignore
       }
       sourceNode.value = null
     }
@@ -106,7 +121,7 @@ export function useVoiceActivity(options: UseVoiceActivityOptions) {
       try {
         analyser.value.disconnect()
       } catch {
-        // Ignore disconnection errors
+        // Ignore
       }
       analyser.value = null
     }
@@ -119,20 +134,90 @@ export function useVoiceActivity(options: UseVoiceActivityOptions) {
     audioLevel.value = 0
   }
 
-  // Watch for stream changes
+  const handleTrackChange = () => {
+    console.log("[VoiceActivity] Audio tracks changed:", currentStream.value?.getAudioTracks().length)
+    if (currentStream.value && currentStream.value.getAudioTracks().length > 0) {
+      setupAudioAnalysis(currentStream.value)
+    } else {
+      cleanup()
+    }
+  }
+
+  let pollingInterval: number | null = null
+
+  const startPolling = (streamFn: () => Promise<MediaStream | null>) => {
+    stopPolling()
+    console.log("[VoiceActivity] Starting polling for stream...")
+    pollingInterval = window.setInterval(async () => {
+      try {
+        const resolved = await streamFn()
+        if (resolved instanceof MediaStream && resolved.getAudioTracks().length > 0) {
+          console.log("[VoiceActivity] Polling found valid stream")
+          stopPolling()
+          setupAudioAnalysis(resolved)
+        }
+      } catch (e) {
+        console.error("[VoiceActivity] Polling error:", e)
+      }
+    }, 500)
+  }
+
+  const stopPolling = () => {
+    if (pollingInterval) {
+      clearInterval(pollingInterval)
+      pollingInterval = null
+    }
+  }
+
+  const resolveStream = async (): Promise<MediaStream | null> => {
+    const value = toValue(stream)
+    
+    if (value instanceof MediaStream) {
+      return value
+    }
+    
+    if (typeof value === "function") {
+      const fn = value as () => Promise<MediaStream | null>
+      return await fn()
+    }
+    
+    if (value instanceof Promise) {
+      return await (value as Promise<MediaStream | null>)
+    }
+    
+    return null
+  }
+
   watch(
-    stream,
-    (newStream) => {
-      if (newStream) {
-        setupAudioAnalysis()
+    () => toValue(stream),
+    async (newStream) => {
+      console.log("[VoiceActivity] Watch triggered, resolving stream...")
+      stopPolling()
+
+      if (newStream instanceof MediaStream) {
+        setupAudioAnalysis(newStream)
+        return
+      }
+
+      let streamValue: MediaStream | null = null
+      
+      if (typeof newStream === "function") {
+        const fn = newStream as () => Promise<MediaStream | null>
+        streamValue = await fn()
+      } else if (newStream instanceof Promise) {
+        streamValue = await (newStream as Promise<MediaStream | null>)
+      }
+
+      if (streamValue && streamValue.getAudioTracks().length > 0) {
+        setupAudioAnalysis(streamValue)
       } else {
-        cleanup()
+        console.log("[VoiceActivity] Stream not ready yet, starting polling...")
+        startPolling(resolveStream)
       }
     },
     { immediate: true },
   )
 
-  // Watch for mute state changes
   watch(isMuted, (muted) => {
     if (muted) {
       audioLevel.value = 0

@@ -75,7 +75,6 @@
       v-model:model-value-deafened="isDeafened"
       v-model:model-value-screen-sharing="isScreenSharing"
       v-model:model-value-camera-enabled="cameraEnabled"
-      :is-speaking="isSpeaking"
       :is-mobile="isMobile"
       @start-screen-share="$emit('request-screen-share')"
       @toggle-camera="handleCameraToggle"
@@ -187,7 +186,7 @@ const {
 })
 
 // Voice Activity Detection for local user
-const { audioLevel, isSpeaking } = useVoiceActivity({
+const { audioLevel } = useVoiceActivity({
   stream: localStream,
   isMuted: computed(() => props.modelValueMuted),
 })
@@ -298,6 +297,12 @@ watch(
 watch(
   () => props.roomId,
   async (newRoomId, oldRoomId) => {
+    // If leaving the room (newRoomId becomes null), cleanup LiveKit
+    if (!newRoomId && oldRoomId) {
+      await cleanup()
+      return
+    }
+
     // Only react to actual room changes (not null/undefined)
     if (!newRoomId) return
 
@@ -417,9 +422,10 @@ const startElectronScreenShareWithQuality = async (
   quality: string,
   audio: boolean,
   sourceId: string,
+  audioSources?: any[],
 ) => {
   try {
-    await startElectronScreenShare(quality as ScreenShareQuality, audio, sourceId)
+    await startElectronScreenShare(quality as ScreenShareQuality, audio, sourceId, audioSources)
   } catch (error) {
     console.error("Failed to start Electron screen share:", error)
   }

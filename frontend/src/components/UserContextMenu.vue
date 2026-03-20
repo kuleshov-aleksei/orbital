@@ -73,6 +73,20 @@
         <span>Super Admin</span>
       </div>
     </template>
+
+    <!-- Kick User -->
+    <template v-if="canKick">
+      <div class="border-t border-theme-border my-1"></div>
+
+      <button
+        type="button"
+        class="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-theme-bg-hover hover:text-red-300 transition-colors flex items-center gap-2"
+        :disabled="kicking"
+        @click="handleKick">
+        <PhSignOut class="w-4 h-4" />
+        <span>{{ kicking ? "Kicking..." : "Kick User" }}</span>
+      </button>
+    </template>
   </div>
 
   <!-- Click outside to close menu -->
@@ -88,6 +102,7 @@ import {
   PhUserPlus,
   PhUserMinus,
   PhCrown,
+  PhSignOut,
 } from "@phosphor-icons/vue"
 import { useUsersStore, useRoomStore, useUserStore, useCallStore } from "@/stores"
 import { apiService } from "@/services/api"
@@ -111,6 +126,7 @@ const visible = ref(false)
 const position = { x: 0, y: 0 }
 const promoting = ref(false)
 const demoting = ref(false)
+const kicking = ref(false)
 const activeUserId = ref<string | null>(null)
 
 const effectiveUserId = computed(() => activeUserId.value ?? props.userId)
@@ -143,6 +159,13 @@ const showRoleManagement = computed(() => {
 
 const canPromote = computed(() => isCurrentUserSuperAdmin.value && targetUserIsRegularUser.value)
 const canDemote = computed(() => isCurrentUserSuperAdmin.value && targetUserIsAdmin.value)
+
+const canKick = computed(() => {
+  if (!userStore.isAdmin) return false
+  if (effectiveUserId.value === userStore.userId) return false
+  if (userStore.isSuperAdmin) return true
+  return !targetUserIsSuperAdmin.value
+})
 
 const MENU_MIN_WIDTH = 192
 const MENU_ESTIMATED_HEIGHT = 300
@@ -221,6 +244,19 @@ const handleDemote = async () => {
     console.error("Failed to demote user:", error)
   } finally {
     demoting.value = false
+  }
+}
+
+const handleKick = async () => {
+  if (!canKick.value || !roomStore.activeRoomId) return
+  kicking.value = true
+  try {
+    await apiService.kickUser(roomStore.activeRoomId, effectiveUserId.value)
+    hideMenu()
+  } catch (error) {
+    console.error("Failed to kick user:", error)
+  } finally {
+    kicking.value = false
   }
 }
 

@@ -120,7 +120,7 @@ func main() {
 	avatarService := service.NewAvatarService("data")
 
 	// Initialize handlers with config
-	roomHandler := handlers.NewRoomHandler(roomService, categoryService, wsHub)
+	roomHandler := handlers.NewRoomHandler(roomService, categoryService, livekitService, wsHub)
 	categoryHandler := handlers.NewCategoryHandler(categoryService, roomService, wsHub)
 	authHandler := handlers.NewAuthHandler(authService, roleService, cfg.Server.ExternalURL)
 	adminHandler := handlers.NewAdminHandlerWithDebugLog(roleService, userRepo, debugLogService)
@@ -184,6 +184,7 @@ func main() {
 	adminRoomRouter.HandleFunc("/rooms/order", roomHandler.UpdateRoomOrder).Methods("PUT")
 	adminRoomRouter.HandleFunc("/rooms/{id}", roomHandler.UpdateRoom).Methods("PUT")
 	adminRoomRouter.HandleFunc("/rooms/{id}", roomHandler.DeleteRoom).Methods("DELETE")
+	adminRoomRouter.HandleFunc("/rooms/{room_id}/kick/{user_id}", roomHandler.KickUser).Methods("POST")
 
 	// Public category routes
 	r.HandleFunc("/api/categories", categoryHandler.GetCategories).Methods("GET")

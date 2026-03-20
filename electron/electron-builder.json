@@ -14,7 +14,8 @@
   ],
   "asar": true,
   "asarUnpack": [
-    "node_modules/electron-updater/**/*"
+    "node_modules/electron-updater/**/*",
+    "node_modules/@vencord/venmic/**/*"
   ],
   "extraResources": [
     {

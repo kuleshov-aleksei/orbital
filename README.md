@@ -46,6 +46,7 @@ The Orbital implements a hierarchical role system:
 | Create categories | ❌ | ❌ | ✅ | ✅ |
 | Delete categories | ❌ | ❌ | ✅ | ✅ |
 | Reorder rooms/categories | ❌ | ❌ | ✅ | ✅ |
+| Kick users from room | ❌ | ❌ | ✅ | ✅ |
 | Promote users to admin | ❌ | ❌ | ❌ | ✅ |
 | Demote admins to user | ❌ | ❌ | ❌ | ✅ |
 

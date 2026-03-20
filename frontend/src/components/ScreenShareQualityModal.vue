@@ -92,8 +92,15 @@
                 class="absolute left-0.5 top-0.5 w-4 h-4 bg-theme-text-on-accent rounded-full transition-transform duration-200"
                 :class="shareAudio ? 'translate-x-4' : 'translate-x-0'" />
             </div>
-            <span class="ml-2 text-sm text-theme-text-secondary">Share system audio</span>
+            <span class="ml-2 text-sm text-theme-text-secondary">
+              {{ venmicAvailable ? "Share app audio" : "Share system audio" }}
+            </span>
           </label>
+        </div>
+
+        <!-- Audio Source Picker -->
+        <div v-if="shareAudio && venmicAvailable" class="px-5 pb-3 flex-shrink-0">
+          <AudioSourcePicker v-model:selected-sources="selectedAudioSources" />
         </div>
 
         <!-- Actions -->
@@ -204,6 +211,9 @@
           </button>
         </div>
       </div>
+
+      <!-- Error Banner -->
+      <AudioCaptureError :visible="!!audioCaptureError" :message="audioCaptureError ?? ''" />
     </div>
   </Teleport>
 </template>
@@ -213,7 +223,10 @@ import { ref, watch, computed, onUnmounted } from "vue"
 import { PhMonitorPlay, PhSpeakerHigh, PhInfo, PhWarning } from "@phosphor-icons/vue"
 import { useScreenShareSupport } from "@/composables/useScreenShareSupport"
 import { getDesktopSources } from "@/services/electron"
-import type { DesktopSource, ScreenShareQuality } from "@/types"
+import { hasVenmic, hasPipeWire } from "@/services/venmic"
+import AudioSourcePicker from "./AudioSourcePicker.vue"
+import AudioCaptureError from "./AudioCaptureError.vue"
+import type { DesktopSource, ScreenShareQuality, VenmicNode } from "@/types"
 
 interface Props {
   isOpen: boolean
@@ -228,7 +241,12 @@ interface QualityOption {
 const props = defineProps<Props>()
 const emit = defineEmits<{
   "select-quality": [quality: ScreenShareQuality, shareAudio: boolean]
-  "select-electron-source": [quality: ScreenShareQuality, sourceId: string, audio: boolean]
+  "select-electron-source": [
+    quality: ScreenShareQuality,
+    sourceId: string,
+    audio: boolean,
+    audioSources?: VenmicNode[],
+  ]
   cancel: []
 }>()
 
@@ -257,6 +275,10 @@ const isLoadingSources = ref(false)
 const sourcesError = ref<string | null>(null)
 const isStarting = ref(false)
 
+const venmicAvailable = ref(false)
+const audioCaptureError = ref<string | null>(null)
+const selectedAudioSources = ref<VenmicNode[]>([])
+
 const hasSelectedSource = computed(
   () => selectedSourceId.value !== null && selectedSourceId.value !== "",
 )
@@ -271,10 +293,16 @@ watch(
       sourcesError.value = null
       isStarting.value = false
       isLoadingSources.value = false
+      venmicAvailable.value = false
+      selectedAudioSources.value = []
+      audioCaptureError.value = null
 
       if (isRunningInElectron.value) {
         sources.value = []
         await loadSources()
+
+        const [venmic, pipewire] = await Promise.all([hasVenmic(), hasPipeWire()])
+        venmicAvailable.value = venmic && pipewire
       }
     }
   },
@@ -307,8 +335,21 @@ function handleStartShare() {
   if (!selectedSourceId.value || !hasSelectedSource.value) {
     return
   }
+
+  if (shareAudio.value && venmicAvailable.value && selectedAudioSources.value.length === 0) {
+    audioCaptureError.value = "Please select at least one audio source"
+    return
+  }
+
+  audioCaptureError.value = null
   isStarting.value = true
-  emit("select-electron-source", selectedQuality.value, selectedSourceId.value, shareAudio.value)
+  emit(
+    "select-electron-source",
+    selectedQuality.value,
+    selectedSourceId.value,
+    shareAudio.value,
+    shareAudio.value ? selectedAudioSources.value : undefined,
+  )
 }
 
 function handleBrowserStartShare() {

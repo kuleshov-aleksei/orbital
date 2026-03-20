@@ -10,32 +10,44 @@ import speexWorkletPath from "@sapphi-red/web-noise-suppressor/speexWorklet.js?u
 const wasmPath = speexWasmPath as string
 const workletPath = speexWorkletPath as string
 
-let workletLoaded = false
+const workletLoadPromises = new Map<AudioContext, Promise<void>>()
+const wasmLoadPromises = new Map<string, Promise<ArrayBuffer>>()
 let wasmBinary: ArrayBuffer | null = null
 
 async function ensureWorkletLoaded(audioContext: AudioContext): Promise<void> {
-  if (workletLoaded) return
+  const existing = workletLoadPromises.get(audioContext)
+  if (existing) return existing
 
   debugLog("[Speex][INFO]: Loading worklet module...")
-  await audioContext.audioWorklet.addModule(workletPath)
-  workletLoaded = true
-  debugLog("[Speex][INFO]: Worklet module registered")
+  const promise = audioContext.audioWorklet.addModule(workletPath).then(() => {
+    debugLog("[Speex][INFO]: Worklet module registered")
+  })
+
+  workletLoadPromises.set(audioContext, promise)
+  return promise
 }
 
 async function ensureWasmLoaded(): Promise<ArrayBuffer> {
   if (wasmBinary) return wasmBinary
 
+  const cacheKey = wasmPath
+  const existing = wasmLoadPromises.get(cacheKey)
+  if (existing) return existing
+
   debugLog("[Speex][INFO]: Loading WASM module...")
-  wasmBinary = await loadSpeex(
+  const promise = loadSpeex(
     {
       url: wasmPath,
     },
     { credentials: "same-origin" },
-  )
+  ).then((binary) => {
+    wasmBinary = binary
+    debugLog(`[Speex][INFO]: WASM module loaded (${binary.byteLength} bytes)`)
+    return binary
+  })
 
-  debugLog(`[Speex][INFO]: WASM module loaded (${wasmBinary.byteLength} bytes)`)
-
-  return wasmBinary
+  wasmLoadPromises.set(cacheKey, promise)
+  return promise
 }
 
 export class SpeexProcessor implements TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> {

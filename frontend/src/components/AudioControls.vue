@@ -2,7 +2,7 @@
   <div
     class="flex items-center justify-center space-x-4 flex-shrink-0 px-4 py-3 bg-theme-bg-primary/80 backdrop-blur-sm">
     <!-- Mute/Unmute -->
-    <MicMuteButton v-model="isMuted" :is-speaking="isSpeaking" size="lg" />
+    <MicMuteButton v-model="isMuted" size="lg" />
 
     <!-- Deafen/Undeafen -->
     <AudioDeafenButton v-model="isDeafened" size="lg" />
@@ -56,7 +56,6 @@ interface Props {
   modelValueDeafened?: boolean
   modelValueScreenSharing?: boolean
   modelValueCameraEnabled?: boolean
-  isSpeaking?: boolean
   isMobile?: boolean
 }
 
@@ -65,7 +64,6 @@ const props = withDefaults(defineProps<Props>(), {
   modelValueDeafened: false,
   modelValueScreenSharing: false,
   modelValueCameraEnabled: false,
-  isSpeaking: false,
   isMobile: false,
 })
 

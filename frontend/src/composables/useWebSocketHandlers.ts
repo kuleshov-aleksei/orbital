@@ -36,6 +36,21 @@ export function useWebSocketHandlers() {
       roomStore.updateUserNickname(data.user_id, data.nickname)
     })
 
+    // Room user left (also handle via room WebSocket)
+    wsService.on("room_user_left", (message) => {
+      const data = message.data as { room_id: string; user: User }
+      roomStore.removeUserFromRoom(data.room_id, data.user.id)
+
+      // Check if current user was kicked
+      if (data.user.id === userStore.userId && roomStore.activeRoomId === data.room_id) {
+        debugLog("[WebSocket] Current user was kicked from room, cleaning up...")
+        roomStore.setActiveRoom(null)
+        if (appStore.isMobile) {
+          appStore.showRoomsView()
+        }
+      }
+    })
+
     // Connection/disconnection
     wsService.onConnection(() => {
       appStore.clearError()
@@ -74,6 +89,18 @@ export function useWebSocketHandlers() {
     wsService.onGlobal("room_user_left", (message) => {
       const data = message.data as { room_id: string; user: User }
       roomStore.removeUserFromRoom(data.room_id, data.user.id)
+
+      // Check if current user was kicked
+      if (data.user.id === userStore.userId && roomStore.activeRoomId === data.room_id) {
+        debugLog("[WebSocket] Current user was kicked from room, cleaning up...")
+        // The user was kicked - cleanup will happen when activeRoomId becomes null
+        // Trigger leave to ensure proper cleanup
+        roomStore.setActiveRoom(null)
+        // Show rooms view on mobile
+        if (appStore.isMobile) {
+          appStore.showRoomsView()
+        }
+      }
     })
 
     // Category events

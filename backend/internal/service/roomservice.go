@@ -374,6 +374,52 @@ func (rs *RoomService) LeaveRoom(roomID, userID string) *models.RoomPreviewUser 
 	return leftUser
 }
 
+// KickUser removes a user from a room (admin action)
+func (rs *RoomService) KickUser(roomID, userID string) *models.RoomPreviewUser {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+
+	var kickedUser *models.RoomPreviewUser
+
+	var member *models.RoomMember
+	if rs.members[roomID] != nil {
+		if m, exists := rs.members[roomID][userID]; exists {
+			member = m
+		}
+	}
+
+	if user, exists := rs.users[userID]; exists {
+		soundPack := user.SoundPack
+		if soundPack == "" {
+			soundPack = "default"
+		}
+		kickedUser = &models.RoomPreviewUser{
+			ID:              user.ID,
+			Nickname:        user.Nickname,
+			Role:            "member",
+			IsMuted:         false,
+			IsDeafened:      false,
+			IsSpeaking:      false,
+			IsScreenSharing: false,
+			SoundPack:       soundPack,
+		}
+		if member != nil {
+			kickedUser.Role = member.Role
+			kickedUser.IsMuted = member.IsMuted
+			kickedUser.IsDeafened = member.IsDeafened
+			kickedUser.IsSpeaking = member.IsSpeaking
+			kickedUser.IsScreenSharing = member.IsScreenSharing
+		}
+	}
+
+	if rs.members[roomID] != nil {
+		delete(rs.members[roomID], userID)
+	}
+
+	log.Printf("User %s kicked from room %s", userID, roomID)
+	return kickedUser
+}
+
 // GetRoomUsers returns all users in a room with member-specific information
 func (rs *RoomService) GetRoomUsers(roomID string) []models.RoomUser {
 	rs.mu.RLock()

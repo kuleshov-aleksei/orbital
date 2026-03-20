@@ -1,5 +1,6 @@
 import { defineStore } from "pinia"
 import { ref, computed } from "vue"
+import { isElectron } from "@/services/electron"
 
 export type ConnectionQuality = "excellent" | "good" | "fair" | "poor"
 export type MobileView = "rooms" | "room"
@@ -41,10 +42,14 @@ export const useAppStore = defineStore("app", () => {
   }
 
   function setMobile(mobile: boolean) {
-    isMobile.value = mobile
+    isMobile.value = isElectron() ? false : mobile
   }
 
   function checkMobile() {
+    if (isElectron()) {
+      isMobile.value = false
+      return
+    }
     isMobile.value = window.innerWidth < 1024 // lg breakpoint
   }
 

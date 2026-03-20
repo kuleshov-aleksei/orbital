@@ -408,20 +408,17 @@
     <!-- Audio Mode: Avatar centered with nickname at bottom -->
     <template v-else>
       <!-- Avatar centered in card with speaking rings -->
-      <div class="absolute inset-0 flex items-center justify-center">
+      <div class="absolute inset-0 flex items-center justify-center overflow-hidden">
         <!-- Speaking rings (fades) -->
         <div
           class="absolute w-16 h-16 flex items-center justify-center transition-opacity duration-300"
           :class="isSpeaking ? 'opacity-100' : 'opacity-0'">
           <div
-            class="absolute rounded-full border-2 border-green-500 animate-breathe bg-green-500/20 opacity-40 w-24 h-24"
+            class="absolute rounded-full border-2 border-green-500 animate-breathe bg-green-500/20 opacity-25 w-20 h-20"
             style="animation-delay: 0ms" />
           <div
-            class="absolute rounded-full border-2 border-green-500 animate-breathe bg-green-500/20 opacity-25 w-20 h-20"
-            style="animation-delay: 150ms" />
-          <div
             class="absolute rounded-full border-2 border-green-500 animate-breathe bg-green-500/20 w-16 h-16"
-            style="animation-delay: 300ms" />
+            style="animation-delay: 150ms" />
         </div>
         <!-- Avatar (always visible) -->
         <UserAvatar :user-id="userId" :nickname="userNickname" :size="48" :show-status="false" />
@@ -602,7 +599,7 @@ watch(isVideoMode, (isActive) => {
 // Computed
 const isSpeaking = computed(() => {
   if (props.isCurrentUser) {
-    return roomStore.localAudioLevel > 0.05
+    return roomStore.localAudioLevel > 0.01
   }
   // Use LiveKit's built-in isSpeaking flag from presence store (more reliable than checking audioLevel)
   return presenceStore.getParticipant(props.userId)?.isSpeaking ?? false

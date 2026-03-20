@@ -354,6 +354,10 @@ export interface UpdateInfo {
   sha512?: string
 }
 
+export interface VenmicNode {
+  [key: string]: string | number | boolean | undefined
+}
+
 export interface ElectronAPI {
   getDesktopSources: () => Promise<DesktopSource[]>
   checkForUpdates: () => Promise<unknown>
@@ -365,6 +369,11 @@ export interface ElectronAPI {
   maximizeWindow: () => void
   closeWindow: () => void
   onDeepLink: (callback: (url: string) => void) => void
+  venmicHasVenmic?: () => Promise<boolean>
+  venmicHasPipeWire?: () => Promise<boolean>
+  venmicListSources?: () => Promise<VenmicNode[]>
+  venmicStart?: (include: VenmicNode[]) => Promise<boolean>
+  venmicStop?: () => Promise<boolean>
 }
 
 declare global {

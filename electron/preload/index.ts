@@ -13,6 +13,10 @@ export interface UpdateInfo {
   sha512?: string
 }
 
+export interface VenmicNode {
+  [key: string]: string | number | boolean | undefined
+}
+
 export interface ElectronAPI {
   getDesktopSources: () => Promise<DesktopSource[]>
   checkForUpdates: () => Promise<unknown>
@@ -24,6 +28,11 @@ export interface ElectronAPI {
   maximizeWindow: () => void
   closeWindow: () => void
   onDeepLink: (callback: (url: string) => void) => void
+  venmicHasVenmic: () => Promise<boolean>
+  venmicHasPipeWire: () => Promise<boolean>
+  venmicListSources: () => Promise<VenmicNode[]>
+  venmicStart: (include: VenmicNode[]) => Promise<boolean>
+  venmicStop: () => Promise<boolean>
 }
 
 const electronAPI: ElectronAPI = {
@@ -60,6 +69,12 @@ const electronAPI: ElectronAPI = {
   onDeepLink: (callback) => {
     ipcRenderer.on("deep-link", (_, url) => callback(url))
   },
+
+  venmicHasVenmic: () => ipcRenderer.invoke("venmic:has-venmic"),
+  venmicHasPipeWire: () => ipcRenderer.invoke("venmic:has-pipewire"),
+  venmicListSources: () => ipcRenderer.invoke("venmic:list-sources"),
+  venmicStart: (include) => ipcRenderer.invoke("venmic:start", include),
+  venmicStop: () => ipcRenderer.invoke("venmic:stop"),
 }
 
 contextBridge.exposeInMainWorld("electronAPI", electronAPI)
