@@ -82,10 +82,10 @@
             <template v-for="(room, index) in category.rooms" :key="room.id">
               <RoomCard
                 :room="room"
-                :is-active="room.id === activeRoomId"
+                :is-active="room.id === props.activeRoomId"
                 :is-dragging="draggedRoom?.id === room.id"
                 :is-draggable="isAdmin"
-                @click="$emit('room-selected', room.id)"
+                @click="handleRoomClick(room)"
                 @show-context-menu="showRoomContextMenu"
                 @dragstart="handleDragStart($event, room, category.id)"
                 @dragend="handleDragEnd" />
@@ -329,7 +329,7 @@ interface Props {
   isMobileView?: boolean
 }
 
-const { activeRoomId, isMobileView = false } = defineProps<Props>()
+const props = defineProps<Props>()
 
 const emit = defineEmits<{
   "room-selected": [roomId: string]
@@ -356,6 +356,12 @@ const isHidden = computed(() => {
 })
 
 const expandedCategories = ref(new Set<string>())
+
+const handleRoomClick = (room: Room) => {
+  if (room.id !== props.activeRoomId) {
+    emit("room-selected", room.id)
+  }
+}
 
 const categorizedRooms = computed(() => {
   const result: CategorizedRoom[] = []

@@ -106,6 +106,10 @@ export function useRoomManager() {
   }
 
   const handleRoomSelected = async (roomId: string) => {
+    if (roomStore.activeRoomId === roomId) {
+      return
+    }
+
     try {
       appStore.setLoading(true)
       appStore.clearError()
