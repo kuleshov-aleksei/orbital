@@ -45,7 +45,7 @@
                 'ring-2 ring-purple-400 ring-offset-2 ring-offset-theme-bg-primary':
                   draggedCategory && draggedCategory.id === category.id,
               }"
-              v-bind="isAdmin ? { draggable: true } : {}"
+              v-bind="isDraggable ? { draggable: true } : {}"
               @click="toggleCategory(category.name)"
               @contextmenu.prevent="showContextMenu($event, category)"
               @dragstart="handleCategoryDragStart($event, category)"
@@ -84,7 +84,7 @@
                 :room="room"
                 :is-active="room.id === props.activeRoomId"
                 :is-dragging="draggedRoom?.id === room.id"
-                :is-draggable="isAdmin"
+                :is-draggable="isDraggable"
                 @click="handleRoomClick(room)"
                 @show-context-menu="showRoomContextMenu"
                 @dragstart="handleDragStart($event, room, category.id)"
@@ -315,6 +315,7 @@ import {
   PhArrowsLeftRight,
 } from "@phosphor-icons/vue"
 import { useRoomStore, useCategoryStore, useUserStore } from "@/stores"
+import { useUserContextMenu } from "@/composables/useUserContextMenu"
 import { apiService } from "@/services/api"
 import type { Room, Category } from "@/types"
 
@@ -350,6 +351,9 @@ const userStore = useUserStore()
 const { rooms } = storeToRefs(roomStore)
 const { categories } = storeToRefs(categoryStore)
 const { isAdmin } = storeToRefs(userStore)
+const { isUserContextMenuOpen } = useUserContextMenu()
+
+const isDraggable = computed(() => isAdmin.value && !isUserContextMenuOpen.value)
 
 const isHidden = computed(() => {
   return !rooms.value || rooms.value.length === 0
