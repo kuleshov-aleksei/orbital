@@ -353,6 +353,20 @@ watch(
   },
 )
 
+// Watch callStore.isScreenSharing for external stops (e.g., from UserControlPanel)
+watch(
+  () => callStore.isScreenSharing,
+  async (newValue, oldValue) => {
+    if (oldValue === true && newValue === false && isScreenSharing.value) {
+      try {
+        await stopScreenShare()
+      } catch (error) {
+        console.error("[VoiceCallView] Error stopping screen share from store:", error)
+      }
+    }
+  },
+)
+
 // Event handlers
 
 // Watch for mute state changes from context menu (via roomStore)
