@@ -7,7 +7,7 @@
       <div v-if="props.layout === 'focus'" class="flex flex-col lg:flex-row h-full gap-2 lg:gap-4">
         <!-- Main focused stream - 80% width on desktop, full width on mobile -->
         <div
-          class="flex-1 min-w-0 min-h-0 lg:flex-[8] lg:min-w-48 lg:min-h-48 aspect-video self-center">
+          class="flex-1 min-w-0 min-h-0 lg:flex-[8] lg:min-w-48 lg:min-h-48 self-center w-full h-full">
           <!-- Screen Share in main area -->
           <ScreenStream
             v-if="focusedStream?.type === 'screen'"
