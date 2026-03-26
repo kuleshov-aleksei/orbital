@@ -23,7 +23,7 @@
     <!-- Screen Share Quality Modal handled by parent -->
 
     <!-- Main Call Area -->
-    <div class="relative flex flex-1 flex-col min-h-0 overflow-hidden">
+    <div class="relative flex flex-1 flex-col min-h-0 overflow-hidden pb-20">
       <!-- Use v-show instead of v-if to keep both components mounted and preserve audio elements -->
       <!-- Screen Share Area - Shows users in side panel when screen sharing or camera is active -->
       <ScreenShareArea
@@ -69,17 +69,20 @@
         :get-participant-stats="getParticipantStats" />
     </div>
 
-    <AudioControls
-      ref="audioControlsRef"
-      v-model:model-value-muted="isMuted"
-      v-model:model-value-deafened="isDeafened"
-      v-model:model-value-screen-sharing="isScreenSharing"
-      v-model:model-value-camera-enabled="cameraEnabled"
-      :is-mobile="isMobile"
-      @start-screen-share="$emit('request-screen-share')"
-      @toggle-camera="handleCameraToggle"
-      @auth-required="$emit('show-room-list')"
-      @leave-room="$emit('leave-room')" />
+    <!-- Floating Audio Controls - positioned at bottom of viewport -->
+    <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50">
+      <AudioControls
+        ref="audioControlsRef"
+        v-model:model-value-muted="isMuted"
+        v-model:model-value-deafened="isDeafened"
+        v-model:model-value-screen-sharing="isScreenSharing"
+        v-model:model-value-camera-enabled="cameraEnabled"
+        :is-mobile="isMobile"
+        @start-screen-share="$emit('request-screen-share')"
+        @toggle-camera="handleCameraToggle"
+        @auth-required="$emit('show-room-list')"
+        @leave-room="$emit('leave-room')" />
+    </div>
   </div>
 </template>
 
