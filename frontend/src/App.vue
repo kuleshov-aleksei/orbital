@@ -30,6 +30,15 @@ watch(
   { immediate: true },
 )
 
+watch(
+  () => appStore.isMobile,
+  (isMobile) => {
+    if (isMobile && roomStore.activeRoomId && appStore.mobileView === "rooms") {
+      appStore.showRoomView()
+    }
+  },
+)
+
 onMounted(() => {
   checkMobile()
   window.addEventListener("resize", checkMobile)
