@@ -31,6 +31,7 @@ const isVisible = ref(false)
 const isPaused = ref(false)
 const rotation = ref(0)
 const prevPosition = ref({ x: 0, y: 0 })
+const hasAppearedBefore = ref(false)
 
 let stateTimeout: ReturnType<typeof setTimeout> | null = null
 
@@ -50,6 +51,10 @@ const crawlDuration = ref(15000)
 
 function getRandomWaitTime(): number {
   return Math.floor(Math.random() * 10000) + 10000
+}
+
+function getInitialWaitTime(): number {
+  return Math.floor(Math.random() * 300000) + 600000
 }
 
 function getRandomCrawlTime(): number {
@@ -126,7 +131,8 @@ function startWaiting(): void {
   spiderState.value = "waiting"
   isVisible.value = false
   isPaused.value = false
-  setNextState("appearing", getRandomWaitTime(), startAppearing)
+  const waitTime = hasAppearedBefore.value ? getRandomWaitTime() : getInitialWaitTime()
+  setNextState("appearing", waitTime, startAppearing)
 }
 
 function startAppearing(): void {
@@ -134,6 +140,7 @@ function startAppearing(): void {
   isVisible.value = true
   isPaused.value = false
   imageSrc.value = SPIDER_GIF
+  hasAppearedBefore.value = true
   position.value = { x: 0, y: 0 }
 
   void nextTick(() => {
