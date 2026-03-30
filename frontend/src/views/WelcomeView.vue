@@ -15,7 +15,7 @@
           :key="room.id"
           :data-testid="`room-card-${room.id}`"
           class="room-browser-card bg-theme-bg-secondary rounded-lg p-4 hover:bg-theme-bg-hover transition-all duration-200 cursor-pointer border border-theme-border hover:border-theme-accent"
-          @click="$emit('room-selected', room.id)">
+          @click="handleRoomClick(room.id)">
           <div class="flex items-center justify-between mb-3">
             <div class="w-10 h-10 bg-theme-accent rounded-full flex items-center justify-center">
               <PhFolderSimpleUser class="w-5 h-5 text-theme-text-on-accent" />
@@ -78,9 +78,10 @@
 <script setup lang="ts">
 import { storeToRefs } from "pinia"
 import { useRoomStore, useUserStore } from "@/stores"
+import { useAprilCaptcha } from "@/composables/useAprilCaptcha"
 import { PhMicrophone, PhFolderSimpleUser } from "@phosphor-icons/vue"
 
-defineEmits<{
+const emit = defineEmits<{
   "room-selected": [roomId: string]
   "create-room": []
 }>()
@@ -89,4 +90,11 @@ const roomStore = useRoomStore()
 const userStore = useUserStore()
 const { rooms } = storeToRefs(roomStore)
 const { isAdmin } = storeToRefs(userStore)
+const { showForAction } = useAprilCaptcha()
+
+const handleRoomClick = (roomId: string) => {
+  showForAction("join", () => {
+    emit("room-selected", roomId)
+  })
+}
 </script>
