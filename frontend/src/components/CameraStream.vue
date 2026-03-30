@@ -3,11 +3,12 @@
     class="camera-stream relative bg-theme-bg-primary rounded-lg overflow-hidden border border-theme-border flex flex-col"
     :class="{ 'border-theme-accent ring-2 ring-theme-accent/50': isFocused }">
     <!-- Video Container -->
-    <div class="relative flex items-center justify-center bg-black w-full h-full">
+    <div class="relative flex items-center justify-center bg-black w-full h-full max-h-[70vh]">
       <video
         :id="`camera-${userId}`"
         ref="videoElement"
-        class="w-full h-full object-cover"
+        class="object-contain max-h-full w-auto"
+        :style="{ aspectRatio: videoAspectRatio }"
         autoplay
         playsinline
         muted
@@ -75,7 +76,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, useTemplateRef } from "vue"
+import { ref, computed, watch, onMounted, onUnmounted, useTemplateRef } from "vue"
 import { PhArrowsOut, PhArrowsIn, PhPictureInPicture, PhSpinner } from "@phosphor-icons/vue"
 import type { RemoteVideoTrack, LocalVideoTrack } from "livekit-client"
 import UserAvatar from "@/components/UserAvatar.vue"
@@ -104,6 +105,12 @@ const isFullscreen = ref(false)
 const isPiPActive = ref(false)
 const videoWidth = ref(1280)
 const videoHeight = ref(720)
+
+// Compute aspect ratio from actual video dimensions
+const videoAspectRatio = computed(() => {
+  if (videoHeight.value === 0) return "auto"
+  return `${videoWidth.value} / ${videoHeight.value}`
+})
 
 // Track if LiveKit track is attached (for cleanup)
 const isLiveKitAttached = ref(false)
