@@ -49,12 +49,35 @@
         Theme preference is saved locally and will persist across sessions.
       </p>
     </div>
+
+    <div class="pt-4 border-t border-theme-border">
+      <div class="flex items-center justify-between">
+        <div class="flex-1 pr-4">
+          <span class="text-sm font-medium text-theme-text-primary block">
+            Ultra secret toggle, do not tell anybody
+          </span>
+          <span class="text-xs text-theme-text-muted mt-0.5 block">
+            Enable the ultra secret guest
+          </span>
+        </div>
+
+        <button
+          type="button"
+          class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+          :class="aprilStore.spiderEnabled ? 'bg-theme-accent' : 'bg-theme-border'"
+          @click="aprilStore.setSpiderEnabled(!aprilStore.spiderEnabled)">
+          <span
+            class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+            :class="aprilStore.spiderEnabled ? 'translate-x-5' : 'translate-x-0'" />
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, h } from "vue"
-import { useThemeStore, type Theme } from "@/stores/theme"
+import { useThemeStore, useAprilStore, type Theme } from "@/stores"
 import { PhPalette, PhCheck } from "@phosphor-icons/vue"
 
 defineProps<{
@@ -62,6 +85,7 @@ defineProps<{
 }>()
 
 const themeStore = useThemeStore()
+const aprilStore = useAprilStore()
 const currentTheme = computed(() => themeStore.currentTheme)
 
 function selectTheme(theme: Theme) {

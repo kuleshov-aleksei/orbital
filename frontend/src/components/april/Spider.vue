@@ -111,13 +111,10 @@ function updateRotation(newX: number, newY: number): void {
 }
 
 function setNextState(state: SpiderState, delay: number, callback?: () => void): void {
-  console.log(`[SPOODER] ${state} in ${delay}`)
-
   if (stateTimeout) {
     clearTimeout(stateTimeout)
   }
   stateTimeout = setTimeout(() => {
-    console.log(`[SPOODER] Executing action at ${state}`)
     if (callback) {
       callback()
     }
@@ -190,7 +187,6 @@ function handleResize(): void {
 }
 
 onMounted(() => {
-  console.log("[SPOODER] Component mounted!")
   window.addEventListener("resize", handleResize)
   startWaiting()
 })

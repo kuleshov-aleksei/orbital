@@ -84,7 +84,7 @@
         @leave-room="$emit('leave-room')" />
     </div>
 
-    <Spider />
+    <Spider v-if="aprilStore.spiderEnabled" />
   </div>
 </template>
 
@@ -95,6 +95,7 @@ import RoomHeader from "@/components/RoomHeader.vue"
 import Spider from "@/components/april/Spider.vue"
 import { useLiveKit, useVoiceActivity } from "@/composables"
 import {
+  useAprilStore,
   useAudioSettingsStore,
   useCallStore,
   useUserStore,
@@ -148,6 +149,7 @@ const audioSettingsStore = useAudioSettingsStore()
 const callStore = useCallStore()
 const appStore = useAppStore()
 const roomStore = useRoomStore()
+const aprilStore = useAprilStore()
 
 // Track muted users for AudioManager
 const mutedUsers = ref<Set<string>>(new Set())

@@ -16,10 +16,26 @@ export interface CaptchaOption {
   message: string
 }
 
+const SPIDER_ENABLED_KEY = "orbital_spider_enabled"
+
 export const useAprilStore = defineStore("april", () => {
   // State
   const isActive = ref(false)
   const currentType = ref<CaptchaType | null>(null)
+
+  // Spider setting (default enabled)
+  const spiderEnabled = ref(true)
+
+  // Load spider setting from localStorage
+  const storedSpider = localStorage.getItem(SPIDER_ENABLED_KEY)
+  if (storedSpider !== null) {
+    spiderEnabled.value = storedSpider === "true"
+  }
+
+  function setSpiderEnabled(enabled: boolean): void {
+    spiderEnabled.value = enabled
+    localStorage.setItem(SPIDER_ENABLED_KEY, String(enabled))
+  }
 
   // Pending callback to execute after captcha completion
   let pendingCallback: (() => void) | null = null
@@ -61,6 +77,8 @@ export const useAprilStore = defineStore("april", () => {
     isActive,
     isCaptchaActive,
     currentType,
+    spiderEnabled,
+    setSpiderEnabled,
 
     activateCaptcha,
     deactivateCaptcha,
