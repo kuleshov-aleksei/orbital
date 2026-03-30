@@ -18,7 +18,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue"
+import { computed, ref, watch, onMounted } from "vue"
 import { useAprilStore } from "@/stores/april"
 import SampleCaptcha from "./SampleCaptcha.vue"
 import PhoneDialCaptcha from "./PhoneDialCaptcha.vue"
@@ -27,28 +27,84 @@ import DiceCaptcha from "./DiceCaptcha.vue"
 import ImagePuzzleCaptcha from "./ImagePuzzleCaptcha.vue"
 import Game2048Captcha from "./Game2048Captcha.vue"
 
-const aprilStore = useAprilStore()
+const COOKIE_NAME = "april_captchas_completed"
+const COOKIE_DAYS = 30
 
-//const captchaComponents = [SampleCaptcha, PhoneDialCaptcha, Game2048Captcha, HorseRacingCaptcha, DiceCaptcha, ImagePuzzleCaptcha]
-// For local testing. Do not remove it
-const captchaComponents = [Game2048Captcha]
-
-const selectedIndex = ref(0)
-
-const CaptchaComponent = computed(() => {
-  return captchaComponents[selectedIndex.value]
-})
-
-function selectRandomCaptcha() {
-  selectedIndex.value = Math.floor(Math.random() * captchaComponents.length)
+interface CaptchaEntry {
+  id: string
+  component: typeof SampleCaptcha
 }
 
+const captchaEntries: CaptchaEntry[] = [
+  //{ id: "sample", component: SampleCaptcha },
+  { id: "phone-dial", component: PhoneDialCaptcha },
+  { id: "game-2048", component: Game2048Captcha },
+  { id: "horse-racing", component: HorseRacingCaptcha },
+  { id: "dice", component: DiceCaptcha },
+  { id: "image-puzzle", component: ImagePuzzleCaptcha },
+]
+
+const aprilStore = useAprilStore()
+
+const selectedIndex = ref(0)
+const completedCaptchas = ref<string[]>([])
+
+const CaptchaComponent = computed(() => {
+  return captchaEntries[selectedIndex.value].component
+})
+
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"))
+  return match ? decodeURIComponent(match[2]) : null
+}
+
+function setCookie(name: string, value: string, days: number): void {
+  const expires = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toUTCString()
+  document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires};path=/;SameSite=Lax`
+}
+
+function loadCompletedCaptchas(): void {
+  const cookieValue = getCookie(COOKIE_NAME)
+  if (cookieValue) {
+    try {
+      completedCaptchas.value = JSON.parse(cookieValue)
+    } catch {
+      completedCaptchas.value = []
+    }
+  }
+}
+
+function saveCompletedCaptcha(id: string): void {
+  if (!completedCaptchas.value.includes(id)) {
+    completedCaptchas.value.push(id)
+    setCookie(COOKIE_NAME, JSON.stringify(completedCaptchas.value), COOKIE_DAYS)
+  }
+}
+
+function selectRandomCaptcha(): void {
+  const uncompleted = captchaEntries.filter((entry) => !completedCaptchas.value.includes(entry.id))
+
+  const pool = uncompleted.length > 0 ? uncompleted : captchaEntries
+  const selected = pool[Math.floor(Math.random() * pool.length)]
+
+  selectedIndex.value = captchaEntries.findIndex((e) => e.id === selected.id)
+}
+
+let lastActiveState = false
 watch(
   () => aprilStore.isCaptchaActive,
   (active) => {
-    if (active) {
+    if (active && !lastActiveState) {
       selectRandomCaptcha()
+    } else if (!active && lastActiveState) {
+      const captchaId = captchaEntries[selectedIndex.value].id
+      saveCompletedCaptcha(captchaId)
     }
+    lastActiveState = active
   },
 )
+
+onMounted(() => {
+  loadCompletedCaptchas()
+})
 </script>
