@@ -5,11 +5,12 @@
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave">
     <!-- Video Container - maintains actual stream aspect ratio within available space -->
-    <div class="relative flex items-center justify-center bg-black w-full h-full">
+    <div class="relative flex items-center justify-center bg-black w-full h-full max-h-[70vh]">
       <video
         :id="`screen-${userId}`"
         ref="videoElement"
-        class="w-full h-full object-contain"
+        class="object-contain max-h-[70vh]"
+        :style="{ aspectRatio: videoAspectRatio }"
         autoplay
         playsinline
         @dblclick="toggleFullscreen"
@@ -251,6 +252,12 @@ const qualityLabels: Record<ScreenShareQuality, string> = {
 }
 
 const qualityLabel = computed(() => qualityLabels[props.quality])
+
+// Compute aspect ratio from actual video dimensions
+const videoAspectRatio = computed(() => {
+  if (videoHeight.value === 0) return "auto"
+  return `${videoWidth.value} / ${videoHeight.value}`
+})
 
 // Function to attach track to video element
 const attachTrackToElement = async (track: typeof props.videoTrack, element: HTMLVideoElement) => {

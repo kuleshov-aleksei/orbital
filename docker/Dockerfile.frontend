@@ -16,7 +16,7 @@ RUN npm run generate:licenses
 RUN npm run build
 
 # Use stable alpine (nginx 1.26) which matches Alpine repos brotli module
-FROM docker.io/nginx:stable-alpine
+FROM docker.io/nginx:1.28.2-alpine
 
 # Install brotli module from Alpine v3.19 main
 RUN apk add --no-cache nginx-mod-http-brotli
