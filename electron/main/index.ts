@@ -39,6 +39,27 @@ export const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
 log.transports.file.level = "info"
 log.info("Orbital desktop starting...")
 
+const gotTheLock = app.requestSingleInstanceLock()
+
+if (!gotTheLock) {
+  log.info("Another instance is running, quitting...")
+  app.quit()
+} else {
+  app.on("second-instance", (event, commandLine, workingDirectory) => {
+    log.info("Second instance detected, focusing main window")
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.show()
+      mainWindow.focus()
+    }
+    const deepLink = commandLine.find((arg) => arg.startsWith("orbital://"))
+    if (deepLink) {
+      log.info("Deep link from second instance:", deepLink)
+      mainWindow?.webContents.send("deep-link", deepLink)
+    }
+  })
+}
+
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let isQuitting = false
