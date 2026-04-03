@@ -45,9 +45,10 @@
     "oneClick": false,
     "perMachine": false,
     "allowToChangeInstallationDirectory": true,
-    "deleteAppDataOnUninstall": true,
+    "deleteAppDataOnUninstall": false,
     "createDesktopShortcut": false,
-    "createStartMenuShortcut": true
+    "createStartMenuShortcut": true,
+    "include": "build/installer.nsh"
   },
   "linux": {
     "target": [
