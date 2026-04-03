@@ -29,17 +29,24 @@
       {
         "target": "nsis",
         "arch": ["x64"]
+      },
+      {
+        "target": "portable",
+        "arch": ["x64"]
       }
     ],
-    "icon": "build/orbital-icon.png",
-    "artifactName": "${productName}-Setup-${version}.${ext}"
+    "icon": "build/orbital-icon.png"
+  },
+  "portable": {
+    "artifactName": "${productName}-${version}-Portable.${ext}"
   },
   "nsis": {
+    "artifactName": "${productName}-Setup-${version}.${ext}",
     "oneClick": false,
     "perMachine": false,
     "allowToChangeInstallationDirectory": true,
-    "deleteAppDataOnUninstall": false,
-    "createDesktopShortcut": true,
+    "deleteAppDataOnUninstall": true,
+    "createDesktopShortcut": false,
     "createStartMenuShortcut": true
   },
   "linux": {
@@ -49,7 +56,7 @@
     ],
     "category": "Network",
     "icon": "build/orbital-icon.png",
-    "artifactName": "${productName}-${version}.${ext}",
+    "artifactName": "${productName}-Setup-${version}.${ext}",
     "maintainer": "orbital@encamy.com"
   },
   "publish": {

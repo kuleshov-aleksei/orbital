@@ -220,13 +220,23 @@ build-electron:
 	@echo "Installing electron dependencies..."
 	cd electron && npm install
 	@echo "Building electron for Linux..."
-	cd electron && npm run build
+	@if [ -z "$$VITE_BACKEND_URL" ]; then \
+		echo "WARNING: VITE_BACKEND_URL not set, using https://orb.encamy.com"; \
+		cd electron && VITE_BACKEND_URL=https://orb.encamy.com npm run build; \
+	else \
+		cd electron && VITE_BACKEND_URL=$$VITE_BACKEND_URL npm run build; \
+	fi
 
 build-electron-win:
 	@echo "Installing electron dependencies..."
 	cd electron && npm install
 	@echo "Building electron for Windows..."
-	cd electron && npm run build:win
+	@if [ -z "$$VITE_BACKEND_URL" ]; then \
+		echo "WARNING: VITE_BACKEND_URL not set, using https://orb.encamy.com"; \
+		cd electron && VITE_BACKEND_URL=https://orb.encamy.com npm run build:win; \
+	else \
+		cd electron && VITE_BACKEND_URL=$$VITE_BACKEND_URL npm run build:win; \
+	fi
 
 build-electron-linux:
 	@echo "Installing electron dependencies..."
@@ -243,4 +253,9 @@ build-electron-all:
 	@echo "Installing electron dependencies..."
 	cd electron && npm install
 	@echo "Building electron for all platforms..."
-	cd electron && npm run build:all
+	@if [ -z "$$VITE_BACKEND_URL" ]; then \
+		echo "WARNING: VITE_BACKEND_URL not set, using https://orb.encamy.com"; \
+		cd electron && VITE_BACKEND_URL=https://orb.encamy.com npm run build:all; \
+	else \
+		cd electron && VITE_BACKEND_URL=$$VITE_BACKEND_URL npm run build:all; \
+	fi
