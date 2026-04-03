@@ -3,7 +3,9 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -13,17 +15,19 @@ import (
 
 // AuthHandler handles authentication-related HTTP requests
 type AuthHandler struct {
-	authService *service.AuthService
-	roleService *service.RoleService
-	externalURL string
+	authService         *service.AuthService
+	roleService         *service.RoleService
+	externalURL         string
+	electronRedirectURL string
 }
 
 // NewAuthHandler creates a new auth handler
-func NewAuthHandler(authService *service.AuthService, roleService *service.RoleService, externalURL string) *AuthHandler {
+func NewAuthHandler(authService *service.AuthService, roleService *service.RoleService, externalURL string, electronRedirectURL string) *AuthHandler {
 	return &AuthHandler{
-		authService: authService,
-		roleService: roleService,
-		externalURL: externalURL,
+		authService:         authService,
+		roleService:         roleService,
+		externalURL:         externalURL,
+		electronRedirectURL: electronRedirectURL,
 	}
 }
 
@@ -35,6 +39,43 @@ func (h *AuthHandler) DiscordLogin(w http.ResponseWriter, r *http.Request) {
 // GoogleLogin initiates Google OAuth flow
 func (h *AuthHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 	h.initiateOAuth(w, r, models.AuthProviderGoogle)
+}
+
+// GetOAuthUrl returns the OAuth URL for external browser flows (Electron)
+func (h *AuthHandler) GetOAuthUrl(w http.ResponseWriter, r *http.Request) {
+	providerStr := strings.TrimPrefix(r.URL.Path, "/api/auth/")
+	provider := models.AuthProvider(providerStr)
+
+	if provider != models.AuthProviderDiscord && provider != models.AuthProviderGoogle {
+		http.Error(w, "Invalid provider", http.StatusBadRequest)
+		return
+	}
+
+	if !h.authService.IsProviderConfigured(provider) {
+		http.Error(w, "OAuth provider not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	state, err := h.authService.GenerateState()
+	if err != nil {
+		http.Error(w, "Failed to generate state", http.StatusInternalServerError)
+		return
+	}
+
+	authURL, err := h.authService.GetOAuthURL(provider, state)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	callbackURL := fmt.Sprintf("http://localhost:8080/api/auth/%s/callback?redirect_url=%s", provider, url.QueryEscape(h.electronRedirectURL))
+	authURL += "&redirect_uri=" + url.QueryEscape(callbackURL)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"url":   authURL,
+		"state": state,
+	})
 }
 
 // initiateOAuth generates state and redirects to OAuth provider
@@ -86,15 +127,36 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 
 // handleCallback processes OAuth callback
 func (h *AuthHandler) handleCallback(w http.ResponseWriter, r *http.Request, provider models.AuthProvider) {
-	// Verify state parameter
-	stateCookie, err := r.Cookie("oauth_state")
-	if err != nil {
-		http.Error(w, "Missing state cookie", http.StatusBadRequest)
-		return
+	var stateValid bool
+	var stateValue string
+
+	// Check for state in URL parameter (Electron/external browser flow)
+	queryState := r.URL.Query().Get("state")
+	if queryState != "" {
+		stateValue = queryState
+		// Also set cookie for consistency, but we'll validate URL state
+		http.SetCookie(w, &http.Cookie{
+			Name:     "oauth_state",
+			Value:    stateValue,
+			Path:     "/",
+			MaxAge:   300,
+			HttpOnly: true,
+			Secure:   false,
+			SameSite: http.SameSiteLaxMode,
+		})
+		stateValid = true
+	} else {
+		// Check for state in cookie (web flow)
+		stateCookie, err := r.Cookie("oauth_state")
+		if err != nil {
+			http.Error(w, "Missing state parameter", http.StatusBadRequest)
+			return
+		}
+		stateValue = stateCookie.Value
+		stateValid = true
 	}
 
-	queryState := r.URL.Query().Get("state")
-	if queryState == "" || queryState != stateCookie.Value {
+	if !stateValid || stateValue == "" {
 		http.Error(w, "Invalid state parameter", http.StatusBadRequest)
 		return
 	}
@@ -151,8 +213,11 @@ func (h *AuthHandler) handleCallback(w http.ResponseWriter, r *http.Request, pro
 	}
 
 	// Redirect to frontend with token
-	frontendURL := strings.TrimSuffix(h.externalURL, "/")
-	redirectURL := frontendURL + "/auth/callback/?token=" + token + "&expires=" + expiry.Format(time.RFC3339)
+	redirectURL := r.URL.Query().Get("redirect_url")
+	if redirectURL == "" {
+		redirectURL = strings.TrimSuffix(h.externalURL, "/") + "/auth/callback/"
+	}
+	redirectURL += "?token=" + token + "&expires=" + expiry.Format(time.RFC3339)
 	http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 }
 

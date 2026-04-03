@@ -7,6 +7,7 @@ server:
   port: "8080"
   mode: "development"  # Options: development, production
   external_url: "http://localhost:5173"  # Frontend URL to redirect after OAuth
+  electron_redirect_url: "orbital://auth/callback"  # Deep link URL for Electron OAuth callback
   cors_origins:
     - "*"
 

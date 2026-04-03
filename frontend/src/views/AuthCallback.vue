@@ -32,12 +32,29 @@ const userStore = useUserStore()
 const statusMessage = ref("Completing sign in...")
 const error = ref("")
 
+function parseAuthParams(): { token: string | null; expires: string | null } {
+  const url = window.location.href
+
+  if (url.startsWith("orbital://")) {
+    const pathAndQuery = url.replace("orbital://", "")
+    const [, queryString] = pathAndQuery.split("?")
+    const urlParams = new URLSearchParams(queryString || "")
+    return {
+      token: urlParams.get("token"),
+      expires: urlParams.get("expires"),
+    }
+  }
+
+  const urlParams = new URLSearchParams(window.location.search)
+  return {
+    token: urlParams.get("token"),
+    expires: urlParams.get("expires"),
+  }
+}
+
 onMounted(async () => {
   try {
-    // Parse URL parameters
-    const urlParams = new URLSearchParams(window.location.search)
-    const token = urlParams.get("token")
-    const expires = urlParams.get("expires")
+    const { token, expires } = parseAuthParams()
 
     console.log("[AuthCallback] Extracted token:", token ? token.substring(0, 20) + "..." : "null")
     console.log("[AuthCallback] Token expires:", expires)
@@ -52,16 +69,13 @@ onMounted(async () => {
       return
     }
 
-    // Store the token
     setAuthToken(token)
 
-    // Fetch current user data
     statusMessage.value = "Loading user data..."
     console.log("[AuthCallback] Fetching user data from API...")
     const user = await apiService.getCurrentUser()
     console.log("[AuthCallback] User data received:", user)
 
-    // Map backend user to frontend session
     const userSession = {
       id: user.id,
       nickname: user.nickname,
@@ -72,10 +86,8 @@ onMounted(async () => {
       avatarUrl: user.avatar_url,
     }
 
-    // Update store
     userStore.handleOAuthCallback(token, userSession)
 
-    // Redirect to home
     statusMessage.value = "Welcome!"
     setTimeout(() => {
       void router.push("/")
@@ -84,7 +96,6 @@ onMounted(async () => {
     error.value = err instanceof Error ? err.message : "An unexpected error occurred"
     statusMessage.value = "Authentication failed"
 
-    // Clear any partial auth state
     setAuthToken(null)
 
     setTimeout(() => {

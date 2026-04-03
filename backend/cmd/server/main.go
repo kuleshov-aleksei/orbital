@@ -122,7 +122,7 @@ func main() {
 	// Initialize handlers with config
 	roomHandler := handlers.NewRoomHandler(roomService, categoryService, livekitService, wsHub)
 	categoryHandler := handlers.NewCategoryHandler(categoryService, roomService, wsHub)
-	authHandler := handlers.NewAuthHandler(authService, roleService, cfg.Server.ExternalURL)
+	authHandler := handlers.NewAuthHandler(authService, roleService, cfg.Server.ExternalURL, cfg.Server.ElectronRedirectURL)
 	adminHandler := handlers.NewAdminHandlerWithDebugLog(roleService, userRepo, debugLogService)
 	usersHandler := handlers.NewUsersHandler(userRepo, wsHub)
 	livekitHandler := handlers.NewLiveKitHandler(livekitService)
@@ -143,8 +143,10 @@ func main() {
 	// Auth routes
 	r.HandleFunc("/api/auth/discord/login", authHandler.DiscordLogin).Methods("GET")
 	r.HandleFunc("/api/auth/discord/callback", authHandler.DiscordCallback).Methods("GET")
+	r.HandleFunc("/api/auth/discord/url", authHandler.GetOAuthUrl).Methods("GET")
 	r.HandleFunc("/api/auth/google/login", authHandler.GoogleLogin).Methods("GET")
 	r.HandleFunc("/api/auth/google/callback", authHandler.GoogleCallback).Methods("GET")
+	r.HandleFunc("/api/auth/google/url", authHandler.GetOAuthUrl).Methods("GET")
 	r.HandleFunc("/api/auth/guest", authHandler.GuestLogin).Methods("POST")
 	r.HandleFunc("/api/auth/logout", authHandler.Logout).Methods("POST")
 	r.Handle("/api/auth/me", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.GetCurrentUser))).Methods("GET")

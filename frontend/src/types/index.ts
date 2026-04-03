@@ -369,6 +369,7 @@ export interface ElectronAPI {
   maximizeWindow: () => void
   closeWindow: () => void
   onDeepLink: (callback: (url: string) => void) => void
+  openExternal: (url: string) => Promise<boolean>
   venmicHasVenmic?: () => Promise<boolean>
   venmicHasPipeWire?: () => Promise<boolean>
   venmicListSources?: () => Promise<VenmicNode[]>

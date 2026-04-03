@@ -9,9 +9,12 @@
 
 <script setup lang="ts">
 import { onMounted, onUnmounted, watch } from "vue"
+import { useRouter } from "vue-router"
 import { useAppStore, useRoomStore, useThemeStore } from "@/stores"
 import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts"
+import { isElectron, onDeepLink } from "@/services/electron"
 
+const router = useRouter()
 const appStore = useAppStore()
 const roomStore = useRoomStore()
 const themeStore = useThemeStore()
@@ -43,6 +46,15 @@ onMounted(() => {
   checkMobile()
   window.addEventListener("resize", checkMobile)
   roomStore.loadUserVolumes()
+
+  if (isElectron()) {
+    onDeepLink((url: string) => {
+      console.log("[App] Deep link received:", url.substring(0, 30) + "...")
+      if (url.startsWith("orbital://auth/callback")) {
+        router.push(url.replace("orbital://", "/"))
+      }
+    })
+  }
 })
 
 onUnmounted(() => {

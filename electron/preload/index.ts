@@ -28,6 +28,7 @@ export interface ElectronAPI {
   maximizeWindow: () => void
   closeWindow: () => void
   onDeepLink: (callback: (url: string) => void) => void
+  openExternal: (url: string) => Promise<boolean>
   venmicHasVenmic: () => Promise<boolean>
   venmicHasPipeWire: () => Promise<boolean>
   venmicListSources: () => Promise<VenmicNode[]>
@@ -69,6 +70,8 @@ const electronAPI: ElectronAPI = {
   onDeepLink: (callback) => {
     ipcRenderer.on("deep-link", (_, url) => callback(url))
   },
+
+  openExternal: (url) => ipcRenderer.invoke("open-external", url),
 
   venmicHasVenmic: () => ipcRenderer.invoke("venmic:has-venmic"),
   venmicHasPipeWire: () => ipcRenderer.invoke("venmic:has-pipewire"),

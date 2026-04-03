@@ -274,6 +274,17 @@ function setupIPC() {
     console.log("[IPC] venmic:stop called")
     return stopAudioCapture()
   })
+
+  ipcMain.handle("open-external", async (_, url: string) => {
+    log.info("Opening external URL:", url)
+    try {
+      await shell.openExternal(url)
+      return true
+    } catch (error) {
+      log.error("Error opening external URL:", error)
+      throw error
+    }
+  })
 }
 
 app.whenReady().then(() => {

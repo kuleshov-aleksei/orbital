@@ -70,3 +70,10 @@ export function closeWindow(): void {
     window.electronAPI!.closeWindow()
   }
 }
+
+export async function openExternal(url: string): Promise<boolean> {
+  if (!isElectron()) {
+    throw new Error("Not running in Electron")
+  }
+  return window.electronAPI!.openExternal(url)
+}

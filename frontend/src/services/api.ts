@@ -10,6 +10,7 @@ import {
   PublicUser,
   DebugLog,
 } from "@/types"
+import { isElectron, openExternal } from "./electron"
 
 const API_BASE = typeof __BACKEND_URL__ !== "undefined" ? `${__BACKEND_URL__}/api` : "/api"
 
@@ -276,14 +277,26 @@ export const apiService = {
   },
 
   // Auth API calls
+  async getOAuthUrl(provider: "discord" | "google"): Promise<{ url: string; state: string }> {
+    const response = await apiRequest<{ url: string; state: string }>(`/auth/${provider}/url`)
+    return response
+  },
+
+  async initiateOAuthLogin(provider: "discord" | "google"): Promise<void> {
+    if (isElectron()) {
+      const { url } = await this.getOAuthUrl(provider)
+      await openExternal(url)
+    } else {
+      window.location.href = `${API_BASE}/auth/${provider}/login`
+    }
+  },
+
   initiateDiscordLogin(): void {
-    // Redirect to Discord OAuth endpoint
-    window.location.href = `${API_BASE}/auth/discord/login`
+    void this.initiateOAuthLogin("discord")
   },
 
   initiateGoogleLogin(): void {
-    // Redirect to Google OAuth endpoint
-    window.location.href = `${API_BASE}/auth/google/login`
+    void this.initiateOAuthLogin("google")
   },
 
   async guestLogin(): Promise<AuthResponse> {

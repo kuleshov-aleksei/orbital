@@ -49,10 +49,11 @@ type DatabaseConfig struct {
 
 // ServerConfig holds server-related configuration
 type ServerConfig struct {
-	Port        string   `yaml:"port"`
-	Mode        string   `yaml:"mode"`
-	CORSOrigins []string `yaml:"cors_origins"`
-	ExternalURL string   `yaml:"external_url"`
+	Port                string   `yaml:"port"`
+	Mode                string   `yaml:"mode"`
+	CORSOrigins         []string `yaml:"cors_origins"`
+	ExternalURL         string   `yaml:"external_url"`
+	ElectronRedirectURL string   `yaml:"electron_redirect_url"`
 }
 
 // RoomSettings holds room-related configuration
@@ -77,10 +78,11 @@ type LoggingConfig struct {
 func DefaultConfig() *Config {
 	return &Config{
 		Server: ServerConfig{
-			Port:        "8080",
-			Mode:        "development",
-			CORSOrigins: []string{"*"},
-			ExternalURL: "http://localhost:5173",
+			Port:                "8080",
+			Mode:                "development",
+			CORSOrigins:         []string{"*"},
+			ExternalURL:         "http://localhost:5173",
+			ElectronRedirectURL: "orbital://auth/callback",
 		},
 		Room: RoomSettings{
 			MinUsers:        2,
@@ -167,6 +169,9 @@ func (c *Config) loadFromEnv() {
 	}
 	if v := os.Getenv("EXTERNAL_URL"); v != "" {
 		c.Server.ExternalURL = v
+	}
+	if v := os.Getenv("ELECTRON_REDIRECT_URL"); v != "" {
+		c.Server.ElectronRedirectURL = v
 	}
 
 	// Room config
