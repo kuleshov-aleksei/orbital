@@ -20,9 +20,10 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "Building version: $VERSION"
 
-      - name: Build Electron in Docker
+      - name: Build Electron in Docker (x86_64)
         run: |
-          docker build \
+          docker buildx build \
+            --platform linux/amd64 \
             --build-arg VERSION=${{ env.VERSION }} \
             --build-arg VITE_BACKEND_URL=${{ secrets.VITE_BACKEND_URL }} \
             -t orbital-electron-build \
