@@ -1,5 +1,5 @@
 # Electron build container
-FROM node:25-bookworm
+FROM node:25-trixie
 
 ARG VERSION=dev-unknown
 ARG VITE_BACKEND_URL=
@@ -37,6 +37,9 @@ WORKDIR /app/electron
 COPY electron/package*.json ./
 COPY electron/package-lock.json ./
 RUN npm install --os=linux --cpu=x64
+
+# Set version from build arg
+RUN sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" package.json
 
 # Copy source code
 COPY electron/ .
