@@ -29,12 +29,14 @@ RUN npm run build
 
 WORKDIR /app/electron
 
-# Build Electron - install deps with ignore-scripts (skips venmic native rebuild)
+# Install deps - force x64 platform for binaries (7zip-bin, app-builder-bin, etc)
 COPY electron/package*.json ./
 COPY electron/package-lock.json ./
-RUN npm install --ignore-scripts
+RUN npm config set platform linux && \
+    npm config set arch x64 && \
+    npm install --ignore-scripts
 
-# Copy the rest
+# Copy source code
 COPY electron/ .
 
 # Build Windows (unsigned)
