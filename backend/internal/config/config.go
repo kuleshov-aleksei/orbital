@@ -30,9 +30,11 @@ type Config struct {
 
 // AuthConfig holds OAuth and JWT configuration
 type AuthConfig struct {
-	JWTSecret string              `yaml:"jwt_secret"`
-	Discord   OAuthProviderConfig `yaml:"discord"`
-	Google    OAuthProviderConfig `yaml:"google"`
+	JWTSecret                  string              `yaml:"jwt_secret"`
+	Discord                    OAuthProviderConfig `yaml:"discord"`
+	Google                     OAuthProviderConfig `yaml:"google"`
+	DiscordElectronRedirectURL string              `yaml:"discord_electron_redirect_url"`
+	GoogleElectronRedirectURL  string              `yaml:"google_electron_redirect_url"`
 }
 
 // OAuthProviderConfig holds OAuth configuration for a specific provider
@@ -111,6 +113,8 @@ func DefaultConfig() *Config {
 				ClientSecret: "",
 				RedirectURL:  "http://localhost:8080/api/auth/google/callback",
 			},
+			DiscordElectronRedirectURL: "http://localhost:27271/callback",
+			GoogleElectronRedirectURL:  "http://localhost:27271/callback",
 		},
 		WebSocket: WebSocketConfig{
 			PingTimeout:       30 * time.Second,
@@ -236,6 +240,12 @@ func (c *Config) loadFromEnv() {
 	}
 	if v := os.Getenv("GOOGLE_REDIRECT_URL"); v != "" {
 		c.Auth.Google.RedirectURL = v
+	}
+	if v := os.Getenv("GOOGLE_ELECTRON_REDIRECT_URL"); v != "" {
+		c.Auth.GoogleElectronRedirectURL = v
+	}
+	if v := os.Getenv("DISCORD_ELECTRON_REDIRECT_URL"); v != "" {
+		c.Auth.DiscordElectronRedirectURL = v
 	}
 
 	// WebSocket config

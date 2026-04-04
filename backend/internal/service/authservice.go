@@ -24,17 +24,19 @@ import (
 
 // AuthService handles OAuth authentication and JWT management
 type AuthService struct {
-	config       *config.AuthConfig
-	userRepo     *repository.UserRepository
-	oauthConfigs map[models.AuthProvider]*oauth2.Config
+	config               *config.AuthConfig
+	userRepo             *repository.UserRepository
+	oauthConfigs         map[models.AuthProvider]*oauth2.Config
+	electronOAuthConfigs map[models.AuthProvider]*oauth2.Config
 }
 
 // NewAuthService creates a new auth service
 func NewAuthService(cfg *config.AuthConfig, userRepo *repository.UserRepository) *AuthService {
 	service := &AuthService{
-		config:       cfg,
-		userRepo:     userRepo,
-		oauthConfigs: make(map[models.AuthProvider]*oauth2.Config),
+		config:               cfg,
+		userRepo:             userRepo,
+		oauthConfigs:         make(map[models.AuthProvider]*oauth2.Config),
+		electronOAuthConfigs: make(map[models.AuthProvider]*oauth2.Config),
 	}
 
 	// Debug logging for OAuth configuration
@@ -87,6 +89,32 @@ func NewAuthService(cfg *config.AuthConfig, userRepo *repository.UserRepository)
 		log.Printf("[Auth] Google OAuth NOT configured - client_id present: %v, client_secret present: %v", googleClientIDConfigured, googleClientSecretConfigured)
 	}
 
+	// Configure Electron-specific OAuth with custom redirect URLs
+	if discordClientIDConfigured && discordClientSecretConfigured && cfg.DiscordElectronRedirectURL != "" {
+		service.electronOAuthConfigs[models.AuthProviderDiscord] = &oauth2.Config{
+			ClientID:     cfg.Discord.ClientID,
+			ClientSecret: cfg.Discord.ClientSecret,
+			Endpoint: oauth2.Endpoint{
+				AuthURL:  "https://discord.com/oauth2/authorize",
+				TokenURL: "https://discord.com/api/oauth2/token",
+			},
+			RedirectURL: cfg.DiscordElectronRedirectURL,
+			Scopes:      []string{"identify", "email"},
+		}
+		log.Printf("[Auth] Discord OAuth (Electron) configured with redirect: %s", cfg.DiscordElectronRedirectURL)
+	}
+
+	if googleClientIDConfigured && googleClientSecretConfigured && cfg.GoogleElectronRedirectURL != "" {
+		service.electronOAuthConfigs[models.AuthProviderGoogle] = &oauth2.Config{
+			ClientID:     cfg.Google.ClientID,
+			ClientSecret: cfg.Google.ClientSecret,
+			Endpoint:     google.Endpoint,
+			RedirectURL:  cfg.GoogleElectronRedirectURL,
+			Scopes:       []string{"openid", "profile", "email"},
+		}
+		log.Printf("[Auth] Google OAuth (Electron) configured with redirect: %s", cfg.GoogleElectronRedirectURL)
+	}
+
 	return service
 }
 
@@ -109,11 +137,26 @@ func (s *AuthService) GetOAuthURL(provider models.AuthProvider, state string) (s
 	return config.AuthCodeURL(state, oauth2.AccessTypeOnline), nil
 }
 
+// GetElectronOAuthURL returns the OAuth URL for Electron with custom redirect
+func (s *AuthService) GetElectronOAuthURL(provider models.AuthProvider, state string) (string, error) {
+	config, ok := s.electronOAuthConfigs[provider]
+	if !ok {
+		return "", fmt.Errorf("Electron OAuth not configured for provider: %s", provider)
+	}
+
+	return config.AuthCodeURL(state, oauth2.AccessTypeOnline), nil
+}
+
 // ExchangeCode exchanges an OAuth code for an access token and user info
 func (s *AuthService) ExchangeCode(ctx context.Context, provider models.AuthProvider, code string) (*models.OAuthUserInfo, error) {
 	config, ok := s.oauthConfigs[provider]
 	if !ok {
 		return nil, fmt.Errorf("OAuth not configured for provider: %s", provider)
+	}
+
+	// Try electron config first, fall back to regular
+	if electronConfig, ok := s.electronOAuthConfigs[provider]; ok {
+		config = electronConfig
 	}
 
 	// Exchange code for token
@@ -396,6 +439,12 @@ func (s *AuthService) GetUserByID(userID string) (*models.User, error) {
 // IsProviderConfigured checks if an OAuth provider is configured
 func (s *AuthService) IsProviderConfigured(provider models.AuthProvider) bool {
 	_, ok := s.oauthConfigs[provider]
+	return ok
+}
+
+// IsElectronOAuthConfigured checks if Electron OAuth is configured for a provider
+func (s *AuthService) IsElectronOAuthConfigured(provider models.AuthProvider) bool {
+	_, ok := s.electronOAuthConfigs[provider]
 	return ok
 }
 

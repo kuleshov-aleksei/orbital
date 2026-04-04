@@ -370,6 +370,8 @@ export interface ElectronAPI {
   closeWindow: () => void
   onDeepLink: (callback: (url: string) => void) => void
   openExternal: (url: string) => Promise<boolean>
+  oauthAuthenticate: () => Promise<void>
+  onOAuthToken: (callback: (data: { token: string; expires: string }) => void) => void
   venmicHasVenmic?: () => Promise<boolean>
   venmicHasPipeWire?: () => Promise<boolean>
   venmicListSources?: () => Promise<VenmicNode[]>

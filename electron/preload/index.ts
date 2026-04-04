@@ -29,6 +29,8 @@ export interface ElectronAPI {
   closeWindow: () => void
   onDeepLink: (callback: (url: string) => void) => void
   openExternal: (url: string) => Promise<boolean>
+  oauthAuthenticate: () => Promise<void>
+  onOAuthToken: (callback: (data: { token: string; expires: string }) => void) => void
   venmicHasVenmic: () => Promise<boolean>
   venmicHasPipeWire: () => Promise<boolean>
   venmicListSources: () => Promise<VenmicNode[]>
@@ -72,6 +74,12 @@ const electronAPI: ElectronAPI = {
   },
 
   openExternal: (url) => ipcRenderer.invoke("open-external", url),
+
+  oauthAuthenticate: () => ipcRenderer.invoke("oauth-authenticate"),
+  oauthCallback: (token) => ipcRenderer.invoke("oauth-callback", token),
+  onOAuthToken: (callback) => {
+    ipcRenderer.on("oauth-token", (_, data) => callback(data))
+  },
 
   venmicHasVenmic: () => ipcRenderer.invoke("venmic:has-venmic"),
   venmicHasPipeWire: () => ipcRenderer.invoke("venmic:has-pipewire"),

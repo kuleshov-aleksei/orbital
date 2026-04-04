@@ -48,6 +48,8 @@ auth:
     client_id: ""      # Override with GOOGLE_CLIENT_ID env var
     client_secret: ""  # Override with GOOGLE_CLIENT_SECRET env var
     redirect_url: "http://localhost:8080/api/auth/google/callback"
+  discord_electron_redirect_url: "http://127.0.0.1:27271/callback"
+  google_electron_redirect_url: "http://127.0.0.1:27271/callback"
 
 # Logging configuration
 logging:

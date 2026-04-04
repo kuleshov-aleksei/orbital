@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, desktopCapturer, 
 import { createRequire } from "node:module"
 import { fileURLToPath } from "node:url"
 import path from "node:path"
+import http from "node:http"
 import log from "electron-log"
 import { autoUpdater } from "electron-updater"
 import { hasVenmic, hasPipeWire, listAudioSources, startAudioCapture, stopAudioCapture } from "./venmic"
@@ -90,6 +91,13 @@ function createWindow() {
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show()
     log.info("Main window shown")
+
+    // Handle any pending deep links
+    if (pendingDeepLink) {
+      log.info("Processing pending deep link:", pendingDeepLink)
+      mainWindow?.webContents.send("deep-link", pendingDeepLink)
+      pendingDeepLink = null
+    }
   })
 
   mainWindow.on("close", (event) => {
@@ -156,22 +164,60 @@ function createTray() {
 }
 
 function setupDeepLink() {
+  log.info("Setting up deep link handler for orbital:// protocol")
+
+  // Register as protocol handler - this is needed for production builds
+  // In dev mode, electron handles this differently
   if (process.defaultApp) {
     if (process.argv.length >= 2) {
       app.setAsDefaultProtocolClient("orbital", process.execPath, [process.argv[1]])
+      log.info("Registered as protocol handler (dev mode with exec path)")
     }
   } else {
     app.setAsDefaultProtocolClient("orbital")
+    log.info("Registered as protocol handler (production mode)")
   }
 
+  // Handle deep link on macOS via open-url event
   app.on("open-url", (event, url) => {
     event.preventDefault()
-    log.info("Deep link received:", url)
-    if (mainWindow) {
-      mainWindow.webContents.send("deep-link", url)
-    }
+    log.info("Deep link received via open-url:", url)
+    handleDeepLink(url)
   })
+
+  // Handle deep link from command line arguments (Linux/Windows)
+  // This handles the case when app is already running and a deep link is triggered
+  const deepLinkArg = process.argv.find((arg) => arg.startsWith("orbital://"))
+  if (deepLinkArg) {
+    log.info("Deep link found in command line:", deepLinkArg)
+    // Delay handling slightly to ensure window is ready
+    setTimeout(() => handleDeepLink(deepLinkArg), 1000)
+  }
 }
+
+function handleDeepLink(url: string) {
+  if (!url.startsWith("orbital://")) {
+    log.warn("Invalid deep link URL:", url)
+    return
+  }
+
+  log.info("Handling deep link:", url)
+
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore()
+    }
+    mainWindow.show()
+    mainWindow.focus()
+    mainWindow.webContents.send("deep-link", url)
+  } else {
+    log.warn("Main window not available, queuing deep link")
+    // Store for later when window is created
+    pendingDeepLink = url
+  }
+}
+
+let pendingDeepLink: string | null = null
 
 function setupAutoUpdater() {
   autoUpdater.logger = log
@@ -285,7 +331,112 @@ function setupIPC() {
       throw error
     }
   })
+
+  ipcMain.handle("oauth-authenticate", async () => {
+    log.info("[OAuth] Starting OAuth authentication flow")
+
+    try {
+      await startOAuthCallbackServer()
+      return { port: OAUTH_CALLBACK_PORT }
+    } catch (error) {
+      log.error("[OAuth] Failed to start callback server:", error)
+      throw error
+    }
+  })
+
+  ipcMain.handle("oauth-callback", async (_, token: string) => {
+    log.info("[OAuth] Token received from callback")
+
+    if (oauthCallbackResolve) {
+      oauthCallbackResolve(token)
+      oauthCallbackResolve = null
+    }
+
+    stopOAuthCallbackServer()
+    return true
+  })
 }
+
+const OAUTH_CALLBACK_PORT = 27271
+let oauthCallbackServer: http.Server | null = null
+
+function startOAuthCallbackServer(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (oauthCallbackServer) {
+      oauthCallbackServer.close()
+    }
+
+    oauthCallbackServer = http.createServer((req, res) => {
+      const fullUrl = `http://127.0.0.1:${OAUTH_CALLBACK_PORT}${req.url || "/"}`
+      log.info("[OAuth] Full callback URL:", fullUrl)
+
+      const url = new URL(req.url || "/", `http://127.0.0.1:${OAUTH_CALLBACK_PORT}`)
+      log.info("[OAuth] Parsed pathname:", url.pathname)
+      log.info("[OAuth] Search params:", url.searchParams.toString())
+      log.info("[OAuth] Token:", url.searchParams.get("token"))
+
+      const pathname = url.pathname.replace(/\/$/, "") // Remove trailing slash
+      if (pathname === "/callback") {
+        const token = url.searchParams.get("token")
+        const expires = url.searchParams.get("expires")
+
+        log.info("[OAuth] Token found:", token !== null)
+        log.info("[OAuth] Expires found:", expires !== null)
+
+        if (token) {
+          res.writeHead(200, { "Content-Type": "text/html" })
+          res.end(`
+            <html>
+              <body>
+                <h1>Authentication Successful!</h1>
+                <p>You can close this window and return to Orbital.</p>
+                <script>
+                  setTimeout(() => window.close(), 2000)
+                </script>
+              </body>
+            </html>
+          `)
+
+          if (mainWindow) {
+            mainWindow.webContents.send("oauth-token", { token, expires })
+            log.info("[OAuth] Token sent to renderer")
+          }
+
+          setTimeout(() => {
+            oauthCallbackServer?.close()
+            oauthCallbackServer = null
+          }, 1000)
+        } else {
+          res.writeHead(400, { "Content-Type": "text/html" })
+          res.end("<h1>Authentication Failed</h1><p>No token received.</p>")
+        }
+      } else {
+        res.writeHead(404, { "Content-Type": "text/html" })
+        res.end("<h1>Not Found</h1>")
+      }
+    })
+
+    oauthCallbackServer.on("error", (err: Error) => {
+      log.error("[OAuth] Server error:", err)
+      reject(err)
+    })
+
+    oauthCallbackServer.listen(OAUTH_CALLBACK_PORT, "127.0.0.1", () => {
+      log.info(`[OAuth] Callback server started on http://127.0.0.1:${OAUTH_CALLBACK_PORT} and http://localhost:${OAUTH_CALLBACK_PORT}`)
+      resolve()
+    })
+  })
+}
+
+function stopOAuthCallbackServer() {
+  if (oauthCallbackServer) {
+    oauthCallbackServer.close()
+    oauthCallbackServer = null
+    log.info("[OAuth] Callback server stopped")
+  }
+}
+
+export { startOAuthCallbackServer, stopOAuthCallbackServer, OAUTH_CALLBACK_PORT }
 
 app.whenReady().then(() => {
   log.info("App ready")

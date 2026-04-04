@@ -3,9 +3,8 @@ package handlers
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"log"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -44,6 +43,7 @@ func (h *AuthHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 // GetOAuthUrl returns the OAuth URL for external browser flows (Electron)
 func (h *AuthHandler) GetOAuthUrl(w http.ResponseWriter, r *http.Request) {
 	providerStr := strings.TrimPrefix(r.URL.Path, "/api/auth/")
+	providerStr = strings.TrimSuffix(providerStr, "/url")
 	provider := models.AuthProvider(providerStr)
 
 	if provider != models.AuthProviderDiscord && provider != models.AuthProviderGoogle {
@@ -62,14 +62,28 @@ func (h *AuthHandler) GetOAuthUrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authURL, err := h.authService.GetOAuthURL(provider, state)
+	isElectron := r.URL.Query().Get("electron") == "true"
+	log.Printf("[Auth] GetOAuthUrl - provider: %s, isElectron: %v", provider, isElectron)
+
+	// Check if Electron OAuth is configured when requesting electron flow
+	if isElectron && !h.authService.IsElectronOAuthConfigured(provider) {
+		http.Error(w, "Electron OAuth not configured for this provider", http.StatusServiceUnavailable)
+		return
+	}
+
+	var authURL string
+	if isElectron {
+		authURL, err = h.authService.GetElectronOAuthURL(provider, state)
+	} else {
+		authURL, err = h.authService.GetOAuthURL(provider, state)
+	}
+
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	callbackURL := fmt.Sprintf("http://localhost:8080/api/auth/%s/callback?redirect_url=%s", provider, url.QueryEscape(h.electronRedirectURL))
-	authURL += "&redirect_uri=" + url.QueryEscape(callbackURL)
+	log.Printf("[Auth] Generated OAuth URL: %s", authURL)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
@@ -123,6 +137,16 @@ func (h *AuthHandler) DiscordCallback(w http.ResponseWriter, r *http.Request) {
 // GoogleCallback handles Google OAuth callback
 func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	h.handleCallback(w, r, models.AuthProviderGoogle)
+}
+
+// DiscordElectronCallback handles Discord OAuth callback for Electron
+func (h *AuthHandler) DiscordElectronCallback(w http.ResponseWriter, r *http.Request) {
+	h.handleElectronCallback(w, r, models.AuthProviderDiscord)
+}
+
+// GoogleElectronCallback handles Google OAuth callback for Electron
+func (h *AuthHandler) GoogleElectronCallback(w http.ResponseWriter, r *http.Request) {
+	h.handleElectronCallback(w, r, models.AuthProviderGoogle)
 }
 
 // handleCallback processes OAuth callback
@@ -217,7 +241,79 @@ func (h *AuthHandler) handleCallback(w http.ResponseWriter, r *http.Request, pro
 	if redirectURL == "" {
 		redirectURL = strings.TrimSuffix(h.externalURL, "/") + "/auth/callback/"
 	}
-	redirectURL += "?token=" + token + "&expires=" + expiry.Format(time.RFC3339)
+	// For Electron, redirect to deep link
+	if strings.HasPrefix(redirectURL, "orbital://") {
+		redirectURL = h.electronRedirectURL + "?token=" + token + "&expires=" + expiry.Format(time.RFC3339)
+	} else {
+		redirectURL += "?token=" + token + "&expires=" + expiry.Format(time.RFC3339)
+	}
+	http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
+}
+
+// handleElectronCallback processes OAuth callback for Electron - redirects to deep link
+func (h *AuthHandler) handleElectronCallback(w http.ResponseWriter, r *http.Request, provider models.AuthProvider) {
+	log.Printf("[Auth] Electron callback received for provider: %s", provider)
+	log.Printf("[Auth] Query params: %s", r.URL.RawQuery)
+
+	var stateValue string
+
+	// Check for state in URL parameter (Electron/external browser flow)
+	queryState := r.URL.Query().Get("state")
+	if queryState != "" {
+		stateValue = queryState
+	} else {
+		http.Error(w, "Missing state parameter", http.StatusBadRequest)
+		return
+	}
+
+	if stateValue == "" {
+		http.Error(w, "Invalid state parameter", http.StatusBadRequest)
+		return
+	}
+
+	// Get authorization code
+	code := r.URL.Query().Get("code")
+	if code == "" {
+		http.Error(w, "Missing authorization code", http.StatusBadRequest)
+		return
+	}
+
+	// Exchange code for user info
+	oauthInfo, err := h.authService.ExchangeCode(r.Context(), provider, code)
+	if err != nil {
+		http.Error(w, "Failed to exchange code: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Create or update user
+	user, err := h.authService.CreateOrUpdateUser(oauthInfo)
+	if err != nil {
+		http.Error(w, "Failed to create user: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Check if this user should be made super_admin
+	if err := h.roleService.AssignSuperAdminIfFirst(user.ID); err != nil {
+		// Log error but don't fail the login
+	}
+
+	// Refresh user data in case role was changed
+	user, err = h.authService.GetUserByID(user.ID)
+	if err != nil {
+		http.Error(w, "Failed to get user: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Generate JWT token
+	token, expiry, err := h.authService.GenerateJWT(user)
+	if err != nil {
+		http.Error(w, "Failed to generate token: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Redirect to Electron's local OAuth callback server
+	redirectURL := "http://127.0.0.1:27271/callback?token=" + token + "&expires=" + expiry.Format(time.RFC3339)
+	log.Printf("[Auth] Electron redirect URL: %s", redirectURL)
 	http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 }
 

@@ -77,3 +77,16 @@ export async function openExternal(url: string): Promise<boolean> {
   }
   return window.electronAPI!.openExternal(url)
 }
+
+export async function oauthAuthenticate(): Promise<void> {
+  if (!isElectron()) {
+    throw new Error("Not running in Electron")
+  }
+  return window.electronAPI!.oauthAuthenticate()
+}
+
+export function onOAuthToken(callback: (data: { token: string; expires: string }) => void): void {
+  if (isElectron()) {
+    window.electronAPI!.onOAuthToken(callback)
+  }
+}
