@@ -6,17 +6,26 @@ A simple yet powerful voice communication platform for small amount of people. S
 
 This project is built by AI (like 90%). AI is not perfect, but MVP was built in 2 weeks and it does its job. I just do not want to waste 6 months handcrafting artisanal code
 
+## Screenshots
+
+![Room view](docs/images/Screenshot_20260404_154952.png)
+
+![Screensharing](docs/images/Screenshot_20260404_155514.png)
+
+![Talking](docs/images/Screenshot_20260404_155614.png)
+
 ## Features
 
 - **Voice Rooms** - Create and join voice rooms with up to 10 participants (in theory it is limited only by your network, cause livekit is able to handle about 3k users per room)
 - **LiveKit SFU** - Scalable Selective Forwarding Unit for reliable voice communication
 - **Screen Sharing** - Share your screen with quality options (720p, 1080p 60fps, text-optimized)
+- **Process audio sharing** - Share audio of the specific application. Currently works only on linux with pipewire
 - **Advanced Audio Processing**
-  - Multiple noise suppression algorithms (LiveKit Native, Browser Native)
+  - Multiple noise suppression algorithms (LiveKit Native, Browser Native, Speex, RNNoise)
   - Echo cancellation
   - Automatic gain control
 - **OAuth authentication** - Supports OAuth2 providers Google and Discord.
-- **Password authentication** - Basic email + nickname + password schema. WITHOUT sending emails, password recovery, etc. Just simple storage
+- **Password authentication** - Basic email + nickname + password schema. WITHOUT sending emails, password recovery, etc. Just a simple storage
 - **Simple Deployment** - Frontent + Backend + LiveKit is all what you need. No complex modules like MAS, no custom path rewriting
 - **Persistence** - Backend stores data in sqlite database. Easy management, easy deployment, easy life
 - **Role-Based Access Control** - Granular permissions for different user types
@@ -30,7 +39,7 @@ The Orbital implements a hierarchical role system:
 | Role | Description |
 |------|-------------|
 | **Guest** | Unauthenticated users who can only join rooms |
-| **User** | Authenticated users via OAuth (Discord/Google) |
+| **User** | Authenticated users via OAuth (Discord/Google) or using password |
 | **Admin** | Can create, edit, and delete rooms and categories |
 | **Super Admin** | Can promote/demote users to/from admin role |
 
@@ -110,6 +119,10 @@ make docker-up
 - `make docker-up` - Run with Docker Compose
 - `make clean` - Clean build artifacts
 - `make licenses` - Generates license information for deps
+- `make dev-electron` - Run electron in dev mode
+- `make build-electron` - Build electron app
+- `make build-electron-win` - Build windows electron app
+- `make build-electron-linux` - Build linux electron app (.AppImage, .deb, .tar.gz)
 
 ## Audio Processing
 
@@ -119,8 +132,6 @@ The Orbital supports multiple noise suppression algorithms:
 - **Browser Native** - Uses built-in browser audio processing
 - **RNNoise** - High-quality ML-based noise suppression (requires 48kHz microphone)
 - **Speex** - Fast CPU-efficient noise suppression
-
-Audio settings can be changed in real-time during calls via the User Settings modal.
 
 ## Deployment
 
