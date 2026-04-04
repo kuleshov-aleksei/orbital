@@ -201,13 +201,16 @@ func (h *AuthHandler) handleCallback(w http.ResponseWriter, r *http.Request, pro
 		return
 	}
 
-	// Exchange code for user info
-	oauthInfo, err := h.authService.ExchangeCode(r.Context(), provider, code)
+	// For web callback, use regular config (not electron)
+	log.Printf("[Auth] Exchanging code for provider: %s (web)", provider)
+	oauthInfo, err := h.authService.ExchangeCode(r.Context(), provider, code, false)
 	if err != nil {
+		log.Printf("[Auth] ExchangeCode error: %v", err)
 		http.Error(w, "Failed to exchange code: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	log.Printf("[Auth] OAuth info received - ID: %s, Email: %s", oauthInfo.ID, oauthInfo.Email)
 	// Create or update user
 	user, err := h.authService.CreateOrUpdateUser(oauthInfo)
 	if err != nil {
@@ -278,8 +281,8 @@ func (h *AuthHandler) handleElectronCallback(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Exchange code for user info
-	oauthInfo, err := h.authService.ExchangeCode(r.Context(), provider, code)
+	// Exchange code for user info (electron = true)
+	oauthInfo, err := h.authService.ExchangeCode(r.Context(), provider, code, true)
 	if err != nil {
 		http.Error(w, "Failed to exchange code: "+err.Error(), http.StatusInternalServerError)
 		return

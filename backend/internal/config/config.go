@@ -106,15 +106,15 @@ func DefaultConfig() *Config {
 			Discord: OAuthProviderConfig{
 				ClientID:     "",
 				ClientSecret: "",
-				RedirectURL:  "http://localhost:8080/api/auth/discord/callback",
+				RedirectURL:  "http://localhost:3000/api/auth/discord/callback",
 			},
 			Google: OAuthProviderConfig{
 				ClientID:     "",
 				ClientSecret: "",
-				RedirectURL:  "http://localhost:8080/api/auth/google/callback",
+				RedirectURL:  "http://localhost:3000/api/auth/google/callback",
 			},
-			DiscordElectronRedirectURL: "http://localhost:27271/callback",
-			GoogleElectronRedirectURL:  "http://localhost:27271/callback",
+			DiscordElectronRedirectURL: "http://127.0.0.1:27271/callback",
+			GoogleElectronRedirectURL:  "http://127.0.0.1:27271/callback",
 		},
 		WebSocket: WebSocketConfig{
 			PingTimeout:       30 * time.Second,

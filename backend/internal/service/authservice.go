@@ -134,6 +134,7 @@ func (s *AuthService) GetOAuthURL(provider models.AuthProvider, state string) (s
 		return "", fmt.Errorf("OAuth not configured for provider: %s", provider)
 	}
 
+	log.Printf("[Auth] GetOAuthURL - redirect_uri: %s", config.RedirectURL)
 	return config.AuthCodeURL(state, oauth2.AccessTypeOnline), nil
 }
 
@@ -144,19 +145,26 @@ func (s *AuthService) GetElectronOAuthURL(provider models.AuthProvider, state st
 		return "", fmt.Errorf("Electron OAuth not configured for provider: %s", provider)
 	}
 
+	log.Printf("[Auth] GetElectronOAuthURL - redirect_uri: %s", config.RedirectURL)
 	return config.AuthCodeURL(state, oauth2.AccessTypeOnline), nil
 }
 
 // ExchangeCode exchanges an OAuth code for an access token and user info
-func (s *AuthService) ExchangeCode(ctx context.Context, provider models.AuthProvider, code string) (*models.OAuthUserInfo, error) {
-	config, ok := s.oauthConfigs[provider]
-	if !ok {
-		return nil, fmt.Errorf("OAuth not configured for provider: %s", provider)
-	}
+// Use electronConfig parameter to specify which config to use
+func (s *AuthService) ExchangeCode(ctx context.Context, provider models.AuthProvider, code string, useElectronConfig bool) (*models.OAuthUserInfo, error) {
+	var config *oauth2.Config
+	var ok bool
 
-	// Try electron config first, fall back to regular
-	if electronConfig, ok := s.electronOAuthConfigs[provider]; ok {
-		config = electronConfig
+	if useElectronConfig {
+		config, ok = s.electronOAuthConfigs[provider]
+		if !ok {
+			return nil, fmt.Errorf("Electron OAuth not configured for provider: %s", provider)
+		}
+	} else {
+		config, ok = s.oauthConfigs[provider]
+		if !ok {
+			return nil, fmt.Errorf("OAuth not configured for provider: %s", provider)
+		}
 	}
 
 	// Exchange code for token
