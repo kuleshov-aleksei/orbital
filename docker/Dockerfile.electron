@@ -14,9 +14,9 @@ RUN apk add --no-cache \
     python3 \
     make \
     g++ \
-    cmake \
     libc-dev \
-    libsecret-dev
+    libsecret-dev \
+    openssl
 
 WORKDIR /app/frontend
 
@@ -30,9 +30,12 @@ RUN npm run build
 
 WORKDIR /app/electron
 
-# Build Electron
+# Build Electron - use prebuilt node_modules from host (with x86_64 venmic prebuilds)
 COPY electron/package*.json ./
-RUN npm ci --prefer-offline
+COPY electron/package-lock.json ./
+RUN npm ci --prefer-offline --ignore-scripts
+
+COPY electron/node_modules ./node_modules
 
 COPY electron/ .
 
