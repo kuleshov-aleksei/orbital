@@ -32,9 +32,7 @@ WORKDIR /app/electron
 # Install deps - force x64 platform for binaries (7zip-bin, app-builder-bin, etc)
 COPY electron/package*.json ./
 COPY electron/package-lock.json ./
-RUN npm config set platform linux && \
-    npm config set arch x64 && \
-    npm install --ignore-scripts
+RUN npm install --ignore-scripts --os=linux --cpu=x64
 
 # Copy source code
 COPY electron/ .
