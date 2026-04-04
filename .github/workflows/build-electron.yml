@@ -5,7 +5,7 @@ on:
 
 jobs:
   build:
-    runs-on: self-hosted
+    runs-on: [self-hosted, linux, x64]
     
     steps:
       - name: Checkout code
@@ -20,10 +20,9 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "Building version: $VERSION"
 
-      - name: Build Electron in Docker (x86_64)
+      - name: Build Electron in Docker
         run: |
-          docker buildx build \
-            --platform linux/amd64 \
+          docker build \
             --build-arg VERSION=${{ env.VERSION }} \
             --build-arg VITE_BACKEND_URL=${{ secrets.VITE_BACKEND_URL }} \
             -t orbital-electron-build \
