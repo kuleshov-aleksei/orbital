@@ -21,7 +21,6 @@ WORKDIR /app/frontend
 
 # Build frontend
 COPY frontend/package*.json ./
-COPY frontend/patches ./patches
 RUN npm ci --prefer-offline
 
 COPY frontend/ .
