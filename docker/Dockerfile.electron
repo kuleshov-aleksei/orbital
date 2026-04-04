@@ -9,7 +9,6 @@ ENV VITE_BACKEND_URL=$VITE_BACKEND_URL
 # Install build dependencies
 RUN apk add --no-cache \
     wine \
-    xvfb \
     git \
     python3 \
     make \
@@ -39,7 +38,7 @@ RUN npm install --ignore-scripts
 COPY electron/ .
 
 # Build Windows (unsigned)
-RUN xvfb-run --auto-servernum npm run build:win
+RUN npm run build:win
 
 # Generate SHA256 hashes for Windows builds
 RUN for f in electron/release/Orbital-Setup-*.exe electron/release/Orbital-*-Portable-*.exe; do \
