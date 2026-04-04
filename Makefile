@@ -237,6 +237,21 @@ build-electron-win:
 	else \
 		cd electron && VITE_BACKEND_URL=$$VITE_BACKEND_URL npm run build:win; \
 	fi
+	@echo "Generating SHA256 hashes for Windows builds..."
+	@for f in electron/release/Orbital-Setup-*.exe; do \
+		if [ -f "$$f" ]; then \
+			echo "Calculating SHA256 for $$f..."; \
+			openssl dgst -sha256 -binary "$$f" | openssl base64 -A > "$$f.sha256"; \
+			echo "Hash saved to $$f.sha256"; \
+		fi; \
+	done
+	@for f in electron/release/Orbital-*-Portable-*.exe; do \
+		if [ -f "$$f" ]; then \
+			echo "Calculating SHA256 for $$f..."; \
+			openssl dgst -sha256 -binary "$$f" | openssl base64 -A > "$$f.sha256"; \
+			echo "Hash saved to $$f.sha256"; \
+		fi; \
+	done
 
 build-electron-linux:
 	@echo "Installing electron dependencies..."

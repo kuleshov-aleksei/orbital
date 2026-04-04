@@ -44,7 +44,7 @@ jobs:
             --notes "Automated build"
 
           # Upload each asset
-          for asset in electron/release/*.exe electron/release/*.AppImage electron/release/*.deb; do
+          for asset in electron/release/*.exe electron/release/*.exe.sha256 electron/release/*.Portable*.exe electron/release/*.Portable*.exe.sha256 electron/release/*.AppImage electron/release/*.deb; do
             if [ -f "$asset" ]; then
               gh release upload ${{ env.VERSION }} "$asset" --clobber
             fi

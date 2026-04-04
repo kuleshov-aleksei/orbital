@@ -39,5 +39,13 @@ COPY electron/ .
 # Build Windows (unsigned)
 RUN xvfb-run --auto-servernum npm run build:win
 
+# Generate SHA256 hashes for Windows builds
+RUN for f in electron/release/Orbital-Setup-*.exe electron/release/Orbital-*-Portable-*.exe; do \
+      if [ -f "$f" ]; then \
+        echo "Calculating SHA256 for $f..."; \
+        openssl dgst -sha256 -binary "$f" | openssl base64 -A > "$f.sha256"; \
+      fi; \
+    done
+
 # Build Linux
 RUN npm run build:linux
