@@ -1,23 +1,26 @@
 # Electron build container
-FROM node:25-alpine
+FROM node:25-bookworm
 
 ARG VERSION=dev-unknown
 ARG VITE_BACKEND_URL=
 
 ENV VITE_BACKEND_URL=$VITE_BACKEND_URL
 
-# Install build dependencies
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     wine \
     git \
     python3 \
     make \
+    automake \
     g++ \
     cmake \
-    libc-dev \
-    libsecret-dev \
-    openssl \
-    pipewire-dev
+    ninja-build \
+    libsecret-1-dev \
+    libpipewire-1.0-dev \
+    libpulse-dev \
+    libstdc++-dev \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app/frontend
 
