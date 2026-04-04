@@ -9,7 +9,6 @@ ENV VITE_BACKEND_URL=$VITE_BACKEND_URL
 # Install build dependencies
 RUN apk add --no-cache \
     wine \
-    wine-utils \
     xvfb \
     git \
     python3 \
