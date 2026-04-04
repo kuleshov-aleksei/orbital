@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsecret-1-dev \
     libpipewire-0.3-dev \
     libpulse-dev \
-    libstdc++-dev \
+    libstdc++-12-dev \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
