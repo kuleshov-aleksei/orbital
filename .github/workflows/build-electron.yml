@@ -20,10 +20,6 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "Building version: $VERSION"
 
-      - name: Install node_modules (for venmic prebuilds)
-        run: |
-          cd electron && npm install --ignore-scripts
-
       - name: Build Electron in Docker
         run: |
           docker build \

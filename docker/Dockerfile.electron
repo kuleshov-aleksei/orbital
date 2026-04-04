@@ -1,5 +1,5 @@
 # Electron build container
-FROM node:25-alpine
+FROM node:25-alpine AS builder
 
 ARG VERSION=dev-unknown
 ARG VITE_BACKEND_URL=
@@ -8,8 +8,6 @@ ENV VITE_BACKEND_URL=$VITE_BACKEND_URL
 
 # Install build dependencies
 RUN apk add --no-cache \
-    wine \
-    xvfb \
     git \
     python3 \
     make \
@@ -30,13 +28,12 @@ RUN npm run build
 
 WORKDIR /app/electron
 
-# Build Electron - use prebuilt node_modules from host (with x86_64 venmic prebuilds)
+# Build Electron - install deps with ignore-scripts (skips venmic native rebuild)
 COPY electron/package*.json ./
 COPY electron/package-lock.json ./
-RUN npm ci --prefer-offline --ignore-scripts
+RUN npm install --ignore-scripts
 
-COPY electron/node_modules ./node_modules
-
+# Copy the rest
 COPY electron/ .
 
 # Build Windows (unsigned)
