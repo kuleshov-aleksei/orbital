@@ -17,8 +17,7 @@ RUN apk add --no-cache \
     libc-dev \
     libsecret-dev \
     openssl \
-    pipewire-dev \
-    libspa-0.2-dev
+    pipewire-dev
 
 WORKDIR /app/frontend
 
