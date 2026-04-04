@@ -6,9 +6,11 @@ ARG VITE_BACKEND_URL=
 
 ENV VITE_BACKEND_URL=$VITE_BACKEND_URL
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN dpkg --add-architecture i386 && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
     wine \
-    wine32 \
+    wine32:i386 \
     git \
     python3 \
     make \
