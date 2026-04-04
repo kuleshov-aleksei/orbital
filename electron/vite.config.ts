@@ -114,12 +114,9 @@ export default defineConfig(({ command }) => {
       outDir: resolve(electronPath, "dist"),
       emptyOutDir: true,
       rollupOptions: {
-        external: ["snd-lib"],
+        external: [],
         output: {
           manualChunks: (id) => {
-            if (id.includes("snd-lib")) {
-              return "vendor-snd"
-            }
             if (id.includes("livekit-client")) {
               return "vendor-livekit"
             }
