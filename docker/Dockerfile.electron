@@ -8,6 +8,7 @@ ENV VITE_BACKEND_URL=$VITE_BACKEND_URL
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wine \
+    wine32 \
     git \
     python3 \
     make \
@@ -38,11 +39,11 @@ COPY electron/package*.json ./
 COPY electron/package-lock.json ./
 RUN npm install --os=linux --cpu=x64
 
-# Set version from build arg
-RUN sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" package.json
-
 # Copy source code
 COPY electron/ .
+
+# Set version from build arg
+RUN sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" package.json
 
 # Build Windows (unsigned)
 RUN npm run build:win
