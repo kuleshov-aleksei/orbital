@@ -32,7 +32,7 @@
     "vue": "^3.5.32",
     "vue-advanced-cropper": "^2.8.9",
     "vue-boring-avatars": "^1.4.0",
-    "vue-router": "^4.2.0"
+    "vue-router": "^5.0.4"
   },
   "devDependencies": {
     "@iconify-json/logos": "^1.2.10",
