@@ -38,7 +38,7 @@ jobs:
         if: github.ref_type == 'tag'
         uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # v1.20.0
         with:
-          artifacts: "electron/release/*.exe,electron/release/*.exe.sha256,electron/release/*.AppImage,electron/release/*.deb,electron/release/*.tar.gz"
+          artifacts: "electron/release/*.exe,electron/release/*.exe.sha256,electron/release/*.AppImage,electron/release/*.deb"
           token: ${{ secrets.UAT_TOKEN }}
           commit: ${{ github.sha }}
           tag: desktop-v${{ env.VERSION }}
