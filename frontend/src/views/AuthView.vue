@@ -72,14 +72,6 @@
                 <GoogleIcon class="w-5 h-5 mr-3" />
                 Login with Google
               </button>
-
-              <!-- Fake gosuslugi Login -->
-              <button
-                type="button"
-                class="w-full flex items-center justify-center px-4 py-3 bg-theme-text-primary hover:bg-theme-text-secondary text-theme-bg-primary rounded-lg transition-colors duration-200 font-medium"
-                @click="handleLoginWithGosuslugi">
-                Войти через <img src="/gosusligi-text.svg" class="w-28 h-7" />
-              </button>
             </div>
 
             <!-- Divider -->
@@ -382,10 +374,6 @@ const handleLoginWithDiscord = () => {
 
 const handleLoginWithGoogle = () => {
   userStore.loginWithProvider("google")
-}
-
-const handleLoginWithGosuslugi = () => {
-  window.location.href = `https://www.youtube.com/watch?v=dQw4w9WgXcQ`
 }
 
 const handleContinueAsGuest = async () => {
