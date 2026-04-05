@@ -34,20 +34,16 @@ jobs:
           docker cp orbital-extract:/app/electron/release ./electron
           docker rm orbital-extract
 
-      - name: Create Release and Upload Assets
+      - name: Upload Release Assets
         if: github.ref_type == 'tag'
-        run: |
-          # Create draft release
-          gh release create ${{ env.VERSION }} \
-            --title "Orbital Desktop ${{ env.VERSION }}" \
-            --draft \
-            --notes "Automated build"
+        uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # v1.20.0
+        with:
+          artifacts: "electron/release/*.exe,electron/release/*.exe.sha256,electron/release/*.AppImage,electron/release/*.deb,electron/release/*.tar.gz"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit: ${{ github.sha }}
+          tag: desktop-v${{ env.VERSION }}
+          name: Desktop v${{ env.VERSION }}
+          body: "Automated build"
+          draft: true
+          
 
-          # Upload each asset
-          for asset in electron/release/*.exe electron/release/*.exe.sha256 electron/release/*.Portable*.exe electron/release/*.Portable*.exe.sha256 electron/release/*.AppImage electron/release/*.deb electron/release/*.tar.gz; do
-            if [ -f "$asset" ]; then
-              gh release upload ${{ env.VERSION }} "$asset" --clobber
-            fi
-          done
-        env:
-          GITHUB_TOKEN: ${{ secrets.UAT_TOKEN }}
