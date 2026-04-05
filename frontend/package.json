@@ -26,7 +26,7 @@
     "@vueuse/sound": "^2.1.3",
     "eslint-plugin-prettier": "^5.5.5",
     "livekit-client": "^2.17.1",
-    "pinia": "^2.1.0",
+    "pinia": "^3.0.4",
     "typescript-eslint": "^8.56.1",
     "vue": "^3.3.0",
     "vue-advanced-cropper": "^2.8.9",
