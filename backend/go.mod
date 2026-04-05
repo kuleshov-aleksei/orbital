@@ -1,6 +1,6 @@
 module github.com/kuleshov-aleksei/orbital
 
-go 1.24.4
+go 1.25.0
 
 require (
 	github.com/golang-jwt/jwt/v5 v5.2.2
@@ -12,7 +12,7 @@ require (
 	github.com/livekit/protocol v1.44.1-0.20260120134243-0914cc74653e
 	github.com/livekit/server-sdk-go/v2 v2.13.2
 	golang.org/x/crypto v0.48.0
-	golang.org/x/oauth2 v0.34.0
+	golang.org/x/oauth2 v0.36.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.28.0
 )
