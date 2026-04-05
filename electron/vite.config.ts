@@ -4,7 +4,7 @@ import vue from "@vitejs/plugin-vue"
 import electron from "vite-plugin-electron/simple"
 import Icons from "unplugin-icons/vite"
 import compression from "vite-plugin-compression"
-import tailwindcss from "tailwindcss"
+import tailwindcss from "@tailwindcss/postcss"
 import autoprefixer from "autoprefixer"
 import { resolve, dirname } from "path"
 import { fileURLToPath } from "url"
@@ -97,7 +97,9 @@ export default defineConfig(({ command }) => {
             },
           },
         },
-        renderer: {},
+        renderer: {
+          nodePolyfills: true,
+        },
       }),
     ],
     root: resolve(frontendPath),

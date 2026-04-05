@@ -37,11 +37,13 @@
   "devDependencies": {
     "@iconify-json/logos": "^1.2.10",
     "@iconify-json/simple-icons": "^1.2.0",
+    "@tailwindcss/postcss": "^4.2.2",
     "@types/node": "^25.5.2",
     "@vitejs/plugin-vue": "^6.0.5",
     "autoprefixer": "^10.4.19",
     "electron": "^41.1.1",
     "electron-builder": "^26.8.1",
+    "esbuild": "^0.27.7",
     "tailwindcss": "^4.2.2",
     "typescript": "^5.2.0",
     "unplugin-icons": "^23.0.1",
