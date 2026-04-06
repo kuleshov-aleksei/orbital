@@ -63,7 +63,6 @@
   "publish": {
     "provider": "github",
     "owner": "kuleshov-aleksei",
-    "repo": "orbital",
-    "electronUpdaterCompatibility": ">=2.16"
+    "repo": "orbital"
   }
 }
