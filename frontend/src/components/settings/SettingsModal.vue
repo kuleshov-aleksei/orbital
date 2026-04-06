@@ -58,7 +58,7 @@
             <PhCamera class="w-5 h-5" />
 
             <span class="font-medium">Video</span>
-          </button>          
+          </button>
 
           <button
             type="button"
@@ -86,6 +86,20 @@
             <PhMusicNotes class="w-5 h-5" />
 
             <span class="font-medium">Sounds</span>
+          </button>
+
+          <button
+            type="button"
+            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
+            :class="
+              currentTab === 'application'
+                ? 'bg-theme-accent text-theme-text-on-accent'
+                : 'text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary'
+            "
+            @click="currentTab = 'application'">
+            <PhMonitor class="w-5 h-5" />
+
+            <span class="font-medium">Application</span>
           </button>
 
           <button
@@ -136,6 +150,9 @@
           <!-- Account Settings Tab -->
           <AccountSettings v-if="currentTab === 'account'" @logout="close" />
 
+          <!-- Application Settings Tab -->
+          <ApplicationSettings v-else-if="currentTab === 'application'" />
+
           <!-- Audio Settings Tab -->
           <AudioSettings v-else-if="currentTab === 'audio'" />
 
@@ -168,6 +185,7 @@ import SoundPackSettings from "./SoundPackSettings.vue"
 import AppearanceSettings from "./AppearanceSettings.vue"
 import AccountSettings from "./AccountSettings.vue"
 import DebugSettings from "./DebugSettings.vue"
+import ApplicationSettings from "./ApplicationSettings.vue"
 import AboutSettings from "./AboutSettings.vue"
 import {
   PhGearSix,
@@ -179,12 +197,13 @@ import {
   PhX,
   PhInfo,
   PhCamera,
+  PhMonitor,
 } from "@phosphor-icons/vue"
 
 const modalStore = useModalStore()
-const currentTab = ref<"audio" | "video" | "sounds" | "appearance" | "account" | "debug" | "about">(
-  "account",
-)
+const currentTab = ref<
+  "application" | "audio" | "video" | "sounds" | "appearance" | "account" | "debug" | "about"
+>("account")
 
 const isOpen = computed(() => modalStore.isUserSettingsModal)
 

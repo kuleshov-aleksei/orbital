@@ -30,12 +30,18 @@ export interface ElectronAPI {
   onDeepLink: (callback: (url: string) => void) => void
   openExternal: (url: string) => Promise<boolean>
   oauthAuthenticate: () => Promise<void>
+  oauthCallback: (token) => Promise<boolean>
   onOAuthToken: (callback: (data: { token: string; expires: string }) => void) => void
   venmicHasVenmic: () => Promise<boolean>
   venmicHasPipeWire: () => Promise<boolean>
   venmicListSources: () => Promise<VenmicNode[]>
   venmicStart: (include: VenmicNode[]) => Promise<boolean>
   venmicStop: () => Promise<boolean>
+  getCloseToTray: () => Promise<boolean | null>
+  setCloseToTray: (value: boolean) => Promise<void>
+  hasSelectedCloseBehavior: () => Promise<boolean>
+  setHasSelectedCloseBehavior: (value: boolean) => Promise<void>
+  showCloseDialog: () => Promise<boolean>
 }
 
 const electronAPI: ElectronAPI = {
@@ -86,6 +92,12 @@ const electronAPI: ElectronAPI = {
   venmicListSources: () => ipcRenderer.invoke("venmic:list-sources"),
   venmicStart: (include) => ipcRenderer.invoke("venmic:start", include),
   venmicStop: () => ipcRenderer.invoke("venmic:stop"),
+
+  getCloseToTray: () => ipcRenderer.invoke("get-close-to-tray"),
+  setCloseToTray: (value) => ipcRenderer.invoke("set-close-to-tray", value),
+  hasSelectedCloseBehavior: () => ipcRenderer.invoke("has-selected-close-behavior"),
+  setHasSelectedCloseBehavior: (value) => ipcRenderer.invoke("set-has-selected-close-behavior", value),
+  showCloseDialog: () => ipcRenderer.invoke("show-close-dialog"),
 }
 
 contextBridge.exposeInMainWorld("electronAPI", electronAPI)
