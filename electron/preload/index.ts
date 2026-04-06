@@ -17,6 +17,17 @@ export interface VenmicNode {
   [key: string]: string | number | boolean | undefined
 }
 
+export interface HotkeySetting {
+  enabled: boolean
+  accelerator: string
+}
+
+export interface HotkeysConfig {
+  mute: HotkeySetting
+  deafen: HotkeySetting
+  ptt: HotkeySetting
+}
+
 export interface ElectronAPI {
   getDesktopSources: () => Promise<DesktopSource[]>
   checkForUpdates: () => Promise<unknown>
@@ -42,6 +53,13 @@ export interface ElectronAPI {
   hasSelectedCloseBehavior: () => Promise<boolean>
   setHasSelectedCloseBehavior: (value: boolean) => Promise<void>
   showCloseDialog: () => Promise<boolean>
+  getHotkeys: () => Promise<HotkeysConfig>
+  setHotkeys: (hotkeys: HotkeysConfig) => Promise<void>
+  resetHotkeys: () => Promise<void>
+  onHotkeyTriggered: (callback: (action: string) => void) => void
+  pauseHotkeys: () => Promise<{ requiresRestart: boolean }>
+  resumeHotkeys: () => Promise<{ requiresRestart: boolean }>
+  getIsWayland: () => Promise<boolean>
 }
 
 const electronAPI: ElectronAPI = {
@@ -98,6 +116,16 @@ const electronAPI: ElectronAPI = {
   hasSelectedCloseBehavior: () => ipcRenderer.invoke("has-selected-close-behavior"),
   setHasSelectedCloseBehavior: (value) => ipcRenderer.invoke("set-has-selected-close-behavior", value),
   showCloseDialog: () => ipcRenderer.invoke("show-close-dialog"),
+
+  getHotkeys: () => ipcRenderer.invoke("get-hotkeys"),
+  setHotkeys: (hotkeys) => ipcRenderer.invoke("set-hotkeys", hotkeys),
+  resetHotkeys: () => ipcRenderer.invoke("reset-hotkeys"),
+  onHotkeyTriggered: (callback) => {
+    ipcRenderer.on("hotkey-triggered", (_, action) => callback(action))
+  },
+  pauseHotkeys: () => ipcRenderer.invoke("pause-hotkeys"),
+  resumeHotkeys: () => ipcRenderer.invoke("resume-hotkeys"),
+  getIsWayland: () => ipcRenderer.invoke("get-is-wayland"),
 }
 
 contextBridge.exposeInMainWorld("electronAPI", electronAPI)

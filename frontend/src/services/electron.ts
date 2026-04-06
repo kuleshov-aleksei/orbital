@@ -115,3 +115,50 @@ export async function showCloseDialog(): Promise<boolean> {
   if (!isElectron()) return true
   return window.electronAPI!.showCloseDialog()
 }
+
+export interface HotkeySetting {
+  enabled: boolean
+  accelerator: string
+}
+
+export interface HotkeysConfig {
+  mute: HotkeySetting
+  deafen: HotkeySetting
+  ptt: HotkeySetting
+}
+
+export async function getHotkeys(): Promise<HotkeysConfig | null> {
+  if (!isElectron()) return null
+  return window.electronAPI!.getHotkeys()
+}
+
+export async function setHotkeys(hotkeys: HotkeysConfig): Promise<void> {
+  if (!isElectron()) return
+  return window.electronAPI!.setHotkeys(hotkeys)
+}
+
+export async function resetHotkeys(): Promise<void> {
+  if (!isElectron()) return
+  return window.electronAPI!.resetHotkeys()
+}
+
+export function onHotkeyTriggered(callback: (action: string) => void): void {
+  if (isElectron()) {
+    window.electronAPI!.onHotkeyTriggered(callback)
+  }
+}
+
+export async function pauseHotkeys(): Promise<{ requiresRestart: boolean }> {
+  if (!isElectron()) return { requiresRestart: false }
+  return window.electronAPI!.pauseHotkeys()
+}
+
+export async function resumeHotkeys(): Promise<{ requiresRestart: boolean }> {
+  if (!isElectron()) return { requiresRestart: false }
+  return window.electronAPI!.resumeHotkeys()
+}
+
+export async function getIsWayland(): Promise<boolean> {
+  if (!isElectron()) return false
+  return window.electronAPI!.getIsWayland()
+}

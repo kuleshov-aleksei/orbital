@@ -358,6 +358,17 @@ export interface VenmicNode {
   [key: string]: string | number | boolean | undefined
 }
 
+export interface HotkeySetting {
+  enabled: boolean
+  accelerator: string
+}
+
+export interface HotkeysConfig {
+  mute: HotkeySetting
+  deafen: HotkeySetting
+  ptt: HotkeySetting
+}
+
 export interface ElectronAPI {
   getDesktopSources: () => Promise<DesktopSource[]>
   checkForUpdates: () => Promise<unknown>
@@ -372,6 +383,18 @@ export interface ElectronAPI {
   openExternal: (url: string) => Promise<boolean>
   oauthAuthenticate: () => Promise<void>
   onOAuthToken: (callback: (data: { token: string; expires: string }) => void) => void
+  getCloseToTray: () => Promise<boolean | null>
+  setCloseToTray: (value: boolean) => Promise<void>
+  hasSelectedCloseBehavior: () => Promise<boolean>
+  setHasSelectedCloseBehavior: (value: boolean) => Promise<void>
+  showCloseDialog: () => Promise<boolean>
+  getHotkeys: () => Promise<HotkeysConfig>
+  setHotkeys: (hotkeys: HotkeysConfig) => Promise<void>
+  resetHotkeys: () => Promise<void>
+  onHotkeyTriggered: (callback: (action: string) => void) => void
+  pauseHotkeys: () => Promise<{ requiresRestart: boolean }>
+  resumeHotkeys: () => Promise<{ requiresRestart: boolean }>
+  getIsWayland: () => Promise<boolean>
   venmicHasVenmic?: () => Promise<boolean>
   venmicHasPipeWire?: () => Promise<boolean>
   venmicListSources?: () => Promise<VenmicNode[]>
