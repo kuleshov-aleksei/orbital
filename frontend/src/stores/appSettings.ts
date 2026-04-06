@@ -3,14 +3,33 @@ import { ref, computed } from "vue"
 
 const APP_SETTINGS_STORAGE_KEY = "orbital_app_settings"
 
+export interface HotkeySetting {
+  enabled: boolean
+  accelerator: string
+}
+
+export interface HotkeysConfig {
+  mute: HotkeySetting
+  deafen: HotkeySetting
+  ptt: HotkeySetting
+}
+
 export interface AppSettings {
   closeToTray: boolean
   hasSelectedCloseBehavior: boolean
+  hotkeys: HotkeysConfig
+}
+
+const DEFAULT_HOTKEYS: HotkeysConfig = {
+  mute: { enabled: true, accelerator: "CommandOrControl+M" },
+  deafen: { enabled: true, accelerator: "CommandOrControl+D" },
+  ptt: { enabled: true, accelerator: "CommandOrControl+Space" },
 }
 
 const defaultSettings: AppSettings = {
   closeToTray: true,
   hasSelectedCloseBehavior: false,
+  hotkeys: DEFAULT_HOTKEYS,
 }
 
 export const useAppSettingsStore = defineStore("appSettings", () => {
@@ -56,6 +75,31 @@ export const useAppSettingsStore = defineStore("appSettings", () => {
     saveSettings()
   }
 
+  const hotkeys = computed(() => settings.value.hotkeys)
+
+  const setHotkey = (action: keyof HotkeysConfig, setting: HotkeySetting): void => {
+    settings.value.hotkeys[action] = setting
+    saveSettings()
+  }
+
+  const resetHotkeys = (): void => {
+    settings.value.hotkeys = { ...DEFAULT_HOTKEYS }
+    saveSettings()
+  }
+
+  const hasCustomHotkeys = computed(() => {
+    const current = settings.value.hotkeys
+    const defaultKeys = DEFAULT_HOTKEYS
+    return (
+      current.mute.accelerator !== defaultKeys.mute.accelerator ||
+      current.mute.enabled !== defaultKeys.mute.enabled ||
+      current.deafen.accelerator !== defaultKeys.deafen.accelerator ||
+      current.deafen.enabled !== defaultKeys.deafen.enabled ||
+      current.ptt.accelerator !== defaultKeys.ptt.accelerator ||
+      current.ptt.enabled !== defaultKeys.ptt.enabled
+    )
+  })
+
   loadSettings()
 
   return {
@@ -63,9 +107,13 @@ export const useAppSettingsStore = defineStore("appSettings", () => {
     isLoaded,
     closeToTray,
     hasSelectedCloseBehavior,
+    hotkeys,
+    hasCustomHotkeys,
     loadSettings,
     saveSettings,
     setCloseToTray,
     markCloseBehaviorSelected,
+    setHotkey,
+    resetHotkeys,
   }
 })

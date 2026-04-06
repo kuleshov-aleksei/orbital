@@ -256,3 +256,9 @@ This generates a TypeScript sprite definition in `services/sprites/packName.ts`.
 ### 4. Register the sound pack
 
 Include the generated sprites in `sounds.ts` to make the pack available in the app.
+
+# Known issues:
+
+## Global hotkeys (Linux + Wayland + KDE Plasma)
+
+For some reason, electron fails to unregister global hotkeys on wayland DE. So if you change hotkeys, you may need to clear old hotkeys manually in Settings > Keyboard > Shortcuts > Orbital

@@ -1,5 +1,5 @@
 import { onMounted, onUnmounted } from "vue"
-import { isElectron } from "@/services/electron"
+import { isElectron, onHotkeyTriggered } from "@/services/electron"
 import { useCallStore, useUserStore, useRoomStore } from "@/stores"
 import { useSounds } from "@/services/sounds"
 import { wsService } from "@/services/websocket"
@@ -58,6 +58,20 @@ export function useKeyboardShortcuts() {
     })
   }
 
+  const handlePTTDown = () => {
+    if (callStore.isMuted) {
+      wasMutedBeforePTT = true
+      callStore.setMuted(false)
+    }
+  }
+
+  const handlePTTUp = () => {
+    if (wasMutedBeforePTT) {
+      callStore.setMuted(true)
+      wasMutedBeforePTT = false
+    }
+  }
+
   const handleKeyDown = (e: KeyboardEvent) => {
     if (isElectron()) return
     if (isInputFocused()) return
@@ -70,10 +84,7 @@ export function useKeyboardShortcuts() {
       handleDeafenToggle()
     } else if (e.code === "Space") {
       e.preventDefault()
-      if (callStore.isMuted) {
-        wasMutedBeforePTT = true
-        callStore.setMuted(false)
-      }
+      handlePTTDown()
     }
   }
 
@@ -82,14 +93,29 @@ export function useKeyboardShortcuts() {
 
     if (e.code === "Space" && wasMutedBeforePTT) {
       e.preventDefault()
-      callStore.setMuted(true)
-      wasMutedBeforePTT = false
+      handlePTTUp()
     }
   }
 
   onMounted(() => {
     window.addEventListener("keydown", handleKeyDown)
     window.addEventListener("keyup", handleKeyUp)
+
+    if (isElectron()) {
+      onHotkeyTriggered((action: string) => {
+        if (action === "mute") {
+          handleMuteToggle()
+        } else if (action === "deafen") {
+          handleDeafenToggle()
+        } else if (action === "ptt-pressed") {
+          if (callStore.isMuted) {
+            handlePTTDown()
+          } else {
+            callStore.setMuted(true)
+          }
+        }
+      })
+    }
   })
 
   onUnmounted(() => {

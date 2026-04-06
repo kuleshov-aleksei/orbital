@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, desktopCapturer, shell, dialog } from "electron"
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, desktopCapturer, shell, dialog, globalShortcut } from "electron"
 import { createRequire } from "node:module"
 import { fileURLToPath } from "node:url"
 import path from "node:path"
@@ -18,6 +18,7 @@ app.commandLine.appendSwitch("max-gum-fps", "120")
 app.commandLine.appendSwitch("webrtc-max-capture-framerate", "120")
 
 app.commandLine.appendSwitch("ozone-platform", "wayland")
+app.commandLine.appendSwitch("enable-features", "GlobalShortcutsPortal,PipeWireCapturer")
 app.commandLine.appendSwitch("enable-zero-copy")
 app.commandLine.appendSwitch("use-gl", "angle")
 app.commandLine.appendSwitch("use-vulkan", "--disable-reading-from-canvas")
@@ -29,7 +30,6 @@ app.commandLine.appendSwitch("enable-accelerated-video-decode")
 app.commandLine.appendSwitch("enable-accelerated-mjpeg-decode")
 app.commandLine.appendSwitch("disable-gpu-vsync")
 app.commandLine.appendSwitch("enable-gpu-compositing")
-app.commandLine.appendSwitch("enable-features", "PipeWireCapturer")
 
 const getModuleUrl = (): string => {
   if (typeof import.meta !== "undefined" && import.meta.url && import.meta.url !== "undefined") {
@@ -49,17 +49,42 @@ export const MAIN_DIST = path.join(process.env.APP_ROOT, "dist-electron")
 export const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist")
 export const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
 
+interface HotkeySetting {
+  enabled: boolean
+  accelerator: string
+}
+
 interface AppConfig {
   closeToTray: boolean
   hasSelectedCloseBehavior: boolean
+  hotkeys: {
+    mute: HotkeySetting
+    deafen: HotkeySetting
+    ptt: HotkeySetting
+  }
+}
+
+const DEFAULT_HOTKEYS: AppConfig["hotkeys"] = {
+  mute: { enabled: false, accelerator: "CommandOrControl+M" },
+  deafen: { enabled: false, accelerator: "CommandOrControl+D" },
+  ptt: { enabled: false, accelerator: "CommandOrControl+Space" },
 }
 
 const DEFAULT_CONFIG: AppConfig = {
   closeToTray: true,
   hasSelectedCloseBehavior: false,
+  hotkeys: DEFAULT_HOTKEYS,
 }
 
 let config: AppConfig = { ...DEFAULT_CONFIG }
+let hotkeysPaused = false
+
+const isWayland = process.platform === "linux" && 
+  (process.env.XDG_SESSION_TYPE === "wayland" || 
+   process.env.WAYLAND_DISPLAY !== undefined ||
+   process.argv.includes("--ozone-platform=wayland"))
+
+log.info("[Platform] Running on Wayland:", isWayland)
 
 function getConfigPath(): string {
   const configDir = app.getPath("userData")
@@ -567,6 +592,45 @@ function setupIPC() {
 
     return result.response === 0
   })
+
+  ipcMain.handle("get-hotkeys", () => {
+    return config.hotkeys
+  })
+
+  ipcMain.handle("set-hotkeys", (_, hotkeys: AppConfig["hotkeys"]) => {
+    log.info("[IPC] set-hotkeys called:", JSON.stringify(hotkeys))
+    try {
+      config.hotkeys = hotkeys
+      saveConfig()
+      registerAllHotkeys()
+    } catch (e) {
+      log.error("[IPC] set-hotkeys error:", e)
+    }
+  })
+
+  ipcMain.handle("reset-hotkeys", () => {
+    config.hotkeys = { ...DEFAULT_HOTKEYS }
+    saveConfig()
+    registerAllHotkeys()
+  })
+
+  ipcMain.handle("pause-hotkeys", () => {
+    unregisterAllHotkeys()
+    hotkeysPaused = true
+    log.info("[Hotkey] Hotkeys paused")
+    return { requiresRestart: false }
+  })
+
+  ipcMain.handle("resume-hotkeys", () => {
+    hotkeysPaused = false
+    registerAllHotkeys()
+    log.info("[Hotkey] Hotkeys resumed")
+    return { requiresRestart: false }
+  })
+
+  ipcMain.handle("get-is-wayland", () => {
+    return isWayland
+  })
 }
 
 const OAUTH_CALLBACK_PORT = 27271
@@ -645,6 +709,86 @@ function stopOAuthCallbackServer() {
 
 export { startOAuthCallbackServer, stopOAuthCallbackServer, OAUTH_CALLBACK_PORT }
 
+let registeredAccelerators: {
+  mute: string | null
+  deafen: string | null
+  ptt: string | null
+} = {
+  mute: null,
+  deafen: null,
+  ptt: null,
+}
+
+function registerAllHotkeys() {
+  globalShortcut.unregisterAll()
+  registeredAccelerators = { mute: null, deafen: null, ptt: null }
+
+  const { mute, deafen, ptt } = config.hotkeys
+
+  if (mute.enabled && mute.accelerator) {
+    if (registeredAccelerators.mute && registeredAccelerators.mute !== mute.accelerator) {
+      globalShortcut.unregister(registeredAccelerators.mute)
+    }
+    try {
+      globalShortcut.register(mute.accelerator, () => {
+        log.info("[Hotkey] Mute triggered")
+        mainWindow?.webContents.send("hotkey-triggered", "mute")
+      })
+      registeredAccelerators.mute = mute.accelerator
+      log.info("[Hotkey] Registered mute:", mute.accelerator)
+    } catch (e) {
+      log.error("[Hotkey] Failed to register mute:", e)
+    }
+  } else if (registeredAccelerators.mute) {
+    globalShortcut.unregister(registeredAccelerators.mute)
+    registeredAccelerators.mute = null
+  }
+
+  if (deafen.enabled && deafen.accelerator) {
+    if (registeredAccelerators.deafen && registeredAccelerators.deafen !== deafen.accelerator) {
+      globalShortcut.unregister(registeredAccelerators.deafen)
+    }
+    try {
+      globalShortcut.register(deafen.accelerator, () => {
+        log.info("[Hotkey] Deafen triggered")
+        mainWindow?.webContents.send("hotkey-triggered", "deafen")
+      })
+      registeredAccelerators.deafen = deafen.accelerator
+      log.info("[Hotkey] Registered deafen:", deafen.accelerator)
+    } catch (e) {
+      log.error("[Hotkey] Failed to register deafen:", e)
+    }
+  } else if (registeredAccelerators.deafen) {
+    globalShortcut.unregister(registeredAccelerators.deafen)
+    registeredAccelerators.deafen = null
+  }
+
+  if (ptt.enabled && ptt.accelerator) {
+    if (registeredAccelerators.ptt && registeredAccelerators.ptt !== ptt.accelerator) {
+      globalShortcut.unregister(registeredAccelerators.ptt)
+    }
+    try {
+      globalShortcut.register(ptt.accelerator, () => {
+        log.info("[Hotkey] PTT triggered")
+        mainWindow?.webContents.send("hotkey-triggered", "ptt-pressed")
+      })
+      registeredAccelerators.ptt = ptt.accelerator
+      log.info("[Hotkey] Registered PTT:", ptt.accelerator)
+    } catch (e) {
+      log.error("[Hotkey] Failed to register PTT:", e)
+    }
+  } else if (registeredAccelerators.ptt) {
+    globalShortcut.unregister(registeredAccelerators.ptt)
+    registeredAccelerators.ptt = null
+  }
+}
+
+function unregisterAllHotkeys() {
+  globalShortcut.unregisterAll()
+  registeredAccelerators = { mute: null, deafen: null, ptt: null }
+  log.info("[Hotkey] Unregistered all hotkeys")
+}
+
 app.whenReady().then(() => {
   log.info("App ready")
   loadConfig()
@@ -652,6 +796,7 @@ app.whenReady().then(() => {
   createTray()
   setupDeepLink()
   setupIPC()
+  registerAllHotkeys()
   setupAutoUpdater()
 
   app.on("activate", () => {
