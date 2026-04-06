@@ -7,7 +7,13 @@ import http from "node:http"
 import https from "node:https"
 import crypto from "node:crypto"
 import log from "electron-log"
-import { autoUpdater } from "electron-updater"
+import electronUpdater from "electron-updater"
+
+log.transports.file.level = "info"
+log.transports.console.level = "debug"
+
+const { autoUpdater } = electronUpdater
+autoUpdater.logger = log
 import { hasVenmic, hasPipeWire, listAudioSources, startAudioCapture, stopAudioCapture } from "./venmic"
 
 //app.commandLine.appendSwitch("disable-gpu")
@@ -414,6 +420,23 @@ function setupAutoUpdater() {
   autoUpdater.logger = log
   autoUpdater.autoDownload = false
 
+  log.info("[Update] Electron version:", process.versions.electron)
+  log.info("[Update] electron-updater version:", require("electron-updater/package.json").version)
+  log.info("[Update] App version:", app.getVersion())
+
+  const resourcesPath = process.resourcesPath || ""
+  log.info("[Update] Resources path:", resourcesPath)
+  log.info("[Update] Resources app-update.yml exists:", fs.existsSync(path.join(resourcesPath, "app-update.yml")))
+
+  if (fs.existsSync(path.join(resourcesPath, "app-update.yml"))) {
+    const appUpdateConfig = fs.readFileSync(path.join(resourcesPath, "app-update.yml"), "utf-8")
+    log.info("[Update] app-update.yml content:", appUpdateConfig)
+  }
+
+  autoUpdater.on("checking-for-update", () => {
+    log.info("[Update] Checking for update...")
+  })
+
   autoUpdater.on("update-available", async (info) => {
     log.info("Update available:", info.version)
     currentUpdateInfo = info as unknown as UpdateInfo
@@ -438,6 +461,7 @@ function setupAutoUpdater() {
 
   autoUpdater.on("error", (error) => {
     log.error("Auto updater error:", error)
+    log.error("Auto updater error stack:", error.stack)
   })
 
   if (!VITE_DEV_SERVER_URL) {
