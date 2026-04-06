@@ -18,7 +18,7 @@ app.commandLine.appendSwitch("max-gum-fps", "120")
 app.commandLine.appendSwitch("webrtc-max-capture-framerate", "120")
 
 app.commandLine.appendSwitch("ozone-platform", "wayland")
-app.commandLine.appendSwitch("enable-features", "GlobalShortcutsPortal")
+app.commandLine.appendSwitch("enable-features", "GlobalShortcutsPortal,PipeWireCapturer")
 app.commandLine.appendSwitch("enable-zero-copy")
 app.commandLine.appendSwitch("use-gl", "angle")
 app.commandLine.appendSwitch("use-vulkan", "--disable-reading-from-canvas")
@@ -30,7 +30,6 @@ app.commandLine.appendSwitch("enable-accelerated-video-decode")
 app.commandLine.appendSwitch("enable-accelerated-mjpeg-decode")
 app.commandLine.appendSwitch("disable-gpu-vsync")
 app.commandLine.appendSwitch("enable-gpu-compositing")
-app.commandLine.appendSwitch("enable-features", "PipeWireCapturer")
 
 const getModuleUrl = (): string => {
   if (typeof import.meta !== "undefined" && import.meta.url && import.meta.url !== "undefined") {
@@ -603,12 +602,7 @@ function setupIPC() {
     try {
       config.hotkeys = hotkeys
       saveConfig()
-      
-      if (isWayland) {
-        log.info("[IPC] Wayland detected, skipping hotkey registration (requires restart)")
-      } else {
-        registerAllHotkeys()
-      }
+      registerAllHotkeys()
     } catch (e) {
       log.error("[IPC] set-hotkeys error:", e)
     }
@@ -621,11 +615,6 @@ function setupIPC() {
   })
 
   ipcMain.handle("pause-hotkeys", () => {
-    if (isWayland) {
-      hotkeysPaused = true
-      log.info("[Hotkey] Hotkeys marked as paused (Wayland - restart required)")
-      return { requiresRestart: true }
-    }
     unregisterAllHotkeys()
     hotkeysPaused = true
     log.info("[Hotkey] Hotkeys paused")
@@ -633,11 +622,6 @@ function setupIPC() {
   })
 
   ipcMain.handle("resume-hotkeys", () => {
-    if (isWayland) {
-      hotkeysPaused = false
-      log.info("[Hotkey] Hotkeys marked as resumed (Wayland - restart required)")
-      return { requiresRestart: true }
-    }
     hotkeysPaused = false
     registerAllHotkeys()
     log.info("[Hotkey] Hotkeys resumed")
