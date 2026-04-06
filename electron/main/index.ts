@@ -467,6 +467,20 @@ function setupIPC() {
     }
   })
 
+  ipcMain.handle("get-licenses", async () => {
+    try {
+      const licensesPath = app.isPackaged
+        ? path.join(process.resourcesPath, "build", "licenses.json")
+        : path.join(__dirname, "..", "dist", "licenses.json")
+
+      const content = fs.readFileSync(licensesPath, "utf-8")
+      return JSON.parse(content)
+    } catch (error) {
+      log.error("Error getting licenses:", error)
+      return []
+    }
+  })
+
   ipcMain.handle("check-for-updates", async () => {
     if (!VITE_DEV_SERVER_URL) {
       return autoUpdater.checkForUpdates()

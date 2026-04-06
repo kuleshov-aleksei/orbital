@@ -28,8 +28,18 @@ export interface HotkeysConfig {
   ptt: HotkeySetting
 }
 
+export interface License {
+  name: string
+  version: string
+  license: string
+  url: string
+  description: string
+  custom: string | null
+}
+
 export interface ElectronAPI {
   getDesktopSources: () => Promise<DesktopSource[]>
+  getLicenses: () => Promise<License[]>
   checkForUpdates: () => Promise<unknown>
   onUpdateAvailable: (callback: (info: UpdateInfo) => void) => void
   onUpdateDownloaded: (callback: (info: UpdateInfo) => void) => void
@@ -64,6 +74,8 @@ export interface ElectronAPI {
 
 const electronAPI: ElectronAPI = {
   getDesktopSources: () => ipcRenderer.invoke("get-desktop-sources"),
+
+  getLicenses: () => ipcRenderer.invoke("get-licenses"),
 
   checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
 

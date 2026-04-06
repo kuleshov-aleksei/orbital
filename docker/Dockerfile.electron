@@ -45,6 +45,9 @@ RUN npm install --os=linux --cpu=x64
 # Copy source code
 COPY electron/ .
 
+# Generate licenses
+RUN node scripts/generate-licenses.js
+
 # Set version from build arg
 RUN sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" package.json
 

@@ -162,3 +162,17 @@ export async function getIsWayland(): Promise<boolean> {
   if (!isElectron()) return false
   return window.electronAPI!.getIsWayland()
 }
+
+export interface License {
+  name: string
+  version: string
+  license: string
+  url: string
+  description: string
+  custom: string | null
+}
+
+export async function getLicenses(): Promise<License[] | null> {
+  if (!isElectron()) return null
+  return window.electronAPI!.getLicenses()
+}

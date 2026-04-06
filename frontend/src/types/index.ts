@@ -358,6 +358,15 @@ export interface VenmicNode {
   [key: string]: string | number | boolean | undefined
 }
 
+export interface License {
+  name: string
+  version: string
+  license: string
+  url: string
+  description: string
+  custom: string | null
+}
+
 export interface HotkeySetting {
   enabled: boolean
   accelerator: string
@@ -371,6 +380,7 @@ export interface HotkeysConfig {
 
 export interface ElectronAPI {
   getDesktopSources: () => Promise<DesktopSource[]>
+  getLicenses: () => Promise<License[]>
   checkForUpdates: () => Promise<unknown>
   onUpdateAvailable: (callback: (info: UpdateInfo) => void) => void
   onUpdateDownloaded: (callback: (info: UpdateInfo) => void) => void

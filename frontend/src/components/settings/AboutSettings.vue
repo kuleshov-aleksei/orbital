@@ -74,21 +74,14 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue"
 import { PhInfo } from "@phosphor-icons/vue"
+import { isElectron, getLicenses } from "@/services/electron"
+import type { License } from "@/types"
 
 defineProps<{
   hideHeader?: boolean
 }>()
 
 declare const __APP_VERSION__: string
-
-interface License {
-  name: string
-  version: string
-  license: string
-  url: string
-  description: string
-  custom: string | null
-}
 
 const licenses = ref<License[]>([])
 const loading = ref(true)
@@ -98,11 +91,18 @@ const appVersion = __APP_VERSION__
 
 onMounted(async () => {
   try {
-    const res = await fetch("/licenses.json")
-    if (!res.ok) {
-      throw new Error("Failed to load licenses")
+    if (isElectron()) {
+      const electronLicenses = await getLicenses()
+      if (electronLicenses) {
+        licenses.value = electronLicenses
+      }
+    } else {
+      const res = await fetch("/licenses.json")
+      if (!res.ok) {
+        throw new Error("Failed to load licenses")
+      }
+      licenses.value = await res.json()
     }
-    licenses.value = await res.json()
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Unknown error"
   } finally {
