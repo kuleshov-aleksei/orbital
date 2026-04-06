@@ -51,6 +51,7 @@ export default defineConfig(({ command, mode }) => {
     __APP_VERSION__: JSON.stringify(appVersion),
     __BACKEND_URL__: JSON.stringify(backendUrl),
     __BACKEND_WS_URL__: JSON.stringify(backendWsUrl),
+    __VITE_DEV_SERVER_URL__: JSON.stringify(process.env.VITE_DEV_SERVER_URL || ""),
   }
 
   if (isBuild && process.env.VITE_BACKEND_URL) {
