@@ -19,6 +19,21 @@
         <!-- Tab Buttons -->
         <div class="flex-1 p-2 space-y-1">
           <button
+            v-if="isElectronApp"
+            type="button"
+            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
+            :class="
+              currentTab === 'application'
+                ? 'bg-theme-accent text-theme-text-on-accent'
+                : 'text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary'
+            "
+            @click="currentTab = 'application'">
+            <PhMonitor class="w-5 h-5" />
+
+            <span class="font-medium">Application</span>
+          </button>
+
+          <button
             type="button"
             class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
             :class="
@@ -88,7 +103,7 @@
             <span class="font-medium">Sounds</span>
           </button>
 
-          <button
+          <button v-if="isElectronApp"
             type="button"
             class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
             :class="
@@ -151,7 +166,7 @@
           <AccountSettings v-if="currentTab === 'account'" @logout="close" />
 
           <!-- Application Settings Tab -->
-          <ApplicationSettings v-else-if="currentTab === 'application'" />
+          <ApplicationSettings v-else-if="isElectronApp && currentTab === 'application'" />
 
           <!-- Audio Settings Tab -->
           <AudioSettings v-else-if="currentTab === 'audio'" />
@@ -179,6 +194,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue"
 import { useModalStore } from "@/stores/modal"
+import { isElectron } from "@/services/electron"
 import AudioSettings from "./AudioSettings.vue"
 import VideoSettings from "./VideoSettings.vue"
 import SoundPackSettings from "./SoundPackSettings.vue"
@@ -201,14 +217,15 @@ import {
 } from "@phosphor-icons/vue"
 
 const modalStore = useModalStore()
+const isElectronApp = isElectron()
 const currentTab = ref<
   "application" | "audio" | "video" | "sounds" | "appearance" | "account" | "debug" | "about"
->("account")
+>(isElectronApp ? "application" : "account")
 
 const isOpen = computed(() => modalStore.isUserSettingsModal)
 
 function close() {
   modalStore.closeModal()
-  currentTab.value = "account"
+  currentTab.value = isElectronApp ? "application" : "account"
 }
 </script>
