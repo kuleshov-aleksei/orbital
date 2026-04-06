@@ -1,7 +1,8 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, desktopCapturer, shell } from "electron"
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, desktopCapturer, shell, dialog } from "electron"
 import { createRequire } from "node:module"
 import { fileURLToPath } from "node:url"
 import path from "node:path"
+import fs from "node:fs"
 import http from "node:http"
 import https from "node:https"
 import crypto from "node:crypto"
@@ -30,14 +31,69 @@ app.commandLine.appendSwitch("disable-gpu-vsync")
 app.commandLine.appendSwitch("enable-gpu-compositing")
 app.commandLine.appendSwitch("enable-features", "PipeWireCapturer")
 
-const require = createRequire(import.meta.url)
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const getModuleUrl = (): string => {
+  if (typeof import.meta !== "undefined" && import.meta.url && import.meta.url !== "undefined") {
+    return import.meta.url
+  }
+  const appPath = app.isPackaged ? app.getAppPath() : path.join(__dirname, "../..")
+  return `file://${path.join(appPath, "dist-electron/main/index.js")}`
+}
+
+const moduleUrl = getModuleUrl()
+const require = createRequire(moduleUrl)
+const __dirname = path.dirname(fileURLToPath(moduleUrl))
 
 process.env.APP_ROOT = path.join(__dirname, "../..")
 
 export const MAIN_DIST = path.join(process.env.APP_ROOT, "dist-electron")
 export const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist")
 export const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
+
+interface AppConfig {
+  closeToTray: boolean
+  hasSelectedCloseBehavior: boolean
+}
+
+const DEFAULT_CONFIG: AppConfig = {
+  closeToTray: true,
+  hasSelectedCloseBehavior: false,
+}
+
+let config: AppConfig = { ...DEFAULT_CONFIG }
+
+function getConfigPath(): string {
+  const configDir = app.getPath("userData")
+  return path.join(configDir, "config.json")
+}
+
+function loadConfig(): void {
+  try {
+    const configPath = getConfigPath()
+    if (fs.existsSync(configPath)) {
+      const data = fs.readFileSync(configPath, "utf-8")
+      config = { ...DEFAULT_CONFIG, ...JSON.parse(data) }
+      log.info("Config loaded from:", configPath)
+    } else {
+      log.info("No config file found, using defaults")
+    }
+  } catch (e) {
+    log.warn("Failed to load config:", e)
+  }
+}
+
+function saveConfig(): void {
+  try {
+    const configPath = getConfigPath()
+    const configDir = path.dirname(configPath)
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true })
+    }
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
+    log.info("Config saved to:", configPath)
+  } catch (e) {
+    log.error("Failed to save config:", e)
+  }
+}
 
 log.transports.file.level = "info"
 log.info("Orbital desktop starting...")
@@ -102,10 +158,36 @@ function createWindow() {
     }
   })
 
-  mainWindow.on("close", (event) => {
+  mainWindow.on("close", async (event) => {
     if (!isQuitting) {
       event.preventDefault()
-      mainWindow?.hide()
+
+      if (!config.hasSelectedCloseBehavior) {
+        const shouldHide = await dialog.showMessageBox(mainWindow!, {
+          type: "question",
+          buttons: ["Hide to Tray", "Quit"],
+          defaultId: 0,
+          cancelId: -1,
+          title: "Close Orbital",
+          message: "What would you like to do?",
+          detail: "You can choose to hide Orbital to the system tray or quit the application completely.",
+        })
+
+        if (shouldHide.response === -1) {
+          return
+        }
+
+        config.closeToTray = shouldHide.response === 0
+        config.hasSelectedCloseBehavior = true
+        saveConfig()
+      }
+
+      if (config.closeToTray) {
+        mainWindow?.hide()
+      } else {
+        isQuitting = true
+        app.quit()
+      }
     }
   })
 
@@ -451,6 +533,40 @@ function setupIPC() {
     stopOAuthCallbackServer()
     return true
   })
+
+  ipcMain.handle("get-close-to-tray", () => {
+    return config.closeToTray
+  })
+
+  ipcMain.handle("set-close-to-tray", (_, value: boolean) => {
+    config.closeToTray = value
+    saveConfig()
+  })
+
+  ipcMain.handle("has-selected-close-behavior", () => {
+    return config.hasSelectedCloseBehavior
+  })
+
+  ipcMain.handle("set-has-selected-close-behavior", (_, value: boolean) => {
+    config.hasSelectedCloseBehavior = value
+    saveConfig()
+  })
+
+  ipcMain.handle("show-close-dialog", async () => {
+    if (!mainWindow) return true
+
+    const result = await dialog.showMessageBox(mainWindow, {
+      type: "question",
+      buttons: ["Hide to Tray", "Quit"],
+      defaultId: 0,
+      cancelId: -1,
+      title: "Close Orbital",
+      message: "What would you like to do?",
+      detail: "You can choose to hide Orbital to the system tray or quit the application completely.",
+    })
+
+    return result.response === 0
+  })
 }
 
 const OAUTH_CALLBACK_PORT = 27271
@@ -464,12 +580,7 @@ function startOAuthCallbackServer(): Promise<void> {
 
     oauthCallbackServer = http.createServer((req, res) => {
       const fullUrl = `http://127.0.0.1:${OAUTH_CALLBACK_PORT}${req.url || "/"}`
-      log.info("[OAuth] Full callback URL:", fullUrl)
-
       const url = new URL(req.url || "/", `http://127.0.0.1:${OAUTH_CALLBACK_PORT}`)
-      log.info("[OAuth] Parsed pathname:", url.pathname)
-      log.info("[OAuth] Search params:", url.searchParams.toString())
-      log.info("[OAuth] Token:", url.searchParams.get("token"))
 
       const pathname = url.pathname.replace(/\/$/, "") // Remove trailing slash
       if (pathname === "/callback") {
@@ -536,6 +647,7 @@ export { startOAuthCallbackServer, stopOAuthCallbackServer, OAUTH_CALLBACK_PORT 
 
 app.whenReady().then(() => {
   log.info("App ready")
+  loadConfig()
   createWindow()
   createTray()
   setupDeepLink()

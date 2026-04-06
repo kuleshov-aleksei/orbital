@@ -68,6 +68,9 @@ let globalVolume: number = 0.7
 function getSpriteUrls(packId: string): string[] {
   const urls = spriteUrls[packId] || spriteUrls[DEFAULT_SOUND_PACK_ID]
   if (isElectron()) {
+    if (typeof __VITE_DEV_SERVER_URL__ !== "undefined" && __VITE_DEV_SERVER_URL__) {
+      return urls.map((url) => `${__VITE_DEV_SERVER_URL__}${url}`)
+    }
     const basePath = window.location.pathname.replace(/\/[^/]*$/, "")
     return urls.map((url) => `file://${basePath}${url}`)
   }

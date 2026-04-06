@@ -90,3 +90,28 @@ export function onOAuthToken(callback: (data: { token: string; expires: string }
     window.electronAPI!.onOAuthToken(callback)
   }
 }
+
+export async function getCloseToTray(): Promise<boolean | null> {
+  if (!isElectron()) return null
+  return window.electronAPI!.getCloseToTray()
+}
+
+export async function setCloseToTray(value: boolean): Promise<void> {
+  if (!isElectron()) return
+  return window.electronAPI!.setCloseToTray(value)
+}
+
+export async function hasSelectedCloseBehavior(): Promise<boolean> {
+  if (!isElectron()) return false
+  return window.electronAPI!.hasSelectedCloseBehavior()
+}
+
+export async function setHasSelectedCloseBehavior(value: boolean): Promise<void> {
+  if (!isElectron()) return
+  return window.electronAPI!.setHasSelectedCloseBehavior(value)
+}
+
+export async function showCloseDialog(): Promise<boolean> {
+  if (!isElectron()) return true
+  return window.electronAPI!.showCloseDialog()
+}

@@ -2,6 +2,7 @@
 
 declare const __APP_VERSION__: string
 declare const __BACKEND_URL__: string
+declare const __VITE_DEV_SERVER_URL__: string
 
 declare module 'howler' {
   export const Howl: any

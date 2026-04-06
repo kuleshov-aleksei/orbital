@@ -42,18 +42,20 @@ function shimEventsPlugin() {
   }
 }
 
-export default defineConfig(({ command }) => {
+export default defineConfig(({ command, mode }) => {
   const isServe = command === "serve"
   const isBuild = command === "build"
   const sourcemap = isServe
 
   const defineValues: Record<string, string> = {
     __APP_VERSION__: JSON.stringify(appVersion),
+    __BACKEND_URL__: JSON.stringify(backendUrl),
+    __BACKEND_WS_URL__: JSON.stringify(backendWsUrl),
+    __VITE_DEV_SERVER_URL__: JSON.stringify(process.env.VITE_DEV_SERVER_URL || ""),
   }
 
   if (isBuild && process.env.VITE_BACKEND_URL) {
-    defineValues.__BACKEND_URL__ = JSON.stringify(backendUrl)
-    defineValues.__BACKEND_WS_URL__ = JSON.stringify(backendWsUrl)
+    // These are already set above, keeping for clarity
   }
 
   return {
@@ -84,6 +86,14 @@ export default defineConfig(({ command }) => {
               sourcemap,
               minify: isBuild,
               outDir: resolve(electronPath, "dist-electron/main"),
+              rollupOptions: {
+                external: [],
+              },
+            },
+            define: {
+              "import.meta.url": isServe
+                ? JSON.stringify(`file://${resolve(electronPath, "dist-electron/main/index.js")}`)
+                : "process.resourcesUrl ? `file://${process.resourcesUrl}/app.asar/dist-electron/main/index.js` : undefined",
             },
           },
         },
@@ -94,6 +104,11 @@ export default defineConfig(({ command }) => {
               sourcemap: sourcemap ? "inline" : undefined,
               minify: isBuild,
               outDir: resolve(electronPath, "dist-electron/preload"),
+            },
+            define: {
+              "import.meta.url": isServe
+                ? JSON.stringify(`file://${resolve(electronPath, "dist-electron/preload/index.js")}`)
+                : "process.resourcesUrl ? `file://${process.resourcesUrl}/app.asar/dist-electron/preload/index.js` : undefined",
             },
           },
         },
