@@ -464,12 +464,7 @@ function startOAuthCallbackServer(): Promise<void> {
 
     oauthCallbackServer = http.createServer((req, res) => {
       const fullUrl = `http://127.0.0.1:${OAUTH_CALLBACK_PORT}${req.url || "/"}`
-      log.info("[OAuth] Full callback URL:", fullUrl)
-
       const url = new URL(req.url || "/", `http://127.0.0.1:${OAUTH_CALLBACK_PORT}`)
-      log.info("[OAuth] Parsed pathname:", url.pathname)
-      log.info("[OAuth] Search params:", url.searchParams.toString())
-      log.info("[OAuth] Token:", url.searchParams.get("token"))
 
       const pathname = url.pathname.replace(/\/$/, "") // Remove trailing slash
       if (pathname === "/callback") {
