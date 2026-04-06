@@ -65,9 +65,9 @@ interface AppConfig {
 }
 
 const DEFAULT_HOTKEYS: AppConfig["hotkeys"] = {
-  mute: { enabled: true, accelerator: "CommandOrControl+M" },
-  deafen: { enabled: true, accelerator: "CommandOrControl+D" },
-  ptt: { enabled: true, accelerator: "CommandOrControl+Space" },
+  mute: { enabled: false, accelerator: "CommandOrControl+M" },
+  deafen: { enabled: false, accelerator: "CommandOrControl+D" },
+  ptt: { enabled: false, accelerator: "CommandOrControl+Space" },
 }
 
 const DEFAULT_CONFIG: AppConfig = {
