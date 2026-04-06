@@ -720,6 +720,9 @@ let registeredAccelerators: {
 }
 
 function registerAllHotkeys() {
+  globalShortcut.unregisterAll()
+  registeredAccelerators = { mute: null, deafen: null, ptt: null }
+
   const { mute, deafen, ptt } = config.hotkeys
 
   if (mute.enabled && mute.accelerator) {
@@ -788,7 +791,6 @@ function unregisterAllHotkeys() {
 
 app.whenReady().then(() => {
   log.info("App ready")
-  unregisterAllHotkeys()
   loadConfig()
   createWindow()
   createTray()
