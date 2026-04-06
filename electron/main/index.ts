@@ -30,8 +30,17 @@ app.commandLine.appendSwitch("disable-gpu-vsync")
 app.commandLine.appendSwitch("enable-gpu-compositing")
 app.commandLine.appendSwitch("enable-features", "PipeWireCapturer")
 
-const require = createRequire(import.meta.url)
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const getModuleUrl = (): string => {
+  if (typeof import.meta !== "undefined" && import.meta.url && import.meta.url !== "undefined") {
+    return import.meta.url
+  }
+  const appPath = app.isPackaged ? app.getAppPath() : path.join(__dirname, "../..")
+  return `file://${path.join(appPath, "dist-electron/main/index.js")}`
+}
+
+const moduleUrl = getModuleUrl()
+const require = createRequire(moduleUrl)
+const __dirname = path.dirname(fileURLToPath(moduleUrl))
 
 process.env.APP_ROOT = path.join(__dirname, "../..")
 
