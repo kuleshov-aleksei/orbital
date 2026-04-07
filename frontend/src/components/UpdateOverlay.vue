@@ -42,7 +42,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue"
 import { PhArrowClockwise } from "@phosphor-icons/vue"
-import { onUpdateAvailable, onUpdateProgress, onUpdateDownloaded, onUpdateError, installUpdate } from "@/services/electron"
+import { onUpdateAvailable, onUpdateProgress, onUpdateDownloaded, onUpdateError, installUpdate, isElectron } from "@/services/electron"
 import type { UpdateProgressInfo } from "@/types"
 
 type UpdateStatus = "checking" | "downloading" | "verifying" | "ready" | "error"
@@ -88,7 +88,7 @@ function install() {
 }
 
 onMounted(() => {
-  onUpdateAvailable(() => {
+  onUpdateAvailable((info) => {
     status.value = "downloading"
   })
 

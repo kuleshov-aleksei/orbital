@@ -155,6 +155,17 @@ let tray: Tray | null = null
 let isQuitting = false
 let updateCheckInProgress = false
 
+interface CachedUpdateState {
+  status: "idle" | "checking" | "downloading" | "ready" | "error"
+  version?: string
+  percent?: number
+  error?: string
+  pendingEvent?: string
+  pendingData?: unknown
+}
+
+let cachedUpdateState: CachedUpdateState = { status: "idle" }
+
 const preload = path.join(__dirname, "../preload/index.js")
 const indexHtml = path.join(RENDERER_DIST, "index.html")
 
@@ -191,6 +202,8 @@ function createWindow() {
       mainWindow?.webContents.send("deep-link", pendingDeepLink)
       pendingDeepLink = null
     }
+
+    replayCachedEvents()
   })
 
   mainWindow.on("close", async (event) => {
@@ -429,6 +442,26 @@ let currentUpdateInfo: UpdateInfo | null = null
 let updateAvailableSent = false
 let updateDownloadedSent = false
 
+function sendToRenderer(channel: string, data?: unknown): void {
+  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents) {
+    log.info(`[Update] Sending ${channel} to renderer immediately`)
+    mainWindow.webContents.send(channel, data)
+  } else {
+    log.info(`[Update] Window not ready, caching event ${channel}`)
+    cachedUpdateState.pendingEvent = channel
+    cachedUpdateState.pendingData = data
+  }
+}
+
+function replayCachedEvents(): void {
+  if (cachedUpdateState.pendingEvent) {
+    log.info(`[Update] Replaying cached event: ${cachedUpdateState.pendingEvent}`)
+    mainWindow?.webContents.send(cachedUpdateState.pendingEvent, cachedUpdateState.pendingData)
+    cachedUpdateState.pendingEvent = undefined
+    cachedUpdateState.pendingData = undefined
+  }
+}
+
 function setupAutoUpdater() {
   autoUpdater.logger = log
   autoUpdater.autoDownload = false
@@ -452,7 +485,7 @@ function setupAutoUpdater() {
     updateCheckInProgress = true
     updateAvailableSent = false
     updateDownloadedSent = false
-    mainWindow?.webContents.send("update-checking")
+    sendToRenderer("update-checking")
   })
 
   autoUpdater.on("update-available", async (info) => {
@@ -461,7 +494,7 @@ function setupAutoUpdater() {
     
     if (!updateAvailableSent) {
       updateAvailableSent = true
-      mainWindow?.webContents.send("update-available", info)
+      sendToRenderer("update-available", info)
     }
 
     log.info("[Update] Automatically downloading update...")
@@ -472,7 +505,7 @@ function setupAutoUpdater() {
 
   autoUpdater.on("download-progress", (progress) => {
     log.info("[Update] Download progress:", progress.percent, "%")
-    mainWindow?.webContents.send("update-progress", {
+    sendToRenderer("update-progress", {
       percent: progress.percent,
       bytesPerSecond: progress.bytesPerSecond,
       total: progress.total,
