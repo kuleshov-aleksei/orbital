@@ -1,7 +1,13 @@
-import type { DesktopSource } from "@/types"
+import type { DesktopSource, UpdateProgressInfo, UpdateErrorInfo } from "@/types"
+
+const isDev = import.meta.env.DEV
 
 export function isElectron(): boolean {
   return typeof window !== "undefined" && window.electronAPI !== undefined
+}
+
+export function isElectronDev(): boolean {
+  return isElectron() && isDev
 }
 
 export async function getDesktopSources(): Promise<DesktopSource[]> {
@@ -31,6 +37,12 @@ export function checkForUpdates(): Promise<unknown> {
   return window.electronAPI!.checkForUpdates()
 }
 
+export function onUpdateChecking(callback: () => void): void {
+  if (isElectron()) {
+    window.electronAPI!.onUpdateChecking(callback)
+  }
+}
+
 export function onUpdateAvailable(
   callback: (info: { version: string; releaseDate: string; sha512?: string }) => void,
 ): void {
@@ -39,11 +51,23 @@ export function onUpdateAvailable(
   }
 }
 
+export function onUpdateProgress(callback: (info: UpdateProgressInfo) => void): void {
+  if (isElectron()) {
+    window.electronAPI!.onUpdateProgress(callback)
+  }
+}
+
 export function onUpdateDownloaded(
   callback: (info: { version: string; releaseDate: string; sha512?: string }) => void,
 ): void {
   if (isElectron()) {
     window.electronAPI!.onUpdateDownloaded(callback)
+  }
+}
+
+export function onUpdateError(callback: (info: UpdateErrorInfo) => void): void {
+  if (isElectron()) {
+    window.electronAPI!.onUpdateError(callback)
   }
 }
 

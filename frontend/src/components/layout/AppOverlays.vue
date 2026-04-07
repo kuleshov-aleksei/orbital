@@ -35,10 +35,28 @@
     v-if="appStore.mobileSidebarOpen || appStore.mobileUserSidebarOpen"
     class="lg:hidden fixed inset-0 bg-black/60 z-30"
     @click="appStore.closeAllMobileSidebars()"></div>
+
+  <!-- Update Overlay -->
+  <UpdateOverlay v-if="showUpdateOverlay" />
 </template>
 
 <script setup lang="ts">
+import { ref, onMounted } from "vue"
 import { useAppStore } from "@/stores"
+import { isElectron, isElectronDev, onUpdateChecking } from "@/services/electron"
+import UpdateOverlay from "@/components/UpdateOverlay.vue"
 
 const appStore = useAppStore()
+
+const showUpdateOverlay = ref(false)
+
+onMounted(() => {
+  if (isElectron() && !isElectronDev()) {
+    showUpdateOverlay.value = true
+  }
+
+  onUpdateChecking(() => {
+    showUpdateOverlay.value = true
+  })
+})
 </script>

@@ -153,6 +153,18 @@ if (!gotTheLock) {
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let isQuitting = false
+let updateCheckInProgress = false
+
+interface CachedUpdateState {
+  status: "idle" | "checking" | "downloading" | "ready" | "error"
+  version?: string
+  percent?: number
+  error?: string
+  pendingEvent?: string
+  pendingData?: unknown
+}
+
+let cachedUpdateState: CachedUpdateState = { status: "idle" }
 
 const preload = path.join(__dirname, "../preload/index.js")
 const indexHtml = path.join(RENDERER_DIST, "index.html")
@@ -178,15 +190,20 @@ function createWindow() {
   })
 
   mainWindow.once("ready-to-show", () => {
-    mainWindow?.show()
-    log.info("Main window shown")
+    if (updateCheckInProgress) {
+      log.info("[Update] Window ready but update check in progress, deferring show")
+    } else {
+      mainWindow?.show()
+      log.info("Main window shown")
+    }
 
-    // Handle any pending deep links
     if (pendingDeepLink) {
       log.info("Processing pending deep link:", pendingDeepLink)
       mainWindow?.webContents.send("deep-link", pendingDeepLink)
       pendingDeepLink = null
     }
+
+    replayCachedEvents()
   })
 
   mainWindow.on("close", async (event) => {
@@ -414,11 +431,41 @@ interface UpdateInfo {
   releaseNotes?: string
 }
 
+interface UpdateProgressInfo {
+  percent: number
+  bytesPerSecond: number
+  total: number
+  transferred: number
+}
+
 let currentUpdateInfo: UpdateInfo | null = null
+let updateAvailableSent = false
+let updateDownloadedSent = false
+
+function sendToRenderer(channel: string, data?: unknown): void {
+  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents) {
+    log.info(`[Update] Sending ${channel} to renderer immediately`)
+    mainWindow.webContents.send(channel, data)
+  } else {
+    log.info(`[Update] Window not ready, caching event ${channel}`)
+    cachedUpdateState.pendingEvent = channel
+    cachedUpdateState.pendingData = data
+  }
+}
+
+function replayCachedEvents(): void {
+  if (cachedUpdateState.pendingEvent) {
+    log.info(`[Update] Replaying cached event: ${cachedUpdateState.pendingEvent}`)
+    mainWindow?.webContents.send(cachedUpdateState.pendingEvent, cachedUpdateState.pendingData)
+    cachedUpdateState.pendingEvent = undefined
+    cachedUpdateState.pendingData = undefined
+  }
+}
 
 function setupAutoUpdater() {
   autoUpdater.logger = log
   autoUpdater.autoDownload = false
+  autoUpdater.disableWebInstaller = true
 
   log.info("[Update] Electron version:", process.versions.electron)
   log.info("[Update] electron-updater version:", require("electron-updater/package.json").version)
@@ -435,16 +482,45 @@ function setupAutoUpdater() {
 
   autoUpdater.on("checking-for-update", () => {
     log.info("[Update] Checking for update...")
+    updateCheckInProgress = true
+    updateAvailableSent = false
+    updateDownloadedSent = false
+    sendToRenderer("update-checking")
   })
 
   autoUpdater.on("update-available", async (info) => {
     log.info("Update available:", info.version)
     currentUpdateInfo = info as unknown as UpdateInfo
-    mainWindow?.webContents.send("update-available", info)
+    
+    if (!updateAvailableSent) {
+      updateAvailableSent = true
+      sendToRenderer("update-available", info)
+    }
+
+    log.info("[Update] Automatically downloading update...")
+    autoUpdater.downloadUpdate().catch((error) => {
+      log.error("[Update] Failed to download update:", error)
+    })
+  })
+
+  autoUpdater.on("download-progress", (progress) => {
+    log.info("[Update] Download progress:", progress.percent, "%")
+    sendToRenderer("update-progress", {
+      percent: progress.percent,
+      bytesPerSecond: progress.bytesPerSecond,
+      total: progress.total,
+      transferred: progress.transferred,
+    })
   })
 
   autoUpdater.on("update-downloaded", async (info) => {
     log.info("Update downloaded:", info.version)
+
+    if (updateDownloadedSent) {
+      log.info("[Update] Already sent update-downloaded, skipping")
+      return
+    }
+    updateDownloadedSent = true
 
     const installerPath = (info as any).installerPath
     if (installerPath && currentUpdateInfo) {
@@ -457,17 +533,33 @@ function setupAutoUpdater() {
     }
 
     mainWindow?.webContents.send("update-downloaded", info)
+    
+    updateCheckInProgress = false
+    if (mainWindow && !mainWindow.isVisible()) {
+      mainWindow.show()
+      log.info("[Update] Update complete, showing main window")
+    }
   })
 
   autoUpdater.on("error", (error) => {
     log.error("Auto updater error:", error)
     log.error("Auto updater error stack:", error.stack)
+    updateCheckInProgress = false
+    mainWindow?.show()
+  })
+
+  autoUpdater.on("update-not-available", () => {
+    log.info("[Update] No update available")
+    updateCheckInProgress = false
+    mainWindow?.show()
   })
 
   if (!VITE_DEV_SERVER_URL) {
     autoUpdater.checkForUpdatesAndNotify().catch((error) => {
       log.error("Auto updater check failed:", error)
     })
+  } else {
+    log.info("[Update] Skipping auto update check in dev mode")
   }
 }
 
