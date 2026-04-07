@@ -7,13 +7,13 @@ import http from "node:http"
 import https from "node:https"
 import crypto from "node:crypto"
 import log from "electron-log"
-import electronUpdater from "electron-updater"
+import { autoUpdater } from "electron-updater"
 
 log.transports.file.level = "info"
 log.transports.console.level = "debug"
 
-const { autoUpdater } = electronUpdater
 autoUpdater.logger = log
+
 import { hasVenmic, hasPipeWire, listAudioSources, startAudioCapture, stopAudioCapture } from "./venmic"
 
 //app.commandLine.appendSwitch("disable-gpu")
