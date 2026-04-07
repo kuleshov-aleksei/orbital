@@ -8,6 +8,7 @@
         :id="`camera-${userId}`"
         ref="videoElement"
         class="object-contain max-h-full w-auto"
+        :class="{ 'scale-x-[-1]': shouldMirror }"
         :style="{ aspectRatio: videoAspectRatio }"
         autoplay
         playsinline
@@ -80,6 +81,7 @@ import { ref, computed, watch, onMounted, onUnmounted, useTemplateRef } from "vu
 import { PhArrowsOut, PhArrowsIn, PhPictureInPicture, PhSpinner } from "@phosphor-icons/vue"
 import type { RemoteVideoTrack, LocalVideoTrack } from "livekit-client"
 import UserAvatar from "@/components/UserAvatar.vue"
+import { useVideoSettingsStore } from "@/stores"
 
 interface Props {
   userId: string
@@ -105,6 +107,12 @@ const isFullscreen = ref(false)
 const isPiPActive = ref(false)
 const videoWidth = ref(1280)
 const videoHeight = ref(720)
+
+const videoSettingsStore = useVideoSettingsStore()
+
+const shouldMirror = computed(() => {
+  return props.isSelfView && videoSettingsStore.isMirrored
+})
 
 // Compute aspect ratio from actual video dimensions
 const videoAspectRatio = computed(() => {

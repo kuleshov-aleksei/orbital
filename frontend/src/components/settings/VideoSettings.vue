@@ -25,6 +25,27 @@
           </option>
         </select>
       </div>
+
+      <!-- Mirror Toggle -->
+      <div class="flex items-center justify-between">
+        <div>
+          <label class="text-sm font-medium text-theme-text-primary block"> Mirror Video </label>
+
+          <p class="text-xs text-theme-text-muted mt-0.5">
+            Mirror your preview for a natural self-view
+          </p>
+        </div>
+
+        <button
+          type="button"
+          class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-theme-accent focus:ring-offset-2 focus:ring-offset-theme-bg-primary"
+          :class="isMirrored ? 'bg-theme-accent' : 'bg-theme-bg-tertiary'"
+          @click="toggleMirror">
+          <span
+            class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+            :class="isMirrored ? 'translate-x-6' : 'translate-x-1'" />
+        </button>
+      </div>
     </div>
 
     <!-- Video Preview -->
@@ -33,7 +54,13 @@
 
       <div
         class="relative rounded-lg overflow-hidden bg-theme-bg-tertiary aspect-video border border-theme-border">
-        <video ref="videoRef" autoplay playsinline muted class="w-full h-full object-cover" />
+        <video
+          ref="videoRef"
+          autoplay
+          playsinline
+          muted
+          class="w-full h-full object-cover"
+          :class="{ 'scale-x-[-1]': isMirrored }" />
 
         <div
           v-if="!isPreviewActive"
@@ -72,7 +99,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from "vue"
+import { ref, onMounted, onUnmounted, watch, useTemplateRef } from "vue"
 import { useVideoSettingsStore } from "@/stores"
 import { useModalStore } from "@/stores/modal"
 import { PhCamera, PhArrowCounterClockwise } from "@phosphor-icons/vue"
@@ -84,8 +111,9 @@ defineProps<{
 const videoStore = useVideoSettingsStore()
 const modalStore = useModalStore()
 
-const videoRef = ref<HTMLVideoElement | null>(null)
+const videoRef = useTemplateRef<HTMLVideoElement>("videoRef")
 const selectedDevice = ref<string>("")
+const isMirrored = ref(true)
 const isPreviewActive = ref(false)
 const previewStream = ref<MediaStream | null>(null)
 const previewTrack = ref<MediaStreamTrack | null>(null)
@@ -102,6 +130,11 @@ function onDeviceChange() {
   if (isPreviewActive.value) {
     restartPreview()
   }
+}
+
+function toggleMirror() {
+  isMirrored.value = !isMirrored.value
+  videoStore.setIsMirrored(isMirrored.value)
 }
 
 async function startPreview() {
@@ -166,6 +199,7 @@ function resetSettings() {
   if (confirm("Reset video settings to default?")) {
     videoStore.resetSettings()
     selectedDevice.value = ""
+    isMirrored.value = true
     if (isPreviewActive.value) {
       restartPreview()
     }
@@ -183,9 +217,18 @@ watch(
 onMounted(async () => {
   videoStore.loadSettings()
   selectedDevice.value = videoStore.selectedDeviceId || ""
+  isMirrored.value = videoStore.isMirrored
   await loadDevices()
   await startPreview()
 })
+
+watch(
+  () => videoStore.isMirrored,
+  (newVal) => {
+    isMirrored.value = newVal
+  },
+  { immediate: true },
+)
 
 watch(
   () => modalStore.isUserSettingsModal,

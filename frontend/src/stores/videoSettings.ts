@@ -10,10 +10,12 @@ export interface VideoDevice {
 
 export interface VideoSettings {
   selectedDeviceId: string | null
+  isMirrored: boolean
 }
 
 const defaultVideoSettings: VideoSettings = {
   selectedDeviceId: null,
+  isMirrored: true,
 }
 
 export const useVideoSettingsStore = defineStore("videoSettings", () => {
@@ -22,6 +24,7 @@ export const useVideoSettingsStore = defineStore("videoSettings", () => {
   const availableDevices = ref<VideoDevice[]>([])
 
   const selectedDeviceId = computed(() => settings.value.selectedDeviceId)
+  const isMirrored = computed(() => settings.value.isMirrored)
 
   async function enumerateDevices(): Promise<VideoDevice[]> {
     try {
@@ -52,6 +55,11 @@ export const useVideoSettingsStore = defineStore("videoSettings", () => {
 
   function setSelectedDeviceId(deviceId: string | null) {
     settings.value.selectedDeviceId = deviceId
+    saveSettings()
+  }
+
+  function setIsMirrored(value: boolean) {
+    settings.value.isMirrored = value
     saveSettings()
   }
 
@@ -90,9 +98,11 @@ export const useVideoSettingsStore = defineStore("videoSettings", () => {
     isLoaded,
     availableDevices,
     selectedDeviceId,
+    isMirrored,
     enumerateDevices,
     requestPermissionsAndEnumerate,
     setSelectedDeviceId,
+    setIsMirrored,
     loadSettings,
     saveSettings,
     resetSettings,
