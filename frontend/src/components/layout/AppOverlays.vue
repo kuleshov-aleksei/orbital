@@ -43,7 +43,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue"
 import { useAppStore } from "@/stores"
-import { isElectron, onUpdateChecking } from "@/services/electron"
+import { isElectron, isElectronDev, onUpdateChecking } from "@/services/electron"
 import UpdateOverlay from "@/components/UpdateOverlay.vue"
 
 const appStore = useAppStore()
@@ -51,10 +51,10 @@ const appStore = useAppStore()
 const showUpdateOverlay = ref(false)
 
 onMounted(() => {
-  if (isElectron()) {
+  if (isElectron() && !isElectronDev()) {
     showUpdateOverlay.value = true
   }
-  
+
   onUpdateChecking(() => {
     showUpdateOverlay.value = true
   })

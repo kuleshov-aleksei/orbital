@@ -558,6 +558,8 @@ function setupAutoUpdater() {
     autoUpdater.checkForUpdatesAndNotify().catch((error) => {
       log.error("Auto updater check failed:", error)
     })
+  } else {
+    log.info("[Update] Skipping auto update check in dev mode")
   }
 }
 

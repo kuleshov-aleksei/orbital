@@ -1,7 +1,13 @@
 import type { DesktopSource, UpdateProgressInfo, UpdateErrorInfo } from "@/types"
 
+const isDev = import.meta.env.DEV
+
 export function isElectron(): boolean {
   return typeof window !== "undefined" && window.electronAPI !== undefined
+}
+
+export function isElectronDev(): boolean {
+  return isElectron() && isDev
 }
 
 export async function getDesktopSources(): Promise<DesktopSource[]> {
