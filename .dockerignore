@@ -5,9 +5,6 @@
 # Dependencies (will be installed in Docker)
 **/node_modules
 
-# Backend (not needed for electron build)
-backend
-
 # Build outputs and binaries
 electron/release
 bin
