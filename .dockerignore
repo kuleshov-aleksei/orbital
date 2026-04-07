@@ -1,0 +1,39 @@
+# Version control
+.git
+.gitignore
+
+# Dependencies (will be installed in Docker)
+**/node_modules
+
+# Backend (not needed for electron build)
+backend
+
+# Build outputs and binaries
+electron/release
+bin
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+
+# All documentation
+*.md
+
+# Environment files
+.env
+.env.*
+certs
+
+# Build outputs
+**/dist
+**/dist-electron
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
