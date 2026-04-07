@@ -354,6 +354,17 @@ export interface UpdateInfo {
   sha512?: string
 }
 
+export interface UpdateProgressInfo {
+  percent: number
+  bytesPerSecond: number
+  total: number
+  transferred: number
+}
+
+export interface UpdateErrorInfo {
+  message: string
+}
+
 export interface VenmicNode {
   [key: string]: string | number | boolean | undefined
 }
@@ -382,8 +393,11 @@ export interface ElectronAPI {
   getDesktopSources: () => Promise<DesktopSource[]>
   getLicenses: () => Promise<License[]>
   checkForUpdates: () => Promise<unknown>
+  onUpdateChecking: (callback: () => void) => void
   onUpdateAvailable: (callback: (info: UpdateInfo) => void) => void
+  onUpdateProgress: (callback: (info: UpdateProgressInfo) => void) => void
   onUpdateDownloaded: (callback: (info: UpdateInfo) => void) => void
+  onUpdateError: (callback: (info: UpdateErrorInfo) => void) => void
   installUpdate: () => void
   getPlatform: () => Promise<NodeJS.Platform>
   minimizeWindow: () => void
