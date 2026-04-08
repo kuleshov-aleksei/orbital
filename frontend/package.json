@@ -46,7 +46,7 @@
     "eslint": "^10.2.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-vue": "^10.8.0",
-    "globals": "^17.2.0",
+    "globals": "^17.4.0",
     "jiti": "^2.6.1",
     "patch-package": "^8.0.1",
     "postcss": "^8.4.0",
