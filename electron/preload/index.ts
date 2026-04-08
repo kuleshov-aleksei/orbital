@@ -57,6 +57,7 @@ export interface ElectronAPI {
   onUpdateProgress: (callback: (info: UpdateProgressInfo) => void) => void
   onUpdateDownloaded: (callback: (info: UpdateInfo) => void) => void
   onUpdateError: (callback: (info: UpdateErrorInfo) => void) => void
+  onUpdateNotAvailable: (callback: () => void) => void
   installUpdate: () => void
   getPlatform: () => Promise<NodeJS.Platform>
   minimizeWindow: () => void
@@ -111,6 +112,10 @@ const electronAPI: ElectronAPI = {
 
   onUpdateError: (callback) => {
     ipcRenderer.on("update-error", (_, info) => callback(info))
+  },
+
+  onUpdateNotAvailable: (callback) => {
+    ipcRenderer.on("update-not-available", () => callback())
   },
 
   installUpdate: () => {

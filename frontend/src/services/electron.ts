@@ -71,6 +71,12 @@ export function onUpdateError(callback: (info: UpdateErrorInfo) => void): void {
   }
 }
 
+export function onUpdateNotAvailable(callback: () => void): void {
+  if (isElectron()) {
+    window.electronAPI!.onUpdateNotAvailable(callback)
+  }
+}
+
 export function installUpdate(): void {
   if (isElectron()) {
     window.electronAPI!.installUpdate()

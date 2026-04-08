@@ -546,12 +546,14 @@ function setupAutoUpdater() {
     log.error("Auto updater error stack:", error.stack)
     updateCheckInProgress = false
     mainWindow?.show()
+    sendToRenderer("update-error", { message: error.message || "Failed to check for updates" })
   })
 
   autoUpdater.on("update-not-available", () => {
     log.info("[Update] No update available")
     updateCheckInProgress = false
     mainWindow?.show()
+    sendToRenderer("update-not-available")
   })
 
   if (!VITE_DEV_SERVER_URL) {

@@ -43,7 +43,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue"
 import { useAppStore } from "@/stores"
-import { isElectron, isElectronDev, onUpdateChecking } from "@/services/electron"
+import { isElectron, isElectronDev, onUpdateChecking, onUpdateError, onUpdateNotAvailable } from "@/services/electron"
 import UpdateOverlay from "@/components/UpdateOverlay.vue"
 
 const appStore = useAppStore()
@@ -57,6 +57,16 @@ onMounted(() => {
 
   onUpdateChecking(() => {
     showUpdateOverlay.value = true
+  })
+
+  onUpdateError(() => {
+    setTimeout(() => {
+      showUpdateOverlay.value = false
+    }, 3000)
+  })
+
+  onUpdateNotAvailable(() => {
+    showUpdateOverlay.value = false
   })
 })
 </script>
