@@ -27,7 +27,7 @@
     "eslint-plugin-prettier": "^5.5.5",
     "livekit-client": "^2.17.1",
     "pinia": "^3.0.4",
-    "typescript-eslint": "^8.56.1",
+    "typescript-eslint": "^8.58.1",
     "vue": "^3.5.32",
     "vue-advanced-cropper": "^2.8.9",
     "vue-boring-avatars": "^1.4.0",
