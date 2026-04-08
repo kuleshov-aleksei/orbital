@@ -37,13 +37,19 @@
     @click="appStore.closeAllMobileSidebars()"></div>
 
   <!-- Update Overlay -->
-  <UpdateOverlay v-if="showUpdateOverlay" />
+  <UpdateOverlay v-if="showUpdateOverlay" :hide-overlay="() => (showUpdateOverlay = false)" />
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from "vue"
 import { useAppStore } from "@/stores"
-import { isElectron, isElectronDev, onUpdateChecking, onUpdateError, onUpdateNotAvailable } from "@/services/electron"
+import {
+  isElectron,
+  isElectronDev,
+  onUpdateChecking,
+  onUpdateError,
+  onUpdateNotAvailable,
+} from "@/services/electron"
 import UpdateOverlay from "@/components/UpdateOverlay.vue"
 
 const appStore = useAppStore()
