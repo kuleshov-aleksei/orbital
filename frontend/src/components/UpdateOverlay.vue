@@ -3,7 +3,9 @@
     <div class="w-full max-w-md px-6">
       <div class="flex flex-col items-center">
         <div class="w-20 h-20 mb-8 rounded-2xl bg-indigo-600 flex items-center justify-center">
-          <PhArrowClockwise class="w-10 h-10 text-white" :class="{ 'animate-spin': isDownloading }" />
+          <PhArrowClockwise
+            class="w-10 h-10 text-white"
+            :class="{ 'animate-spin': isDownloading }" />
         </div>
 
         <h2 class="text-2xl font-bold text-white mb-2">Updating Orbital</h2>
@@ -19,11 +21,16 @@
           </div>
           <div class="flex justify-between text-sm text-gray-400">
             <span>{{ Math.round(progressInfo?.percent || 0) }}%</span>
-            <span>{{ formatBytes(progressInfo?.transferred || 0) }} / {{ formatBytes(progressInfo?.total || 0) }}</span>
+            <span
+              >{{ formatBytes(progressInfo?.transferred || 0) }} /
+              {{ formatBytes(progressInfo?.total || 0) }}</span
+            >
           </div>
         </div>
 
-        <div v-if="errorMessage" class="w-full mb-8 p-4 bg-red-900/30 border border-red-800 rounded-lg">
+        <div
+          v-if="errorMessage"
+          class="w-full mb-8 p-4 bg-red-900/30 border border-red-800 rounded-lg">
           <p class="text-red-400 text-center text-sm">{{ errorMessage }}</p>
         </div>
 
@@ -42,10 +49,21 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue"
 import { PhArrowClockwise } from "@phosphor-icons/vue"
-import { onUpdateAvailable, onUpdateProgress, onUpdateDownloaded, onUpdateError, installUpdate, isElectron } from "@/services/electron"
+import {
+  onUpdateAvailable,
+  onUpdateProgress,
+  onUpdateDownloaded,
+  onUpdateError,
+  onUpdateNotAvailable,
+  installUpdate,
+} from "@/services/electron"
 import type { UpdateProgressInfo } from "@/types"
 
-type UpdateStatus = "checking" | "downloading" | "verifying" | "ready" | "error"
+type UpdateStatus = "checking" | "downloading" | "verifying" | "ready" | "error" | "not-available"
+
+const props = defineProps<{
+  hideOverlay: () => void
+}>()
 
 const status = ref<UpdateStatus>("checking")
 const progressInfo = ref<UpdateProgressInfo | null>(null)
@@ -70,6 +88,8 @@ const statusText = computed(() => {
       return "Update ready to install"
     case "error":
       return "An error occurred"
+    case "not-available":
+      return "No updates available"
     default:
       return ""
   }
@@ -88,7 +108,7 @@ function install() {
 }
 
 onMounted(() => {
-  onUpdateAvailable((info) => {
+  onUpdateAvailable(() => {
     status.value = "downloading"
   })
 
@@ -107,6 +127,12 @@ onMounted(() => {
   onUpdateError((info) => {
     errorMessage.value = info.message
     status.value = "error"
+    props.hideOverlay()
+  })
+
+  onUpdateNotAvailable(() => {
+    status.value = "not-available"
+    props.hideOverlay()
   })
 })
 </script>
