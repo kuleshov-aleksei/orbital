@@ -1,19 +1,22 @@
 version: 2
+
+multi-ecosystem-groups:
+  web:
+    schedule:
+      interval: "weekly"
+
 updates:
   - package-ecosystem: "npm"
     directory: "/frontend"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 10
+    patterns: ["*"]
+    multi-ecosystem-group: "web"
 
   - package-ecosystem: "npm"
     directory: "/electron"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 10
+    patterns: ["*"]
+    multi-ecosystem-group: "web"
 
   - package-ecosystem: "gomod"
     directory: "/backend"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
