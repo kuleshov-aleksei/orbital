@@ -38,7 +38,7 @@
     "@iconify-json/logos": "^1.2.11",
     "@iconify-json/simple-icons": "^1.2.0",
     "@playwright/test": "^1.50.0",
-    "@types/node": "^20.0.0",
+    "@types/node": "^25.5.2",
     "@types/webrtc": "^0.0.47",
     "@vitejs/plugin-vue": "^6.0.4",
     "@vue/eslint-config-typescript": "^14.7.0",
