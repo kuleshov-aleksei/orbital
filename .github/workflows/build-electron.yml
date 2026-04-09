@@ -19,7 +19,7 @@ jobs:
       - name: Extract version
         id: get_version
         run: |
-          VERSION=$(./scripts/version.sh)
+          VERSION=${GITHUB_REF_NAME#v}
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "Building version: $VERSION"
 
