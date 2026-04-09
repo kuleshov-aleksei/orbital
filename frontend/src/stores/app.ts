@@ -5,6 +5,15 @@ import { isElectron } from "@/services/electron"
 export type ConnectionQuality = "excellent" | "good" | "fair" | "poor"
 export type MobileView = "rooms" | "room"
 
+export type UpdateState =
+  | "idle"
+  | "checking"
+  | "available"
+  | "downloading"
+  | "ready"
+  | "error"
+  | "not-available"
+
 export const useAppStore = defineStore("app", () => {
   // State
   const isLoading = ref(false)
@@ -18,6 +27,15 @@ export const useAppStore = defineStore("app", () => {
   // Connection state
   const connectionPing = ref(0)
   const connectionQuality = ref<ConnectionQuality>("excellent")
+
+  // Update state
+  const updateState = ref<UpdateState>("idle")
+  const updateError = ref<string | null>(null)
+  const updateProgress = ref({
+    percent: 0,
+    transferred: 0,
+    total: 0,
+  })
 
   // Getters
   const hasError = computed(() => !!errorMessage.value)
@@ -96,6 +114,15 @@ export const useAppStore = defineStore("app", () => {
     connectionQuality.value = quality
   }
 
+  function setUpdateState(state: UpdateState, error: string | null = null) {
+    updateState.value = state
+    updateError.value = error
+  }
+
+  function setUpdateProgress(percent: number, transferred: number, total: number) {
+    updateProgress.value = { percent, transferred, total }
+  }
+
   return {
     isLoading,
     isConnecting,
@@ -109,6 +136,9 @@ export const useAppStore = defineStore("app", () => {
     hasError,
     isRoomView,
     isRoomsView,
+    updateState,
+    updateError,
+    updateProgress,
     setLoading,
     setConnecting,
     setError,
@@ -125,5 +155,7 @@ export const useAppStore = defineStore("app", () => {
     setConnectionPing,
     setConnectionQuality,
     updateConnectionStatus,
+    setUpdateState,
+    setUpdateProgress,
   }
 })

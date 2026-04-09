@@ -37,16 +37,24 @@
     @click="appStore.closeAllMobileSidebars()"></div>
 
   <!-- Update Overlay -->
-  <UpdateOverlay v-if="showUpdateOverlay" :hide-overlay="() => (showUpdateOverlay = false)" />
+  <UpdateOverlay
+    v-if="showUpdateOverlay"
+    :update-state="appStore.updateState"
+    :update-error="appStore.updateError"
+    :update-progress="appStore.updateProgress"
+    @retry="retryUpdate"
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue"
+import { computed, onMounted } from "vue"
 import { useAppStore } from "@/stores"
 import {
   isElectron,
   isElectronDev,
   onUpdateChecking,
+  onUpdateAvailable,
+  onUpdateProgress,
+  onUpdateDownloaded,
   onUpdateError,
   onUpdateNotAvailable,
 } from "@/services/electron"
@@ -54,25 +62,50 @@ import UpdateOverlay from "@/components/UpdateOverlay.vue"
 
 const appStore = useAppStore()
 
-const showUpdateOverlay = ref(false)
+const showUpdateOverlay = computed(() => {
+  return (
+    isElectron() &&
+    !isElectronDev() &&
+    appStore.updateState !== "idle" &&
+    appStore.updateState !== "not-available"
+  )
+})
+
+function retryUpdate() {
+  appStore.setUpdateState("checking")
+}
 
 onMounted(() => {
   if (isElectron() && !isElectronDev()) {
-    showUpdateOverlay.value = true
+    appStore.setUpdateState("checking")
   }
 
   onUpdateChecking(() => {
-    showUpdateOverlay.value = true
+    appStore.setUpdateState("checking")
   })
 
-  onUpdateError(() => {
-    setTimeout(() => {
-      showUpdateOverlay.value = false
-    }, 3000)
+  onUpdateAvailable(() => {
+    appStore.setUpdateState("available")
+  })
+
+  onUpdateProgress((info) => {
+    appStore.setUpdateState("downloading")
+    appStore.setUpdateProgress(info.percent, info.transferred, info.total)
+  })
+
+  onUpdateDownloaded(() => {
+    appStore.setUpdateState("ready")
+  })
+
+  onUpdateError((info) => {
+    appStore.setUpdateState("error", info.message)
   })
 
   onUpdateNotAvailable(() => {
-    showUpdateOverlay.value = false
+    appStore.setUpdateState("not-available")
+    setTimeout(() => {
+      appStore.setUpdateState("idle")
+    }, 2000)
   })
 })
 </script>
