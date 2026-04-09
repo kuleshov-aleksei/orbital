@@ -42,7 +42,7 @@
     :update-state="appStore.updateState"
     :update-error="appStore.updateError"
     :update-progress="appStore.updateProgress"
-    @retry="retryUpdate"
+    @retry="retryUpdate" />
 </template>
 
 <script setup lang="ts">
@@ -63,12 +63,9 @@ import UpdateOverlay from "@/components/UpdateOverlay.vue"
 const appStore = useAppStore()
 
 const showUpdateOverlay = computed(() => {
-  return (
-    isElectron() &&
-    !isElectronDev() &&
-    appStore.updateState !== "idle" &&
-    appStore.updateState !== "not-available"
-  )
+  if (!isElectron() || isElectronDev()) return false
+  const showStates = ["checking", "available", "downloading", "ready"]
+  return showStates.includes(appStore.updateState)
 })
 
 function retryUpdate() {
@@ -76,10 +73,6 @@ function retryUpdate() {
 }
 
 onMounted(() => {
-  if (isElectron() && !isElectronDev()) {
-    appStore.setUpdateState("checking")
-  }
-
   onUpdateChecking(() => {
     appStore.setUpdateState("checking")
   })
