@@ -1,25 +1,27 @@
 <template>
-  <div class="relative overflow-hidden rounded-full" :style="containerStyle">
+  <div class="relative" :style="containerStyle">
     <!-- Profile Image Avatar -->
-    <img
-      v-if="displayAvatarUrl && !imageError"
-      :src="displayAvatarUrl"
-      :alt="displayNickname"
-      class="w-full h-full object-cover"
-      :class="{ grayscale: grayscale }"
-      @error="handleImageError" />
-    <!-- Generated Avatar (fallback) -->
-    <Avatar
-      v-else
-      :name="displayNickname"
-      :colors="avatarColors"
-      variant="beam"
-      :size="size"
-      :class="{ grayscale: grayscale }" />
+    <div class="w-full h-full rounded-full overflow-hidden">
+      <img
+        v-if="displayAvatarUrl && !imageError"
+        :src="displayAvatarUrl"
+        :alt="displayNickname"
+        class="w-full h-full object-cover"
+        :class="{ grayscale: grayscale }"
+        @error="handleImageError" />
+      <!-- Generated Avatar (fallback) -->
+      <Avatar
+        v-else
+        :name="displayNickname"
+        :colors="avatarColors"
+        variant="beam"
+        :size="size"
+        :class="{ grayscale: grayscale }" />
+    </div>
     <!-- Status Indicator -->
     <div
       v-if="showStatus"
-      class="absolute bottom-0 right-0 rounded-full border-2 border-gray-800"
+      class="absolute -bottom-0.5 -right-0.5 rounded-full border-2 border-gray-800"
       :class="statusClasses"
       :style="statusStyle"></div>
   </div>
