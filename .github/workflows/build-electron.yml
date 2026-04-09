@@ -44,7 +44,7 @@ jobs:
           artifacts: "electron/release/*.exe,electron/release/*.exe.sha256,electron/release/*.AppImage,electron/release/*.deb,electron/release/latest.yml"
           token: ${{ secrets.UAT_TOKEN }}
           commit: ${{ github.sha }}
-          tag: desktop-v${{ env.VERSION }}
+          tag: ${{ env.VERSION }}
           name: Desktop v${{ env.VERSION }}
           body: "Automated build"
           draft: true
