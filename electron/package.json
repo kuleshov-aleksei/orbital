@@ -39,6 +39,7 @@
     "@iconify-json/logos": "^1.2.10",
     "@iconify-json/simple-icons": "^1.2.77",
     "@tailwindcss/postcss": "^4.2.2",
+    "@tailwindcss/vite": "^4.2.2",
     "@types/node": "^25.5.2",
     "@vitejs/plugin-vue": "^6.0.5",
     "autoprefixer": "^10.4.19",

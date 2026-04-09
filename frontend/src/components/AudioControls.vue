@@ -25,7 +25,7 @@
     <button
       v-if="isMobile"
       type="button"
-      class="control-button bg-theme-bg-tertiary hover:bg-theme-bg-hover"
+      class="w-12 h-12 rounded-full flex items-center justify-center bg-theme-bg-tertiary hover:bg-theme-bg-hover transition-colors duration-200"
       title="Settings"
       @click="openSettings">
       <PhGearSix class="w-5 h-5" />
@@ -34,7 +34,7 @@
     <!-- Leave Room -->
     <button
       type="button"
-      class="control-button bg-red-600 hover:bg-red-700"
+      class="w-12 h-12 rounded-full flex items-center justify-center bg-red-600 hover:bg-red-700 transition-colors duration-200"
       @click="handleLeaveRoom">
       <PhSignOut class="w-5 h-5" />
     </button>
@@ -130,9 +130,3 @@ defineExpose({
   confirmStartScreenShare,
 })
 </script>
-
-<style scoped>
-.control-button {
-  @apply w-12 h-12 rounded-full flex items-center justify-center transition-colors duration-200;
-}
-</style>

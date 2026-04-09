@@ -4,7 +4,7 @@ import vue from "@vitejs/plugin-vue"
 import electron from "vite-plugin-electron/simple"
 import Icons from "unplugin-icons/vite"
 import compression from "vite-plugin-compression"
-import tailwindcss from "@tailwindcss/postcss"
+import tailwindcss from "@tailwindcss/vite"
 import autoprefixer from "autoprefixer"
 import { resolve, dirname } from "path"
 import { fileURLToPath } from "url"
@@ -67,6 +67,7 @@ export default defineConfig(({ command, mode }) => {
         compiler: "vue3",
         autoInstall: true,
       }),
+      tailwindcss(),
       compression({
         algorithm: "gzip",
         ext: ".gz",
@@ -119,9 +120,6 @@ export default defineConfig(({ command, mode }) => {
     ],
     root: resolve(frontendPath),
     base: "./",
-    postcss: {
-      plugins: [tailwindcss(), autoprefixer()],
-    },
     resolve: {
       alias: {
         "@": resolve(frontendPath, "src"),

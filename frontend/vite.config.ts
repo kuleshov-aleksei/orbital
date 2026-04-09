@@ -2,6 +2,7 @@ import { defineConfig } from "vite"
 import vue from "@vitejs/plugin-vue"
 import Icons from "unplugin-icons/vite"
 import compression from "vite-plugin-compression"
+import tailwindcss from "@tailwindcss/vite"
 import { resolve } from "path"
 import { readFileSync } from "fs"
 
@@ -15,6 +16,7 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(appVersion),
   },
   plugins: [
+    tailwindcss(),
     vue(),
     Icons({
       compiler: "vue3",
@@ -40,9 +42,13 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          "vendor-livekit": ["livekit-client"],
-          "vendor-avatar": ["vue-advanced-cropper", "vue-boring-avatars"],
+        manualChunks: (id) => {
+          if (id.includes("livekit-client")) {
+            return "vendor-livekit"
+          }
+          if (id.includes("vue-advanced-cropper") || id.includes("vue-boring-avatars")) {
+            return "vendor-avatar"
+          }
         },
       },
     },

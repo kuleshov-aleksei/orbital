@@ -1,5 +1,5 @@
 <template>
-  <div class="user-control-panel bg-theme-bg-secondary border-t border-theme-border">
+  <div class="user-control-panel transition-all duration-200 bg-theme-bg-secondary border-t border-theme-border">
     <!-- Expanded Panel - Only Visible When In Call (appears above base panel) -->
     <div v-if="isInCall" class="border-b border-theme-border p-3">
       <div class="flex items-center justify-between">
@@ -186,9 +186,3 @@ const openSettings = () => {
   emit("open-settings")
 }
 </script>
-
-<style scoped>
-.user-control-panel {
-  @apply transition-all duration-200;
-}
-</style>
