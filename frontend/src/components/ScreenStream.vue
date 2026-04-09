@@ -55,7 +55,8 @@
 
       <!-- Controls Overlay -->
       <div
-        class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-4 py-3 opacity-0 hover:opacity-100 transition-opacity duration-200">
+        class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-4 py-3 transition-opacity duration-200"
+          :class="{ 'opacity-100': isHovered, 'opacity-0': !isHovered }">
         <div class="flex items-center justify-between">
           <!-- Left: Make Focus Button (only when not focused in multi-stream mode) -->
           <div v-if="!isFocused && showFocusButton">
