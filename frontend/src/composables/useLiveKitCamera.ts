@@ -96,8 +96,8 @@ export function useLiveKitCamera(state: LiveKitState) {
     state.isStartingCamera.value = true
 
     try {
-      const videoOptions: { resolution: typeof VideoPresets.h720; deviceId?: string } = {
-        resolution: VideoPresets.h720,
+      const videoOptions: { resolution: typeof VideoPresets.h1080; deviceId?: string } = {
+        resolution: VideoPresets.h1080,
       }
 
       if (videoSettingsStore.selectedDeviceId) {
