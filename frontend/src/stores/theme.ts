@@ -5,6 +5,14 @@ export type Theme = "default" | "true-black" | "retrowave" | "catppuccin" | "sol
 
 const THEME_STORAGE_KEY = "orbital_theme"
 
+function applyTheme(theme: Theme): void {
+  if (theme === "default") {
+    document.documentElement.removeAttribute("data-theme")
+  } else {
+    document.documentElement.setAttribute("data-theme", theme)
+  }
+}
+
 function getStoredTheme(): Theme {
   try {
     const stored = localStorage.getItem(THEME_STORAGE_KEY)
@@ -33,9 +41,11 @@ function saveTheme(theme: Theme): void {
 
 export const useThemeStore = defineStore("theme", () => {
   const currentTheme = ref<Theme>(getStoredTheme())
+  applyTheme(currentTheme.value)
 
   function setTheme(theme: Theme) {
     currentTheme.value = theme
+    applyTheme(theme)
     saveTheme(theme)
   }
 
