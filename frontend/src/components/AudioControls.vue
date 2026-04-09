@@ -1,6 +1,6 @@
 <template>
   <div
-    class="flex items-center justify-center space-x-4 flex-shrink-0 px-4 py-3 bg-theme-bg-primary/80 backdrop-blur-sm">
+    class="flex items-center justify-center space-x-4 shrink-0 px-4 py-3">
     <!-- Mute/Unmute -->
     <MicMuteButton v-model="isMuted" size="lg" />
 
