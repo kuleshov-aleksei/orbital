@@ -2,24 +2,7 @@
   <div
     ref="cardElement"
     class="participant-card overflow-visible relative rounded-lg cursor-pointer transition-all duration-200 border-2"
-    :class="[
-      !isCurrentUser &&
-      !isViewing &&
-      ((isScreenSharing && screenShareStream) || (isCameraEnabled && cameraStream)) &&
-      !forceAudioMode
-        ? 'aspect-video bg-theme-bg-primary'
-        : 'aspect-square',
-      isCurrentUser && (!isScreenSharing || forceAudioMode)
-        ? 'bg-theme-accent/30 border-theme-accent'
-        : !isScreenSharing || forceAudioMode
-          ? 'bg-theme-bg-secondary border-theme-border'
-          : '',
-      isSpeaking && isCurrentUser && (!isScreenSharing || forceAudioMode)
-        ? 'border-theme-accent'
-        : isSpeaking && (!isScreenSharing || forceAudioMode)
-          ? 'border-green-500'
-          : '',
-    ]"
+    :class="cardClasses"
     @contextmenu="handleContextMenu"
     @click="handleCardClick"
     @mouseenter="handleMouseEnter"
@@ -329,14 +312,12 @@
     <template
       v-if="
         !isCurrentUser &&
-        !isViewing &&
         ((isScreenSharing && screenShareStream) || (isCameraEnabled && cameraStream)) &&
         !forceAudioMode
       ">
       <!-- Show the stream that is NOT in the main view, or the only available stream -->
       <div class="relative w-full h-full">
-        <!-- Show Screen Share when: camera is main (both exist), OR only screen share exists -->
-        <!-- Only show if screen share exists -->
+        <!-- Show Screen Share when NOT viewing (camera main by default), OR when viewing AND screen is in main -->
         <video
           v-if="screenShareStream && (!cameraStream || showCameraAsMain)"
           ref="screenVideoElement"
@@ -346,8 +327,7 @@
           muted
           @loadedmetadata="onScreenVideoLoaded" />
 
-        <!-- Show Camera when: screen is main (both exist), OR only camera exists -->
-        <!-- Only show if camera exists -->
+        <!-- Show Camera when NOT viewing (screen main by default), OR when viewing AND camera is in main -->
         <video
           v-if="cameraStream && (!screenShareStream || !showCameraAsMain)"
           ref="cameraVideoElement"
@@ -357,30 +337,6 @@
           muted
           @loadedmetadata="onCameraVideoLoaded" />
 
-        <!-- Toggle hint overlay - only show when both streams available -->
-        <div
-          v-show="
-            isScreenSharing &&
-            isCameraEnabled &&
-            screenShareStream &&
-            cameraStream &&
-            showCameraAsMain
-          "
-          class="absolute bottom-2 right-2 bg-indigo-600/80 backdrop-blur-sm px-2 py-1 rounded text-xs text-white flex items-center gap-1 z-10 pointer-events-none">
-          <PhCamera class="w-3 h-3" />
-        </div>
-
-        <div
-          v-show="
-            isScreenSharing &&
-            isCameraEnabled &&
-            screenShareStream &&
-            cameraStream &&
-            !showCameraAsMain
-          "
-          class="absolute bottom-2 right-2 bg-purple-600/80 backdrop-blur-sm px-2 py-1 rounded text-xs text-white flex items-center gap-1 z-10 pointer-events-none">
-          <PhMonitorPlay class="w-3 h-3" />
-        </div>
 
         <!-- Floating nickname overlay -->
         <div class="absolute top-2 left-2 right-2 flex items-center justify-between z-10">
@@ -471,7 +427,7 @@
           class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white text-sm font-medium flex items-center transition-colors shadow-lg"
           @click.stop="$emit('subscribe-screen-share', userId)">
           <PhPlay class="w-4 h-4 mr-2" />
-          View Screen Share
+          View
         </button>
       </div>
     </template>
@@ -602,8 +558,35 @@ const isSpeaking = computed(() => {
   if (props.isCurrentUser) {
     return roomStore.localAudioLevel > 0.01
   }
-  // Use LiveKit's built-in isSpeaking flag from presence store (more reliable than checking audioLevel)
   return presenceStore.getParticipant(props.userId)?.isSpeaking ?? false
+})
+
+const cardClasses = computed(() => {
+  const classes: string[] = []
+
+  // Aspect ratio
+  if (isVideoMode.value) {
+    classes.push('aspect-video bg-theme-bg-primary')
+  } else {
+    classes.push('aspect-square')
+  }
+
+  // Background and border
+  if (props.isCurrentUser && (!props.isScreenSharing || props.forceAudioMode)) {
+    classes.push('bg-theme-accent/30 border-theme-accent')
+  } else if (!props.isScreenSharing || props.forceAudioMode) {
+    classes.push('bg-theme-bg-secondary border-theme-border')
+  }
+
+  // Speaking border
+  const showSpeakingBorder = !props.isScreenSharing || props.forceAudioMode
+  if (isSpeaking.value && props.isCurrentUser && showSpeakingBorder) {
+    classes.push('border-theme-accent')
+  } else if (isSpeaking.value && showSpeakingBorder) {
+    classes.push('border-green-500')
+  }
+
+  return classes
 })
 
 const hasStats = computed(() => {
