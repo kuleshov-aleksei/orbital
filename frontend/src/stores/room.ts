@@ -12,6 +12,7 @@ export const useRoomStore = defineStore("room", () => {
   const remoteStreamVolumes = ref<Map<string, number>>(new Map())
   const localMutedUsers = ref<Set<string>>(new Set())
   const localAudioLevel = ref<number>(0)
+  const userScreenShareViewMode = ref<Map<string, "camera" | "screen">>(new Map())
 
   // Getters
   const activeRoom = computed(() => rooms.value.find((r) => r.id === activeRoomId.value) || null)
@@ -277,7 +278,7 @@ export const useRoomStore = defineStore("room", () => {
       }
     }
 
-    rooms.value.forEach((room, _roomIndex) => {
+    rooms.value.forEach((room) => {
       if (room.users) {
         const userIdx = room.users.findIndex((u) => u.id === userId)
         if (userIdx !== -1 && room.users) {
@@ -319,6 +320,20 @@ export const useRoomStore = defineStore("room", () => {
     return null
   }
 
+  function normalizeUserId(userId: string): string {
+    return userId.replace(/-self$/, "")
+  }
+
+  function setUserShowCameraAsMain(userId: string, showCamera: boolean) {
+    const normalizedId = normalizeUserId(userId)
+    userScreenShareViewMode.value.set(normalizedId, showCamera ? "camera" : "screen")
+  }
+
+  function getUserShowCameraAsMain(userId: string): boolean {
+    const normalizedId = normalizeUserId(userId)
+    return userScreenShareViewMode.value.get(normalizedId) === "camera"
+  }
+
   return {
     rooms,
     activeRoomId,
@@ -353,5 +368,9 @@ export const useRoomStore = defineStore("room", () => {
     reorderRooms,
     moveRoomToCategory,
     loadUserVolumes,
+    userScreenShareViewMode,
+    normalizeUserId,
+    setUserShowCameraAsMain,
+    getUserShowCameraAsMain,
   }
 })

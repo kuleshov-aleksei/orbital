@@ -7,7 +7,7 @@
       <video
         :id="`camera-${userId}`"
         ref="videoElement"
-        class="object-contain max-h-full w-auto"
+        class="object-contain max-h-full w-full"
         :class="{ 'scale-x-[-1]': shouldMirror }"
         :style="{ aspectRatio: videoAspectRatio }"
         autoplay
@@ -23,7 +23,7 @@
           <div class="flex items-center">
             <UserAvatar class="mr-2" :user-id="userId" :size="24" :show-status="false" />
 
-            <div class="text-theme-text-primary font-medium text-sm truncate max-w-[150px]">
+            <div class="text-theme-text-primary font-medium text-sm truncate max-w-37.5">
               {{ userNickname }}
             </div>
           </div>
