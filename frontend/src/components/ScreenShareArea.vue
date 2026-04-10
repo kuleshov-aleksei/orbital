@@ -74,8 +74,10 @@
               (!participant.isScreenSharing && !participant.isCameraEnabled)
             "
             :is-compact="true"
+            :has-available-screen-share="isParticipantAvailableScreenShare(participant.userId)"
             class="w-20 lg:w-auto flex-shrink-0 lg:flex-shrink max-h-14"
-            @card-click="handleParticipantCardClick(participant.userId)" />
+            @card-click="handleParticipantCardClick(participant.userId)"
+            @subscribe-screen-share="$emit('subscribe-screen-share', $event)" />
         </div>
       </div>
 
@@ -372,6 +374,12 @@ const focusedPlaceholder = computed(() => {
 const isParticipantViewingMainStream = (userId: string): boolean => {
   if (!focusedStream.value) return false
   return userId === focusedStream.value.userId || userId + "-self" === focusedStream.value.userId
+}
+
+// Check if a participant has an available (not subscribed) screen share
+const isParticipantAvailableScreenShare = (userId: string): boolean => {
+  const normalizedId = normalizeUserId(userId)
+  return props.availableScreenShares.some((s) => normalizeUserId(s.userId) === normalizedId)
 }
 
 // Combine screen shares and cameras, sorted by user ID to keep same user's streams together

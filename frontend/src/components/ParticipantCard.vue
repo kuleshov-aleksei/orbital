@@ -440,7 +440,7 @@
       <!-- Stream Indicators -->
       <div class="absolute top-2 left-2 flex gap-1">
         <div
-          v-if="isScreenSharing"
+          v-if="isScreenSharing && !hasAvailableScreenShare"
           class="w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center"
           :title="'Sharing screen'">
           <PhMonitorPlay class="w-3 h-3 text-white" />
@@ -452,6 +452,27 @@
           :title="'Camera enabled'">
           <PhCamera class="w-3 h-3 text-white" />
         </div>
+
+        <!-- Available Screen Share Prompt -->
+        <div
+          v-if="hasAvailableScreenShare && !isCurrentUser"
+          class="w-6 h-6 bg-yellow-600 rounded-full flex items-center justify-center"
+          title="Screen share available">
+          <PhMonitor class="w-3 h-3 text-white" />
+        </div>
+      </div>
+
+      <!-- Available Screen Share Prompt Button -->
+      <div
+        v-if="hasAvailableScreenShare && !isCurrentUser"
+        class="absolute inset-0 flex items-center justify-center z-20">
+        <button
+          type="button"
+          class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white text-sm font-medium flex items-center transition-colors shadow-lg"
+          @click.stop="$emit('subscribe-screen-share', userId)">
+          <PhPlay class="w-4 h-4 mr-2" />
+          View Screen Share
+        </button>
       </div>
     </template>
 
@@ -462,7 +483,14 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick, useTemplateRef } from "vue"
-import { PhMicrophoneSlash, PhMonitorPlay, PhCamera, PhHeadphones } from "@phosphor-icons/vue"
+import {
+  PhMicrophoneSlash,
+  PhMonitorPlay,
+  PhCamera,
+  PhHeadphones,
+  PhMonitor,
+  PhPlay,
+} from "@phosphor-icons/vue"
 import { useRoomStore, usePresenceStore, useCallStore } from "@/stores"
 import UserAvatar from "@/components/UserAvatar.vue"
 import UserContextMenu from "@/components/UserContextMenu.vue"
@@ -487,6 +515,8 @@ interface Props {
   isCompact?: boolean // If true, show compact layout for sidebar
   // Sync state with parent for stream toggle
   modelValueShowCameraAsMain?: boolean // true = camera in main view, false = screen share in main view
+  // Available screen share (not subscribed yet)
+  hasAvailableScreenShare?: boolean // If true, show "View Screen Share" prompt
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -504,11 +534,13 @@ const props = withDefaults(defineProps<Props>(), {
   isViewing: false,
   isCompact: false,
   modelValueShowCameraAsMain: false,
+  hasAvailableScreenShare: false,
 })
 
 const emit = defineEmits<{
   "card-click": [userId: string]
   "update:modelValueShowCameraAsMain": [value: boolean]
+  "subscribe-screen-share": [userId: string]
 }>()
 
 // Store
