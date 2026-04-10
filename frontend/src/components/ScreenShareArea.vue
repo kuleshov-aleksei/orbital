@@ -58,6 +58,8 @@
             :user-nickname="participant.userNickname"
             :screen-share-stream="participant.screenShareStream"
             :camera-stream="participant.cameraStream"
+            :screen-share-track="participant.screenShareTrack"
+            :camera-track="participant.cameraTrack"
             :initial-volume="participant.initialVolume"
             :is-deafened="participant.isDeafened"
             :is-screen-sharing="participant.isScreenSharing"
@@ -185,6 +187,9 @@ interface ParticipantData {
   userNickname: string
   screenShareStream: MediaStream | null
   cameraStream: MediaStream | null
+  // LiveKit tracks to pass for proper streaming
+  screenShareTrack?: RemoteVideoTrack | LocalVideoTrack | null
+  cameraTrack?: RemoteVideoTrack | LocalVideoTrack | null
   initialVolume?: number
   isDeafened?: boolean
   isScreenSharing?: boolean
@@ -433,8 +438,18 @@ const allParticipants = computed((): ParticipantData[] => {
 
       const cachedStream = streamCache.value.get(cacheKey)
       if (cachedStream) {
-        // Use cached stream
-        screenShareStream = cachedStream
+        // Use cached stream - check if still valid
+        if (cachedStream.getVideoTracks().length > 0 && cachedStream.getVideoTracks()[0].enabled) {
+          screenShareStream = cachedStream
+        } else {
+          // Track disabled - create fresh
+          const tracks: MediaStreamTrack[] = [screenShare.videoTrack.mediaStreamTrack]
+          if (screenShare.audioTrack) {
+            tracks.push(screenShare.audioTrack.mediaStreamTrack)
+          }
+          screenShareStream = new MediaStream(tracks)
+          streamCache.value.set(cacheKey, screenShareStream)
+        }
       } else {
         // Create new MediaStream and cache it
         const tracks: MediaStreamTrack[] = [screenShare.videoTrack.mediaStreamTrack]
@@ -454,7 +469,14 @@ const allParticipants = computed((): ParticipantData[] => {
 
       const cachedStream = streamCache.value.get(cacheKey)
       if (cachedStream) {
-        cameraStream = cachedStream
+        // Use cached stream - check if still valid
+        if (cachedStream.getVideoTracks().length > 0 && cachedStream.getVideoTracks()[0].enabled) {
+          cameraStream = cachedStream
+        } else {
+          // Track disabled - create fresh
+          cameraStream = new MediaStream([camera.videoTrack.mediaStreamTrack])
+          streamCache.value.set(cacheKey, cameraStream)
+        }
       } else {
         cameraStream = new MediaStream([camera.videoTrack.mediaStreamTrack])
         streamCache.value.set(cacheKey, cameraStream)
@@ -472,6 +494,9 @@ const allParticipants = computed((): ParticipantData[] => {
       isCameraEnabled,
       screenShareQuality: props.userScreenShareStates.get(user.id)?.quality,
       isCurrentUser,
+      // Pass LiveKit tracks for sidebar streaming
+      screenShareTrack: screenShare?.videoTrack || null,
+      cameraTrack: camera?.videoTrack || null,
       stats: props.getParticipantStats?.(user.id),
     }
   })

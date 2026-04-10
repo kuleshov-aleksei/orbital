@@ -453,11 +453,16 @@ import UserContextMenu from "@/components/UserContextMenu.vue"
 import { useUserContextMenu } from "@/composables/useUserContextMenu"
 import type { ScreenShareQuality, ConnectionStats } from "@/types"
 
+import type { RemoteVideoTrack, LocalVideoTrack } from "livekit-client"
+
 interface Props {
   userId: string
   userNickname: string
   screenShareStream: MediaStream | null
   cameraStream?: MediaStream | null // Camera video stream
+  // LiveKit tracks for sidebar attachment (preferred over MediaStream)
+  screenShareTrack?: RemoteVideoTrack | LocalVideoTrack | null
+  cameraTrack?: RemoteVideoTrack | LocalVideoTrack | null
   initialVolume?: number
   isDeafened?: boolean
   isScreenSharing?: boolean
@@ -552,6 +557,19 @@ watch(isVideoMode, (isActive) => {
     })
   }
 })
+
+// Watch for video element ref appearing
+watch(screenVideoElement, (el) => {
+  if (el && isVideoMode.value && props.screenShareStream) {
+    setupVideoStream(el, props.screenShareStream, props.screenShareTrack || undefined)
+  }
+}, { immediate: true })
+
+watch(cameraVideoElement, (el) => {
+  if (el && isVideoMode.value && props.cameraStream) {
+    setupVideoStream(el, props.cameraStream, props.cameraTrack || undefined)
+  }
+}, { immediate: true })
 
 // Computed
 const isSpeaking = computed(() => {
@@ -705,43 +723,44 @@ const onCameraVideoLoaded = () => {
   // Video loaded successfully
 }
 
-const setupVideoStream = (element: HTMLVideoElement | null, stream: MediaStream | null) => {
-  if (!element || !stream) return
+const setupVideoStream = (element: HTMLVideoElement | null, stream: MediaStream | null, lkTrack?: RemoteVideoTrack | LocalVideoTrack | null) => {
+  if (!element) return
 
-  // Check if stream has video tracks and they're active
-  const videoTracks = stream.getVideoTracks()
-  if (videoTracks.length === 0 || !videoTracks[0].enabled) {
+  // Use LiveKit's attach for proper streaming
+  if (lkTrack) {
+    try {
+      lkTrack.attach(element)
+    } catch (e) {
+      console.warn(`[ParticipantCard] LiveKit attach failed:`, e)
+    }
     return
   }
 
-  // Set the stream
-  element.srcObject = stream
+  // Fallback to MediaStream
+  if (!stream) return
 
-  // Wait for metadata to load before playing
-  const attemptPlay = () => {
-    element.play().catch(() => {
-      // Silently ignore play errors (AbortError is normal during rapid changes)
-    })
+  // Check if stream has video tracks and they're active
+  const videoTracks = stream.getVideoTracks()
+  if (videoTracks.length === 0 || !videoTracks[0].enabled) return
+
+  // Only set srcObject if different to avoid disrupting playing video
+  if (element.srcObject !== stream) {
+    element.srcObject = stream
   }
 
-  if (element.readyState >= 1) {
-    // HAVE_METADATA or higher - play immediately
-    attemptPlay()
-  } else {
-    // Wait for metadata to load
-    element.addEventListener("loadedmetadata", attemptPlay, { once: true })
+  // Play if paused
+  if (element.paused) {
+    element.play().catch(() => {})
   }
 }
 
 const setupAllVideoStreams = () => {
-  // Setup screen share video (shown in ParticipantCard when camera is in main view)
   if (props.screenShareStream && screenVideoElement.value) {
-    setupVideoStream(screenVideoElement.value, props.screenShareStream)
+    setupVideoStream(screenVideoElement.value, props.screenShareStream, props.screenShareTrack || undefined)
   }
 
-  // Setup camera video (shown in ParticipantCard when screen share is in main view)
   if (props.cameraStream && cameraVideoElement.value) {
-    setupVideoStream(cameraVideoElement.value, props.cameraStream)
+    setupVideoStream(cameraVideoElement.value, props.cameraStream, props.cameraTrack || undefined)
   }
 }
 
@@ -750,7 +769,7 @@ const setupAllVideoStreams = () => {
 watch(
   () => props.screenShareStream,
   (newStream, oldStream) => {
-    if (newStream && newStream !== oldStream) {
+    if (newStream && newStream !== oldStream && isVideoMode.value) {
       setTimeout(() => {
         void nextTick(() => {
           setupAllVideoStreams()
@@ -764,7 +783,7 @@ watch(
 watch(
   () => props.cameraStream,
   (newStream, oldStream) => {
-    if (newStream && newStream !== oldStream) {
+    if (newStream && newStream !== oldStream && isVideoMode.value) {
       setTimeout(() => {
         void nextTick(() => {
           setupAllVideoStreams()
@@ -778,7 +797,6 @@ watch(
 // Lifecycle
 onMounted(() => {
   void nextTick(() => {
-    // Setup video streams after mount with a small delay to ensure streams are ready
     setTimeout(() => {
       setupAllVideoStreams()
     }, 50)
