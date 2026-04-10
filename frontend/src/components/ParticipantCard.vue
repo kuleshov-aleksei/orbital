@@ -335,10 +335,10 @@
       ">
       <!-- Show the stream that is NOT in the main view, or the only available stream -->
       <div class="relative w-full h-full">
-        <!-- Show Screen Share when: both exist but camera in main, OR only screen share exists -->
+        <!-- Show Screen Share when: camera is main (both exist), OR only screen share exists -->
         <!-- Only show if screen share exists -->
         <video
-          v-show="screenShareStream && (!cameraStream || !showCameraAsMain)"
+          v-if="screenShareStream && (!cameraStream || showCameraAsMain)"
           ref="screenVideoElement"
           class="absolute inset-0 w-full h-full object-contain bg-theme-bg-primary rounded-lg pointer-events-none"
           autoplay
@@ -346,10 +346,10 @@
           muted
           @loadedmetadata="onScreenVideoLoaded" />
 
-        <!-- Show Camera when: both exist but screen in main, OR only camera exists -->
+        <!-- Show Camera when: screen is main (both exist), OR only camera exists -->
         <!-- Only show if camera exists -->
         <video
-          v-show="cameraStream && (!screenShareStream || showCameraAsMain)"
+          v-if="cameraStream && (!screenShareStream || !showCameraAsMain)"
           ref="cameraVideoElement"
           class="absolute inset-0 w-full h-full object-cover bg-theme-bg-primary rounded-lg pointer-events-none"
           autoplay
@@ -367,7 +367,7 @@
             showCameraAsMain
           "
           class="absolute bottom-2 right-2 bg-indigo-600/80 backdrop-blur-sm px-2 py-1 rounded text-xs text-white flex items-center gap-1 z-10 pointer-events-none">
-          <PhMonitorPlay class="w-3 h-3" />
+          <PhCamera class="w-3 h-3" />
         </div>
 
         <div
@@ -379,7 +379,7 @@
             !showCameraAsMain
           "
           class="absolute bottom-2 right-2 bg-purple-600/80 backdrop-blur-sm px-2 py-1 rounded text-xs text-white flex items-center gap-1 z-10 pointer-events-none">
-          <PhCamera class="w-3 h-3" />
+          <PhMonitorPlay class="w-3 h-3" />
         </div>
 
         <!-- Floating nickname overlay -->
@@ -513,8 +513,8 @@ interface Props {
   forceAudioMode?: boolean // If true, always show audio mode even when screen sharing
   isViewing?: boolean // If true, show "Viewing" overlay instead of video (stream is shown in main area)
   isCompact?: boolean // If true, show compact layout for sidebar
-  // Sync state with parent for stream toggle
-  modelValueShowCameraAsMain?: boolean // true = camera in main view, false = screen share in main view
+  // View state from store - true = camera in main view, false = screen share in main view
+  showCameraAsMain?: boolean // true = camera is main, false = screen is main
   // Available screen share (not subscribed yet)
   hasAvailableScreenShare?: boolean // If true, show "View Screen Share" prompt
 }
@@ -533,13 +533,13 @@ const props = withDefaults(defineProps<Props>(), {
   forceAudioMode: false,
   isViewing: false,
   isCompact: false,
-  modelValueShowCameraAsMain: false,
+  showCameraAsMain: false,
   hasAvailableScreenShare: false,
 })
 
 const emit = defineEmits<{
   "card-click": [userId: string]
-  "update:modelValueShowCameraAsMain": [value: boolean]
+  "toggle-view": [userId: string]
   "subscribe-screen-share": [userId: string]
 }>()
 
@@ -573,39 +573,8 @@ const showStats = computed(() => (isUserContextMenuOpen.value ? false : showStat
 const mousePosition = ref({ x: 0, y: 0 })
 const tooltipOffset = { x: 16, y: 16 }
 
-// Camera/Screen share toggle state - synced with parent via v-model
-// showCameraAsMain = true means camera is main, screen share is in ParticipantCard
-// showCameraAsMain = false means screen share is main, camera is in ParticipantCard
-const showCameraAsMain = computed({
-  get: () => props.modelValueShowCameraAsMain,
-  set: (value) => emit("update:modelValueShowCameraAsMain", value),
-})
-
-// Suggest initial state to parent when streams become available
-const hasInitialized = ref(false)
-watch(
-  [() => props.isScreenSharing, () => props.isCameraEnabled],
-  ([hasScreen, hasCamera], [prevHasScreen, prevHasCamera]) => {
-    if (!hasInitialized.value) {
-      // First initialization: if only camera is available, suggest showing it as main
-      if (hasCamera && !hasScreen && !props.modelValueShowCameraAsMain) {
-        emit("update:modelValueShowCameraAsMain", true)
-      }
-      hasInitialized.value = true
-      return
-    }
-
-    // When camera becomes available while screen share is already active, suggest screen share as main
-    if (hasCamera && !prevHasCamera && hasScreen && props.modelValueShowCameraAsMain) {
-      emit("update:modelValueShowCameraAsMain", false)
-    }
-    // When screen share becomes available while camera is already active, suggest camera as main
-    if (hasScreen && !prevHasScreen && hasCamera && !props.modelValueShowCameraAsMain) {
-      emit("update:modelValueShowCameraAsMain", true)
-    }
-  },
-  { immediate: true },
-)
+// Camera/Screen share toggle state comes from prop (which gets value from room store)
+const showCameraAsMain = computed(() => props.showCameraAsMain)
 
 // Computed for whether video mode is active
 const isVideoMode = computed(
@@ -725,14 +694,14 @@ const handleContextMenu = (event: MouseEvent) => {
 }
 
 const handleCardClick = () => {
-  // If both screen share and camera are active, toggle the view
+  // If both screen share and camera are active, emit toggle to let parent handle
   if (
     props.isScreenSharing &&
     props.screenShareStream &&
     props.isCameraEnabled &&
     props.cameraStream
   ) {
-    showCameraAsMain.value = !showCameraAsMain.value
+    emit("toggle-view", props.userId)
   }
   emit("card-click", props.userId)
 }

@@ -53,9 +53,7 @@
           <ParticipantCard
             v-for="participant in allParticipants"
             :key="participant.userId"
-            v-model:model-value-show-camera-as-main="
-              participantShowCameraAsMain[participant.userId]
-            "
+            :show-camera-as-main="participantShowCameraAsMainMap[participant.userId]"
             :user-id="participant.userId"
             :user-nickname="participant.userNickname"
             :screen-share-stream="participant.screenShareStream"
@@ -77,6 +75,7 @@
             :has-available-screen-share="isParticipantAvailableScreenShare(participant.userId)"
             class="w-20 lg:w-auto flex-shrink-0 lg:flex-shrink max-h-14"
             @card-click="handleParticipantCardClick(participant.userId)"
+            @toggle-view="handleToggleView(participant.userId)"
             @subscribe-screen-share="$emit('subscribe-screen-share', $event)" />
         </div>
       </div>
@@ -140,6 +139,7 @@ import ScreenStream from "./ScreenStream.vue"
 import ScreenSharePlaceholder from "./ScreenSharePlaceholder.vue"
 import CameraStream from "./CameraStream.vue"
 import ParticipantCard from "./ParticipantCard.vue"
+import { useRoomStore } from "@/stores"
 import type { ScreenShareQuality, User, ConnectionStats } from "@/types"
 import type {
   RemoteVideoTrack,
@@ -156,6 +156,8 @@ const emit = defineEmits<{
   "subscribe-screen-share": [userId: string]
   "unsubscribe-screen-share": [userId: string]
 }>()
+
+const roomStore = useRoomStore()
 
 // Handle volume change from ScreenStream
 const handleVolumeChange = (userId: string, volume: number, isScreenShare: boolean) => {
@@ -236,13 +238,19 @@ const localLayout = computed({
 })
 const focusedUserId = ref<string | null>(null)
 
-// Track which stream type to show for each user (true = camera as main, false = screen as main)
-const userShowCameraAsMain = ref<Map<string, boolean>>(new Map())
-
-// Normalize userId by removing -self suffix for consistent lookup
+// Normalize userId using store helper
 const normalizeUserId = (userId: string): string => {
-  return userId.replace(/-self$/, "")
+  return roomStore.normalizeUserId(userId)
 }
+
+// Reactive map for participant showCameraAsMain values
+const participantShowCameraAsMainMap = computed(() => {
+  const map: Record<string, boolean> = {}
+  allParticipants.value.forEach((p) => {
+    map[p.userId] = roomStore.getUserShowCameraAsMain(p.userId)
+  })
+  return map
+})
 
 // Get volume for a user (handles -self suffix for self-view)
 // For screen share streams, look up the -screenshare key
@@ -250,20 +258,6 @@ const getVolumeForUser = (userId: string): number => {
   const normalizedId = normalizeUserId(userId)
   // Screen share audio volume is stored with -screenshare suffix
   return props.remoteStreamVolumes.get(`${normalizedId}-screenshare`) ?? 80
-}
-
-// Get the showCameraAsMain state for a user
-const getUserShowCameraAsMain = (userId: string): boolean => {
-  const normalizedId = normalizeUserId(userId)
-  return userShowCameraAsMain.value.get(normalizedId) ?? false
-}
-
-// Toggle the stream view for a user
-const toggleUserStreamView = (userId: string) => {
-  const normalizedId = normalizeUserId(userId)
-  const currentValue = getUserShowCameraAsMain(normalizedId)
-  const newValue = !currentValue
-  userShowCameraAsMain.value.set(normalizedId, newValue)
 }
 
 // Set initial focus to first available stream (screen share preferred, then camera)
@@ -336,7 +330,7 @@ const focusedStream = computed((): VideoStreamItem | null => {
 
   if (screenShare && camera) {
     // User has both - check which one should be shown as main
-    const showCamera = getUserShowCameraAsMain(focusedUserId.value)
+    const showCamera = roomStore.getUserShowCameraAsMain(focusedUserId.value)
     if (showCamera) {
       return { ...camera, type: "camera" as const, sortKey: `${camera.userId}-1` }
     } else {
@@ -492,35 +486,14 @@ const allParticipants = computed((): ParticipantData[] => {
   return result
 })
 
-// Computed object for v-model binding with ParticipantCards
-const participantShowCameraAsMain = computed({
-  get: () => {
-    const obj: Record<string, boolean> = {}
-    allParticipants.value.forEach((p) => {
-      const normalizedId = normalizeUserId(p.userId)
-      obj[p.userId] = getUserShowCameraAsMain(normalizedId)
-    })
-    return obj
-  },
-  set: (value: Record<string, boolean>) => {
-    Object.entries(value).forEach(([userId, showCamera]) => {
-      const normalizedId = normalizeUserId(userId)
-      userShowCameraAsMain.value.set(normalizedId, showCamera)
-    })
-  },
-})
+// Handle toggle view from ParticipantCard when user clicks to switch between camera/screen
+const handleToggleView = (userId: string) => {
+  const currentValue = roomStore.getUserShowCameraAsMain(userId)
+  roomStore.setUserShowCameraAsMain(userId, !currentValue)
+}
 
-// Handle ParticipantCard click - toggle focused user if already focused, otherwise set focus
+// Handle ParticipantCard click - just set focus (toggle handled separately via toggle-view)
 const handleParticipantCardClick = (userId: string) => {
-  // If this participant is already focused and has both streams, toggle the view
-  if (focusedUserId.value === userId || focusedUserId.value === userId + "-self") {
-    const participant = allParticipants.value.find((p) => p.userId === userId)
-    if (participant?.isScreenSharing && participant?.isCameraEnabled) {
-      toggleUserStreamView(userId)
-      return
-    }
-  }
-  // Otherwise just set focus to this user
   setFocusedShare(userId)
 }
 
