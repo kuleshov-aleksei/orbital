@@ -1,5 +1,5 @@
 <template>
-  <div class="screen-share-area bg-theme-bg-secondary rounded-lg overflow-hidden flex flex-col">
+  <div class="screen-share-area h-full rounded-lg overflow-hidden flex flex-col">
     <!-- Screen Share Content -->
     <div class="p-2 flex-1 min-h-0 flex flex-col">
       <!-- Focus Layout: Main stream (70%) + user panel (30%) side by side -->
@@ -96,7 +96,7 @@
             :show-focus-button="sortedVideoStreams.length > 1"
             :is-self-view="item.isSelfView"
             :volume="getVolumeForUser(item.userId)"
-            class="h-full"
+            class="h-fit"
             @make-focused="setFocusedShare(item.userId)"
             @volume-change="handleVolumeChange(item.userId, $event, true)"
             @unsubscribe="$emit('unsubscribe-screen-share', item.userId)" />
@@ -110,7 +110,7 @@
             :is-focused="false"
             :is-self-view="item.isSelfView"
             :is-compact="true"
-            class="h-full"
+            class="h-fit"
             @dblclick="setFocusedShare(item.userId)" />
         </template>
 
