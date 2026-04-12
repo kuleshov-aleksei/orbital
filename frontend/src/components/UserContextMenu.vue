@@ -110,10 +110,12 @@ import { useUserContextMenu } from "@/composables/useUserContextMenu"
 
 interface Props {
   userId?: string
+  roomId?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   userId: "",
+  roomId: "",
 })
 
 const usersStore = useUsersStore()
@@ -128,6 +130,8 @@ const promoting = ref(false)
 const demoting = ref(false)
 const kicking = ref(false)
 const activeUserId = ref<string | null>(null)
+
+const effectiveRoomId = computed(() => props.roomId || roomStore.activeRoomId)
 
 const effectiveUserId = computed(() => activeUserId.value ?? props.userId)
 
@@ -248,10 +252,10 @@ const handleDemote = async () => {
 }
 
 const handleKick = async () => {
-  if (!canKick.value || !roomStore.activeRoomId) return
+  if (!canKick.value || !effectiveRoomId.value) return
   kicking.value = true
   try {
-    await apiService.kickUser(roomStore.activeRoomId, effectiveUserId.value)
+    await apiService.kickUser(effectiveRoomId.value, effectiveUserId.value)
     hideMenu()
   } catch (error) {
     console.error("Failed to kick user:", error)

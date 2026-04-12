@@ -7,6 +7,7 @@
         <ParticipantCard
           :user-id="user.id"
           :user-nickname="user.nickname || 'Unknown'"
+          :room-id="currentRoomId"
           :screen-share-stream="null"
           :initial-volume="remoteStreamVolumes.get(user.id) || 80"
           :is-deafened="isDeafened"
@@ -27,7 +28,7 @@
 import { computed } from "vue"
 import ParticipantCard from "@/components/ParticipantCard.vue"
 import EmptyState from "@/components/EmptyState.vue"
-import { useUserStore } from "@/stores"
+import { useUserStore, useRoomStore } from "@/stores"
 import type { User } from "@/types"
 import type { ScreenShareQuality } from "@/types"
 
@@ -45,5 +46,7 @@ interface Props {
 defineProps<Props>()
 
 const userStore = useUserStore()
+const roomStore = useRoomStore()
 const currentUserId = computed(() => userStore.userId)
+const currentRoomId = computed(() => roomStore.activeRoomId || "")
 </script>

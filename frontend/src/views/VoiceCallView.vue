@@ -42,6 +42,7 @@
         :current-user-id="currentUserId"
         :current-user-is-sharing="isScreenSharing"
         :current-user-camera-enabled="isCameraEnabled"
+        :room-id="currentRoom.id"
         :get-participant-stats="getParticipantStats"
         class="m-4"
         @update:layout="screenShareLayout = $event"

@@ -337,7 +337,6 @@
           muted
           @loadedmetadata="onCameraVideoLoaded" />
 
-
         <!-- Floating nickname overlay -->
         <div class="absolute top-2 left-2 right-2 flex items-center justify-between z-10">
           <div class="flex items-center gap-2">
@@ -433,7 +432,7 @@
     </template>
 
     <!-- Context Menu -->
-    <UserContextMenu ref="contextMenuRef" :user-id="userId" />
+    <UserContextMenu ref="contextMenuRef" :user-id="userId" :room-id="roomId" />
   </div>
 </template>
 
@@ -458,6 +457,7 @@ import type { RemoteVideoTrack, LocalVideoTrack } from "livekit-client"
 interface Props {
   userId: string
   userNickname: string
+  roomId: string
   screenShareStream: MediaStream | null
   cameraStream?: MediaStream | null // Camera video stream
   // LiveKit tracks for sidebar attachment (preferred over MediaStream)
@@ -559,17 +559,25 @@ watch(isVideoMode, (isActive) => {
 })
 
 // Watch for video element ref appearing
-watch(screenVideoElement, (el) => {
-  if (el && isVideoMode.value && props.screenShareStream) {
-    setupVideoStream(el, props.screenShareStream, props.screenShareTrack || undefined)
-  }
-}, { immediate: true })
+watch(
+  screenVideoElement,
+  (el) => {
+    if (el && isVideoMode.value && props.screenShareStream) {
+      setupVideoStream(el, props.screenShareStream, props.screenShareTrack || undefined)
+    }
+  },
+  { immediate: true },
+)
 
-watch(cameraVideoElement, (el) => {
-  if (el && isVideoMode.value && props.cameraStream) {
-    setupVideoStream(el, props.cameraStream, props.cameraTrack || undefined)
-  }
-}, { immediate: true })
+watch(
+  cameraVideoElement,
+  (el) => {
+    if (el && isVideoMode.value && props.cameraStream) {
+      setupVideoStream(el, props.cameraStream, props.cameraTrack || undefined)
+    }
+  },
+  { immediate: true },
+)
 
 // Computed
 const isSpeaking = computed(() => {
@@ -584,24 +592,24 @@ const cardClasses = computed(() => {
 
   // Aspect ratio
   if (isVideoMode.value) {
-    classes.push('aspect-video bg-theme-bg-primary')
+    classes.push("aspect-video bg-theme-bg-primary")
   } else {
-    classes.push('aspect-square')
+    classes.push("aspect-square")
   }
 
   // Background and border
   if (props.isCurrentUser && (!props.isScreenSharing || props.forceAudioMode)) {
-    classes.push('bg-theme-accent/30 border-theme-accent')
+    classes.push("bg-theme-accent/30 border-theme-accent")
   } else if (!props.isScreenSharing || props.forceAudioMode) {
-    classes.push('bg-theme-bg-secondary border-theme-border')
+    classes.push("bg-theme-bg-secondary border-theme-border")
   }
 
   // Speaking border
   const showSpeakingBorder = !props.isScreenSharing || props.forceAudioMode
   if (isSpeaking.value && props.isCurrentUser && showSpeakingBorder) {
-    classes.push('border-theme-accent')
+    classes.push("border-theme-accent")
   } else if (isSpeaking.value && showSpeakingBorder) {
-    classes.push('border-green-500')
+    classes.push("border-green-500")
   }
 
   return classes
@@ -723,7 +731,11 @@ const onCameraVideoLoaded = () => {
   // Video loaded successfully
 }
 
-const setupVideoStream = (element: HTMLVideoElement | null, stream: MediaStream | null, lkTrack?: RemoteVideoTrack | LocalVideoTrack | null) => {
+const setupVideoStream = (
+  element: HTMLVideoElement | null,
+  stream: MediaStream | null,
+  lkTrack?: RemoteVideoTrack | LocalVideoTrack | null,
+) => {
   if (!element) return
 
   // Use LiveKit's attach for proper streaming
@@ -756,7 +768,11 @@ const setupVideoStream = (element: HTMLVideoElement | null, stream: MediaStream 
 
 const setupAllVideoStreams = () => {
   if (props.screenShareStream && screenVideoElement.value) {
-    setupVideoStream(screenVideoElement.value, props.screenShareStream, props.screenShareTrack || undefined)
+    setupVideoStream(
+      screenVideoElement.value,
+      props.screenShareStream,
+      props.screenShareTrack || undefined,
+    )
   }
 
   if (props.cameraStream && cameraVideoElement.value) {

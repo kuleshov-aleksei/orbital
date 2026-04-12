@@ -81,7 +81,7 @@
     </div>
 
     <!-- Context Menu -->
-    <UserContextMenu ref="contextMenuRef" :user-id="user.id" />
+    <UserContextMenu ref="contextMenuRef" :user-id="user.id" :room-id="props.roomId" />
   </div>
 </template>
 
@@ -106,6 +106,7 @@ interface User {
 
 interface Props {
   user: User
+  roomId: string
   initialVolume?: number
 }
 

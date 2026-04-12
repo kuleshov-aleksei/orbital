@@ -1,12 +1,12 @@
 <template>
-<div
-  class="room-card px-2 py-1.5 mb-0.5 rounded-md cursor-pointer transition-all duration-200 group"
-  :class="{
-    'bg-theme-accent text-theme-text-on-accent': isActive,
-    'bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary':
-      !isActive,
-    'opacity-50': isDragging,
-  }"
+  <div
+    class="room-card px-2 py-1.5 mb-0.5 rounded-md cursor-pointer transition-all duration-200 group"
+    :class="{
+      'bg-theme-accent text-theme-text-on-accent': isActive,
+      'bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary':
+        !isActive,
+      'opacity-50': isDragging,
+    }"
     v-bind="isDraggable ? { draggable: true } : {}"
     @click="$emit('click')"
     @contextmenu.prevent="showContextMenu"
@@ -87,7 +87,7 @@
     </div>
 
     <!-- User Context Menu -->
-    <UserContextMenu ref="userContextMenuRef" />
+    <UserContextMenu ref="userContextMenuRef" :room-id="room.id" />
   </div>
 </template>
 

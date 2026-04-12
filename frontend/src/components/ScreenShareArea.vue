@@ -56,6 +56,7 @@
             :show-camera-as-main="participantShowCameraAsMainMap[participant.userId]"
             :user-id="participant.userId"
             :user-nickname="participant.userNickname"
+            :room-id="props.roomId"
             :screen-share-stream="participant.screenShareStream"
             :camera-stream="participant.cameraStream"
             :screen-share-track="participant.screenShareTrack"
@@ -232,6 +233,7 @@ interface Props {
   userCameraStates: Map<string, boolean>
   isDeafened: boolean
   currentUserId: string
+  roomId: string
   currentUserIsSharing?: boolean
   currentUserCameraEnabled?: boolean
   getParticipantStats?: (userId: string) => ConnectionStats

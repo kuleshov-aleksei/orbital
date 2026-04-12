@@ -44,6 +44,7 @@
         v-for="user in usersWithCurrentNickname"
         :key="user.id"
         :user="user"
+        :room-id="props.roomId"
         :initial-volume="getInitialVolume(user.id)"
         @volume-change="handleVolumeChange" />
     </div>
@@ -101,6 +102,7 @@ interface User {
 interface Props {
   users: User[]
   userCount: number
+  roomId: string
   initialVolumes?: Map<string, number>
   isOpen?: boolean
   collapsed?: boolean

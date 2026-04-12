@@ -6,6 +6,7 @@
     class="hidden lg:flex"
     :users="usersStore.sortedUsers"
     :user-count="usersStore.userCount"
+    :room-id="roomStore.activeRoomId || ''"
     :initial-volumes="roomStore.remoteStreamVolumes" />
 
   <!-- Mobile User Sidebar Overlay -->
@@ -21,6 +22,7 @@
     class="fixed right-0 top-0 h-full w-60 bg-gray-800 z-40"
     :users="usersStore.sortedUsers"
     :user-count="usersStore.userCount"
+    :room-id="roomStore.activeRoomId || ''"
     :initial-volumes="roomStore.remoteStreamVolumes"
     :collapsed="false"
     @close-mobile-sidebar="appStore.closeMobileUserSidebar()" />
