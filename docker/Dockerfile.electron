@@ -7,6 +7,9 @@ ARG VITE_BACKEND_URL=
 ENV VITE_BACKEND_URL=$VITE_BACKEND_URL
 ENV VITE_APP_VERSION=$VERSION
 
+# Install pnpm globally
+RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+
 RUN dpkg --add-architecture i386 && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
