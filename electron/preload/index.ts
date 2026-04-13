@@ -50,6 +50,7 @@ export interface License {
 
 export interface ElectronAPI {
   getDesktopSources: () => Promise<DesktopSource[]>
+  startElectronScreenShare: (sourceId: string, audioEnabled: boolean) => Promise<{ success: boolean; error?: string }>
   getLicenses: () => Promise<License[]>
   checkForUpdates: () => Promise<unknown>
   onUpdateChecking: (callback: () => void) => void
@@ -89,6 +90,8 @@ export interface ElectronAPI {
 
 const electronAPI: ElectronAPI = {
   getDesktopSources: () => ipcRenderer.invoke("get-desktop-sources"),
+  startElectronScreenShare: (sourceId, audioEnabled) =>
+    ipcRenderer.invoke("start-electron-screenshare", sourceId, audioEnabled),
 
   getLicenses: () => ipcRenderer.invoke("get-licenses"),
 

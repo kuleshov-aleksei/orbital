@@ -9,7 +9,11 @@ import type {
 import { useAudioTracksStore } from "@/stores/audioTracks"
 import { useUsersStore } from "@/stores/users"
 import { debugLog, debugWarn } from "@/utils/debug"
-import { isElectron, getPlatform } from "@/services/electron"
+import {
+  isElectron,
+  getPlatform,
+  startElectronScreenShare as startElectronScreenShareIPC,
+} from "@/services/electron"
 import { startAudioCapture, stopAudioCapture, getVirtualMicDeviceId } from "@/services/venmic"
 import type { ScreenShareQuality, VenmicNode } from "@/types"
 import type { LiveKitState } from "./useLiveKitState"
@@ -92,7 +96,12 @@ export function useLiveKitScreenShare(state: LiveKitState) {
     sourceId: string,
     audioSources?: VenmicNode[],
   ): Promise<void> => {
-    console.log("[ScreenShare] startElectronScreenShare called:", { quality, audio, sourceId, audioSources })
+    console.log("[ScreenShare] startElectronScreenShare called:", {
+      quality,
+      audio,
+      sourceId,
+      audioSources,
+    })
 
     if (!state.room.value) {
       throw new Error("Not connected to room")
@@ -115,33 +124,51 @@ export function useLiveKitScreenShare(state: LiveKitState) {
         maxFrameRate = 60
       }
 
-      const constraints: MediaStreamConstraints = {
-        audio: audio
-          ? {
-              // @ts-expect-error - Chrome-specific constraint
-              mandatory: {
-                chromeMediaSource: "desktop",
-                chromeMediaSourceId: sourceId,
-                echoCancellation: false,
-                noiseSuppression: false,
-                autoGainControl: false,
-              },
-            }
-          : false,
-        video: {
-          // @ts-expect-error - Chrome-specific constraint
-          mandatory: {
-            chromeMediaSource: "desktop",
-            chromeMediaSourceId: sourceId,
-            maxWidth: 1920,
-            maxHeight: 1080,
-            maxFrameRate: maxFrameRate,
-            minFrameRate: 30,
+      const platform = await getPlatform()
+      const isWindows = platform === "win32"
+      const isLinux = platform === "linux"
+
+      let displayStream: MediaStream
+
+      if (isWindows) {
+        await startElectronScreenShareIPC(sourceId, audio)
+
+        displayStream = await navigator.mediaDevices.getDisplayMedia({
+          audio: audio,
+          video: {
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            frameRate: { ideal: maxFrameRate },
           },
-        },
+        })
+      } else {
+        const constraints: MediaStreamConstraints = {
+          audio: audio
+            ? {
+                mandatory: {
+                  chromeMediaSource: "desktop",
+                  chromeMediaSourceId: sourceId,
+                  echoCancellation: false,
+                  noiseSuppression: false,
+                  autoGainControl: false,
+                },
+              }
+            : false,
+          video: {
+            mandatory: {
+              chromeMediaSource: "desktop",
+              chromeMediaSourceId: sourceId,
+              maxWidth: 1920,
+              maxHeight: 1080,
+              maxFrameRate: maxFrameRate,
+              minFrameRate: 30,
+            },
+          },
+        }
+
+        displayStream = await navigator.mediaDevices.getUserMedia(constraints)
       }
 
-      const displayStream = await navigator.mediaDevices.getUserMedia(constraints)
       const videoTrackFromStream = displayStream.getVideoTracks()[0]
 
       if (!videoTrackFromStream) {
@@ -202,14 +229,20 @@ export function useLiveKitScreenShare(state: LiveKitState) {
         }
       }
 
-      console.log("[ScreenShare] audio check:", { audio, displayAudioTracks: displayStream.getAudioTracks().length })
+      console.log("[ScreenShare] audio check:", {
+        audio,
+        displayAudioTracks: displayStream.getAudioTracks().length,
+      })
 
       if (audio && displayStream.getAudioTracks().length > 0) {
-        const platform = await getPlatform()
-        const isLinux = platform === "linux"
         const venmicReady = isLinux && audioSources && audioSources.length > 0
 
-        console.log("[ScreenShare] venmicReady check:", { platform, isLinux, audioSources, venmicReady })
+        console.log("[ScreenShare] venmicReady check:", {
+          platform,
+          isLinux,
+          audioSources,
+          venmicReady,
+        })
 
         if (venmicReady) {
           try {
@@ -270,7 +303,7 @@ export function useLiveKitScreenShare(state: LiveKitState) {
             await stopAudioCapture()
           }
         } else {
-          console.log("[ScreenShare] Falling back to system audio (non-venmic path)")
+          console.log("[ScreenShare] Using system audio from display stream")
           const audioTrackFromStream = displayStream.getAudioTracks()[0]
 
           const audioPublication = await state.room.value.localParticipant.publishTrack(

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, desktopCapturer, shell, dialog, globalShortcut } from "electron"
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, desktopCapturer, shell, dialog, globalShortcut, session } from "electron"
 import { createRequire } from "node:module"
 import { fileURLToPath } from "node:url"
 import path from "node:path"
@@ -565,6 +565,63 @@ function setupAutoUpdater() {
   }
 }
 
+function setupScreenShareHandler() {
+  let pendingCallback: ((options: Electron.Streams) => void) | null = null
+
+  session.defaultSession.setDisplayMediaRequestHandler(
+    async (request, callback) => {
+      log.info("[ScreenShare] Received display media request:", request)
+      pendingCallback = callback
+
+      const sources = await desktopCapturer.getSources({
+        types: ["window", "screen"],
+      })
+      if (!sources || sources.length === 0) {
+        log.warn("[ScreenShare] No sources found")
+        callback({})
+        return
+      }
+
+      mainWindow?.webContents.send("getSources", sources)
+    },
+    { useSystemPicker: false }
+  )
+
+  ipcMain.handle("start-electron-screenshare", async (_event, sourceId: string, audioEnabled: boolean) => {
+    log.info(`[ScreenShare] IPC start-electron-screenshare called: ${sourceId}, audio: ${audioEnabled}`)
+
+    if (!pendingCallback) {
+      log.error("[ScreenShare] No pending callback")
+      return { success: false, error: "No pending callback" }
+    }
+
+    if (sourceId === "none") {
+      try {
+        pendingCallback({})
+      } catch (e) {
+        log.error("[ScreenShare] Callback error:", e)
+      }
+      pendingCallback = null
+      return { success: true }
+    }
+
+    const result = { id: sourceId, name: "" }
+
+    if (process.platform === "win32" || process.platform === "linux") {
+      const options: Electron.Streams = { video: result }
+      if (audioEnabled) {
+        options.audio = "loopback"
+      }
+      pendingCallback(options)
+    } else {
+      pendingCallback({ video: result })
+    }
+
+    pendingCallback = null
+    return { success: true }
+  })
+}
+
 function setupIPC() {
   ipcMain.handle("get-desktop-sources", async () => {
     try {
@@ -930,6 +987,7 @@ app.whenReady().then(() => {
   setupIPC()
   registerAllHotkeys()
   setupAutoUpdater()
+  setupScreenShareHandler()
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
