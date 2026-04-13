@@ -1,4 +1,29 @@
+// @ts-nocheck
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { app } from "electron";
 import type { LinkData, Node, PatchBay as PatchBayType } from "@vencord/venmic";
+
+const getModuleUrl = (): string => {
+  if (typeof import.meta !== "undefined" && import.meta.url && import.meta.url !== "undefined") {
+    return import.meta.url
+  }
+  const appPath = app.isPackaged ? app.getAppPath() : join(__dirname, "..", "..")
+  return `file://${join(appPath, "dist-electron/main/index.js")}`
+}
+
+const moduleUrl = getModuleUrl()
+const __dirname = dirname(fileURLToPath(moduleUrl))
+
+const APP_ROOT = app.isPackaged ? app.getAppPath() : join(__dirname, "..", "..")
+let DIST_DIR: string;
+
+if (app.isPackaged) {
+  const unpackedPath = join(app.getAppPath(), "..", "app.asar.unpacked", "dist");
+  DIST_DIR = unpackedPath;
+} else {
+  DIST_DIR = join(APP_ROOT, "dist");
+}
 
 let PatchBay: typeof PatchBayType | undefined;
 let patchBayInstance: PatchBayType | undefined;
@@ -8,9 +33,11 @@ export function importVenmic(): boolean {
   if (imported) return !!PatchBay;
   imported = true;
 
+  const importPath = join(DIST_DIR, `venmic-${process.arch}.node`);
+  console.log(`[Venmic] Attempting to import from: ${importPath}`);
+
   try {
-    console.log("[Venmic] Attempting to import...");
-    const venmic = require("@vencord/venmic");
+    const venmic = require(importPath);
     console.log("[Venmic] venmic module:", venmic);
     PatchBay = venmic.PatchBay;
     console.log("[Venmic] PatchBay constructor:", PatchBay);

@@ -18,10 +18,12 @@
   "scripts": {
     "dev": "VITE_DEV_SERVER_URL=http://localhost:3001 npx vite",
     "prebuild": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true});require('fs').cpSync('../frontend/dist','dist',{recursive:true})\"",
-    "build": "npx vite build && electron-builder --linux",
-    "build:win": "npx vite build && electron-builder --win",
-    "build:linux": "npx vite build && electron-builder --linux",
-    "build:all": "npx vite build && electron-builder -wl"
+    "prebuild:venmic": "npx tsx scripts/copyVenmic.mts",
+    "build": "npx vite build && npx tsx scripts/copyVenmic.mts && electron-builder --linux",
+    "build:win": "npx vite build && npx tsx scripts/copyVenmic.mts && electron-builder --win",
+    "build:linux": "npx vite build && npx tsx scripts/copyVenmic.mts && electron-builder --linux",
+    "build:all": "npx vite build && npx tsx scripts/copyVenmic.mts && electron-builder -wl",
+    "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
     "@phosphor-icons/vue": "^2.2.1",
@@ -47,6 +49,7 @@
     "electron-builder": "^26.8.1",
     "esbuild": "^0.28.0",
     "tailwindcss": "^4.2.2",
+    "tsx": "^4.19.2",
     "typescript": "^6.0.2",
     "unplugin-icons": "^23.0.1",
     "vite": "^8.0.8",

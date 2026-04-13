@@ -8,6 +8,8 @@
   "files": [
     "dist/**/*",
     "dist-electron/**/*",
+    "dist/venmic-x64.node",
+    "dist/venmic-arm64.node",
     "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
     "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
     "!**/node_modules/.bin"
@@ -15,7 +17,8 @@
   "asar": true,
   "asarUnpack": [
     "node_modules/electron-updater/**/*",
-    "node_modules/@vencord/venmic/**/*"
+    "dist/venmic-x64.node",
+    "dist/venmic-arm64.node"
   ],
   "extraResources": [
     {
