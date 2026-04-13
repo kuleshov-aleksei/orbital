@@ -33,7 +33,7 @@ WORKDIR /app/frontend
 
 # Build frontend
 COPY frontend/package*.json ./
-RUN pnpm ci --frozen-lockfile
+RUN pnpm ci --lockfile-only
 
 COPY frontend/ .
 RUN pnpm run build
