@@ -34,7 +34,7 @@ WORKDIR /app/frontend
 # Build frontend
 COPY frontend/package.json ./
 COPY frontend/pnpm-*.yaml ./
-RUN pnpm install --lockfile-only
+RUN pnpm install --frozen-lockfile
 
 COPY frontend/ .
 RUN pnpm run build
