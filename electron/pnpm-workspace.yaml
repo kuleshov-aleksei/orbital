@@ -1,0 +1,5 @@
+allowBuilds:
+  '@vencord/venmic': true
+  electron: true
+  electron-winstaller: true
+  esbuild: true

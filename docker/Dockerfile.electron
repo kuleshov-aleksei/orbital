@@ -30,17 +30,17 @@ WORKDIR /app/frontend
 
 # Build frontend
 COPY frontend/package*.json ./
-RUN npm ci --prefer-offline
+RUN pnpm ci --frozen-lockfile
 
 COPY frontend/ .
-RUN npm run build
+RUN pnpm run build
 
 WORKDIR /app/electron
 
 # Install deps - force x64 platform for binaries (7zip-bin, app-builder-bin, etc)
 COPY electron/package*.json ./
-COPY electron/package-lock.json ./
-RUN npm install --os=linux --cpu=x64
+COPY electron/pnpm-lock.yaml ./
+RUN pnpm install --os=linux --cpu=x64
 
 # Copy source code
 COPY electron/ .
@@ -52,7 +52,7 @@ RUN node scripts/generate-licenses.js
 RUN sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" package.json
 
 # Build Windows (unsigned)
-RUN npm run build:win
+RUN pnpm run build:win
 
 # Generate SHA256 hashes for Windows builds
 RUN for f in /app/electron/release/Orbital-Setup-*.exe /app/electron/release/Orbital-*-Portable-*.exe; do \
@@ -63,4 +63,4 @@ RUN for f in /app/electron/release/Orbital-Setup-*.exe /app/electron/release/Orb
     done
 
 # Build Linux
-RUN npm run build:linux
+RUN pnpm run build:linux

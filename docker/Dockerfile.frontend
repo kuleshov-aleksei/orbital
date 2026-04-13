@@ -8,7 +8,7 @@ ENV VITE_APP_URL=${APP_URL}
 
 WORKDIR /app
 COPY frontend/package*.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci --prefer-offline
+RUN --mount=type=cache,target=/root/.npm pnpm ci --frozen-lockfile
 
 COPY frontend/ .
 RUN npm run generate:licenses

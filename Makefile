@@ -23,7 +23,9 @@ help:
 # Install dependencies
 install:
 	@echo "Installing frontend dependencies..."
-	cd frontend && npm install
+	cd frontend && pnpm install
+	@echo "Installing electron dependencies..."
+	cd electron && pnpm install
 	@echo "Installing backend dependencies..."
 	cd backend && go mod download
 
@@ -34,7 +36,7 @@ VERSION := $(shell ./scripts/version.sh 2>/dev/null || echo "dev-unknown")
 build:
 	@echo "Building version: $(VERSION)"
 	@echo "Building frontend..."
-	cd frontend && VITE_APP_VERSION=$(VERSION) npm run build
+	cd frontend && VITE_APP_VERSION=$(VERSION) pnpm build
 	@echo "Building backend..."
 	cd backend && go build -ldflags "-X github.com/kuleshov-aleksei/orbital/internal/version.Version=$(VERSION)" -o ../bin/orbital ./cmd/server
 
@@ -51,7 +53,7 @@ dev:
 		set -a; source "$(PWD)/.env" 2>/dev/null || true; set +a; \
 		cd "$(PWD)" && livekit-server --config livekit/livekit-dev.yaml & \
 		LIVEKIT_PID=$$!; \
-		cd "$(PWD)/frontend" && npm run dev & \
+		cd "$(PWD)/frontend" && pnpm dev & \
 		FRONTEND_PID=$$!; \
 		cd "$(PWD)/backend" && go run ./cmd/server & \
 		BACKEND_PID=$$!; \
@@ -100,7 +102,7 @@ dev-public: certs
 		set -a; source "$(PWD)/.env" 2>/dev/null || true; set +a; \
 		cd "$(PWD)" && livekit-server --config livekit/livekit-dev.yaml & \
 		LIVEKIT_PID=$$!; \
-		cd "$(PWD)/frontend" && VITE_HTTPS=true npm run dev & \
+		cd "$(PWD)/frontend" && VITE_HTTPS=true pnpm dev & \
 		FRONTEND_PID=$$!; \
 		cd "$(PWD)/backend" && go run ./cmd/server & \
 		BACKEND_PID=$$!; \
@@ -118,35 +120,35 @@ dev-public: certs
 # Run linters
 lint:
 	@echo "Running frontend linter..."
-	cd frontend && npm run lint
+	cd frontend && pnpm run lint
 	@echo "Running backend linter..."
 	cd backend && golangci-lint run
 
 # Run linters on changed files only (faster for pre-commit)
 lint-full:
 	@echo "Running frontend linter on changed files..."
-	cd frontend && npm run lint:full
+	cd frontend && pnpm run lint:full
 
 prettier:
 	@echo "Running prettier"
-	cd frontend && npm run prettier
+	cd frontend && pnpm run prettier
 
 # Run tests
 test:
 	@echo "Running frontend e2e tests..."
-	cd frontend && npm run test:e2e
+	cd frontend && pnpm run test:e2e
 	@echo "Running backend tests..."
 	cd backend && go test ./...
 
 # Run tests
 test-headed:
 	@echo "Running frontend e2e tests..."
-	cd frontend && npm run test:e2e:headed
+	cd frontend && pnpm run test:e2e:headed
 
 # Generate licenses JSON
 licenses:
 	@echo "Generating licenses JSON..."
-	cd frontend && npm run generate:licenses
+	cd frontend && pnpm run generate:licenses
 
 # Clean build artifacts
 clean:
@@ -213,29 +215,29 @@ run-built:
 dev-electron:
 	@echo "Starting electron in dev mode..."
 	@echo "NOTE: make user backend is running using make dev"
-	cd electron && npm run dev
+	cd electron && pnpm dev
 
 # Electron builds
 build-electron:
 	@echo "Installing electron dependencies..."
-	cd electron && npm install
+	cd electron && pnpm install
 	@echo "Building electron for Linux..."
 	@if [ -z "$$VITE_BACKEND_URL" ]; then \
 		echo "WARNING: VITE_BACKEND_URL not set, using https://orb.encamy.com"; \
-		cd electron && VITE_BACKEND_URL=https://orb.encamy.com npm run build; \
+		cd electron && VITE_BACKEND_URL=https://orb.encamy.com pnpm run build; \
 	else \
-		cd electron && VITE_BACKEND_URL=$$VITE_BACKEND_URL npm run build; \
+		cd electron && VITE_BACKEND_URL=$$VITE_BACKEND_URL pnpm run build; \
 	fi
 
 build-electron-win:
 	@echo "Installing electron dependencies..."
-	cd electron && npm install
+	cd electron && pnpm install
 	@echo "Building electron for Windows..."
 	@if [ -z "$$VITE_BACKEND_URL" ]; then \
 		echo "WARNING: VITE_BACKEND_URL not set, using https://orb.encamy.com"; \
-		cd electron && VITE_BACKEND_URL=https://orb.encamy.com npm run build:win; \
+		cd electron && VITE_BACKEND_URL=https://orb.encamy.com pnpm run build:win; \
 	else \
-		cd electron && VITE_BACKEND_URL=$$VITE_BACKEND_URL npm run build:win; \
+		cd electron && VITE_BACKEND_URL=$$VITE_BACKEND_URL pnpm run build:win; \
 	fi
 	@echo "Generating SHA256 hashes for Windows builds..."
 	@for f in electron/release/Orbital-Setup-*.exe; do \
@@ -255,22 +257,22 @@ build-electron-win:
 
 build-electron-linux:
 	@echo "Installing electron dependencies..."
-	cd electron && npm install
+	cd electron && pnpm install
 	@echo "Building electron for Linux..."
 	@if [ -z "$$VITE_BACKEND_URL" ]; then \
 		echo "WARNING: VITE_BACKEND_URL not set, using https://orb.encamy.com"; \
-		cd electron && VITE_BACKEND_URL=https://orb.encamy.com npm run build:linux; \
+		cd electron && VITE_BACKEND_URL=https://orb.encamy.com pnpm run build:linux; \
 	else \
-		cd electron && VITE_BACKEND_URL=$$VITE_BACKEND_URL npm run build:linux; \
+		cd electron && VITE_BACKEND_URL=$$VITE_BACKEND_URL pnpm run build:linux; \
 	fi
 
 build-electron-all:
 	@echo "Installing electron dependencies..."
-	cd electron && npm install
+	cd electron && pnpm install
 	@echo "Building electron for all platforms..."
 	@if [ -z "$$VITE_BACKEND_URL" ]; then \
 		echo "WARNING: VITE_BACKEND_URL not set, using https://orb.encamy.com"; \
-		cd electron && VITE_BACKEND_URL=https://orb.encamy.com npm run build:all; \
+		cd electron && VITE_BACKEND_URL=https://orb.encamy.com pnpm run build:all; \
 	else \
-		cd electron && VITE_BACKEND_URL=$$VITE_BACKEND_URL npm run build:all; \
+		cd electron && VITE_BACKEND_URL=$$VITE_BACKEND_URL pnpm run build:all; \
 	fi
