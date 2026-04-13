@@ -84,3 +84,7 @@ jobs:
           
           echo "Deployment completed successfully!"
           echo "Version: ${{ env.VERSION }}"
+
+      - name: Clean up builder
+        run: docker system prune -f
+        

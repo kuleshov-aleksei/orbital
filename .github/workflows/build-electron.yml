@@ -51,4 +51,5 @@ jobs:
           body: "Automated build"
           draft: true
           
-
+      - name: Clean up builder
+        run: docker system prune -f

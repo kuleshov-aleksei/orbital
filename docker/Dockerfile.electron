@@ -33,7 +33,8 @@ WORKDIR /app/frontend
 
 # Build frontend
 COPY frontend/package*.json ./
-RUN pnpm ci --lockfile-only
+COPY frontend/pnpm-*.yaml ./
+RUN pnpm install --lockfile-only
 
 COPY frontend/ .
 RUN pnpm run build
@@ -42,7 +43,7 @@ WORKDIR /app/electron
 
 # Install deps - force x64 platform for binaries (7zip-bin, app-builder-bin, etc)
 COPY electron/package*.json ./
-COPY electron/pnpm-lock.yaml ./
+COPY electron/pnpm-*.yaml ./
 RUN pnpm install --os=linux --cpu=x64
 
 # Copy source code
