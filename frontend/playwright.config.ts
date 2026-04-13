@@ -51,7 +51,7 @@ export default defineConfig({
       },
     },
     {
-      command: "npm run dev -- --host 127.0.0.1 --port 3000",
+      command: "pnpm run dev -- --host 127.0.0.1 --port 3000",
       cwd: ".",
       url: FRONTEND_URL,
       reuseExistingServer: !process.env.CI,

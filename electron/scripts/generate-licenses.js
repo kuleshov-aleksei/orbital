@@ -19,7 +19,7 @@ const dependencies = { ...packageJson.dependencies }
 
 function getPackageInfo(name) {
   try {
-    const result = execSync(`npm info ${name} --json`, { encoding: "utf-8", timeout: 10000 })
+    const result = execSync(`pnpm info ${name} --json`, { encoding: "utf-8", timeout: 10000 })
     const data = JSON.parse(result)
 
     let license = "Unknown"

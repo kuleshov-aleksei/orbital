@@ -231,7 +231,7 @@ Name your audio files according to the supported events:
 
 ```bash
 # Install audiosprite globally if needed
-npm install -g audiosprite
+pnpm install -g audiosprite
 
 # Generate sprite files
 audiosprite --output pack_name *.mp3
@@ -248,7 +248,7 @@ Place audio files inside `public/assets/`
 Place `pack_name.json` into the project root directory, then run:
 
 ```bash
-npm run convert:soundsprite -- pack_name.json
+pnpm run convert:soundsprite -- pack_name.json
 ```
 
 This generates a TypeScript sprite definition in `services/sprites/packName.ts`.
