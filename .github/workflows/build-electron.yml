@@ -52,4 +52,4 @@ jobs:
           draft: true
           
       - name: Clean up builder
-        run: docker system prune -f
+        run: docker builder prune -f
