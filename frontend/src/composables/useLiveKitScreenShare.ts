@@ -131,8 +131,6 @@ export function useLiveKitScreenShare(state: LiveKitState) {
       let displayStream: MediaStream
 
       if (isWindows) {
-        await startElectronScreenShareIPC(sourceId, audio)
-
         displayStream = await navigator.mediaDevices.getDisplayMedia({
           audio: audio,
           video: {
@@ -141,6 +139,8 @@ export function useLiveKitScreenShare(state: LiveKitState) {
             frameRate: { ideal: maxFrameRate },
           },
         })
+
+        await startElectronScreenShareIPC(sourceId, audio)
       } else {
         const constraints: MediaStreamConstraints = {
           audio: audio

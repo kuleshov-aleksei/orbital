@@ -33,6 +33,11 @@ export function importVenmic(): boolean {
   if (imported) return !!PatchBay;
   imported = true;
 
+  if (process.platform !== "linux") {
+    console.log("[Venmic] Skipping venmic import - not Linux")
+    return false
+  }
+
   const importPath = join(DIST_DIR, `venmic-${process.arch}.node`);
   console.log(`[Venmic] Attempting to import from: ${importPath}`);
 

@@ -222,7 +222,7 @@
 import { ref, watch, computed, onUnmounted } from "vue"
 import { PhMonitorPlay, PhSpeakerHigh, PhInfo, PhWarning } from "@phosphor-icons/vue"
 import { useScreenShareSupport } from "@/composables/useScreenShareSupport"
-import { getDesktopSources } from "@/services/electron"
+import { getDesktopSources, getPlatform } from "@/services/electron"
 import { hasVenmic, hasPipeWire } from "@/services/venmic"
 import AudioSourcePicker from "./AudioSourcePicker.vue"
 import AudioCaptureError from "./AudioCaptureError.vue"
@@ -301,8 +301,11 @@ watch(
         sources.value = []
         await loadSources()
 
-        const [venmic, pipewire] = await Promise.all([hasVenmic(), hasPipeWire()])
-        venmicAvailable.value = venmic && pipewire
+        const platform = await getPlatform()
+        if (platform === "linux") {
+          const [venmic, pipewire] = await Promise.all([hasVenmic(), hasPipeWire()])
+          venmicAvailable.value = venmic && pipewire
+        }
       }
     }
   },
