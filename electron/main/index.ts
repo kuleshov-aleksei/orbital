@@ -63,6 +63,7 @@ interface HotkeySetting {
 interface AppConfig {
   closeToTray: boolean
   hasSelectedCloseBehavior: boolean
+  skipUpdates: boolean
   hotkeys: {
     mute: HotkeySetting
     deafen: HotkeySetting
@@ -79,6 +80,7 @@ const DEFAULT_HOTKEYS: AppConfig["hotkeys"] = {
 const DEFAULT_CONFIG: AppConfig = {
   closeToTray: true,
   hasSelectedCloseBehavior: false,
+  skipUpdates: false,
   hotkeys: DEFAULT_HOTKEYS,
 }
 
@@ -986,7 +988,9 @@ app.whenReady().then(() => {
   setupDeepLink()
   setupIPC()
   registerAllHotkeys()
-  setupAutoUpdater()
+  if (!config.skipUpdates) {
+    setupAutoUpdater()
+  }
   setupScreenShareHandler()
 
   app.on("activate", () => {
