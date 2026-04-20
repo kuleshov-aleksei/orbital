@@ -34,10 +34,10 @@
         "arch": ["x64"]
       }
     ],
-    "icon": "build/orbital-icon.png"
+    "icon": "build/orbital-icon.png",
+    "artifactName": "${productName}-Setup-${version}.${ext}"
   },
   "nsis": {
-    "artifactName": "${productName}-Setup-${version}.${ext}",
     "oneClick": false,
     "perMachine": false,
     "allowToChangeInstallationDirectory": true,
@@ -48,17 +48,32 @@
   },
   "linux": {
     "target": [
-      "AppImage",
-      "deb"
+      {
+        "target": "AppImage",
+        "arch": ["x64"]
+      }
     ],
     "category": "Network",
     "icon": "build/orbital-icon.png",
-    "artifactName": "${productName}-Setup-${version}.${ext}",
+    "artifactName": "${productName}-${version}.${ext}",
     "maintainer": "orbital@encamy.com"
   },
-  "publish": {
-    "provider": "github",
-    "owner": "kuleshov-aleksei",
-    "repo": "orbital"
-  }
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "kuleshov-aleksei",
+      "repo": "orbital",
+      "releaseType": "release",
+      "channel": "latest",
+      "target": ["nsis"]
+    },
+    {
+      "provider": "github",
+      "owner": "kuleshov-aleksei",
+      "repo": "orbital",
+      "releaseType": "release",
+      "channel": "linux",
+      "target": ["AppImage"]
+    }
+  ]
 }
