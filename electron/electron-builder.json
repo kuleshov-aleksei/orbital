@@ -58,22 +58,10 @@
     "artifactName": "${productName}-${version}.${ext}",
     "maintainer": "orbital@encamy.com"
   },
-  "publish": [
-    {
-      "provider": "github",
-      "owner": "kuleshov-aleksei",
-      "repo": "orbital",
-      "releaseType": "release",
-      "channel": "latest",
-      "target": ["nsis"]
-    },
-    {
-      "provider": "github",
-      "owner": "kuleshov-aleksei",
-      "repo": "orbital",
-      "releaseType": "release",
-      "channel": "linux",
-      "target": ["AppImage"]
-    }
-  ]
+  "publish": {
+    "provider": "github",
+    "owner": "kuleshov-aleksei",
+    "repo": "orbital",
+    "releaseType": "release"
+  }
 }
