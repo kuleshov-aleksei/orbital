@@ -32,16 +32,9 @@
       {
         "target": "nsis",
         "arch": ["x64"]
-      },
-      {
-        "target": "portable",
-        "arch": ["x64"]
       }
     ],
     "icon": "build/orbital-icon.png"
-  },
-  "portable": {
-    "artifactName": "${productName}-${version}-Portable.${ext}"
   },
   "nsis": {
     "artifactName": "${productName}-Setup-${version}.${ext}",
