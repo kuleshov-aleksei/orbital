@@ -16,15 +16,32 @@ autoUpdater.logger = log
 
 import { hasVenmic, hasPipeWire, listAudioSources, startAudioCapture, stopAudioCapture } from "./venmic"
 
-//app.commandLine.appendSwitch("disable-gpu")
-//app.commandLine.appendSwitch("disable-software-rasterizer")
+// Media control keys can interfere with media objects in the app
+app.commandLine.appendSwitch("disable-features", "HardwareMediaKeyHandling,MediaSessionService");
+
+if (process.platform === "win32") {
+  app.commandLine.appendSwitch("enable-features", "DesktopCaptureWinDXGICapturer")
+  app.commandLine.appendSwitch("disable-gpu-sandbox")
+  app.commandLine.appendSwitch("ignore-gpu-blocklist")
+  app.commandLine.appendSwitch("enable-gpu")
+  app.commandLine.appendSwitch("enable-hardware-overlays", "single-fullscreen,single-on-top,underlay")
+  app.commandLine.appendSwitch("enable-dxgi-mode", "win32")
+  app.commandLine.appendSwitch("disable-dxgi-zero-copy")
+  app.commandLine.appendSwitch("enable-webgl")
+  app.commandLine.appendSwitch("use-angle", "d3d11")
+
+  // https://github.com/electron/electron/issues/2237#issuecomment-126542840
+  app.commandLine.appendSwitch("enable-usermedia-screen-capturing")
+} else if (process.platform === "linux") {
+  app.commandLine.appendSwitch("ozone-platform", "wayland")
+  app.commandLine.appendSwitch("enable-features", "GlobalShortcutsPortal,PipeWireCapturer")
+  app.commandLine.appendSwitch("disable-features", "WebRtcAllowInputVolumeAdjustment");
+}
 
 app.commandLine.appendSwitch("webrtc-max-cpu-consumption-percentage", "100")
 app.commandLine.appendSwitch("max-gum-fps", "120")
 app.commandLine.appendSwitch("webrtc-max-capture-framerate", "120")
 
-app.commandLine.appendSwitch("ozone-platform", "wayland")
-app.commandLine.appendSwitch("enable-features", "GlobalShortcutsPortal,PipeWireCapturer")
 app.commandLine.appendSwitch("enable-zero-copy")
 app.commandLine.appendSwitch("use-gl", "angle")
 app.commandLine.appendSwitch("use-vulkan", "--disable-reading-from-canvas")
@@ -189,6 +206,7 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: false,
     },
+    autoHideMenuBar: true
   })
 
   mainWindow.once("ready-to-show", () => {
