@@ -36,7 +36,7 @@ services:
   # Media traffic (UDP 62000-65535, TCP 7881, UDP 3478) goes directly to host
   # Signaling (TCP 7880) can be routed through Traefik for SSL termination
   livekit:
-    image: livekit/livekit-server:v1.10.1
+    image: livekit/livekit-server:v1.11.0
     container_name: orbital-livekit
     restart: unless-stopped
     command: >
