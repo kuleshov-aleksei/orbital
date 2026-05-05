@@ -116,7 +116,7 @@ const emit = defineEmits<{
   "update:modelValueDeafened": [value: boolean]
   "update:modelValueScreenSharing": [value: boolean]
   "update:modelValueCameraEnabled": [value: boolean]
-  "ping-update": [ping: number, quality: "excellent" | "good" | "fair" | "poor"]
+  "ping-update": [ping: number, quality: "sub-wave" | "excellent" | "good" | "fair" | "poor"]
   "request-screen-share": []
 }>()
 const AudioManager = defineAsyncComponent(() => import("@/components/AudioManager.vue"))
@@ -184,7 +184,7 @@ const {
     // Volume changes are handled by the component
     console.log(`Volume change for ${userId}: ${volume}`)
   },
-  onPingUpdate: (ping: number, quality: "excellent" | "good" | "fair" | "poor") => {
+  onPingUpdate: (ping: number, quality: "sub-wave" | "excellent" | "good" | "fair" | "poor") => {
     emit("ping-update", ping, quality)
   },
 })

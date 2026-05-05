@@ -2,7 +2,7 @@ import { defineStore } from "pinia"
 import { ref, computed } from "vue"
 import { isElectron } from "@/services/electron"
 
-export type ConnectionQuality = "excellent" | "good" | "fair" | "poor"
+export type ConnectionQuality = "sub-wave" | "excellent" | "good" | "fair" | "poor"
 export type MobileView = "rooms" | "room"
 
 export type UpdateState =

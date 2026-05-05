@@ -258,7 +258,7 @@ export interface StatsHistory {
 }
 
 export interface ConnectionQuality {
-  quality: "excellent" | "good" | "fair" | "poor"
+  quality: "sub-wave" | "excellent" | "good" | "fair" | "poor"
   score: number
   issues: string[]
 }

@@ -6,7 +6,7 @@ const STATS_INTERVAL = 2000
 
 export function useLiveKitStats(
   state: LiveKitState,
-  onPingUpdate: (ping: number, quality: "excellent" | "good" | "fair" | "poor") => void,
+  onPingUpdate: (ping: number, quality: "sub-wave" | "excellent" | "good" | "fair" | "poor") => void,
 ) {
   let pingInterval: ReturnType<typeof setInterval> | null = null
   let statsInterval: ReturnType<typeof setInterval> | null = null
@@ -441,8 +441,10 @@ export function useLiveKitStats(
     pingInterval = setInterval(() => {
       state.currentPing.value = state.room.value?.localParticipant.engine.client.rtt ?? 0
 
-      let quality: "excellent" | "good" | "fair" | "poor" = "excellent"
-      if (state.currentPing.value < 30) {
+      let quality: "sub-wave" | "excellent" | "good" | "fair" | "poor" = "excellent"
+      if (state.currentPing.value < 0) {
+        quality = "sub-wave"
+      } else if (state.currentPing.value < 30) {
         quality = "excellent"
       } else if (state.currentPing.value < 60) {
         quality = "good"

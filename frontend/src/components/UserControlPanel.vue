@@ -93,7 +93,7 @@ interface Props {
   isInCall: boolean
   roomName?: string
   ping?: number
-  connectionQuality?: "excellent" | "good" | "fair" | "poor"
+  connectionQuality?: "sub-wave" | "excellent" | "good" | "fair" | "poor"
   modelValueMuted?: boolean
   modelValueDeafened?: boolean
   modelValueScreenSharing?: boolean
@@ -156,6 +156,8 @@ const connectionStatusText = computed(() => {
       return "Fair"
     case "poor":
       return "Poor"
+    case "sub-wave":
+      return "Sub-Wave"
     default:
       return "Connected"
   }
@@ -171,6 +173,8 @@ const connectionStatusColor = computed(() => {
       return "bg-yellow-400"
     case "poor":
       return "bg-red-400"
+    case "sub-wave":
+      return "bg-purple-400"
     default:
       return "bg-green-400"
   }

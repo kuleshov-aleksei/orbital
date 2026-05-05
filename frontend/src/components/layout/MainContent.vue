@@ -38,7 +38,7 @@ defineEmits<{
   (e: "leave-room"): void
   (
     e: "ping-update",
-    payload: { ping: number; quality: "excellent" | "good" | "fair" | "poor" },
+    payload: { ping: number; quality: "sub-wave" | "excellent" | "good" | "fair" | "poor" },
   ): void
   (e: "request-screen-share"): void
 }>()

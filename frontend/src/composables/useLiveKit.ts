@@ -14,7 +14,7 @@ export interface UseLiveKitOptions {
   users: User[]
   remoteStreamVolumes: Map<string, number>
   onVolumeChange: (userId: string, volume: number) => void
-  onPingUpdate: (ping: number, quality: "excellent" | "good" | "fair" | "poor") => void
+  onPingUpdate: (ping: number, quality: "sub-wave" | "excellent" | "good" | "fair" | "poor") => void
 }
 
 export interface ScreenShareState {
