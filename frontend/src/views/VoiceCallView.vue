@@ -221,6 +221,18 @@ watch(
   { immediate: true },
 )
 
+// Watch for input device changes and reinitialize audio stream
+let previousInputDeviceId = audioSettingsStore.inputDeviceId
+watch(
+  () => audioSettingsStore.inputDeviceId,
+  async (newDeviceId) => {
+    if (isConnected.value && newDeviceId !== previousInputDeviceId) {
+      previousInputDeviceId = newDeviceId
+      await reinitializeAudioStream()
+    }
+  },
+)
+
 // Register the unsubscribe function with the call store so stop-watching works globally
 callStore.setUnsubscribeFn(unsubscribeFromScreenShare)
 
