@@ -1,7 +1,12 @@
 <template>
   <div class="flex items-center justify-center space-x-4 shrink-0 px-4 py-3">
     <!-- Mute/Unmute -->
-    <MicMuteButton v-model="isMuted" size="lg" />
+    <div class="relative w-12 h-12">
+      <div class="absolute">
+        <AudioControlsDropdown />
+        <MicMuteButton v-model="isMuted" size="lg" />
+      </div>
+    </div>
 
     <!-- Deafen/Undeafen -->
     <AudioDeafenButton v-model="isDeafened" size="lg" />
@@ -59,6 +64,7 @@ import MicMuteButton from "@/components/MicMuteButton.vue"
 import AudioDeafenButton from "@/components/AudioDeafenButton.vue"
 import ScreenShareButton from "@/components/ScreenShareButton.vue"
 import CameraButton from "@/components/CameraButton.vue"
+import AudioControlsDropdown from "@/components/AudioControlsDropdown.vue"
 import { useModalStore, useCallStore } from "@/stores"
 import type { ScreenShareQuality } from "@/types"
 
