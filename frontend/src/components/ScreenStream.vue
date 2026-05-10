@@ -101,8 +101,8 @@
             <button
               type="button"
               class="px-2 py-1 bg-red-600/80 hover:bg-red-600 rounded-lg text-theme-text-primary text-xs flex items-center transition-colors"
-              title="Stop watching"
-              @click="$emit('unsubscribe')">
+              :title="isSelfView ? 'Stop sharing' : 'Stop watching'"
+              @click="isSelfView ? $emit('stop-own-screen-share') : $emit('unsubscribe')">
               <PhImageBroken class="w-3 h-3 mr-1" />
               Stop
             </button>
@@ -203,6 +203,7 @@ const emit = defineEmits<{
   "make-focused": []
   "volume-change": [volume: number, isScreenShare: boolean]
   unsubscribe: []
+  "stop-own-screen-share": []
 }>()
 
 const videoElement = useTemplateRef<HTMLVideoElement>("videoElement")

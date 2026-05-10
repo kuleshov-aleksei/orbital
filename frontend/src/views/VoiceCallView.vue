@@ -47,7 +47,8 @@
         class="m-4"
         @update:layout="screenShareLayout = $event"
         @subscribe-screen-share="subscribeToScreenShare"
-        @unsubscribe-screen-share="unsubscribeFromScreenShare" />
+        @unsubscribe-screen-share="unsubscribeFromScreenShare"
+        @stop-own-screen-share="handleStopOwnScreenShare" />
 
       <!-- User Grid - Only shown when no screen shares or cameras (audio-only mode) -->
       <UserGrid
@@ -222,6 +223,11 @@ watch(
 
 // Register the unsubscribe function with the call store so stop-watching works globally
 callStore.setUnsubscribeFn(unsubscribeFromScreenShare)
+
+// Handle stopping own screen share from ScreenStream component
+const handleStopOwnScreenShare = async () => {
+  await stopScreenShare()
+}
 
 // Computed properties for v-model support
 const isMuted = computed({

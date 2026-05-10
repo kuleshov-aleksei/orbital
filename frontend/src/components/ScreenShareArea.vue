@@ -23,7 +23,8 @@
             :is-self-view="focusedStream.isSelfView"
             :volume="getVolumeForUser(focusedStream.userId)"
             @volume-change="handleVolumeChange(focusedStream.userId, $event, true)"
-            @unsubscribe="$emit('unsubscribe-screen-share', focusedStream.userId)" />
+            @unsubscribe="$emit('unsubscribe-screen-share', focusedStream.userId)"
+            @stop-own-screen-share="$emit('stop-own-screen-share')" />
           <!-- Available Screen Share Placeholder in main area -->
           <ScreenSharePlaceholder
             v-else-if="focusedPlaceholder"
@@ -103,7 +104,8 @@
             class="h-fit"
             @make-focused="setFocusedShare(item.userId)"
             @volume-change="handleVolumeChange(item.userId, $event, true)"
-            @unsubscribe="$emit('unsubscribe-screen-share', item.userId)" />
+            @unsubscribe="$emit('unsubscribe-screen-share', item.userId)"
+            @stop-own-screen-share="$emit('stop-own-screen-share')" />
           <!-- Camera -->
           <CameraStream
             v-else
@@ -158,6 +160,7 @@ const emit = defineEmits<{
   "volume-change": [userId: string, volume: number, isScreenShare: boolean]
   "subscribe-screen-share": [userId: string]
   "unsubscribe-screen-share": [userId: string]
+  "stop-own-screen-share": []
 }>()
 
 const roomStore = useRoomStore()
