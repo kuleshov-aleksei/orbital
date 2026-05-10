@@ -223,11 +223,56 @@ watch(
 
 // Watch for input device changes and reinitialize audio stream
 let previousInputDeviceId = audioSettingsStore.inputDeviceId
+let previousNoiseSuppressionEnabled = audioSettingsStore.noiseSuppressionEnabled
+let previousNoiseSuppressionAlgorithm = audioSettingsStore.noiseSuppressionAlgorithm
+let previousEchoCancellation = audioSettingsStore.echoCancellationEnabled
+let previousAutoGainControl = audioSettingsStore.autoGainControlEnabled
+
 watch(
   () => audioSettingsStore.inputDeviceId,
   async (newDeviceId) => {
     if (isConnected.value && newDeviceId !== previousInputDeviceId) {
       previousInputDeviceId = newDeviceId
+      await reinitializeAudioStream()
+    }
+  },
+)
+
+watch(
+  () => audioSettingsStore.noiseSuppressionEnabled,
+  async (newValue) => {
+    if (isConnected.value && newValue !== previousNoiseSuppressionEnabled) {
+      previousNoiseSuppressionEnabled = newValue
+      await reinitializeAudioStream()
+    }
+  },
+)
+
+watch(
+  () => audioSettingsStore.noiseSuppressionAlgorithm,
+  async (newValue) => {
+    if (isConnected.value && newValue !== previousNoiseSuppressionAlgorithm) {
+      previousNoiseSuppressionAlgorithm = newValue
+      await reinitializeAudioStream()
+    }
+  },
+)
+
+watch(
+  () => audioSettingsStore.echoCancellationEnabled,
+  async (newValue) => {
+    if (isConnected.value && newValue !== previousEchoCancellation) {
+      previousEchoCancellation = newValue
+      await reinitializeAudioStream()
+    }
+  },
+)
+
+watch(
+  () => audioSettingsStore.autoGainControlEnabled,
+  async (newValue) => {
+    if (isConnected.value && newValue !== previousAutoGainControl) {
+      previousAutoGainControl = newValue
       await reinitializeAudioStream()
     }
   },
