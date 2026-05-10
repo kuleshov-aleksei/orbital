@@ -1,6 +1,5 @@
 <template>
-  <div
-    class="flex items-center justify-center space-x-4 shrink-0 px-4 py-3">
+  <div class="flex items-center justify-center space-x-4 shrink-0 px-4 py-3">
     <!-- Mute/Unmute -->
     <MicMuteButton v-model="isMuted" size="lg" />
 
@@ -31,10 +30,22 @@
       <PhGearSix class="w-5 h-5" />
     </button>
 
+    <!-- Stop Watching -->
+    <button
+      v-if="callStore.watchingUserIds.size > 0"
+      type="button"
+      class="w-12 h-12 rounded-full flex items-center justify-center bg-amber-600 hover:bg-amber-700 transition-colors duration-200"
+      title="Stop watching"
+      @click="callStore.triggerStopWatching()">
+      <PhImageBroken class="w-5 h-5" />
+    </button>
+
     <!-- Leave Room -->
     <button
+      v-else
       type="button"
       class="w-12 h-12 rounded-full flex items-center justify-center bg-red-600 hover:bg-red-700 transition-colors duration-200"
+      title="Leave Room"
       @click="handleLeaveRoom">
       <PhSignOut class="w-5 h-5" />
     </button>
@@ -43,12 +54,12 @@
 
 <script setup lang="ts">
 import { computed, useTemplateRef } from "vue"
-import { PhSignOut, PhGearSix } from "@phosphor-icons/vue"
+import { PhSignOut, PhGearSix, PhImageBroken } from "@phosphor-icons/vue"
 import MicMuteButton from "@/components/MicMuteButton.vue"
 import AudioDeafenButton from "@/components/AudioDeafenButton.vue"
 import ScreenShareButton from "@/components/ScreenShareButton.vue"
 import CameraButton from "@/components/CameraButton.vue"
-import { useModalStore } from "@/stores"
+import { useModalStore, useCallStore } from "@/stores"
 import type { ScreenShareQuality } from "@/types"
 
 interface Props {
@@ -84,6 +95,7 @@ const screenShareButtonRef =
 
 // Stores
 const modalStore = useModalStore()
+const callStore = useCallStore()
 
 // Methods
 const openSettings = () => {

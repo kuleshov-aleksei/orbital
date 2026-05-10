@@ -93,6 +93,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     remoteScreenTracks: state.remoteScreenTracks,
     remoteCameraTracks: state.remoteCameraTracks,
     screenShareVersion: state.screenShareVersion,
+    subscribedScreenShares: screenShare.subscribedScreenShares,
     cameraVersion: state.cameraVersion,
     handleMuteToggle: audio.handleMuteToggle,
     startScreenShare: screenShare.startScreenShare,

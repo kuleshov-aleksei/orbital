@@ -31,6 +31,24 @@ export const useCallStore = defineStore("call", () => {
   const isScreenSharing = ref(false)
   const isCameraEnabled = ref(false)
   const wasMutedBeforeDeafen = ref(false)
+  const watchingUserIds = ref<Set<string>>(new Set())
+
+  let unsubscribeFnRef: ((userId: string) => Promise<void>) | null = null
+
+  function setUnsubscribeFn(fn: (userId: string) => Promise<void>) {
+    unsubscribeFnRef = fn
+  }
+
+  function registerStopWatchingHandler() {
+    return () => {
+      if (unsubscribeFnRef) {
+        const ids = Array.from(watchingUserIds.value)
+        for (const id of ids) {
+          unsubscribeFnRef(id)
+        }
+      }
+    }
+  }
 
   // Watch for changes and persist to localStorage
   watch(isMuted, (newValue) => {
@@ -84,11 +102,32 @@ export const useCallStore = defineStore("call", () => {
     isCameraEnabled.value = !isCameraEnabled.value
   }
 
+  function setWatchingUsers(userIds: Set<string>) {
+    watchingUserIds.value = userIds
+  }
+
+  async function stopWatchingAll(unsubscribeFn: (userId: string) => Promise<void>) {
+    const ids = Array.from(watchingUserIds.value)
+    for (const id of ids) {
+      await unsubscribeFn(id)
+    }
+  }
+
+  async function triggerStopWatching() {
+    if (unsubscribeFnRef) {
+      const ids = Array.from(watchingUserIds.value)
+      for (const id of ids) {
+        await unsubscribeFnRef(id)
+      }
+    }
+  }
+
   function resetCallState() {
     isMuted.value = false
     isDeafened.value = false
     isScreenSharing.value = false
     isCameraEnabled.value = false
+    watchingUserIds.value = new Set()
   }
 
   return {
@@ -96,10 +135,16 @@ export const useCallStore = defineStore("call", () => {
     isDeafened,
     isScreenSharing,
     isCameraEnabled,
+    watchingUserIds,
     setMuted,
     setDeafened,
     setScreenSharing,
     setCameraEnabled,
+    setWatchingUsers,
+    setUnsubscribeFn,
+    registerStopWatchingHandler,
+    triggerStopWatching,
+    stopWatchingAll,
     toggleMute,
     toggleDeafen,
     toggleScreenShare,

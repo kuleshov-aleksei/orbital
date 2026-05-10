@@ -103,7 +103,7 @@
               class="px-2 py-1 bg-red-600/80 hover:bg-red-600 rounded-lg text-theme-text-primary text-xs flex items-center transition-colors"
               title="Stop watching"
               @click="$emit('unsubscribe')">
-              <PhStop class="w-3 h-3 mr-1" />
+              <PhImageBroken class="w-3 h-3 mr-1" />
               Stop
             </button>
 
@@ -164,10 +164,10 @@ import {
   PhPictureInPicture,
   PhSpinner,
   PhPause,
-  PhStop,
   PhSpeakerHigh,
   PhSpeakerLow,
   PhSpeakerNone,
+  PhImageBroken,
 } from "@phosphor-icons/vue"
 import type { ScreenShareQuality } from "@/types"
 import type {

@@ -611,6 +611,7 @@ export function useLiveKitScreenShare(state: LiveKitState) {
 
     if (subscribed) {
       state.subscribedScreenShares.value.add(userId)
+      state.screenShareVersion.value++
     } else {
       debugWarn(`[LiveKit][WARN]: No screen share tracks found for ${userId}`)
     }
@@ -644,6 +645,9 @@ export function useLiveKitScreenShare(state: LiveKitState) {
         publication.setSubscribed(false)
       }
     })
+
+    state.subscribedScreenShares.value.delete(userId)
+    state.screenShareVersion.value++
   }
 
   const screenShareData = computed(() => {
@@ -729,6 +733,7 @@ export function useLiveKitScreenShare(state: LiveKitState) {
     stopScreenShare,
     subscribeToScreenShare,
     unsubscribeFromScreenShare,
+    subscribedScreenShares: state.subscribedScreenShares,
     screenShareData,
     availableScreenShares,
     isRunningInElectron,

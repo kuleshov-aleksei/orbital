@@ -174,6 +174,8 @@ const {
   initializeLiveKit,
   subscribeToScreenShare,
   unsubscribeFromScreenShare,
+  subscribedScreenShares,
+  screenShareVersion,
   cleanup,
 } = useLiveKit({
   roomId: props.roomId,
@@ -203,6 +205,23 @@ watch(
   },
   { immediate: true },
 )
+
+// Sync subscribed screen shares with call store watching state
+// Use screenShareVersion to trigger reactivity since Set mutations aren't detected by Vue
+watch(
+  [screenShareVersion, () => Array.from(subscribedScreenShares.value)],
+  () => {
+    const currentUserId = userStore.userId
+    const remoteIds = new Set(
+      Array.from(subscribedScreenShares.value).filter((id) => id !== currentUserId),
+    )
+    callStore.setWatchingUsers(remoteIds)
+  },
+  { immediate: true },
+)
+
+// Register the unsubscribe function with the call store so stop-watching works globally
+callStore.setUnsubscribeFn(unsubscribeFromScreenShare)
 
 // Computed properties for v-model support
 const isMuted = computed({
