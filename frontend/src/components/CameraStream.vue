@@ -13,6 +13,7 @@
         autoplay
         playsinline
         muted
+        controlsList="nofullscreen nodownload nomedia"
         @dblclick="toggleFullscreen"
         @loadedmetadata="handleVideoMetadata" />
 

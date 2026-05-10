@@ -13,6 +13,7 @@
         :style="{ aspectRatio: videoAspectRatio }"
         autoplay
         playsinline
+        controlsList="nofullscreen nodownload nomedia"
         @dblclick="toggleFullscreen"
         @loadedmetadata="handleVideoMetadata" />
 
