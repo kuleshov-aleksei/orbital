@@ -21,6 +21,7 @@ export interface AudioSettings {
   autoGainControl: boolean
   sampleRate: number
   channelCount: number
+  inputDeviceId: string | null
 }
 
 export interface AudioAlgorithmInfo {
@@ -113,6 +114,7 @@ export const defaultAudioSettings: AudioSettings = {
   autoGainControl: true,
   sampleRate: 48000,
   channelCount: 1,
+  inputDeviceId: null,
 }
 
 /** Local storage key for audio settings */

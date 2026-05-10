@@ -8,10 +8,16 @@ import {
 } from "@/types/audio"
 import { getAudioProcessor } from "@/services/audio"
 
+export interface AudioInputDevice {
+  deviceId: string
+  label: string
+}
+
 export const useAudioSettingsStore = defineStore("audioSettings", () => {
   // State
   const settings = ref<AudioSettings>({ ...defaultAudioSettings })
   const isLoaded = ref(false)
+  const availableInputDevices = ref<AudioInputDevice[]>([])
 
   // Getters
   const noiseSuppressionEnabled = computed(() => settings.value.noiseSuppression.enabled)
@@ -40,6 +46,52 @@ export const useAudioSettingsStore = defineStore("audioSettings", () => {
   const currentAlgorithmInfo = computed<AudioAlgorithmInfo | undefined>(() => {
     return availableAlgorithms.find((a) => a.id === settings.value.noiseSuppression.algorithm)
   })
+
+  /**
+   * Get selected input device ID
+   */
+  const inputDeviceId = computed(() => settings.value.inputDeviceId)
+
+  /**
+   * Enumerate available audio input devices
+   */
+  async function enumerateInputDevices(): Promise<AudioInputDevice[]> {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      const audioInputDevices = devices
+        .filter((d) => d.kind === "audioinput")
+        .map((d) => ({
+          deviceId: d.deviceId,
+          label: d.label || `Microphone ${d.deviceId.slice(0, 8)}`,
+        }))
+      availableInputDevices.value = audioInputDevices
+      return audioInputDevices
+    } catch (e) {
+      console.warn("Failed to enumerate audio input devices:", e)
+      return []
+    }
+  }
+
+  /**
+   * Request permissions and enumerate devices
+   */
+  async function requestPermissionsAndEnumerate(): Promise<AudioInputDevice[]> {
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true })
+      return await enumerateInputDevices()
+    } catch (e) {
+      console.warn("Failed to request audio permissions:", e)
+      return await enumerateInputDevices()
+    }
+  }
+
+  /**
+   * Set the selected input device ID
+   */
+  function setInputDeviceId(deviceId: string | null) {
+    settings.value.inputDeviceId = deviceId
+    saveSettings()
+  }
 
   /**
    * Generate MediaTrackConstraints based on current settings
@@ -183,6 +235,7 @@ export const useAudioSettingsStore = defineStore("audioSettings", () => {
     // State
     settings,
     isLoaded,
+    availableInputDevices,
 
     // Getters
     noiseSuppressionEnabled,
@@ -192,12 +245,16 @@ export const useAudioSettingsStore = defineStore("audioSettings", () => {
     availableNoiseSuppressionAlgorithms,
     currentAlgorithmInfo,
     audioConstraints,
+    inputDeviceId,
 
     // Actions
     toggleNoiseSuppression,
     setNoiseSuppressionAlgorithm,
     toggleEchoCancellation,
     toggleAutoGainControl,
+    enumerateInputDevices,
+    requestPermissionsAndEnumerate,
+    setInputDeviceId,
     loadSettings,
     saveSettings,
     resetSettings,

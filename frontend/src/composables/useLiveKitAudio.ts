@@ -56,6 +56,8 @@ export function useLiveKitAudio(state: LiveKitState) {
             selectedAlgorithm = "off"
           }
 
+          const inputDeviceId = audioSettingsStore.inputDeviceId
+
           debugLog(`[LiveKit][INFO]: Initializing audio track with algorithm: ${selectedAlgorithm}`)
 
           if (selectedAlgorithm === "rnnoise" || selectedAlgorithm === "speex") {
@@ -66,14 +68,20 @@ export function useLiveKitAudio(state: LiveKitState) {
                 noiseSuppression: false,
                 autoGainControl: audioConstraints.autoGainControl,
                 echoCancellation: audioConstraints.echoCancellation,
-                sampleRate: selectedAlgorithm === "rnnoise" ? RNNOISE_REQUIRED_SAMPLE_RATE : undefined,
+                sampleRate:
+                  selectedAlgorithm === "rnnoise" ? RNNOISE_REQUIRED_SAMPLE_RATE : undefined,
+                deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
               })
 
               const trackSettings = track.mediaStreamTrack.getSettings()
               const actualSampleRate = trackSettings.sampleRate
               debugLog(`[LiveKit][INFO]: Audio track created with sample rate: ${actualSampleRate}`)
 
-              if (selectedAlgorithm === "rnnoise" && actualSampleRate !== RNNOISE_REQUIRED_SAMPLE_RATE && actualSampleRate !== undefined) {
+              if (
+                selectedAlgorithm === "rnnoise" &&
+                actualSampleRate !== RNNOISE_REQUIRED_SAMPLE_RATE &&
+                actualSampleRate !== undefined
+              ) {
                 debugWarn(
                   `[LiveKit][WARN]: RNNoise requires ${RNNOISE_REQUIRED_SAMPLE_RATE}Hz but got ${actualSampleRate}Hz. Falling back to speex`,
                 )
@@ -84,11 +92,16 @@ export function useLiveKitAudio(state: LiveKitState) {
               if (selectedAlgorithm === "rnnoise" || selectedAlgorithm === "speex") {
                 activeWasmAlgorithm.value = selectedAlgorithm
                 state.localAudioTrack.value = track
-                debugLog(`[LiveKit][INFO]: Audio track initialized successfully with ${selectedAlgorithm}`)
+                debugLog(
+                  `[LiveKit][INFO]: Audio track initialized successfully with ${selectedAlgorithm}`,
+                )
                 return track
               }
             } catch (error) {
-              debugError(`[LiveKit][ERROR]: Failed to create audio track with ${selectedAlgorithm}:`, error)
+              debugError(
+                `[LiveKit][ERROR]: Failed to create audio track with ${selectedAlgorithm}:`,
+                error,
+              )
               const fallback = "speex"
               if (selectedAlgorithm === "rnnoise") {
                 selectedAlgorithm = fallback
@@ -104,6 +117,7 @@ export function useLiveKitAudio(state: LiveKitState) {
             noiseSuppression: audioConstraints.noiseSuppression,
             autoGainControl: audioConstraints.autoGainControl,
             echoCancellation: audioConstraints.echoCancellation,
+            deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
           })
 
           state.localAudioTrack.value = track
@@ -166,7 +180,7 @@ export function useLiveKitAudio(state: LiveKitState) {
     try {
       const localParticipant = state.room.value.localParticipant
       const audioPublications = Array.from(localParticipant.trackPublications.values())
-      
+
       for (const publication of audioPublications) {
         if (publication.kind === "audio" && publication.trackSid) {
           try {
@@ -178,7 +192,7 @@ export function useLiveKitAudio(state: LiveKitState) {
           }
         }
       }
-      
+
       state.localAudioPublication.value = null
       debugLog(`[LiveKit][INFO]: 'Audio track unpublished'}`)
     } catch (error) {
@@ -250,23 +264,25 @@ export function useLiveKitAudio(state: LiveKitState) {
     state.localStreamPromise.value = null
     state.localAudioPublication.value = null
 
-    await new Promise(resolve => setTimeout(resolve, 300))
-    
+    await new Promise((resolve) => setTimeout(resolve, 300))
+
     if (!state.isConnected.value || !state.room.value) {
       debugWarn(`[LiveKit][WARN]: Room disconnected during reinitialize`)
       return
     }
-    
+
     await initializeAudioTrack()
-    
+
     if (!state.localAudioTrack.value) {
       debugWarn(`[LiveKit][WARN]: No audio track created`)
       return
     }
-    
+
     await publishAudioTrack()
 
-    debugLog(`[LiveKit][INFO]: 'Audio stream reinitialized, publication:', ${(state.localAudioPublication.value as any)?.trackSid}`)
+    debugLog(
+      `[LiveKit][INFO]: 'Audio stream reinitialized, publication:', ${(state.localAudioPublication.value as any)?.trackSid}`,
+    )
   }
 
   return {

@@ -7,6 +7,28 @@
       Audio Settings
     </h3>
 
+    <!-- Input Device Selection -->
+    <div class="space-y-3">
+      <div>
+        <label class="text-sm font-medium text-theme-text-primary block mb-1.5">
+          Input Device
+        </label>
+
+        <select
+          v-model="selectedInputDevice"
+          class="w-full bg-theme-bg-tertiary border border-theme-border rounded-lg px-3 py-2 text-sm text-theme-text-primary focus:outline-none focus:ring-2 focus:ring-theme-accent focus:border-transparent"
+          @change="onInputDeviceChange">
+          <option value="">Default</option>
+          <option
+            v-for="device in filteredInputDevices"
+            :key="device.deviceId"
+            :value="device.deviceId">
+            {{ device.label }}
+          </option>
+        </select>
+      </div>
+    </div>
+
     <!-- Noise Suppression -->
     <div class="space-y-3">
       <div class="flex items-center justify-between">
@@ -148,6 +170,8 @@ const audioStore = useAudioSettingsStore()
 
 // Local state
 const selectedAlgorithm = ref<NoiseSuppressionAlgorithm>("rnnoise")
+const selectedInputDevice = ref<string>("")
+const availableInputDevices = ref<{ deviceId: string; label: string }[]>([])
 
 // Computed
 const noiseSuppressionEnabled = computed(() => audioStore.noiseSuppressionEnabled)
@@ -161,11 +185,34 @@ const selectedAlgorithmInfo = computed(() => {
   return availableAlgorithms.value.find((a) => a.id === selectedAlgorithm.value)
 })
 
+// Filter out monitor mics
+const filteredInputDevices = computed(() => {
+  return availableInputDevices.value.filter((d) => !d.label.toLowerCase().startsWith("monitor"))
+})
+
+// Load input devices
+async function loadInputDevices() {
+  const devices = await audioStore.requestPermissionsAndEnumerate()
+  availableInputDevices.value = devices
+}
+
+function onInputDeviceChange() {
+  audioStore.setInputDeviceId(selectedInputDevice.value || null)
+}
+
 // Watch for store changes to sync local state
 watch(
   () => audioStore.noiseSuppressionAlgorithm,
   (newVal) => {
     selectedAlgorithm.value = newVal
+  },
+  { immediate: true },
+)
+
+watch(
+  () => audioStore.inputDeviceId,
+  (newVal) => {
+    selectedInputDevice.value = newVal || ""
   },
   { immediate: true },
 )
@@ -195,8 +242,10 @@ function resetSettings() {
 }
 
 // Load settings on mount
-onMounted(() => {
+onMounted(async () => {
   audioStore.loadSettings()
   selectedAlgorithm.value = audioStore.noiseSuppressionAlgorithm
+  selectedInputDevice.value = audioStore.inputDeviceId || ""
+  await loadInputDevices()
 })
 </script>
