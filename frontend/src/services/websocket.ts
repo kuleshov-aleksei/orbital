@@ -17,8 +17,11 @@ export class WebSocketService {
   private globalConnectionCallbacks: ConnectionCallback[] = []
   private globalDisconnectionCallbacks: DisconnectionCallback[] = []
   private reconnectAttempts = 0
-  private maxReconnectAttempts = 5
-  private reconnectDelay = 1000
+  private maxReconnectAttempts = 7
+  private reconnectDelay = 200
+  private globalReconnectAttempts = 0
+  private maxGlobalReconnectAttempts = 7
+  private globalReconnectDelay = 200
   private roomId: string = ""
   private userId: string = ""
   private globalConnectionPromise: Promise<void> | null = null
@@ -99,6 +102,7 @@ export class WebSocketService {
         this.globalWs.onopen = (event) => {
           console.log("Global WebSocket connected:", event)
           this.globalConnectionPromise = null
+          this.globalReconnectAttempts = 0
           this.notifyGlobalConnectionCallbacks()
           resolve()
         }
@@ -117,6 +121,7 @@ export class WebSocketService {
           console.log("Global WebSocket closed:", event)
           this.globalConnectionPromise = null
           this.notifyGlobalDisconnectionCallbacks(event)
+          this.attemptGlobalReconnect()
         }
       } catch (error) {
         this.globalConnectionPromise = null
@@ -407,7 +412,25 @@ export class WebSocketService {
       this.connect(this.roomId, this.userId).catch((error) => {
         console.error("Reconnection failed:", error)
       })
-    }, this.reconnectDelay * this.reconnectAttempts)
+    }, this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1))
+  }
+
+  private attemptGlobalReconnect(): void {
+    if (this.globalReconnectAttempts >= this.maxGlobalReconnectAttempts) {
+      console.log("Max global WebSocket reconnection attempts reached")
+      return
+    }
+
+    this.globalReconnectAttempts++
+    console.log(
+      `Attempting to reconnect global WebSocket... (${this.globalReconnectAttempts}/${this.maxGlobalReconnectAttempts})`,
+    )
+
+    setTimeout(() => {
+      this.connectGlobal().catch((error) => {
+        console.error("Global reconnection failed:", error)
+      })
+    }, this.globalReconnectDelay * Math.pow(2, this.globalReconnectAttempts - 1))
   }
 
   private handleGlobalMessage(event: MessageEvent<unknown>): void {

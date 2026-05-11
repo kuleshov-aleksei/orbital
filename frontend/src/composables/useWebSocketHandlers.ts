@@ -8,6 +8,7 @@ import {
   useSoundPackStore,
 } from "@/stores"
 import { wsService } from "@/services/websocket"
+import { apiService } from "@/services/api"
 import { debugLog } from "@/utils/debug"
 import type { User, Room, Category, PublicUser } from "@/types"
 
@@ -181,6 +182,8 @@ export function useWebSocketHandlers() {
       startGlobalPing()
       // Refetch users to get updated online status now that we're connected
       void usersStore.fetchAllUsers()
+      // Sync room data to fix desync after global WebSocket reconnect
+      void syncRoomsData()
     })
 
     wsService.onGlobalDisconnection((event) => {
@@ -329,6 +332,16 @@ export function useWebSocketHandlers() {
       await wsService.connectGlobal()
     } catch (error) {
       console.error("Failed to connect global WebSocket:", error)
+    }
+  }
+
+  const syncRoomsData = async () => {
+    try {
+      const rooms = await apiService.getRooms(true)
+      roomStore.setRooms(rooms)
+      debugLog("[WebSocket] Synced room data after global reconnect")
+    } catch (error) {
+      console.error("Failed to sync rooms data:", error)
     }
   }
 
