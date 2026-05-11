@@ -586,60 +586,66 @@ function setupAutoUpdater() {
 }
 
 function setupScreenShareHandler() {
-  let pendingCallback: ((options: Electron.Streams) => void) | null = null
-
   session.defaultSession.setDisplayMediaRequestHandler(
     async (request, callback) => {
       log.info("[ScreenShare] Received display media request:", request)
-      pendingCallback = callback
 
-      const sources = await desktopCapturer.getSources({
-        types: ["window", "screen"],
-      })
+      const sources = await desktopCapturer
+        .getSources({
+          types: ["window", "screen"],
+        })
+        .catch((err) => {
+          log.error("[ScreenShare] Failed to get sources:", err)
+          return null
+        })
+
       if (!sources || sources.length === 0) {
         log.warn("[ScreenShare] No sources found")
-        callback({})
+        try {
+          callback({})
+        } catch (e) {
+          log.error("[ScreenShare] Callback error (no sources):", e)
+        }
         return
       }
 
       mainWindow?.webContents.send("getSources", sources)
+
+      ipcMain.once("startScreenshare", (_event, id: string, name: string, audio: boolean) => {
+        log.info(`[ScreenShare] startScreenshare received: id=${id}, audio=${audio}`)
+
+        if (id === "none") {
+          try {
+            callback({})
+          } catch (e) {
+            log.error("[ScreenShare] Callback error (none):", e)
+          }
+          return
+        }
+
+        const result = { id, name }
+
+        if (process.platform === "win32" || process.platform === "linux") {
+          const options: Electron.Streams = { video: result }
+          if (audio) {
+            options.audio = "loopback"
+          }
+          try {
+            callback(options)
+          } catch (e) {
+            log.error("[ScreenShare] Callback error (win/linux):", e)
+          }
+        } else {
+          try {
+            callback({ video: result })
+          } catch (e) {
+            log.error("[ScreenShare] Callback error (mac):", e)
+          }
+        }
+      })
     },
     { useSystemPicker: false }
   )
-
-  ipcMain.handle("start-electron-screenshare", async (_event, sourceId: string, audioEnabled: boolean) => {
-    log.info(`[ScreenShare] IPC start-electron-screenshare called: ${sourceId}, audio: ${audioEnabled}`)
-
-    if (!pendingCallback) {
-      log.error("[ScreenShare] No pending callback")
-      return { success: false, error: "No pending callback" }
-    }
-
-    if (sourceId === "none") {
-      try {
-        pendingCallback({})
-      } catch (e) {
-        log.error("[ScreenShare] Callback error:", e)
-      }
-      pendingCallback = null
-      return { success: true }
-    }
-
-    const result = { id: sourceId, name: "" }
-
-    if (process.platform === "win32" || process.platform === "linux") {
-      const options: Electron.Streams = { video: result }
-      if (audioEnabled) {
-        options.audio = "loopback"
-      }
-      pendingCallback(options)
-    } else {
-      pendingCallback({ video: result })
-    }
-
-    pendingCallback = null
-    return { success: true }
-  })
 }
 
 function setupIPC() {

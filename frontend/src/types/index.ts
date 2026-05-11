@@ -391,6 +391,10 @@ export interface HotkeysConfig {
 
 export interface ElectronAPI {
   getDesktopSources: () => Promise<DesktopSource[]>
+  startScreenshare: (
+    sourceId: string,
+    audioEnabled: boolean,
+  ) => Promise<{ success: boolean; error?: string }>
   startElectronScreenShare: (
     sourceId: string,
     audioEnabled: boolean,
