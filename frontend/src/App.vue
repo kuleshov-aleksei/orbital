@@ -13,7 +13,7 @@ import { useRouter } from "vue-router"
 import { useAppStore, useRoomStore, useThemeStore, useUserStore } from "@/stores"
 import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts"
 import { isElectron, onDeepLink, onOAuthToken } from "@/services/electron"
-import { setAuthToken, apiService } from "@/services/api"
+import { setAuthToken, apiService, getAuthToken } from "@/services/api"
 
 const router = useRouter()
 const appStore = useAppStore()
@@ -25,6 +25,36 @@ useKeyboardShortcuts()
 
 const checkMobile = () => {
   appStore.checkMobile()
+}
+
+const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+  if (roomStore.isInRoom) {
+    e.preventDefault()
+    e.returnValue = ""
+    return
+  }
+}
+
+const cleanupOnUnload = () => {
+  const roomId = roomStore.activeRoomId
+  const userId = userStore.userId
+
+  if (!roomId || !userId) return
+
+  const token = getAuthToken()
+  if (token) {
+    const data = JSON.stringify({ user_id: userId })
+    navigator.sendBeacon(`/api/rooms/${roomId}/leave`, data)
+  }
+
+  const ws = window.location.protocol === "https:" ? "wss:" : "ws:"
+  const wsUrl = `${ws}//${window.location.host}/ws/${roomId}`
+  const wsLeave = new WebSocket(wsUrl)
+  wsLeave.onopen = () => {
+    const msg = JSON.stringify({ type: "leave_room", data: { user_id: userId } })
+    wsLeave.send(msg)
+    wsLeave.close()
+  }
 }
 
 watch(
@@ -47,6 +77,8 @@ watch(
 onMounted(() => {
   checkMobile()
   window.addEventListener("resize", checkMobile)
+  window.addEventListener("beforeunload", handleBeforeUnload)
+  window.addEventListener("unload", cleanupOnUnload)
   roomStore.loadUserVolumes()
 
   if (isElectron()) {
@@ -81,5 +113,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener("resize", checkMobile)
+  window.removeEventListener("beforeunload", handleBeforeUnload)
+  window.removeEventListener("unload", cleanupOnUnload)
 })
 </script>

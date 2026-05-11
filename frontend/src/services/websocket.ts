@@ -408,11 +408,14 @@ export class WebSocketService {
       `Attempting to reconnect... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`,
     )
 
-    setTimeout(() => {
-      this.connect(this.roomId, this.userId).catch((error) => {
-        console.error("Reconnection failed:", error)
-      })
-    }, this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1))
+    setTimeout(
+      () => {
+        this.connect(this.roomId, this.userId).catch((error) => {
+          console.error("Reconnection failed:", error)
+        })
+      },
+      this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1),
+    )
   }
 
   private attemptGlobalReconnect(): void {
@@ -426,11 +429,14 @@ export class WebSocketService {
       `Attempting to reconnect global WebSocket... (${this.globalReconnectAttempts}/${this.maxGlobalReconnectAttempts})`,
     )
 
-    setTimeout(() => {
-      this.connectGlobal().catch((error) => {
-        console.error("Global reconnection failed:", error)
-      })
-    }, this.globalReconnectDelay * Math.pow(2, this.globalReconnectAttempts - 1))
+    setTimeout(
+      () => {
+        this.connectGlobal().catch((error) => {
+          console.error("Global reconnection failed:", error)
+        })
+      },
+      this.globalReconnectDelay * Math.pow(2, this.globalReconnectAttempts - 1),
+    )
   }
 
   private handleGlobalMessage(event: MessageEvent<unknown>): void {
@@ -455,30 +461,17 @@ export class WebSocketService {
   }
 
   private setupEventHandlers(): void {
-    // Handle page visibility change
     document.addEventListener("visibilitychange", () => {
-      if (document.hidden) {
-        // Page is hidden, consider pausing some operations
-        console.log("Page hidden, WebSocket still connected")
-      } else {
-        // Page is visible, check connection
+      if (!document.hidden) {
         if (!this.isConnected() && this.roomId) {
-          console.log("Page visible, attempting to reconnect")
           this.attemptReconnect()
         }
         if (!this.isGlobalConnected()) {
-          console.log("Page visible, attempting to reconnect global WebSocket")
           this.connectGlobal().catch((error) => {
             console.error("Failed to reconnect global WebSocket:", error)
           })
         }
       }
-    })
-
-    // Handle browser close
-    window.addEventListener("beforeunload", () => {
-      this.disconnect()
-      void this.disconnectGlobal()
     })
   }
 }

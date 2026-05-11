@@ -224,6 +224,13 @@ func (h *RoomHandler) LeaveRoom(w http.ResponseWriter, r *http.Request) {
 
 	leftUser := h.roomService.LeaveRoom(roomID, req.UserID)
 
+	// Remove from LiveKit
+	if leftUser != nil && h.livekitService != nil {
+		if err := h.livekitService.RemoveParticipant(roomID, req.UserID); err != nil {
+			log.Printf("Failed to remove user %s from LiveKit room %s: %v", req.UserID, roomID, err)
+		}
+	}
+
 	// Broadcast room user left event to all clients
 	if h.wsHub != nil && leftUser != nil {
 		roomUserLeftMessage := map[string]interface{}{

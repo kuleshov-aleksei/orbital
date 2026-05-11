@@ -29,6 +29,7 @@ export function useLiveKitConnection(state: LiveKitState, deps: UseLiveKitConnec
       const lkRoom = new Room({
         adaptiveStream: true,
         dynacast: true,
+        disconnectOnPageLeave: false,
         publishDefaults: {
           simulcast: true,
           screenShareEncoding: {
@@ -42,7 +43,7 @@ export function useLiveKitConnection(state: LiveKitState, deps: UseLiveKitConnec
       deps.setupRoomEventListeners(lkRoom)
 
       await lkRoom.connect(url, token, {
-        autoSubscribe: false
+        autoSubscribe: false,
       })
 
       debugLog(
