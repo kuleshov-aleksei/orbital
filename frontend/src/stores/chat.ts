@@ -7,6 +7,7 @@ export const useChatStore = defineStore("chat", () => {
   const isOpen = ref(false)
   const activeRoomId = ref<string | null>(null)
   const unreadCountByRoom = ref<Map<string, number>>(new Map())
+  const messageVersion = ref(0)
 
   const totalUnreadCount = computed(() => {
     let total = 0
@@ -22,12 +23,14 @@ export const useChatStore = defineStore("chat", () => {
 
   function setMessages(roomId: string, messages: ChatMessage[]) {
     messagesByRoom.value.set(roomId, messages)
+    messageVersion.value++
   }
 
   function addMessage(roomId: string, message: ChatMessage) {
     const messages = messagesByRoom.value.get(roomId) || []
     messages.push(message)
     messagesByRoom.value.set(roomId, messages)
+    messageVersion.value++
 
     if (roomId !== activeRoomId.value || !isOpen.value) {
       const currentUnread = unreadCountByRoom.value.get(roomId) || 0
@@ -72,6 +75,7 @@ export const useChatStore = defineStore("chat", () => {
     activeRoomId,
     unreadCountByRoom,
     totalUnreadCount,
+    messageVersion,
     getMessages,
     setMessages,
     addMessage,

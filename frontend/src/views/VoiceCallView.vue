@@ -27,6 +27,16 @@
         </template>
       </RoomHeader>
 
+      <!-- Chat Message Notification -->
+      <ChatPreviewNotification
+        v-if="chatNotification"
+        :visible="chatNotification.visible"
+        :sender-name="chatNotification.senderName"
+        :sender-id="chatNotification.senderId"
+        :message="chatNotification.message"
+        @click="handleNotificationClick"
+        @dismiss="chatNotification.visible = false" />
+
       <!-- Screen Share Quality Modal handled by parent -->
 
       <!-- Main Call Area -->
@@ -108,6 +118,7 @@ import AudioControls from "@/components/AudioControls.vue"
 import RoomHeader from "@/components/RoomHeader.vue"
 import ChatWidget from "@/components/ChatWidget.vue"
 import ChatToggleButton from "@/components/ChatToggleButton.vue"
+import ChatPreviewNotification from "@/components/ChatPreviewNotification.vue"
 import { useLiveKit, useVoiceActivity } from "@/composables"
 import {
   useAudioSettingsStore,
@@ -115,7 +126,10 @@ import {
   useUserStore,
   useAppStore,
   useRoomStore,
+  useChatStore,
+  useUsersStore,
 } from "@/stores"
+import { storeToRefs } from "pinia"
 import type { User, ScreenShareQuality } from "@/types"
 
 const props = withDefaults(defineProps<Props>(), {
@@ -163,9 +177,56 @@ const audioSettingsStore = useAudioSettingsStore()
 const callStore = useCallStore()
 const appStore = useAppStore()
 const roomStore = useRoomStore()
+const chatStore = useChatStore()
+const usersStore = useUsersStore()
+
+const { messageVersion } = storeToRefs(chatStore)
 
 // Track muted users for AudioManager
 const mutedUsers = ref<Set<string>>(new Set())
+
+// Chat notification state
+interface ChatNotificationState {
+  visible: boolean
+  senderName: string
+  senderId: string
+  message: string
+}
+
+let notificationTimer: ReturnType<typeof setTimeout> | null = null
+const chatNotification = ref<ChatNotificationState | null>(null)
+
+const showChatNotification = (senderName: string, senderId: string, message: string) => {
+  console.log("Showing text message from " + senderName)
+  if (notificationTimer) {
+    clearTimeout(notificationTimer)
+  }
+
+  chatNotification.value = {
+    visible: true,
+    senderName,
+    senderId,
+    message,
+  }
+
+  notificationTimer = setTimeout(() => {
+    if (chatNotification.value) {
+      chatNotification.value.visible = false
+    }
+    notificationTimer = null
+  }, 10000)
+}
+
+const handleNotificationClick = () => {
+  if (notificationTimer) {
+    clearTimeout(notificationTimer)
+    notificationTimer = null
+  }
+  if (chatNotification.value) {
+    chatNotification.value.visible = false
+  }
+  chatStore.openChat()
+}
 
 // Initialize LiveKit composable - destructure for template reactivity
 const {
@@ -546,6 +607,23 @@ const startElectronScreenShareWithQuality = async (
     console.error("Failed to start Electron screen share:", error)
   }
 }
+
+// Watch for new chat messages and show notification
+watch(messageVersion, () => {
+  const messages = chatStore.getMessages(props.roomId)
+  if (!messages.length) return
+
+  const newMessage = messages[messages.length - 1]
+
+  if (newMessage.sender_id === currentUserId.value) return
+
+  if (chatStore.isOpen && chatStore.activeRoomId === props.roomId) return
+
+  const sender = usersStore.allUsers.find((u) => u.id === newMessage.sender_id)
+  const senderName = sender?.nickname || "Unknown"
+
+  showChatNotification(senderName, newMessage.sender_id, newMessage.content)
+})
 
 defineExpose({
   startScreenShare: startScreenShareWithQuality,
