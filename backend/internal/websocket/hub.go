@@ -652,6 +652,12 @@ func (c *Client) handleLeaveRoom(data interface{}) {
 	}
 	c.hub.BroadcastToRoom(roomID, usersUpdate)
 
+	// Clear chat history when last user leaves
+	if len(users) == 0 && c.hub.chatService != nil {
+		c.hub.chatService.ClearRoom(roomID)
+		log.Printf("[Chat] Chat history cleared for room %s (last user left)", roomID)
+	}
+
 	// Note: We don't delete the LiveKit room here even if WebSocket room is empty.
 	// LiveKit has its own empty timeout (300s) and will auto-delete the room.
 	// This prevents disconnecting users who are still connected via LiveKit
@@ -1109,6 +1115,12 @@ func (h *Hub) disconnectUserDueToTimeout(roomID, userID string) {
 		Data: users,
 	}
 	h.BroadcastToRoom(roomID, usersUpdate)
+
+	// Clear chat history when last user leaves due to ping timeout
+	if len(users) == 0 && h.chatService != nil {
+		h.chatService.ClearRoom(roomID)
+		log.Printf("[Chat] Chat history cleared for room %s (last user left due to ping timeout)", roomID)
+	}
 
 	// Note: We don't delete the LiveKit room here even if WebSocket room is empty.
 	// LiveKit has its own empty timeout (300s) and will auto-delete the room.
