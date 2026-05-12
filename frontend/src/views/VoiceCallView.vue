@@ -9,7 +9,7 @@
       :is-deafened="isDeafened"
       :muted-users="mutedUsers" />
 
-    <!-- Main Content Area (shrinks when chat sidebar opens) -->
+    <!-- Main Content Area (shrinks when chat sidebar opens on desktop) -->
     <div class="flex-1 flex flex-col min-h-0 relative">
       <!-- Room Header -->
       <RoomHeader
@@ -78,7 +78,7 @@
           :get-participant-stats="getParticipantStats" />
 
         <!-- Floating Audio Controls - positioned at bottom center of main content -->
-        <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-50">
+        <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 lg:z-40">
           <AudioControls
             ref="audioControlsRef"
             v-model:model-value-muted="isMuted"
@@ -94,9 +94,16 @@
       </div>
     </div>
 
-    <!-- Chat Sidebar (right side, shrinks main content) -->
-    <ChatWidget />
+    <!-- Desktop Chat Sidebar (shrinks main content) -->
+    <ChatWidget
+      v-if="!isMobile"
+      :is-mobile="isMobile" />
   </div>
+
+  <!-- Mobile Chat Modal (overlay, rendered outside flex container) -->
+  <ChatWidget
+    v-if="isMobile"
+    :is-mobile="isMobile" />
 </template>
 
 <script setup lang="ts">
