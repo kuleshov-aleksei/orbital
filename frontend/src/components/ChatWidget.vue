@@ -78,6 +78,7 @@
             :placeholder="inputPlaceholder"
             :maxlength="2000"
             @keydown.enter="handleEnter"
+            @keydown="handleKeydown"
             @input="autoResize" />
           <button
             type="button"
@@ -172,10 +173,60 @@ const sendMessage = () => {
 }
 
 const handleEnter = (e: KeyboardEvent) => {
-  console.log(e);
   if (e.shiftKey) return
   e.preventDefault()
   sendMessage()
+}
+
+const wrapSelection = (prefix: string, suffix: string) => {
+  const el = inputRef.value
+  if (!el) return
+
+  const { selectionStart: start, selectionEnd: end, value } = el
+  if (start === null || end === null) return
+
+  const selectedText = value.slice(start, end)
+  const textBefore = value.slice(0, start)
+  const textAfter = value.slice(end)
+  let newValue = value
+  let newStart = start
+  let newEnd = end
+
+  if (selectedText.startsWith(prefix) && selectedText.endsWith(suffix)) {
+    newValue = value.slice(0, start) + selectedText.slice(prefix.length, -suffix.length || selectedText.length) + value.slice(end)
+    newStart = start
+    newEnd = start + selectedText.length - prefix.length - suffix.length
+  } else if (textBefore.endsWith(prefix) && textAfter.startsWith(suffix)) {
+    newValue = value.slice(0, start - prefix.length) + selectedText + value.slice(end + suffix.length)
+    newStart = start - prefix.length
+    newEnd = start - prefix.length + selectedText.length
+  } else {
+    newValue = value.slice(0, start) + prefix + selectedText + suffix + value.slice(end)
+    newStart = start + prefix.length
+    newEnd = start + prefix.length + selectedText.length
+  }
+
+  messageInput.value = newValue
+  nextTick(() => {
+    if (inputRef.value) {
+      inputRef.value.setSelectionRange(newStart, newEnd)
+      autoResize()
+      inputRef.value.focus()
+    }
+  })
+}
+
+const handleKeydown = (e: KeyboardEvent) => {
+  const ctrl = e.ctrlKey || e.metaKey
+  if (!ctrl) return
+
+  if (e.key === "b") {
+    e.preventDefault()
+    wrapSelection("**", "**")
+  } else if (e.key === "i") {
+    e.preventDefault()
+    wrapSelection("_", "_")
+  }
 }
 
 const autoResize = () => {
