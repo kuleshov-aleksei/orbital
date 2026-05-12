@@ -440,3 +440,23 @@ declare global {
     electronAPI?: ElectronAPI
   }
 }
+
+// Chat message interface (uses snake_case from backend)
+export interface ChatMessage {
+  id: string
+  sender_id: string
+  content: string
+  sent_at: string // ISO date string
+}
+
+// Chat history response
+export interface ChatHistoryMessage {
+  room_id: string
+  messages: ChatMessage[]
+}
+
+// New message broadcast
+export interface NewMessageData {
+  room_id: string
+  message: ChatMessage
+}

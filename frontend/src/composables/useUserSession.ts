@@ -19,7 +19,7 @@ export function useUserSession() {
         nickname,
         authProvider: "guest",
         isGuest: true,
-        role: "guest"
+        role: "guest",
       })
     }
 

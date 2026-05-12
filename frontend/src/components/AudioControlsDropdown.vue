@@ -85,10 +85,7 @@
     </Transition>
 
     <!-- Click outside to close -->
-    <div
-      v-if="isOpen"
-      class="fixed inset-0 z-40"
-      @click="closeDropdown" />
+    <div v-if="isOpen" class="fixed inset-0 z-40" @click="closeDropdown" />
   </div>
 </template>
 

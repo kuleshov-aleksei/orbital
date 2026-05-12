@@ -63,6 +63,9 @@
           </div>
         </template>
 
+        <!-- Slot for additional header actions (e.g., chat toggle) -->
+        <slot name="actions" />
+
         <!-- Mobile: Users count button to toggle sidebar -->
         <button
           v-if="isMobile"
@@ -71,15 +74,6 @@
           @click="$emit('toggle-user-sidebar')">
           <PhUsers class="w-4 h-4 m-1" />
         </button>
-
-        <!-- Desktop: Connection Status -->
-        <template v-if="!isMobile">
-          <div class="flex items-center text-sm">
-            <div class="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
-
-            <span class="text-theme-text-secondary">Connected</span>
-          </div>
-        </template>
       </div>
     </div>
   </header>

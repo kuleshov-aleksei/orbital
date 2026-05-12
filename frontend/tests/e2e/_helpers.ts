@@ -27,7 +27,12 @@ export async function resetBackend(request: APIRequestContext) {
   }
 }
 
-export async function registerUser(request: APIRequestContext, email: string, nickname: string, password: string) {
+export async function registerUser(
+  request: APIRequestContext,
+  email: string,
+  nickname: string,
+  password: string,
+) {
   const res = await request.post(`${BACKEND_URL}/api/auth/register`, {
     data: { email, nickname, password },
   })
@@ -110,7 +115,14 @@ export async function seedRoom(
 
 export async function setUserIdentity(
   context: BrowserContext,
-  user: { id: string; nickname: string; token?: string; authProvider?: string; isGuest?: boolean; role?: string },
+  user: {
+    id: string
+    nickname: string
+    token?: string
+    authProvider?: string
+    isGuest?: boolean
+    role?: string
+  },
 ) {
   await context.addInitScript(({ id, nickname, token, authProvider, isGuest, role }) => {
     localStorage.setItem("orbital_user_id", id)

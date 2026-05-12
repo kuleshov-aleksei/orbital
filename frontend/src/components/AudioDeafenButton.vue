@@ -138,13 +138,15 @@ const toggleDeafen = async () => {
 
 <style scoped>
 .icon-toggle-enter-active {
-  transition: opacity 150ms var(--ease-out-smooth),
-              transform 150ms var(--ease-out-smooth);
+  transition:
+    opacity 150ms var(--ease-out-smooth),
+    transform 150ms var(--ease-out-smooth);
 }
 
 .icon-toggle-leave-active {
-  transition: opacity 100ms var(--ease-out-smooth),
-              transform 100ms var(--ease-out-smooth);
+  transition:
+    opacity 100ms var(--ease-out-smooth),
+    transform 100ms var(--ease-out-smooth);
 }
 
 .icon-toggle-enter-from {

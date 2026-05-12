@@ -6,11 +6,12 @@ import {
   useUserStore,
   useUsersStore,
   useSoundPackStore,
+  useChatStore,
 } from "@/stores"
 import { wsService } from "@/services/websocket"
 import { apiService } from "@/services/api"
 import { debugLog } from "@/utils/debug"
-import type { User, Room, Category, PublicUser } from "@/types"
+import type { User, Room, Category, PublicUser, ChatMessage } from "@/types"
 
 export function useWebSocketHandlers() {
   const roomStore = useRoomStore()
@@ -19,6 +20,7 @@ export function useWebSocketHandlers() {
   const usersStore = useUsersStore()
   const userStore = useUserStore()
   const soundPackStore = useSoundPackStore()
+  const chatStore = useChatStore()
   const hasConnected = ref(false)
 
   const setupWebSocketListeners = () => {
@@ -26,6 +28,19 @@ export function useWebSocketHandlers() {
     wsService.on("room_users", (message) => {
       const data = message.data as User[]
       roomStore.setCurrentRoomUsers(data)
+    })
+
+    // Chat history on join
+    wsService.on("chat_history", (message) => {
+      const data = message.data as { room_id: string; messages: ChatMessage[] }
+      chatStore.setMessages(data.room_id, data.messages)
+      chatStore.setActiveRoom(data.room_id)
+    })
+
+    // New chat message received
+    wsService.on("new_message", (message) => {
+      const data = message.data as { room_id: string; message: ChatMessage }
+      chatStore.addMessage(data.room_id, data.message)
     })
 
     // Nickname change updates

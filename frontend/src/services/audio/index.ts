@@ -76,7 +76,9 @@ export { createSpeexProcessor, SpeexProcessor } from "./SpeexProcessor"
  * Get a LiveKit TrackProcessor for WASM-based noise suppression
  * Returns null for algorithms that don't use TrackProcessor (browser-native, livekit-native, off)
  */
-export function getTrackProcessor(algorithm: NoiseSuppressionAlgorithm): TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> | null {
+export function getTrackProcessor(
+  algorithm: NoiseSuppressionAlgorithm,
+): TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> | null {
   switch (algorithm) {
     case "rnnoise":
       return createRNNoiseProcessor()

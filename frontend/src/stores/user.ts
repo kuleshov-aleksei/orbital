@@ -41,12 +41,17 @@ export const useUserStore = defineStore("user", () => {
   const isAdmin = computed(() => role.value === "admin" || role.value === "super_admin")
   const isSuperAdmin = computed(() => role.value === "super_admin")
 
-  const getGlobalUserAudioState = computed(
-    () => (userId: string, roomId: string) => {
-      const key = `${userId}:${roomId}`
-      return globalUserAudioStates.value.get(key) ?? { user_id: "", room_id: "", is_muted: false, is_deafened: false }
-    },
-  )
+  const getGlobalUserAudioState = computed(() => (userId: string, roomId: string) => {
+    const key = `${userId}:${roomId}`
+    return (
+      globalUserAudioStates.value.get(key) ?? {
+        user_id: "",
+        room_id: "",
+        is_muted: false,
+        is_deafened: false,
+      }
+    )
+  })
 
   function setUser(user: UserSession, authToken?: string) {
     // Validate user object

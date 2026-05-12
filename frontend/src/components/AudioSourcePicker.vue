@@ -86,9 +86,7 @@ async function loadSources() {
 }
 
 function isSelected(value: VenmicNode): boolean {
-  return props.selectedSources.some((s) =>
-    Object.keys(value).every((key) => value[key] === s[key]),
-  )
+  return props.selectedSources.some((s) => Object.keys(value).every((key) => value[key] === s[key]))
 }
 
 function toggleSource(source: AudioSource) {

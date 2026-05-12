@@ -114,7 +114,7 @@ func main() {
 		log.Println("LiveKit is not configured, LiveKit features will be disabled")
 	}
 
-	wsHub := websocket.NewHub(roomService, authService, livekitService, cfg)
+	wsHub := websocket.NewHub(roomService, authService, livekitService, service.NewChatService(), cfg)
 
 	// Initialize avatar service
 	avatarService := service.NewAvatarService("data")

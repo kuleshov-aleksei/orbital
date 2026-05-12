@@ -15,21 +15,23 @@ test("join rooms: 5 users join Room A, 2 users join Room B", async ({ browser, r
   // Get existing users from the backend
   const usersRes = await request.get("http://127.0.0.1:8080/api/users")
   const users = (await usersRes.json()) as Array<{ id: string; nickname: string }>
-  
+
   // Find our test users
-  const testUsers = users.filter(u => NICKNAMES.includes(u.nickname))
-  
+  const testUsers = users.filter((u) => NICKNAMES.includes(u.nickname))
+
   if (testUsers.length < 7) {
-    throw new Error(`Expected 7 test users, found ${testUsers.length}. Run setup-screenshots.spec.ts first.`)
+    throw new Error(
+      `Expected 7 test users, found ${testUsers.length}. Run setup-screenshots.spec.ts first.`,
+    )
   }
 
   // Get rooms
   const roomsRes = await request.get("http://127.0.0.1:8080/api/rooms")
   const rooms = (await roomsRes.json()) as Array<{ id: string; name: string }>
-  
-  const roomA = rooms.find(r => r.name === "🌠 Late Night Chill")
-  const roomB = rooms.find(r => r.name === "⛏️ ARC Gaiders")
-  
+
+  const roomA = rooms.find((r) => r.name === "🌠 Late Night Chill")
+  const roomB = rooms.find((r) => r.name === "⛏️ ARC Gaiders")
+
   if (!roomA || !roomB) {
     throw new Error("Rooms not found. Run setup-screenshots.spec.ts first.")
   }
@@ -39,16 +41,16 @@ test("join rooms: 5 users join Room A, 2 users join Room B", async ({ browser, r
 
   // Login as each user and get tokens
   const userTokens: { id: string; nickname: string; token: string }[] = []
-  
+
   for (const nickname of NICKNAMES) {
     const loginRes = await request.post("http://127.0.0.1:8080/api/auth/login", {
       data: { login: nickname, password: "P@ssword123" },
     })
-    
+
     if (!loginRes.ok()) {
       throw new Error(`Failed to login as ${nickname}`)
     }
-    
+
     const loginData = (await loginRes.json()) as { token: string; user: { id: string } }
     userTokens.push({
       id: loginData.user.id,
@@ -58,9 +60,7 @@ test("join rooms: 5 users join Room A, 2 users join Room B", async ({ browser, r
   }
 
   // Create 7 browser contexts (one per user)
-  const contexts = await Promise.all(
-    userTokens.map(user => browser.newContext())
-  )
+  const contexts = await Promise.all(userTokens.map((user) => browser.newContext()))
 
   // Set identity for each context
   for (let i = 0; i < contexts.length; i++) {
@@ -74,22 +74,25 @@ test("join rooms: 5 users join Room A, 2 users join Room B", async ({ browser, r
   }
 
   // Open pages and navigate
-  const pages = await Promise.all(contexts.map(ctx => ctx.newPage()))
-  
-  await Promise.all(pages.map(page => page.goto("/")))
-  
+  const pages = await Promise.all(contexts.map((ctx) => ctx.newPage()))
+
+  await Promise.all(pages.map((page) => page.goto("/")))
+
   // Wait for pages to load
-  await Promise.all(pages.map(page => page.waitForLoadState("networkidle")))
-  
+  await Promise.all(pages.map((page) => page.waitForLoadState("networkidle")))
+
   // Wait for app to initialize
-  await Promise.all(pages.map(page => page.waitForTimeout(2000)))
-  
+  await Promise.all(pages.map((page) => page.waitForTimeout(2000)))
+
   // Filter out users who are still on login page
   const validPages: typeof pages = []
   const validUserTokens: typeof userTokens = []
-  
+
   for (let i = 0; i < pages.length; i++) {
-    const isLoginPage = await pages[i].locator('h1:has-text("Welcome")').isVisible().catch(() => false)
+    const isLoginPage = await pages[i]
+      .locator('h1:has-text("Welcome")')
+      .isVisible()
+      .catch(() => false)
     if (!isLoginPage) {
       validPages.push(pages[i])
       validUserTokens.push(userTokens[i])
@@ -97,9 +100,9 @@ test("join rooms: 5 users join Room A, 2 users join Room B", async ({ browser, r
       console.log(`User ${userTokens[i].nickname} failed to authenticate`)
     }
   }
-  
+
   console.log(`Successfully authenticated ${validPages.length} users`)
-  
+
   if (validPages.length < 7) {
     throw new Error(`Only ${validPages.length} users authenticated, expected 7`)
   }
@@ -137,7 +140,7 @@ test("join rooms: 5 users join Room A, 2 users join Room B", async ({ browser, r
   console.log(`Room B has ${roomBUsers.length} users`)
 
   // Cleanup
-  await Promise.all(contexts.map(ctx => ctx.close()))
+  await Promise.all(contexts.map((ctx) => ctx.close()))
 
   console.log("Test completed successfully!")
 })

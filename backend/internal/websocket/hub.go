@@ -15,16 +15,17 @@ import (
 
 // Hub manages WebSocket connections
 type Hub struct {
-	clients        map[*Client]bool
-	roomClients    map[string]map[*Client]bool                 // room_id -> clients
-	onlineUsers    map[string]time.Time                        // user_id -> last_seen timestamp (global connections)
-	userAudioState map[string]map[string]models.UserAudioState // user_id -> room_id -> audio state (mute/deafen)
-	roomService    *service.RoomService
-	authService    *service.AuthService
-	livekitService *service.LiveKitService
-	cfg            *config.Config
-	upgrader       websocket.Upgrader
-	mu             sync.RWMutex
+	clients         map[*Client]bool
+	roomClients     map[string]map[*Client]bool                    // room_id -> clients
+	onlineUsers     map[string]time.Time                            // user_id -> last_seen timestamp (global connections)
+	userAudioState  map[string]map[string]models.UserAudioState     // user_id -> room_id -> audio state (mute/deafen)
+	roomService     *service.RoomService
+	authService     *service.AuthService
+	livekitService  *service.LiveKitService
+	chatService     *service.ChatService
+	cfg             *config.Config
+	upgrader        websocket.Upgrader
+	mu              sync.RWMutex
 }
 
 // Client represents a WebSocket client
@@ -40,7 +41,7 @@ type Client struct {
 }
 
 // NewHub creates a new WebSocket hub
-func NewHub(roomService *service.RoomService, authService *service.AuthService, livekitService *service.LiveKitService, cfg *config.Config) *Hub {
+func NewHub(roomService *service.RoomService, authService *service.AuthService, livekitService *service.LiveKitService, chatService *service.ChatService, cfg *config.Config) *Hub {
 	hub := &Hub{
 		clients:        make(map[*Client]bool),
 		roomClients:    make(map[string]map[*Client]bool),
@@ -49,6 +50,7 @@ func NewHub(roomService *service.RoomService, authService *service.AuthService, 
 		roomService:    roomService,
 		authService:    authService,
 		livekitService: livekitService,
+		chatService:    chatService,
 		cfg:            cfg,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
@@ -542,6 +544,8 @@ func (c *Client) handleMessage(message models.WebSocketMessage) {
 	case "room_created":
 		// This is a broadcast message, no action needed on receive
 		log.Printf("Received room_created broadcast")
+	case "send_message":
+		c.handleSendMessage(message.Data)
 	default:
 		log.Printf("Unknown message type: %s", message.Type)
 	}
@@ -609,6 +613,19 @@ func (c *Client) handleJoinRoom(data interface{}) {
 		Data: users,
 	}
 	c.hub.BroadcastToRoom(c.roomID, usersUpdate)
+
+	// Send chat history to the joining user
+	if c.hub.chatService != nil {
+		messages := c.hub.chatService.GetMessages(c.roomID)
+		chatHistoryMessage := models.WebSocketMessage{
+			Type: "chat_history",
+			Data: map[string]interface{}{
+				"room_id":  c.roomID,
+				"messages": messages,
+			},
+		}
+		c.send <- marshalMessage(chatHistoryMessage)
+	}
 }
 
 // handleLeaveRoom handles user leaving a room
@@ -634,6 +651,12 @@ func (c *Client) handleLeaveRoom(data interface{}) {
 		Data: users,
 	}
 	c.hub.BroadcastToRoom(roomID, usersUpdate)
+
+	// Clear chat history when last user leaves
+	if len(users) == 0 && c.hub.chatService != nil {
+		c.hub.chatService.ClearRoom(roomID)
+		log.Printf("[Chat] Chat history cleared for room %s (last user left)", roomID)
+	}
 
 	// Note: We don't delete the LiveKit room here even if WebSocket room is empty.
 	// LiveKit has its own empty timeout (300s) and will auto-delete the room.
@@ -1093,10 +1116,85 @@ func (h *Hub) disconnectUserDueToTimeout(roomID, userID string) {
 	}
 	h.BroadcastToRoom(roomID, usersUpdate)
 
+	// Clear chat history when last user leaves due to ping timeout
+	if len(users) == 0 && h.chatService != nil {
+		h.chatService.ClearRoom(roomID)
+		log.Printf("[Chat] Chat history cleared for room %s (last user left due to ping timeout)", roomID)
+	}
+
 	// Note: We don't delete the LiveKit room here even if WebSocket room is empty.
 	// LiveKit has its own empty timeout (300s) and will auto-delete the room.
 	// This prevents disconnecting users who are still connected via LiveKit
 	// but may have temporarily lost their WebSocket connection.
 
 	log.Printf("User %s successfully removed from room %s due to ping timeout", userID, roomID)
+}
+
+// handleSendMessage handles sending a chat message
+func (c *Client) handleSendMessage(data interface{}) {
+	c.mu.RLock()
+	userID := c.userID
+	roomID := c.roomID
+	c.mu.RUnlock()
+
+	if userID == "" {
+		log.Printf("[Chat] Cannot send message: userID is empty")
+		return
+	}
+
+	var req models.SendChatMessageRequest
+	jsonData, _ := json.Marshal(data)
+	json.Unmarshal(jsonData, &req)
+
+	// Validate content
+	content := req.Content
+	if content == "" {
+		log.Printf("[Chat] Cannot send message: content is empty")
+		c.send <- marshalMessage(models.WebSocketMessage{
+			Type: "error",
+			Data: map[string]string{"message": "Message content cannot be empty"},
+		})
+		return
+	}
+
+	if len(content) > 2000 {
+		log.Printf("[Chat] Cannot send message: content exceeds 2000 characters")
+		c.send <- marshalMessage(models.WebSocketMessage{
+			Type: "error",
+			Data: map[string]string{"message": "Message content exceeds 2000 characters"},
+		})
+		return
+	}
+
+	// Add message to chat service
+	if c.hub.chatService != nil {
+		msg, err := c.hub.chatService.AddMessage(roomID, userID, content)
+		if err != nil {
+			log.Printf("[Chat] Error adding message: %v", err)
+			c.send <- marshalMessage(models.WebSocketMessage{
+				Type: "error",
+				Data: map[string]string{"message": err.Error()},
+			})
+			return
+		}
+
+		// Broadcast new message to all users in room
+		newMessageBroadcast := models.WebSocketMessage{
+			Type: "new_message",
+			Data: map[string]interface{}{
+				"room_id": roomID,
+				"message": msg,
+			},
+		}
+		c.hub.BroadcastToRoom(roomID, newMessageBroadcast)
+		log.Printf("[Chat] Message broadcast to room %s from user %s", roomID, userID)
+	}
+}
+
+// ClearChatHistory clears chat history for a room (called when LiveKit room is deleted)
+func (h *Hub) ClearChatHistory(roomID string) {
+	if h.chatService != nil {
+		h.chatService.ClearRoom(roomID)
+		log.Printf("[Chat] Chat history cleared for room %s", roomID)
+	}
 }
