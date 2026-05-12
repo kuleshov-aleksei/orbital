@@ -277,7 +277,10 @@ export const apiService = {
   },
 
   // Auth API calls
-  async getOAuthUrl(provider: "discord" | "google", isElectronApp = false): Promise<{ url: string; state: string }> {
+  async getOAuthUrl(
+    provider: "discord" | "google",
+    isElectronApp = false,
+  ): Promise<{ url: string; state: string }> {
     const endpoint = isElectronApp ? `/auth/${provider}/url?electron=true` : `/auth/${provider}/url`
     const response = await apiRequest<{ url: string; state: string }>(endpoint)
     return response

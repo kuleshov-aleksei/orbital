@@ -95,15 +95,11 @@
     </div>
 
     <!-- Desktop Chat Sidebar (shrinks main content) -->
-    <ChatWidget
-      v-if="!isMobile"
-      :is-mobile="isMobile" />
+    <ChatWidget v-if="!isMobile" :is-mobile="isMobile" />
   </div>
 
   <!-- Mobile Chat Modal (overlay, rendered outside flex container) -->
-  <ChatWidget
-    v-if="isMobile"
-    :is-mobile="isMobile" />
+  <ChatWidget v-if="isMobile" :is-mobile="isMobile" />
 </template>
 
 <script setup lang="ts">

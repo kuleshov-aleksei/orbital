@@ -65,7 +65,10 @@ export async function stopAudioCapture(): Promise<boolean> {
 export async function getVirtualMicDeviceId(): Promise<string | null> {
   console.log("[VenmicService] Enumerating devices to find virtual mic")
   const devices = await navigator.mediaDevices.enumerateDevices()
-  console.log("[VenmicService] All devices:", devices.map(d => ({ label: d.label, kind: d.kind })))
+  console.log(
+    "[VenmicService] All devices:",
+    devices.map((d) => ({ label: d.label, kind: d.kind })),
+  )
   const audioDevice = devices.find(({ label }) => label === "vencord-screen-share")
   console.log("[VenmicService] Found virtual mic:", audioDevice?.deviceId)
   return audioDevice?.deviceId ?? null

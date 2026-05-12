@@ -131,7 +131,9 @@ export function useLiveKitState(options: UseLiveKitStateOptions): LiveKitState {
     localScreenVideoTrack: localScreenVideoTrack as Ref<LocalVideoTrack | null>,
     localScreenAudioTrack: localScreenAudioTrack as Ref<LocalAudioTrack | null>,
     userScreenShareStates: userScreenShareStates as Ref<Map<string, ScreenShareState>>,
-    remoteScreenTracks: remoteScreenTracks as Ref<Map<string, { video?: RemoteVideoTrack; audio?: RemoteAudioTrack }>>,
+    remoteScreenTracks: remoteScreenTracks as Ref<
+      Map<string, { video?: RemoteVideoTrack; audio?: RemoteAudioTrack }>
+    >,
     screenShareVersion: screenShareVersion as Ref<number>,
     subscribedScreenShares: subscribedScreenShares as Ref<Set<string>>,
     localScreenVideoPublication: localScreenVideoPublication as Ref<LocalTrackPublication | null>,
@@ -149,7 +151,9 @@ export function useLiveKitState(options: UseLiveKitStateOptions): LiveKitState {
     localStreamPromise: localStreamPromise as Ref<Promise<LocalAudioTrack | null> | null>,
     currentPing: currentPing as Ref<number>,
     participantStats: participantStats as Ref<Map<string, ConnectionStats>>,
-    previousStats: previousStats as Ref<Map<string, Map<string, { bytesReceived: number; timestamp: number }>>>,
+    previousStats: previousStats as Ref<
+      Map<string, Map<string, { bytesReceived: number; timestamp: number }>>
+    >,
     remoteStreamVolumes: options.remoteStreamVolumes,
     onVolumeChange: options.onVolumeChange,
   }

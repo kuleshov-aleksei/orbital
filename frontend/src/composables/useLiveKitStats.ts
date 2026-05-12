@@ -6,7 +6,10 @@ const STATS_INTERVAL = 2000
 
 export function useLiveKitStats(
   state: LiveKitState,
-  onPingUpdate: (ping: number, quality: "sub-wave" | "excellent" | "good" | "fair" | "poor") => void,
+  onPingUpdate: (
+    ping: number,
+    quality: "sub-wave" | "excellent" | "good" | "fair" | "poor",
+  ) => void,
 ) {
   let pingInterval: ReturnType<typeof setInterval> | null = null
   let statsInterval: ReturnType<typeof setInterval> | null = null

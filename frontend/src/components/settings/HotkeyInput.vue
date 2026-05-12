@@ -20,7 +20,7 @@
           ? 'border-theme-accent bg-theme-accent/10 text-theme-accent'
           : enabled
             ? 'border-theme-border bg-theme-bg-secondary text-theme-text-primary hover:border-theme-text-muted'
-            : 'border-theme-border bg-theme-bg-tertiary text-theme-text-muted cursor-not-allowed'
+            : 'border-theme-border bg-theme-bg-tertiary text-theme-text-muted cursor-not-allowed',
       ]"
       :disabled="!enabled || !canCapture"
       @click="startCapture">
@@ -37,7 +37,7 @@
         class="p-2 text-theme-text-muted hover:text-theme-text-primary rounded-md hover:bg-theme-bg-hover transition-colors"
         title="Reset to default"
         @click="resetToDefault">
-        <PhArrowCounterClockwise class="w-4 h-4"/>
+        <PhArrowCounterClockwise class="w-4 h-4" />
       </button>
     </div>
   </div>
@@ -65,7 +65,24 @@ const isCapturing = ref(false)
 const pendingKeys = ref<string[]>([])
 const heldKeys = ref<Set<string>>(new Set())
 
-const MODIFIER_KEYS = ["Control", "ControlLeft", "ControlRight", "Shift", "ShiftLeft", "ShiftRight", "Alt", "AltLeft", "AltRight", "Meta", "MetaLeft", "MetaRight", "CommandOrControl", "Command", "CommandLeft", "CommandRight"]
+const MODIFIER_KEYS = [
+  "Control",
+  "ControlLeft",
+  "ControlRight",
+  "Shift",
+  "ShiftLeft",
+  "ShiftRight",
+  "Alt",
+  "AltLeft",
+  "AltRight",
+  "Meta",
+  "MetaLeft",
+  "MetaRight",
+  "CommandOrControl",
+  "Command",
+  "CommandLeft",
+  "CommandRight",
+]
 
 function formatAccelerator(acc: string): string {
   return acc
@@ -89,10 +106,10 @@ function startCapture() {
   isCapturing.value = true
   pendingKeys.value = []
   heldKeys.value = new Set()
-  
+
   document.addEventListener("keydown", handleKeyDown)
   document.addEventListener("keyup", handleKeyUp)
-  
+
   setTimeout(() => {
     captureButton.value?.focus()
   }, 10)
@@ -108,13 +125,13 @@ function stopCapture() {
 
 function handleKeyDown(e: KeyboardEvent) {
   if (!isCapturing.value) return
-  
+
   if (e.code === "Escape") {
     e.preventDefault()
     stopCapture()
     return
   }
-  
+
   e.preventDefault()
   e.stopPropagation()
 
@@ -131,7 +148,7 @@ function handleKeyUp(e: KeyboardEvent) {
 
   if (modifiers.length > 0 && regularKeys.length > 0) {
     const accelerator = [...modifiers, regularKeys[0]]
-      .map(k => {
+      .map((k) => {
         if (k.startsWith("Control")) return "CommandOrControl"
         if (k.startsWith("Shift")) return "Shift"
         if (k.startsWith("Alt")) return "Alt"
@@ -139,12 +156,12 @@ function handleKeyUp(e: KeyboardEvent) {
         return k.replace(/^Key/, "")
       })
       .join("+")
-    
+
     emit("update:accelerator", accelerator)
   }
 
   heldKeys.value.delete(e.code)
-  
+
   if (heldKeys.value.size === 0) {
     stopCapture()
   }
@@ -154,11 +171,14 @@ function resetToDefault() {
   emit("reset")
 }
 
-watch(() => props.enabled, (newVal) => {
-  if (!newVal) {
-    isCapturing.value = false
-  }
-})
+watch(
+  () => props.enabled,
+  (newVal) => {
+    if (!newVal) {
+      isCapturing.value = false
+    }
+  },
+)
 
 onUnmounted(() => {
   document.removeEventListener("keydown", handleKeyDown)

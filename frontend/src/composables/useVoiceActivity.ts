@@ -135,7 +135,10 @@ export function useVoiceActivity(options: UseVoiceActivityOptions) {
   }
 
   const handleTrackChange = () => {
-    console.log("[VoiceActivity] Audio tracks changed:", currentStream.value?.getAudioTracks().length)
+    console.log(
+      "[VoiceActivity] Audio tracks changed:",
+      currentStream.value?.getAudioTracks().length,
+    )
     if (currentStream.value && currentStream.value.getAudioTracks().length > 0) {
       setupAudioAnalysis(currentStream.value)
     } else {
@@ -171,20 +174,20 @@ export function useVoiceActivity(options: UseVoiceActivityOptions) {
 
   const resolveStream = async (): Promise<MediaStream | null> => {
     const value = toValue(stream)
-    
+
     if (value instanceof MediaStream) {
       return value
     }
-    
+
     if (typeof value === "function") {
       const fn = value as () => Promise<MediaStream | null>
       return await fn()
     }
-    
+
     if (value instanceof Promise) {
       return await (value as Promise<MediaStream | null>)
     }
-    
+
     return null
   }
 
@@ -200,7 +203,7 @@ export function useVoiceActivity(options: UseVoiceActivityOptions) {
       }
 
       let streamValue: MediaStream | null = null
-      
+
       if (typeof newStream === "function") {
         const fn = newStream as () => Promise<MediaStream | null>
         streamValue = await fn()

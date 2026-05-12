@@ -10,15 +10,20 @@
   </Teleport>
 
   <!-- Sidebar / Modal -->
-  <Transition :name="isMobile ? 'modal-slide' : 'sidebar-slide'" @after-enter="scrollToBottom" @after-leave="scrollToBottom">
+  <Transition
+    :name="isMobile ? 'modal-slide' : 'sidebar-slide'"
+    @after-enter="scrollToBottom"
+    @after-leave="scrollToBottom">
     <div
       v-if="chatStore.isOpen"
       class="flex flex-col bg-theme-bg-secondary border-theme-border"
-      :class="isMobile ? ['fixed', 'inset-0', 'z-40', 'w-full', 'h-full'] : ['w-80', 'shrink-0', 'h-full']"
+      :class="
+        isMobile ? ['fixed', 'inset-0', 'z-40', 'w-full', 'h-full'] : ['w-80', 'shrink-0', 'h-full']
+      "
       :data-testid="isMobile ? 'chat-modal' : 'chat-sidebar'">
-
       <!-- Header -->
-      <div class="flex items-center justify-between h-16 px-4 border-b border-theme-border shrink-0">
+      <div
+        class="flex items-center justify-between h-16 px-4 border-b border-theme-border shrink-0">
         <div class="flex items-center gap-2">
           <PhChatDots class="w-4 h-4 text-theme-text-muted" weight="fill" />
           <h2 class="text-sm font-semibold text-theme-text-secondary uppercase tracking-wider">
@@ -37,22 +42,15 @@
       </div>
 
       <!-- Messages Area -->
-      <div
-        ref="messagesContainerRef"
-        class="flex-1 overflow-y-auto p-3 space-y-3">
-        <div
-          v-for="item in currentMessages"
-          :key="item.id"
-          class="flex gap-2 group">
+      <div ref="messagesContainerRef" class="flex-1 overflow-y-auto p-3 space-y-3">
+        <div v-for="item in currentMessages" :key="item.id" class="flex gap-2 group">
           <UserAvatar :user-id="item.sender_id" :size="28" :show-status="false" />
           <div class="flex-1 min-w-0">
             <div class="flex items-baseline gap-2">
               <span class="text-xs font-medium text-theme-text-primary">
                 {{ getSenderName(item.sender_id) }}
               </span>
-              <span
-                class="text-[10px] text-theme-text-muted"
-                :title="formatFullTime(item.sent_at)">
+              <span class="text-[10px] text-theme-text-muted" :title="formatFullTime(item.sent_at)">
                 {{ formatRelativeTime(item.sent_at) }}
               </span>
             </div>
@@ -61,7 +59,9 @@
               v-html="renderMarkdown(item.content)" />
           </div>
         </div>
-        <div v-if="currentMessages.length === 0" class="h-full flex flex-col items-center justify-center -mt-3 gap-2">
+        <div
+          v-if="currentMessages.length === 0"
+          class="h-full flex flex-col items-center justify-center -mt-3 gap-2">
           <PhChatCircle class="w-12 h-12 text-theme-text-muted opacity-50" />
           <p class="text-sm text-theme-text-muted">No messages yet</p>
           <p class="text-xs text-theme-text-muted opacity-70">Start the conversation</p>
@@ -160,7 +160,8 @@ const updateToolbar = (e?: MouseEvent | KeyboardEvent) => {
   if (!el) return
 
   const { selectionStart, selectionEnd } = el
-  const hasSelection = selectionStart !== null && selectionEnd !== null && selectionStart !== selectionEnd
+  const hasSelection =
+    selectionStart !== null && selectionEnd !== null && selectionStart !== selectionEnd
 
   if (!hasSelection) {
     showToolbar.value = false
@@ -262,11 +263,15 @@ const wrapSelection = (prefix: string, suffix: string) => {
   let newEnd = end
 
   if (selectedText.startsWith(prefix) && selectedText.endsWith(suffix)) {
-    newValue = value.slice(0, start) + selectedText.slice(prefix.length, -suffix.length || selectedText.length) + value.slice(end)
+    newValue =
+      value.slice(0, start) +
+      selectedText.slice(prefix.length, -suffix.length || selectedText.length) +
+      value.slice(end)
     newStart = start
     newEnd = start + selectedText.length - prefix.length - suffix.length
   } else if (textBefore.endsWith(prefix) && textAfter.startsWith(suffix)) {
-    newValue = value.slice(0, start - prefix.length) + selectedText + value.slice(end + suffix.length)
+    newValue =
+      value.slice(0, start - prefix.length) + selectedText + value.slice(end + suffix.length)
     newStart = start - prefix.length
     newEnd = start - prefix.length + selectedText.length
   } else {
@@ -335,7 +340,9 @@ watch(
 /* Sidebar slide (desktop - shrinks main content) */
 .sidebar-slide-enter-active,
 .sidebar-slide-leave-active {
-  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
+  transition:
+    width 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.25s ease;
   overflow: hidden;
 }
 
@@ -348,7 +355,9 @@ watch(
 /* Modal slide (mobile - slides up from bottom) */
 .modal-slide-enter-active,
 .modal-slide-leave-active {
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+  transition:
+    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.3s ease;
 }
 
 .modal-slide-enter-from,
@@ -371,7 +380,9 @@ watch(
 /* Toolbar fade */
 .toolbar-fade-enter-active,
 .toolbar-fade-leave-active {
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
 }
 
 .toolbar-fade-enter-from,
@@ -389,7 +400,9 @@ watch(
   height: 28px;
   border-radius: 4px;
   color: #a1a1aa;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
 
 .toolbar-btn:hover {
@@ -499,12 +512,20 @@ watch(
   line-height: 1.3;
 }
 
-.chat-message-body :deep(h1) { font-size: 1.3em; }
-.chat-message-body :deep(h2) { font-size: 1.15em; }
-.chat-message-body :deep(h3) { font-size: 1.05em; }
+.chat-message-body :deep(h1) {
+  font-size: 1.3em;
+}
+.chat-message-body :deep(h2) {
+  font-size: 1.15em;
+}
+.chat-message-body :deep(h3) {
+  font-size: 1.05em;
+}
 .chat-message-body :deep(h4),
 .chat-message-body :deep(h5),
-.chat-message-body :deep(h6) { font-size: 1em; }
+.chat-message-body :deep(h6) {
+  font-size: 1em;
+}
 
 .chat-message-body :deep(p) {
   margin: 0;
