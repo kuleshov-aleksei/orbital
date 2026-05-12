@@ -28,9 +28,11 @@
   "dependencies": {
     "@phosphor-icons/vue": "^2.2.1",
     "@vencord/venmic": "^6.1.0",
+    "dompurify": "^3.4.2",
     "electron-log": "^5.4.3",
     "electron-updater": "^6.8.3",
     "livekit-client": "^2.18.9",
+    "marked": "^18.0.3",
     "pinia": "^3.0.4",
     "vue": "^3.5.33",
     "vue-advanced-cropper": "^2.8.9",

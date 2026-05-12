@@ -56,9 +56,9 @@
                 {{ formatRelativeTime(item.sent_at) }}
               </span>
             </div>
-            <p class="text-sm text-theme-text-secondary wrap-break-word leading-relaxed">
-              {{ item.content }}
-            </p>
+            <div
+              class="text-sm text-theme-text-secondary wrap-break-word leading-relaxed chat-message-body"
+              v-html="renderMarkdown(item.content)" />
           </div>
         </div>
         <div v-if="currentMessages.length === 0" class="h-full flex flex-col items-center justify-center -mt-3 gap-2">
@@ -71,14 +71,14 @@
       <!-- Input Area -->
       <div class="px-3 py-3 border-t border-theme-border shrink-0 bg-theme-bg-tertiary/50">
         <div class="relative">
-          <input
+          <textarea
             ref="inputRef"
             v-model="messageInput"
-            type="text"
-            class="w-full bg-theme-bg-secondary text-theme-text-primary text-sm px-4 py-3 pr-12 rounded-xl border border-theme-border focus:border-theme-accent focus:outline-none placeholder-theme-text-muted"
+            class="chat-input w-full bg-theme-bg-secondary text-theme-text-primary text-sm px-4 py-3 pr-12 rounded-xl border border-theme-border focus:border-theme-accent focus:outline-none placeholder-theme-text-muted resize-none"
             :placeholder="inputPlaceholder"
             :maxlength="2000"
-            @keydown.enter.exact.prevent="sendMessage" />
+            @keydown.enter="handleEnter"
+            @input="autoResize" />
           <button
             type="button"
             class="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center text-theme-text-muted hover:text-theme-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded-lg hover:bg-theme-bg-hover active:scale-95"
@@ -101,6 +101,7 @@ import { ref, computed, watch, nextTick } from "vue"
 import { PhChatDots, PhChatCircle, PhPaperPlaneRight, PhX } from "@phosphor-icons/vue"
 import { useChatStore, useUserStore, useRoomStore, useUsersStore } from "@/stores"
 import { wsService } from "@/services/websocket"
+import { renderMarkdown } from "@/utils/markdown"
 import UserAvatar from "@/components/UserAvatar.vue"
 
 defineProps<{
@@ -113,7 +114,7 @@ const roomStore = useRoomStore()
 const usersStore = useUsersStore()
 
 const messageInput = ref("")
-const inputRef = ref<HTMLInputElement | null>(null)
+const inputRef = ref<HTMLTextAreaElement | null>(null)
 const messagesContainerRef = ref<HTMLElement | null>(null)
 
 const currentMessages = computed(() => {
@@ -164,6 +165,23 @@ const sendMessage = () => {
 
   wsService.sendChatMessage(content)
   messageInput.value = ""
+  if (inputRef.value) {
+    inputRef.value.style.height = "auto"
+    inputRef.value.rows = 1
+  }
+}
+
+const handleEnter = (e: KeyboardEvent) => {
+  console.log(e);
+  if (e.shiftKey) return
+  e.preventDefault()
+  sendMessage()
+}
+
+const autoResize = () => {
+  if (!inputRef.value) return
+  inputRef.value.style.height = "auto"
+  inputRef.value.style.height = `${inputRef.value.scrollHeight}px`
 }
 
 const scrollToBottom = () => {
@@ -239,5 +257,130 @@ watch(
   .backdrop-fade-leave-active {
     transition: none;
   }
+}
+
+/* Chat input textarea */
+.chat-input {
+  min-height: 44px;
+  max-height: 160px;
+  overflow-y: auto;
+  field-size: none;
+  box-sizing: border-box;
+  line-height: 1.5;
+}
+
+/* Markdown rendered content */
+.chat-message-body :deep(a) {
+  color: #3b82f6;
+  text-decoration: none;
+  word-break: break-all;
+  overflow-wrap: break-word;
+}
+
+.chat-message-body :deep(a:hover) {
+  text-decoration: underline;
+}
+
+.chat-message-body :deep(code) {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  font-size: 0.875em;
+  padding: 0.1em 0.3em;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+}
+
+.chat-message-body :deep(pre) {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 0.6em 0.8em;
+  overflow-x: auto;
+  font-size: 0.8em;
+}
+
+.chat-message-body :deep(pre code) {
+  background: none;
+  padding: 0;
+}
+
+.chat-message-body :deep(blockquote) {
+  border-left: 3px solid rgba(255, 255, 255, 0.2);
+  padding-left: 0.8em;
+  margin: 0.3em 0;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.chat-message-body :deep(ul),
+.chat-message-body :deep(ol) {
+  list-style: revert;
+  padding-left: 1.5em;
+  margin: 0.25em 0;
+}
+
+.chat-message-body :deep(ul) {
+  list-style-type: disc;
+}
+
+.chat-message-body :deep(ol) {
+  list-style-type: decimal;
+}
+
+.chat-message-body :deep(li) {
+  list-style: revert;
+  margin: 0.15em 0;
+  display: list-item;
+}
+
+.chat-message-body :deep(li > ul),
+.chat-message-body :deep(li > ol) {
+  margin: 0.1em 0;
+}
+
+.chat-message-body :deep(li p) {
+  margin: 0;
+}
+
+.chat-message-body :deep(h1),
+.chat-message-body :deep(h2),
+.chat-message-body :deep(h3),
+.chat-message-body :deep(h4),
+.chat-message-body :deep(h5),
+.chat-message-body :deep(h6) {
+  margin: 0.4em 0 0.2em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.chat-message-body :deep(h1) { font-size: 1.3em; }
+.chat-message-body :deep(h2) { font-size: 1.15em; }
+.chat-message-body :deep(h3) { font-size: 1.05em; }
+.chat-message-body :deep(h4),
+.chat-message-body :deep(h5),
+.chat-message-body :deep(h6) { font-size: 1em; }
+
+.chat-message-body :deep(p) {
+  margin: 0;
+}
+
+.chat-message-body :deep(hr) {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin: 0.5em 0;
+}
+
+.chat-message-body :deep(img) {
+  max-width: 180px;
+  max-height: 120px;
+  border-radius: 4px;
+}
+
+.chat-message-body :deep(table) {
+  font-size: 0.85em;
+  border-collapse: collapse;
+}
+
+.chat-message-body :deep(th),
+.chat-message-body :deep(td) {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.3em 0.6em;
 }
 </style>
