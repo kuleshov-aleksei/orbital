@@ -32,7 +32,8 @@
     "vue": "^3.5.33",
     "vue-advanced-cropper": "^2.8.9",
     "vue-boring-avatars": "^1.4.0",
-    "vue-router": "^5.0.6"
+    "vue-router": "^5.0.6",
+    "vue-virtual-scroller": "^3.0.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -301,6 +301,11 @@ export class WebSocketService {
     this.sendGlobalMessage("update_deafen_state", { room_id: roomId, is_deafened: isDeafened })
   }
 
+  // Send chat message
+  sendChatMessage(content: string): void {
+    this.sendMessage("send_message", { content })
+  }
+
   // Private methods
   private getWebSocketUrl(roomId: string): string {
     const wsUrlFromEnv = typeof __BACKEND_WS_URL__ !== "undefined" ? __BACKEND_WS_URL__ : null

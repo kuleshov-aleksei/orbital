@@ -277,3 +277,16 @@ type DebugLogUploadRequest struct {
 type UpdateSoundPackRequest struct {
 	SoundPack string `json:"sound_pack"`
 }
+
+// ChatMessage represents a chat message in a room
+type ChatMessage struct {
+	ID       string    `json:"id"`
+	SenderID string    `json:"sender_id"`
+	Content  string    `json:"content"`
+	SentAt   time.Time `json:"sent_at"`
+}
+
+// SendChatMessageRequest represents a request to send a chat message
+type SendChatMessageRequest struct {
+	Content string `json:"content"`
+}
