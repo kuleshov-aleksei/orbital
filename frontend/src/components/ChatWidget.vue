@@ -68,8 +68,39 @@
         </div>
       </div>
 
+      <!-- Selection Toolbar -->
+      <Transition name="toolbar-fade">
+        <div
+          v-if="showToolbar"
+          ref="toolbarRef"
+          class="absolute flex items-center gap-0.5 px-1.5 py-1.5 bg-theme-bg-hover border border-theme-border rounded-lg shadow-lg z-50"
+          :style="{ ...toolbarStyle, position: 'fixed' }">
+          <button
+            type="button"
+            class="toolbar-btn"
+            title="Bold (Ctrl+B)"
+            @click="applyFormat('**', '**')">
+            <span class="font-bold text-sm">B</span>
+          </button>
+          <button
+            type="button"
+            class="toolbar-btn"
+            title="Italic (Ctrl+I)"
+            @click="applyFormat('*', '*')">
+            <span class="italic text-sm">I</span>
+          </button>
+          <button
+            type="button"
+            class="toolbar-btn"
+            title="Strikethrough"
+            @click="applyFormat('~~', '~~')">
+            <span class="line-through text-sm">S</span>
+          </button>
+        </div>
+      </Transition>
+
       <!-- Input Area -->
-      <div class="px-3 py-3 border-t border-theme-border shrink-0 bg-theme-bg-tertiary/50">
+      <div class="px-3 py-3 border-t border-theme-border shrink-0 bg-theme-bg-tertiary/50 relative">
         <div class="relative">
           <textarea
             ref="inputRef"
@@ -79,7 +110,9 @@
             :maxlength="2000"
             @keydown.enter="handleEnter"
             @keydown="handleKeydown"
-            @input="autoResize" />
+            @input="autoResize"
+            @mouseup="updateToolbar($event)"
+            @keyup="updateToolbar($event)" />
           <button
             type="button"
             class="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center text-theme-text-muted hover:text-theme-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded-lg hover:bg-theme-bg-hover active:scale-95"
@@ -117,6 +150,42 @@ const usersStore = useUsersStore()
 const messageInput = ref("")
 const inputRef = ref<HTMLTextAreaElement | null>(null)
 const messagesContainerRef = ref<HTMLElement | null>(null)
+const toolbarRef = ref<HTMLElement | null>(null)
+
+const showToolbar = ref(false)
+const toolbarStyle = ref({})
+
+const updateToolbar = (e?: MouseEvent | KeyboardEvent) => {
+  const el = inputRef.value
+  if (!el) return
+
+  const { selectionStart, selectionEnd } = el
+  const hasSelection = selectionStart !== null && selectionEnd !== null && selectionStart !== selectionEnd
+
+  if (!hasSelection) {
+    showToolbar.value = false
+    return
+  }
+
+  if (e && e instanceof MouseEvent) {
+    toolbarStyle.value = {
+      top: `${e.clientY - 60}px`,
+      left: `${e.clientX - 40}px`,
+    }
+  } else {
+    const rect = el.getBoundingClientRect()
+    toolbarStyle.value = {
+      top: `${rect.top - 60}px`,
+      left: `${rect.left + 10}px`,
+    }
+  }
+  showToolbar.value = true
+}
+
+const applyFormat = (prefix: string, suffix: string) => {
+  showToolbar.value = false
+  wrapSelection(prefix, suffix)
+}
 
 const currentMessages = computed(() => {
   const roomId = roomStore.activeRoomId
@@ -225,7 +294,7 @@ const handleKeydown = (e: KeyboardEvent) => {
     wrapSelection("**", "**")
   } else if (e.key === "i") {
     e.preventDefault()
-    wrapSelection("_", "_")
+    wrapSelection("*", "*")
   }
 }
 
@@ -297,6 +366,35 @@ watch(
 .backdrop-fade-enter-from,
 .backdrop-fade-leave-to {
   opacity: 0;
+}
+
+/* Toolbar fade */
+.toolbar-fade-enter-active,
+.toolbar-fade-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.toolbar-fade-enter-from,
+.toolbar-fade-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+/* Toolbar buttons */
+.toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  color: #a1a1aa;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.toolbar-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -422,6 +520,17 @@ watch(
   max-width: 180px;
   max-height: 120px;
   border-radius: 4px;
+}
+
+.chat-message-body :deep(del),
+.chat-message-body :deep(s),
+.chat-message-body :deep(strike) {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.chat-message-body :deep(u) {
+  text-decoration: underline;
 }
 
 .chat-message-body :deep(table) {
