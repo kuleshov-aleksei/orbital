@@ -1,22 +1,23 @@
 <template>
   <button
     type="button"
-    class="relative w-12 h-12 rounded-full bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-primary shadow-lg transition-all duration-200 flex items-center justify-center"
-    :class="{ 'ring-2 ring-theme-accent': chatStore.isOpen }"
+    class="relative flex items-center gap-2 px-3 py-2 rounded-md bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-primary transition-all duration-200"
+    :class="{ 'ring-1 ring-theme-accent': chatStore.isOpen }"
     :title="chatStore.isOpen ? 'Close Chat' : 'Open Chat'"
     @click="chatStore.toggleChat">
-    <PhChatDots v-if="!chatStore.isOpen" class="w-6 h-6" />
-    <PhMinus v-else class="w-6 h-6" />
+    <PhChatDots v-if="!chatStore.isOpen" class="w-4 h-4" weight="fill" />
+    <PhX v-else class="w-4 h-4" />
+    <span class="text-xs font-medium">Chat</span>
     <span
       v-if="chatStore.totalUnreadCount > 0"
-      class="absolute -top-1 -right-1 min-w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center px-1">
+      class="min-w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
       {{ chatStore.totalUnreadCount > 99 ? "99+" : chatStore.totalUnreadCount }}
     </span>
   </button>
 </template>
 
 <script setup lang="ts">
-import { PhChatDots, PhMinus } from "@phosphor-icons/vue"
+import { PhChatDots, PhX } from "@phosphor-icons/vue"
 import { useChatStore } from "@/stores"
 
 const chatStore = useChatStore()

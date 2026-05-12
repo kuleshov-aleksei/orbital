@@ -1,6 +1,6 @@
 <template>
   <div
-    class="voice-call-view flex-1 flex flex-col min-h-0 relative"
+    class="voice-call-view flex flex-1 min-h-0 relative"
     :class="{ 'pointer-events-none': !isConnected }"
     data-testid="voice-call-view">
     <!-- Audio Manager - Handles all audio playback centrally -->
@@ -9,85 +9,92 @@
       :is-deafened="isDeafened"
       :muted-users="mutedUsers" />
 
-    <!-- Room Header -->
-    <RoomHeader
-      v-model:screen-share-layout="screenShareLayout"
-      :room-name="currentRoom?.name || 'Voice Room'"
-      :screen-share-count="screenShareData.length"
-      :camera-count="cameraData.length"
-      :is-mobile="isMobile"
-      @leave-room="$emit('leave-room')"
-      @show-room-list="$emit('show-room-list')"
-      @toggle-user-sidebar="$emit('toggle-user-sidebar')" />
-
-    <!-- Screen Share Quality Modal handled by parent -->
-
-    <!-- Main Call Area -->
-    <div class="relative flex flex-1 flex-col min-h-0 overflow-hidden pb-20">
-      <!-- Use v-show instead of v-if to keep both components mounted and preserve audio elements -->
-      <!-- Screen Share Area - Shows users in side panel when screen sharing or camera is active -->
-      <ScreenShareArea
-        v-show="
-          screenShareData.length > 0 || cameraData.length > 0 || availableScreenShares.length > 0
-        "
-        :screen-shares="screenShareData"
-        :available-screen-shares="availableScreenShares"
-        :camera-streams="cameraData"
-        :layout="screenShareLayout"
-        :users="users"
-        :remote-stream-volumes="props.remoteStreamVolumes"
-        :user-screen-share-states="userScreenShareStates"
-        :user-camera-states="userCameraStates"
-        :is-deafened="isDeafened"
-        :current-user-id="currentUserId"
-        :current-user-is-sharing="isScreenSharing"
-        :current-user-camera-enabled="isCameraEnabled"
-        :room-id="currentRoom.id"
-        :get-participant-stats="getParticipantStats"
-        class="m-4"
-        @update:layout="screenShareLayout = $event"
-        @subscribe-screen-share="subscribeToScreenShare"
-        @unsubscribe-screen-share="unsubscribeFromScreenShare"
-        @stop-own-screen-share="handleStopOwnScreenShare" />
-
-      <!-- User Grid - Only shown when no screen shares or cameras (audio-only mode) -->
-      <UserGrid
-        v-show="
-          screenShareData.length === 0 &&
-          cameraData.length === 0 &&
-          availableScreenShares.length === 0
-        "
-        :users="users"
-        :remote-stream-volumes="props.remoteStreamVolumes"
-        :user-screen-share-states="userScreenShareStates"
-        :user-camera-states="userCameraStates"
-        :is-deafened="isDeafened"
-        :is-visible="
-          screenShareData.length === 0 &&
-          cameraData.length === 0 &&
-          availableScreenShares.length === 0
-        "
-        :current-user-camera-enabled="isCameraEnabled"
-        :get-participant-stats="getParticipantStats" />
-    </div>
-
-    <!-- Floating Audio Controls - positioned at bottom of viewport -->
-    <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3">
-      <AudioControls
-        ref="audioControlsRef"
-        v-model:model-value-muted="isMuted"
-        v-model:model-value-deafened="isDeafened"
-        v-model:model-value-screen-sharing="isScreenSharing"
-        v-model:model-value-camera-enabled="cameraEnabled"
+    <!-- Main Content Area (shrinks when chat sidebar opens) -->
+    <div class="flex-1 flex flex-col min-h-0 relative">
+      <!-- Room Header -->
+      <RoomHeader
+        v-model:screen-share-layout="screenShareLayout"
+        :room-name="currentRoom?.name || 'Voice Room'"
+        :screen-share-count="screenShareData.length"
+        :camera-count="cameraData.length"
         :is-mobile="isMobile"
-        @start-screen-share="$emit('request-screen-share')"
-        @toggle-camera="handleCameraToggle"
-        @auth-required="$emit('show-room-list')"
-        @leave-room="$emit('leave-room')" />
-      <ChatToggleButton />
+        @leave-room="$emit('leave-room')"
+        @show-room-list="$emit('show-room-list')"
+        @toggle-user-sidebar="$emit('toggle-user-sidebar')">
+        <!-- Chat Toggle Button in Header -->
+        <template #actions>
+          <ChatToggleButton />
+        </template>
+      </RoomHeader>
+
+      <!-- Screen Share Quality Modal handled by parent -->
+
+      <!-- Main Call Area -->
+      <div class="relative flex flex-1 flex-col min-h-0 overflow-hidden">
+        <!-- Use v-show instead of v-if to keep both components mounted and preserve audio elements -->
+        <!-- Screen Share Area - Shows users in side panel when screen sharing or camera is active -->
+        <ScreenShareArea
+          v-show="
+            screenShareData.length > 0 || cameraData.length > 0 || availableScreenShares.length > 0
+          "
+          :screen-shares="screenShareData"
+          :available-screen-shares="availableScreenShares"
+          :camera-streams="cameraData"
+          :layout="screenShareLayout"
+          :users="users"
+          :remote-stream-volumes="props.remoteStreamVolumes"
+          :user-screen-share-states="userScreenShareStates"
+          :user-camera-states="userCameraStates"
+          :is-deafened="isDeafened"
+          :current-user-id="currentUserId"
+          :current-user-is-sharing="isScreenSharing"
+          :current-user-camera-enabled="isCameraEnabled"
+          :room-id="currentRoom.id"
+          :get-participant-stats="getParticipantStats"
+          class="m-4"
+          @update:layout="screenShareLayout = $event"
+          @subscribe-screen-share="subscribeToScreenShare"
+          @unsubscribe-screen-share="unsubscribeFromScreenShare"
+          @stop-own-screen-share="handleStopOwnScreenShare" />
+
+        <!-- User Grid - Only shown when no screen shares or cameras (audio-only mode) -->
+        <UserGrid
+          v-show="
+            screenShareData.length === 0 &&
+            cameraData.length === 0 &&
+            availableScreenShares.length === 0
+          "
+          :users="users"
+          :remote-stream-volumes="props.remoteStreamVolumes"
+          :user-screen-share-states="userScreenShareStates"
+          :user-camera-states="userCameraStates"
+          :is-deafened="isDeafened"
+          :is-visible="
+            screenShareData.length === 0 &&
+            cameraData.length === 0 &&
+            availableScreenShares.length === 0
+          "
+          :current-user-camera-enabled="isCameraEnabled"
+          :get-participant-stats="getParticipantStats" />
+
+        <!-- Floating Audio Controls - positioned at bottom center of main content -->
+        <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-50">
+          <AudioControls
+            ref="audioControlsRef"
+            v-model:model-value-muted="isMuted"
+            v-model:model-value-deafened="isDeafened"
+            v-model:model-value-screen-sharing="isScreenSharing"
+            v-model:model-value-camera-enabled="cameraEnabled"
+            :is-mobile="isMobile"
+            @start-screen-share="$emit('request-screen-share')"
+            @toggle-camera="handleCameraToggle"
+            @auth-required="$emit('show-room-list')"
+            @leave-room="$emit('leave-room')" />
+        </div>
+      </div>
     </div>
 
-    <!-- Chat Widget (panel, positioned above controls) -->
+    <!-- Chat Sidebar (right side, shrinks main content) -->
     <ChatWidget />
   </div>
 </template>

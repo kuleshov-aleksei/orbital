@@ -63,6 +63,9 @@
           </div>
         </template>
 
+        <!-- Slot for additional header actions (e.g., chat toggle) -->
+        <slot name="actions" />
+
         <!-- Mobile: Users count button to toggle sidebar -->
         <button
           v-if="isMobile"
