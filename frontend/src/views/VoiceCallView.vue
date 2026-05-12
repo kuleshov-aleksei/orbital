@@ -72,7 +72,7 @@
     </div>
 
     <!-- Floating Audio Controls - positioned at bottom of viewport -->
-    <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50">
+    <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3">
       <AudioControls
         ref="audioControlsRef"
         v-model:model-value-muted="isMuted"
@@ -84,7 +84,11 @@
         @toggle-camera="handleCameraToggle"
         @auth-required="$emit('show-room-list')"
         @leave-room="$emit('leave-room')" />
+      <ChatToggleButton />
     </div>
+
+    <!-- Chat Widget (panel, positioned above controls) -->
+    <ChatWidget />
   </div>
 </template>
 
@@ -92,6 +96,8 @@
 import { computed, defineAsyncComponent, ref, useTemplateRef, watch } from "vue"
 import AudioControls from "@/components/AudioControls.vue"
 import RoomHeader from "@/components/RoomHeader.vue"
+import ChatWidget from "@/components/ChatWidget.vue"
+import ChatToggleButton from "@/components/ChatToggleButton.vue"
 import { useLiveKit, useVoiceActivity } from "@/composables"
 import {
   useAudioSettingsStore,

@@ -43,14 +43,11 @@
     :update-error="appStore.updateError"
     :update-progress="appStore.updateProgress"
     @retry="retryUpdate" />
-
-  <!-- Chat Widget -->
-  <ChatWidget v-if="roomStore.activeRoomId" />
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted } from "vue"
-import { useAppStore, useRoomStore } from "@/stores"
+import { useAppStore } from "@/stores"
 import {
   isElectron,
   isElectronDev,
@@ -62,10 +59,8 @@ import {
   onUpdateNotAvailable,
 } from "@/services/electron"
 import UpdateOverlay from "@/components/UpdateOverlay.vue"
-import ChatWidget from "@/components/ChatWidget.vue"
 
 const appStore = useAppStore()
-const roomStore = useRoomStore()
 
 const showUpdateOverlay = computed(() => {
   if (!isElectron() || isElectronDev()) return false

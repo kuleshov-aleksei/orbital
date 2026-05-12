@@ -1,21 +1,6 @@
 <template>
-  <div class="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
-    <!-- Toggle Button -->
-    <button
-      v-if="!chatStore.isOpen"
-      type="button"
-      class="relative w-14 h-14 rounded-full bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-primary shadow-lg transition-all duration-200 flex items-center justify-center"
-      title="Open Chat"
-      @click="chatStore.openChat">
-      <PhChatDots class="w-7 h-7" />
-      <span
-        v-if="chatStore.totalUnreadCount > 0"
-        class="absolute -top-1 -right-1 min-w-6 h-6 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center px-1">
-        {{ chatStore.totalUnreadCount > 99 ? "99+" : chatStore.totalUnreadCount }}
-      </span>
-    </button>
-
-    <!-- Chat Panel -->
+  <!-- Chat Panel (no toggle button - button is in VoiceCallView) -->
+  <div class="fixed bottom-20 right-4 z-50">
     <Transition name="chat-slide">
       <div
         v-if="chatStore.isOpen"
@@ -35,34 +20,31 @@
         </div>
 
         <!-- Messages Area -->
-        <div ref="messagesContainer" class="flex-1 overflow-y-auto p-3">
-          <RecycleScroller
-            v-if="currentMessages.length > 0"
-            :items="currentMessages"
-            :item-size="72"
-            key-field="id"
-            class="h-full"
-            v-slot="{ item }">
-            <div class="flex gap-3 mb-3">
-              <UserAvatar :user-id="item.sender_id" :size="36" :show-status="false" />
-              <div class="flex-1 min-w-0">
-                <div class="flex items-baseline gap-2">
-                  <span class="text-sm font-medium text-theme-text-primary">
-                    {{ getSenderName(item.sender_id) }}
-                  </span>
-                  <span
-                    class="text-xs text-theme-text-muted"
-                    :title="formatFullTime(item.sent_at)">
-                    {{ formatRelativeTime(item.sent_at) }}
-                  </span>
-                </div>
-                <p class="text-sm text-theme-text-secondary break-words">
-                  {{ item.content }}
-                </p>
+        <div
+          ref="messagesContainerRef"
+          class="flex-1 overflow-y-auto p-3 space-y-3">
+          <div
+            v-for="item in currentMessages"
+            :key="item.id"
+            class="flex gap-3">
+            <UserAvatar :user-id="item.sender_id" :size="36" :show-status="false" />
+            <div class="flex-1 min-w-0">
+              <div class="flex items-baseline gap-2">
+                <span class="text-sm font-medium text-theme-text-primary">
+                  {{ getSenderName(item.sender_id) }}
+                </span>
+                <span
+                  class="text-xs text-theme-text-muted"
+                  :title="formatFullTime(item.sent_at)">
+                  {{ formatRelativeTime(item.sent_at) }}
+                </span>
               </div>
+              <p class="text-sm text-theme-text-secondary break-words">
+                {{ item.content }}
+              </p>
             </div>
-          </RecycleScroller>
-          <div v-else class="h-full flex items-center justify-center">
+          </div>
+          <div v-if="currentMessages.length === 0" class="h-full flex items-center justify-center -mt-3">
             <p class="text-sm text-theme-text-muted">No messages yet</p>
           </div>
         </div>
@@ -93,14 +75,20 @@
         </div>
       </div>
     </Transition>
+
+    <!-- Unread Badge (shown when chat is closed) -->
+    <button
+      v-if="!chatStore.isOpen && chatStore.totalUnreadCount > 0"
+      type="button"
+      class="absolute -top-1 -right-1 min-w-6 h-6 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center px-1 animate-pulse">
+      {{ chatStore.totalUnreadCount > 99 ? "99+" : chatStore.totalUnreadCount }}
+    </button>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from "vue"
-import { PhChatDots, PhPaperPlaneRight, PhMinus } from "@phosphor-icons/vue"
-import { RecycleScroller } from "vue-virtual-scroller"
-import "vue-virtual-scroller/dist/vue-virtual-scroller.css"
+import { PhPaperPlaneRight, PhMinus } from "@phosphor-icons/vue"
 import { useChatStore, useUserStore, useRoomStore, useUsersStore } from "@/stores"
 import { wsService } from "@/services/websocket"
 import UserAvatar from "@/components/UserAvatar.vue"
@@ -112,7 +100,7 @@ const usersStore = useUsersStore()
 
 const messageInput = ref("")
 const inputRef = ref<HTMLInputElement | null>(null)
-const messagesContainer = ref<HTMLElement | null>(null)
+const messagesContainerRef = ref<HTMLElement | null>(null)
 
 const currentMessages = computed(() => {
   const roomId = roomStore.activeRoomId
@@ -166,8 +154,8 @@ const sendMessage = () => {
 
 const scrollToBottom = () => {
   nextTick(() => {
-    if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+    if (messagesContainerRef.value) {
+      messagesContainerRef.value.scrollTop = messagesContainerRef.value.scrollHeight
     }
   })
 }
