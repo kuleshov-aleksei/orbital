@@ -425,10 +425,16 @@ watch(
 .chat-input {
   min-height: 44px;
   max-height: 160px;
-  overflow-y: auto;
+  overflow-y: hidden;
   field-size: none;
   box-sizing: border-box;
   line-height: 1.5;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.chat-input::-webkit-scrollbar {
+  display: none;
 }
 
 /* Markdown rendered content */
