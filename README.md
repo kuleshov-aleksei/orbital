@@ -18,6 +18,8 @@ This project is built by AI (like 90%). AI is not perfect, but MVP was built in 
 
 - **Voice Rooms** - Create and join voice rooms with up to 10 participants (in theory it is limited only by your network, cause livekit is able to handle about 3k users per room)
 - **LiveKit SFU** - Scalable Selective Forwarding Unit for reliable voice communication
+- **Text Chat** - Real-time text messaging within voice rooms
+- **Desktop App** - Standalone Electron application for Linux and Windows with auto-update system
 - **Screen Sharing** - Share your screen with quality options (720p, 1080p 60fps, text-optimized)
 - **Process audio sharing** - Share audio of the specific application. Currently works only on linux with pipewire
 - **Advanced Audio Processing**
