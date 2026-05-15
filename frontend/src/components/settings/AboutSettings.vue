@@ -7,12 +7,23 @@
       About
     </h3>
 
-    <!-- Application Version -->
+    <!-- Application Version & GitHub -->
     <div class="pt-2 border-t border-theme-border">
-      <div class="flex items-center gap-2">
-        <PhInfo class="w-4 h-4 text-theme-text-muted" />
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <PhInfo class="w-4 h-4 text-theme-text-muted" />
 
-        <span class="text-sm font-medium text-theme-text-secondary">Version</span>
+          <span class="text-sm font-medium text-theme-text-secondary">Version</span>
+        </div>
+
+        <a
+          href="https://github.com/kuleshov-aleksei/orbital"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="flex items-center gap-1.5 text-sm text-theme-text-primary hover:text-theme-accent transition-colors">
+          <PhGithubLogo class="w-4 h-4" />
+          <span>GitHub</span>
+        </a>
       </div>
 
       <p class="text-sm text-theme-text-muted mt-1 font-mono">
@@ -73,7 +84,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from "vue"
-import { PhInfo } from "@phosphor-icons/vue"
+import { PhInfo, PhGithubLogo } from "@phosphor-icons/vue"
 import { isElectron, getLicenses } from "@/services/electron"
 import type { License } from "@/types"
 
