@@ -23,8 +23,8 @@ services:
       - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-dev_key}
       - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-this_is_a_development_secret_key_32chars}
       - ROOM_MIN_USERS=2
-      - ROOM_MAX_USERS=6
-      - ROOM_DEFAULT_MAX_USERS=6
+      - ROOM_MAX_USERS=20
+      - ROOM_DEFAULT_MAX_USERS=10
     volumes:
       - ./data/backend/:/root/data/
     depends_on:
