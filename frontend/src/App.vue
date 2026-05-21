@@ -30,6 +30,8 @@ const checkMobile = () => {
 }
 
 const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+  if (isElectron()) return
+
   if (roomStore.isInRoom) {
     e.preventDefault()
     e.returnValue = ""
