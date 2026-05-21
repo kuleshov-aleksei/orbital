@@ -4,3 +4,4 @@ allowBuilds:
   electron-winstaller: true
   esbuild: true
 packages: []
+minimumReleaseAge: 7200
