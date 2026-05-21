@@ -264,3 +264,12 @@ Include the generated sprites in `sounds.ts` to make the pack available in the a
 ## Global hotkeys (Linux + Wayland + KDE Plasma)
 
 For some reason, electron fails to unregister global hotkeys on wayland DE. So if you change hotkeys, you may need to clear old hotkeys manually in Settings > Keyboard > Shortcuts > Orbital
+
+# Building on Windows
+
+Don't... Simply don't. If you value your time, avoid building this project on Windows at any cost.
+
+Windows is not intended for good developer experience  
+- Make scripts won't work out of the box
+- You will get odd libvips problems (h2non\bimg@v1.1.9\image.go:93:49: undefined: Gravity) with backend (and you will have to use docker for the backend)
+

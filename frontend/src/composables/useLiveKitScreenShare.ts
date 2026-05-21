@@ -131,30 +131,16 @@ export function useLiveKitScreenShare(state: LiveKitState) {
       let displayStream: MediaStream
 
       if (isWindows) {
-        try {
-          displayStream = await navigator.mediaDevices.getDisplayMedia({
-            audio: audio,
-            video: {
-              width: { ideal: 1920 },
-              height: { ideal: 1080 },
-              frameRate: { ideal: maxFrameRate },
-            },
-          })
+        await startElectronScreenShareIPC(sourceId, audio)
 
-          await startElectronScreenShareIPC(sourceId, audio)
-        } catch (error) {
-          console.warn("[ScreenShare] Windows capture failed, trying fallback:", error)
-          state.isStartingScreenShare.value = false
-
-          displayStream = await navigator.mediaDevices.getDisplayMedia({
-            audio: audio,
-            video: {
-              width: { ideal: 1920 },
-              height: { ideal: 1080 },
-              frameRate: { ideal: Math.min(maxFrameRate, 30) },
-            },
-          })
-        }
+        displayStream = await navigator.mediaDevices.getDisplayMedia({
+          audio: audio,
+          video: {
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            frameRate: { ideal: maxFrameRate },
+          },
+        })
       } else {
         const constraints: MediaStreamConstraints = {
           audio: audio

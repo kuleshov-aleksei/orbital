@@ -174,6 +174,8 @@ let tray: Tray | null = null
 let isQuitting = false
 let updateCheckInProgress = false
 
+let pendingScreenShareSource: { id: string; name: string; audio: boolean } | null = null
+
 interface CachedUpdateState {
   status: "idle" | "checking" | "downloading" | "ready" | "error"
   version?: string
@@ -213,6 +215,7 @@ function createWindow() {
     if (updateCheckInProgress) {
       log.info("[Update] Window ready but update check in progress, deferring show")
     } else {
+      mainWindow?.maximize()
       mainWindow?.show()
       log.info("Main window shown")
     }
@@ -590,59 +593,33 @@ function setupScreenShareHandler() {
     async (request, callback) => {
       log.info("[ScreenShare] Received display media request:", request)
 
-      const sources = await desktopCapturer
-        .getSources({
-          types: ["window", "screen"],
-        })
-        .catch((err) => {
-          log.error("[ScreenShare] Failed to get sources:", err)
-          return null
-        })
+      const source = pendingScreenShareSource
+      pendingScreenShareSource = null
 
-      if (!sources || sources.length === 0) {
-        log.warn("[ScreenShare] No sources found")
+      if (!source || source.id === "none") {
+        log.warn("[ScreenShare] No source selected")
         try {
           callback({})
         } catch (e) {
-          log.error("[ScreenShare] Callback error (no sources):", e)
+          log.error("[ScreenShare] Callback error (no source):", e)
         }
         return
       }
 
-      mainWindow?.webContents.send("getSources", sources)
+      log.info(`[ScreenShare] Using pre-selected source: ${source.id}, audio: ${source.audio}`)
 
-      ipcMain.once("startScreenshare", (_event, id: string, name: string, audio: boolean) => {
-        log.info(`[ScreenShare] startScreenshare received: id=${id}, audio=${audio}`)
+      const options: Electron.Streams = {
+        video: { id: source.id, name: source.name },
+      }
+      if (source.audio) {
+        options.audio = "loopback"
+      }
 
-        if (id === "none") {
-          try {
-            callback({})
-          } catch (e) {
-            log.error("[ScreenShare] Callback error (none):", e)
-          }
-          return
-        }
-
-        const result = { id, name }
-
-        if (process.platform === "win32" || process.platform === "linux") {
-          const options: Electron.Streams = { video: result }
-          if (audio) {
-            options.audio = "loopback"
-          }
-          try {
-            callback(options)
-          } catch (e) {
-            log.error("[ScreenShare] Callback error (win/linux):", e)
-          }
-        } else {
-          try {
-            callback({ video: result })
-          } catch (e) {
-            log.error("[ScreenShare] Callback error (mac):", e)
-          }
-        }
-      })
+      try {
+        callback(options)
+      } catch (e) {
+        log.error("[ScreenShare] Callback error:", e)
+      }
     },
     { useSystemPicker: false }
   )
@@ -666,6 +643,12 @@ function setupIPC() {
       log.error("Error getting desktop sources:", error)
       throw error
     }
+  })
+
+  ipcMain.handle("startScreenshare", (_event, id: string, audio: boolean) => {
+    log.info(`[ScreenShare] startScreenshare: id=${id}, audio=${audio}`)
+    pendingScreenShareSource = { id, name: "", audio }
+    return { success: true }
   })
 
   ipcMain.handle("get-licenses", async () => {
