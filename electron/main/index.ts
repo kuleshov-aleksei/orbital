@@ -674,7 +674,7 @@ function setupIPC() {
 
   ipcMain.handle("install-update", () => {
     isQuitting = true
-    autoUpdater.quitAndInstall()
+    autoUpdater.quitAndInstall(true, true)
   })
 
   ipcMain.handle("minimize-window", () => {
