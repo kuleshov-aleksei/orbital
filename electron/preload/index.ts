@@ -87,6 +87,8 @@ export interface ElectronAPI {
   pauseHotkeys: () => Promise<{ requiresRestart: boolean }>
   resumeHotkeys: () => Promise<{ requiresRestart: boolean }>
   getIsWayland: () => Promise<boolean>
+  setThumbarButtons: (state: { isMuted: boolean; isDeafened: boolean } | null) => Promise<boolean>
+  onThumbarButtonClick: (callback: (action: string) => void) => void
 }
 
 const electronAPI: ElectronAPI = {
@@ -175,6 +177,11 @@ const electronAPI: ElectronAPI = {
   pauseHotkeys: () => ipcRenderer.invoke("pause-hotkeys"),
   resumeHotkeys: () => ipcRenderer.invoke("resume-hotkeys"),
   getIsWayland: () => ipcRenderer.invoke("get-is-wayland"),
+
+  setThumbarButtons: (state) => ipcRenderer.invoke("set-thumbar-buttons", state),
+  onThumbarButtonClick: (callback) => {
+    ipcRenderer.on("thumbar-button-clicked", (_, action) => callback(action))
+  },
 }
 
 contextBridge.exposeInMainWorld("electronAPI", electronAPI)

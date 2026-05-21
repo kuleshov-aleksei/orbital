@@ -428,6 +428,8 @@ export interface ElectronAPI {
   pauseHotkeys: () => Promise<{ requiresRestart: boolean }>
   resumeHotkeys: () => Promise<{ requiresRestart: boolean }>
   getIsWayland: () => Promise<boolean>
+  setThumbarButtons: (state: { isMuted: boolean; isDeafened: boolean } | null) => Promise<boolean>
+  onThumbarButtonClick: (callback: (action: string) => void) => void
   venmicHasVenmic?: () => Promise<boolean>
   venmicHasPipeWire?: () => Promise<boolean>
   venmicListSources?: () => Promise<VenmicNode[]>

@@ -226,3 +226,14 @@ export async function getLicenses(): Promise<License[] | null> {
   if (!isElectron()) return null
   return window.electronAPI!.getLicenses()
 }
+
+export async function setThumbarButtons(state: { isMuted: boolean; isDeafened: boolean } | null): Promise<boolean> {
+  if (!isElectron()) return false
+  return window.electronAPI!.setThumbarButtons(state)
+}
+
+export function onThumbarButtonClick(callback: (action: string) => void): void {
+  if (isElectron()) {
+    window.electronAPI!.onThumbarButtonClick(callback)
+  }
+}

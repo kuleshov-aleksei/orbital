@@ -8,6 +8,7 @@ import https from "node:https"
 import crypto from "node:crypto"
 import log from "electron-log"
 import { autoUpdater } from "electron-updater"
+import type { ThumbarButton } from "electron"
 
 log.transports.file.level = "info"
 log.transports.console.level = "debug"
@@ -175,6 +176,63 @@ let isQuitting = false
 let updateCheckInProgress = false
 
 let pendingScreenShareSource: { id: string; name: string; audio: boolean } | null = null
+
+let thumbarIcons: Record<string, nativeImage> = {}
+
+function loadThumbarIcon(filename: string): nativeImage {
+  if (thumbarIcons[filename]) {
+    return thumbarIcons[filename]
+  }
+
+  const iconPath = VITE_DEV_SERVER_URL
+    ? path.join(__dirname, "../../main/icons", filename)
+    : path.join(process.resourcesPath, "main/icons", filename)
+
+  try {
+    const img = nativeImage.createFromPath(iconPath)
+    if (!img.isEmpty()) {
+      thumbarIcons[filename] = img
+      return img
+    }
+  } catch {
+    log.warn(`[Thumbar] Failed to load icon: ${filename}`)
+  }
+
+  return nativeImage.createEmpty()
+}
+
+function updateThumbarButtons(state?: { isMuted: boolean; isDeafened: boolean }) {
+  if (process.platform !== "win32" || !mainWindow || mainWindow.isDestroyed()) {
+    return
+  }
+
+  if (!state) {
+    mainWindow.setThumbarButtons([])
+    return
+  }
+
+  const micIcon = loadThumbarIcon(state.isMuted ? "microphone-slash.png" : "microphone.png")
+  const headphoneIcon = loadThumbarIcon(state.isDeafened ? "headphones-slash.png" : "headphones.png")
+
+  const buttons: ThumbarButton[] = [
+    {
+      icon: micIcon,
+      tooltip: state.isMuted ? "Unmute" : "Mute",
+      click: () => {
+        mainWindow?.webContents.send("thumbar-button-clicked", "mute")
+      },
+    },
+    {
+      icon: headphoneIcon,
+      tooltip: state.isDeafened ? "Undeafen" : "Deafen",
+      click: () => {
+        mainWindow?.webContents.send("thumbar-button-clicked", "deafen")
+      },
+    },
+  ]
+
+  mainWindow.setThumbarButtons(buttons)
+}
 
 interface CachedUpdateState {
   status: "idle" | "checking" | "downloading" | "ready" | "error"
@@ -828,6 +886,11 @@ function setupIPC() {
 
   ipcMain.handle("get-is-wayland", () => {
     return isWayland
+  })
+
+  ipcMain.handle("set-thumbar-buttons", (_, state: { isMuted: boolean; isDeafened: boolean } | null) => {
+    updateThumbarButtons(state ?? undefined)
+    return true
   })
 }
 
