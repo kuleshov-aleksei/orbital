@@ -32,9 +32,16 @@
           :value="volume"
           type="range"
           min="0"
-          max="100"
+          max="200"
           class="flex-1 h-1 bg-theme-bg-hover rounded-lg appearance-none cursor-pointer"
           @input="handleVolumeInput" />
+      </div>
+      <!-- High volume warning -->
+      <div
+        v-if="showHighVolumeWarning"
+        class="mt-2 text-xs text-amber-400 bg-amber-400/10 border border-amber-400/30 rounded px-2 py-1.5 flex items-start gap-1.5 max-w-40">
+        <PhWarning class="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+        <span>Boosting volume above 100% may amplify background noise and distort audio.</span>
       </div>
     </div>
 
@@ -103,6 +110,7 @@ import {
   PhUserMinus,
   PhCrown,
   PhSignOut,
+  PhWarning,
 } from "@phosphor-icons/vue"
 import { useUsersStore, useRoomStore, useUserStore, useCallStore } from "@/stores"
 import { apiService } from "@/services/api"
@@ -142,6 +150,8 @@ const targetUser = computed(() => {
 const userNickname = computed(() => targetUser.value?.nickname || "Unknown User")
 
 const volume = computed(() => roomStore.getUserVolume(effectiveUserId.value))
+
+const showHighVolumeWarning = computed(() => volume.value > 100)
 
 const isMuted = computed(() => {
   const currentUserId = userStore.userId

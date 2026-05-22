@@ -49,7 +49,7 @@ const createAudioElement = (userId: string, track: RemoteAudioTrack): HTMLAudioE
 
   // Apply initial settings
   const volume = props.volumes.get(userId) ?? 80
-  element.volume = volume / 100
+  element.volume = volume / 200
 
   const isMuted = props.mutedUsers.has(userId)
   element.muted = props.isDeafened || isMuted
@@ -171,7 +171,7 @@ watch(
     newVolumes.forEach((volume, userId) => {
       const element = audioElements.value.get(userId)
       if (element) {
-        element.volume = volume / 100
+        element.volume = volume / 200
       }
     })
   },
@@ -245,7 +245,7 @@ const muteUser = (userId: string, muted: boolean) => {
 const setUserVolume = (userId: string, volume: number) => {
   const element = audioElements.value.get(userId)
   if (element) {
-    element.volume = volume / 100
+    element.volume = volume / 200
   }
 }
 
