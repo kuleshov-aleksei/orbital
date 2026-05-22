@@ -37,7 +37,7 @@
             type="button"
             class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
             @click="install">
-            Restart to Update
+            Install & Restart
           </button>
         </div>
 

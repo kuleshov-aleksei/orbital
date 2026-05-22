@@ -122,4 +122,9 @@ export function useKeyboardShortcuts() {
     window.removeEventListener("keydown", handleKeyDown)
     window.removeEventListener("keyup", handleKeyUp)
   })
+
+  return {
+    handleMuteToggle,
+    handleDeafenToggle,
+  }
 }

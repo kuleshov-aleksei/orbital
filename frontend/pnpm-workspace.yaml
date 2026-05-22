@@ -1,3 +1,4 @@
 allowBuilds:
   vue-demi: true
 packages: []
+minimumReleaseAge: 7200

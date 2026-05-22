@@ -8,6 +8,7 @@ import https from "node:https"
 import crypto from "node:crypto"
 import log from "electron-log"
 import { autoUpdater } from "electron-updater"
+import type { ThumbarButton } from "electron"
 
 log.transports.file.level = "info"
 log.transports.console.level = "debug"
@@ -174,6 +175,65 @@ let tray: Tray | null = null
 let isQuitting = false
 let updateCheckInProgress = false
 
+let pendingScreenShareSource: { id: string; name: string; audio: boolean } | null = null
+
+let thumbarIcons: Record<string, nativeImage> = {}
+
+function loadThumbarIcon(filename: string): nativeImage {
+  if (thumbarIcons[filename]) {
+    return thumbarIcons[filename]
+  }
+
+  const iconPath = VITE_DEV_SERVER_URL
+    ? path.join(__dirname, "../../main/icons", filename)
+    : path.join(process.resourcesPath, "main/icons", filename)
+
+  try {
+    const img = nativeImage.createFromPath(iconPath)
+    if (!img.isEmpty()) {
+      thumbarIcons[filename] = img
+      return img
+    }
+  } catch {
+    log.warn(`[Thumbar] Failed to load icon: ${filename}`)
+  }
+
+  return nativeImage.createEmpty()
+}
+
+function updateThumbarButtons(state?: { isMuted: boolean; isDeafened: boolean }) {
+  if (process.platform !== "win32" || !mainWindow || mainWindow.isDestroyed()) {
+    return
+  }
+
+  if (!state) {
+    mainWindow.setThumbarButtons([])
+    return
+  }
+
+  const micIcon = loadThumbarIcon(state.isMuted ? "microphone-slash.png" : "microphone.png")
+  const headphoneIcon = loadThumbarIcon(state.isDeafened ? "headphones-slash.png" : "headphones.png")
+
+  const buttons: ThumbarButton[] = [
+    {
+      icon: micIcon,
+      tooltip: state.isMuted ? "Unmute" : "Mute",
+      click: () => {
+        mainWindow?.webContents.send("thumbar-button-clicked", "mute")
+      },
+    },
+    {
+      icon: headphoneIcon,
+      tooltip: state.isDeafened ? "Undeafen" : "Deafen",
+      click: () => {
+        mainWindow?.webContents.send("thumbar-button-clicked", "deafen")
+      },
+    },
+  ]
+
+  mainWindow.setThumbarButtons(buttons)
+}
+
 interface CachedUpdateState {
   status: "idle" | "checking" | "downloading" | "ready" | "error"
   version?: string
@@ -213,6 +273,7 @@ function createWindow() {
     if (updateCheckInProgress) {
       log.info("[Update] Window ready but update check in progress, deferring show")
     } else {
+      mainWindow?.maximize()
       mainWindow?.show()
       log.info("Main window shown")
     }
@@ -590,59 +651,33 @@ function setupScreenShareHandler() {
     async (request, callback) => {
       log.info("[ScreenShare] Received display media request:", request)
 
-      const sources = await desktopCapturer
-        .getSources({
-          types: ["window", "screen"],
-        })
-        .catch((err) => {
-          log.error("[ScreenShare] Failed to get sources:", err)
-          return null
-        })
+      const source = pendingScreenShareSource
+      pendingScreenShareSource = null
 
-      if (!sources || sources.length === 0) {
-        log.warn("[ScreenShare] No sources found")
+      if (!source || source.id === "none") {
+        log.warn("[ScreenShare] No source selected")
         try {
           callback({})
         } catch (e) {
-          log.error("[ScreenShare] Callback error (no sources):", e)
+          log.error("[ScreenShare] Callback error (no source):", e)
         }
         return
       }
 
-      mainWindow?.webContents.send("getSources", sources)
+      log.info(`[ScreenShare] Using pre-selected source: ${source.id}, audio: ${source.audio}`)
 
-      ipcMain.once("startScreenshare", (_event, id: string, name: string, audio: boolean) => {
-        log.info(`[ScreenShare] startScreenshare received: id=${id}, audio=${audio}`)
+      const options: Electron.Streams = {
+        video: { id: source.id, name: source.name },
+      }
+      if (source.audio) {
+        options.audio = "loopback"
+      }
 
-        if (id === "none") {
-          try {
-            callback({})
-          } catch (e) {
-            log.error("[ScreenShare] Callback error (none):", e)
-          }
-          return
-        }
-
-        const result = { id, name }
-
-        if (process.platform === "win32" || process.platform === "linux") {
-          const options: Electron.Streams = { video: result }
-          if (audio) {
-            options.audio = "loopback"
-          }
-          try {
-            callback(options)
-          } catch (e) {
-            log.error("[ScreenShare] Callback error (win/linux):", e)
-          }
-        } else {
-          try {
-            callback({ video: result })
-          } catch (e) {
-            log.error("[ScreenShare] Callback error (mac):", e)
-          }
-        }
-      })
+      try {
+        callback(options)
+      } catch (e) {
+        log.error("[ScreenShare] Callback error:", e)
+      }
     },
     { useSystemPicker: false }
   )
@@ -668,6 +703,12 @@ function setupIPC() {
     }
   })
 
+  ipcMain.handle("startScreenshare", (_event, id: string, audio: boolean) => {
+    log.info(`[ScreenShare] startScreenshare: id=${id}, audio=${audio}`)
+    pendingScreenShareSource = { id, name: "", audio }
+    return { success: true }
+  })
+
   ipcMain.handle("get-licenses", async () => {
     try {
       const licensesPath = app.isPackaged
@@ -691,7 +732,7 @@ function setupIPC() {
 
   ipcMain.handle("install-update", () => {
     isQuitting = true
-    autoUpdater.quitAndInstall()
+    autoUpdater.quitAndInstall(true, true)
   })
 
   ipcMain.handle("minimize-window", () => {
@@ -845,6 +886,11 @@ function setupIPC() {
 
   ipcMain.handle("get-is-wayland", () => {
     return isWayland
+  })
+
+  ipcMain.handle("set-thumbar-buttons", (_, state: { isMuted: boolean; isDeafened: boolean } | null) => {
+    updateThumbarButtons(state ?? undefined)
+    return true
   })
 }
 
