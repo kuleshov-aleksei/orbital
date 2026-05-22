@@ -24,7 +24,7 @@
           <PhArrowLeft class="w-5 h-5" />
         </button>
 
-        <div>
+        <div v-if="!chatStore.isOpen">
           <h1 class="text-xl font-semibold text-theme-text-primary" data-testid="room-title">
             {{ roomName || "Voice Room" }}
           </h1>
@@ -37,27 +37,27 @@
           <div class="flex bg-theme-bg-tertiary rounded-lg p-0.5">
             <button
               type="button"
-              class="px-2 py-1 rounded-md text-xs transition-colors flex items-center"
+              class="px-2 py-1.5 rounded-md text-xs transition-colors flex items-center"
               :class="[
                 screenShareLayout === 'grid'
                   ? 'bg-theme-accent text-theme-text-on-accent'
                   : 'text-theme-text-muted hover:text-theme-text-primary',
               ]"
               @click="$emit('update:screenShareLayout', 'grid')">
-              <PhGridFour class="w-3.5 h-3.5 mr-1" />
+              <PhGridFour class="w-5 h-5" />
               Grid
             </button>
 
             <button
               type="button"
-              class="px-2 py-1 rounded-md text-xs transition-colors flex items-center"
+              class="px-2 py-1.5 rounded-md text-xs transition-colors flex items-center"
               :class="[
                 screenShareLayout === 'focus'
                   ? 'bg-theme-accent text-theme-text-on-accent'
                   : 'text-theme-text-muted hover:text-theme-text-primary',
               ]"
               @click="$emit('update:screenShareLayout', 'focus')">
-              <PhArrowsOut class="w-3.5 h-3.5 mr-1" />
+              <PhArrowsOut class="w-5 h-5" />
               Focus
             </button>
           </div>
@@ -81,6 +81,9 @@
 
 <script setup lang="ts">
 import { PhArrowLeft, PhUsers, PhGridFour, PhArrowsOut } from "@phosphor-icons/vue"
+import { useChatStore } from "@/stores"
+
+const chatStore = useChatStore()
 
 interface Props {
   roomName: string
