@@ -16,14 +16,13 @@
           <span class="text-sm font-medium text-theme-text-secondary">Version</span>
         </div>
 
-        <a
-          href="https://github.com/kuleshov-aleksei/orbital"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="flex items-center gap-1.5 text-sm text-theme-text-primary hover:text-theme-accent transition-colors">
+        <button
+          type="button"
+          class="flex items-center gap-1.5 text-sm text-theme-text-primary hover:text-theme-accent transition-colors"
+          @click="handleOpenExternal('https://github.com/kuleshov-aleksei/orbital')">
           <PhGithubLogo class="w-4 h-4" />
           <span>GitHub</span>
-        </a>
+        </button>
       </div>
 
       <p class="text-sm text-theme-text-muted mt-1 font-mono">
@@ -67,14 +66,13 @@
               :class="getLicenseClass(lib.license)">
               {{ lib.license }}
             </span>
-            <a
+            <button
               v-if="lib.url"
-              :href="lib.url"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="block mt-1 text-xs text-theme-accent hover:text-theme-accent/80">
+              type="button"
+              class="block mt-1 text-xs text-theme-accent hover:text-theme-accent/80"
+              @click="handleOpenExternal(lib.url)">
               View Repo
-            </a>
+            </button>
           </div>
         </div>
       </div>
@@ -85,7 +83,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue"
 import { PhInfo, PhGithubLogo } from "@phosphor-icons/vue"
-import { isElectron, getLicenses } from "@/services/electron"
+import { isElectron, getLicenses, openExternal } from "@/services/electron"
 import type { License } from "@/types"
 
 defineProps<{
@@ -99,6 +97,14 @@ const loading = ref(true)
 const error = ref("")
 
 const appVersion = __APP_VERSION__
+
+function handleOpenExternal(url: string) {
+  if (isElectron()) {
+    openExternal(url)
+  } else {
+    window.open(url, "_blank", "noopener")
+  }
+}
 
 onMounted(async () => {
   try {
