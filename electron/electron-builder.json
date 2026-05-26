@@ -44,7 +44,8 @@
     "deleteAppDataOnUninstall": false,
     "createDesktopShortcut": false,
     "createStartMenuShortcut": true,
-    "include": "build/installer.nsh"
+    "include": "build/installer.nsh",
+    "differentialPackage": true
   },
   "linux": {
     "target": [
