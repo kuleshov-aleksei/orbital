@@ -1,9 +1,6 @@
 import { AnimatedSprite, Container, Text } from "pixi.js"
 import type { AnimationTextures } from "./ResourceManager"
 
-const CHARACTER_SCALE = 3
-const INITIAL_SPRITE_SCALE = CHARACTER_SCALE
-
 export type AnimationState = "idle" | "walk_right" | "walk_left" | "walk_up" | "walk_down"
 
 export interface CharacterDisplay {
@@ -20,6 +17,8 @@ export function createCharacterSprite(
 ): CharacterDisplay {
   const container = new Container()
   container.sortableChildren = true
+
+  const spriteScale = animations.scale
 
   // Name label
   const nameLabel = new Text({
@@ -39,7 +38,7 @@ export function createCharacterSprite(
   // Animated sprite for walk (left/right)
   const walkSprite = new AnimatedSprite(animations.walk)
   walkSprite.anchor.set(0.5, 0.65)
-  walkSprite.scale.set(INITIAL_SPRITE_SCALE)
+  walkSprite.scale.set(spriteScale)
   walkSprite.animationSpeed = 0.15
   walkSprite.visible = false
   container.addChild(walkSprite)
@@ -47,7 +46,7 @@ export function createCharacterSprite(
   // Animated sprite for idle
   const idleSprite = new AnimatedSprite(animations.idle)
   idleSprite.anchor.set(0.5, 0.65)
-  idleSprite.scale.set(INITIAL_SPRITE_SCALE)
+  idleSprite.scale.set(spriteScale)
   idleSprite.animationSpeed = 0.1
   idleSprite.visible = true
   idleSprite.play()
@@ -59,7 +58,7 @@ export function createCharacterSprite(
     : null
   if (walkUpSprite) {
     walkUpSprite.anchor.set(0.5, 0.65)
-    walkUpSprite.scale.set(INITIAL_SPRITE_SCALE)
+    walkUpSprite.scale.set(spriteScale)
     walkUpSprite.animationSpeed = 0.15
     walkUpSprite.visible = false
   }
@@ -69,7 +68,7 @@ export function createCharacterSprite(
     : null
   if (walkDownSprite) {
     walkDownSprite.anchor.set(0.5, 0.65)
-    walkDownSprite.scale.set(INITIAL_SPRITE_SCALE)
+    walkDownSprite.scale.set(spriteScale)
     walkDownSprite.animationSpeed = 0.15
     walkDownSprite.visible = false
   }
@@ -105,12 +104,12 @@ export function createCharacterSprite(
         idleSprite.play()
         break
       case "walk_right":
-        walkSprite.scale.x = INITIAL_SPRITE_SCALE
+        walkSprite.scale.x = spriteScale
         walkSprite.visible = true
         walkSprite.play()
         break
       case "walk_left":
-        walkSprite.scale.x = -INITIAL_SPRITE_SCALE
+        walkSprite.scale.x = -spriteScale
         walkSprite.visible = true
         walkSprite.play()
         break
@@ -119,7 +118,7 @@ export function createCharacterSprite(
           walkUpSprite.visible = true
           walkUpSprite.play()
         } else {
-          walkSprite.scale.x = INITIAL_SPRITE_SCALE
+          walkSprite.scale.x = spriteScale
           walkSprite.visible = true
           walkSprite.play()
         }
@@ -129,7 +128,7 @@ export function createCharacterSprite(
           walkDownSprite.visible = true
           walkDownSprite.play()
         } else {
-          walkSprite.scale.x = INITIAL_SPRITE_SCALE
+          walkSprite.scale.x = spriteScale
           walkSprite.visible = true
           walkSprite.play()
         }

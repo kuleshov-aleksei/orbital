@@ -6,6 +6,7 @@ export interface CharacterConfig {
   frameWidth: number
   frameHeight: number
   totalFrames: number
+  scale?: number
   animations: {
     walk: { frames: number[]; loop: boolean }
     idle: { frames: number[]; loop: boolean }
@@ -19,6 +20,7 @@ export interface AnimationTextures {
   idle: Texture[]
   walkUp?: Texture[]
   walkDown?: Texture[]
+  scale: number
 }
 
 const registry = new Map<string, CharacterConfig>()
@@ -71,6 +73,7 @@ async function loadAnimations(config: CharacterConfig): Promise<AnimationTexture
     idle: idleTextures,
     walkUp: walkUpTextures,
     walkDown: walkDownTextures,
+    scale: config.scale ?? 3,
   }
 }
 
@@ -130,6 +133,7 @@ export function registerDefaultCharacters() {
     frameWidth: 64,
     frameHeight: 64,
     totalFrames: 29,
+    scale: 3,
     animations: {
       walk: { frames: [6, 7, 8, 9, 10, 11, 12, 13], loop: true },
       idle: { frames: [0, 1, 2, 3, 4, 5], loop: true },
@@ -144,6 +148,7 @@ export function registerDefaultCharacters() {
     frameWidth: 80,
     frameHeight: 64,
     totalFrames: 15,
+    scale: 2,
     animations: {
       walk: { frames: [7, 8, 9, 10, 11, 12, 13, 14], loop: true },
       idle: { frames: [0, 1, 2, 3, 4, 5, 6], loop: true },
@@ -156,6 +161,7 @@ export function registerDefaultCharacters() {
     frameWidth: 64,
     frameHeight: 64,
     totalFrames: 4,
+    scale: 2,
     animations: {
       walk: { frames: [2, 3], loop: true },
       idle: { frames: [0, 1], loop: true },
