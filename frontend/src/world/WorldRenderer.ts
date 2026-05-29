@@ -11,6 +11,7 @@ export interface WorldRenderer {
   updateCamera(): void
   getScreenCenter(): { x: number; y: number }
   getStage(): Container
+  updateEarshotRadius(x: number, y: number, radius: number): void
 }
 
 export function createWorldRenderer(): WorldRenderer {
@@ -23,6 +24,7 @@ export function createWorldRenderer(): WorldRenderer {
 
   const characters = new Map<string, CharacterDisplay>()
   let cameraTarget = { x: 0, y: 0 }
+  let earshotCircle: Graphics | null = null
 
   const init = async (container: HTMLElement) => {
     app = new Application()
@@ -78,6 +80,11 @@ export function createWorldRenderer(): WorldRenderer {
     cameraContainer.sortableChildren = true
     gameLayer.addChild(cameraContainer)
 
+    // Earshot radius circle (behind characters)
+    earshotCircle = new Graphics()
+    earshotCircle.zIndex = -1
+    cameraContainer.addChild(earshotCircle)
+
     uiLayer = new Container()
     uiLayer.sortableChildren = true
     stage.addChild(uiLayer)
@@ -86,6 +93,10 @@ export function createWorldRenderer(): WorldRenderer {
   const destroy = () => {
     characters.forEach((c) => c.destroy())
     characters.clear()
+    if (earshotCircle) {
+      earshotCircle.destroy()
+      earshotCircle = null
+    }
     if (app) {
       app.destroy(true)
       app = null
@@ -130,6 +141,15 @@ export function createWorldRenderer(): WorldRenderer {
     }
   }
 
+  const updateEarshotRadius = (x: number, y: number, radius: number) => {
+    if (!earshotCircle) return
+    earshotCircle.clear()
+    earshotCircle.circle(x, y, radius)
+    earshotCircle.fill({ color: 0x7dd3fc, alpha: 0.08 })
+    earshotCircle.circle(x, y, radius)
+    earshotCircle.stroke({ width: 1.5, color: 0x7dd3fc, alpha: 0.3 })
+  }
+
   const getStage = () => {
     return stage!
   }
@@ -143,5 +163,6 @@ export function createWorldRenderer(): WorldRenderer {
     updateCamera,
     getScreenCenter,
     getStage,
+    updateEarshotRadius,
   }
 }

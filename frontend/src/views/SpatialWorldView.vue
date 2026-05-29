@@ -46,6 +46,7 @@ import {
   SPAWN_POSITION,
   PLAYER_SPEED,
   WORLD_BOUNDARIES,
+  EARSHOT_RADIUS,
   TICK_RATE,
 } from "@/world/WorldConfig"
 import type { User } from "@/types"
@@ -230,6 +231,9 @@ function gameTick() {
   // Update camera
   worldRenderer.setCameraTarget(localPosition.value.x, localPosition.value.y)
   worldRenderer.updateCamera()
+
+  // Update earshot radius visual
+  worldRenderer.updateEarshotRadius(localPosition.value.x, localPosition.value.y, EARSHOT_RADIUS)
 
   // Update spatial audio positions
   updateAudioPositions(localPosition.value, remotePositions.value)
