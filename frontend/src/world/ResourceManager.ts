@@ -80,44 +80,8 @@ async function loadAnimations(config: CharacterConfig): Promise<AnimationTexture
 // Default character registrations
 export function registerDefaultCharacters() {
   registerCharacter({
-    key: "doux",
-    spritesheet: "/assets/characters/doux.png",
-    frameWidth: 24,
-    frameHeight: 24,
-    totalFrames: 24,
-    animations: {
-      walk: { frames: [4, 5, 6, 7, 8, 9], loop: true },
-      idle: { frames: [0, 1, 2, 3], loop: true },
-    },
-  })
-
-  registerCharacter({
-    key: "mort",
-    spritesheet: "/assets/characters/mort.png",
-    frameWidth: 24,
-    frameHeight: 24,
-    totalFrames: 24,
-    animations: {
-      walk: { frames: [4, 5, 6, 7, 8, 9], loop: true },
-      idle: { frames: [0, 1, 2, 3], loop: true },
-    },
-  })
-
-  registerCharacter({
     key: "targ",
     spritesheet: "/assets/characters/targ.png",
-    frameWidth: 24,
-    frameHeight: 24,
-    totalFrames: 24,
-    animations: {
-      walk: { frames: [4, 5, 6, 7, 8, 9], loop: true },
-      idle: { frames: [0, 1, 2, 3], loop: true },
-    },
-  })
-
-  registerCharacter({
-    key: "vita",
-    spritesheet: "/assets/characters/vita.png",
     frameWidth: 24,
     frameHeight: 24,
     totalFrames: 24,

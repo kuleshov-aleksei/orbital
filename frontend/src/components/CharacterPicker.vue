@@ -28,13 +28,10 @@
 </template>
 
 <script setup lang="ts">
-export type CharacterKey = "doux" | "mort" | "targ" | "vita" | "jeremy" | "elisabeth" | "robert"
+export type CharacterKey = "targ" | "jeremy" | "elisabeth" | "robert"
 
 const characters: { key: CharacterKey }[] = [
-  { key: "doux" },
-  { key: "mort" },
   { key: "targ" },
-  { key: "vita" },
   { key: "jeremy" },
   { key: "elisabeth" },
   { key: "robert" },
