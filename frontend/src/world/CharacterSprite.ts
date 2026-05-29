@@ -1,6 +1,9 @@
 import { AnimatedSprite, Container, Text } from "pixi.js"
 import type { AnimationTextures } from "./ResourceManager"
 
+const CHARACTER_SCALE = 3
+const INITIAL_SPRITE_SCALE = CHARACTER_SCALE
+
 export type AnimationState = "idle_right" | "idle_left" | "walk_right" | "walk_left"
 
 export interface CharacterDisplay {
@@ -24,17 +27,19 @@ export function createCharacterSprite(
     style: {
       fill: "#ffffff",
       stroke: { color: "#000000", width: 4 },
-      fontSize: 14,
+      fontSize: 18,
       fontFamily: "monospace",
+      fontWeight: "bold",
     },
   })
   nameLabel.anchor.set(0.5, 1)
-  nameLabel.y = -60
+  nameLabel.y = -70
   container.addChild(nameLabel)
 
   // Animated sprite for walk
   const walkSprite = new AnimatedSprite(animations.walk)
   walkSprite.anchor.set(0.5, 0.65)
+  walkSprite.scale.set(INITIAL_SPRITE_SCALE)
   walkSprite.animationSpeed = 0.15
   walkSprite.visible = false
   container.addChild(walkSprite)
@@ -42,6 +47,7 @@ export function createCharacterSprite(
   // Animated sprite for idle
   const idleSprite = new AnimatedSprite(animations.idle)
   idleSprite.anchor.set(0.5, 0.65)
+  idleSprite.scale.set(INITIAL_SPRITE_SCALE)
   idleSprite.animationSpeed = 0.1
   idleSprite.visible = true
   idleSprite.play()
@@ -62,7 +68,7 @@ export function createCharacterSprite(
 
     const isWalk = anim.startsWith("walk_")
     const facingRight = anim.endsWith("_right")
-    const scaleX = facingRight ? 1 : -1
+    const scaleX = facingRight ? INITIAL_SPRITE_SCALE : -INITIAL_SPRITE_SCALE
 
     if (isWalk) {
       idleSprite.visible = false

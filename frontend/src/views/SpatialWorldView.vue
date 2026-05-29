@@ -30,7 +30,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from "vue"
-import { RoomEvent } from "livekit-client"
+import { RoomEvent, ParticipantEvent } from "livekit-client"
 import type { RemoteParticipant } from "livekit-client"
 import AudioControls from "@/components/AudioControls.vue"
 import RoomHeader from "@/components/RoomHeader.vue"
@@ -130,8 +130,9 @@ let localCharacterAnimations: AnimationTextures | null = null
 let localCharacterDisplay: ReturnType<typeof createCharacterSprite> | null = null
 const remoteCharacterDisplays = new Map<string, ReturnType<typeof createCharacterSprite>>()
 
-// Tick loop
-let tickInterval: ReturnType<typeof setInterval> | null = null
+// Game loop (requestAnimationFrame)
+let animationFrameId: number | null = null
+let lastFrameTime = 0
 
 // Mute/deafen
 const isMuted = computed({
@@ -199,18 +200,25 @@ function removeRemoteCharacter(id: string) {
   }
 }
 
-// Game tick
-function gameTick() {
+// Game tick with frame-rate-independent delta
+function gameTick(delta: number) {
   if (!localCharacterDisplay) return
 
-  // Process input
-  const dir = direction.value
-  const moving = dir.x !== 0 || dir.y !== 0
+  // Normalize delta to 60fps frames for consistent speed
+  const frameDelta = Math.min(delta / (1000 / 60), 3)
+
+  // Process input with normalized direction (diagonal moves same speed as cardinal)
+  const rawDir = direction.value
+  const magnitude = Math.sqrt(rawDir.x * rawDir.x + rawDir.y * rawDir.y)
+  const moving = magnitude > 0.01
+  const dir = moving
+    ? { x: rawDir.x / magnitude, y: rawDir.y / magnitude }
+    : rawDir
 
   if (moving) {
     const pos = localPosition.value
-    let newX = pos.x + dir.x * PLAYER_SPEED
-    let newY = pos.y + dir.y * PLAYER_SPEED
+    let newX = pos.x + dir.x * PLAYER_SPEED * frameDelta
+    let newY = pos.y + dir.y * PLAYER_SPEED * frameDelta
     newX = Math.max(WORLD_BOUNDARIES.minX, Math.min(WORLD_BOUNDARIES.maxX, newX))
     newY = Math.max(WORLD_BOUNDARIES.minY, Math.min(WORLD_BOUNDARIES.maxY, newY))
     updateLocalPosition({ x: newX, y: newY })
@@ -240,11 +248,19 @@ function gameTick() {
 }
 
 function handleParticipantConnected(participant: RemoteParticipant) {
-  const user = props.users.find((u) => u.id === participant.identity)
-  void addRemoteCharacter(participant.identity, user?.nickname || participant.identity)
+  const identity = participant.identity
+  const user = props.users.find((u) => u.id === identity)
+  void addRemoteCharacter(identity, user?.nickname || identity).then(() => {
+    // Listen for speaking changes on this participant
+    participant.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
+      remoteCharacterDisplays.get(identity)?.setSpeaking(speaking)
+    })
+    remoteCharacterDisplays.get(identity)?.setSpeaking(participant.isSpeaking)
+  })
 }
 
 function handleParticipantDisconnected(participant: RemoteParticipant) {
+  participant.off(ParticipantEvent.IsSpeakingChanged)
   removeRemoteCharacter(participant.identity)
 }
 
@@ -278,6 +294,15 @@ onMounted(async () => {
   // Must init world BEFORE adding characters (cameraContainer is created in init)
   await setupWorld()
 
+  // Listen for local speaking indicator
+  const lp = localParticipant.value
+  if (lp) {
+    lp.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
+      localCharacterDisplay?.setSpeaking(speaking)
+    })
+    localCharacterDisplay?.setSpeaking(lp.isSpeaking)
+  }
+
   // Now add existing participants — renderer is ready
   for (const [, participant] of remoteParticipants.value) {
     handleParticipantConnected(participant)
@@ -285,11 +310,24 @@ onMounted(async () => {
 
   startListening()
 
-  // Start game tick
-  tickInterval = setInterval(gameTick, 1000 / TICK_RATE)
+  // Start game loop with requestAnimationFrame
+  lastFrameTime = performance.now()
+  function frame(timestamp: number) {
+    const delta = timestamp - lastFrameTime
+    lastFrameTime = timestamp
+    gameTick(delta)
+    animationFrameId = requestAnimationFrame(frame)
+  }
+  animationFrameId = requestAnimationFrame(frame)
 })
 
 onUnmounted(async () => {
+  // Cancel game loop
+  if (animationFrameId !== null) {
+    cancelAnimationFrame(animationFrameId)
+    animationFrameId = null
+  }
+
   // Clean up room event listeners
   const lkRoom = room.value
   if (lkRoom) {
@@ -297,13 +335,14 @@ onUnmounted(async () => {
     lkRoom.off(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected)
   }
 
+  // Clean up local speaking listener
+  const lp = localParticipant.value
+  if (lp) {
+    lp.off(ParticipantEvent.IsSpeakingChanged)
+  }
+
   stopListening()
   stopPositionSync()
-
-  if (tickInterval) {
-    clearInterval(tickInterval)
-    tickInterval = null
-  }
 
   worldRenderer.destroy()
   await cleanupLiveKit()

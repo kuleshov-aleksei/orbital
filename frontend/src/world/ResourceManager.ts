@@ -1,4 +1,4 @@
-import { Assets, Spritesheet, Texture } from "pixi.js"
+import { Assets, Spritesheet, Texture, SCALE_MODES } from "pixi.js"
 
 export interface CharacterConfig {
   key: string
@@ -39,7 +39,8 @@ export function getAnimations(key: string): Promise<AnimationTextures> {
 }
 
 async function loadAnimations(config: CharacterConfig): Promise<AnimationTextures> {
-  const baseTexture = await Assets.load<Texture>(config.spritesheet)
+  const texture = await Assets.load<Texture>(config.spritesheet)
+  texture.baseTexture.scaleMode = SCALE_MODES.NEAREST
   const { frameWidth, frameHeight, totalFrames } = config
 
   const frames: Record<string, { frame: { x: number; y: number; w: number; h: number } }> = {}
@@ -49,7 +50,7 @@ async function loadAnimations(config: CharacterConfig): Promise<AnimationTexture
     }
   }
 
-  const spritesheet = new Spritesheet(baseTexture, {
+  const spritesheet = new Spritesheet(texture, {
     frames,
     meta: { scale: "1" },
   })
