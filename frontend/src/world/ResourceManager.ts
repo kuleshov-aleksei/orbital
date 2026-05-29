@@ -137,4 +137,28 @@ export function registerDefaultCharacters() {
       walkDown: { frames: [22, 23, 24, 25, 26, 27, 28], loop: true },
     },
   })
+  
+  registerCharacter({
+    key: "elisabeth",
+    spritesheet: "/assets/characters/elisabeth.png",
+    frameWidth: 80,
+    frameHeight: 64,
+    totalFrames: 15,
+    animations: {
+      walk: { frames: [7, 8, 9, 10, 11, 12, 13, 14], loop: true },
+      idle: { frames: [0, 1, 2, 3, 4, 5, 6], loop: true },
+    },
+  })
+  
+  registerCharacter({
+    key: "robert",
+    spritesheet: "/assets/characters/robert.png",
+    frameWidth: 64,
+    frameHeight: 64,
+    totalFrames: 4,
+    animations: {
+      walk: { frames: [2, 3], loop: true },
+      idle: { frames: [0, 1], loop: true },
+    },
+  })
 }
