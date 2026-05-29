@@ -80,8 +80,10 @@ export function useKeyboardShortcuts() {
       e.preventDefault()
       handleMuteToggle()
     } else if (e.code === "KeyD") {
-      e.preventDefault()
-      handleDeafenToggle()
+      if (roomStore.activeRoom?.type !== "spatial_audio") {
+        e.preventDefault()
+        handleDeafenToggle()
+      }
     } else if (e.code === "Space") {
       e.preventDefault()
       handlePTTDown()
@@ -106,7 +108,9 @@ export function useKeyboardShortcuts() {
         if (action === "mute") {
           handleMuteToggle()
         } else if (action === "deafen") {
-          handleDeafenToggle()
+          if (roomStore.activeRoom?.type !== "spatial_audio") {
+            handleDeafenToggle()
+          }
         } else if (action === "ptt-pressed") {
           if (callStore.isMuted) {
             handlePTTDown()

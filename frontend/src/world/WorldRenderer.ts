@@ -1,4 +1,4 @@
-import { Application, Container, Graphics } from "pixi.js"
+import { Application, Assets, Container, Graphics, Sprite } from "pixi.js"
 import type { CharacterDisplay } from "./CharacterSprite"
 import { WORLD_BACKGROUND_COLOR, BACKGROUND_Z_INDEX } from "./WorldConfig"
 
@@ -52,11 +52,22 @@ export function createWorldRenderer(): WorldRenderer {
     bg.zIndex = BACKGROUND_Z_INDEX
     backgroundLayer.addChild(bg)
 
+    // Load map texture
+    try {
+      const mapTexture = await Assets.load("/assets/world/map.png")
+      const mapSprite = new Sprite(mapTexture)
+      mapSprite.anchor.set(0.5, 0.5)
+      mapSprite.zIndex = BACKGROUND_Z_INDEX + 1
+      backgroundLayer.addChild(mapSprite)
+    } catch (e) {
+      console.warn("[WorldRenderer] Failed to load map texture:", e)
+    }
+
     // Draw world boundary indicators
     const boundary = new Graphics()
     boundary.rect(-775, -790, 1555, 1560)
     boundary.stroke({ width: 2, color: 0x2a2a4a })
-    boundary.zIndex = BACKGROUND_Z_INDEX + 1
+    boundary.zIndex = BACKGROUND_Z_INDEX + 2
     backgroundLayer.addChild(boundary)
 
     gameLayer = new Container()
