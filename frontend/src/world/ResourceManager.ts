@@ -131,4 +131,30 @@ export function registerDefaultCharacters() {
       idle: { frames: [0, 1], loop: true },
     },
   })
+
+  registerCharacter({
+    key: "kusya",
+    spritesheet: "/assets/characters/kusya.png",
+    frameWidth: 48,
+    frameHeight: 48,
+    totalFrames: 10,
+    scale: 3,
+    animations: {
+      walk: { frames: [4, 5, 6, 7, 8, 9], loop: true },
+      idle: { frames: [0, 1, 2, 3], loop: true },
+    },
+  })
+  
+  registerCharacter({
+    key: "ricardo",
+    spritesheet: "/assets/characters/ricardo.png",
+    frameWidth: 32,
+    frameHeight: 32,
+    totalFrames: 8,
+    scale: 3,
+    animations: {
+      walk: { frames: [2, 3, 4, 5, 6, 7], loop: true },
+      idle: { frames: [0, 1], loop: true },
+    },
+  })
 }
