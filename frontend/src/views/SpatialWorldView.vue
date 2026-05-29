@@ -129,6 +129,7 @@ const worldRenderer = createWorldRenderer()
 let localCharacterAnimations: AnimationTextures | null = null
 let localCharacterDisplay: ReturnType<typeof createCharacterSprite> | null = null
 const remoteCharacterDisplays = new Map<string, ReturnType<typeof createCharacterSprite>>()
+const cancelledCharacterCreations = new Set<string>()
 
 // Game loop (requestAnimationFrame)
 let animationFrameId: number | null = null
@@ -182,6 +183,13 @@ async function setupWorld() {
 async function addRemoteCharacter(id: string, nickname: string) {
   if (remoteCharacterDisplays.has(id)) return
   const anims = await getAnimations("vita")
+
+  // Check for disconnect while loading
+  if (cancelledCharacterCreations.has(id)) {
+    cancelledCharacterCreations.delete(id)
+    return
+  }
+
   const display = createCharacterSprite(nickname, anims)
 
   // Start at spawn if no position data received yet
@@ -260,8 +268,9 @@ function handleParticipantConnected(participant: RemoteParticipant) {
 }
 
 function handleParticipantDisconnected(participant: RemoteParticipant) {
-  participant.off(ParticipantEvent.IsSpeakingChanged)
-  removeRemoteCharacter(participant.identity)
+  const identity = participant.identity
+  cancelledCharacterCreations.add(identity)
+  removeRemoteCharacter(identity)
 }
 
 onMounted(async () => {
