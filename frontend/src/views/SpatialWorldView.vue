@@ -88,6 +88,7 @@ const currentRoom = computed(() => ({
 const {
   room,
   localParticipant,
+  remoteParticipants,
   remoteAudioTracks,
   isConnected,
   initializeLiveKit,
@@ -248,14 +249,11 @@ onMounted(async () => {
 
   await initializeLiveKit()
 
-  // Track participants via direct room events (more reliable than Vue watch)
+  // Register room event listeners for future participants
   const lkRoom = room.value
   if (lkRoom) {
     lkRoom.on(RoomEvent.ParticipantConnected, handleParticipantConnected)
     lkRoom.on(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected)
-
-    // Add existing participants
-    lkRoom.remoteParticipants.forEach(handleParticipantConnected)
   }
 
   // Start position sync early — sends immediately and listens for incoming data
@@ -270,7 +268,14 @@ onMounted(async () => {
   document.addEventListener("click", initAudio)
   document.addEventListener("touchstart", initAudio)
 
+  // Must init world BEFORE adding characters (cameraContainer is created in init)
   await setupWorld()
+
+  // Now add existing participants — renderer is ready
+  for (const [, participant] of remoteParticipants.value) {
+    handleParticipantConnected(participant)
+  }
+
   startListening()
 
   // Start game tick
