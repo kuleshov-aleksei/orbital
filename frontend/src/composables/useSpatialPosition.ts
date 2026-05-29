@@ -15,6 +15,7 @@ const INTERPOLATION_FACTOR = 10 / TICK_RATE
 export function useSpatialPosition(options: {
   room: Ref<Room | null>
   localParticipant: Ref<LocalParticipant | null>
+  onCharacterChange?: (participantId: string, characterKey: string) => void
 }) {
   const localPosition = ref<Vector2>({ x: 0, y: 0 })
   const remotePositions = ref<Map<string, Vector2>>(new Map())
@@ -37,6 +38,8 @@ export function useSpatialPosition(options: {
       if (data.channelId === "position") {
         const { x, y } = data.payload
         _remotePositions.set(participant.identity, { x, y })
+      } else if (data.channelId === "character") {
+        options.onCharacterChange?.(participant.identity, data.payload.key)
       }
     } catch {
       // Ignore malformed payloads
@@ -78,6 +81,17 @@ export function useSpatialPosition(options: {
   const updateLocalPosition = (pos: Vector2) => {
     localPosition.value = pos
     _myPosition = pos
+  }
+
+  const sendCharacterChange = async (key: string) => {
+    try {
+      const payload = _textEncoder.encode(
+        JSON.stringify({ payload: { key }, channelId: "character" }),
+      )
+      await options.localParticipant.value?.publishData(payload, DataPacket_Kind.LOSSY)
+    } catch {
+      // Ignore send errors
+    }
   }
 
   const startPositionSync = () => {
@@ -125,5 +139,6 @@ export function useSpatialPosition(options: {
     startPositionSync,
     stopPositionSync,
     updateLocalPosition,
+    sendCharacterChange,
   }
 }

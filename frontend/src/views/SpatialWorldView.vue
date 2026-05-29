@@ -5,19 +5,55 @@
     data-testid="spatial-world-view">
     <div ref="worldContainer" class="absolute inset-0" />
 
-    <div class="relative z-10 flex flex-col flex-1">
-      <!-- Room Header -->
-      <RoomHeader
-        :room-name="currentRoom?.name || 'Spatial Room'"
-        :screen-share-count="0"
-        :screen-share-layout="'grid'"
-        :is-mobile="isMobile"
-        @leave-room="$emit('leave-room')"
-        @show-room-list="$emit('show-room-list')"
-        @toggle-user-sidebar="$emit('toggle-user-sidebar')" />
+    <div class="relative z-10 flex flex-col flex-1" style="pointer-events: none">
+      <!-- Room Header (clickable through the canvas) -->
+      <div style="pointer-events: auto">
+        <RoomHeader
+          :room-name="currentRoom?.name || 'Spatial Room'"
+          :screen-share-count="0"
+          :screen-share-layout="'grid'"
+          :is-mobile="isMobile"
+          @leave-room="$emit('leave-room')"
+          @show-room-list="$emit('show-room-list')"
+          @toggle-user-sidebar="$emit('toggle-user-sidebar')" />
+      </div>
 
-      <!-- Audio Controls -->
-      <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-30">
+      <!-- Right Toolbar -->
+      <div class="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-40" style="pointer-events: auto">
+        <!-- Character picker toggle -->
+        <div class="relative">
+          <button
+            type="button"
+            class="w-10 h-10 rounded-xl bg-theme-bg-secondary border border-theme-border flex items-center justify-center text-theme-text-muted hover:text-theme-text-primary hover:bg-theme-bg-hover transition-all duration-200"
+            title="Character"
+            @click="showCharacterPicker = !showCharacterPicker">
+            <PhUserCircle class="w-5 h-5" />
+          </button>
+          <CharacterPicker
+            :visible="showCharacterPicker"
+            :selected="selectedCharacter"
+            @select="onSelectCharacter" />
+        </div>
+
+        <!-- Prop creation (placeholder) -->
+        <button
+          type="button"
+          class="w-10 h-10 rounded-xl bg-theme-bg-secondary border border-theme-border flex items-center justify-center text-theme-text-muted/40 cursor-not-allowed transition-all duration-200"
+          title="Props (coming soon)"
+          disabled>
+          <PhMagicWand class="w-5 h-5" />
+        </button>
+      </div>
+
+      <!-- Click-outside overlay for picker -->
+      <div
+        v-if="showCharacterPicker"
+        class="fixed inset-0 z-30"
+        style="pointer-events: auto"
+        @click="showCharacterPicker = false" />
+
+      <!-- Audio Controls (clickable through the canvas) -->
+      <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-30" style="pointer-events: auto">
         <AudioControls
           v-model:model-value-muted="isMuted"
           v-model:model-value-deafened="isDeafened"
@@ -34,6 +70,9 @@ import { RoomEvent, ParticipantEvent } from "livekit-client"
 import type { RemoteParticipant } from "livekit-client"
 import AudioControls from "@/components/AudioControls.vue"
 import RoomHeader from "@/components/RoomHeader.vue"
+import CharacterPicker from "@/components/CharacterPicker.vue"
+import type { CharacterKey } from "@/components/CharacterPicker.vue"
+import { PhUserCircle, PhMagicWand } from "@phosphor-icons/vue"
 import { useLiveKit } from "@/composables"
 import { useSpatialPosition } from "@/composables/useSpatialPosition"
 import { useSpatialAudio } from "@/composables/useSpatialAudio"
@@ -70,6 +109,8 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const userStore = useUserStore()
+const selectedCharacter = ref<CharacterKey>("targ")
+const showCharacterPicker = ref(false)
 
 const emit = defineEmits<{
   "leave-room": []
@@ -106,8 +147,14 @@ const {
 })
 
 // Spatial position sharing
-const spatialPosition = useSpatialPosition({ room, localParticipant })
-const { localPosition, remotePositions, updateLocalPosition, startPositionSync, stopPositionSync } =
+const spatialPosition = useSpatialPosition({
+  room,
+  localParticipant,
+  onCharacterChange: (participantId, characterKey) => {
+    changeRemoteCharacter(participantId, characterKey)
+  },
+})
+const { localPosition, remotePositions, updateLocalPosition, startPositionSync, stopPositionSync, sendCharacterChange } =
   spatialPosition
 
 // Spatial audio
@@ -168,7 +215,7 @@ async function setupWorld() {
   await worldRenderer.init(worldContainer.value)
 
   // Create local character
-  localCharacterAnimations = await getAnimations("targ")
+  localCharacterAnimations = await getAnimations(selectedCharacter.value)
   localCharacterDisplay = createCharacterSprite(
     userStore.nickname,
     localCharacterAnimations,
@@ -255,6 +302,55 @@ function gameTick(delta: number) {
   updateAudioPositions(localPosition.value, remotePositions.value)
 }
 
+async function changeCharacter(key: CharacterKey) {
+  selectedCharacter.value = key
+  if (!localCharacterDisplay) return
+
+  worldRenderer.removeCharacter("local")
+  localCharacterDisplay = null
+  localCharacterAnimations = await getAnimations(key)
+  localCharacterDisplay = createCharacterSprite(userStore.nickname, localCharacterAnimations)
+  localCharacterDisplay.setPosition(localPosition.value.x, localPosition.value.y)
+  worldRenderer.addCharacter("local", localCharacterDisplay)
+
+  // Re-apply speaking state
+  const lp = localParticipant.value
+  if (lp) {
+    localCharacterDisplay.setSpeaking(lp.isSpeaking)
+  }
+
+  // Broadcast to other participants
+  void sendCharacterChange(key)
+}
+
+async function changeRemoteCharacter(id: string, characterKey: string) {
+  cancelledCharacterCreations.add(id)
+
+  const pos = remotePositions.value.get(id) ?? SPAWN_POSITION
+  const user = props.users.find((u) => u.id === id)
+  const nickname = user?.nickname || id
+
+  removeRemoteCharacter(id)
+  const anims = await getAnimations(characterKey)
+  cancelledCharacterCreations.delete(id)
+
+  const display = createCharacterSprite(nickname, anims)
+  display.setPosition(pos.x, pos.y)
+  remoteCharacterDisplays.set(id, display)
+  worldRenderer.addCharacter(id, display)
+
+  const lkRoom = room.value
+  const participant = lkRoom?.remoteParticipants.get(id)
+  if (participant) {
+    display.setSpeaking(participant.isSpeaking)
+  }
+}
+
+function onSelectCharacter(key: CharacterKey) {
+  showCharacterPicker.value = false
+  void changeCharacter(key)
+}
+
 function handleParticipantConnected(participant: RemoteParticipant) {
   const identity = participant.identity
   const user = props.users.find((u) => u.id === identity)
@@ -299,6 +395,8 @@ onMounted(async () => {
 
   // Start position sync early — sends immediately and listens for incoming data
   startPositionSync()
+  // Broadcast our current character so remote participants see the right sprite
+  void sendCharacterChange(selectedCharacter.value)
 
   // Must init world BEFORE adding characters (cameraContainer is created in init)
   await setupWorld()

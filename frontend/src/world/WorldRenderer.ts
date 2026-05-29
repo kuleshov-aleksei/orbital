@@ -12,6 +12,9 @@ export interface WorldRenderer {
   getScreenCenter(): { x: number; y: number }
   getStage(): Container
   updateEarshotRadius(x: number, y: number, radius: number): void
+  addOverlay(overlay: Container): void
+  removeOverlay(overlay: Container): void
+  getScreenSize(): { width: number; height: number }
 }
 
 export function createWorldRenderer(): WorldRenderer {
@@ -25,6 +28,7 @@ export function createWorldRenderer(): WorldRenderer {
   const characters = new Map<string, CharacterDisplay>()
   let cameraTarget = { x: 0, y: 0 }
   let earshotCircle: Graphics | null = null
+  let fixedLayer: Container | null = null
 
   const init = async (container: HTMLElement) => {
     app = new Application()
@@ -88,6 +92,11 @@ export function createWorldRenderer(): WorldRenderer {
     uiLayer = new Container()
     uiLayer.sortableChildren = true
     stage.addChild(uiLayer)
+
+    // Fixed overlay layer (not affected by camera transform)
+    fixedLayer = new Container()
+    fixedLayer.sortableChildren = true
+    app.stage.addChild(fixedLayer)
   }
 
   const destroy = () => {
@@ -106,6 +115,7 @@ export function createWorldRenderer(): WorldRenderer {
     gameLayer = null
     backgroundLayer = null
     uiLayer = null
+    fixedLayer = null
   }
 
   const addCharacter = (id: string, character: CharacterDisplay) => {
@@ -150,6 +160,19 @@ export function createWorldRenderer(): WorldRenderer {
     earshotCircle.stroke({ width: 1.5, color: 0x7dd3fc, alpha: 0.3 })
   }
 
+  const addOverlay = (overlay: Container) => {
+    fixedLayer?.addChild(overlay)
+  }
+
+  const removeOverlay = (overlay: Container) => {
+    fixedLayer?.removeChild(overlay)
+  }
+
+  const getScreenSize = () => {
+    if (!app) return { width: 800, height: 600 }
+    return { width: app.screen.width, height: app.screen.height }
+  }
+
   const getStage = () => {
     return stage!
   }
@@ -164,5 +187,8 @@ export function createWorldRenderer(): WorldRenderer {
     getScreenCenter,
     getStage,
     updateEarshotRadius,
+    addOverlay,
+    removeOverlay,
+    getScreenSize,
   }
 }
