@@ -89,8 +89,11 @@ export function createCharacterSprite(
     if (speaking === isSpeaking) return
     isSpeaking = speaking
     nameLabel.style = {
-      ...nameLabel.style,
+      fill: "#ffffff",
       stroke: { color: speaking ? "#00ff00" : "#000000", width: speaking ? 6 : 4 },
+      fontSize: 18,
+      fontFamily: "monospace",
+      fontWeight: "bold",
     }
   }
 
