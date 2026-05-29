@@ -28,13 +28,14 @@
 </template>
 
 <script setup lang="ts">
-export type CharacterKey = "doux" | "mort" | "targ" | "vita"
+export type CharacterKey = "doux" | "mort" | "targ" | "vita" | "jeremy"
 
 const characters: { key: CharacterKey }[] = [
   { key: "doux" },
   { key: "mort" },
   { key: "targ" },
   { key: "vita" },
+  { key: "jeremy" },
 ]
 
 interface Props {

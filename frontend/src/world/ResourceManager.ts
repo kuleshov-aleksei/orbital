@@ -115,4 +115,16 @@ export function registerDefaultCharacters() {
       idle: { frames: [0, 1, 2, 3], loop: true },
     },
   })
+
+  registerCharacter({
+    key: "jeremy",
+    spritesheet: "/assets/characters/jeremy.png",
+    frameWidth: 64,
+    frameHeight: 64,
+    totalFrames: 24,
+    animations: {
+      walk: { frames: [6, 7, 8, 9, 10, 11, 12, 13], loop: true },
+      idle: { frames: [0, 1, 2, 3, 4, 5], loop: true },
+    },
+  })
 }
