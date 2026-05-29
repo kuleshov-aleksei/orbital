@@ -29,13 +29,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from "vue"
+import { ref, computed, onMounted, onUnmounted } from "vue"
+import { RoomEvent } from "livekit-client"
+import type { RemoteParticipant } from "livekit-client"
 import AudioControls from "@/components/AudioControls.vue"
 import RoomHeader from "@/components/RoomHeader.vue"
 import { useLiveKit } from "@/composables"
 import { useSpatialPosition } from "@/composables/useSpatialPosition"
 import { useSpatialAudio } from "@/composables/useSpatialAudio"
 import { useGameInput } from "@/composables/useGameInput"
+import { useUserStore } from "@/stores"
 import { createWorldRenderer } from "@/world/WorldRenderer"
 import { createCharacterSprite } from "@/world/CharacterSprite"
 import { registerDefaultCharacters, getAnimations } from "@/world/ResourceManager"
@@ -65,6 +68,8 @@ const props = withDefaults(defineProps<Props>(), {
   modelValueDeafened: false,
 })
 
+const userStore = useUserStore()
+
 const emit = defineEmits<{
   "leave-room": []
   "show-room-list": []
@@ -83,7 +88,6 @@ const currentRoom = computed(() => ({
 const {
   room,
   localParticipant,
-  remoteParticipants,
   remoteAudioTracks,
   isConnected,
   initializeLiveKit,
@@ -156,33 +160,31 @@ function getAnimation(dir: { x: number; y: number }): AnimationState {
 // Setup world and characters
 async function setupWorld() {
   if (!worldContainer.value) return
-  registerDefaultCharacters()
 
   await worldRenderer.init(worldContainer.value)
 
   // Create local character
   localCharacterAnimations = await getAnimations("targ")
   localCharacterDisplay = createCharacterSprite(
-    props.users[0]?.nickname || "You",
+    userStore.nickname,
     localCharacterAnimations,
   )
 
-  // Spawn at center
-  localPosition.value = { ...SPAWN_POSITION }
+  // Spawn at center — use updateLocalPosition to sync internal _myPosition
+  updateLocalPosition({ ...SPAWN_POSITION })
   localCharacterDisplay.setPosition(SPAWN_POSITION.x, SPAWN_POSITION.y)
   worldRenderer.addCharacter("local", localCharacterDisplay)
-
-  // Setup existing remote participants
-  remoteParticipants.value.forEach((participant) => {
-    const user = props.users.find((u) => u.id === participant.identity)
-    void addRemoteCharacter(participant.identity, user?.nickname || "Unknown")
-  })
 }
 
 async function addRemoteCharacter(id: string, nickname: string) {
   if (remoteCharacterDisplays.has(id)) return
   const anims = await getAnimations("vita")
   const display = createCharacterSprite(nickname, anims)
+
+  // Start at spawn if no position data received yet
+  const existingPos = remotePositions.value.get(id)
+  display.setPosition(existingPos?.x ?? SPAWN_POSITION.x, existingPos?.y ?? SPAWN_POSITION.y)
+
   remoteCharacterDisplays.set(id, display)
   worldRenderer.addCharacter(id, display)
 }
@@ -232,27 +234,32 @@ function gameTick() {
   updateAudioPositions(localPosition.value, remotePositions.value)
 }
 
-// Watch for new remote participants
-watch(
-  () => Array.from(remoteParticipants.value.keys()),
-  (participants, oldParticipants) => {
-    const oldSet = new Set(oldParticipants || [])
-    participants.forEach((id) => {
-      if (!oldSet.has(id)) {
-        const user = props.users.find((u) => u.id === id)
-        void addRemoteCharacter(id, user?.nickname || "Unknown")
-      }
-    })
-    oldSet.forEach((id) => {
-      if (!participants.includes(id)) {
-        removeRemoteCharacter(id)
-      }
-    })
-  },
-)
+function handleParticipantConnected(participant: RemoteParticipant) {
+  const user = props.users.find((u) => u.id === participant.identity)
+  void addRemoteCharacter(participant.identity, user?.nickname || participant.identity)
+}
+
+function handleParticipantDisconnected(participant: RemoteParticipant) {
+  removeRemoteCharacter(participant.identity)
+}
 
 onMounted(async () => {
+  registerDefaultCharacters()
+
   await initializeLiveKit()
+
+  // Track participants via direct room events (more reliable than Vue watch)
+  const lkRoom = room.value
+  if (lkRoom) {
+    lkRoom.on(RoomEvent.ParticipantConnected, handleParticipantConnected)
+    lkRoom.on(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected)
+
+    // Add existing participants
+    lkRoom.remoteParticipants.forEach(handleParticipantConnected)
+  }
+
+  // Start position sync early — sends immediately and listens for incoming data
+  startPositionSync()
 
   // Initialize audio context on user gesture
   const initAudio = () => {
@@ -264,7 +271,6 @@ onMounted(async () => {
   document.addEventListener("touchstart", initAudio)
 
   await setupWorld()
-  startPositionSync()
   startListening()
 
   // Start game tick
@@ -272,6 +278,13 @@ onMounted(async () => {
 })
 
 onUnmounted(async () => {
+  // Clean up room event listeners
+  const lkRoom = room.value
+  if (lkRoom) {
+    lkRoom.off(RoomEvent.ParticipantConnected, handleParticipantConnected)
+    lkRoom.off(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected)
+  }
+
   stopListening()
   stopPositionSync()
 
