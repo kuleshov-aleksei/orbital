@@ -74,7 +74,7 @@ export function registerDefaultCharacters() {
     frameHeight: 24,
     totalFrames: 24,
     animations: {
-      walk: { frames: [12, 13, 14, 15, 16, 17], loop: true },
+      walk: { frames: [4, 5, 6, 7, 8, 9], loop: true },
       idle: { frames: [0, 1, 2, 3], loop: true },
     },
   })
@@ -86,7 +86,7 @@ export function registerDefaultCharacters() {
     frameHeight: 24,
     totalFrames: 24,
     animations: {
-      walk: { frames: [12, 13, 14, 15, 16, 17], loop: true },
+      walk: { frames: [4, 5, 6, 7, 8, 9], loop: true },
       idle: { frames: [0, 1, 2, 3], loop: true },
     },
   })
@@ -98,7 +98,7 @@ export function registerDefaultCharacters() {
     frameHeight: 24,
     totalFrames: 24,
     animations: {
-      walk: { frames: [12, 13, 14, 15, 16, 17], loop: true },
+      walk: { frames: [4, 5, 6, 7, 8, 9], loop: true },
       idle: { frames: [0, 1, 2, 3], loop: true },
     },
   })
@@ -110,7 +110,7 @@ export function registerDefaultCharacters() {
     frameHeight: 24,
     totalFrames: 24,
     animations: {
-      walk: { frames: [12, 13, 14, 15, 16, 17], loop: true },
+      walk: { frames: [4, 5, 6, 7, 8, 9], loop: true },
       idle: { frames: [0, 1, 2, 3], loop: true },
     },
   })
