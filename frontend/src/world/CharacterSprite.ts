@@ -4,7 +4,7 @@ import type { AnimationTextures } from "./ResourceManager"
 const CHARACTER_SCALE = 3
 const INITIAL_SPRITE_SCALE = CHARACTER_SCALE
 
-export type AnimationState = "idle_right" | "idle_left" | "walk_right" | "walk_left"
+export type AnimationState = "idle" | "walk_right" | "walk_left" | "walk_up" | "walk_down"
 
 export interface CharacterDisplay {
   container: Container
@@ -36,7 +36,7 @@ export function createCharacterSprite(
   nameLabel.y = -70
   container.addChild(nameLabel)
 
-  // Animated sprite for walk
+  // Animated sprite for walk (left/right)
   const walkSprite = new AnimatedSprite(animations.walk)
   walkSprite.anchor.set(0.5, 0.65)
   walkSprite.scale.set(INITIAL_SPRITE_SCALE)
@@ -53,8 +53,40 @@ export function createCharacterSprite(
   idleSprite.play()
   container.addChild(idleSprite)
 
-  let currentAnim: AnimationState = "idle_right"
+  // Optional animated sprites for up/down walking
+  const walkUpSprite = animations.walkUp
+    ? container.addChild(new AnimatedSprite(animations.walkUp))
+    : null
+  if (walkUpSprite) {
+    walkUpSprite.anchor.set(0.5, 0.65)
+    walkUpSprite.scale.set(INITIAL_SPRITE_SCALE)
+    walkUpSprite.animationSpeed = 0.15
+    walkUpSprite.visible = false
+  }
+
+  const walkDownSprite = animations.walkDown
+    ? container.addChild(new AnimatedSprite(animations.walkDown))
+    : null
+  if (walkDownSprite) {
+    walkDownSprite.anchor.set(0.5, 0.65)
+    walkDownSprite.scale.set(INITIAL_SPRITE_SCALE)
+    walkDownSprite.animationSpeed = 0.15
+    walkDownSprite.visible = false
+  }
+
+  let currentAnim: AnimationState = "idle"
   let isSpeaking = false
+
+  const stopAllSprites = () => {
+    idleSprite.stop()
+    idleSprite.visible = false
+    walkSprite.stop()
+    walkSprite.visible = false
+    walkUpSprite?.stop()
+    if (walkUpSprite) walkUpSprite.visible = false
+    walkDownSprite?.stop()
+    if (walkDownSprite) walkDownSprite.visible = false
+  }
 
   const setPosition = (x: number, y: number) => {
     container.x = x
@@ -65,23 +97,43 @@ export function createCharacterSprite(
   const setAnimation = (anim: AnimationState) => {
     if (anim === currentAnim) return
     currentAnim = anim
+    stopAllSprites()
 
-    const isWalk = anim.startsWith("walk_")
-    const facingRight = anim.endsWith("_right")
-    const scaleX = facingRight ? INITIAL_SPRITE_SCALE : -INITIAL_SPRITE_SCALE
-
-    if (isWalk) {
-      idleSprite.visible = false
-      idleSprite.stop()
-      walkSprite.visible = true
-      walkSprite.scale.x = scaleX
-      walkSprite.play()
-    } else {
-      walkSprite.visible = false
-      walkSprite.stop()
-      idleSprite.visible = true
-      idleSprite.scale.x = scaleX
-      idleSprite.play()
+    switch (anim) {
+      case "idle":
+        idleSprite.visible = true
+        idleSprite.play()
+        break
+      case "walk_right":
+        walkSprite.scale.x = INITIAL_SPRITE_SCALE
+        walkSprite.visible = true
+        walkSprite.play()
+        break
+      case "walk_left":
+        walkSprite.scale.x = -INITIAL_SPRITE_SCALE
+        walkSprite.visible = true
+        walkSprite.play()
+        break
+      case "walk_up":
+        if (walkUpSprite) {
+          walkUpSprite.visible = true
+          walkUpSprite.play()
+        } else {
+          walkSprite.scale.x = INITIAL_SPRITE_SCALE
+          walkSprite.visible = true
+          walkSprite.play()
+        }
+        break
+      case "walk_down":
+        if (walkDownSprite) {
+          walkDownSprite.visible = true
+          walkDownSprite.play()
+        } else {
+          walkSprite.scale.x = INITIAL_SPRITE_SCALE
+          walkSprite.visible = true
+          walkSprite.play()
+        }
+        break
     }
   }
 

@@ -201,11 +201,11 @@ const isDeafened = computed({
 
 // Determine animation from direction
 function getAnimation(dir: { x: number; y: number }): AnimationState {
-  const moving = dir.x !== 0 || dir.y !== 0
-  if (moving) {
-    return dir.x >= 0 ? "walk_right" : "walk_left"
-  }
-  return "idle_right"
+  if (dir.x === 0 && dir.y === 0) return "idle"
+  if (dir.y < 0) return "walk_up"
+  if (dir.y > 0) return "walk_down"
+  if (dir.x < 0) return "walk_left"
+  return "walk_right"
 }
 
 // Setup world and characters

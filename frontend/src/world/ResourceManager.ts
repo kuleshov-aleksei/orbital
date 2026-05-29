@@ -9,12 +9,16 @@ export interface CharacterConfig {
   animations: {
     walk: { frames: number[]; loop: boolean }
     idle: { frames: number[]; loop: boolean }
+    walkUp?: { frames: number[]; loop: boolean }
+    walkDown?: { frames: number[]; loop: boolean }
   }
 }
 
 export interface AnimationTextures {
   walk: Texture[]
   idle: Texture[]
+  walkUp?: Texture[]
+  walkDown?: Texture[]
 }
 
 const registry = new Map<string, CharacterConfig>()
@@ -59,10 +63,14 @@ async function loadAnimations(config: CharacterConfig): Promise<AnimationTexture
 
   const walkTextures = config.animations.walk.frames.map((f) => spritesheet.textures[`frame_${f}`])
   const idleTextures = config.animations.idle.frames.map((f) => spritesheet.textures[`frame_${f}`])
+  const walkUpTextures = config.animations.walkUp?.frames.map((f) => spritesheet.textures[`frame_${f}`])
+  const walkDownTextures = config.animations.walkDown?.frames.map((f) => spritesheet.textures[`frame_${f}`])
 
   return {
     walk: walkTextures,
     idle: idleTextures,
+    walkUp: walkUpTextures,
+    walkDown: walkDownTextures,
   }
 }
 
@@ -121,10 +129,12 @@ export function registerDefaultCharacters() {
     spritesheet: "/assets/characters/jeremy.png",
     frameWidth: 64,
     frameHeight: 64,
-    totalFrames: 24,
+    totalFrames: 29,
     animations: {
       walk: { frames: [6, 7, 8, 9, 10, 11, 12, 13], loop: true },
       idle: { frames: [0, 1, 2, 3, 4, 5], loop: true },
+      walkUp: { frames: [15, 16, 17, 18, 19, 20, 21], loop: true },
+      walkDown: { frames: [22, 23, 24, 25, 26, 27, 28], loop: true },
     },
   })
 }
