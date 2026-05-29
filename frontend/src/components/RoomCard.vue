@@ -26,14 +26,22 @@
             'bg-theme-accent/80': isActive,
             'bg-theme-bg-hover group-hover:bg-theme-border': !isActive,
           }">
-          <PhWaveform class="w-4 h-4" />
+          <PhWaveform v-if="room.type !== 'spatial_audio'" class="w-4 h-4" />
+          <PhGameController v-else class="w-4 h-4" />
         </div>
       </div>
 
       <!-- Room Info -->
       <div class="flex-1 min-w-0">
         <div class="flex items-center justify-between">
-          <div class="font-medium text-sm truncate">{{ room.name }}</div>
+          <div class="flex items-center gap-1.5 min-w-0">
+            <span class="font-medium text-sm truncate">{{ room.name }}</span>
+            <span
+              v-if="room.type === 'spatial_audio'"
+              class="text-[10px] px-1.5 py-0.5 rounded-full bg-theme-accent/20 text-theme-accent font-medium flex-shrink-0">
+              Spatial
+            </span>
+          </div>
 
           <div class="text-xs opacity-70 ml-2 flex-shrink-0">
             {{ room.user_count }}/{{ room.max_users }}
@@ -95,6 +103,7 @@
 import { useTemplateRef } from "vue"
 import {
   PhWaveform,
+  PhGameController,
   PhMicrophone,
   PhHeadphones,
   PhMicrophoneSlash,
@@ -120,6 +129,7 @@ interface Room {
   name: string
   user_count: number
   max_users: number
+  type: "voice" | "spatial_audio"
   category: string
   sort_order: number
   users?: RoomPreviewUser[]

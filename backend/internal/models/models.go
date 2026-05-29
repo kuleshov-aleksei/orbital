@@ -60,6 +60,7 @@ type Room struct {
 	Name      string    `json:"name"`
 	OwnerID   string    `json:"owner_id"`
 	MaxUsers  int       `json:"max_users"`
+	Type      string    `json:"type"`
 	UserCount int       `json:"user_count"`
 	CreatedAt time.Time `json:"created_at"`
 	Category  string    `json:"category"`
@@ -106,6 +107,7 @@ type CreateRoomRequest struct {
 	Name     string `json:"name"`
 	Category string `json:"category"`
 	MaxUsers int    `json:"max_users"`
+	Type     string `json:"type"`
 }
 
 // UpdateRoomRequest represents a request to update a room
@@ -113,6 +115,7 @@ type UpdateRoomRequest struct {
 	Name     string `json:"name,omitempty"`
 	Category string `json:"category,omitempty"`
 	MaxUsers int    `json:"max_users,omitempty"`
+	Type     string `json:"type,omitempty"`
 }
 
 // JoinRoomRequest represents a request to join a room
@@ -158,6 +161,7 @@ type RoomPreview struct {
 	Name         string            `json:"name"`
 	OwnerID      string            `json:"owner_id"`
 	MaxUsers     int               `json:"max_users"`
+	Type         string            `json:"type"`
 	UserCount    int               `json:"user_count"`
 	CreatedAt    time.Time         `json:"created_at"`
 	Category     string            `json:"category"`

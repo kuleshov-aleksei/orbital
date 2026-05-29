@@ -45,6 +45,45 @@
           </p>
         </div>
 
+        <!-- Room Type -->
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-theme-text-secondary mb-2">
+            Room Type
+          </label>
+
+          <div class="flex gap-2">
+            <button
+              type="button"
+              :class="[
+                'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border transition-colors duration-200',
+                roomType === 'voice'
+                  ? 'bg-theme-accent border-theme-accent text-theme-text-on-accent'
+                  : 'bg-theme-bg-tertiary border-theme-border text-theme-text-secondary hover:bg-theme-bg-hover',
+              ]"
+              @click="roomType = 'voice'">
+              <PhWaveform class="w-4 h-4" />
+              <span class="text-sm font-medium">Voice</span>
+            </button>
+
+            <button
+              type="button"
+              :class="[
+                'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border transition-colors duration-200',
+                roomType === 'spatial_audio'
+                  ? 'bg-theme-accent border-theme-accent text-theme-text-on-accent'
+                  : 'bg-theme-bg-tertiary border-theme-border text-theme-text-secondary hover:bg-theme-bg-hover',
+              ]"
+              @click="roomType = 'spatial_audio'">
+              <PhGameController class="w-4 h-4" />
+              <span class="text-sm font-medium">Spatial</span>
+            </button>
+          </div>
+
+          <p v-if="roomType === 'spatial_audio'" class="text-theme-text-muted text-xs mt-1">
+            Move your character with WASD. Voice audio changes based on distance.
+          </p>
+        </div>
+
         <!-- Room Category -->
         <div class="mb-4">
           <label
@@ -115,6 +154,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue"
+import { PhWaveform, PhGameController } from "@phosphor-icons/vue"
 import { useConfigStore } from "@/stores"
 
 interface Props {
@@ -125,7 +165,7 @@ const props = defineProps<Props>()
 
 const emit = defineEmits<{
   close: []
-  create: [roomName: string, category: string, maxUsers: number]
+  create: [roomName: string, category: string, maxUsers: number, roomType: string]
 }>()
 
 const configStore = useConfigStore()
@@ -133,10 +173,12 @@ const configStore = useConfigStore()
 // Form data
 const roomName = ref("")
 const roomCategory = ref("")
+const roomType = ref<"voice" | "spatial_audio">("voice")
 const maxUsers = ref(10)
 
 onMounted(() => {
   roomCategory.value = props.initialCategory ?? ""
+  roomType.value = "voice"
   maxUsers.value = configStore.defaultMaxUsers
 })
 
@@ -183,7 +225,7 @@ const handleSubmit = () => {
   }
 
   const category = roomCategory.value.trim() || "general"
-  emit("create", roomName.value.trim(), category, maxUsers.value)
+  emit("create", roomName.value.trim(), category, maxUsers.value, roomType.value)
 }
 </script>
 

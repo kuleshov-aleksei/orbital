@@ -125,6 +125,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_original_nickname_provider ON users(
 		Name:    "add_sound_pack_to_users",
 		SQL:     `ALTER TABLE users ADD COLUMN sound_pack TEXT DEFAULT 'default';`,
 	},
+	{
+		Version: 15,
+		Name:    "add_type_to_rooms",
+		SQL:     `ALTER TABLE rooms ADD COLUMN type TEXT NOT NULL DEFAULT 'voice';`,
+	},
 }
 
 func (db *DB) RunMigrations() error {

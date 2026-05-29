@@ -152,7 +152,12 @@ export function useRoomManager() {
     appStore.showRoomView()
   }
 
-  const createRoom = async (roomName: string, category: string, maxUsers: number) => {
+  const createRoom = async (
+    roomName: string,
+    category: string,
+    maxUsers: number,
+    roomType: string,
+  ) => {
     try {
       appStore.setLoading(true)
       appStore.clearError()
@@ -161,6 +166,7 @@ export function useRoomManager() {
         name: roomName,
         category,
         max_users: maxUsers,
+        type: roomType as "voice" | "spatial_audio",
       }
 
       await apiService.createRoom(roomData)
