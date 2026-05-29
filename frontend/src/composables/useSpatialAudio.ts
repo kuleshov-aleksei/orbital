@@ -30,6 +30,13 @@ export function useSpatialAudio(options: {
     return ctx
   }
 
+  const resumeAudio = async (): Promise<void> => {
+    const ctx = audioContextRef.value
+    if (ctx?.state === "suspended") {
+      await ctx.resume()
+    }
+  }
+
   const connectTrack = (userId: string, track: RemoteAudioTrack) => {
     if (!audioContextRef.value) return
     const ctx = audioContextRef.value
@@ -169,6 +176,7 @@ export function useSpatialAudio(options: {
   return {
     audioContext: audioContextRef,
     initializeAudio,
+    resumeAudio,
     updateAudioPositions,
     cleanup,
   }

@@ -115,7 +115,7 @@ const spatialAudio = useSpatialAudio({
   localPosition,
   remotePositions,
 })
-const { initializeAudio, updateAudioPositions } = spatialAudio
+const { initializeAudio, resumeAudio, updateAudioPositions } = spatialAudio
 
 // Game input
 const gameInput = useGameInput()
@@ -247,6 +247,18 @@ function handleParticipantDisconnected(participant: RemoteParticipant) {
 onMounted(async () => {
   registerDefaultCharacters()
 
+  // Initialize AudioContext early so connectTrack() succeeds when tracks arrive
+  initializeAudio()
+
+  // Resume AudioContext on user gesture (browser autoplay policy)
+  const resumeAudioOnGesture = () => {
+    void resumeAudio()
+    document.removeEventListener("click", resumeAudioOnGesture)
+    document.removeEventListener("touchstart", resumeAudioOnGesture)
+  }
+  document.addEventListener("click", resumeAudioOnGesture)
+  document.addEventListener("touchstart", resumeAudioOnGesture)
+
   await initializeLiveKit()
 
   // Register room event listeners for future participants
@@ -258,15 +270,6 @@ onMounted(async () => {
 
   // Start position sync early — sends immediately and listens for incoming data
   startPositionSync()
-
-  // Initialize audio context on user gesture
-  const initAudio = () => {
-    initializeAudio()
-    document.removeEventListener("click", initAudio)
-    document.removeEventListener("touchstart", initAudio)
-  }
-  document.addEventListener("click", initAudio)
-  document.addEventListener("touchstart", initAudio)
 
   // Must init world BEFORE adding characters (cameraContainer is created in init)
   await setupWorld()
