@@ -17,11 +17,11 @@ export function useGameInput(): {
     const prev = direction.value
     const next = { x: prev.x, y: prev.y }
 
-    if (e.key === "ArrowUp" || e.key === "w") next.y = -1
-    else if (e.key === "ArrowDown" || e.key === "s") next.y = 1
+    if (e.key === "ArrowUp" || e.code === "KeyW") next.y = -1
+    else if (e.key === "ArrowDown" || e.code === "KeyS") next.y = 1
 
-    if (e.key === "ArrowLeft" || e.key === "a") next.x = -1
-    else if (e.key === "ArrowRight" || e.key === "d") next.x = 1
+    if (e.key === "ArrowLeft" || e.code === "KeyA") next.x = -1
+    else if (e.key === "ArrowRight" || e.code === "KeyD") next.x = 1
 
     if (next.x !== prev.x || next.y !== prev.y) {
       direction.value = next
@@ -32,11 +32,11 @@ export function useGameInput(): {
     const prev = direction.value
     const next = { x: prev.x, y: prev.y }
 
-    if ((e.key === "ArrowUp" || e.key === "w") && prev.y === -1) next.y = 0
-    else if ((e.key === "ArrowDown" || e.key === "s") && prev.y === 1) next.y = 0
+    if ((e.key === "ArrowUp" || e.code === "KeyW") && prev.y === -1) next.y = 0
+    else if ((e.key === "ArrowDown" || e.code === "KeyS") && prev.y === 1) next.y = 0
 
-    if ((e.key === "ArrowLeft" || e.key === "a") && prev.x === -1) next.x = 0
-    else if ((e.key === "ArrowRight" || e.key === "d") && prev.x === 1) next.x = 0
+    if ((e.key === "ArrowLeft" || e.code === "KeyA") && prev.x === -1) next.x = 0
+    else if ((e.key === "ArrowRight" || e.code === "KeyD") && prev.x === 1) next.x = 0
 
     if (next.x !== prev.x || next.y !== prev.y) {
       direction.value = next
