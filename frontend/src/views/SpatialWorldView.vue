@@ -248,6 +248,7 @@ async function setupWorld() {
   // Spawn at center — use updateLocalPosition to sync internal _myPosition
   updateLocalPosition({ ...SPAWN_POSITION })
   localCharacterDisplay.setPosition(SPAWN_POSITION.x, SPAWN_POSITION.y)
+  localCharacterDisplay.setMuted(isMuted.value)
   worldRenderer.addCharacter("local", localCharacterDisplay)
 }
 
@@ -352,6 +353,9 @@ async function changeCharacter(key: CharacterKey) {
     localCharacterDisplay.setSpeaking(lp.isSpeaking)
   }
 
+  // Re-apply mute state
+  localCharacterDisplay.setMuted(isMuted.value)
+
   // Broadcast to other participants
   void sendCharacterChange(key)
 }
@@ -376,11 +380,16 @@ async function changeRemoteCharacter(id: string, characterKey: string) {
   const participant = lkRoom?.remoteParticipants.get(id)
   if (participant) {
     display.setSpeaking(participant.isSpeaking)
+    display.setMuted(participant.attributes.is_muted === "true")
   }
 }
 
 watch(selectedCharacter, (key) => {
   localStorage.setItem(CHARACTER_KEY, key)
+})
+
+watch(isMuted, (muted) => {
+  localCharacterDisplay?.setMuted(muted)
 })
 
 function onSelectCharacter(key: CharacterKey) {
@@ -397,6 +406,14 @@ function handleParticipantConnected(participant: RemoteParticipant) {
       remoteCharacterDisplays.get(identity)?.setSpeaking(speaking)
     })
     remoteCharacterDisplays.get(identity)?.setSpeaking(participant.isSpeaking)
+
+    // Listen for mute attribute changes
+    participant.on(ParticipantEvent.AttributesChanged, (changedAttributes) => {
+      if ("is_muted" in changedAttributes) {
+        remoteCharacterDisplays.get(identity)?.setMuted(changedAttributes.is_muted === "true")
+      }
+    })
+    remoteCharacterDisplays.get(identity)?.setMuted(participant.attributes.is_muted === "true")
   })
   // Broadcast our character so the new participant sees the right sprite immediately
   void sendCharacterChange(selectedCharacter.value)

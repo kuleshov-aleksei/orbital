@@ -1,4 +1,4 @@
-import { AnimatedSprite, Container, Text } from "pixi.js"
+import { AnimatedSprite, ColorMatrixFilter, Container, Text } from "pixi.js"
 import type { AnimationTextures } from "./ResourceManager"
 
 export type AnimationState = "idle" | "walk_right" | "walk_left" | "walk_up" | "walk_down"
@@ -8,6 +8,7 @@ export interface CharacterDisplay {
   setPosition(x: number, y: number): void
   setAnimation(anim: AnimationState, facingRight?: boolean): void
   setSpeaking(speaking: boolean): void
+  setMuted(muted: boolean): void
   destroy(): void
 }
 
@@ -76,6 +77,8 @@ export function createCharacterSprite(
   let currentAnim: AnimationState = "idle"
   let lastFacingRight = true
   let isSpeaking = false
+  let isMuted = false
+  const mutedFilter = new ColorMatrixFilter()
 
   const stopAllSprites = () => {
     idleSprite.stop()
@@ -152,6 +155,21 @@ export function createCharacterSprite(
     }
   }
 
+  const setMuted = (muted: boolean) => {
+    if (muted === isMuted) return
+    isMuted = muted
+    if (muted) {
+      mutedFilter.reset()
+      mutedFilter.saturate(-0.8, false)
+      mutedFilter.brightness(0.85, true)
+      container.filters = [mutedFilter]
+      container.alpha = 0.65
+    } else {
+      container.filters = null
+      container.alpha = 1
+    }
+  }
+
   const destroy = () => {
     container.destroy({ children: true })
   }
@@ -161,6 +179,7 @@ export function createCharacterSprite(
     setPosition,
     setAnimation,
     setSpeaking,
+    setMuted,
     destroy,
   }
 }
