@@ -1,7 +1,7 @@
 import { ref, computed, type Ref } from "vue"
 import type { Room, LocalParticipant, RemoteAudioTrack, RemoteParticipant } from "livekit-client"
-import { Track } from "livekit-client"
-import { EARSHOT_RADIUS } from "@/world/WorldConfig"
+import { Track, type LocalTrackPublication } from "livekit-client"
+import { EARSHOT_RADIUS, MAX_BOOMBOX_VOLUME } from "@/world/WorldConfig"
 
 export interface BoomboxState {
   isPlaying: Ref<boolean>
@@ -45,7 +45,7 @@ export function useBoombox(options: {
   let audioElement: HTMLAudioElement | null = null
   let sourceNode: MediaElementAudioSourceNode | null = null
   let destinationNode: MediaStreamAudioDestinationNode | null = null
-  let localTrackPublication: any = null
+  let localTrackPublication: LocalTrackPublication | null = null
   let localPanner: PannerNode | null = null
   let localMuteGain: GainNode | null = null
 
@@ -68,7 +68,7 @@ export function useBoombox(options: {
     currentTrackName.value = ""
   }
 
-  const handleAttributesChanged = (changedAttributes: Record<string, string>, identity: string) => {
+  const handleAttributesChanged = (changedAttributes: Record<string, string>) => {
     if ("boombox_track_id" in changedAttributes || "boombox_track_name" in changedAttributes) {
       scanRemoteParticipantsForBoombox()
     }
@@ -103,7 +103,7 @@ export function useBoombox(options: {
     panner.maxDistance = REF_DISTANCE * 5
     panner.rolloffFactor = ROLLOFF_FACTOR
     const muteGain = ctx.createGain()
-    muteGain.gain.value = 1
+    muteGain.gain.value = MAX_BOOMBOX_VOLUME
     source.connect(panner).connect(muteGain).connect(ctx.destination)
 
     const pub = await participant.publishTrack(dest.stream.getAudioTracks()[0], {
@@ -201,7 +201,7 @@ export function useBoombox(options: {
     const outside = distance > EARSHOT_RADIUS
     localPanner.positionX.setTargetAtTime(relX, 0, 0.02)
     localPanner.positionZ.setTargetAtTime(relY, 0, 0.02)
-    localMuteGain.gain.setTargetAtTime(outside ? 0 : 1, 0, 0.05)
+    localMuteGain.gain.setTargetAtTime(outside ? 0 : MAX_BOOMBOX_VOLUME, 0, 0.05)
   }
 
   return {
@@ -216,6 +216,6 @@ export function useBoombox(options: {
     amIPlaying,
     updateLocalSpatial,
     scanRemoteParticipantsForBoombox,
-    handleAttributesChanged,
+    handleAttributesChanged
   }
 }

@@ -1,5 +1,6 @@
 <template>
-  <div class="absolute bottom-4 right-4 z-50 bg-theme-bg-secondary rounded-xl border border-theme-border shadow-2xl p-5 min-w-80 max-w-sm">
+  <div
+    class="absolute bottom-4 right-4 z-[50] bg-theme-bg-secondary rounded-xl border border-theme-border shadow-2xl p-5 min-w-80 max-w-sm">
     <!-- No one playing -->
     <template v-if="!isPlaying">
       <h3 class="text-lg font-semibold text-theme-text-primary mb-3">Boombox</h3>
@@ -21,9 +22,13 @@
           ]"
           @click="selectedTrackId = track.id">
           <div class="font-medium">{{ track.display_name }}</div>
-          <div v-if="track.is_system" class="text-xs text-theme-text-tertiary mt-0.5">System track</div>
+          <div v-if="track.is_system" class="text-xs text-theme-text-tertiary mt-0.5">
+            System track
+          </div>
         </button>
       </div>
+
+      <div v-if="uploadError" class="text-sm text-red-500 mb-2">{{ uploadError }}</div>
 
       <div class="flex gap-2">
         <button
@@ -46,7 +51,9 @@
     <template v-else-if="amIPlaying">
       <h3 class="text-lg font-semibold text-theme-text-primary mb-2">Boombox</h3>
       <p class="text-sm text-theme-text-secondary mb-1">Now playing:</p>
-      <p class="text-base font-medium text-theme-text-primary mb-3">{{ currentTrackName || currentTrackId }}</p>
+      <p class="text-base font-medium text-theme-text-primary mb-3">
+        {{ currentTrackName || currentTrackId }}
+      </p>
       <button
         type="button"
         class="w-full px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
@@ -76,8 +83,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue"
-import { apiService, resolveUrl } from "@/services/api"
+import { ref, onMounted, useTemplateRef } from "vue"
+import { apiService } from "@/services/api"
 import type { AudioFile } from "@/types"
 
 interface Props {
@@ -88,7 +95,7 @@ interface Props {
   ownerNickname: string
 }
 
-const props = defineProps<Props>()
+defineProps<Props>()
 
 const emit = defineEmits<{
   play: [trackId: string, trackName: string, url: string]
@@ -97,7 +104,8 @@ const emit = defineEmits<{
 
 const tracks = ref<AudioFile[]>([])
 const selectedTrackId = ref("")
-const fileInput = ref<HTMLInputElement | null>(null)
+const fileInput = useTemplateRef<HTMLInputElement>("fileInput")
+const uploadError = ref("")
 
 onMounted(async () => {
   try {
@@ -127,6 +135,7 @@ const handleFileSelected = async (event: Event) => {
   const file = input.files?.[0]
   if (!file) return
 
+  uploadError.value = ""
   const name = file.name.replace(/\.(mp3|opus)$/i, "")
 
   try {
@@ -142,6 +151,7 @@ const handleFileSelected = async (event: Event) => {
     })
     selectedTrackId.value = result.id
   } catch (e) {
+    uploadError.value = e instanceof Error ? e.message : "Upload failed"
     console.warn("[BoomboxModal] Upload failed:", e)
   }
 

@@ -83,7 +83,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, useTemplateRef } from "vue"
-import { Container, Sprite, Assets } from "pixi.js"
+import { Container, Sprite, Assets, SCALE_MODES } from "pixi.js"
 import { RoomEvent, ParticipantEvent } from "livekit-client"
 import type { RemoteParticipant } from "livekit-client"
 import AudioControls from "@/components/AudioControls.vue"
@@ -313,8 +313,9 @@ async function setupWorld() {
   try {
     const texture = await Assets.load("/assets/world/boombox.png")
     const sprite = new Sprite(texture)
+    texture.baseTexture.scaleMode = SCALE_MODES.NEAREST
     sprite.anchor.set(0.5, 0.5)
-    sprite.scale.set(0.8)
+    sprite.scale.set(2.0)
     container.addChild(sprite)
     boomboxSprite = sprite
   } catch (e) {
@@ -424,10 +425,10 @@ function gameTick(delta: number) {
 
   // Boombox scale pulse animation
   if (boomboxSprite && boomboxIsPlaying.value) {
-    const pulse = 0.8 + Math.sin(performance.now() / 300) * 0.05
+    const pulse = 2.0 + Math.sin(performance.now() / 300) * 0.08
     boomboxSprite.scale.set(pulse)
   } else if (boomboxSprite) {
-    boomboxSprite.scale.set(0.8)
+    boomboxSprite.scale.set(2.0)
   }
 }
 

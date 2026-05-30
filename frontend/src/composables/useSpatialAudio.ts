@@ -1,6 +1,6 @@
 import { ref, onUnmounted, watch, type Ref } from "vue"
 import type { RemoteAudioTrack } from "livekit-client"
-import { EARSHOT_RADIUS } from "@/world/WorldConfig"
+import { EARSHOT_RADIUS, MAX_BOOMBOX_VOLUME } from "@/world/WorldConfig"
 
 export interface Vector2 {
   x: number
@@ -192,7 +192,7 @@ export function useSpatialAudio(options: {
       if (!panner || !mute) return
       panner.positionX.setTargetAtTime(relX, 0, 0.02)
       panner.positionZ.setTargetAtTime(relY, 0, 0.02)
-      mute.gain.setTargetAtTime(outside ? 0 : 1, 0, 0.05)
+      mute.gain.setTargetAtTime(outside ? 0 : MAX_BOOMBOX_VOLUME, 0, 0.05)
     }
   }
 
