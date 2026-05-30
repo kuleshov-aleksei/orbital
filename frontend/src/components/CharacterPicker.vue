@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="visible"
-    class="absolute right-full mr-3 bottom-0 bg-theme-bg-secondary rounded-xl border border-theme-border shadow-2xl p-4 z-40 min-w-105">
+    class="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-theme-bg-secondary rounded-xl border border-theme-border shadow-2xl p-4 z-40 min-w-105 max-h-[70vh] overflow-y-auto">
     <div class="grid grid-cols-3 gap-3">
       <button
         v-for="c in characters"
