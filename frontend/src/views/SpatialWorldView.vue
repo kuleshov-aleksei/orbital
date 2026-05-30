@@ -80,7 +80,7 @@ import { useGameInput } from "@/composables/useGameInput"
 import { useUserStore } from "@/stores"
 import { createWorldRenderer } from "@/world/WorldRenderer"
 import { createCharacterSprite } from "@/world/CharacterSprite"
-import { registerDefaultCharacters, getAnimations } from "@/world/ResourceManager"
+import { getAnimations, getRegisteredKeys } from "@/world/ResourceManager"
 import {
   SPAWN_POSITION,
   PLAYER_SPEED,
@@ -111,7 +111,11 @@ const props = withDefaults(defineProps<Props>(), {
 const CHARACTER_KEY = "orbital_character"
 function loadCharacter(): CharacterKey {
   const stored = localStorage.getItem(CHARACTER_KEY)
-  return stored as CharacterKey
+  const knownKeys = getRegisteredKeys()
+  if (stored && knownKeys.includes(stored)) {
+    return stored as CharacterKey
+  }
+  return "targ"
 }
 
 const userStore = useUserStore()
@@ -405,8 +409,6 @@ function handleParticipantDisconnected(participant: RemoteParticipant) {
 }
 
 onMounted(async () => {
-  registerDefaultCharacters()
-
   // Initialize AudioContext early so connectTrack() succeeds when tracks arrive
   initializeAudio()
 

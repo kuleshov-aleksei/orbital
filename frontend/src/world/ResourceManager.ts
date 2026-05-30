@@ -30,6 +30,10 @@ export function registerCharacter(config: CharacterConfig) {
   registry.set(config.key, config)
 }
 
+export function getRegisteredKeys(): string[] {
+  return Array.from(registry.keys())
+}
+
 export function getAnimations(key: string): Promise<AnimationTextures> {
   const cached = cache.get(key)
   if (cached) return cached
@@ -171,3 +175,6 @@ export function registerDefaultCharacters() {
     },
   })
 }
+
+// Register default characters at module level so they're available immediately on import
+registerDefaultCharacters()
