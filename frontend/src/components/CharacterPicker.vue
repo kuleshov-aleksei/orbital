@@ -1,8 +1,8 @@
 <template>
   <div
     v-if="visible"
-    class="absolute right-full mr-3 bottom-0 bg-theme-bg-secondary rounded-xl border border-theme-border shadow-2xl p-4 z-40 min-w-[280px]">
-    <div class="grid grid-cols-2 gap-3">
+    class="absolute right-full mr-3 bottom-0 bg-theme-bg-secondary rounded-xl border border-theme-border shadow-2xl p-4 z-40 min-w-105">
+    <div class="grid grid-cols-3 gap-3">
       <button
         v-for="c in characters"
         :key="c.key"
@@ -28,17 +28,11 @@
 </template>
 
 <script setup lang="ts">
-export type CharacterKey = "targ" | "jeremy" | "elisabeth" | "robert" | "kusya" | "ricardo" | "boltuhai"
+import { getRegisteredKeys } from "@/world/ResourceManager"
 
-const characters: { key: CharacterKey }[] = [
-  { key: "targ" },
-  { key: "jeremy" },
-  { key: "elisabeth" },
-  { key: "robert" },
-  { key: "kusya" },
-  { key: "ricardo" },
-  { key: "boltuhai" },
-]
+const registered = getRegisteredKeys()
+export type CharacterKey = (typeof registered)[number]
+const characters: { key: CharacterKey }[] = registered.map((key) => ({ key }))
 
 interface Props {
   visible: boolean
