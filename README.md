@@ -105,7 +105,7 @@ The Orbital implements a hierarchical role system:
 
 ## Spatial Audio System
 
-![Spatial audio system](Screenshot_20260530_185125.png)
+![Spatial audio system](docs/images/Screenshot_20260530_185125.png)
 
 The Orbital features a spatial audio experience with a real-time 2D world where participants are represented as animated character sprites:
 
