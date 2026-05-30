@@ -135,13 +135,13 @@ export function registerDefaultCharacters() {
   registerCharacter({
     key: "kusya",
     spritesheet: "/assets/characters/kusya.png",
-    frameWidth: 48,
+    frameWidth: 32,
     frameHeight: 48,
-    totalFrames: 10,
+    totalFrames: 14,
     scale: 3,
     animations: {
-      walk: { frames: [4, 5, 6, 7, 8, 9], loop: true },
-      idle: { frames: [0, 1, 2, 3], loop: true },
+      walk: { frames: [8, 9, 10, 11, 12, 13], loop: true },
+      idle: { frames: [0, 1, 2, 3, 4, 5, 6, 7], loop: true },
     },
   })
   
