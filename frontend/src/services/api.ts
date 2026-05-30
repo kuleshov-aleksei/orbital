@@ -140,8 +140,11 @@ export async function apiRequest<T>(endpoint: string, options: RequestInit = {})
     })
 
     if (!response.ok) {
+      if (response.status === 413) {
+        throw new Error("File too large. Maximum size is 30MB.")
+      }
       const errorText = await response.text()
-      throw new Error(`${response.status} - ${errorText}`)
+      throw new Error(errorText || `Upload failed (${response.status})`)
     }
 
     return (await response.json()) as T
@@ -508,8 +511,11 @@ export const apiService = {
     })
 
     if (!response.ok) {
+      if (response.status === 413) {
+        throw new Error("File too large. Maximum size is 30MB.")
+      }
       const errorText = await response.text()
-      throw new Error(`API Error: ${response.status} - ${errorText}`)
+      throw new Error(errorText || `Upload failed (${response.status})`)
     }
 
     return response.json()
