@@ -8,7 +8,7 @@
       @create-room="$emit('create-room')" />
 
     <VoiceCallView
-      v-else-if="roomStore.activeRoomId"
+      v-else-if="roomStore.activeRoomId && roomStore.activeRoom?.type !== 'spatial_audio'"
       ref="voiceCallViewRef"
       v-model:model-value-muted="callStore.isMuted"
       v-model:model-value-deafened="callStore.isDeafened"
@@ -24,6 +24,19 @@
       @toggle-user-sidebar="appStore.toggleMobileUserSidebar()"
       @ping-update="(ping, quality) => $emit('ping-update', { ping, quality })"
       @request-screen-share="$emit('request-screen-share')" />
+
+    <SpatialWorldView
+      v-else-if="roomStore.activeRoomId && roomStore.activeRoom?.type === 'spatial_audio'"
+      v-model:model-value-muted="callStore.isMuted"
+      v-model:model-value-deafened="callStore.isDeafened"
+      :room-id="roomStore.activeRoomId"
+      :room-name="roomStore.activeRoomName"
+      :users="roomStore.currentRoomUsers"
+      :remote-stream-volumes="roomStore.remoteStreamVolumes"
+      :is-mobile="appStore.isMobile"
+      @leave-room="$emit('leave-room')"
+      @show-room-list="appStore.showRoomsView()"
+      @toggle-user-sidebar="appStore.toggleMobileUserSidebar()" />
   </main>
 </template>
 
@@ -44,6 +57,7 @@ defineEmits<{
 }>()
 
 const VoiceCallView = defineAsyncComponent(() => import("@/views/VoiceCallView.vue"))
+const SpatialWorldView = defineAsyncComponent(() => import("@/views/SpatialWorldView.vue"))
 
 const roomStore = useRoomStore()
 const appStore = useAppStore()

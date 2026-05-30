@@ -54,6 +54,10 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 		req.Category = "general"
 	}
 
+	if req.Type == "" {
+		req.Type = "voice"
+	}
+
 	// Check if category exists, if not create it
 	categoryExists := false
 	categoryID := ""
@@ -86,7 +90,7 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	room, err := h.roomService.CreateRoom(req.Name, categoryID, req.MaxUsers)
+	room, err := h.roomService.CreateRoom(req.Name, categoryID, req.MaxUsers, req.Type)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -106,6 +110,7 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 		"name":          room.Name,
 		"owner_id":      room.OwnerID,
 		"max_users":     room.MaxUsers,
+		"type":          room.Type,
 		"user_count":    room.UserCount,
 		"created_at":    room.CreatedAt,
 		"category":      room.Category,
@@ -329,7 +334,7 @@ func (h *RoomHandler) UpdateRoom(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	room, err := h.roomService.UpdateRoom(roomID, req.Name, req.MaxUsers, categoryID)
+	room, err := h.roomService.UpdateRoom(roomID, req.Name, req.MaxUsers, categoryID, req.Type)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

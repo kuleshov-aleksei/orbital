@@ -125,6 +125,28 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_original_nickname_provider ON users(
 		Name:    "add_sound_pack_to_users",
 		SQL:     `ALTER TABLE users ADD COLUMN sound_pack TEXT DEFAULT 'default';`,
 	},
+	{
+		Version: 15,
+		Name:    "add_type_to_rooms",
+		SQL:     `ALTER TABLE rooms ADD COLUMN type TEXT NOT NULL DEFAULT 'voice';`,
+	},
+	{
+		Version: 16,
+		Name:    "create_audio_files_table",
+		SQL: `CREATE TABLE IF NOT EXISTS audio_files (
+			id TEXT PRIMARY KEY,
+			filename TEXT NOT NULL,
+			display_name TEXT NOT NULL,
+			uploaded_by TEXT,
+			file_size INTEGER NOT NULL,
+			duration REAL DEFAULT 0,
+			is_system BOOLEAN DEFAULT 0,
+			created_at DATETIME NOT NULL,
+			FOREIGN KEY (uploaded_by) REFERENCES users(id)
+		);
+CREATE INDEX IF NOT EXISTS idx_audio_files_uploaded_by ON audio_files(uploaded_by);
+CREATE INDEX IF NOT EXISTS idx_audio_files_is_system ON audio_files(is_system);`,
+	},
 }
 
 func (db *DB) RunMigrations() error {

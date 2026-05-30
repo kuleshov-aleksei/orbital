@@ -32,6 +32,8 @@ This project is built by AI (like 90%). AI is not perfect, but MVP was built in 
 - **Persistence** - Backend stores data in sqlite database. Easy management, easy deployment, easy life
 - **Role-Based Access Control** - Granular permissions for different user types
 - **Per-user custom soundpacks** - Every user can select one of the provided soundpacks for media presence events. Other users will hear this customization, with the ability to override the preference to avoid suffering from misuse
+- **Spatial Audio** - 2D world map with character sprites and proximity-based voice attenuation
+- **Boombox Music System** - In-world DJ with spatialized music playback, track upload, and admin management
 - **Custom themes** - Features a selection of classic UI themes like Catppuccin, True Black, Solarized, etc
 
 ## Role-Based Access Control
@@ -77,31 +79,6 @@ The Orbital implements a hierarchical role system:
 - WebSockets for signaling
 - REST API for room and user management
 
-## Quick Start
-
-```bash
-# Install dependencies
-make install
-
-# Generate license file for serving in about section
-make licenses
-
-# Run development servers
-make dev
-
-# Build everything
-make build
-
-# Run development servers using build artifacts
-make run-built
-
-# Run development server on 0.0.0.0
-make dev-public
-
-# Build and run with Docker
-make docker-up
-```
-
 ## Development
 
 ### Prerequisites
@@ -125,6 +102,24 @@ make docker-up
 - `make build-electron` - Build electron app
 - `make build-electron-win` - Build windows electron app
 - `make build-electron-linux` - Build linux electron app (.AppImage, .deb, .tar.gz)
+
+## Spatial Audio System
+
+![Spatial audio system](Screenshot_20260530_185125.png)
+
+The Orbital features a spatial audio experience with a real-time 2D world where participants are represented as animated character sprites:
+
+- **2D world map** — shared visual space rendered with PixiJS for smooth hardware-accelerated graphics
+- **Animated character sprites** — 9 unique characters with directional walk animations (up/down/left/right) and idle states
+- **Proximity-based voice** — audio volume attenuates based on distance between characters; users outside the earshot radius are muted
+
+### Boombox Music System
+
+A spatial music playback system that plays audio from a fixed world position:
+
+- **In-world boombox** — a boombox sprite placed on the map plays audio to nearby users with spatialized audio
+- **Upload or pick** — users can upload `.mp3` / `.opus` files (max 50MB) or select from system-curated tracks
+- **Admin management** — admins can rename and delete audio files via the admin panel
 
 ## Audio Processing
 

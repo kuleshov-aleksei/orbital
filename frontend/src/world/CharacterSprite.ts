@@ -1,0 +1,185 @@
+import { AnimatedSprite, ColorMatrixFilter, Container, Text } from "pixi.js"
+import type { AnimationTextures } from "./ResourceManager"
+
+export type AnimationState = "idle" | "walk_right" | "walk_left" | "walk_up" | "walk_down"
+
+export interface CharacterDisplay {
+  container: Container
+  setPosition(x: number, y: number): void
+  setAnimation(anim: AnimationState, facingRight?: boolean): void
+  setSpeaking(speaking: boolean): void
+  setMuted(muted: boolean): void
+  destroy(): void
+}
+
+export function createCharacterSprite(
+  username: string,
+  animations: AnimationTextures,
+): CharacterDisplay {
+  const container = new Container()
+  container.sortableChildren = true
+
+  const spriteScale = animations.scale
+
+  // Name label
+  const nameLabel = new Text({
+    text: username,
+    style: {
+      fill: "#ffffff",
+      stroke: { color: "#000000", width: 4 },
+      fontSize: 18,
+      fontFamily: "monospace",
+      fontWeight: "bold",
+    },
+  })
+  nameLabel.anchor.set(0.5, 1)
+  nameLabel.y = -70
+  container.addChild(nameLabel)
+
+  // Animated sprite for walk (left/right)
+  const walkSprite = new AnimatedSprite(animations.walk)
+  walkSprite.anchor.set(0.5, 0.65)
+  walkSprite.scale.set(spriteScale)
+  walkSprite.animationSpeed = 0.15
+  walkSprite.visible = false
+  container.addChild(walkSprite)
+
+  // Animated sprite for idle
+  const idleSprite = new AnimatedSprite(animations.idle)
+  idleSprite.anchor.set(0.5, 0.65)
+  idleSprite.scale.set(spriteScale)
+  idleSprite.animationSpeed = 0.1
+  idleSprite.visible = true
+  idleSprite.play()
+  container.addChild(idleSprite)
+
+  // Optional animated sprites for up/down walking
+  const walkUpSprite = animations.walkUp
+    ? container.addChild(new AnimatedSprite(animations.walkUp))
+    : null
+  if (walkUpSprite) {
+    walkUpSprite.anchor.set(0.5, 0.65)
+    walkUpSprite.scale.set(spriteScale)
+    walkUpSprite.animationSpeed = 0.15
+    walkUpSprite.visible = false
+  }
+
+  const walkDownSprite = animations.walkDown
+    ? container.addChild(new AnimatedSprite(animations.walkDown))
+    : null
+  if (walkDownSprite) {
+    walkDownSprite.anchor.set(0.5, 0.65)
+    walkDownSprite.scale.set(spriteScale)
+    walkDownSprite.animationSpeed = 0.15
+    walkDownSprite.visible = false
+  }
+
+  let currentAnim: AnimationState = "idle"
+  let lastFacingRight = true
+  let isSpeaking = false
+  let isMuted = false
+  const mutedFilter = new ColorMatrixFilter()
+
+  const stopAllSprites = () => {
+    idleSprite.stop()
+    idleSprite.visible = false
+    walkSprite.stop()
+    walkSprite.visible = false
+    walkUpSprite?.stop()
+    if (walkUpSprite) walkUpSprite.visible = false
+    walkDownSprite?.stop()
+    if (walkDownSprite) walkDownSprite.visible = false
+  }
+
+  const setPosition = (x: number, y: number) => {
+    container.x = x
+    container.y = y
+    container.zIndex = y
+  }
+
+  const setAnimation = (anim: AnimationState, facingRight?: boolean) => {
+    const fr = facingRight ?? lastFacingRight
+    if (anim === currentAnim && fr === lastFacingRight) return
+    currentAnim = anim
+    lastFacingRight = fr
+    stopAllSprites()
+
+    switch (anim) {
+      case "idle":
+        idleSprite.scale.x = fr ? spriteScale : -spriteScale
+        idleSprite.visible = true
+        idleSprite.play()
+        break
+      case "walk_right":
+        walkSprite.scale.x = spriteScale
+        walkSprite.visible = true
+        walkSprite.play()
+        break
+      case "walk_left":
+        walkSprite.scale.x = -spriteScale
+        walkSprite.visible = true
+        walkSprite.play()
+        break
+      case "walk_up":
+        if (walkUpSprite) {
+          walkUpSprite.visible = true
+          walkUpSprite.play()
+        } else {
+          walkSprite.scale.x = fr ? spriteScale : -spriteScale
+          walkSprite.visible = true
+          walkSprite.play()
+        }
+        break
+      case "walk_down":
+        if (walkDownSprite) {
+          walkDownSprite.visible = true
+          walkDownSprite.play()
+        } else {
+          walkSprite.scale.x = fr ? spriteScale : -spriteScale
+          walkSprite.visible = true
+          walkSprite.play()
+        }
+        break
+    }
+  }
+
+  const setSpeaking = (speaking: boolean) => {
+    if (speaking === isSpeaking) return
+    isSpeaking = speaking
+    nameLabel.style = {
+      fill: "#ffffff",
+      stroke: { color: speaking ? "#00ff00" : "#000000", width: speaking ? 6 : 4 },
+      fontSize: 18,
+      fontFamily: "monospace",
+      fontWeight: "bold",
+    }
+  }
+
+  const setMuted = (muted: boolean) => {
+    if (muted === isMuted) return
+    isMuted = muted
+    if (muted) {
+      mutedFilter.reset()
+      mutedFilter.saturate(-0.8, false)
+      mutedFilter.brightness(0.85, true)
+      container.filters = [mutedFilter]
+      container.alpha = 0.65
+    } else {
+      container.filters = null
+      container.alpha = 1
+    }
+  }
+
+  const destroy = () => {
+    container.destroy({ children: true })
+  }
+
+  return {
+    container,
+    setPosition,
+    setAnimation,
+    setSpeaking,
+    setMuted,
+    destroy,
+  }
+}

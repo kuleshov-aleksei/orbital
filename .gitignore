@@ -238,6 +238,7 @@ docker/turndata/
 backend/data/orbital.db
 backend/data/avatars
 backend/data/logs
+backend/data/audio
 
 docker/docker-data/data/*
 !docker/docker-data/data/.gitkeep

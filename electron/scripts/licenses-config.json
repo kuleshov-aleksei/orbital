@@ -4,10 +4,14 @@
     "@phosphor-icons/vue": "Awesome icon library",
     "@vueuse/sound": "Vue composable for playing sounds using Howler.js",
     "vue-boring-avatars": "SVG-based avatars from any username and color palette",
-    "vue-router": "The official router for Vue.js"
+    "vue-router": "The official router for Vue.js",
   },
   "unused": {
     "snd-lib": "Sexy UI sounds. Audio sprite from https://snd.dev/ is used in this project",
-    "ultimate-ui-sfx-pack": "Free UI SFX pack from https://jdsherbert.itch.io/ultimate-ui-sfx-pack. Named Whoosh in the app"
+    "ultimate-ui-sfx-pack": "Free UI SFX pack from https://jdsherbert.itch.io/ultimate-ui-sfx-pack. Named Whoosh in the app",
+    "character: jeremy": "https://craftpix.net/freebies/free-slime-mobs-pixel-art-top-down-sprite-pack/",
+    "character: elisabeth": "https://monopixelart.itch.io/forest-monsters-pixel-art",
+    "character: kusya": "https://papoycore.itch.io/free-meow",
+    "character: ricardo": "https://caz-bee.itch.io/ducky-3"
   }
 }

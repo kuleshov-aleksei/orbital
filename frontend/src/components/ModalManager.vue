@@ -66,8 +66,13 @@ const appStore = useAppStore()
 const roomManager = useRoomManager()
 const categoryManager = useCategoryManager()
 
-const handleCreateRoom = async (roomName: string, category: string, maxUsers: number) => {
-  await roomManager.createRoom(roomName, category, maxUsers)
+const handleCreateRoom = async (
+  roomName: string,
+  category: string,
+  maxUsers: number,
+  roomType: string,
+) => {
+  await roomManager.createRoom(roomName, category, maxUsers, roomType)
   modalStore.closeModal()
 }
 

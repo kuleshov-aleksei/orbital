@@ -47,12 +47,9 @@ dev:
 	@echo "Starting development servers..."
 	@echo "Frontend: http://localhost:3000"
 	@echo "Backend: http://localhost:8080"
-	@echo "LiveKit: http://localhost:7880"
 	@echo "Press Ctrl+C to stop all servers"
 	@bash -c ' \
 		set -a; source "$(PWD)/.env" 2>/dev/null || true; set +a; \
-		cd "$(PWD)" && livekit-server --config livekit/livekit-dev.yaml & \
-		LIVEKIT_PID=$$!; \
 		cd "$(PWD)/frontend" && pnpm dev & \
 		FRONTEND_PID=$$!; \
 		cd "$(PWD)/backend" && go run ./cmd/server & \
@@ -60,12 +57,12 @@ dev:
 		cleanup() { \
 			echo ""; \
 			echo "Shutting down..."; \
-			kill $$LIVEKIT_PID $$FRONTEND_PID $$BACKEND_PID 2>/dev/null; \
-			wait $$LIVEKIT_PID $$FRONTEND_PID $$BACKEND_PID 2>/dev/null; \
+			kill $$FRONTEND_PID $$BACKEND_PID 2>/dev/null; \
+			wait $$FRONTEND_PID $$BACKEND_PID 2>/dev/null; \
 			exit 0; \
 		}; \
 		trap cleanup INT TERM EXIT; \
-		wait $$LIVEKIT_PID $$FRONTEND_PID $$BACKEND_PID \
+		wait $$FRONTEND_PID $$BACKEND_PID \
 	'
 
 # Generate SSL certificates for HTTPS development
@@ -167,11 +164,11 @@ docker-build:
 
 docker-up:
 	@echo "Starting with Docker Compose (version: $(VERSION))..."
-	VERSION=$(VERSION) docker-compose -f docker/docker-compose.yml up
+	VERSION=$(VERSION) docker-compose -f docker-compose.dev.yml up -d
 
 docker-down:
 	@echo "Stopping Docker Compose..."
-	docker-compose -f docker/docker-compose.yml down
+	docker-compose -f docker-compose.dev.yml down
 
 # Run production build locally with nginx (no Docker)
 # Requires: build target to be run first, nginx installed

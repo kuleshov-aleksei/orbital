@@ -4,6 +4,7 @@ export interface Room {
   name: string
   user_count: number
   max_users: number
+  type: "voice" | "spatial_audio"
   category: string // Category ID
   category_name?: string // Category name for display
   sort_order: number // Order within category for drag-and-drop
@@ -114,6 +115,7 @@ export interface CreateRoomData {
   name: string
   category: string
   max_users: number
+  type: "voice" | "spatial_audio"
 }
 
 // Room update data
@@ -121,6 +123,7 @@ export interface UpdateRoomData {
   name?: string
   category?: string
   max_users?: number
+  type?: "voice" | "spatial_audio"
 }
 
 // Join room data
@@ -461,4 +464,16 @@ export interface ChatHistoryMessage {
 export interface NewMessageData {
   room_id: string
   message: ChatMessage
+}
+
+// Audio file for boombox
+export interface AudioFile {
+  id: string
+  filename: string
+  display_name: string
+  uploaded_by?: string
+  file_size: number
+  duration?: number
+  is_system: boolean
+  created_at: string
 }

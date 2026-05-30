@@ -87,7 +87,7 @@ func (rs *RoomService) LoadFromDB() error {
 }
 
 // CreateRoom creates a new room
-func (rs *RoomService) CreateRoom(name, category string, maxUsers int) (*models.Room, error) {
+func (rs *RoomService) CreateRoom(name, category string, maxUsers int, roomType string) (*models.Room, error) {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 
@@ -101,11 +101,16 @@ func (rs *RoomService) CreateRoom(name, category string, maxUsers int) (*models.
 		}
 	}
 
+	if roomType == "" {
+		roomType = "voice"
+	}
+
 	room := &models.Room{
 		ID:        roomID,
 		Name:      name,
 		OwnerID:   "", // Will be set when first user joins
 		MaxUsers:  maxUsers,
+		Type:      roomType,
 		CreatedAt: time.Now(),
 		Category:  category,
 		SortOrder: maxSortOrder + 1,
@@ -152,6 +157,7 @@ func (rs *RoomService) GetRoomsWithPreview() []models.RoomPreview {
 			Name:      room.Name,
 			OwnerID:   room.OwnerID,
 			MaxUsers:  room.MaxUsers,
+			Type:      room.Type,
 			UserCount: rs.getRoomUserCount(room.ID),
 			CreatedAt: room.CreatedAt,
 			Category:  room.Category,
@@ -633,7 +639,7 @@ func (rs *RoomService) UpdateRoomCategory(roomID string, categoryID string) erro
 }
 
 // UpdateRoom updates a room's name, max users, and optionally category
-func (rs *RoomService) UpdateRoom(roomID string, name string, maxUsers int, categoryID string) (*models.Room, error) {
+func (rs *RoomService) UpdateRoom(roomID string, name string, maxUsers int, categoryID string, roomType string) (*models.Room, error) {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 
@@ -657,6 +663,9 @@ func (rs *RoomService) UpdateRoom(roomID string, name string, maxUsers int, cate
 	}
 	if categoryID != "" {
 		room.Category = categoryID
+	}
+	if roomType != "" {
+		room.Type = roomType
 	}
 
 	// Update in database

@@ -30,6 +30,7 @@
     "livekit-client": "^2.18.9",
     "marked": "^18.0.3",
     "pinia": "^3.0.4",
+    "pixi.js": "^8.18.1",
     "typescript-eslint": "^8.59.2",
     "vue": "^3.5.33",
     "vue-advanced-cropper": "^2.8.9",
