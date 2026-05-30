@@ -36,15 +36,14 @@ export function useSpatialAudio(options: {
   }
 
   const resumeAudio = async (): Promise<void> => {
-    const ctx = audioContextRef.value
-    if (ctx?.state === "suspended") {
+    const ctx = initializeAudio()
+    if (ctx.state === "suspended") {
       await ctx.resume()
     }
   }
 
   const connectTrack = (userId: string, track: RemoteAudioTrack) => {
-    if (!audioContextRef.value) return
-    const ctx = audioContextRef.value
+    const ctx = initializeAudio()
     const mediaStreamTrack = track.mediaStreamTrack
     if (!mediaStreamTrack) return
 
@@ -119,8 +118,7 @@ export function useSpatialAudio(options: {
   }
 
   const connectBoomboxTrack = (track: RemoteAudioTrack) => {
-    if (!audioContextRef.value) return
-    const ctx = audioContextRef.value
+    const ctx = initializeAudio()
     const mediaStreamTrack = track.mediaStreamTrack
     if (!mediaStreamTrack) return
 

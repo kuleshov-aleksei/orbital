@@ -1,4 +1,4 @@
-import { ref, computed, type Ref } from "vue"
+import { ref, watch, type Ref } from "vue"
 import type { Room, LocalParticipant, RemoteAudioTrack, RemoteParticipant } from "livekit-client"
 import { Track, type LocalTrackPublication } from "livekit-client"
 import { EARSHOT_RADIUS, MAX_BOOMBOX_VOLUME } from "@/world/WorldConfig"
@@ -32,14 +32,23 @@ export function useBoombox(options: {
   const ownerIdentity = ref("")
   const ownerNickname = ref("")
 
-  const boomboxTrack = computed<RemoteAudioTrack | null>(() => {
+  const boomboxTrack = ref<RemoteAudioTrack | null>(null)
+
+  const syncBoomboxTrack = () => {
     for (const [key, track] of options.remoteAudioTracks.value) {
       if (key.endsWith("-boombox")) {
-        return track
+        boomboxTrack.value = track
+        return
       }
     }
-    return null
-  })
+    boomboxTrack.value = null
+  }
+
+  watch(
+    () => options.remoteAudioTracks.value,
+    () => syncBoomboxTrack(),
+    { immediate: true, deep: true },
+  )
 
   let audioContext: AudioContext | null = null
   let audioElement: HTMLAudioElement | null = null
@@ -133,15 +142,21 @@ export function useBoombox(options: {
 
   const stop = async () => {
     const participant = options.localParticipant.value
-    if (!participant) return
 
-    if (localTrackPublication) {
-      try {
-        await participant.unpublishTrack(localTrackPublication.track)
-      } catch (e) {
-        console.warn("[Boombox] Failed to unpublish track:", e)
+    if (participant) {
+      if (localTrackPublication) {
+        try {
+          await participant.unpublishTrack(localTrackPublication.track)
+        } catch (e) {
+          console.warn("[Boombox] Failed to unpublish track:", e)
+        }
+        localTrackPublication = null
       }
-      localTrackPublication = null
+
+      await participant.setAttributes({
+        boombox_track_id: "",
+        boombox_track_name: "",
+      })
     }
 
     if (audioElement) {
@@ -175,11 +190,6 @@ export function useBoombox(options: {
       await audioContext.close()
       audioContext = null
     }
-
-    await participant.setAttributes({
-      boombox_track_id: "",
-      boombox_track_name: "",
-    })
 
     isPlaying.value = false
     currentTrackId.value = ""
@@ -216,6 +226,6 @@ export function useBoombox(options: {
     amIPlaying,
     updateLocalSpatial,
     scanRemoteParticipantsForBoombox,
-    handleAttributesChanged
+    handleAttributesChanged,
   }
 }

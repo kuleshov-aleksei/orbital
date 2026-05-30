@@ -521,6 +521,7 @@ function handleParticipantDisconnected(participant: RemoteParticipant) {
   const identity = participant.identity
   cancelledCharacterCreations.add(identity)
   removeRemoteCharacter(identity)
+  scanRemoteParticipantsForBoombox()
 }
 
 onMounted(async () => {
@@ -610,10 +611,8 @@ onUnmounted(async () => {
     boomboxSprite = null
   }
 
-  // Stop boombox if we were playing
-  if (boomboxAmIPlaying()) {
-    await boomboxStop()
-  }
+  // Stop boombox (safe to call even if not playing — guards internally)
+  await boomboxStop()
 
   worldRenderer.destroy()
   await cleanupLiveKit()
