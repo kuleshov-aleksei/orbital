@@ -4,7 +4,7 @@
     "@phosphor-icons/vue": "Awesome icon library",
     "@vueuse/sound": "Vue composable for playing sounds using Howler.js",
     "vue-boring-avatars": "SVG-based avatars from any username and color palette",
-    "vue-router": "The official router for Vue.js",
+    "vue-router": "The official router for Vue.js"
   },
   "unused": {
     "snd-lib": "Sexy UI sounds. Audio sprite from https://snd.dev/ is used in this project",
