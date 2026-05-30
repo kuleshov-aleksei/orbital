@@ -157,4 +157,17 @@ export function registerDefaultCharacters() {
       idle: { frames: [0, 1], loop: true },
     },
   })
+  
+  registerCharacter({
+    key: "boltuhai",
+    spritesheet: "/assets/characters/boltuhai.png",
+    frameWidth: 64,
+    frameHeight: 64,
+    totalFrames: 11,
+    scale: 1.5,
+    animations: {
+      walk: { frames: [5, 6, 7, 8, 9, 10], loop: true },
+      idle: { frames: [0, 1, 2, 3, 4], loop: true },
+    },
+  })
 }
