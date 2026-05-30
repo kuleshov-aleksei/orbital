@@ -15,6 +15,8 @@ export interface WorldRenderer {
   addOverlay(overlay: Container): void
   removeOverlay(overlay: Container): void
   getScreenSize(): { width: number; height: number }
+  addWorldObject(obj: Container): void
+  removeWorldObject(obj: Container): void
 }
 
 export function createWorldRenderer(): WorldRenderer {
@@ -181,6 +183,14 @@ export function createWorldRenderer(): WorldRenderer {
     return stage!
   }
 
+  const addWorldObject = (obj: Container) => {
+    cameraContainer?.addChild(obj)
+  }
+
+  const removeWorldObject = (obj: Container) => {
+    cameraContainer?.removeChild(obj)
+  }
+
   return {
     init,
     destroy,
@@ -194,5 +204,7 @@ export function createWorldRenderer(): WorldRenderer {
     addOverlay,
     removeOverlay,
     getScreenSize,
+    addWorldObject,
+    removeWorldObject,
   }
 }

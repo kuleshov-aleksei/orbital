@@ -12,3 +12,6 @@ export const SEND_INTERVAL_MS = 100
 export const TICK_RATE = 30
 
 export const WORLD_BACKGROUND_COLOR = 0x16213e
+
+export const BOOMBOX_POSITION: Vector2 = { x: 0, y: -200 }
+export const BOOMBOX_INTERACT_DISTANCE = 60

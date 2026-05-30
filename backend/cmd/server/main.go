@@ -51,6 +51,7 @@ func main() {
 	var roomService *service.RoomService
 	var userRepo *repository.UserRepository
 	var debugLogService *service.DebugLogService
+	var audioService *service.AudioService
 
 	if cfg.Database.Path != "" {
 		db, err := storage.NewDB(cfg.Database.Path)
@@ -69,11 +70,13 @@ func main() {
 		roomRepo := repository.NewRoomRepository(db)
 		userRepo = repository.NewUserRepository(db)
 		debugLogRepo := repository.NewDebugLogRepository(db)
+		userRepo = repository.NewUserRepository(db)
 
 		// Initialize services with repositories
 		categoryService = service.NewCategoryService(categoryRepo)
 		roomService = service.NewRoomService(roomRepo, userRepo)
 		debugLogService = service.NewDebugLogService(debugLogRepo, "data")
+		audioService = service.NewAudioService(repository.NewAudioRepository(db), "data")
 
 		// Load data from database
 		if err := categoryService.LoadFromDB(); err != nil {
@@ -128,6 +131,11 @@ func main() {
 	livekitHandler := handlers.NewLiveKitHandler(livekitService)
 	avatarHandler := handlers.NewAvatarHandler(avatarService, userRepo)
 
+	var audioHandler *handlers.AudioHandler
+	if audioService != nil {
+		audioHandler = handlers.NewAudioHandler(audioService)
+	}
+
 	// Setup router
 	r := mux.NewRouter()
 
@@ -162,6 +170,13 @@ func main() {
 	// Avatar routes (public for serving, protected for upload)
 	r.HandleFunc("/api/avatars/{guid}", avatarHandler.GetAvatar).Methods("GET")
 	r.Handle("/api/users/me/avatar", authHandler.AuthMiddleware(http.HandlerFunc(avatarHandler.UploadAvatar))).Methods("POST")
+
+	// Audio file routes (public for serving and listing, protected for upload)
+	if audioHandler != nil {
+		r.HandleFunc("/api/audio", audioHandler.ListAudio).Methods("GET")
+		r.HandleFunc("/api/audio/{id}", audioHandler.GetAudio).Methods("GET")
+		r.Handle("/api/audio/upload", authHandler.AuthMiddleware(http.HandlerFunc(audioHandler.UploadAudio))).Methods("POST")
+	}
 
 	// Sound pack routes (protected)
 	r.Handle("/api/users/me/sound-pack", authHandler.AuthMiddleware(http.HandlerFunc(usersHandler.UpdateSoundPack))).Methods("PATCH")

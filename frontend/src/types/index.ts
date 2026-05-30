@@ -465,3 +465,15 @@ export interface NewMessageData {
   room_id: string
   message: ChatMessage
 }
+
+// Audio file for boombox
+export interface AudioFile {
+  id: string
+  filename: string
+  display_name: string
+  uploaded_by?: string
+  file_size: number
+  duration?: number
+  is_system: boolean
+  created_at: string
+}
