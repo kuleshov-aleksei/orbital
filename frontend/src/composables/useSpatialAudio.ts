@@ -241,8 +241,9 @@ export function useSpatialAudio(options: {
         })
       }
 
-      // Connect new tracks
+      // Connect new tracks (skip boombox — handled separately by connectBoomboxTrack)
       newTracks.forEach((track, userId) => {
+        if (userId.endsWith("-boombox")) return
         if (!pannerNodes.has(userId) && !gainNodes.has(userId) && !muteNodes.has(userId)) {
           connectTrack(userId, track)
         }
@@ -256,10 +257,14 @@ export function useSpatialAudio(options: {
     watch(
       () => options.boomboxTrack!.value,
       (track, oldTrack) => {
-        if (oldTrack && !track) {
+        if (!track && oldTrack) {
           disconnectBoomboxTrack()
-        }
-        if (track && !boomboxConnected) {
+        } else if (track && track !== oldTrack) {
+          // Track changed or reconnected — disconnect old pipeline first
+          if (boomboxConnected) disconnectBoomboxTrack()
+          connectBoomboxTrack(track)
+        } else if (track && !boomboxConnected) {
+          // First connection
           connectBoomboxTrack(track)
         }
       },
