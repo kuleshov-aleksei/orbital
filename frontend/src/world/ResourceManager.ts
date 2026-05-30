@@ -1,4 +1,5 @@
 import { Assets, Spritesheet, Texture, SCALE_MODES } from "pixi.js"
+import { assetPath } from "@/utils/assetPath"
 
 export interface CharacterConfig {
   key: string
@@ -49,7 +50,7 @@ export function getAnimations(key: string): Promise<AnimationTextures> {
 }
 
 async function loadAnimations(config: CharacterConfig): Promise<AnimationTextures> {
-  const texture = await Assets.load<Texture>(config.spritesheet)
+  const texture = await Assets.load<Texture>(assetPath(config.spritesheet))
   texture.baseTexture.scaleMode = SCALE_MODES.NEAREST
   const { frameWidth, frameHeight, totalFrames } = config
 
@@ -69,8 +70,12 @@ async function loadAnimations(config: CharacterConfig): Promise<AnimationTexture
 
   const walkTextures = config.animations.walk.frames.map((f) => spritesheet.textures[`frame_${f}`])
   const idleTextures = config.animations.idle.frames.map((f) => spritesheet.textures[`frame_${f}`])
-  const walkUpTextures = config.animations.walkUp?.frames.map((f) => spritesheet.textures[`frame_${f}`])
-  const walkDownTextures = config.animations.walkDown?.frames.map((f) => spritesheet.textures[`frame_${f}`])
+  const walkUpTextures = config.animations.walkUp?.frames.map(
+    (f) => spritesheet.textures[`frame_${f}`],
+  )
+  const walkDownTextures = config.animations.walkDown?.frames.map(
+    (f) => spritesheet.textures[`frame_${f}`],
+  )
 
   return {
     walk: walkTextures,
@@ -109,7 +114,7 @@ export function registerDefaultCharacters() {
       walkDown: { frames: [22, 23, 24, 25, 26, 27, 28], loop: true },
     },
   })
-  
+
   registerCharacter({
     key: "elisabeth",
     spritesheet: "/assets/characters/elisabeth.png",
@@ -122,7 +127,7 @@ export function registerDefaultCharacters() {
       idle: { frames: [0, 1, 2, 3, 4, 5, 6], loop: true },
     },
   })
-  
+
   registerCharacter({
     key: "robert",
     spritesheet: "/assets/characters/robert.png",
@@ -148,7 +153,7 @@ export function registerDefaultCharacters() {
       idle: { frames: [0, 1, 2, 3, 4, 5, 6, 7], loop: true },
     },
   })
-  
+
   registerCharacter({
     key: "ricardo",
     spritesheet: "/assets/characters/ricardo.png",
@@ -161,7 +166,7 @@ export function registerDefaultCharacters() {
       idle: { frames: [0, 1], loop: true },
     },
   })
-  
+
   registerCharacter({
     key: "boltuhai",
     spritesheet: "/assets/characters/boltuhai.png",
@@ -187,7 +192,7 @@ export function registerDefaultCharacters() {
       idle: { frames: [0, 1, 2, 3, 4, 5, 6, 7, 8], loop: true },
     },
   })
-  
+
   registerCharacter({
     key: "sid",
     spritesheet: "/assets/characters/sid.png",

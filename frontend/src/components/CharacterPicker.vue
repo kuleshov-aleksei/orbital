@@ -16,7 +16,7 @@
         @click="$emit('select', c.key)">
         <div class="image-rendering-pixelated w-16 h-16 rounded-lg overflow-hidden bg-theme-bg-primary flex items-center justify-center">
           <img
-            :src="`/assets/characters/${c.key}_preview.png`"
+            :src="previewSrc(c.key)"
             :alt="c.key"
             class="w-full h-full object-contain"
             style="image-rendering: pixelated; image-rendering: crisp-edges" />
@@ -29,10 +29,15 @@
 
 <script setup lang="ts">
 import { getRegisteredKeys } from "@/world/ResourceManager"
+import { assetPath } from "@/utils/assetPath"
 
 const registered = getRegisteredKeys()
 export type CharacterKey = (typeof registered)[number]
 const characters: { key: CharacterKey }[] = registered.map((key) => ({ key }))
+
+function previewSrc(key: string): string {
+  return assetPath(`/assets/characters/${key}_preview.png`)
+}
 
 interface Props {
   visible: boolean

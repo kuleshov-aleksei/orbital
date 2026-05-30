@@ -108,6 +108,7 @@ import {
   BOOMBOX_POSITION,
   BOOMBOX_INTERACT_DISTANCE,
 } from "@/world/WorldConfig"
+import { assetPath } from "@/utils/assetPath"
 import type { User } from "@/types"
 import type { AnimationTextures } from "@/world/ResourceManager"
 import type { AnimationState } from "@/world/CharacterSprite"
@@ -310,7 +311,7 @@ async function setupWorld() {
   boomboxContainer = container
 
   try {
-    const texture = await Assets.load("/assets/world/boombox.png")
+    const texture = await Assets.load(assetPath("/assets/world/boombox.png"))
     const sprite = new Sprite(texture)
     texture.baseTexture.scaleMode = SCALE_MODES.NEAREST
     sprite.anchor.set(0.5, 0.5)

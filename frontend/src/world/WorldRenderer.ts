@@ -1,6 +1,7 @@
 import { Application, Assets, Container, Graphics, Sprite } from "pixi.js"
 import type { CharacterDisplay } from "./CharacterSprite"
 import { WORLD_BACKGROUND_COLOR, BACKGROUND_Z_INDEX } from "./WorldConfig"
+import { assetPath } from "@/utils/assetPath"
 
 export interface WorldRenderer {
   init(container: HTMLElement): Promise<void>
@@ -62,7 +63,7 @@ export function createWorldRenderer(): WorldRenderer {
 
     // Load map texture
     try {
-      const mapTexture = await Assets.load("/assets/world/map.png")
+      const mapTexture = await Assets.load(assetPath("/assets/world/map.png"))
       const mapSprite = new Sprite(mapTexture)
       mapSprite.anchor.set(0.5, 0.5)
       mapSprite.zIndex = BACKGROUND_Z_INDEX + 1

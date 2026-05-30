@@ -127,7 +127,7 @@ export default defineConfig(({ command, mode }) => {
     },
     build: {
       outDir: resolve(electronPath, "dist"),
-      emptyOutDir: true,
+      emptyOutDir: false,
       rollupOptions: {
         external: [],
         output: {
