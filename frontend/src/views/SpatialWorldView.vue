@@ -5,7 +5,7 @@
     data-testid="spatial-world-view">
     <div ref="worldContainer" class="absolute inset-0" />
 
-    <div class="relative z-10 flex flex-col flex-1" style="pointer-events: none">
+    <div class="relative z-[100] flex flex-col flex-1" style="pointer-events: none">
       <!-- Room Header (clickable through the canvas) -->
       <div style="pointer-events: auto">
         <RoomHeader
@@ -57,7 +57,7 @@
       <!-- Boombox Modal (proximity-based) -->
       <div
         v-if="showBoomboxModal"
-        class="absolute bottom-20 left-1/2 -translate-x-1/2 z-40"
+        class="absolute bottom-20 left-1/2 -translate-x-1/2 z-50"
         style="pointer-events: auto">
         <BoomboxModal
           :is-playing="boomboxIsPlaying"
