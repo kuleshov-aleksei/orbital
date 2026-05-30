@@ -174,6 +174,19 @@ export function registerDefaultCharacters() {
       idle: { frames: [0, 1, 2, 3, 4], loop: true },
     },
   })
+
+  registerCharacter({
+    key: "bonk",
+    spritesheet: "/assets/characters/bonk.png",
+    frameWidth: 64,
+    frameHeight: 64,
+    totalFrames: 13,
+    scale: 2,
+    animations: {
+      walk: { frames: [9, 10, 11, 12], loop: true },
+      idle: { frames: [0, 1, 2, 3, 4, 5, 6, 7, 8], loop: true },
+    },
+  })
 }
 
 // Register default characters at module level so they're available immediately on import

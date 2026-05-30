@@ -8,7 +8,7 @@ export interface Vector2 {
   y: number
 }
 
-const SEND_INTERVAL_MS = 100
+const SEND_INTERVAL_MS = 60
 const TICK_RATE = 30
 const INTERPOLATION_FACTOR = 10 / TICK_RATE
 
