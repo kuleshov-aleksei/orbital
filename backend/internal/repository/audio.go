@@ -103,6 +103,11 @@ func (r *AudioRepository) GetByUserID(userID string) ([]*models.AudioFile, error
 	return files, rows.Err()
 }
 
+func (r *AudioRepository) UpdateDisplayName(id string, displayName string) error {
+	_, err := r.db.Exec(`UPDATE audio_files SET display_name = ? WHERE id = ?`, displayName, id)
+	return err
+}
+
 func (r *AudioRepository) Delete(id string) error {
 	_, err := r.db.Exec(`DELETE FROM audio_files WHERE id = ?`, id)
 	return err

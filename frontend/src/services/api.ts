@@ -515,6 +515,19 @@ export const apiService = {
     return response.json()
   },
 
+  async deleteAudio(id: string): Promise<void> {
+    await apiRequest<void>(`/admin/audio/${id}`, {
+      method: "DELETE",
+    })
+  },
+
+  async renameAudio(id: string, displayName: string): Promise<void> {
+    await apiRequest<void>(`/admin/audio/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ display_name: displayName }),
+    })
+  },
+
   getAudioUrl(id: string): string {
     return `${API_BASE}/audio/${id}`
   },

@@ -217,6 +217,15 @@ func main() {
 	adminCategoryRouter.HandleFunc("/categories/{id}", categoryHandler.RenameCategory).Methods("PUT")
 	adminCategoryRouter.HandleFunc("/categories/{id}", categoryHandler.DeleteCategory).Methods("DELETE")
 
+	// Admin audio management routes (admin+)
+	if audioHandler != nil {
+		adminAudioRouter := r.PathPrefix("/api/admin/audio").Subrouter()
+		adminAudioRouter.Use(authHandler.AuthMiddleware)
+		adminAudioRouter.Use(authHandler.RequireAdmin)
+		adminAudioRouter.HandleFunc("/{id}", audioHandler.DeleteAudio).Methods("DELETE")
+		adminAudioRouter.HandleFunc("/{id}", audioHandler.RenameAudio).Methods("PATCH")
+	}
+
 	// Admin management routes (super_admin only)
 	superAdminRouter := r.PathPrefix("/api/admin").Subrouter()
 	superAdminRouter.Use(authHandler.AuthMiddleware)

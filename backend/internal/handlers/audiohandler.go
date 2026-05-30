@@ -98,6 +98,68 @@ func (h *AudioHandler) UploadAudio(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *AudioHandler) DeleteAudio(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+
+	if id == "" {
+		http.Error(w, "Invalid audio ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.audioService.DeleteAudio(id); err != nil {
+		switch err {
+		case service.ErrAudioNotFound:
+			http.Error(w, "Audio file not found", http.StatusNotFound)
+		case service.ErrAudioSystemFile:
+			http.Error(w, err.Error(), http.StatusForbidden)
+		default:
+			http.Error(w, "Failed to delete audio file", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
+}
+
+func (h *AudioHandler) RenameAudio(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+
+	if id == "" {
+		http.Error(w, "Invalid audio ID", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		DisplayName string `json:"display_name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.DisplayName == "" {
+		http.Error(w, "display_name is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.audioService.RenameAudio(id, req.DisplayName); err != nil {
+		switch err {
+		case service.ErrAudioNotFound:
+			http.Error(w, "Audio file not found", http.StatusNotFound)
+		case service.ErrAudioSystemFile:
+			http.Error(w, err.Error(), http.StatusForbidden)
+		default:
+			http.Error(w, "Failed to rename audio file", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "renamed"})
+}
+
 func (h *AudioHandler) GetAudio(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]

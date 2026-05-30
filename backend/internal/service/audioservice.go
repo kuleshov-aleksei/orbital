@@ -20,6 +20,7 @@ var (
 	ErrAudioFileTooLarge    = errors.New("file size exceeds 50MB limit")
 	ErrAudioInvalidFileType = errors.New("invalid file type, only MP3 and OPUS files are allowed")
 	ErrAudioNotFound        = errors.New("audio file not found")
+	ErrAudioSystemFile      = errors.New("cannot modify system audio files")
 )
 
 type audioTypeInfo struct {
@@ -113,6 +114,20 @@ func (s *AudioService) GetAudioPath(id string) (string, error) {
 	}
 
 	return filePath, nil
+}
+
+func (s *AudioService) RenameAudio(id string, displayName string) error {
+	file, err := s.repo.GetByID(id)
+	if err != nil {
+		return err
+	}
+	if file == nil {
+		return ErrAudioNotFound
+	}
+	if file.IsSystem {
+		return ErrAudioSystemFile
+	}
+	return s.repo.UpdateDisplayName(id, displayName)
 }
 
 func (s *AudioService) DeleteAudio(id string) error {
