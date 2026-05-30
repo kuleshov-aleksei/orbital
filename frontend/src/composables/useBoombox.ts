@@ -63,7 +63,7 @@ export function useBoombox(options: {
       const tid = participant.attributes?.["boombox_track_id"]
       if (tid) {
         ownerIdentity.value = identity
-        ownerNickname.value = identity
+        ownerNickname.value = participant.name || identity
         currentTrackId.value = tid
         currentTrackName.value = participant.attributes?.["boombox_track_name"] || ""
         isPlaying.value = true
@@ -136,7 +136,7 @@ export function useBoombox(options: {
     currentTrackId.value = trackId
     currentTrackName.value = trackName
     ownerIdentity.value = participant.identity
-    ownerNickname.value = participant.identity
+    ownerNickname.value = participant.name || participant.identity
     isPlaying.value = true
   }
 
