@@ -6,7 +6,7 @@ export type AnimationState = "idle" | "walk_right" | "walk_left" | "walk_up" | "
 export interface CharacterDisplay {
   container: Container
   setPosition(x: number, y: number): void
-  setAnimation(anim: AnimationState): void
+  setAnimation(anim: AnimationState, facingRight?: boolean): void
   setSpeaking(speaking: boolean): void
   destroy(): void
 }
@@ -74,6 +74,7 @@ export function createCharacterSprite(
   }
 
   let currentAnim: AnimationState = "idle"
+  let lastFacingRight = true
   let isSpeaking = false
 
   const stopAllSprites = () => {
@@ -93,13 +94,16 @@ export function createCharacterSprite(
     container.zIndex = y
   }
 
-  const setAnimation = (anim: AnimationState) => {
-    if (anim === currentAnim) return
+  const setAnimation = (anim: AnimationState, facingRight?: boolean) => {
+    const fr = facingRight ?? lastFacingRight
+    if (anim === currentAnim && fr === lastFacingRight) return
     currentAnim = anim
+    lastFacingRight = fr
     stopAllSprites()
 
     switch (anim) {
       case "idle":
+        idleSprite.scale.x = fr ? spriteScale : -spriteScale
         idleSprite.visible = true
         idleSprite.play()
         break
@@ -118,7 +122,7 @@ export function createCharacterSprite(
           walkUpSprite.visible = true
           walkUpSprite.play()
         } else {
-          walkSprite.scale.x = spriteScale
+          walkSprite.scale.x = fr ? spriteScale : -spriteScale
           walkSprite.visible = true
           walkSprite.play()
         }
@@ -128,7 +132,7 @@ export function createCharacterSprite(
           walkDownSprite.visible = true
           walkDownSprite.play()
         } else {
-          walkSprite.scale.x = spriteScale
+          walkSprite.scale.x = fr ? spriteScale : -spriteScale
           walkSprite.visible = true
           walkSprite.play()
         }

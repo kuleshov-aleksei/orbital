@@ -111,10 +111,7 @@ const props = withDefaults(defineProps<Props>(), {
 const CHARACTER_KEY = "orbital_character"
 function loadCharacter(): CharacterKey {
   const stored = localStorage.getItem(CHARACTER_KEY)
-  if (stored && ["targ", "jeremy", "elisabeth", "robert", "kusya", "ricardo"].includes(stored)) {
-    return stored as CharacterKey
-  }
-  return "targ"
+  return stored as CharacterKey
 }
 
 const userStore = useUserStore()
@@ -163,6 +160,18 @@ const spatialPosition = useSpatialPosition({
   onCharacterChange: (participantId, characterKey) => {
     changeRemoteCharacter(participantId, characterKey)
   },
+  onRemoteMove: (participantId, dx, dy) => {
+    const display = remoteCharacterDisplays.get(participantId)
+    if (!display) return
+    const threshold = 5.0
+    if (Math.abs(dx) > threshold || Math.abs(dy) > threshold) {
+      const facingRight = dx > 0 || (dx === 0 && (lastRemoteFacing.get(participantId) ?? true))
+      display.setAnimation(getAnimation({ x: dx, y: dy }), facingRight)
+      lastRemoteFacing.set(participantId, facingRight)
+    } else {
+      display.setAnimation("idle", lastRemoteFacing.get(participantId) ?? true)
+    }
+  },
 })
 const { localPosition, remotePositions, remoteCharacterKeys, updateLocalPosition, startPositionSync, stopPositionSync, sendCharacterChange } =
   spatialPosition
@@ -187,6 +196,7 @@ let localCharacterAnimations: AnimationTextures | null = null
 let localCharacterDisplay: ReturnType<typeof createCharacterSprite> | null = null
 const remoteCharacterDisplays = new Map<string, ReturnType<typeof createCharacterSprite>>()
 const cancelledCharacterCreations = new Set<string>()
+const lastRemoteFacing = new Map<string, boolean>()
 
 // Game loop (requestAnimationFrame)
 let animationFrameId: number | null = null
@@ -271,6 +281,7 @@ function removeRemoteCharacter(id: string) {
 }
 
 // Game tick with frame-rate-independent delta
+let lastFacingRight = true
 function gameTick(delta: number) {
   if (!localCharacterDisplay) return
 
@@ -294,11 +305,14 @@ function gameTick(delta: number) {
     updateLocalPosition({ x: newX, y: newY })
   }
 
+  // Track last horizontal facing direction
+  if (dir.x !== 0) lastFacingRight = dir.x > 0
+
   // Update local character visuals
   localCharacterDisplay.setPosition(localPosition.value.x, localPosition.value.y)
-  localCharacterDisplay.setAnimation(getAnimation(dir))
+  localCharacterDisplay.setAnimation(getAnimation(dir), lastFacingRight)
 
-  // Update remote character visuals
+  // Update remote character positions
   remotePositions.value.forEach((pos, id) => {
     const display = remoteCharacterDisplays.get(id)
     if (display) {
@@ -414,13 +428,13 @@ onMounted(async () => {
     lkRoom.on(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected)
   }
 
-  // Start position sync early — sends immediately and listens for incoming data
+  // Must init world BEFORE listening for remote data (cameraContainer is created in init)
+  await setupWorld()
+
+  // Start position sync after world is ready — listens for incoming data
   startPositionSync()
   // Broadcast our current character so remote participants see the right sprite
   void sendCharacterChange(selectedCharacter.value)
-
-  // Must init world BEFORE adding characters (cameraContainer is created in init)
-  await setupWorld()
 
   // Listen for local speaking indicator
   const lp = localParticipant.value

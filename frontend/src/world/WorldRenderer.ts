@@ -119,6 +119,10 @@ export function createWorldRenderer(): WorldRenderer {
   }
 
   const addCharacter = (id: string, character: CharacterDisplay) => {
+    const existing = characters.get(id)
+    if (existing) {
+      existing.destroy()
+    }
     characters.set(id, character)
     cameraContainer?.addChild(character.container)
   }

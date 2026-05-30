@@ -17,6 +17,7 @@ export function useSpatialPosition(options: {
   localParticipant: Ref<LocalParticipant | null>
   characterKey: Ref<string>
   onCharacterChange?: (participantId: string, characterKey: string) => void
+  onRemoteMove?: (participantId: string, dx: number, dy: number) => void
 }) {
   const localPosition = ref<Vector2>({ x: 0, y: 0 })
   const remotePositions = ref<Map<string, Vector2>>(new Map())
@@ -40,7 +41,11 @@ export function useSpatialPosition(options: {
       const data = JSON.parse(_textDecoder.decode(payload))
       if (data.channelId === "position") {
         const { x, y, characterKey } = data.payload
+        const prev = _remotePositions.get(participant.identity)
         _remotePositions.set(participant.identity, { x, y })
+        if (prev) {
+          options.onRemoteMove?.(participant.identity, x - prev.x, y - prev.y)
+        }
         if (characterKey && _remoteCharacterKeys.get(participant.identity) !== characterKey) {
           _remoteCharacterKeys.set(participant.identity, characterKey)
           remoteCharacterKeys.value = new Map(_remoteCharacterKeys)
