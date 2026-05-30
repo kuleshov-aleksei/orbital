@@ -31,7 +31,6 @@ export function createWorldRenderer(): WorldRenderer {
   let cameraTarget = { x: 0, y: 0 }
   let earshotCircle: Graphics | null = null
   let fixedLayer: Container | null = null
-  let worldObjectsLayer: Container | null = null
 
   const init = async (container: HTMLElement) => {
     app = new Application()
@@ -87,10 +86,6 @@ export function createWorldRenderer(): WorldRenderer {
     cameraContainer.sortableChildren = true
     gameLayer.addChild(cameraContainer)
 
-    // World objects layer (below characters)
-    worldObjectsLayer = new Container()
-    cameraContainer.addChild(worldObjectsLayer)
-
     // Earshot radius circle (behind world objects)
     earshotCircle = new Graphics()
     earshotCircle.zIndex = -1
@@ -123,7 +118,6 @@ export function createWorldRenderer(): WorldRenderer {
     backgroundLayer = null
     uiLayer = null
     fixedLayer = null
-    worldObjectsLayer = null
   }
 
   const addCharacter = (id: string, character: CharacterDisplay) => {
@@ -190,11 +184,12 @@ export function createWorldRenderer(): WorldRenderer {
   }
 
   const addWorldObject = (obj: Container) => {
-    worldObjectsLayer?.addChild(obj)
+    obj.zIndex = obj.y
+    cameraContainer?.addChild(obj)
   }
 
   const removeWorldObject = (obj: Container) => {
-    worldObjectsLayer?.removeChild(obj)
+    cameraContainer?.removeChild(obj)
   }
 
   return {

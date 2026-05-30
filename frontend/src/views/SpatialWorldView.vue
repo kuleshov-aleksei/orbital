@@ -307,7 +307,6 @@ async function setupWorld() {
   const container = new Container()
   container.x = BOOMBOX_POSITION.x
   container.y = BOOMBOX_POSITION.y
-  container.zIndex = 0
   boomboxContainer = container
 
   try {
