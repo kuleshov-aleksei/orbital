@@ -65,7 +65,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue"
+import { ref, computed, watch, onMounted, onUnmounted } from "vue"
 import { RoomEvent, ParticipantEvent } from "livekit-client"
 import type { RemoteParticipant } from "livekit-client"
 import AudioControls from "@/components/AudioControls.vue"
@@ -108,8 +108,17 @@ const props = withDefaults(defineProps<Props>(), {
   modelValueDeafened: false,
 })
 
+const CHARACTER_KEY = "orbital_character"
+function loadCharacter(): CharacterKey {
+  const stored = localStorage.getItem(CHARACTER_KEY)
+  if (stored && ["targ", "jeremy", "elisabeth", "robert", "kusya", "ricardo"].includes(stored)) {
+    return stored as CharacterKey
+  }
+  return "targ"
+}
+
 const userStore = useUserStore()
-const selectedCharacter = ref<CharacterKey>("targ")
+const selectedCharacter = ref<CharacterKey>(loadCharacter())
 const showCharacterPicker = ref(false)
 
 const emit = defineEmits<{
@@ -150,11 +159,12 @@ const {
 const spatialPosition = useSpatialPosition({
   room,
   localParticipant,
+  characterKey: selectedCharacter,
   onCharacterChange: (participantId, characterKey) => {
     changeRemoteCharacter(participantId, characterKey)
   },
 })
-const { localPosition, remotePositions, updateLocalPosition, startPositionSync, stopPositionSync, sendCharacterChange } =
+const { localPosition, remotePositions, remoteCharacterKeys, updateLocalPosition, startPositionSync, stopPositionSync, sendCharacterChange } =
   spatialPosition
 
 // Spatial audio
@@ -229,13 +239,18 @@ async function setupWorld() {
 
 async function addRemoteCharacter(id: string, nickname: string) {
   if (remoteCharacterDisplays.has(id)) return
-  const anims = await getAnimations("vita")
 
-  // Check for disconnect while loading
+  // Use known character key from position data, fall back to "targ"
+  const knownKey = remoteCharacterKeys.value.get(id) ?? "targ"
+  const anims = await getAnimations(knownKey)
+
+  // Check for disconnect or character change while loading
   if (cancelledCharacterCreations.has(id)) {
     cancelledCharacterCreations.delete(id)
     return
   }
+  // Another create (from changeRemoteCharacter) may have finished while we were loading
+  if (remoteCharacterDisplays.has(id)) return
 
   const display = createCharacterSprite(nickname, anims)
 
@@ -346,6 +361,10 @@ async function changeRemoteCharacter(id: string, characterKey: string) {
   }
 }
 
+watch(selectedCharacter, (key) => {
+  localStorage.setItem(CHARACTER_KEY, key)
+})
+
 function onSelectCharacter(key: CharacterKey) {
   showCharacterPicker.value = false
   void changeCharacter(key)
@@ -361,6 +380,8 @@ function handleParticipantConnected(participant: RemoteParticipant) {
     })
     remoteCharacterDisplays.get(identity)?.setSpeaking(participant.isSpeaking)
   })
+  // Broadcast our character so the new participant sees the right sprite immediately
+  void sendCharacterChange(selectedCharacter.value)
 }
 
 function handleParticipantDisconnected(participant: RemoteParticipant) {

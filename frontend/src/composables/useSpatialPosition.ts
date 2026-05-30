@@ -15,14 +15,17 @@ const INTERPOLATION_FACTOR = 10 / TICK_RATE
 export function useSpatialPosition(options: {
   room: Ref<Room | null>
   localParticipant: Ref<LocalParticipant | null>
+  characterKey: Ref<string>
   onCharacterChange?: (participantId: string, characterKey: string) => void
 }) {
   const localPosition = ref<Vector2>({ x: 0, y: 0 })
   const remotePositions = ref<Map<string, Vector2>>(new Map())
+  const remoteCharacterKeys = ref<Map<string, string>>(new Map())
 
   // Internal non-reactive state for the send loop
   let _myPosition = { x: 0, y: 0 }
   const _remotePositions = new Map<string, Vector2>()
+  const _remoteCharacterKeys = new Map<string, string>()
   const _interpolatedPositions = new Map<string, Vector2>()
   const _sendLock = false
   const _textEncoder = new TextEncoder()
@@ -36,8 +39,13 @@ export function useSpatialPosition(options: {
     try {
       const data = JSON.parse(_textDecoder.decode(payload))
       if (data.channelId === "position") {
-        const { x, y } = data.payload
+        const { x, y, characterKey } = data.payload
         _remotePositions.set(participant.identity, { x, y })
+        if (characterKey && _remoteCharacterKeys.get(participant.identity) !== characterKey) {
+          _remoteCharacterKeys.set(participant.identity, characterKey)
+          remoteCharacterKeys.value = new Map(_remoteCharacterKeys)
+          options.onCharacterChange?.(participant.identity, characterKey)
+        }
       } else if (data.channelId === "character") {
         options.onCharacterChange?.(participant.identity, data.payload.key)
       }
@@ -47,9 +55,10 @@ export function useSpatialPosition(options: {
   }
 
   const sendMyPosition = async () => {
+    const key = options.characterKey.value
     try {
       const payload = _textEncoder.encode(
-        JSON.stringify({ payload: _myPosition, channelId: "position" }),
+        JSON.stringify({ payload: { x: _myPosition.x, y: _myPosition.y, characterKey: key }, channelId: "position" }),
       )
       await options.localParticipant.value?.publishData(payload, DataPacket_Kind.LOSSY)
     } catch {
@@ -136,6 +145,7 @@ export function useSpatialPosition(options: {
   return {
     localPosition,
     remotePositions,
+    remoteCharacterKeys,
     startPositionSync,
     stopPositionSync,
     updateLocalPosition,
