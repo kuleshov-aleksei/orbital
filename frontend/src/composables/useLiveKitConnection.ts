@@ -64,10 +64,15 @@ export function useLiveKitConnection(state: LiveKitState, deps: UseLiveKitConnec
 
         participant.trackPublications.forEach((publication) => {
           const source = publication.source
+          const trackName = publication.trackName
 
-          if (source === Track.Source.Microphone || source === Track.Source.Camera) {
+          if (
+            source === Track.Source.Microphone ||
+            source === Track.Source.Camera ||
+            trackName === "boombox"
+          ) {
             debugLog(
-              `[LiveKit][INFO]: Subscribing to existing ${source} track from ${participant.identity}`,
+              `[LiveKit][INFO]: Subscribing to existing ${source}${trackName ? ` (${trackName})` : ""} track from ${participant.identity}`,
             )
             publication.setSubscribed(true)
           } else if (

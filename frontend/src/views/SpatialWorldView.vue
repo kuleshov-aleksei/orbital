@@ -5,7 +5,7 @@
     data-testid="spatial-world-view">
     <div ref="worldContainer" class="absolute inset-0" />
 
-    <div class="relative z-10 flex flex-col flex-1" style="pointer-events: none">
+    <div class="relative z-[100] flex flex-col flex-1" style="pointer-events: none">
       <!-- Room Header (clickable through the canvas) -->
       <div style="pointer-events: auto">
         <RoomHeader
@@ -19,7 +19,9 @@
       </div>
 
       <!-- Right Toolbar -->
-      <div class="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-40" style="pointer-events: auto">
+      <div
+        class="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-40"
+        style="pointer-events: auto">
         <!-- Character picker toggle -->
         <div class="relative">
           <button
@@ -52,6 +54,21 @@
         style="pointer-events: auto"
         @click="showCharacterPicker = false" />
 
+      <!-- Boombox Modal (proximity-based) -->
+      <div
+        v-if="showBoomboxModal"
+        class="absolute bottom-20 left-1/2 -translate-x-1/2 z-50"
+        style="pointer-events: auto">
+        <BoomboxModal
+          :is-playing="boomboxIsPlaying"
+          :am-i-playing="boomboxAmIPlaying()"
+          :current-track-id="boomboxTrackId"
+          :current-track-name="boomboxTrackName"
+          :owner-nickname="boomboxOwnerNick"
+          @play="(trackId, trackName, url) => boomboxPlay(trackId, trackName, url)"
+          @stop="boomboxStop" />
+      </div>
+
       <!-- Audio Controls (clickable through the canvas) -->
       <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-30" style="pointer-events: auto">
         <AudioControls
@@ -65,15 +82,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from "vue"
+import { ref, computed, watch, onMounted, onUnmounted, useTemplateRef } from "vue"
+import { Container, Sprite, Assets, SCALE_MODES } from "pixi.js"
 import { RoomEvent, ParticipantEvent } from "livekit-client"
 import type { RemoteParticipant } from "livekit-client"
 import AudioControls from "@/components/AudioControls.vue"
 import RoomHeader from "@/components/RoomHeader.vue"
 import CharacterPicker from "@/components/CharacterPicker.vue"
+import BoomboxModal from "@/components/BoomboxModal.vue"
 import type { CharacterKey } from "@/components/CharacterPicker.vue"
 import { PhUserCircle, PhMagicWand } from "@phosphor-icons/vue"
-import { useLiveKit } from "@/composables"
+import { useLiveKit, useBoombox } from "@/composables"
 import { useSpatialPosition } from "@/composables/useSpatialPosition"
 import { useSpatialAudio } from "@/composables/useSpatialAudio"
 import { useGameInput } from "@/composables/useGameInput"
@@ -86,7 +105,8 @@ import {
   PLAYER_SPEED,
   WORLD_BOUNDARIES,
   EARSHOT_RADIUS,
-  TICK_RATE,
+  BOOMBOX_POSITION,
+  BOOMBOX_INTERACT_DISTANCE,
 } from "@/world/WorldConfig"
 import type { User } from "@/types"
 import type { AnimationTextures } from "@/world/ResourceManager"
@@ -108,6 +128,13 @@ const props = withDefaults(defineProps<Props>(), {
   modelValueDeafened: false,
 })
 
+const emit = defineEmits<{
+  "leave-room": []
+  "show-room-list": []
+  "toggle-user-sidebar": []
+  "update:modelValueMuted": [value: boolean]
+  "update:modelValueDeafened": [value: boolean]
+}>()
 const CHARACTER_KEY = "orbital_character"
 function loadCharacter(): CharacterKey {
   const stored = localStorage.getItem(CHARACTER_KEY)
@@ -122,15 +149,7 @@ const userStore = useUserStore()
 const selectedCharacter = ref<CharacterKey>(loadCharacter())
 const showCharacterPicker = ref(false)
 
-const emit = defineEmits<{
-  "leave-room": []
-  "show-room-list": []
-  "toggle-user-sidebar": []
-  "update:modelValueMuted": [value: boolean]
-  "update:modelValueDeafened": [value: boolean]
-}>()
-
-const worldContainer = ref<HTMLElement | null>(null)
+const worldContainer = useTemplateRef<HTMLElement>("worldContainer")
 
 const currentRoom = computed(() => ({
   name: props.roomName || "Spatial Room",
@@ -177,14 +196,45 @@ const spatialPosition = useSpatialPosition({
     }
   },
 })
-const { localPosition, remotePositions, remoteCharacterKeys, updateLocalPosition, startPositionSync, stopPositionSync, sendCharacterChange } =
-  spatialPosition
+const {
+  localPosition,
+  remotePositions,
+  remoteCharacterKeys,
+  updateLocalPosition,
+  startPositionSync,
+  stopPositionSync,
+  sendCharacterChange,
+} = spatialPosition
+
+// Boombox
+const boomboxPosition = ref({ ...BOOMBOX_POSITION })
+const boombox = useBoombox({
+  lkRoom: room,
+  localParticipant,
+  remoteAudioTracks,
+  remoteParticipants,
+})
+const {
+  isPlaying: boomboxIsPlaying,
+  currentTrackId: boomboxTrackId,
+  currentTrackName: boomboxTrackName,
+  ownerNickname: boomboxOwnerNick,
+  boomboxTrack: boomboxTrack,
+  play: boomboxPlay,
+  stop: boomboxStop,
+  amIPlaying: boomboxAmIPlaying,
+  updateLocalSpatial: boomboxUpdateLocalSpatial,
+  scanRemoteParticipantsForBoombox,
+  handleAttributesChanged: handleBoomboxAttributesChanged,
+} = boombox
 
 // Spatial audio
 const spatialAudio = useSpatialAudio({
   remoteAudioTracks,
   localPosition,
   remotePositions,
+  boomboxTrack,
+  boomboxPosition,
 })
 const { initializeAudio, resumeAudio, updateAudioPositions } = spatialAudio
 
@@ -194,6 +244,11 @@ const { direction, startListening, stopListening } = gameInput
 
 // World renderer
 const worldRenderer = createWorldRenderer()
+
+// Boombox world object
+let boomboxContainer: Container | null = null
+const showBoomboxModal = ref(false)
+let boomboxSprite: Sprite | null = null
 
 // Local character
 let localCharacterAnimations: AnimationTextures | null = null
@@ -240,16 +295,39 @@ async function setupWorld() {
 
   // Create local character
   localCharacterAnimations = await getAnimations(selectedCharacter.value)
-  localCharacterDisplay = createCharacterSprite(
-    userStore.nickname,
-    localCharacterAnimations,
-  )
+  localCharacterDisplay = createCharacterSprite(userStore.nickname, localCharacterAnimations)
 
   // Spawn at center — use updateLocalPosition to sync internal _myPosition
   updateLocalPosition({ ...SPAWN_POSITION })
   localCharacterDisplay.setPosition(SPAWN_POSITION.x, SPAWN_POSITION.y)
   localCharacterDisplay.setMuted(isMuted.value)
   worldRenderer.addCharacter("local", localCharacterDisplay)
+
+  // Create boombox world object
+  const container = new Container()
+  container.x = BOOMBOX_POSITION.x
+  container.y = BOOMBOX_POSITION.y
+  boomboxContainer = container
+
+  try {
+    const texture = await Assets.load("/assets/world/boombox.png")
+    const sprite = new Sprite(texture)
+    texture.baseTexture.scaleMode = SCALE_MODES.NEAREST
+    sprite.anchor.set(0.5, 0.5)
+    sprite.scale.set(2.0)
+    container.addChild(sprite)
+    boomboxSprite = sprite
+  } catch (e) {
+    console.warn("[Boombox] Failed to load boombox sprite:", e)
+    const fallback = new Sprite()
+    fallback.anchor.set(0.5, 0.5)
+    container.addChild(fallback)
+  }
+
+  worldRenderer.addWorldObject(container)
+
+  // Scan remote participants for boombox state (important for late joiners)
+  scanRemoteParticipantsForBoombox()
 }
 
 async function addRemoteCharacter(id: string, nickname: string) {
@@ -297,9 +375,7 @@ function gameTick(delta: number) {
   const rawDir = direction.value
   const magnitude = Math.sqrt(rawDir.x * rawDir.x + rawDir.y * rawDir.y)
   const moving = magnitude > 0.01
-  const dir = moving
-    ? { x: rawDir.x / magnitude, y: rawDir.y / magnitude }
-    : rawDir
+  const dir = moving ? { x: rawDir.x / magnitude, y: rawDir.y / magnitude } : rawDir
 
   if (moving) {
     const pos = localPosition.value
@@ -334,6 +410,25 @@ function gameTick(delta: number) {
 
   // Update spatial audio positions
   updateAudioPositions(localPosition.value, remotePositions.value)
+
+  // Update DJ's local boombox spatialization
+  if (boomboxAmIPlaying()) {
+    boomboxUpdateLocalSpatial(localPosition.value, BOOMBOX_POSITION)
+  }
+
+  // Boombox proximity detection
+  const dx = localPosition.value.x - BOOMBOX_POSITION.x
+  const dy = localPosition.value.y - BOOMBOX_POSITION.y
+  const distToBoombox = Math.sqrt(dx * dx + dy * dy)
+  showBoomboxModal.value = distToBoombox < BOOMBOX_INTERACT_DISTANCE
+
+  // Boombox scale pulse animation
+  if (boomboxSprite && boomboxIsPlaying.value) {
+    const pulse = 2.0 + Math.sin(performance.now() / 300) * 0.08
+    boomboxSprite.scale.set(pulse)
+  } else if (boomboxSprite) {
+    boomboxSprite.scale.set(2.0)
+  }
 }
 
 async function changeCharacter(key: CharacterKey) {
@@ -412,6 +507,8 @@ function handleParticipantConnected(participant: RemoteParticipant) {
       if ("is_muted" in changedAttributes) {
         remoteCharacterDisplays.get(identity)?.setMuted(changedAttributes.is_muted === "true")
       }
+      // Forward boombox attribute changes to boombox composable
+      handleBoomboxAttributesChanged(changedAttributes, identity)
     })
     remoteCharacterDisplays.get(identity)?.setMuted(participant.attributes.is_muted === "true")
   })
@@ -423,6 +520,7 @@ function handleParticipantDisconnected(participant: RemoteParticipant) {
   const identity = participant.identity
   cancelledCharacterCreations.add(identity)
   removeRemoteCharacter(identity)
+  scanRemoteParticipantsForBoombox()
 }
 
 onMounted(async () => {
@@ -504,6 +602,16 @@ onUnmounted(async () => {
 
   stopListening()
   stopPositionSync()
+
+  if (boomboxContainer && worldRenderer) {
+    worldRenderer.removeWorldObject(boomboxContainer)
+    boomboxContainer.destroy({ children: true })
+    boomboxContainer = null
+    boomboxSprite = null
+  }
+
+  // Stop boombox (safe to call even if not playing — guards internally)
+  await boomboxStop()
 
   worldRenderer.destroy()
   await cleanupLiveKit()

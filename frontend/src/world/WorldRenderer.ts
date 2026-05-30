@@ -15,6 +15,8 @@ export interface WorldRenderer {
   addOverlay(overlay: Container): void
   removeOverlay(overlay: Container): void
   getScreenSize(): { width: number; height: number }
+  addWorldObject(obj: Container): void
+  removeWorldObject(obj: Container): void
 }
 
 export function createWorldRenderer(): WorldRenderer {
@@ -84,7 +86,7 @@ export function createWorldRenderer(): WorldRenderer {
     cameraContainer.sortableChildren = true
     gameLayer.addChild(cameraContainer)
 
-    // Earshot radius circle (behind characters)
+    // Earshot radius circle (behind world objects)
     earshotCircle = new Graphics()
     earshotCircle.zIndex = -1
     cameraContainer.addChild(earshotCircle)
@@ -181,6 +183,15 @@ export function createWorldRenderer(): WorldRenderer {
     return stage!
   }
 
+  const addWorldObject = (obj: Container) => {
+    obj.zIndex = obj.y
+    cameraContainer?.addChild(obj)
+  }
+
+  const removeWorldObject = (obj: Container) => {
+    cameraContainer?.removeChild(obj)
+  }
+
   return {
     init,
     destroy,
@@ -194,5 +205,7 @@ export function createWorldRenderer(): WorldRenderer {
     addOverlay,
     removeOverlay,
     getScreenSize,
+    addWorldObject,
+    removeWorldObject,
   }
 }

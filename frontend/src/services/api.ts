@@ -9,6 +9,7 @@ import {
   DeleteCategoryData,
   PublicUser,
   DebugLog,
+  AudioFile,
 } from "@/types"
 import { isElectron, openExternal, oauthAuthenticate } from "./electron"
 
@@ -482,6 +483,53 @@ export const apiService = {
     return apiRequest<{ status: string; message: string }>(`/admin/logs/${logId}`, {
       method: "DELETE",
     })
+  },
+
+  // Audio file API calls
+  async getAudioFiles(): Promise<AudioFile[]> {
+    return apiRequest<AudioFile[]>("/audio")
+  },
+
+  async uploadAudio(
+    file: File,
+    displayName: string,
+  ): Promise<{ id: string; display_name: string; audio_url: string }> {
+    const formData = new FormData()
+    formData.append("audio", file)
+    formData.append("display_name", displayName)
+
+    const token = getAuthToken()
+    const response = await fetch(`${API_BASE}/audio/upload`, {
+      method: "POST",
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`API Error: ${response.status} - ${errorText}`)
+    }
+
+    return response.json()
+  },
+
+  async deleteAudio(id: string): Promise<void> {
+    await apiRequest<void>(`/admin/audio/${id}`, {
+      method: "DELETE",
+    })
+  },
+
+  async renameAudio(id: string, displayName: string): Promise<void> {
+    await apiRequest<void>(`/admin/audio/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ display_name: displayName }),
+    })
+  },
+
+  getAudioUrl(id: string): string {
+    return `${API_BASE}/audio/${id}`
   },
 }
 
