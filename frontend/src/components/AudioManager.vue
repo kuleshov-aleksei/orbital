@@ -146,7 +146,7 @@ watch(
 
     debugLog(`[AudioManager] After track change, total elements: ${audioElements.value.size}`)
   },
-  { deep: true },
+  { deep: true, immediate: true },
 )
 
 // Periodic check to ensure audio is still playing
