@@ -1,12 +1,12 @@
 import { ref, onUnmounted, watch, type Ref } from "vue"
 import type { RemoteAudioTrack } from "livekit-client"
+import { EARSHOT_RADIUS } from "@/world/WorldConfig"
 
 export interface Vector2 {
   x: number
   y: number
 }
 
-const MAX_HEARABLE_DISTANCE = 500
 const REF_DISTANCE = 100
 const ROLLOFF_FACTOR = 2
 
@@ -17,6 +17,7 @@ export function useSpatialAudio(options: {
 }) {
   const audioContextRef = ref<AudioContext | null>(null)
   const pannerNodes = new Map<string, PannerNode>()
+  const muteNodes = new Map<string, GainNode>()
   const gainNodes = new Map<string, GainNode>()
   const sourceNodes = new Map<string, MediaStreamAudioSourceNode>()
   const audioElements = new Map<string, HTMLAudioElement>()
@@ -70,13 +71,16 @@ export function useSpatialAudio(options: {
       panner.distanceModel = "exponential"
       panner.coneOuterGain = 1
       panner.refDistance = REF_DISTANCE
-      panner.maxDistance = MAX_HEARABLE_DISTANCE
+      panner.maxDistance = REF_DISTANCE * 5
       panner.rolloffFactor = ROLLOFF_FACTOR
       panner.positionX.value = 1000
       panner.positionY.value = 0
       panner.positionZ.value = 1000
-      source.connect(panner).connect(ctx.destination)
+      const mute = ctx.createGain()
+      mute.gain.value = 0
+      source.connect(panner).connect(mute).connect(ctx.destination)
       pannerNodes.set(userId, panner)
+      muteNodes.set(userId, mute)
     }
   }
 
@@ -85,6 +89,11 @@ export function useSpatialAudio(options: {
     if (panner) {
       panner.disconnect()
       pannerNodes.delete(userId)
+    }
+    const mute = muteNodes.get(userId)
+    if (mute) {
+      mute.disconnect()
+      muteNodes.delete(userId)
     }
     const gain = gainNodes.get(userId)
     if (gain) {
@@ -113,22 +122,26 @@ export function useSpatialAudio(options: {
       const relX = pos.x - myPos.x
       const relY = pos.y - myPos.y
       const distance = Math.sqrt(relX * relX + relY * relY)
+      const outside = distance > EARSHOT_RADIUS
 
       if (isMobile) {
         const gain = gainNodes.get(userId)
         if (!gain) return
-        if (distance < 50) {
-          gain.gain.setTargetAtTime(1, 0, 0.2)
-        } else if (distance > 250) {
-          gain.gain.setTargetAtTime(0, 0, 0.2)
+        if (outside) {
+          gain.gain.setTargetAtTime(0, 0, 0.1)
+        } else if (distance < 50) {
+          gain.gain.setTargetAtTime(1, 0, 0.1)
         } else {
-          gain.gain.setTargetAtTime(1 - (distance - 50) / 200, 0, 0.2)
+          const t = (distance - 50) / (EARSHOT_RADIUS - 50)
+          gain.gain.setTargetAtTime(1 - t, 0, 0.1)
         }
       } else {
         const panner = pannerNodes.get(userId)
-        if (!panner) return
+        const mute = muteNodes.get(userId)
+        if (!panner || !mute) return
         panner.positionX.setTargetAtTime(relX, 0, 0.02)
         panner.positionZ.setTargetAtTime(relY, 0, 0.02)
+        mute.gain.setTargetAtTime(outside ? 0 : 1, 0, 0.05)
       }
     })
   }
@@ -148,7 +161,7 @@ export function useSpatialAudio(options: {
 
       // Connect new tracks
       newTracks.forEach((track, userId) => {
-        if (!pannerNodes.has(userId) && !gainNodes.has(userId)) {
+        if (!pannerNodes.has(userId) && !gainNodes.has(userId) && !muteNodes.has(userId)) {
           connectTrack(userId, track)
         }
       })
@@ -159,6 +172,7 @@ export function useSpatialAudio(options: {
   const cleanup = () => {
     pannerNodes.forEach((_, userId) => disconnectTrack(userId))
     pannerNodes.clear()
+    muteNodes.clear()
     gainNodes.clear()
     sourceNodes.clear()
     audioElements.clear()
