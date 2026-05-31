@@ -17,6 +17,7 @@ export function useSpatialAudio(options: {
   remotePositions: Ref<Map<string, Vector2>>
   boomboxTrack?: Ref<RemoteAudioTrack | null>
   boomboxPosition?: Ref<Vector2>
+  boomboxVolume?: Ref<number>
 }) {
   const audioContextRef = ref<AudioContext | null>(null)
   const pannerNodes = new Map<string, PannerNode>()
@@ -190,7 +191,11 @@ export function useSpatialAudio(options: {
       if (!panner || !mute) return
       panner.positionX.setTargetAtTime(relX, 0, 0.02)
       panner.positionZ.setTargetAtTime(relY, 0, 0.02)
-      mute.gain.setTargetAtTime(outside ? 0 : MAX_BOOMBOX_VOLUME, 0, 0.05)
+      mute.gain.setTargetAtTime(
+        outside ? 0 : (options.boomboxVolume?.value ?? MAX_BOOMBOX_VOLUME),
+        0,
+        0.05,
+      )
     }
   }
 

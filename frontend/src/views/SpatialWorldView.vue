@@ -245,6 +245,7 @@ const spatialAudio = useSpatialAudio({
   remotePositions,
   boomboxTrack,
   boomboxPosition,
+  boomboxVolume,
 })
 const { initializeAudio, resumeAudio, updateAudioPositions } = spatialAudio
 
