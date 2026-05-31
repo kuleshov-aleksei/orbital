@@ -26,6 +26,8 @@ jobs:
           echo "Building version: $VERSION"
 
       - name: Build Electron in Docker
+        env:
+          DOCKER_BUILDKIT: 1
         run: |
           docker build \
             --build-arg VERSION=${{ env.VERSION }} \
@@ -51,5 +53,5 @@ jobs:
           body: "Automated build"
           draft: true
           
-      - name: Clean up builder
-        run: docker builder prune -f
+      - name: Remove old builder images (keep build cache)
+        run: docker image rm orbital-electron-build || true

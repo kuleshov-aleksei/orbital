@@ -1,13 +1,7 @@
-# Electron build container
-FROM node:25-trixie
+# Stage 1: Build environment
+FROM node:25-trixie AS builder
 
-ARG VERSION=dev-unknown
-ARG VITE_BACKEND_URL=
-
-ENV VITE_BACKEND_URL=$VITE_BACKEND_URL
-ENV VITE_APP_VERSION=$VERSION
-
-# Install pnpm globally
+# System dependencies (rarely changes — cached layer)
 RUN npm install -g pnpm@9.0.0
 
 RUN dpkg --add-architecture i386 && \
@@ -31,32 +25,45 @@ RUN dpkg --add-architecture i386 && \
 
 WORKDIR /app/frontend
 
-# Build frontend
+# Frontend dependencies (cached when lockfile unchanged)
 COPY frontend/package.json ./
 COPY frontend/pnpm-*.yaml ./
 RUN pnpm install --frozen-lockfile
 
+# Frontend source (cached until source files change)
 COPY frontend/ .
-RUN pnpm run build
 
 WORKDIR /app/electron
 
-# Install deps - force x64 platform for binaries (7zip-bin, app-builder-bin, etc)
+# Electron dependencies (cached when lockfile unchanged)
 COPY electron/package.json ./
 COPY electron/pnpm-*.yaml ./
 RUN pnpm install --frozen-lockfile
 
-# Copy source code
+# Electron source
 COPY electron/ .
 
 # Generate licenses
 RUN node scripts/generate-licenses.js
 
-# Set version from build arg
+# ── Version-sensitive section ──
+# Everything below invalidates every release (unavoidable for builds)
+ARG VERSION=dev-unknown
+ARG VITE_BACKEND_URL=
+ENV VITE_BACKEND_URL=$VITE_BACKEND_URL
+ENV VITE_APP_VERSION=$VERSION
+
+# Build frontend with version injected
+WORKDIR /app/frontend
+RUN pnpm run build
+
+# Build Windows with cache mounts for electron/electron-builder downloads
+WORKDIR /app/electron
 RUN sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" package.json
 
-# Build Windows (unsigned)
-RUN pnpm run build:win
+RUN --mount=type=cache,target=/root/.cache/electron,sharing=locked \
+    --mount=type=cache,target=/root/.cache/electron-builder,sharing=locked \
+    pnpm run build:win
 
 # Generate SHA256 hashes for Windows builds
 RUN for f in /app/electron/release/Orbital-Setup-*.exe; do \
@@ -66,5 +73,11 @@ RUN for f in /app/electron/release/Orbital-Setup-*.exe; do \
       fi; \
     done
 
-# Build Linux
-RUN pnpm run build:linux
+# Build Linux with cache mounts for electron/electron-builder downloads
+RUN --mount=type=cache,target=/root/.cache/electron,sharing=locked \
+    --mount=type=cache,target=/root/.cache/electron-builder,sharing=locked \
+    pnpm run build:linux
+
+# Stage 2: Minimal image with only release artifacts
+FROM scratch
+COPY --from=builder /app/electron/release/ /app/electron/release/
