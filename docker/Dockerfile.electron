@@ -79,5 +79,7 @@ RUN --mount=type=cache,target=/root/.cache/electron,sharing=locked \
     pnpm run build:linux
 
 # Stage 2: Minimal image with only release artifacts
-FROM scratch
-COPY --from=builder /app/electron/release/ /app/electron/release/
+FROM alpine:latest
+RUN apk add --no-cache ca-certificates
+WORKDIR /app/electron
+COPY --from=builder /app/electron/release ./release
