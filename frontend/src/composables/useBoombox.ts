@@ -1,7 +1,7 @@
 import { ref, watch, type Ref } from "vue"
 import type { Room, LocalParticipant, RemoteAudioTrack, RemoteParticipant } from "livekit-client"
 import { Track, type LocalTrackPublication } from "livekit-client"
-import { EARSHOT_RADIUS, MAX_BOOMBOX_VOLUME } from "@/world/WorldConfig"
+import { EARSHOT_RADIUS } from "@/world/WorldConfig"
 
 export interface BoomboxState {
   isPlaying: Ref<boolean>
@@ -32,6 +32,9 @@ export function useBoombox(options: {
   const ownerIdentity = ref("")
   const ownerNickname = ref("")
 
+  const VOLUME_STORAGE_KEY = "orbital:boombox_volume"
+
+  const boomboxVolume = ref(parseFloat(localStorage.getItem(VOLUME_STORAGE_KEY) ?? "") || 0.5)
   const boomboxTrack = ref<RemoteAudioTrack | null>(null)
 
   const syncBoomboxTrack = () => {
@@ -49,6 +52,13 @@ export function useBoombox(options: {
     () => syncBoomboxTrack(),
     { immediate: true, deep: true },
   )
+
+  watch(boomboxVolume, (vol) => {
+    localStorage.setItem(VOLUME_STORAGE_KEY, String(vol))
+    if (localMuteGain) {
+      localMuteGain.gain.value = vol
+    }
+  })
 
   let audioContext: AudioContext | null = null
   let audioElement: HTMLAudioElement | null = null
@@ -170,7 +180,7 @@ export function useBoombox(options: {
     panner.maxDistance = REF_DISTANCE * 5
     panner.rolloffFactor = ROLLOFF_FACTOR
     const muteGain = ctx.createGain()
-    muteGain.gain.value = MAX_BOOMBOX_VOLUME
+    muteGain.gain.value = boomboxVolume.value
     source.connect(panner).connect(muteGain).connect(ctx.destination)
 
     const pub = await participant.publishTrack(dest.stream.getAudioTracks()[0], {
@@ -211,7 +221,7 @@ export function useBoombox(options: {
     const outside = distance > EARSHOT_RADIUS
     localPanner.positionX.setTargetAtTime(relX, 0, 0.02)
     localPanner.positionZ.setTargetAtTime(relY, 0, 0.02)
-    localMuteGain.gain.setTargetAtTime(outside ? 0 : MAX_BOOMBOX_VOLUME, 0, 0.05)
+    localMuteGain.gain.setTargetAtTime(outside ? 0 : boomboxVolume.value, 0, 0.05)
   }
 
   return {
@@ -221,6 +231,7 @@ export function useBoombox(options: {
     ownerIdentity,
     ownerNickname,
     boomboxTrack,
+    boomboxVolume,
     play,
     stop,
     amIPlaying,

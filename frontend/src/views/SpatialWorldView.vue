@@ -65,6 +65,8 @@
           :current-track-id="boomboxTrackId"
           :current-track-name="boomboxTrackName"
           :owner-nickname="boomboxOwnerNick"
+          :boombox-volume="boomboxVolume"
+          @update:boombox-volume="boomboxVolume = $event"
           @play="(trackId, trackName, url) => boomboxPlay(trackId, trackName, url)"
           @stop="boomboxStop" />
       </div>
@@ -221,6 +223,7 @@ const {
   currentTrackName: boomboxTrackName,
   ownerNickname: boomboxOwnerNick,
   boomboxTrack: boomboxTrack,
+  boomboxVolume,
   play: boomboxPlay,
   stop: boomboxStop,
   amIPlaying: boomboxAmIPlaying,

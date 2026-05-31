@@ -73,6 +73,24 @@
       </p>
     </template>
 
+    <div class="mt-4 pt-3 border-t border-theme-border">
+      <label class="text-xs text-theme-text-secondary font-medium block mb-1.5"> Max Volume </label>
+      <div class="flex items-center gap-2">
+        <PhSpeakerX class="w-4 h-4 text-theme-text-tertiary shrink-0" />
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.05"
+          :value="boomboxVolume"
+          class="w-full h-1.5 bg-theme-bg-tertiary rounded-full appearance-none cursor-pointer accent-theme-accent [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-theme-accent [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-pointer"
+          @input="
+            $emit('update:boomboxVolume', parseFloat(($event.target as HTMLInputElement).value))
+          " />
+        <PhSpeakerHigh class="w-4 h-4 text-theme-text-tertiary shrink-0" />
+      </div>
+    </div>
+
     <input
       ref="fileInput"
       type="file"
@@ -86,6 +104,7 @@
 import { ref, onMounted, useTemplateRef } from "vue"
 import { apiService } from "@/services/api"
 import type { AudioFile } from "@/types"
+import { PhSpeakerX, PhSpeakerHigh } from "@phosphor-icons/vue"
 
 interface Props {
   isPlaying: boolean
@@ -93,6 +112,7 @@ interface Props {
   currentTrackId: string
   currentTrackName: string
   ownerNickname: string
+  boomboxVolume: number
 }
 
 defineProps<Props>()
@@ -100,6 +120,7 @@ defineProps<Props>()
 const emit = defineEmits<{
   play: [trackId: string, trackName: string, url: string]
   stop: []
+  "update:boomboxVolume": [value: number]
 }>()
 
 const tracks = ref<AudioFile[]>([])
