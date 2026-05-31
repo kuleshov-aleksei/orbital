@@ -83,63 +83,6 @@ export function useBoombox(options: {
     }
   }
 
-  const play = async (trackId: string, trackName: string, audioUrl: string) => {
-    const room = options.lkRoom.value
-    const participant = options.localParticipant.value
-    if (!room || !participant) return
-
-    const ctx = new AudioContext()
-    const el = document.createElement("audio")
-    el.autoplay = true
-    el.loop = true
-    el.crossOrigin = "anonymous"
-    el.style.display = "none"
-    document.body.appendChild(el)
-
-    el.src = audioUrl
-
-    const source = ctx.createMediaElementSource(el)
-    const dest = ctx.createMediaStreamDestination()
-    source.connect(dest)
-
-    // Local spatialized monitoring — same PannerNode model as remote participants
-    const panner = ctx.createPanner()
-    panner.coneOuterAngle = 360
-    panner.coneInnerAngle = 360
-    panner.distanceModel = "exponential"
-    panner.coneOuterGain = 1
-    panner.refDistance = REF_DISTANCE
-    panner.maxDistance = REF_DISTANCE * 5
-    panner.rolloffFactor = ROLLOFF_FACTOR
-    const muteGain = ctx.createGain()
-    muteGain.gain.value = MAX_BOOMBOX_VOLUME
-    source.connect(panner).connect(muteGain).connect(ctx.destination)
-
-    const pub = await participant.publishTrack(dest.stream.getAudioTracks()[0], {
-      name: "boombox",
-      source: Track.Source.Unknown,
-    })
-
-    audioContext = ctx
-    audioElement = el
-    sourceNode = source
-    destinationNode = dest
-    localTrackPublication = pub
-    localPanner = panner
-    localMuteGain = muteGain
-
-    await participant.setAttributes({
-      boombox_track_id: trackId,
-      boombox_track_name: trackName,
-    })
-
-    currentTrackId.value = trackId
-    currentTrackName.value = trackName
-    ownerIdentity.value = participant.identity
-    ownerNickname.value = participant.name || participant.identity
-    isPlaying.value = true
-  }
-
   const stop = async () => {
     const participant = options.localParticipant.value
 
@@ -196,6 +139,63 @@ export function useBoombox(options: {
     currentTrackName.value = ""
     ownerIdentity.value = ""
     ownerNickname.value = ""
+  }
+
+  const play = async (trackId: string, trackName: string, audioUrl: string) => {
+    const room = options.lkRoom.value
+    const participant = options.localParticipant.value
+    if (!room || !participant) return
+
+    const ctx = new AudioContext()
+    const el = document.createElement("audio")
+    el.autoplay = true
+    el.crossOrigin = "anonymous"
+    el.style.display = "none"
+    document.body.appendChild(el)
+
+    el.src = audioUrl
+    el.addEventListener("ended", stop)
+
+    const source = ctx.createMediaElementSource(el)
+    const dest = ctx.createMediaStreamDestination()
+    source.connect(dest)
+
+    // Local spatialized monitoring — same PannerNode model as remote participants
+    const panner = ctx.createPanner()
+    panner.coneOuterAngle = 360
+    panner.coneInnerAngle = 360
+    panner.distanceModel = "exponential"
+    panner.coneOuterGain = 1
+    panner.refDistance = REF_DISTANCE
+    panner.maxDistance = REF_DISTANCE * 5
+    panner.rolloffFactor = ROLLOFF_FACTOR
+    const muteGain = ctx.createGain()
+    muteGain.gain.value = MAX_BOOMBOX_VOLUME
+    source.connect(panner).connect(muteGain).connect(ctx.destination)
+
+    const pub = await participant.publishTrack(dest.stream.getAudioTracks()[0], {
+      name: "boombox",
+      source: Track.Source.Unknown,
+    })
+
+    audioContext = ctx
+    audioElement = el
+    sourceNode = source
+    destinationNode = dest
+    localTrackPublication = pub
+    localPanner = panner
+    localMuteGain = muteGain
+
+    await participant.setAttributes({
+      boombox_track_id: trackId,
+      boombox_track_name: trackName,
+    })
+
+    currentTrackId.value = trackId
+    currentTrackName.value = trackName
+    ownerIdentity.value = participant.identity
+    ownerNickname.value = participant.name || participant.identity
+    isPlaying.value = true
   }
 
   const amIPlaying = (): boolean => {
