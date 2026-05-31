@@ -1,5 +1,7 @@
+import { isElectron } from "@/services/electron"
+
 export function assetPath(path: string): string {
-  if (typeof window !== 'undefined' && window.location.protocol === 'file:') {
+  if (isElectron()) {
     return '.' + path
   }
   return path
