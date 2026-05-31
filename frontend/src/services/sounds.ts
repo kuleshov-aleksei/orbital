@@ -7,6 +7,8 @@ import { crunchySprites } from "@/services/sprites/crunchy"
 import { resolveUrl } from "@/services/api"
 import { isElectron } from "@/services/electron"
 
+const version = typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : ""
+
 const DEFAULT_SOUND_PACK_ID = "default"
 
 const soundPacks: Record<string, SoundPack> = {
@@ -67,14 +69,18 @@ let globalVolume: number = 0.7
 
 function getSpriteUrls(packId: string): string[] {
   const urls = spriteUrls[packId] || spriteUrls[DEFAULT_SOUND_PACK_ID]
+  const appendVersion = (url: string) => {
+    const separator = url.includes("?") ? "&" : "?"
+    return `${url}${separator}v=${version}`
+  }
   if (isElectron()) {
     if (typeof __VITE_DEV_SERVER_URL__ !== "undefined" && __VITE_DEV_SERVER_URL__) {
-      return urls.map((url) => `${__VITE_DEV_SERVER_URL__}${url}`)
+      return urls.map((url) => `${__VITE_DEV_SERVER_URL__}${appendVersion(url)}`)
     }
     const basePath = window.location.pathname.replace(/\/[^/]*$/, "")
-    return urls.map((url) => `file://${basePath}${url}`)
+    return urls.map((url) => `file://${basePath}${appendVersion(url)}`)
   }
-  return urls.map((url) => resolveUrl(url))
+  return urls.map((url) => resolveUrl(appendVersion(url)))
 }
 
 function getSprites(packId: string): Record<string, SoundPackSprite> {
