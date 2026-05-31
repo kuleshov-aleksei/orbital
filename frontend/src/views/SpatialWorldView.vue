@@ -66,9 +66,12 @@
           :current-track-name="boomboxTrackName"
           :owner-nickname="boomboxOwnerNick"
           :boombox-volume="boomboxVolume"
+          :playlist="playlist"
           @update:boombox-volume="boomboxVolume = $event"
           @play="(trackId, trackName, url) => boomboxPlay(trackId, trackName, url)"
-          @stop="boomboxStop" />
+          @stop="boomboxStop"
+          @queue="(trackId, trackName) => queueTrack(trackId, trackName)"
+          @skip="skipTrack" />
       </div>
 
       <!-- Audio Controls (clickable through the canvas) -->
@@ -224,9 +227,12 @@ const {
   ownerNickname: boomboxOwnerNick,
   boomboxTrack: boomboxTrack,
   boomboxVolume,
+  playlist,
   play: boomboxPlay,
   stop: boomboxStop,
   amIPlaying: boomboxAmIPlaying,
+  queueTrack,
+  skipTrack,
   updateLocalSpatial: boomboxUpdateLocalSpatial,
   scanRemoteParticipantsForBoombox,
   handleAttributesChanged: handleBoomboxAttributesChanged,

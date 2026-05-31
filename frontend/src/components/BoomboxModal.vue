@@ -1,78 +1,106 @@
 <template>
   <div
     class="absolute bottom-4 right-4 z-[50] bg-theme-bg-secondary rounded-xl border border-theme-border shadow-2xl p-5 min-w-80 max-w-sm">
-    <!-- No one playing -->
-    <template v-if="!isPlaying">
-      <h3 class="text-lg font-semibold text-theme-text-primary mb-3">Boombox</h3>
+    <!-- Track list — always visible -->
+    <h3 class="text-lg font-semibold text-theme-text-primary mb-3">Boombox</h3>
 
-      <div v-if="tracks.length === 0" class="text-sm text-theme-text-secondary mb-3">
-        No tracks available. Upload an MP3 to get started.
-      </div>
+    <div v-if="tracks.length === 0" class="text-sm text-theme-text-secondary mb-3">
+      No tracks available. Upload an MP3 to get started.
+    </div>
 
-      <div v-else class="max-h-48 overflow-y-auto mb-3 space-y-1">
-        <button
-          v-for="track in tracks"
-          :key="track.id"
-          type="button"
-          :class="[
-            'w-full text-left px-3 py-2 rounded-lg text-sm transition-colors truncate',
-            selectedTrackId === track.id
-              ? 'bg-theme-accent/20 border border-theme-accent text-theme-text-primary'
-              : 'bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary border border-transparent',
-          ]"
-          @click="selectedTrackId = track.id">
-          <div class="font-medium">{{ track.display_name }}</div>
-          <div v-if="track.is_system" class="text-xs text-theme-text-tertiary mt-0.5">
-            System track
-          </div>
-        </button>
-      </div>
+    <div v-else class="max-h-48 overflow-y-auto mb-3 space-y-1">
+      <button
+        v-for="track in tracks"
+        :key="track.id"
+        type="button"
+        :class="[
+          'w-full text-left px-3 py-2 rounded-lg text-sm transition-colors truncate',
+          selectedTrackId === track.id
+            ? 'bg-theme-accent/20 border border-theme-accent text-theme-text-primary'
+            : 'bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary border border-transparent',
+        ]"
+        @click="selectedTrackId = track.id">
+        <div class="font-medium">{{ track.display_name }}</div>
+        <div v-if="track.is_system" class="text-xs text-theme-text-tertiary mt-0.5">
+          System track
+        </div>
+      </button>
+    </div>
 
-      <div v-if="uploadError" class="text-sm text-red-500 mb-2">{{ uploadError }}</div>
+    <div v-if="uploadError" class="text-sm text-red-500 mb-2">{{ uploadError }}</div>
 
-      <div class="flex gap-2">
-        <button
-          type="button"
-          class="flex-1 px-3 py-2 bg-theme-accent hover:bg-theme-accent-hover text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-          :disabled="!selectedTrackId"
-          @click="handlePlay">
-          Play
-        </button>
-        <button
-          type="button"
-          class="px-3 py-2 bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-primary rounded-lg text-sm transition-colors"
-          @click="handleUpload">
-          Upload
-        </button>
-      </div>
-    </template>
-
-    <!-- I am playing -->
-    <template v-else-if="amIPlaying">
-      <h3 class="text-lg font-semibold text-theme-text-primary mb-2">Boombox</h3>
-      <p class="text-sm text-theme-text-secondary mb-1">Now playing:</p>
-      <p class="text-base font-medium text-theme-text-primary mb-3">
-        {{ currentTrackName || currentTrackId }}
-      </p>
+    <!-- Action buttons -->
+    <div class="flex gap-2">
+      <button
+        v-if="!isPlaying"
+        type="button"
+        class="flex-1 px-3 py-2 bg-theme-accent hover:bg-theme-accent-hover text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+        :disabled="!selectedTrackId"
+        @click="handlePlay">
+        Play
+      </button>
+      <button
+        v-else
+        type="button"
+        class="flex-1 px-3 py-2 bg-theme-accent hover:bg-theme-accent-hover text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+        :disabled="!selectedTrackId"
+        @click="handleQueue">
+        Queue
+      </button>
       <button
         type="button"
-        class="w-full px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+        class="px-3 py-2 bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-primary rounded-lg text-sm transition-colors"
+        @click="handleUpload">
+        Upload
+      </button>
+    </div>
+
+    <!-- Now playing status -->
+    <div v-if="isPlaying" class="mt-3 p-3 bg-theme-bg-tertiary rounded-lg">
+      <p class="text-xs text-theme-text-tertiary mb-0.5">
+        Now playing:
+        <span class="text-theme-text-primary font-medium">
+          {{ currentTrackName || currentTrackId }}
+        </span>
+      </p>
+      <p v-if="!amIPlaying" class="text-xs text-theme-text-tertiary">
+        by <span class="text-theme-text-secondary">{{ ownerNickname }}</span>
+      </p>
+    </div>
+
+    <!-- Skip + Stop (I'm playing) -->
+    <div v-if="amIPlaying" class="flex gap-2 mt-2">
+      <button
+        type="button"
+        class="flex-1 px-3 py-2 bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-primary rounded-lg text-sm transition-colors"
+        @click="handleSkip">
+        Skip
+      </button>
+      <button
+        type="button"
+        class="flex-1 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
         @click="handleStop">
         Stop
       </button>
-    </template>
+    </div>
 
-    <!-- Someone else is playing -->
-    <template v-else>
-      <h3 class="text-lg font-semibold text-theme-text-primary mb-1">Boombox</h3>
-      <p class="text-sm text-theme-text-secondary">
-        <span class="font-medium text-theme-text-primary">{{ ownerNickname }}</span> is playing
+    <!-- Playlist queue -->
+    <div v-if="playlist.length > 0" class="mt-3 pt-3 border-t border-theme-border">
+      <p class="text-xs text-theme-text-secondary font-medium mb-2">
+        Up Next ({{ playlist.length }})
       </p>
-      <p class="text-sm text-theme-text-secondary">
-        {{ currentTrackName || currentTrackId }}
-      </p>
-    </template>
+      <ul class="space-y-1 max-h-24 overflow-y-auto">
+        <li
+          v-for="(entry, i) in playlist"
+          :key="entry.trackId"
+          class="text-sm text-theme-text-secondary truncate flex items-center gap-2">
+          <span class="text-theme-text-tertiary w-4 shrink-0 text-xs">{{ i + 1 }}.</span>
+          {{ entry.trackName }}
+        </li>
+      </ul>
+    </div>
 
+    <!-- Volume slider -->
     <div class="mt-4 pt-3 border-t border-theme-border">
       <label class="text-xs text-theme-text-secondary font-medium block mb-1.5"> Max Volume </label>
       <div class="flex items-center gap-2">
@@ -104,6 +132,7 @@
 import { ref, onMounted, useTemplateRef } from "vue"
 import { apiService } from "@/services/api"
 import type { AudioFile } from "@/types"
+import type { PlaylistEntry } from "@/composables/useBoombox"
 import { PhSpeakerX, PhSpeakerHigh } from "@phosphor-icons/vue"
 
 interface Props {
@@ -113,6 +142,7 @@ interface Props {
   currentTrackName: string
   ownerNickname: string
   boomboxVolume: number
+  playlist: PlaylistEntry[]
 }
 
 defineProps<Props>()
@@ -121,6 +151,8 @@ const emit = defineEmits<{
   play: [trackId: string, trackName: string, url: string]
   stop: []
   "update:boomboxVolume": [value: number]
+  queue: [trackId: string, trackName: string]
+  skip: []
 }>()
 
 const tracks = ref<AudioFile[]>([])
@@ -141,6 +173,16 @@ const handlePlay = () => {
   if (!track) return
   const url = apiService.getAudioUrl(track.id)
   emit("play", track.id, track.display_name, url)
+}
+
+const handleQueue = () => {
+  const track = tracks.value.find((t) => t.id === selectedTrackId.value)
+  if (!track) return
+  emit("queue", track.id, track.display_name)
+}
+
+const handleSkip = () => {
+  emit("skip")
 }
 
 const handleStop = () => {

@@ -1,7 +1,19 @@
 import { ref, watch, type Ref } from "vue"
-import type { Room, LocalParticipant, RemoteAudioTrack, RemoteParticipant } from "livekit-client"
-import { Track, type LocalTrackPublication } from "livekit-client"
+import type {
+  Room,
+  LocalParticipant,
+  RemoteAudioTrack,
+  RemoteParticipant,
+  Participant,
+} from "livekit-client"
+import { Track, RoomEvent, type LocalTrackPublication } from "livekit-client"
 import { EARSHOT_RADIUS } from "@/world/WorldConfig"
+import { apiService } from "@/services/api"
+
+export interface PlaylistEntry {
+  trackId: string
+  trackName: string
+}
 
 export interface BoomboxState {
   isPlaying: Ref<boolean>
@@ -36,6 +48,7 @@ export function useBoombox(options: {
 
   const boomboxVolume = ref(parseFloat(localStorage.getItem(VOLUME_STORAGE_KEY) ?? "") || 0.5)
   const boomboxTrack = ref<RemoteAudioTrack | null>(null)
+  const playlist = ref<PlaylistEntry[]>([])
 
   const syncBoomboxTrack = () => {
     for (const [key, track] of options.remoteAudioTracks.value) {
@@ -87,29 +100,42 @@ export function useBoombox(options: {
     currentTrackName.value = ""
   }
 
+  const syncPlaylistFromAttributes = () => {
+    if (amIPlaying()) return
+    for (const [, participant] of options.remoteParticipants.value) {
+      const tid = participant.attributes?.["boombox_track_id"]
+      if (tid) {
+        const raw = participant.attributes?.["boombox_playlist"] || "[]"
+        try {
+          playlist.value = JSON.parse(raw)
+        } catch {
+          playlist.value = []
+        }
+        return
+      }
+    }
+    playlist.value = []
+  }
+
   const handleAttributesChanged = (changedAttributes: Record<string, string>) => {
     if ("boombox_track_id" in changedAttributes || "boombox_track_name" in changedAttributes) {
       scanRemoteParticipantsForBoombox()
+      syncPlaylistFromAttributes()
+    }
+    if ("boombox_playlist" in changedAttributes) {
+      syncPlaylistFromAttributes()
     }
   }
 
-  const stop = async () => {
+  const cleanupPlayback = async () => {
     const participant = options.localParticipant.value
-
-    if (participant) {
-      if (localTrackPublication) {
-        try {
-          await participant.unpublishTrack(localTrackPublication.track)
-        } catch (e) {
-          console.warn("[Boombox] Failed to unpublish track:", e)
-        }
-        localTrackPublication = null
+    if (participant && localTrackPublication) {
+      try {
+        await participant.unpublishTrack(localTrackPublication.track)
+      } catch (e) {
+        console.warn("[Boombox] Failed to unpublish track:", e)
       }
-
-      await participant.setAttributes({
-        boombox_track_id: "",
-        boombox_track_name: "",
-      })
+      localTrackPublication = null
     }
 
     if (audioElement) {
@@ -143,18 +169,52 @@ export function useBoombox(options: {
       await audioContext.close()
       audioContext = null
     }
+  }
+
+  const handleTrackEnded = async () => {
+    if (playlist.value.length > 0 && options.localParticipant.value) {
+      const next = playlist.value.shift()!
+      const url = apiService.getAudioUrl(next.trackId)
+      await options.localParticipant.value.setAttributes({
+        boombox_playlist: JSON.stringify(playlist.value),
+      })
+      await play(next.trackId, next.trackName, url, { clearPlaylist: false })
+    } else {
+      await stop()
+    }
+  }
+
+  const stop = async () => {
+    await cleanupPlayback()
+
+    const participant = options.localParticipant.value
+    if (participant) {
+      await participant.setAttributes({
+        boombox_track_id: "",
+        boombox_track_name: "",
+        boombox_playlist: "",
+      })
+    }
 
     isPlaying.value = false
     currentTrackId.value = ""
     currentTrackName.value = ""
     ownerIdentity.value = ""
     ownerNickname.value = ""
+    playlist.value = []
   }
 
-  const play = async (trackId: string, trackName: string, audioUrl: string) => {
+  const play = async (
+    trackId: string,
+    trackName: string,
+    audioUrl: string,
+    playOpts?: { clearPlaylist?: boolean },
+  ) => {
     const room = options.lkRoom.value
     const participant = options.localParticipant.value
     if (!room || !participant) return
+
+    await cleanupPlayback()
 
     const ctx = new AudioContext()
     const el = document.createElement("audio")
@@ -164,13 +224,12 @@ export function useBoombox(options: {
     document.body.appendChild(el)
 
     el.src = audioUrl
-    el.addEventListener("ended", stop)
+    el.addEventListener("ended", handleTrackEnded)
 
     const source = ctx.createMediaElementSource(el)
     const dest = ctx.createMediaStreamDestination()
     source.connect(dest)
 
-    // Local spatialized monitoring — same PannerNode model as remote participants
     const panner = ctx.createPanner()
     panner.coneOuterAngle = 360
     panner.coneInnerAngle = 360
@@ -196,10 +255,18 @@ export function useBoombox(options: {
     localPanner = panner
     localMuteGain = muteGain
 
-    await participant.setAttributes({
+    const clearPlaylist = playOpts?.clearPlaylist ?? true
+    const attrs: Record<string, string> = {
       boombox_track_id: trackId,
       boombox_track_name: trackName,
-    })
+    }
+    if (clearPlaylist) {
+      attrs.boombox_playlist = ""
+      playlist.value = []
+    } else {
+      attrs.boombox_playlist = JSON.stringify(playlist.value)
+    }
+    await participant.setAttributes(attrs)
 
     currentTrackId.value = trackId
     currentTrackName.value = trackName
@@ -212,6 +279,53 @@ export function useBoombox(options: {
     const participant = options.localParticipant.value
     return isPlaying.value && participant !== null && ownerIdentity.value === participant.identity
   }
+
+  const queueTrack = (trackId: string, trackName: string) => {
+    if (amIPlaying()) {
+      playlist.value.push({ trackId, trackName })
+      options.localParticipant.value?.setAttributes({
+        boombox_playlist: JSON.stringify(playlist.value),
+      })
+    } else if (isPlaying.value) {
+      const msg = JSON.stringify({ type: "boombox_queue_add", trackId, trackName })
+      const payload = new TextEncoder().encode(msg)
+      options.lkRoom.value?.localParticipant?.publishData(payload, { reliable: true })
+    }
+  }
+
+  const skipTrack = () => {
+    if (!amIPlaying()) return
+    handleTrackEnded()
+  }
+
+  const onDataReceived = (payload: Uint8Array, participant?: Participant) => {
+    if (!participant || participant.identity === options.localParticipant.value?.identity) return
+    if (!amIPlaying()) return
+    try {
+      const msg = JSON.parse(new TextDecoder().decode(payload))
+      if (msg.type === "boombox_queue_add") {
+        playlist.value.push({ trackId: msg.trackId, trackName: msg.trackName })
+        options.localParticipant.value?.setAttributes({
+          boombox_playlist: JSON.stringify(playlist.value),
+        })
+      }
+    } catch {
+      /* ignore malformed messages */
+    }
+  }
+
+  watch(
+    () => options.lkRoom.value,
+    (room, oldRoom) => {
+      if (oldRoom) {
+        oldRoom.off(RoomEvent.DataReceived, onDataReceived)
+      }
+      if (room) {
+        room.on(RoomEvent.DataReceived, onDataReceived)
+      }
+    },
+    { immediate: true },
+  )
 
   const updateLocalSpatial = (myPos: Vector2, boomboxPos: Vector2) => {
     if (!localPanner || !localMuteGain) return
@@ -232,9 +346,12 @@ export function useBoombox(options: {
     ownerNickname,
     boomboxTrack,
     boomboxVolume,
+    playlist,
     play,
     stop,
     amIPlaying,
+    queueTrack,
+    skipTrack,
     updateLocalSpatial,
     scanRemoteParticipantsForBoombox,
     handleAttributesChanged,
