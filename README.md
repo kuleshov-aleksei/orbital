@@ -138,7 +138,9 @@ Create a `TileMapLayer` node for each layer. Naming determines how the layer is 
 | `ground` | Below characters (ground) | Floor tiles, paths — rendered on top of background-decorations |
 | `ground-decorations` | Below characters (ground) | Flowers, rocks, puddles — rendered above ground, below elevation |
 | `collision` | (invisible) | Tiles that block player movement |
-| `decorations` / `elevation` | Above characters (decoration) | Treetops, signs, lamps, elevation cliffs |
+| `decorations` | Above characters (decoration) | Treetops, signs, lamps |
+| `elevation` | Above characters | elevation cliffs |
+| `sky` | Above characters (foreground) | Cloud layers, sky elements — rendered above everything else |
 | `objects` | — | Contains Marker2D children for placed props |
 
 Layers render in scene tree order: `background` tiles first, then `ground` tiles on top, etc.

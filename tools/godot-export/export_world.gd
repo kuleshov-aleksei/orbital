@@ -63,6 +63,8 @@ func _layer_type_for_name(name: String) -> String:
 			return "ground_decorations"
 		"decorations", "elevation":
 			return "decoration"
+		"sky":
+			return "sky"
 	return ""
 
 

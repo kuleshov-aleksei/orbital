@@ -16,6 +16,7 @@ export interface TilemapRenderer {
   groundContainer: Container
   groundDecorationContainer: Container
   decorationContainer: Container
+  skyContainer: Container
   update(cameraX: number, cameraY: number, screenW: number, screenH: number, dt: number): void
   getTileTexture(sourceId: number, tileId: number): Texture | null
   destroy(): void
@@ -116,6 +117,9 @@ export async function createTilemapRenderer(
   const decorationContainer = new Container()
   decorationContainer.sortableChildren = true
 
+  const skyContainer = new Container()
+  skyContainer.sortableChildren = true
+
   const tileTextures = new Map<string, Texture[]>()
   const tileDefMap = new Map<string, TileDef>()
   const sourceCellSizes = new Map<number, number>()
@@ -211,6 +215,19 @@ export async function createTilemapRenderer(
         world.bounds.minY,
         animatedSprites,
       )
+    } else if (layer.type === "sky") {
+      const lt = layer.tileSize ?? world.tileSize
+      renderLayer(
+        skyContainer,
+        layer.data,
+        tileTextures,
+        tileDefMap,
+        lt,
+        sourceCellSizes,
+        world.bounds.minX,
+        world.bounds.minY,
+        animatedSprites,
+      )
     }
   }
 
@@ -243,6 +260,7 @@ export async function createTilemapRenderer(
     groundContainer.destroy({ children: true })
     groundDecorationContainer.destroy({ children: true })
     decorationContainer.destroy({ children: true })
+    skyContainer.destroy({ children: true })
     tileTextures.clear()
     tileDefMap.clear()
     animatedSprites.length = 0
@@ -254,6 +272,7 @@ export async function createTilemapRenderer(
     groundContainer,
     groundDecorationContainer,
     decorationContainer,
+    skyContainer,
     update,
     getTileTexture,
     destroy,

@@ -18,7 +18,7 @@ export interface WorldSource {
 
 export interface LayerData {
   name: string
-  type: "ground" | "collision" | "decoration" | "background_decorations" | "ground_decorations"
+  type: "ground" | "collision" | "decoration" | "background_decorations" | "ground_decorations" | "sky"
   tileSize: number
   data: [number, number, number, number][]
 }

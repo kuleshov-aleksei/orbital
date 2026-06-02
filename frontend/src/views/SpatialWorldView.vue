@@ -318,6 +318,7 @@ async function setupWorld() {
     worldRenderer.addTilemapGround(tilemapRenderer.groundContainer)
     worldRenderer.addTilemapGroundDecoration(tilemapRenderer.groundDecorationContainer)
     worldRenderer.addTilemapDecoration(tilemapRenderer.decorationContainer)
+    worldRenderer.addTilemapSky(tilemapRenderer.skyContainer)
 
     for (const objConfig of worldData.objects) {
       const obj = createWorldObjectSprite(objConfig, (sourceId, tileId) =>
@@ -678,6 +679,7 @@ onUnmounted(async () => {
     worldRenderer.removeTilemapGround(tilemapRenderer.groundContainer)
     worldRenderer.removeTilemapGroundDecoration(tilemapRenderer.groundDecorationContainer)
     worldRenderer.removeTilemapDecoration(tilemapRenderer.decorationContainer)
+    worldRenderer.removeTilemapSky(tilemapRenderer.skyContainer)
     tilemapRenderer.destroy()
     tilemapRenderer = null
   }

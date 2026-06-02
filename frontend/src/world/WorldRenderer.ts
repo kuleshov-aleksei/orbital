@@ -27,6 +27,8 @@ export interface WorldRenderer {
   removeTilemapGroundDecoration(container: Container): void
   addTilemapDecoration(container: Container): void
   removeTilemapDecoration(container: Container): void
+  addTilemapSky(container: Container): void
+  removeTilemapSky(container: Container): void
   addCollisionDebug(container: Container): void
   removeCollisionDebug(container: Container): void
   getCameraContainer(): Container
@@ -48,6 +50,7 @@ export function createWorldRenderer(): WorldRenderer {
   let backgroundDecorationTileLayer: Container | null = null
   let groundTileLayer: Container | null = null
   let groundDecorationTileLayer: Container | null = null
+  let skyTileLayer: Container | null = null
   let decorationTileLayer: Container | null = null
 
   const init = async (container: HTMLElement) => {
@@ -118,7 +121,9 @@ export function createWorldRenderer(): WorldRenderer {
     backgroundTileLayer = null
     backgroundDecorationTileLayer = null
     groundTileLayer = null
+    groundDecorationTileLayer = null
     decorationTileLayer = null
+    skyTileLayer = null
   }
 
   const addCharacter = (id: string, character: CharacterDisplay) => {
@@ -278,6 +283,22 @@ export function createWorldRenderer(): WorldRenderer {
     }
   }
 
+  const addTilemapSky = (container: Container) => {
+    if (skyTileLayer) {
+      cameraContainer?.removeChild(skyTileLayer)
+    }
+    skyTileLayer = container
+    skyTileLayer.zIndex = 150000
+    cameraContainer?.addChild(skyTileLayer)
+  }
+
+  const removeTilemapSky = (container: Container) => {
+    if (skyTileLayer === container) {
+      cameraContainer?.removeChild(container)
+      skyTileLayer = null
+    }
+  }
+
   const addCollisionDebug = (container: Container) => {
     container.zIndex = 200000
     cameraContainer?.addChild(container)
@@ -312,6 +333,8 @@ export function createWorldRenderer(): WorldRenderer {
     removeTilemapGroundDecoration,
     addTilemapDecoration,
     removeTilemapDecoration,
+    addTilemapSky,
+    removeTilemapSky,
     addCollisionDebug,
     removeCollisionDebug,
     getCameraContainer,
