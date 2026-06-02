@@ -132,7 +132,7 @@ func _get_or_create_source(sources: Array, source_map: Dictionary, ts: TileSet, 
 	else:
 		tex_filename = ""
 
-	var tiles = _build_tile_defs(atlas_source, tile_columns)
+	var tiles = _build_tile_defs(atlas_source, tile_columns, ts)
 
 	sources.append({
 		"id": global_source_id,
@@ -144,7 +144,7 @@ func _get_or_create_source(sources: Array, source_map: Dictionary, ts: TileSet, 
 	return global_source_id
 
 
-func _build_tile_defs(atlas: TileSetAtlasSource, tile_columns: int) -> Array:
+func _build_tile_defs(atlas: TileSetAtlasSource, tile_columns: int, tile_set: TileSet = null) -> Array:
 	var tiles = []
 	if atlas == null:
 		return tiles
@@ -161,8 +161,12 @@ func _build_tile_defs(atlas: TileSetAtlasSource, tile_columns: int) -> Array:
 		var random_offset = false
 		if atlas.has_tile(tile_coords):
 			var tile_data = atlas.get_tile_data(tile_coords, 0)
-			if tile_data != null and tile_data.has_custom_data("collidable"):
-				collidable = tile_data.get_custom_data("collidable") as bool
+			if tile_data != null:
+				if tile_data.has_custom_data("collidable"):
+					collidable = tile_data.get_custom_data("collidable") as bool
+				var physics_layers = tile_set.get_physics_layers_count() if tile_set != null else 0
+				if physics_layers > 0 and tile_data.has_method("get_collision_polygons_count") and tile_data.get_collision_polygons_count(0) > 0:
+					collidable = true
 			if atlas.has_method("get_tile_animation_mode"):
 				var mode = atlas.get_tile_animation_mode(tile_coords)
 				random_offset = mode == 1  # ANIMATION_MODE_RANDOM_START_TIMES

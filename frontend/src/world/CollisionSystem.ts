@@ -27,11 +27,11 @@ export function createCollisionSystem(world: WorldData): CollisionSystem {
     collidableBySource.set(source.id, ids)
   }
 
-  const collisionLayer = world.layers.find((l) => l.type === "collision")
-  if (collisionLayer) {
-    const sourceId = collisionLayer.sourceId ?? 0
-    const collidableIds = collidableBySource.get(sourceId) ?? new Set()
-    for (const [col, row, tileId] of collisionLayer.data) {
+  const collidableLayerTypes = new Set(["ground", "ground_decorations", "collision"])
+  for (const layer of world.layers) {
+    if (!collidableLayerTypes.has(layer.type)) continue
+    for (const [col, row, tileId, sourceId] of layer.data) {
+      const collidableIds = collidableBySource.get(sourceId) ?? new Set()
       if (collidableIds.has(tileId)) {
         solidTiles.add(col * COLS_HASH + row)
       }
