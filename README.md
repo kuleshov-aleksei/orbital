@@ -110,8 +110,11 @@ The Orbital implements a hierarchical role system:
 The Orbital features a spatial audio experience with a real-time 2D world where participants are represented as animated character sprites:
 
 - **2D world map** — shared visual space rendered with PixiJS for smooth hardware-accelerated graphics
+- **Multiple rendering layers** — background, background-decorations, ground, ground-decorations, decoration, and sky layers with distinct z-index values
 - **Animated character sprites** — 9 unique characters with directional walk animations (up/down/left/right) and idle states
+- **Animated tile sprites** — make the world alive
 - **Proximity-based voice** — audio volume attenuates based on distance between characters; users outside the earshot radius are muted
+- **Precise tile collision** — SAT-based polygon collision system with axis-separated resolution (wall sliding) and debug overlay (press `C` to toggle)
 
 ### Boombox Music System
 
@@ -125,7 +128,30 @@ A spatial music playback system that plays audio from a fixed world position:
 
 The spatial world uses a tile-based system with data exported from **Godot 4**. Each room can have its own world.
 
-Each **TileMapLayer** can use its own independent **TileSet** resource. The export script assigns each unique `(TileSet, source_id)` pair a sequential global source ID and exports its texture separately.
+The rendering pipeline uses 6 z-ordered layers: background → background-decorations → ground (where characters walk) → ground-decorations → decoration → sky.
+
+#### Multi-Tileset Support
+
+Each **TileMapLayer** can use its own independent **TileSet** resource, and a single layer can mix tiles from multiple tilesets. The export script assigns each unique `(TileSet, source_id)` pair a sequential global source ID and exports its texture separately. Each tile in the `world.json` carries its own `sourceId`, allowing tiles from different tilesets to coexist in the same layer.
+
+#### Collision System
+
+The world uses a SAT (Separating Axis Theorem) collision system with convex polygon decomposition:
+
+- **Per-tile collision** — every tile carries a per-tile `collidable` flag and optional `collisionPolygons` (array of convex polygons). Tiles on any layer can participate in collision — the system scans all layers for tiles with collision data.
+- **Physics layer polygons** — collision polygons drawn in Godot's physics layer are exported as top-left-relative points. Non-rectilinear polygons (e.g., L-shaped tiles with diagonal inner corners) are decomposed via scanline Y-slice into axis-aligned rectangles before SAT resolution.
+- **SAT resolution** — axis-separated X/Y resolution (wall sliding feel) with a final full-MTV correction pass (up to 2 iterations, minimum-penetration push).
+- **Debug overlay** — press `C` in a spatial world room to toggle a red overlay showing actual collision polygons and a green hitbox outline.
+
+#### Collision Polygon Export
+
+When a tile has collision polygons defined in Godot's physics layer, the export captures them as center-relative points and offsets them by `tile_half_px` to convert to top-left-relative. The frontend receives them as `collisionPolygons: [number, number][][]` per tile and uses them directly in SAT collision tests.
+
+Without physics layer polygons, tiles fall back to a legacy `collidable` boolean flag that generates a full-tile rectangle.
+
+#### Tile Animation
+
+Tiles can be animated using horizontal strip frames in the atlas. The export reads frame count via `get_tile_animation_frames_count()` and frame duration via `get_tile_animation_frame_duration()`. Tiles with `animation_mode = ANIMATION_MODE_RANDOM_START_TIMES` (set in Godot's `TileSetAtlasSource`) get a `randomOffset: true` flag — the frontend picks a random starting frame so adjacent tiles don't animate in sync.
 
 #### 1. Set up your Godot scene
 
@@ -143,11 +169,15 @@ Create a `TileMapLayer` node for each layer. Naming determines how the layer is 
 | `sky` | Above characters (foreground) | Cloud layers, sky elements — rendered above everything else |
 | `objects` | — | Contains Marker2D children for placed props |
 
-Layers render in scene tree order: `background` tiles first, then `ground` tiles on top, etc.
+Layers render in order: `background` → `background-decorations` → `ground` → `ground-decorations` → `decoration`/`elevation` → `sky`.
 
 **TileSet custom data layers** (define on tiles in your TileSet):
-- `collidable` (bool) — whether the tile blocks movement
+- `collidable` (bool) — whether the tile blocks movement (used when no physics collision polygons are drawn)
 - `animated` (bool) — whether the tile cycles through animation frames
+
+**To define collision polygons**: draw collision shapes on tiles in Godot's **Physics Layer 0** of the TileSet. The export automatically detects polygons and sets `collidable = true` on the tile.
+
+**To enable random animation starts**: set the TileSetAtlasSource's tile animation mode to `ANIMATION_MODE_RANDOM_START_TIMES` (value `1`) in Godot's TileSet editor.
 
 **Spawn point**: Place a `Marker2D` named `SpawnPoint` anywhere in the scene. Falls back to the center of the world if missing.
 
@@ -166,7 +196,7 @@ Layers render in scene tree order: `background` tiles first, then `ground` tiles
 ```
 
 This produces:
-- `world.json` — tile grid, collision data, object placements, spawn point, boombox position
+- `world.json` — tile grid, per-tile source IDs, collision polygons, animation data, object placements, spawn point, boombox position
 - `tileset_0.png`, `tileset_1.png`, … — one texture per unique TileSet source in the scene
 
 #### 3. Provide assets
