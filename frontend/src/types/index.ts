@@ -8,6 +8,7 @@ export interface Room {
   category: string // Category ID
   category_name?: string // Category name for display
   sort_order: number // Order within category for drag-and-drop
+  world: string // World ID for spatial_audio rooms
   users?: RoomPreviewUser[]
 }
 
@@ -116,6 +117,7 @@ export interface CreateRoomData {
   category: string
   max_users: number
   type: "voice" | "spatial_audio"
+  world?: string
 }
 
 // Room update data
@@ -124,6 +126,7 @@ export interface UpdateRoomData {
   category?: string
   max_users?: number
   type?: "voice" | "spatial_audio"
+  world?: string
 }
 
 // Join room data

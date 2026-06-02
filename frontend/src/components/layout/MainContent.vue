@@ -34,8 +34,9 @@
       :users="roomStore.currentRoomUsers"
       :remote-stream-volumes="roomStore.remoteStreamVolumes"
       :is-mobile="appStore.isMobile"
+      :world-id="roomStore.activeRoom?.world || 'default'"
       @leave-room="$emit('leave-room')"
-      @show-room-list="appStore.showRoomsView()"
+      @show-room-list="appStore.showRoomsList()"
       @toggle-user-sidebar="appStore.toggleMobileUserSidebar()" />
   </main>
 </template>

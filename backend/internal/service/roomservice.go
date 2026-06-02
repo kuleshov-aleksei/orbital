@@ -87,7 +87,7 @@ func (rs *RoomService) LoadFromDB() error {
 }
 
 // CreateRoom creates a new room
-func (rs *RoomService) CreateRoom(name, category string, maxUsers int, roomType string) (*models.Room, error) {
+func (rs *RoomService) CreateRoom(name, category string, maxUsers int, roomType string, world ...string) (*models.Room, error) {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 
@@ -105,15 +105,21 @@ func (rs *RoomService) CreateRoom(name, category string, maxUsers int, roomType 
 		roomType = "voice"
 	}
 
+	worldValue := "default"
+	if len(world) > 0 && world[0] != "" {
+		worldValue = world[0]
+	}
+
 	room := &models.Room{
 		ID:        roomID,
 		Name:      name,
-		OwnerID:   "", // Will be set when first user joins
+		OwnerID:   "",
 		MaxUsers:  maxUsers,
 		Type:      roomType,
 		CreatedAt: time.Now(),
 		Category:  category,
 		SortOrder: maxSortOrder + 1,
+		World:     worldValue,
 	}
 
 	// Save to database first
@@ -162,6 +168,7 @@ func (rs *RoomService) GetRoomsWithPreview() []models.RoomPreview {
 			CreatedAt: room.CreatedAt,
 			Category:  room.Category,
 			SortOrder: room.SortOrder,
+			World:     room.World,
 			Users:     rs.getRoomPreviewUsers(room.ID),
 		}
 
@@ -639,7 +646,7 @@ func (rs *RoomService) UpdateRoomCategory(roomID string, categoryID string) erro
 }
 
 // UpdateRoom updates a room's name, max users, and optionally category
-func (rs *RoomService) UpdateRoom(roomID string, name string, maxUsers int, categoryID string, roomType string) (*models.Room, error) {
+func (rs *RoomService) UpdateRoom(roomID string, name string, maxUsers int, categoryID string, roomType string, world ...string) (*models.Room, error) {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 
@@ -666,6 +673,9 @@ func (rs *RoomService) UpdateRoom(roomID string, name string, maxUsers int, cate
 	}
 	if roomType != "" {
 		room.Type = roomType
+	}
+	if len(world) > 0 && world[0] != "" {
+		room.World = world[0]
 	}
 
 	// Update in database

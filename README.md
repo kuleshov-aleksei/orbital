@@ -121,6 +121,71 @@ A spatial music playback system that plays audio from a fixed world position:
 - **Upload or pick** — users can upload `.mp3` / `.opus` files (max 50MB) or select from system-curated tracks
 - **Admin management** — admins can rename and delete audio files via the admin panel
 
+### Custom Worlds
+
+The spatial world uses a tile-based system with data exported from **Godot 4**. Each room can have its own world.
+
+Each **TileMapLayer** can use its own independent **TileSet** resource. The export script assigns each unique `(TileSet, source_id)` pair a sequential global source ID and exports its texture separately.
+
+#### 1. Set up your Godot scene
+
+Create a `TileMapLayer` node for each layer. Naming determines how the layer is handled:
+
+| Layer name | Render pass | Description |
+|------------|-------------|-------------|
+| `background` | Below characters (ground) | Water, space tiles, sky — rendered first |
+| `ground` | Below characters (ground) | Floor tiles, paths — rendered on top of background |
+| `collision` | (invisible) | Tiles that block player movement |
+| `decorations` / `elevation` | Above characters (decoration) | Treetops, signs, lamps, elevation cliffs |
+| `objects` | — | Contains Marker2D children for placed props |
+
+Layers render in scene tree order: `background` tiles first, then `ground` tiles on top, etc.
+
+**TileSet custom data layers** (define on tiles in your TileSet):
+- `collidable` (bool) — whether the tile blocks movement
+- `animated` (bool) — whether the tile cycles through animation frames
+
+**Spawn point**: Place a `Marker2D` named `SpawnPoint` anywhere in the scene. Falls back to the center of the world if missing.
+
+**Boombox position**: Place a `Marker2D` named `Boombox` where the boombox should appear. Falls back to `(0, -200)` if missing.
+
+**Object metadata** (on Marker2D children inside the `objects` layer):
+- `tile_id` (int) — which tileset tile ID this object uses
+- `animated` (bool) — enable frame animation
+- `collision_w` / `collision_h` (int) — collision hitbox dimensions
+
+#### 2. Run the export script
+
+```bash
+# Open your Godot 4 project, then:
+# Project > Tools > Export Orbital World
+```
+
+This produces:
+- `world.json` — tile grid, collision data, object placements, spawn point, boombox position
+- `tileset_0.png`, `tileset_1.png`, … — one texture per unique TileSet source in the scene
+
+#### 3. Provide assets
+
+Place the exported files inside `frontend/public/assets/worlds/<world_id>/`:
+
+```
+frontend/public/assets/worlds/
+├── my_world/
+│   ├── world.json
+│   ├── tileset_0.png
+│   ├── tileset_1.png
+│   └── tileset_2.png
+└── default/
+    ├── world.json       # (empty fallback, ships with the app)
+```
+
+#### 4. Assign the world to a room
+
+When creating or editing a spatial audio room, set the `world` field to your world ID (the directory name). The frontend loads `assets/worlds/<world_id>/world.json` automatically.
+
+If no `world` is specified, rooms default to `"default"`, which is an open space with a boombox and no tiles.
+
 ## Audio Processing
 
 The Orbital supports multiple noise suppression algorithms:

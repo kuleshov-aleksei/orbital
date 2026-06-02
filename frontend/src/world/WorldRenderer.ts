@@ -1,7 +1,6 @@
-import { Application, Assets, Container, Graphics, Sprite } from "pixi.js"
+import { Application, Container, Graphics } from "pixi.js"
 import type { CharacterDisplay } from "./CharacterSprite"
 import { WORLD_BACKGROUND_COLOR, BACKGROUND_Z_INDEX } from "./WorldConfig"
-import { assetPath } from "@/utils/assetPath"
 
 export interface WorldRenderer {
   init(container: HTMLElement): Promise<void>
@@ -18,6 +17,11 @@ export interface WorldRenderer {
   getScreenSize(): { width: number; height: number }
   addWorldObject(obj: Container): void
   removeWorldObject(obj: Container): void
+  addTilemapGround(container: Container): void
+  removeTilemapGround(container: Container): void
+  addTilemapDecoration(container: Container): void
+  removeTilemapDecoration(container: Container): void
+  getCameraContainer(): Container
 }
 
 export function createWorldRenderer(): WorldRenderer {
@@ -32,6 +36,8 @@ export function createWorldRenderer(): WorldRenderer {
   let cameraTarget = { x: 0, y: 0 }
   let earshotCircle: Graphics | null = null
   let fixedLayer: Container | null = null
+  let groundTileLayer: Container | null = null
+  let decorationTileLayer: Container | null = null
 
   const init = async (container: HTMLElement) => {
     app = new Application()
@@ -54,30 +60,11 @@ export function createWorldRenderer(): WorldRenderer {
     backgroundLayer.sortableChildren = true
     stage.addChild(backgroundLayer)
 
-    // Draw background
     const bg = new Graphics()
     bg.rect(-2000, -2000, 4000, 4000)
     bg.fill({ color: WORLD_BACKGROUND_COLOR })
     bg.zIndex = BACKGROUND_Z_INDEX
     backgroundLayer.addChild(bg)
-
-    // Load map texture
-    try {
-      const mapTexture = await Assets.load(assetPath("/assets/world/map.png"))
-      const mapSprite = new Sprite(mapTexture)
-      mapSprite.anchor.set(0.5, 0.5)
-      mapSprite.zIndex = BACKGROUND_Z_INDEX + 1
-      backgroundLayer.addChild(mapSprite)
-    } catch (e) {
-      console.warn("[WorldRenderer] Failed to load map texture:", e)
-    }
-
-    // Draw world boundary indicators
-    const boundary = new Graphics()
-    boundary.rect(-775, -790, 1555, 1560)
-    boundary.stroke({ width: 2, color: 0x2a2a4a })
-    boundary.zIndex = BACKGROUND_Z_INDEX + 2
-    backgroundLayer.addChild(boundary)
 
     gameLayer = new Container()
     gameLayer.sortableChildren = true
@@ -87,7 +74,6 @@ export function createWorldRenderer(): WorldRenderer {
     cameraContainer.sortableChildren = true
     gameLayer.addChild(cameraContainer)
 
-    // Earshot radius circle (behind world objects)
     earshotCircle = new Graphics()
     earshotCircle.zIndex = -1
     cameraContainer.addChild(earshotCircle)
@@ -96,7 +82,6 @@ export function createWorldRenderer(): WorldRenderer {
     uiLayer.sortableChildren = true
     stage.addChild(uiLayer)
 
-    // Fixed overlay layer (not affected by camera transform)
     fixedLayer = new Container()
     fixedLayer.sortableChildren = true
     app.stage.addChild(fixedLayer)
@@ -119,6 +104,8 @@ export function createWorldRenderer(): WorldRenderer {
     backgroundLayer = null
     uiLayer = null
     fixedLayer = null
+    groundTileLayer = null
+    decorationTileLayer = null
   }
 
   const addCharacter = (id: string, character: CharacterDisplay) => {
@@ -184,6 +171,10 @@ export function createWorldRenderer(): WorldRenderer {
     return stage!
   }
 
+  const getCameraContainer = () => {
+    return cameraContainer!
+  }
+
   const addWorldObject = (obj: Container) => {
     obj.zIndex = obj.y
     cameraContainer?.addChild(obj)
@@ -191,6 +182,38 @@ export function createWorldRenderer(): WorldRenderer {
 
   const removeWorldObject = (obj: Container) => {
     cameraContainer?.removeChild(obj)
+  }
+
+  const addTilemapGround = (container: Container) => {
+    if (groundTileLayer) {
+      cameraContainer?.removeChild(groundTileLayer)
+    }
+    groundTileLayer = container
+    groundTileLayer.zIndex = -10000
+    cameraContainer?.addChild(groundTileLayer)
+  }
+
+  const removeTilemapGround = (container: Container) => {
+    if (groundTileLayer === container) {
+      cameraContainer?.removeChild(container)
+      groundTileLayer = null
+    }
+  }
+
+  const addTilemapDecoration = (container: Container) => {
+    if (decorationTileLayer) {
+      cameraContainer?.removeChild(decorationTileLayer)
+    }
+    decorationTileLayer = container
+    decorationTileLayer.zIndex = 100000
+    cameraContainer?.addChild(decorationTileLayer)
+  }
+
+  const removeTilemapDecoration = (container: Container) => {
+    if (decorationTileLayer === container) {
+      cameraContainer?.removeChild(container)
+      decorationTileLayer = null
+    }
   }
 
   return {
@@ -208,5 +231,10 @@ export function createWorldRenderer(): WorldRenderer {
     getScreenSize,
     addWorldObject,
     removeWorldObject,
+    addTilemapGround,
+    removeTilemapGround,
+    addTilemapDecoration,
+    removeTilemapDecoration,
+    getCameraContainer,
   }
 }
