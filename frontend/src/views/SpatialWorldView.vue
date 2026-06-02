@@ -36,15 +36,6 @@
             :selected="selectedCharacter"
             @select="onSelectCharacter" />
         </div>
-
-        <!-- Prop creation (placeholder) -->
-        <button
-          type="button"
-          class="w-10 h-10 rounded-xl bg-theme-bg-secondary border border-theme-border flex items-center justify-center text-theme-text-muted/40 cursor-not-allowed transition-all duration-200"
-          title="Props (coming soon)"
-          disabled>
-          <PhMagicWand class="w-5 h-5" />
-        </button>
       </div>
 
       <!-- Click-outside overlay for picker -->
@@ -96,7 +87,7 @@ import RoomHeader from "@/components/RoomHeader.vue"
 import CharacterPicker from "@/components/CharacterPicker.vue"
 import BoomboxModal from "@/components/BoomboxModal.vue"
 import type { CharacterKey } from "@/components/CharacterPicker.vue"
-import { PhUserCircle, PhMagicWand } from "@phosphor-icons/vue"
+import { PhUserCircle } from "@phosphor-icons/vue"
 import { useLiveKit, useBoombox } from "@/composables"
 import { useSpatialPosition } from "@/composables/useSpatialPosition"
 import { useSpatialAudio } from "@/composables/useSpatialAudio"
@@ -106,13 +97,23 @@ import { createWorldRenderer } from "@/world/WorldRenderer"
 import { createCharacterSprite } from "@/world/CharacterSprite"
 import { getAnimations, getRegisteredKeys } from "@/world/ResourceManager"
 import {
-  SPAWN_POSITION,
   PLAYER_SPEED,
-  WORLD_BOUNDARIES,
   EARSHOT_RADIUS,
-  BOOMBOX_POSITION,
   BOOMBOX_INTERACT_DISTANCE,
+  PLAYER_HITBOX,
 } from "@/world/WorldConfig"
+import { loadWorld } from "@/world/WorldData"
+import type { WorldData } from "@/world/WorldTypes"
+import {
+  createCollisionSystem,
+  createCollisionDebugOverlay,
+  updateCollisionDebugOverlay,
+} from "@/world/CollisionSystem"
+import type { CollisionSystem } from "@/world/CollisionSystem"
+import { createTilemapRenderer } from "@/world/TilemapRenderer"
+import type { TilemapRenderer } from "@/world/TilemapRenderer"
+import { createWorldObjectSprite } from "@/world/WorldObjectSprite"
+import type { WorldObjectDisplay } from "@/world/WorldObjectSprite"
 import { assetPath } from "@/utils/assetPath"
 import type { User } from "@/types"
 import type { AnimationTextures } from "@/world/ResourceManager"
@@ -126,12 +127,14 @@ interface Props {
   isMobile?: boolean
   modelValueMuted?: boolean
   modelValueDeafened?: boolean
+  worldId?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isMobile: false,
   modelValueMuted: false,
   modelValueDeafened: false,
+  worldId: "default",
 })
 
 const emit = defineEmits<{
@@ -141,6 +144,7 @@ const emit = defineEmits<{
   "update:modelValueMuted": [value: boolean]
   "update:modelValueDeafened": [value: boolean]
 }>()
+
 const CHARACTER_KEY = "orbital_character"
 function loadCharacter(): CharacterKey {
   const stored = localStorage.getItem(CHARACTER_KEY)
@@ -161,7 +165,6 @@ const currentRoom = computed(() => ({
   name: props.roomName || "Spatial Room",
 }))
 
-// Initialize LiveKit
 const {
   room,
   localParticipant,
@@ -181,7 +184,6 @@ const {
   onPingUpdate: () => {},
 })
 
-// Spatial position sharing
 const spatialPosition = useSpatialPosition({
   room,
   localParticipant,
@@ -213,7 +215,7 @@ const {
 } = spatialPosition
 
 // Boombox
-const boomboxPosition = ref({ ...BOOMBOX_POSITION })
+const boomboxPosition = ref({ x: 0, y: -200 })
 const boombox = useBoombox({
   lkRoom: room,
   localParticipant,
@@ -238,7 +240,6 @@ const {
   handleAttributesChanged: handleBoomboxAttributesChanged,
 } = boombox
 
-// Spatial audio
 const spatialAudio = useSpatialAudio({
   remoteAudioTracks,
   localPosition,
@@ -249,30 +250,32 @@ const spatialAudio = useSpatialAudio({
 })
 const { initializeAudio, resumeAudio, updateAudioPositions } = spatialAudio
 
-// Game input
 const gameInput = useGameInput()
 const { direction, startListening, stopListening } = gameInput
 
-// World renderer
 const worldRenderer = createWorldRenderer()
 
-// Boombox world object
 let boomboxContainer: Container | null = null
 const showBoomboxModal = ref(false)
 let boomboxSprite: Sprite | null = null
 
-// Local character
 let localCharacterAnimations: AnimationTextures | null = null
 let localCharacterDisplay: ReturnType<typeof createCharacterSprite> | null = null
 const remoteCharacterDisplays = new Map<string, ReturnType<typeof createCharacterSprite>>()
 const cancelledCharacterCreations = new Set<string>()
 const lastRemoteFacing = new Map<string, boolean>()
 
-// Game loop (requestAnimationFrame)
+let worldData: WorldData | null = null
+let collisionSystem: CollisionSystem | null = null
+let showCollisionDebug = false
+let collisionDebugOverlay: Container | null = null
+let onKeyDown: ((e: KeyboardEvent) => void) | null = null
+let tilemapRenderer: TilemapRenderer | null = null
+const worldObjectDisplays: WorldObjectDisplay[] = []
+
 let animationFrameId: number | null = null
 let lastFrameTime = 0
 
-// Mute/deafen
 const isMuted = computed({
   get: () => props.modelValueMuted,
   set: (value) => {
@@ -289,7 +292,6 @@ const isDeafened = computed({
   },
 })
 
-// Determine animation from direction
 function getAnimation(dir: { x: number; y: number }): AnimationState {
   if (dir.x === 0 && dir.y === 0) return "idle"
   if (dir.y < 0) return "walk_up"
@@ -298,26 +300,49 @@ function getAnimation(dir: { x: number; y: number }): AnimationState {
   return "walk_right"
 }
 
-// Setup world and characters
 async function setupWorld() {
   if (!worldContainer.value) return
 
+  worldData = await loadWorld(props.worldId)
+
   await worldRenderer.init(worldContainer.value)
 
-  // Create local character
+  boomboxPosition.value = worldData.props.find((p) => p.id === "boombox") ?? { x: 0, y: -200 }
+
+  collisionSystem = createCollisionSystem(worldData)
+
+  if (worldData.sources.length > 0) {
+    tilemapRenderer = await createTilemapRenderer(props.worldId, worldData)
+    worldRenderer.addTilemapBackground(tilemapRenderer.backgroundContainer)
+    worldRenderer.addTilemapBackgroundDecoration(tilemapRenderer.backgroundDecorationContainer)
+    worldRenderer.addTilemapGround(tilemapRenderer.groundContainer)
+    worldRenderer.addTilemapGroundDecoration(tilemapRenderer.groundDecorationContainer)
+    worldRenderer.addTilemapDecoration(tilemapRenderer.decorationContainer)
+    worldRenderer.addTilemapSky(tilemapRenderer.skyContainer)
+
+    for (const objConfig of worldData.objects) {
+      const obj = createWorldObjectSprite(objConfig, (sourceId, tileId) =>
+        tilemapRenderer!.getTileTexture(sourceId, tileId),
+      )
+      worldRenderer.addWorldObject(obj.container)
+      worldObjectDisplays.push(obj)
+    }
+  }
+
   localCharacterAnimations = await getAnimations(selectedCharacter.value)
   localCharacterDisplay = createCharacterSprite(userStore.nickname, localCharacterAnimations)
 
-  // Spawn at center — use updateLocalPosition to sync internal _myPosition
-  updateLocalPosition({ ...SPAWN_POSITION })
-  localCharacterDisplay.setPosition(SPAWN_POSITION.x, SPAWN_POSITION.y)
+  const spawn = worldData.spawn
+  updateLocalPosition({ ...spawn })
+  localCharacterDisplay.setPosition(spawn.x, spawn.y)
   localCharacterDisplay.setMuted(isMuted.value)
   worldRenderer.addCharacter("local", localCharacterDisplay)
 
   // Create boombox world object
+  const bx = boomboxPosition.value
   const container = new Container()
-  container.x = BOOMBOX_POSITION.x
-  container.y = BOOMBOX_POSITION.y
+  container.x = bx.x
+  container.y = bx.y
   boomboxContainer = container
 
   try {
@@ -337,30 +362,26 @@ async function setupWorld() {
 
   worldRenderer.addWorldObject(container)
 
-  // Scan remote participants for boombox state (important for late joiners)
   scanRemoteParticipantsForBoombox()
 }
 
 async function addRemoteCharacter(id: string, nickname: string) {
   if (remoteCharacterDisplays.has(id)) return
 
-  // Use known character key from position data, fall back to "targ"
   const knownKey = remoteCharacterKeys.value.get(id) ?? "targ"
   const anims = await getAnimations(knownKey)
 
-  // Check for disconnect or character change while loading
   if (cancelledCharacterCreations.has(id)) {
     cancelledCharacterCreations.delete(id)
     return
   }
-  // Another create (from changeRemoteCharacter) may have finished while we were loading
   if (remoteCharacterDisplays.has(id)) return
 
   const display = createCharacterSprite(nickname, anims)
 
-  // Start at spawn if no position data received yet
+  const spawn = worldData?.spawn ?? { x: 10, y: 0 }
   const existingPos = remotePositions.value.get(id)
-  display.setPosition(existingPos?.x ?? SPAWN_POSITION.x, existingPos?.y ?? SPAWN_POSITION.y)
+  display.setPosition(existingPos?.x ?? spawn.x, existingPos?.y ?? spawn.y)
 
   remoteCharacterDisplays.set(id, display)
   worldRenderer.addCharacter(id, display)
@@ -374,15 +395,12 @@ function removeRemoteCharacter(id: string) {
   }
 }
 
-// Game tick with frame-rate-independent delta
 let lastFacingRight = true
 function gameTick(delta: number) {
-  if (!localCharacterDisplay) return
+  if (!localCharacterDisplay || !worldData) return
 
-  // Normalize delta to 60fps frames for consistent speed
   const frameDelta = Math.min(delta / (1000 / 60), 3)
 
-  // Process input with normalized direction (diagonal moves same speed as cardinal)
   const rawDir = direction.value
   const magnitude = Math.sqrt(rawDir.x * rawDir.x + rawDir.y * rawDir.y)
   const moving = magnitude > 0.01
@@ -390,21 +408,31 @@ function gameTick(delta: number) {
 
   if (moving) {
     const pos = localPosition.value
-    let newX = pos.x + dir.x * PLAYER_SPEED * frameDelta
-    let newY = pos.y + dir.y * PLAYER_SPEED * frameDelta
-    newX = Math.max(WORLD_BOUNDARIES.minX, Math.min(WORLD_BOUNDARIES.maxX, newX))
-    newY = Math.max(WORLD_BOUNDARIES.minY, Math.min(WORLD_BOUNDARIES.maxY, newY))
-    updateLocalPosition({ x: newX, y: newY })
+    const velocity = {
+      x: dir.x * PLAYER_SPEED * frameDelta,
+      y: dir.y * PLAYER_SPEED * frameDelta,
+    }
+    const resolved = collisionSystem
+      ? collisionSystem.resolveMovement(pos, velocity, PLAYER_HITBOX)
+      : { x: pos.x + velocity.x, y: pos.y + velocity.y }
+    updateLocalPosition(resolved)
   }
 
-  // Track last horizontal facing direction
   if (dir.x !== 0) lastFacingRight = dir.x > 0
 
-  // Update local character visuals
   localCharacterDisplay.setPosition(localPosition.value.x, localPosition.value.y)
   localCharacterDisplay.setAnimation(getAnimation(dir), lastFacingRight)
 
-  // Update remote character positions
+  if (showCollisionDebug && collisionDebugOverlay) {
+    updateCollisionDebugOverlay(
+      collisionDebugOverlay,
+      localPosition.value.x,
+      localPosition.value.y,
+      PLAYER_HITBOX.width / 2,
+      PLAYER_HITBOX.height / 2,
+    )
+  }
+
   remotePositions.value.forEach((pos, id) => {
     const display = remoteCharacterDisplays.get(id)
     if (display) {
@@ -412,33 +440,43 @@ function gameTick(delta: number) {
     }
   })
 
-  // Update camera
   worldRenderer.setCameraTarget(localPosition.value.x, localPosition.value.y)
   worldRenderer.updateCamera()
 
-  // Update earshot radius visual
   worldRenderer.updateEarshotRadius(localPosition.value.x, localPosition.value.y, EARSHOT_RADIUS)
 
-  // Update spatial audio positions
   updateAudioPositions(localPosition.value, remotePositions.value)
 
-  // Update DJ's local boombox spatialization
   if (boomboxAmIPlaying()) {
-    boomboxUpdateLocalSpatial(localPosition.value, BOOMBOX_POSITION)
+    boomboxUpdateLocalSpatial(localPosition.value, boomboxPosition.value)
   }
 
-  // Boombox proximity detection
-  const dx = localPosition.value.x - BOOMBOX_POSITION.x
-  const dy = localPosition.value.y - BOOMBOX_POSITION.y
+  const bx = boomboxPosition.value
+  const dx = localPosition.value.x - bx.x
+  const dy = localPosition.value.y - bx.y
   const distToBoombox = Math.sqrt(dx * dx + dy * dy)
   showBoomboxModal.value = distToBoombox < BOOMBOX_INTERACT_DISTANCE
 
-  // Boombox scale pulse animation
   if (boomboxSprite && boomboxIsPlaying.value) {
     const pulse = 2.0 + Math.sin(performance.now() / 300) * 0.08
     boomboxSprite.scale.set(pulse)
   } else if (boomboxSprite) {
     boomboxSprite.scale.set(2.0)
+  }
+
+  if (tilemapRenderer) {
+    const size = worldRenderer.getScreenSize()
+    tilemapRenderer.update(
+      localPosition.value.x,
+      localPosition.value.y,
+      size.width,
+      size.height,
+      delta,
+    )
+  }
+
+  for (const obj of worldObjectDisplays) {
+    obj.update(delta)
   }
 }
 
@@ -453,23 +491,21 @@ async function changeCharacter(key: CharacterKey) {
   localCharacterDisplay.setPosition(localPosition.value.x, localPosition.value.y)
   worldRenderer.addCharacter("local", localCharacterDisplay)
 
-  // Re-apply speaking state
   const lp = localParticipant.value
   if (lp) {
     localCharacterDisplay.setSpeaking(lp.isSpeaking)
   }
 
-  // Re-apply mute state
   localCharacterDisplay.setMuted(isMuted.value)
 
-  // Broadcast to other participants
   void sendCharacterChange(key)
 }
 
 async function changeRemoteCharacter(id: string, characterKey: string) {
   cancelledCharacterCreations.add(id)
 
-  const pos = remotePositions.value.get(id) ?? SPAWN_POSITION
+  const spawn = worldData?.spawn ?? { x: 10, y: 0 }
+  const pos = remotePositions.value.get(id) ?? spawn
   const user = props.users.find((u) => u.id === id)
   const nickname = user?.nickname || id
 
@@ -507,23 +543,19 @@ function handleParticipantConnected(participant: RemoteParticipant) {
   const identity = participant.identity
   const user = props.users.find((u) => u.id === identity)
   void addRemoteCharacter(identity, user?.nickname || identity).then(() => {
-    // Listen for speaking changes on this participant
     participant.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
       remoteCharacterDisplays.get(identity)?.setSpeaking(speaking)
     })
     remoteCharacterDisplays.get(identity)?.setSpeaking(participant.isSpeaking)
 
-    // Listen for mute attribute changes
     participant.on(ParticipantEvent.AttributesChanged, (changedAttributes) => {
       if ("is_muted" in changedAttributes) {
         remoteCharacterDisplays.get(identity)?.setMuted(changedAttributes.is_muted === "true")
       }
-      // Forward boombox attribute changes to boombox composable
       handleBoomboxAttributesChanged(changedAttributes, identity)
     })
     remoteCharacterDisplays.get(identity)?.setMuted(participant.attributes.is_muted === "true")
   })
-  // Broadcast our character so the new participant sees the right sprite immediately
   void sendCharacterChange(selectedCharacter.value)
 }
 
@@ -534,11 +566,21 @@ function handleParticipantDisconnected(participant: RemoteParticipant) {
   scanRemoteParticipantsForBoombox()
 }
 
+function toggleCollisionDebug() {
+  showCollisionDebug = !showCollisionDebug
+  if (showCollisionDebug && worldData && collisionDebugOverlay === null) {
+    collisionDebugOverlay = createCollisionDebugOverlay(worldData)
+    worldRenderer.addCollisionDebug(collisionDebugOverlay)
+  } else if (!showCollisionDebug && collisionDebugOverlay !== null) {
+    worldRenderer.removeCollisionDebug(collisionDebugOverlay)
+    collisionDebugOverlay.destroy({ children: true })
+    collisionDebugOverlay = null
+  }
+}
+
 onMounted(async () => {
-  // Initialize AudioContext early so connectTrack() succeeds when tracks arrive
   initializeAudio()
 
-  // Resume AudioContext on user gesture (browser autoplay policy)
   const resumeAudioOnGesture = () => {
     void resumeAudio()
     document.removeEventListener("click", resumeAudioOnGesture)
@@ -547,24 +589,26 @@ onMounted(async () => {
   document.addEventListener("click", resumeAudioOnGesture)
   document.addEventListener("touchstart", resumeAudioOnGesture)
 
+  onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "c" || e.key === "C") {
+      toggleCollisionDebug()
+    }
+  }
+  document.addEventListener("keydown", onKeyDown)
+
   await initializeLiveKit()
 
-  // Register room event listeners for future participants
   const lkRoom = room.value
   if (lkRoom) {
     lkRoom.on(RoomEvent.ParticipantConnected, handleParticipantConnected)
     lkRoom.on(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected)
   }
 
-  // Must init world BEFORE listening for remote data (cameraContainer is created in init)
   await setupWorld()
 
-  // Start position sync after world is ready — listens for incoming data
   startPositionSync()
-  // Broadcast our current character so remote participants see the right sprite
   void sendCharacterChange(selectedCharacter.value)
 
-  // Listen for local speaking indicator
   const lp = localParticipant.value
   if (lp) {
     lp.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
@@ -573,14 +617,12 @@ onMounted(async () => {
     localCharacterDisplay?.setSpeaking(lp.isSpeaking)
   }
 
-  // Now add existing participants — renderer is ready
   for (const [, participant] of remoteParticipants.value) {
     handleParticipantConnected(participant)
   }
 
   startListening()
 
-  // Start game loop with requestAnimationFrame
   lastFrameTime = performance.now()
   function frame(timestamp: number) {
     const delta = timestamp - lastFrameTime
@@ -592,20 +634,25 @@ onMounted(async () => {
 })
 
 onUnmounted(async () => {
-  // Cancel game loop
   if (animationFrameId !== null) {
     cancelAnimationFrame(animationFrameId)
     animationFrameId = null
   }
 
-  // Clean up room event listeners
+  document.removeEventListener("keydown", onKeyDown)
+
+  if (collisionDebugOverlay) {
+    worldRenderer.removeCollisionDebug(collisionDebugOverlay)
+    collisionDebugOverlay.destroy({ children: true })
+    collisionDebugOverlay = null
+  }
+
   const lkRoom = room.value
   if (lkRoom) {
     lkRoom.off(RoomEvent.ParticipantConnected, handleParticipantConnected)
     lkRoom.off(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected)
   }
 
-  // Clean up local speaking listener
   const lp = localParticipant.value
   if (lp) {
     lp.off(ParticipantEvent.IsSpeakingChanged)
@@ -621,11 +668,29 @@ onUnmounted(async () => {
     boomboxSprite = null
   }
 
-  // Stop boombox (safe to call even if not playing — guards internally)
+  for (const obj of worldObjectDisplays) {
+    obj.destroy()
+  }
+  worldObjectDisplays.length = 0
+
+  if (tilemapRenderer) {
+    worldRenderer.removeTilemapBackground(tilemapRenderer.backgroundContainer)
+    worldRenderer.removeTilemapBackgroundDecoration(tilemapRenderer.backgroundDecorationContainer)
+    worldRenderer.removeTilemapGround(tilemapRenderer.groundContainer)
+    worldRenderer.removeTilemapGroundDecoration(tilemapRenderer.groundDecorationContainer)
+    worldRenderer.removeTilemapDecoration(tilemapRenderer.decorationContainer)
+    worldRenderer.removeTilemapSky(tilemapRenderer.skyContainer)
+    tilemapRenderer.destroy()
+    tilemapRenderer = null
+  }
+
   await boomboxStop()
 
   worldRenderer.destroy()
   await cleanupLiveKit()
+
+  worldData = null
+  collisionSystem = null
 })
 </script>
 

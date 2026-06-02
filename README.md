@@ -110,8 +110,11 @@ The Orbital implements a hierarchical role system:
 The Orbital features a spatial audio experience with a real-time 2D world where participants are represented as animated character sprites:
 
 - **2D world map** — shared visual space rendered with PixiJS for smooth hardware-accelerated graphics
+- **Multiple rendering layers** — background, background-decorations, ground, ground-decorations, decoration, and sky layers with distinct z-index values
 - **Animated character sprites** — 9 unique characters with directional walk animations (up/down/left/right) and idle states
+- **Animated tile sprites** — make the world alive
 - **Proximity-based voice** — audio volume attenuates based on distance between characters; users outside the earshot radius are muted
+- **Precise tile collision** — SAT-based polygon collision system with axis-separated resolution (wall sliding) and debug overlay (press `C` to toggle)
 
 ### Boombox Music System
 
@@ -120,6 +123,102 @@ A spatial music playback system that plays audio from a fixed world position:
 - **In-world boombox** — a boombox sprite placed on the map plays audio to nearby users with spatialized audio
 - **Upload or pick** — users can upload `.mp3` / `.opus` files (max 50MB) or select from system-curated tracks
 - **Admin management** — admins can rename and delete audio files via the admin panel
+
+### Custom Worlds
+
+The spatial world uses a tile-based system with data exported from **Godot 4**. Each room can have its own world.
+
+The rendering pipeline uses 6 z-ordered layers: background → background-decorations → ground (where characters walk) → ground-decorations → decoration → sky.
+
+#### Multi-Tileset Support
+
+Each **TileMapLayer** can use its own independent **TileSet** resource, and a single layer can mix tiles from multiple tilesets. The export script assigns each unique `(TileSet, source_id)` pair a sequential global source ID and exports its texture separately. Each tile in the `world.json` carries its own `sourceId`, allowing tiles from different tilesets to coexist in the same layer.
+
+#### Collision System
+
+The world uses a SAT (Separating Axis Theorem) collision system with convex polygon decomposition:
+
+- **Per-tile collision** — every tile carries a per-tile `collidable` flag and optional `collisionPolygons` (array of convex polygons). Tiles on any layer can participate in collision — the system scans all layers for tiles with collision data.
+- **Physics layer polygons** — collision polygons drawn in Godot's physics layer are exported as top-left-relative points. Non-rectilinear polygons (e.g., L-shaped tiles with diagonal inner corners) are decomposed via scanline Y-slice into axis-aligned rectangles before SAT resolution.
+- **SAT resolution** — axis-separated X/Y resolution (wall sliding feel) with a final full-MTV correction pass (up to 2 iterations, minimum-penetration push).
+- **Debug overlay** — press `C` in a spatial world room to toggle a red overlay showing actual collision polygons and a green hitbox outline.
+
+#### Collision Polygon Export
+
+When a tile has collision polygons defined in Godot's physics layer, the export captures them as center-relative points and offsets them by `tile_half_px` to convert to top-left-relative. The frontend receives them as `collisionPolygons: [number, number][][]` per tile and uses them directly in SAT collision tests.
+
+Without physics layer polygons, tiles fall back to a legacy `collidable` boolean flag that generates a full-tile rectangle.
+
+#### Tile Animation
+
+Tiles can be animated using horizontal strip frames in the atlas. The export reads frame count via `get_tile_animation_frames_count()` and frame duration via `get_tile_animation_frame_duration()`. Tiles with `animation_mode = ANIMATION_MODE_RANDOM_START_TIMES` (set in Godot's `TileSetAtlasSource`) get a `randomOffset: true` flag — the frontend picks a random starting frame so adjacent tiles don't animate in sync.
+
+#### 1. Set up your Godot scene
+
+Create a `TileMapLayer` node for each layer. Naming determines how the layer is handled:
+
+| Layer name | Render pass | Description |
+|------------|-------------|-------------|
+| `background` | Below characters (ground) | Water, space tiles, sky — rendered first |
+| `background-decorations` | Below characters (ground) | Animated foam, water edge details — on top of background, below ground |
+| `ground` | Below characters (ground) | Floor tiles, paths — rendered on top of background-decorations |
+| `ground-decorations` | Below characters (ground) | Flowers, rocks, puddles — rendered above ground, below elevation |
+| `collision` | (invisible) | Tiles that block player movement |
+| `decorations` | Above characters (decoration) | Treetops, signs, lamps |
+| `elevation` | Above characters | elevation cliffs |
+| `sky` | Above characters (foreground) | Cloud layers, sky elements — rendered above everything else |
+| `objects` | — | Contains Marker2D children for placed props |
+
+Layers render in order: `background` → `background-decorations` → `ground` → `ground-decorations` → `decoration`/`elevation` → `sky`.
+
+**TileSet custom data layers** (define on tiles in your TileSet):
+- `collidable` (bool) — whether the tile blocks movement (used when no physics collision polygons are drawn)
+- `animated` (bool) — whether the tile cycles through animation frames
+
+**To define collision polygons**: draw collision shapes on tiles in Godot's **Physics Layer 0** of the TileSet. The export automatically detects polygons and sets `collidable = true` on the tile.
+
+**To enable random animation starts**: set the TileSetAtlasSource's tile animation mode to `ANIMATION_MODE_RANDOM_START_TIMES` (value `1`) in Godot's TileSet editor.
+
+**Spawn point**: Place a `Marker2D` named `SpawnPoint` anywhere in the scene. Falls back to the center of the world if missing.
+
+**Boombox position**: Place a `Marker2D` named `Boombox` where the boombox should appear. Falls back to `(0, -200)` if missing.
+
+**Object metadata** (on Marker2D children inside the `objects` layer):
+- `tile_id` (int) — which tileset tile ID this object uses
+- `animated` (bool) — enable frame animation
+- `collision_w` / `collision_h` (int) — collision hitbox dimensions
+
+#### 2. Run the export script
+
+```bash
+# Open your Godot 4 project, then:
+# Project > Tools > Export Orbital World
+```
+
+This produces:
+- `world.json` — tile grid, per-tile source IDs, collision polygons, animation data, object placements, spawn point, boombox position
+- `tileset_0.png`, `tileset_1.png`, … — one texture per unique TileSet source in the scene
+
+#### 3. Provide assets
+
+Place the exported files inside `frontend/public/assets/worlds/<world_id>/`:
+
+```
+frontend/public/assets/worlds/
+├── my_world/
+│   ├── world.json
+│   ├── tileset_0.png
+│   ├── tileset_1.png
+│   └── tileset_2.png
+└── default/
+    ├── world.json       # (empty fallback, ships with the app)
+```
+
+#### 4. Assign the world to a room
+
+When creating or editing a spatial audio room, set the `world` field to your world ID (the directory name). The frontend loads `assets/worlds/<world_id>/world.json` automatically.
+
+If no `world` is specified, rooms default to `"default"`, which is an open space with a boombox and no tiles.
 
 ## Audio Processing
 

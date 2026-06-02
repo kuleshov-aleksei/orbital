@@ -90,7 +90,7 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	room, err := h.roomService.CreateRoom(req.Name, categoryID, req.MaxUsers, req.Type)
+	room, err := h.roomService.CreateRoom(req.Name, categoryID, req.MaxUsers, req.Type, req.World)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -116,6 +116,7 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 		"category":      room.Category,
 		"category_name": categoryName,
 		"sort_order":    room.SortOrder,
+		"world":         room.World,
 	}
 
 	// Broadcast room creation to all connected clients
@@ -334,7 +335,7 @@ func (h *RoomHandler) UpdateRoom(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	room, err := h.roomService.UpdateRoom(roomID, req.Name, req.MaxUsers, categoryID, req.Type)
+	room, err := h.roomService.UpdateRoom(roomID, req.Name, req.MaxUsers, categoryID, req.Type, req.World)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

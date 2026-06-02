@@ -12,6 +12,8 @@
     :title="modalStore.modalTitle"
     :initial-name="modalStore.modalData.roomName || ''"
     :initial-max-users="modalStore.modalData.roomMaxUsers || 10"
+    :initial-type="modalStore.modalData.roomType || 'voice'"
+    :initial-world="modalStore.modalData.roomWorld || 'default'"
     @close="modalStore.closeModal()"
     @submit="handleEditRoom" />
 
@@ -71,15 +73,16 @@ const handleCreateRoom = async (
   category: string,
   maxUsers: number,
   roomType: string,
+  world: string,
 ) => {
-  await roomManager.createRoom(roomName, category, maxUsers, roomType)
+  await roomManager.createRoom(roomName, category, maxUsers, roomType, world)
   modalStore.closeModal()
 }
 
-const handleEditRoom = async (name: string, maxUsers: number) => {
+const handleEditRoom = async (name: string, maxUsers: number, world: string) => {
   const roomId = modalStore.modalData.roomId
   if (roomId) {
-    await roomManager.updateRoom(roomId, name, maxUsers)
+    await roomManager.updateRoom(roomId, name, maxUsers, world)
     modalStore.closeModal()
   }
 }

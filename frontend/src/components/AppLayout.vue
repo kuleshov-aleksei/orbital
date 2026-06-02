@@ -149,8 +149,20 @@ const handleMoveRoom = async (payload: { roomId: string; targetCategoryId: strin
   await roomManager.moveRoomToCategory(payload.roomId, payload.targetCategoryId)
 }
 
-const handleEditRoom = (payload: { roomId: string; roomName: string; maxUsers: number }) => {
-  modalManager.openEditRoomModal(payload.roomId, payload.roomName, payload.maxUsers)
+const handleEditRoom = (payload: {
+  roomId: string
+  roomName: string
+  maxUsers: number
+  type: string
+  world: string
+}) => {
+  modalManager.openEditRoomModal(
+    payload.roomId,
+    payload.roomName,
+    payload.maxUsers,
+    payload.type,
+    payload.world,
+  )
 }
 
 const handleDeleteRoom = (payload: { roomId: string; roomName: string; userCount: number }) => {

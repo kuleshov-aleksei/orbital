@@ -16,6 +16,8 @@ export interface ModalData {
   roomName?: string
   roomUserCount?: number
   roomMaxUsers?: number
+  roomType?: string
+  roomWorld?: string
   categoryId?: string
   categoryName?: string
   categoryRoomCount?: number
@@ -94,8 +96,14 @@ export const useModalStore = defineStore("modal", () => {
     openModal("createRoom")
   }
 
-  function openEditRoomModal(roomId: string, roomName: string, maxUsers: number) {
-    openModal("editRoom", { roomId, roomName, roomMaxUsers: maxUsers })
+  function openEditRoomModal(
+    roomId: string,
+    roomName: string,
+    maxUsers: number,
+    roomType: string = "voice",
+    roomWorld: string = "default",
+  ) {
+    openModal("editRoom", { roomId, roomName, roomMaxUsers: maxUsers, roomType, roomWorld })
   }
 
   function openDeleteRoomModal(roomId: string, roomName: string, userCount: number) {

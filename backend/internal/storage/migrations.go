@@ -147,6 +147,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_original_nickname_provider ON users(
 CREATE INDEX IF NOT EXISTS idx_audio_files_uploaded_by ON audio_files(uploaded_by);
 CREATE INDEX IF NOT EXISTS idx_audio_files_is_system ON audio_files(is_system);`,
 	},
+	{
+		Version: 17,
+		Name:    "add_world_to_rooms",
+		SQL:     `ALTER TABLE rooms ADD COLUMN world TEXT NOT NULL DEFAULT 'default';`,
+	},
 }
 
 func (db *DB) RunMigrations() error {

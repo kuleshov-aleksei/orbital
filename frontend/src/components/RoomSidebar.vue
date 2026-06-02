@@ -339,7 +339,9 @@ const emit = defineEmits<{
   "rename-category": [payload: { categoryId: string; categoryName: string }]
   "delete-category": [payload: { categoryId: string; categoryName: string }]
   "move-room": [payload: { roomId: string; targetCategoryId: string }]
-  "edit-room": [payload: { roomId: string; roomName: string; maxUsers: number }]
+  "edit-room": [
+    payload: { roomId: string; roomName: string; maxUsers: number; type: string; world: string },
+  ]
   "delete-room": [payload: { roomId: string; roomName: string; userCount: number }]
   "close-mobile-sidebar": []
   "room-order-updated": [payload: { orders: Record<string, number> }]
@@ -608,6 +610,8 @@ const handleEditRoom = () => {
       roomId: roomContextMenu.value.room.id,
       roomName: roomContextMenu.value.room.name,
       maxUsers: roomContextMenu.value.room.max_users,
+      type: roomContextMenu.value.room.type,
+      world: roomContextMenu.value.room.world,
     })
   }
   closeRoomContextMenu()

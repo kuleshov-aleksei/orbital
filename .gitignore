@@ -254,5 +254,5 @@ electron/dist-electron/
 electron/release/
 !electron/build/
 
-LATEST_RELEASE.md
+#LATEST_RELEASE.md
 ISSUES.md

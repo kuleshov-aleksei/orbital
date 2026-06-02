@@ -1,7 +1,6 @@
-import { Application, Assets, Container, Graphics, Sprite } from "pixi.js"
+import { Application, Container, Graphics } from "pixi.js"
 import type { CharacterDisplay } from "./CharacterSprite"
 import { WORLD_BACKGROUND_COLOR, BACKGROUND_Z_INDEX } from "./WorldConfig"
-import { assetPath } from "@/utils/assetPath"
 
 export interface WorldRenderer {
   init(container: HTMLElement): Promise<void>
@@ -18,6 +17,21 @@ export interface WorldRenderer {
   getScreenSize(): { width: number; height: number }
   addWorldObject(obj: Container): void
   removeWorldObject(obj: Container): void
+  addTilemapBackground(container: Container): void
+  removeTilemapBackground(container: Container): void
+  addTilemapBackgroundDecoration(container: Container): void
+  removeTilemapBackgroundDecoration(container: Container): void
+  addTilemapGround(container: Container): void
+  removeTilemapGround(container: Container): void
+  addTilemapGroundDecoration(container: Container): void
+  removeTilemapGroundDecoration(container: Container): void
+  addTilemapDecoration(container: Container): void
+  removeTilemapDecoration(container: Container): void
+  addTilemapSky(container: Container): void
+  removeTilemapSky(container: Container): void
+  addCollisionDebug(container: Container): void
+  removeCollisionDebug(container: Container): void
+  getCameraContainer(): Container
 }
 
 export function createWorldRenderer(): WorldRenderer {
@@ -32,6 +46,12 @@ export function createWorldRenderer(): WorldRenderer {
   let cameraTarget = { x: 0, y: 0 }
   let earshotCircle: Graphics | null = null
   let fixedLayer: Container | null = null
+  let backgroundTileLayer: Container | null = null
+  let backgroundDecorationTileLayer: Container | null = null
+  let groundTileLayer: Container | null = null
+  let groundDecorationTileLayer: Container | null = null
+  let skyTileLayer: Container | null = null
+  let decorationTileLayer: Container | null = null
 
   const init = async (container: HTMLElement) => {
     app = new Application()
@@ -54,30 +74,11 @@ export function createWorldRenderer(): WorldRenderer {
     backgroundLayer.sortableChildren = true
     stage.addChild(backgroundLayer)
 
-    // Draw background
     const bg = new Graphics()
     bg.rect(-2000, -2000, 4000, 4000)
     bg.fill({ color: WORLD_BACKGROUND_COLOR })
     bg.zIndex = BACKGROUND_Z_INDEX
     backgroundLayer.addChild(bg)
-
-    // Load map texture
-    try {
-      const mapTexture = await Assets.load(assetPath("/assets/world/map.png"))
-      const mapSprite = new Sprite(mapTexture)
-      mapSprite.anchor.set(0.5, 0.5)
-      mapSprite.zIndex = BACKGROUND_Z_INDEX + 1
-      backgroundLayer.addChild(mapSprite)
-    } catch (e) {
-      console.warn("[WorldRenderer] Failed to load map texture:", e)
-    }
-
-    // Draw world boundary indicators
-    const boundary = new Graphics()
-    boundary.rect(-775, -790, 1555, 1560)
-    boundary.stroke({ width: 2, color: 0x2a2a4a })
-    boundary.zIndex = BACKGROUND_Z_INDEX + 2
-    backgroundLayer.addChild(boundary)
 
     gameLayer = new Container()
     gameLayer.sortableChildren = true
@@ -87,7 +88,6 @@ export function createWorldRenderer(): WorldRenderer {
     cameraContainer.sortableChildren = true
     gameLayer.addChild(cameraContainer)
 
-    // Earshot radius circle (behind world objects)
     earshotCircle = new Graphics()
     earshotCircle.zIndex = -1
     cameraContainer.addChild(earshotCircle)
@@ -96,7 +96,6 @@ export function createWorldRenderer(): WorldRenderer {
     uiLayer.sortableChildren = true
     stage.addChild(uiLayer)
 
-    // Fixed overlay layer (not affected by camera transform)
     fixedLayer = new Container()
     fixedLayer.sortableChildren = true
     app.stage.addChild(fixedLayer)
@@ -119,6 +118,12 @@ export function createWorldRenderer(): WorldRenderer {
     backgroundLayer = null
     uiLayer = null
     fixedLayer = null
+    backgroundTileLayer = null
+    backgroundDecorationTileLayer = null
+    groundTileLayer = null
+    groundDecorationTileLayer = null
+    decorationTileLayer = null
+    skyTileLayer = null
   }
 
   const addCharacter = (id: string, character: CharacterDisplay) => {
@@ -184,6 +189,10 @@ export function createWorldRenderer(): WorldRenderer {
     return stage!
   }
 
+  const getCameraContainer = () => {
+    return cameraContainer!
+  }
+
   const addWorldObject = (obj: Container) => {
     obj.zIndex = obj.y
     cameraContainer?.addChild(obj)
@@ -191,6 +200,112 @@ export function createWorldRenderer(): WorldRenderer {
 
   const removeWorldObject = (obj: Container) => {
     cameraContainer?.removeChild(obj)
+  }
+
+  const addTilemapBackground = (container: Container) => {
+    if (backgroundTileLayer) {
+      cameraContainer?.removeChild(backgroundTileLayer)
+    }
+    backgroundTileLayer = container
+    backgroundTileLayer.zIndex = -20000
+    cameraContainer?.addChild(backgroundTileLayer)
+  }
+
+  const removeTilemapBackground = (container: Container) => {
+    if (backgroundTileLayer === container) {
+      cameraContainer?.removeChild(container)
+      backgroundTileLayer = null
+    }
+  }
+
+  const addTilemapBackgroundDecoration = (container: Container) => {
+    if (backgroundDecorationTileLayer) {
+      cameraContainer?.removeChild(backgroundDecorationTileLayer)
+    }
+    backgroundDecorationTileLayer = container
+    backgroundDecorationTileLayer.zIndex = -15000
+    cameraContainer?.addChild(backgroundDecorationTileLayer)
+  }
+
+  const removeTilemapBackgroundDecoration = (container: Container) => {
+    if (backgroundDecorationTileLayer === container) {
+      cameraContainer?.removeChild(container)
+      backgroundDecorationTileLayer = null
+    }
+  }
+
+  const addTilemapGround = (container: Container) => {
+    if (groundTileLayer) {
+      cameraContainer?.removeChild(groundTileLayer)
+    }
+    groundTileLayer = container
+    groundTileLayer.zIndex = -10000
+    cameraContainer?.addChild(groundTileLayer)
+  }
+
+  const removeTilemapGround = (container: Container) => {
+    if (groundTileLayer === container) {
+      cameraContainer?.removeChild(container)
+      groundTileLayer = null
+    }
+  }
+
+  const addTilemapGroundDecoration = (container: Container) => {
+    if (groundDecorationTileLayer) {
+      cameraContainer?.removeChild(groundDecorationTileLayer)
+    }
+    groundDecorationTileLayer = container
+    groundDecorationTileLayer.zIndex = 0
+    cameraContainer?.addChild(groundDecorationTileLayer)
+  }
+
+  const removeTilemapGroundDecoration = (container: Container) => {
+    if (groundDecorationTileLayer === container) {
+      cameraContainer?.removeChild(container)
+      groundDecorationTileLayer = null
+    }
+  }
+
+  const addTilemapDecoration = (container: Container) => {
+    if (decorationTileLayer) {
+      cameraContainer?.removeChild(decorationTileLayer)
+    }
+    decorationTileLayer = container
+    decorationTileLayer.zIndex = 100000
+    cameraContainer?.addChild(decorationTileLayer)
+  }
+
+  const removeTilemapDecoration = (container: Container) => {
+    if (decorationTileLayer === container) {
+      cameraContainer?.removeChild(container)
+      groundDecorationTileLayer = null
+      decorationTileLayer = null
+    }
+  }
+
+  const addTilemapSky = (container: Container) => {
+    if (skyTileLayer) {
+      cameraContainer?.removeChild(skyTileLayer)
+    }
+    skyTileLayer = container
+    skyTileLayer.zIndex = 150000
+    cameraContainer?.addChild(skyTileLayer)
+  }
+
+  const removeTilemapSky = (container: Container) => {
+    if (skyTileLayer === container) {
+      cameraContainer?.removeChild(container)
+      skyTileLayer = null
+    }
+  }
+
+  const addCollisionDebug = (container: Container) => {
+    container.zIndex = 200000
+    cameraContainer?.addChild(container)
+  }
+
+  const removeCollisionDebug = (container: Container) => {
+    cameraContainer?.removeChild(container)
   }
 
   return {
@@ -208,5 +323,20 @@ export function createWorldRenderer(): WorldRenderer {
     getScreenSize,
     addWorldObject,
     removeWorldObject,
+    addTilemapBackground,
+    removeTilemapBackground,
+    addTilemapBackgroundDecoration,
+    removeTilemapBackgroundDecoration,
+    addTilemapGround,
+    removeTilemapGround,
+    addTilemapGroundDecoration,
+    removeTilemapGroundDecoration,
+    addTilemapDecoration,
+    removeTilemapDecoration,
+    addTilemapSky,
+    removeTilemapSky,
+    addCollisionDebug,
+    removeCollisionDebug,
+    getCameraContainer,
   }
 }
