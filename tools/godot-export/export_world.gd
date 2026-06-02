@@ -27,7 +27,7 @@ func _run():
 	var world = _build_world(tile_layers, root, output_dir)
 
 	var json_path = output_dir.path_join("world.json")
-	var json_string = JSON.new().stringify(world, "\t", false, true)
+	var json_string = JSON.new().stringify(world, "", false, true)
 	var file = FileAccess.open(json_path, FileAccess.WRITE)
 	if file:
 		file.store_string(json_string)
