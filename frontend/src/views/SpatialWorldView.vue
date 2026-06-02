@@ -309,6 +309,7 @@ async function setupWorld() {
     worldRenderer.addTilemapBackground(tilemapRenderer.backgroundContainer)
     worldRenderer.addTilemapBackgroundDecoration(tilemapRenderer.backgroundDecorationContainer)
     worldRenderer.addTilemapGround(tilemapRenderer.groundContainer)
+    worldRenderer.addTilemapGroundDecoration(tilemapRenderer.groundDecorationContainer)
     worldRenderer.addTilemapDecoration(tilemapRenderer.decorationContainer)
 
     for (const objConfig of worldData.objects) {
@@ -631,6 +632,7 @@ onUnmounted(async () => {
     worldRenderer.removeTilemapBackground(tilemapRenderer.backgroundContainer)
     worldRenderer.removeTilemapBackgroundDecoration(tilemapRenderer.backgroundDecorationContainer)
     worldRenderer.removeTilemapGround(tilemapRenderer.groundContainer)
+    worldRenderer.removeTilemapGroundDecoration(tilemapRenderer.groundDecorationContainer)
     worldRenderer.removeTilemapDecoration(tilemapRenderer.decorationContainer)
     tilemapRenderer.destroy()
     tilemapRenderer = null

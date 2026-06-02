@@ -59,6 +59,8 @@ func _layer_type_for_name(name: String) -> String:
 			return "background_decorations"
 		"collision":
 			return "collision"
+		"ground-decorations":
+			return "ground_decorations"
 		"decorations", "elevation":
 			return "decoration"
 	return ""
@@ -227,26 +229,23 @@ func _build_world(layers: Array, root: Node, output_dir: String) -> Dictionary:
 
 		tile_size = ts.tile_size.x
 
-		var local_source_id = _detect_layer_source_id(layer)
-		var global_source_id = _get_or_create_source(sources, source_map, ts, local_source_id, output_dir, tile_size)
-		if global_source_id < 0:
-			continue
-
-		var source_entry = _find_source_entry(sources, global_source_id)
-		var tile_columns = source_entry.tileColumns
-
 		var data = []
 		for cell_coords in layer.get_used_cells():
+			var local_source_id = layer.get_cell_source_id(cell_coords)
 			var atlas_coords = layer.get_cell_atlas_coords(cell_coords)
 			var alt = layer.get_cell_alternative_tile(cell_coords)
 			if alt == 0 and atlas_coords != Vector2i(-1, -1):
+				var global_source_id = _get_or_create_source(sources, source_map, ts, local_source_id, output_dir, tile_size)
+				if global_source_id < 0:
+					continue
+				var source_entry = _find_source_entry(sources, global_source_id)
+				var tile_columns = source_entry.tileColumns
 				var tile_id = atlas_coords.y * tile_columns + atlas_coords.x
-				data.append([cell_coords.x, cell_coords.y, tile_id])
+				data.append([cell_coords.x, cell_coords.y, tile_id, global_source_id])
 
 		json_layers.append({
 			"name": layer_name,
 			"type": layer_type,
-			"sourceId": global_source_id,
 			"data": data,
 		})
 

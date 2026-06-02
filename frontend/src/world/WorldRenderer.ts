@@ -23,6 +23,8 @@ export interface WorldRenderer {
   removeTilemapBackgroundDecoration(container: Container): void
   addTilemapGround(container: Container): void
   removeTilemapGround(container: Container): void
+  addTilemapGroundDecoration(container: Container): void
+  removeTilemapGroundDecoration(container: Container): void
   addTilemapDecoration(container: Container): void
   removeTilemapDecoration(container: Container): void
   getCameraContainer(): Container
@@ -43,6 +45,7 @@ export function createWorldRenderer(): WorldRenderer {
   let backgroundTileLayer: Container | null = null
   let backgroundDecorationTileLayer: Container | null = null
   let groundTileLayer: Container | null = null
+  let groundDecorationTileLayer: Container | null = null
   let decorationTileLayer: Container | null = null
 
   const init = async (container: HTMLElement) => {
@@ -240,6 +243,22 @@ export function createWorldRenderer(): WorldRenderer {
     }
   }
 
+  const addTilemapGroundDecoration = (container: Container) => {
+    if (groundDecorationTileLayer) {
+      cameraContainer?.removeChild(groundDecorationTileLayer)
+    }
+    groundDecorationTileLayer = container
+    groundDecorationTileLayer.zIndex = 0
+    cameraContainer?.addChild(groundDecorationTileLayer)
+  }
+
+  const removeTilemapGroundDecoration = (container: Container) => {
+    if (groundDecorationTileLayer === container) {
+      cameraContainer?.removeChild(container)
+      groundDecorationTileLayer = null
+    }
+  }
+
   const addTilemapDecoration = (container: Container) => {
     if (decorationTileLayer) {
       cameraContainer?.removeChild(decorationTileLayer)
@@ -252,7 +271,8 @@ export function createWorldRenderer(): WorldRenderer {
   const removeTilemapDecoration = (container: Container) => {
     if (decorationTileLayer === container) {
       cameraContainer?.removeChild(container)
-      decorationTileLayer = null
+    groundDecorationTileLayer = null
+    decorationTileLayer = null
     }
   }
 
@@ -277,6 +297,8 @@ export function createWorldRenderer(): WorldRenderer {
     removeTilemapBackgroundDecoration,
     addTilemapGround,
     removeTilemapGround,
+    addTilemapGroundDecoration,
+    removeTilemapGroundDecoration,
     addTilemapDecoration,
     removeTilemapDecoration,
     getCameraContainer,

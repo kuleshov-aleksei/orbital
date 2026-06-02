@@ -15,9 +15,8 @@ export interface WorldSource {
 
 export interface LayerData {
   name: string
-  type: "ground" | "collision" | "decoration" | "background_decorations"
-  sourceId?: number
-  data: [number, number, number][]
+  type: "ground" | "collision" | "decoration" | "background_decorations" | "ground_decorations"
+  data: [number, number, number, number][]
 }
 
 export interface WorldObjectData {

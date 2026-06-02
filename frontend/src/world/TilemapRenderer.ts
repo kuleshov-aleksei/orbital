@@ -14,6 +14,7 @@ export interface TilemapRenderer {
   backgroundContainer: Container
   backgroundDecorationContainer: Container
   groundContainer: Container
+  groundDecorationContainer: Container
   decorationContainer: Container
   update(cameraX: number, cameraY: number, screenW: number, screenH: number, dt: number): void
   getTileTexture(sourceId: number, tileId: number): Texture | null
@@ -50,22 +51,21 @@ function getTileTextures(
 
 function renderLayer(
   container: Container,
-  layerData: [number, number, number][],
+  layerData: [number, number, number, number][],
   tileTextures: Map<string, Texture[]>,
   tileDefMap: Map<string, TileDef>,
   tileSize: number,
-  sourceId: number,
-  cellSize: number,
+  cellSizes: Map<number, number>,
   boundsMinX: number,
   boundsMinY: number,
   animatedSprites: AnimatedSpriteState[],
   zIndexOffset: number = 0,
 ): void {
-  const prefix = `${sourceId}:`
   let rendered = 0
   let skipped = 0
-  for (const [col, row, tileId] of layerData) {
-    const key = prefix + tileId
+  for (const [col, row, tileId, sourceId] of layerData) {
+    const cellSize = cellSizes.get(sourceId) ?? tileSize
+    const key = `${sourceId}:${tileId}`
     const textures = tileTextures.get(key)
     if (!textures || textures.length === 0) {
       skipped++
@@ -90,7 +90,9 @@ function renderLayer(
       })
     }
   }
-  console.log(`[TilemapRenderer] renderLayer(source=${sourceId}): ${rendered} sprites created, ${skipped} skipped (no texture)`)
+  if (rendered > 0 || skipped > 0) {
+    console.log(`[TilemapRenderer] renderLayer: ${rendered} sprites created, ${skipped} skipped (no texture)`)
+  }
 }
 
 export async function createTilemapRenderer(
@@ -105,6 +107,9 @@ export async function createTilemapRenderer(
 
   const groundContainer = new Container()
   groundContainer.sortableChildren = true
+
+  const groundDecorationContainer = new Container()
+  groundDecorationContainer.sortableChildren = true
 
   const decorationContainer = new Container()
   decorationContainer.sortableChildren = true
@@ -150,47 +155,52 @@ export async function createTilemapRenderer(
   console.log(`[TilemapRenderer] tileTextures has ${tileTextures.size} entries, tileDefMap has ${tileDefMap.size} entries`)
 
   for (const layer of world.layers) {
-    const sourceId = layer.sourceId ?? 0
-    const cellSize = sourceCellSizes.get(sourceId) ?? tileSize
+    if (layer.data.length === 0) continue
     if (layer.type === "ground") {
       const target = layer.name === "background" ? backgroundContainer : groundContainer
-      console.log(`[TilemapRenderer] Rendering "${layer.name}" into ${layer.name === 'background' ? 'background' : 'ground'} container: sourceId=${sourceId}, ${layer.data.length} cells`)
       renderLayer(
         target,
         layer.data,
         tileTextures,
         tileDefMap,
         tileSize,
-        sourceId,
-        cellSize,
+        sourceCellSizes,
         world.bounds.minX,
         world.bounds.minY,
         animatedSprites,
       )
     } else if (layer.type === "background_decorations") {
-      console.log(`[TilemapRenderer] Rendering background decoration layer "${layer.name}": sourceId=${sourceId}, ${layer.data.length} cells`)
       renderLayer(
         backgroundDecorationContainer,
         layer.data,
         tileTextures,
         tileDefMap,
         tileSize,
-        sourceId,
-        cellSize,
+        sourceCellSizes,
+        world.bounds.minX,
+        world.bounds.minY,
+        animatedSprites,
+      )
+    } else if (layer.type === "ground_decorations") {
+      renderLayer(
+        groundDecorationContainer,
+        layer.data,
+        tileTextures,
+        tileDefMap,
+        tileSize,
+        sourceCellSizes,
         world.bounds.minX,
         world.bounds.minY,
         animatedSprites,
       )
     } else if (layer.type === "decoration") {
-      console.log(`[TilemapRenderer] Rendering decoration layer "${layer.name}": sourceId=${sourceId}, ${layer.data.length} cells`)
       renderLayer(
         decorationContainer,
         layer.data,
         tileTextures,
         tileDefMap,
         tileSize,
-        sourceId,
-        cellSize,
+        sourceCellSizes,
         world.bounds.minX,
         world.bounds.minY,
         animatedSprites,
@@ -225,6 +235,7 @@ export async function createTilemapRenderer(
     backgroundContainer.destroy({ children: true })
     backgroundDecorationContainer.destroy({ children: true })
     groundContainer.destroy({ children: true })
+    groundDecorationContainer.destroy({ children: true })
     decorationContainer.destroy({ children: true })
     tileTextures.clear()
     tileDefMap.clear()
@@ -235,6 +246,7 @@ export async function createTilemapRenderer(
     backgroundContainer,
     backgroundDecorationContainer,
     groundContainer,
+    groundDecorationContainer,
     decorationContainer,
     update,
     getTileTexture,
