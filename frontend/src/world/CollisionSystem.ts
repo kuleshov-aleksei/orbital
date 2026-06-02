@@ -18,6 +18,61 @@ export interface CollisionSystem {
   getWorldBounds(): { minX: number; minY: number; maxX: number; maxY: number }
 }
 
+function isConvex(poly: [number, number][]): boolean {
+  let sign = 0
+  for (let i = 0; i < poly.length; i++) {
+    const prev = poly[(i - 1 + poly.length) % poly.length]
+    const curr = poly[i]
+    const next = poly[(i + 1) % poly.length]
+    const cross =
+      (curr[0] - prev[0]) * (next[1] - curr[1]) - (curr[1] - prev[1]) * (next[0] - curr[0])
+    if (Math.abs(cross) < 0.001) continue
+    const s = Math.sign(cross)
+    if (sign === 0) sign = s
+    else if (s !== sign) return false
+  }
+  return true
+}
+
+function decomposeRectilinear(poly: [number, number][]): [number, number][][] {
+  const ys = [...new Set(poly.map(([, y]) => y))].sort((a, b) => a - b)
+  const rects: [number, number][][] = []
+  for (let i = 0; i < ys.length - 1; i++) {
+    const y0 = ys[i]
+    const y1 = ys[i + 1]
+    const midY = (y0 + y1) / 2
+    const xs: number[] = []
+    for (let j = 0; j < poly.length; j++) {
+      const k = (j + 1) % poly.length
+      const [ax, ay] = poly[j]
+      const [bx, by] = poly[k]
+      if ((ay <= midY && by > midY) || (by <= midY && ay > midY)) {
+        const t = (midY - ay) / (by - ay)
+        xs.push(ax + t * (bx - ax))
+      }
+    }
+    xs.sort((a, b) => a - b)
+    for (let j = 0; j < xs.length; j += 2) {
+      const x0 = xs[j]
+      const x1 = xs[j + 1]
+      if (x0 !== undefined && x1 !== undefined && x1 - x0 > 0.001) {
+        rects.push([
+          [x0, y0],
+          [x1, y0],
+          [x1, y1],
+          [x0, y1],
+        ])
+      }
+    }
+  }
+  return rects
+}
+
+function decomposePolygon(poly: [number, number][]): [number, number][][] {
+  if (isConvex(poly)) return [poly]
+  return decomposeRectilinear(poly)
+}
+
 function projectOnAxis(points: [number, number][], axis: [number, number]): [number, number] {
   let min = Infinity,
     max = -Infinity
@@ -141,11 +196,11 @@ export function createCollisionSystem(world: WorldData): CollisionSystem {
       if (polys) {
         const worldPolys: [number, number][][] = []
         for (const poly of polys) {
-          const wp: [number, number][] = []
-          for (const [px, py] of poly) {
-            wp.push([bounds.minX + col * tileSize + px, bounds.minY + row * tileSize + py])
-          }
-          worldPolys.push(wp)
+          const wp: [number, number][] = poly.map(([px, py]) => [
+            bounds.minX + col * tileSize + px,
+            bounds.minY + row * tileSize + py,
+          ])
+          worldPolys.push(...decomposePolygon(wp))
         }
         cells.set(key, { polygons: worldPolys })
       } else {

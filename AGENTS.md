@@ -142,3 +142,7 @@ There are proper build command: `make build`. **DO NOT TRY TO BUILD FRONTEND AND
 THIS PART IS VERY IMPORTANT! NEVER SKIP IT
 
 - Agents are not allowed to make git commits
+
+## Godot
+
+For godot related tasks use godot mcp with project located at ../orbital-spatial-maps/
