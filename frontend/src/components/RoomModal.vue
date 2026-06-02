@@ -82,6 +82,22 @@
           <p v-if="roomType === 'spatial_audio'" class="text-theme-text-muted text-xs mt-1">
             Move your character with WASD. Voice audio changes based on distance.
           </p>
+
+          <!-- World Type (only for spatial rooms) -->
+          <div v-if="roomType === 'spatial_audio'" class="mt-4">
+            <label for="roomWorld" class="block text-sm font-medium text-theme-text-secondary mb-2">
+              World Type
+            </label>
+
+            <select
+              id="roomWorld"
+              v-model="roomWorld"
+              class="w-full px-3 py-2 bg-theme-bg-tertiary border border-theme-border rounded-lg text-theme-text-primary focus:outline-none focus:border-theme-accent focus:ring-1 focus:ring-theme-accent">
+              <option v-for="world in availableWorlds" :key="world" :value="world">
+                {{ world }}
+              </option>
+            </select>
+          </div>
         </div>
 
         <!-- Room Category -->
@@ -156,6 +172,7 @@
 import { ref, computed, onMounted } from "vue"
 import { PhWaveform, PhGameController } from "@phosphor-icons/vue"
 import { useConfigStore } from "@/stores"
+import { AVAILABLE_WORLDS } from "@/config/worlds"
 
 interface Props {
   initialCategory?: string
@@ -165,7 +182,7 @@ const props = defineProps<Props>()
 
 const emit = defineEmits<{
   close: []
-  create: [roomName: string, category: string, maxUsers: number, roomType: string]
+  create: [roomName: string, category: string, maxUsers: number, roomType: string, world: string]
 }>()
 
 const configStore = useConfigStore()
@@ -174,7 +191,10 @@ const configStore = useConfigStore()
 const roomName = ref("")
 const roomCategory = ref("")
 const roomType = ref<"voice" | "spatial_audio">("voice")
+const roomWorld = ref(AVAILABLE_WORLDS[0] || "default")
 const maxUsers = ref(10)
+
+const availableWorlds = computed(() => AVAILABLE_WORLDS)
 
 onMounted(() => {
   roomCategory.value = props.initialCategory ?? ""
@@ -225,7 +245,7 @@ const handleSubmit = () => {
   }
 
   const category = roomCategory.value.trim() || "general"
-  emit("create", roomName.value.trim(), category, maxUsers.value, roomType.value)
+  emit("create", roomName.value.trim(), category, maxUsers.value, roomType.value, roomWorld.value)
 }
 </script>
 

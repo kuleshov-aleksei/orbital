@@ -157,6 +157,7 @@ export function useRoomManager() {
     category: string,
     maxUsers: number,
     roomType: string,
+    world?: string,
   ) => {
     try {
       appStore.setLoading(true)
@@ -167,6 +168,7 @@ export function useRoomManager() {
         category,
         max_users: maxUsers,
         type: roomType as "voice" | "spatial_audio",
+        world: roomType === "spatial_audio" ? world : undefined,
       }
 
       await apiService.createRoom(roomData)
@@ -179,12 +181,12 @@ export function useRoomManager() {
     }
   }
 
-  const updateRoom = async (roomId: string, name: string, maxUsers: number) => {
+  const updateRoom = async (roomId: string, name: string, maxUsers: number, world?: string) => {
     try {
       appStore.setLoading(true)
       appStore.clearError()
 
-      const updates: UpdateRoomData = { name, max_users: maxUsers }
+      const updates: UpdateRoomData = { name, max_users: maxUsers, world }
       await apiService.updateRoom(roomId, updates)
     } catch (error) {
       console.error("Failed to update room:", error)

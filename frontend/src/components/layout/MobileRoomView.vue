@@ -43,7 +43,10 @@ defineEmits<{
   (e: "rename-category", payload: { categoryId: string; categoryName: string }): void
   (e: "delete-category", payload: { categoryId: string; categoryName: string }): void
   (e: "move-room", payload: { roomId: string; targetCategoryId: string }): void
-  (e: "edit-room", payload: { roomId: string; roomName: string; maxUsers: number }): void
+  (
+    e: "edit-room",
+    payload: { roomId: string; roomName: string; maxUsers: number; type: string; world: string },
+  ): void
   (e: "delete-room", payload: { roomId: string; roomName: string; userCount: number }): void
 }>()
 

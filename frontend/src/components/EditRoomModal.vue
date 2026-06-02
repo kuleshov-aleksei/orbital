@@ -65,6 +65,22 @@
           </p>
         </div>
 
+        <!-- World Type (only for spatial rooms) -->
+        <div v-if="roomType === 'spatial_audio'" class="mb-6">
+          <label for="roomWorld" class="block text-sm font-medium text-gray-300 mb-2">
+            World Type
+          </label>
+
+          <select
+            id="roomWorld"
+            v-model="roomWorld"
+            class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+            <option v-for="world in availableWorlds" :key="world" :value="world">
+              {{ world }}
+            </option>
+          </select>
+        </div>
+
         <!-- Action Buttons -->
         <div class="flex space-x-3">
           <button
@@ -89,18 +105,21 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue"
 import { useConfigStore } from "@/stores"
+import { AVAILABLE_WORLDS } from "@/config/worlds"
 
 interface Props {
   title: string
   initialName?: string
   initialMaxUsers?: number
+  initialType?: string
+  initialWorld?: string
 }
 
 const props = defineProps<Props>()
 
 const emit = defineEmits<{
   close: []
-  submit: [name: string, maxUsers: number]
+  submit: [name: string, maxUsers: number, world: string]
 }>()
 
 const configStore = useConfigStore()
@@ -108,10 +127,16 @@ const configStore = useConfigStore()
 // Form data
 const roomName = ref("")
 const maxUsers = ref(10)
+const roomType = ref("voice")
+const roomWorld = ref(AVAILABLE_WORLDS[0] || "default")
+
+const availableWorlds = computed(() => AVAILABLE_WORLDS)
 
 onMounted(() => {
   roomName.value = props.initialName ?? ""
   maxUsers.value = props.initialMaxUsers ?? configStore.defaultMaxUsers
+  roomType.value = props.initialType ?? "voice"
+  roomWorld.value = props.initialWorld ?? (AVAILABLE_WORLDS[0] || "default")
 })
 
 // Character count
@@ -154,7 +179,7 @@ const handleSubmit = () => {
     return
   }
 
-  emit("submit", roomName.value.trim(), maxUsers.value)
+  emit("submit", roomName.value.trim(), maxUsers.value, roomWorld.value)
 }
 </script>
 
