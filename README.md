@@ -134,7 +134,8 @@ Create a `TileMapLayer` node for each layer. Naming determines how the layer is 
 | Layer name | Render pass | Description |
 |------------|-------------|-------------|
 | `background` | Below characters (ground) | Water, space tiles, sky — rendered first |
-| `ground` | Below characters (ground) | Floor tiles, paths — rendered on top of background |
+| `background-decorations` | Below characters (ground) | Animated foam, water edge details — on top of background, below ground |
+| `ground` | Below characters (ground) | Floor tiles, paths — rendered on top of background-decorations |
 | `collision` | (invisible) | Tiles that block player movement |
 | `decorations` / `elevation` | Above characters (decoration) | Treetops, signs, lamps, elevation cliffs |
 | `objects` | — | Contains Marker2D children for placed props |

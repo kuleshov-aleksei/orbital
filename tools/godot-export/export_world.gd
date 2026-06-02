@@ -55,6 +55,8 @@ func _layer_type_for_name(name: String) -> String:
 	match name:
 		"background", "ground":
 			return "ground"
+		"background-decorations":
+			return "background_decorations"
 		"collision":
 			return "collision"
 		"decorations", "elevation":
@@ -103,17 +105,30 @@ func _get_or_create_source(sources: Array, source_map: Dictionary, ts: TileSet, 
 	source_map[map_key] = global_source_id
 
 	var texture = atlas_source.get_texture()
+	var region_size = atlas_source.get_texture_region_size()
 	var tex_filename = "tileset_%d.png" % global_source_id
 	var tex_path = output_dir.path_join(tex_filename)
-	if texture != null:
-		texture.get_image().save_png(tex_path)
-		print("Exported: " + tex_path)
-	else:
-		tex_filename = ""
 
 	var tile_columns = 1
 	if texture != null:
-		tile_columns = texture.get_width() / tile_size
+		# Load original texture file directly to bypass Godot's import scaling
+		var original_path = texture.resource_path
+		var img = Image.new()
+		if original_path.begins_with("res://"):
+			var err = img.load(original_path)
+			if err != OK:
+				push_warning("Failed to load original texture: " + original_path + " (error " + str(err) + "), falling back to imported texture")
+				img = texture.get_image()
+			else:
+				print("Loaded original texture: " + original_path + " (" + str(img.get_width()) + "x" + str(img.get_height()) + ")")
+		else:
+			img = texture.get_image()
+
+		img.save_png(tex_path)
+		print("Exported: " + tex_path)
+		tile_columns = img.get_width() / region_size.x
+	else:
+		tex_filename = ""
 
 	var tiles = _build_tile_defs(atlas_source, tile_columns)
 
@@ -147,14 +162,29 @@ func _build_tile_defs(atlas: TileSetAtlasSource, tile_columns: int) -> Array:
 				collidable = tile_data.get_custom_data("collidable") as bool
 
 		var anim_count = 1
-		if atlas.has_method("get_animation_frames_count"):
-			anim_count = atlas.get_animation_frames_count(tile_coords)
+		if atlas.has_method("get_tile_animation_frames_count"):
+			anim_count = atlas.get_tile_animation_frames_count(tile_coords)
+			print("Tile (%d,%d): tile_animation_frames_count=%d, tile_columns=%d" % [tile_coords.x, tile_coords.y, anim_count, tile_columns])
+		else:
+			print("Tile (%d,%d): get_tile_animation_frames_count NOT FOUND" % [tile_coords.x, tile_coords.y])
+
 		if anim_count > 1:
 			animated = true
 			for f in anim_count:
-				anim_frames.append(tile_id)
-			if atlas.has_method("get_animation_frame_duration"):
-				frame_duration = atlas.get_animation_frame_duration(tile_coords, 0)
+				var frame_coords = tile_coords + Vector2i(f, 0)
+				var frame_tile_id = frame_coords.y * tile_columns + frame_coords.x
+				anim_frames.append(frame_tile_id)
+			var base_frame_ms = 125.0
+			if atlas.has_method("get_tile_animation_frame_duration"):
+				var dur_mult = atlas.get_tile_animation_frame_duration(tile_coords, 0)
+				var anim_speed = atlas.get("animation_speed")
+				if typeof(anim_speed) == TYPE_FLOAT and anim_speed > 0.0:
+					base_frame_ms = (1.0 / anim_speed) * 1000.0
+				frame_duration = int(base_frame_ms * dur_mult)
+				print("  -> animation: %d frames, speed=%.1f, base_frame_ms=%.1f, dur_mult=%.2f, frameDuration=%d" % [anim_count, anim_speed if typeof(anim_speed) == TYPE_FLOAT else 8.0, base_frame_ms, dur_mult, frame_duration])
+			else:
+				frame_duration = int(base_frame_ms)
+				print("  -> animation: %d frames, base_frame_ms=%.1f, frameDuration=%d (no frame duration method)" % [anim_count, base_frame_ms, frame_duration])
 
 		var entry = {
 			"id": tile_id,
@@ -165,6 +195,9 @@ func _build_tile_defs(atlas: TileSetAtlasSource, tile_columns: int) -> Array:
 		if animated and anim_frames.size() > 0:
 			entry["frames"] = anim_frames
 			entry["frameDuration"] = int(frame_duration)
+			print("  -> tile #%d exported: animated=true, frames=%s, frameDuration=%d" % [tile_id, anim_frames, int(frame_duration)])
+		else:
+			print("  -> tile #%d exported: animated=%s" % [tile_id, animated])
 
 		tiles.append(entry)
 
@@ -283,7 +316,7 @@ func _find_objects(root: Node, source_map: Dictionary, sources: Array) -> Array:
 			object_layer = child
 			break
 
-	if object_layer == nil:
+	if object_layer == null:
 		return objects
 
 	var ts = object_layer.tile_set
@@ -329,14 +362,16 @@ func _find_objects(root: Node, source_map: Dictionary, sources: Array) -> Array:
 			if animated:
 				var coords = Vector2i(tile_id % tile_columns, tile_id / tile_columns)
 				var anim_count = 1
-				if atlas_source != null and atlas_source.has_method("get_animation_frames_count"):
-					anim_count = atlas_source.get_animation_frames_count(coords)
+				if atlas_source != null and atlas_source.has_method("get_tile_animation_frames_count"):
+					anim_count = atlas_source.get_tile_animation_frames_count(coords)
 				if anim_count > 1:
 					obj["animated"] = true
 					obj["frames"] = []
 					obj["frameDuration"] = 300
 					for f in anim_count:
-						obj["frames"].append(tile_id)
+						var frame_coords = coords + Vector2i(f, 0)
+						var frame_tile_id = frame_coords.y * tile_columns + frame_coords.x
+						obj["frames"].append(frame_tile_id)
 
 			if coll_w > 0 and coll_h > 0:
 				obj["collision"] = { "width": coll_w, "height": coll_h }

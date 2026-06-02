@@ -17,6 +17,10 @@ export interface WorldRenderer {
   getScreenSize(): { width: number; height: number }
   addWorldObject(obj: Container): void
   removeWorldObject(obj: Container): void
+  addTilemapBackground(container: Container): void
+  removeTilemapBackground(container: Container): void
+  addTilemapBackgroundDecoration(container: Container): void
+  removeTilemapBackgroundDecoration(container: Container): void
   addTilemapGround(container: Container): void
   removeTilemapGround(container: Container): void
   addTilemapDecoration(container: Container): void
@@ -36,6 +40,8 @@ export function createWorldRenderer(): WorldRenderer {
   let cameraTarget = { x: 0, y: 0 }
   let earshotCircle: Graphics | null = null
   let fixedLayer: Container | null = null
+  let backgroundTileLayer: Container | null = null
+  let backgroundDecorationTileLayer: Container | null = null
   let groundTileLayer: Container | null = null
   let decorationTileLayer: Container | null = null
 
@@ -104,6 +110,8 @@ export function createWorldRenderer(): WorldRenderer {
     backgroundLayer = null
     uiLayer = null
     fixedLayer = null
+    backgroundTileLayer = null
+    backgroundDecorationTileLayer = null
     groundTileLayer = null
     decorationTileLayer = null
   }
@@ -184,6 +192,38 @@ export function createWorldRenderer(): WorldRenderer {
     cameraContainer?.removeChild(obj)
   }
 
+  const addTilemapBackground = (container: Container) => {
+    if (backgroundTileLayer) {
+      cameraContainer?.removeChild(backgroundTileLayer)
+    }
+    backgroundTileLayer = container
+    backgroundTileLayer.zIndex = -20000
+    cameraContainer?.addChild(backgroundTileLayer)
+  }
+
+  const removeTilemapBackground = (container: Container) => {
+    if (backgroundTileLayer === container) {
+      cameraContainer?.removeChild(container)
+      backgroundTileLayer = null
+    }
+  }
+
+  const addTilemapBackgroundDecoration = (container: Container) => {
+    if (backgroundDecorationTileLayer) {
+      cameraContainer?.removeChild(backgroundDecorationTileLayer)
+    }
+    backgroundDecorationTileLayer = container
+    backgroundDecorationTileLayer.zIndex = -15000
+    cameraContainer?.addChild(backgroundDecorationTileLayer)
+  }
+
+  const removeTilemapBackgroundDecoration = (container: Container) => {
+    if (backgroundDecorationTileLayer === container) {
+      cameraContainer?.removeChild(container)
+      backgroundDecorationTileLayer = null
+    }
+  }
+
   const addTilemapGround = (container: Container) => {
     if (groundTileLayer) {
       cameraContainer?.removeChild(groundTileLayer)
@@ -231,6 +271,10 @@ export function createWorldRenderer(): WorldRenderer {
     getScreenSize,
     addWorldObject,
     removeWorldObject,
+    addTilemapBackground,
+    removeTilemapBackground,
+    addTilemapBackgroundDecoration,
+    removeTilemapBackgroundDecoration,
     addTilemapGround,
     removeTilemapGround,
     addTilemapDecoration,

@@ -306,6 +306,8 @@ async function setupWorld() {
 
   if (worldData.sources.length > 0) {
     tilemapRenderer = await createTilemapRenderer(props.worldId, worldData)
+    worldRenderer.addTilemapBackground(tilemapRenderer.backgroundContainer)
+    worldRenderer.addTilemapBackgroundDecoration(tilemapRenderer.backgroundDecorationContainer)
     worldRenderer.addTilemapGround(tilemapRenderer.groundContainer)
     worldRenderer.addTilemapDecoration(tilemapRenderer.decorationContainer)
 
@@ -626,6 +628,8 @@ onUnmounted(async () => {
   worldObjectDisplays.length = 0
 
   if (tilemapRenderer) {
+    worldRenderer.removeTilemapBackground(tilemapRenderer.backgroundContainer)
+    worldRenderer.removeTilemapBackgroundDecoration(tilemapRenderer.backgroundDecorationContainer)
     worldRenderer.removeTilemapGround(tilemapRenderer.groundContainer)
     worldRenderer.removeTilemapDecoration(tilemapRenderer.decorationContainer)
     tilemapRenderer.destroy()
