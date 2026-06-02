@@ -183,10 +183,8 @@ export function createCollisionSystem(world: WorldData): CollisionSystem {
   }
 
   const cells = new Map<number, CollisionCell>()
-  const collidableLayerTypes = new Set(["ground", "ground_decorations", "collision"])
 
   for (const layer of world.layers) {
-    if (!collidableLayerTypes.has(layer.type)) continue
     for (const [col, row, tileId, sourceId] of layer.data) {
       const key = col * COLS_HASH + row
       if (cells.has(key)) continue
@@ -338,10 +336,8 @@ export function createCollisionDebugOverlay(world: WorldData): Container {
   }
 
   const drawn = new Set<string>()
-  const collidableLayerTypes = new Set(["ground", "ground_decorations", "collision"])
 
   for (const layer of world.layers) {
-    if (!collidableLayerTypes.has(layer.type)) continue
     for (const [col, row, tileId, sourceId] of layer.data) {
       const key = `${col},${row}`
       if (drawn.has(key)) continue

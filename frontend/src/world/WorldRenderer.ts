@@ -279,7 +279,7 @@ export function createWorldRenderer(): WorldRenderer {
   }
 
   const addCollisionDebug = (container: Container) => {
-    container.zIndex = 1000
+    container.zIndex = 200000
     cameraContainer?.addChild(container)
   }
 
