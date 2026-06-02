@@ -81,10 +81,12 @@ function renderLayer(
 
     const tileDef = tileDefMap.get(key)
     if (tileDef?.animated && textures.length > 1) {
+      const startFrame = tileDef.randomOffset ? Math.floor(Math.random() * textures.length) : 0
+      sprite.texture = textures[startFrame]
       animatedSprites.push({
         sprite,
         textures,
-        currentFrame: 0,
+        currentFrame: startFrame,
         elapsed: 0,
         frameDuration: tileDef.frameDuration || 300,
       })

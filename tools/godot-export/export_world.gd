@@ -158,10 +158,14 @@ func _build_tile_defs(atlas: TileSetAtlasSource, tile_columns: int) -> Array:
 		var anim_frames = []
 		var frame_duration = 300
 
+		var random_offset = false
 		if atlas.has_tile(tile_coords):
 			var tile_data = atlas.get_tile_data(tile_coords, 0)
 			if tile_data != null and tile_data.has_custom_data("collidable"):
 				collidable = tile_data.get_custom_data("collidable") as bool
+			if atlas.has_method("get_tile_animation_mode"):
+				var mode = atlas.get_tile_animation_mode(tile_coords)
+				random_offset = mode == 1  # ANIMATION_MODE_RANDOM_START_TIMES
 
 		var anim_count = 1
 		if atlas.has_method("get_tile_animation_frames_count"):
@@ -197,7 +201,9 @@ func _build_tile_defs(atlas: TileSetAtlasSource, tile_columns: int) -> Array:
 		if animated and anim_frames.size() > 0:
 			entry["frames"] = anim_frames
 			entry["frameDuration"] = int(frame_duration)
-			print("  -> tile #%d exported: animated=true, frames=%s, frameDuration=%d" % [tile_id, anim_frames, int(frame_duration)])
+			if random_offset:
+				entry["randomOffset"] = true
+			print("  -> tile #%d exported: animated=true, frames=%s, frameDuration=%d, randomOffset=%s" % [tile_id, anim_frames, int(frame_duration), random_offset])
 		else:
 			print("  -> tile #%d exported: animated=%s" % [tile_id, animated])
 

@@ -4,6 +4,7 @@ export interface TileDef {
   animated: boolean
   frames?: number[]
   frameDuration?: number
+  randomOffset?: boolean
 }
 
 export interface WorldSource {
