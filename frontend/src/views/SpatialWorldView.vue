@@ -104,7 +104,11 @@ import {
 } from "@/world/WorldConfig"
 import { loadWorld } from "@/world/WorldData"
 import type { WorldData } from "@/world/WorldTypes"
-import { createCollisionSystem } from "@/world/CollisionSystem"
+import {
+  createCollisionSystem,
+  createCollisionDebugOverlay,
+  updateCollisionDebugOverlay,
+} from "@/world/CollisionSystem"
 import type { CollisionSystem } from "@/world/CollisionSystem"
 import { createTilemapRenderer } from "@/world/TilemapRenderer"
 import type { TilemapRenderer } from "@/world/TilemapRenderer"
@@ -263,6 +267,9 @@ const lastRemoteFacing = new Map<string, boolean>()
 
 let worldData: WorldData | null = null
 let collisionSystem: CollisionSystem | null = null
+let showCollisionDebug = false
+let collisionDebugOverlay: Container | null = null
+let onKeyDown: ((e: KeyboardEvent) => void) | null = null
 let tilemapRenderer: TilemapRenderer | null = null
 const worldObjectDisplays: WorldObjectDisplay[] = []
 
@@ -415,6 +422,16 @@ function gameTick(delta: number) {
   localCharacterDisplay.setPosition(localPosition.value.x, localPosition.value.y)
   localCharacterDisplay.setAnimation(getAnimation(dir), lastFacingRight)
 
+  if (showCollisionDebug && collisionDebugOverlay) {
+    updateCollisionDebugOverlay(
+      collisionDebugOverlay,
+      localPosition.value.x,
+      localPosition.value.y,
+      PLAYER_HITBOX.width / 2,
+      PLAYER_HITBOX.height / 2,
+    )
+  }
+
   remotePositions.value.forEach((pos, id) => {
     const display = remoteCharacterDisplays.get(id)
     if (display) {
@@ -548,6 +565,18 @@ function handleParticipantDisconnected(participant: RemoteParticipant) {
   scanRemoteParticipantsForBoombox()
 }
 
+function toggleCollisionDebug() {
+  showCollisionDebug = !showCollisionDebug
+  if (showCollisionDebug && worldData && collisionDebugOverlay === null) {
+    collisionDebugOverlay = createCollisionDebugOverlay(worldData)
+    worldRenderer.addCollisionDebug(collisionDebugOverlay)
+  } else if (!showCollisionDebug && collisionDebugOverlay !== null) {
+    worldRenderer.removeCollisionDebug(collisionDebugOverlay)
+    collisionDebugOverlay.destroy({ children: true })
+    collisionDebugOverlay = null
+  }
+}
+
 onMounted(async () => {
   initializeAudio()
 
@@ -558,6 +587,13 @@ onMounted(async () => {
   }
   document.addEventListener("click", resumeAudioOnGesture)
   document.addEventListener("touchstart", resumeAudioOnGesture)
+
+  onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "c" || e.key === "C") {
+      toggleCollisionDebug()
+    }
+  }
+  document.addEventListener("keydown", onKeyDown)
 
   await initializeLiveKit()
 
@@ -600,6 +636,14 @@ onUnmounted(async () => {
   if (animationFrameId !== null) {
     cancelAnimationFrame(animationFrameId)
     animationFrameId = null
+  }
+
+  document.removeEventListener("keydown", onKeyDown)
+
+  if (collisionDebugOverlay) {
+    worldRenderer.removeCollisionDebug(collisionDebugOverlay)
+    collisionDebugOverlay.destroy({ children: true })
+    collisionDebugOverlay = null
   }
 
   const lkRoom = room.value

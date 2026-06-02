@@ -27,6 +27,8 @@ export interface WorldRenderer {
   removeTilemapGroundDecoration(container: Container): void
   addTilemapDecoration(container: Container): void
   removeTilemapDecoration(container: Container): void
+  addCollisionDebug(container: Container): void
+  removeCollisionDebug(container: Container): void
   getCameraContainer(): Container
 }
 
@@ -271,9 +273,18 @@ export function createWorldRenderer(): WorldRenderer {
   const removeTilemapDecoration = (container: Container) => {
     if (decorationTileLayer === container) {
       cameraContainer?.removeChild(container)
-    groundDecorationTileLayer = null
-    decorationTileLayer = null
+      groundDecorationTileLayer = null
+      decorationTileLayer = null
     }
+  }
+
+  const addCollisionDebug = (container: Container) => {
+    container.zIndex = 1000
+    cameraContainer?.addChild(container)
+  }
+
+  const removeCollisionDebug = (container: Container) => {
+    cameraContainer?.removeChild(container)
   }
 
   return {
@@ -301,6 +312,8 @@ export function createWorldRenderer(): WorldRenderer {
     removeTilemapGroundDecoration,
     addTilemapDecoration,
     removeTilemapDecoration,
+    addCollisionDebug,
+    removeCollisionDebug,
     getCameraContainer,
   }
 }

@@ -5,6 +5,8 @@ export interface TileDef {
   frames?: number[]
   frameDuration?: number
   randomOffset?: boolean
+  collisionBox?: { x: number; y: number; width: number; height: number }
+  collisionPolygons?: [number, number][][]
 }
 
 export interface WorldSource {

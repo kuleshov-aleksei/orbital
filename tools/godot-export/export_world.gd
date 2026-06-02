@@ -132,7 +132,8 @@ func _get_or_create_source(sources: Array, source_map: Dictionary, ts: TileSet, 
 	else:
 		tex_filename = ""
 
-	var tiles = _build_tile_defs(atlas_source, tile_columns, ts)
+	var tile_half = region_size.x / 2.0
+	var tiles = _build_tile_defs(atlas_source, tile_columns, ts, tile_half)
 
 	sources.append({
 		"id": global_source_id,
@@ -144,7 +145,7 @@ func _get_or_create_source(sources: Array, source_map: Dictionary, ts: TileSet, 
 	return global_source_id
 
 
-func _build_tile_defs(atlas: TileSetAtlasSource, tile_columns: int, tile_set: TileSet = null) -> Array:
+func _build_tile_defs(atlas: TileSetAtlasSource, tile_columns: int, tile_set: TileSet = null, tile_half_px: float = 32.0) -> Array:
 	var tiles = []
 	if atlas == null:
 		return tiles
@@ -159,6 +160,7 @@ func _build_tile_defs(atlas: TileSetAtlasSource, tile_columns: int, tile_set: Ti
 		var frame_duration = 300
 
 		var random_offset = false
+		var collision_polygons = null
 		if atlas.has_tile(tile_coords):
 			var tile_data = atlas.get_tile_data(tile_coords, 0)
 			if tile_data != null:
@@ -167,6 +169,14 @@ func _build_tile_defs(atlas: TileSetAtlasSource, tile_columns: int, tile_set: Ti
 				var physics_layers = tile_set.get_physics_layers_count() if tile_set != null else 0
 				if physics_layers > 0 and tile_data.has_method("get_collision_polygons_count") and tile_data.get_collision_polygons_count(0) > 0:
 					collidable = true
+					var all_polys = []
+					for pi in tile_data.get_collision_polygons_count(0):
+						var pts = tile_data.get_collision_polygon_points(0, pi)
+						var local_pts = []
+						for pt in pts:
+							local_pts.append([pt.x + tile_half_px, pt.y + tile_half_px])
+						all_polys.append(local_pts)
+					collision_polygons = all_polys
 			if atlas.has_method("get_tile_animation_mode"):
 				var mode = atlas.get_tile_animation_mode(tile_coords)
 				random_offset = mode == 1  # ANIMATION_MODE_RANDOM_START_TIMES
@@ -201,6 +211,8 @@ func _build_tile_defs(atlas: TileSetAtlasSource, tile_columns: int, tile_set: Ti
 			"collidable": collidable,
 			"animated": animated,
 		}
+		if collision_polygons != null:
+			entry["collisionPolygons"] = collision_polygons
 
 		if animated and anim_frames.size() > 0:
 			entry["frames"] = anim_frames
@@ -208,6 +220,8 @@ func _build_tile_defs(atlas: TileSetAtlasSource, tile_columns: int, tile_set: Ti
 			if random_offset:
 				entry["randomOffset"] = true
 			print("  -> tile #%d exported: animated=true, frames=%s, frameDuration=%d, randomOffset=%s" % [tile_id, anim_frames, int(frame_duration), random_offset])
+		elif collision_polygons != null:
+			print("  -> tile #%d exported: collisionPolygons=%d shapes" % [tile_id, collision_polygons.size()])
 		else:
 			print("  -> tile #%d exported: animated=%s" % [tile_id, animated])
 

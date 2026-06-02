@@ -20,13 +20,16 @@ function convertV1ToV2(data: Record<string, unknown>): WorldData {
       id: 0,
       tileset: (data.tileset as string) || "",
       tileColumns: (data.tileColumns as number) || 1,
-      tiles: (data.tiles as any[])?.map((t: any) => ({
-        id: t.id,
-        collidable: t.collidable ?? false,
-        animated: t.animated ?? false,
-        frames: t.frames,
-        frameDuration: t.frameDuration,
-      })) || [],
+      tiles:
+        (data.tiles as any[])?.map((t: any) => ({
+          id: t.id,
+          collidable: t.collidable ?? false,
+          animated: t.animated ?? false,
+          frames: t.frames,
+          frameDuration: t.frameDuration,
+          collisionBox: t.collisionBox,
+          collisionPolygons: t.collisionPolygons,
+        })) || [],
     })
   }
 
@@ -36,16 +39,18 @@ function convertV1ToV2(data: Record<string, unknown>): WorldData {
     sources,
     bounds: data.bounds as WorldData["bounds"],
     spawn: data.spawn as WorldData["spawn"],
-    layers: (data.layers as any[])?.map((l: any) => ({
-      name: l.name,
-      type: l.type,
-      sourceId: l.sourceId ?? (sources.length > 0 ? sources[0].id : 0),
-      data: l.data,
-    })) || [],
-    objects: (data.objects as any[])?.map((o: any) => ({
-      ...o,
-      sourceId: o.sourceId ?? 0,
-    })) || [],
+    layers:
+      (data.layers as any[])?.map((l: any) => ({
+        name: l.name,
+        type: l.type,
+        sourceId: l.sourceId ?? (sources.length > 0 ? sources[0].id : 0),
+        data: l.data,
+      })) || [],
+    objects:
+      (data.objects as any[])?.map((o: any) => ({
+        ...o,
+        sourceId: o.sourceId ?? 0,
+      })) || [],
     props: (data.props as any[]) || [],
   }
 }
@@ -67,9 +72,19 @@ export async function loadWorld(worldId: string): Promise<WorldData> {
     console.log(`[WorldData] Loaded world "${worldId}":`, {
       tileSize: data.tileSize,
       sourceCount: data.sources.length,
-      sources: data.sources.map((s) => ({ id: s.id, tileset: s.tileset, tileColumns: s.tileColumns, tileCount: s.tiles.length })),
+      sources: data.sources.map((s) => ({
+        id: s.id,
+        tileset: s.tileset,
+        tileColumns: s.tileColumns,
+        tileCount: s.tiles.length,
+      })),
       layerCount: data.layers.length,
-      layers: data.layers.map((l) => ({ name: l.name, type: l.type, sourceId: l.sourceId, cellCount: l.data.length })),
+      layers: data.layers.map((l) => ({
+        name: l.name,
+        type: l.type,
+        sourceId: l.sourceId,
+        cellCount: l.data.length,
+      })),
       bounds: data.bounds,
     })
     cache.set(worldId, data)
