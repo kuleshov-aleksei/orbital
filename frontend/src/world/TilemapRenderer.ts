@@ -158,48 +158,52 @@ export async function createTilemapRenderer(
     if (layer.data.length === 0) continue
     if (layer.type === "ground") {
       const target = layer.name === "background" ? backgroundContainer : groundContainer
+      const lt = layer.tileSize ?? world.tileSize
       renderLayer(
         target,
         layer.data,
         tileTextures,
         tileDefMap,
-        tileSize,
+        lt,
         sourceCellSizes,
         world.bounds.minX,
         world.bounds.minY,
         animatedSprites,
       )
     } else if (layer.type === "background_decorations") {
+      const lt = layer.tileSize ?? world.tileSize
       renderLayer(
         backgroundDecorationContainer,
         layer.data,
         tileTextures,
         tileDefMap,
-        tileSize,
+        lt,
         sourceCellSizes,
         world.bounds.minX,
         world.bounds.minY,
         animatedSprites,
       )
     } else if (layer.type === "ground_decorations") {
+      const lt = layer.tileSize ?? world.tileSize
       renderLayer(
         groundDecorationContainer,
         layer.data,
         tileTextures,
         tileDefMap,
-        tileSize,
+        lt,
         sourceCellSizes,
         world.bounds.minX,
         world.bounds.minY,
         animatedSprites,
       )
     } else if (layer.type === "decoration") {
+      const lt = layer.tileSize ?? world.tileSize
       renderLayer(
         decorationContainer,
         layer.data,
         tileTextures,
         tileDefMap,
-        tileSize,
+        lt,
         sourceCellSizes,
         world.bounds.minX,
         world.bounds.minY,

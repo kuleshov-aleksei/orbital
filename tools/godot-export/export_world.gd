@@ -246,6 +246,7 @@ func _build_world(layers: Array, root: Node, output_dir: String) -> Dictionary:
 		json_layers.append({
 			"name": layer_name,
 			"type": layer_type,
+			"tileSize": tile_size,
 			"data": data,
 		})
 
