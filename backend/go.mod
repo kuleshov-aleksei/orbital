@@ -9,12 +9,12 @@ require (
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/h2non/bimg v1.1.9
 	github.com/joho/godotenv v1.5.1
-	github.com/livekit/protocol v1.46.4
-	github.com/livekit/server-sdk-go/v2 v2.16.4
+	github.com/livekit/protocol v1.46.5
+	github.com/livekit/server-sdk-go/v2 v2.16.6
 	golang.org/x/crypto v0.52.0
 	golang.org/x/oauth2 v0.36.0
 	gopkg.in/yaml.v3 v3.0.1
-	modernc.org/sqlite v1.50.1
+	modernc.org/sqlite v1.51.0
 )
 
 require (
