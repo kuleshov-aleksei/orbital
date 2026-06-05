@@ -14,7 +14,8 @@
             : 'border-transparent bg-theme-bg-tertiary hover:bg-theme-bg-hover',
         ]"
         @click="$emit('select', c.key)">
-        <div class="image-rendering-pixelated w-16 h-16 rounded-lg overflow-hidden bg-theme-bg-primary flex items-center justify-center">
+        <div
+          class="image-rendering-pixelated w-16 h-16 rounded-lg overflow-hidden bg-theme-bg-primary flex items-center justify-center">
           <img
             :src="previewSrc(c.key)"
             :alt="c.key"
@@ -28,12 +29,15 @@
 </template>
 
 <script setup lang="ts">
-import { getRegisteredKeys } from "@/world/ResourceManager"
+import { getAvailableCharacters } from "@/world/ResourceManager"
 import { assetPath } from "@/utils/assetPath"
+import { computed } from "vue"
 
-const registered = getRegisteredKeys()
-export type CharacterKey = (typeof registered)[number]
-const characters: { key: CharacterKey }[] = registered.map((key) => ({ key }))
+const props = defineProps<Props>()
+defineEmits<{
+  select: [character: CharacterKey]
+}>()
+export type CharacterKey = string
 
 function previewSrc(key: string): string {
   return assetPath(`/assets/characters/${key}_preview.png`)
@@ -42,11 +46,11 @@ function previewSrc(key: string): string {
 interface Props {
   visible: boolean
   selected: CharacterKey
+  allowedCharacters?: string[]
 }
 
-defineProps<Props>()
-
-defineEmits<{
-  select: [character: CharacterKey]
-}>()
+const characters = computed(() => {
+  const available = getAvailableCharacters(props.allowedCharacters)
+  return available.map((key) => ({ key })) as { key: CharacterKey }[]
+})
 </script>

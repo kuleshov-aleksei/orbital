@@ -93,8 +93,8 @@
               id="roomWorld"
               v-model="roomWorld"
               class="w-full px-3 py-2 bg-theme-bg-tertiary border border-theme-border rounded-lg text-theme-text-primary focus:outline-none focus:border-theme-accent focus:ring-1 focus:ring-theme-accent">
-              <option v-for="world in availableWorlds" :key="world" :value="world">
-                {{ world }}
+              <option v-for="world in availableWorlds" :key="world.id" :value="world.id">
+                {{ world.label }}
               </option>
             </select>
           </div>
