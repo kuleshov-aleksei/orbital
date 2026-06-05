@@ -18,6 +18,7 @@ const MAX_REVERSE_SPEED = 1.5
 const STEERING_SPEED = 3.5
 const STEERING_RETURN_SPEED = 4.5
 const MAX_STEERING_ANGLE = Math.PI / 4
+const HANDBRAKE_DECELERATION = 30
 const WHEELBASE = 2.5
 const TRACTION = 0.995
 const SPEED_THRESHOLD = 0.01
@@ -58,6 +59,18 @@ export function createVehicleController(): VehicleController {
 
     if (Math.abs(state.speed) > SPEED_THRESHOLD) {
       state.angle += (state.speed / WHEELBASE) * Math.tan(state.steeringAngle) * dt
+    }
+
+    const pressingHandbrake = keysPressed.has("Space")
+
+    if (pressingHandbrake) {
+      const absSpeed = Math.abs(state.speed)
+      const handbrakeForce = HANDBRAKE_DECELERATION * dt
+      if (handbrakeForce >= absSpeed) {
+        state.speed = 0
+      } else {
+        state.speed -= Math.sign(state.speed) * handbrakeForce
+      }
     }
 
     if (pressingForward) {
