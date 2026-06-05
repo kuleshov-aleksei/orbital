@@ -255,6 +255,8 @@ func _build_world(layers: Array, root: Node, output_dir: String) -> Dictionary:
 
 		tile_size = ts.tile_size.x
 
+		var rect = layer.get_used_rect()
+
 		var data = []
 		for cell_coords in layer.get_used_cells():
 			var local_source_id = layer.get_cell_source_id(cell_coords)
@@ -267,7 +269,7 @@ func _build_world(layers: Array, root: Node, output_dir: String) -> Dictionary:
 				var source_entry = _find_source_entry(sources, global_source_id)
 				var tile_columns = source_entry.tileColumns
 				var tile_id = atlas_coords.y * tile_columns + atlas_coords.x
-				data.append([cell_coords.x, cell_coords.y, tile_id, global_source_id])
+				data.append([cell_coords.x - rect.position.x, cell_coords.y - rect.position.y, tile_id, global_source_id])
 
 		json_layers.append({
 			"name": layer_name,
@@ -276,13 +278,12 @@ func _build_world(layers: Array, root: Node, output_dir: String) -> Dictionary:
 			"data": data,
 		})
 
-		var rect = layer.get_used_rect()
 		if rect != Rect2i(0, 0, 0, 0):
 			var layer_bounds = {
-				"minX": rect.position.x * tile_size,
-				"maxX": (rect.position.x + rect.size.x) * tile_size,
-				"minY": rect.position.y * tile_size,
-				"maxY": (rect.position.y + rect.size.y) * tile_size,
+				"minX": layer.position.x + rect.position.x * tile_size,
+				"maxX": layer.position.x + (rect.position.x + rect.size.x) * tile_size,
+				"minY": layer.position.y + rect.position.y * tile_size,
+				"maxY": layer.position.y + (rect.position.y + rect.size.y) * tile_size,
 			}
 			if bounds == null:
 				bounds = layer_bounds
