@@ -68,6 +68,7 @@ export function createWorldRenderer(): WorldRenderer {
 
     stage = new Container()
     stage.sortableChildren = true
+    stage.roundPixels = true
     app.stage.addChild(stage)
 
     backgroundLayer = new Container()
@@ -151,8 +152,8 @@ export function createWorldRenderer(): WorldRenderer {
     if (!stage || !app) return
     const screenW = app.screen.width
     const screenH = app.screen.height
-    stage.x = screenW / 2 - cameraTarget.x
-    stage.y = screenH / 2 - cameraTarget.y
+    stage.x = Math.round(screenW / 2 - cameraTarget.x)
+    stage.y = Math.round(screenH / 2 - cameraTarget.y)
   }
 
   const getScreenCenter = () => {
