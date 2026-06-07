@@ -59,8 +59,8 @@ function renderLayer(
   tileDefMap: Map<string, TileDef>,
   tileSize: number,
   cellSizes: Map<number, number>,
-  boundsMinX: number,
-  boundsMinY: number,
+  offsetX: number,
+  offsetY: number,
   animatedSprites: AnimatedSpriteState[],
   zIndexOffset: number,
   totalAllTiles: number,
@@ -81,8 +81,8 @@ function renderLayer(
       if (!textures || textures.length === 0) continue
 
       const sprite = new Sprite(textures[0])
-      sprite.x = boundsMinX + col * tileSize - (cellSize - tileSize) / 2
-      sprite.y = boundsMinY + row * tileSize - (cellSize - tileSize) / 2
+      sprite.x = offsetX + col * tileSize - (cellSize - tileSize) / 2
+      sprite.y = offsetY + row * tileSize - (cellSize - tileSize) / 2
       const overlapScale = (cellSize + 1) / cellSize
       sprite.scale.set(overlapScale)
       sprite.zIndex = row + zIndexOffset
@@ -245,6 +245,8 @@ export async function createTilemapRenderer(
       continue
     }
     const lt = layer.tileSize ?? world.tileSize
+    const layerOffsetX = layer.offsetX ?? world.bounds.minX
+    const layerOffsetY = layer.offsetY ?? world.bounds.minY
     await renderLayer(
       container,
       layer.data,
@@ -252,8 +254,8 @@ export async function createTilemapRenderer(
       tileDefMap,
       lt,
       sourceCellSizes,
-      world.bounds.minX,
-      world.bounds.minY,
+      layerOffsetX,
+      layerOffsetY,
       animatedSprites,
       0,
       totalTiles,

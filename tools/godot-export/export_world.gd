@@ -83,7 +83,7 @@ func _detect_layer_source_id(layer: TileMapLayer) -> int:
 	return best_sid
 
 
-func _get_or_create_source(sources: Array, source_map: Dictionary, ts: TileSet, local_source_id: int, output_dir: String, tile_size: int) -> int:
+func _get_or_create_source(sources: Array, source_map: Dictionary, texture_exported: Dictionary, ts: TileSet, local_source_id: int, output_dir: String, tile_size: int) -> int:
 	var ts_path = ts.resource_path
 	if ts_path.is_empty():
 		ts_path = str(ts.get_instance_id())
@@ -110,27 +110,36 @@ func _get_or_create_source(sources: Array, source_map: Dictionary, ts: TileSet, 
 
 	var texture = atlas_source.get_texture()
 	var region_size = atlas_source.get_texture_region_size()
-	var tex_filename = "tileset_%d.png" % global_source_id
-	var tex_path = output_dir.path_join(tex_filename)
-
+	var tex_filename = ""
 	var tile_columns = 1
-	if texture != null:
-		# Load original texture file directly to bypass Godot's import scaling
-		var original_path = texture.resource_path
-		var img = Image.new()
-		if original_path.begins_with("res://"):
-			var err = img.load(original_path)
-			if err != OK:
-				push_warning("Failed to load original texture: " + original_path + " (error " + str(err) + "), falling back to imported texture")
-				img = texture.get_image()
-			else:
-				print("Loaded original texture: " + original_path + " (" + str(img.get_width()) + "x" + str(img.get_height()) + ")")
-		else:
-			img = texture.get_image()
 
-		img.save_png(tex_path)
-		print("Exported: " + tex_path)
-		tile_columns = img.get_width() / region_size.x
+	if texture != null:
+		var original_path = texture.resource_path
+
+		if texture_exported.has(original_path):
+			var cached = texture_exported[original_path]
+			tex_filename = cached["filename"]
+			tile_columns = cached["tile_columns"]
+		else:
+			tex_filename = "tileset_%d.png" % global_source_id
+			var tex_path = output_dir.path_join(tex_filename)
+
+			# Load original texture file directly to bypass Godot's import scaling
+			var img = Image.new()
+			if original_path.begins_with("res://"):
+				var err = img.load(original_path)
+				if err != OK:
+					push_warning("Failed to load original texture: " + original_path + " (error " + str(err) + "), falling back to imported texture")
+					img = texture.get_image()
+				else:
+					print("Loaded original texture: " + original_path + " (" + str(img.get_width()) + "x" + str(img.get_height()) + ")")
+			else:
+				img = texture.get_image()
+
+			img.save_png(tex_path)
+			print("Exported: " + tex_path)
+			tile_columns = img.get_width() / region_size.x
+			texture_exported[original_path] = { "filename": tex_filename, "tile_columns": tile_columns }
 	else:
 		tex_filename = ""
 
@@ -239,6 +248,7 @@ func _pick_output_dir() -> String:
 func _build_world(layers: Array, root: Node, output_dir: String) -> Dictionary:
 	var sources = []
 	var source_map = {}
+	var texture_exported = {}
 	var tile_size = 64
 	var json_layers = []
 	var bounds = null
@@ -263,7 +273,7 @@ func _build_world(layers: Array, root: Node, output_dir: String) -> Dictionary:
 			var atlas_coords = layer.get_cell_atlas_coords(cell_coords)
 			var alt = layer.get_cell_alternative_tile(cell_coords)
 			if alt == 0 and atlas_coords != Vector2i(-1, -1):
-				var global_source_id = _get_or_create_source(sources, source_map, ts, local_source_id, output_dir, tile_size)
+				var global_source_id = _get_or_create_source(sources, source_map, texture_exported, ts, local_source_id, output_dir, tile_size)
 				if global_source_id < 0:
 					continue
 				var source_entry = _find_source_entry(sources, global_source_id)
@@ -271,18 +281,23 @@ func _build_world(layers: Array, root: Node, output_dir: String) -> Dictionary:
 				var tile_id = atlas_coords.y * tile_columns + atlas_coords.x
 				data.append([cell_coords.x - rect.position.x, cell_coords.y - rect.position.y, tile_id, global_source_id])
 
+		var layer_offset_x = layer.position.x + rect.position.x * tile_size
+		var layer_offset_y = layer.position.y + rect.position.y * tile_size
+
 		json_layers.append({
 			"name": layer_name,
 			"type": layer_type,
 			"tileSize": tile_size,
+			"offsetX": layer_offset_x,
+			"offsetY": layer_offset_y,
 			"data": data,
 		})
 
 		if rect != Rect2i(0, 0, 0, 0):
 			var layer_bounds = {
-				"minX": layer.position.x + rect.position.x * tile_size,
+				"minX": layer_offset_x,
 				"maxX": layer.position.x + (rect.position.x + rect.size.x) * tile_size,
-				"minY": layer.position.y + rect.position.y * tile_size,
+				"minY": layer_offset_y,
 				"maxY": layer.position.y + (rect.position.y + rect.size.y) * tile_size,
 			}
 			if bounds == null:

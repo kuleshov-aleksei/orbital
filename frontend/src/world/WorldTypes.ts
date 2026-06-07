@@ -28,6 +28,8 @@ export interface LayerData {
     | "ground_decorations"
     | "sky"
   tileSize: number
+  offsetX?: number
+  offsetY?: number
   data: [number, number, number, number][]
 }
 

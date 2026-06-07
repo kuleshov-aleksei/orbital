@@ -185,8 +185,14 @@ export function createCollisionSystem(world: WorldData): CollisionSystem {
   const cells = new Map<number, CollisionCell>()
 
   for (const layer of world.layers) {
+    const layerOffsetX = layer.offsetX ?? bounds.minX
+    const layerOffsetY = layer.offsetY ?? bounds.minY
     for (const [col, row, tileId, sourceId] of layer.data) {
-      const key = col * COLS_HASH + row
+      const worldX = layerOffsetX + col * tileSize
+      const worldY = layerOffsetY + row * tileSize
+      const globalCol = Math.floor((worldX - bounds.minX) / tileSize)
+      const globalRow = Math.floor((worldY - bounds.minY) / tileSize)
+      const key = globalCol * COLS_HASH + globalRow
       if (cells.has(key)) continue
 
       const srcPolys = polygonData.get(sourceId)
@@ -194,25 +200,20 @@ export function createCollisionSystem(world: WorldData): CollisionSystem {
       if (polys) {
         const worldPolys: [number, number][][] = []
         for (const poly of polys) {
-          const wp: [number, number][] = poly.map(([px, py]) => [
-            bounds.minX + col * tileSize + px,
-            bounds.minY + row * tileSize + py,
-          ])
+          const wp: [number, number][] = poly.map(([px, py]) => [worldX + px, worldY + py])
           worldPolys.push(...decomposePolygon(wp))
         }
         cells.set(key, { polygons: worldPolys })
       } else {
         const collidableIds = collidableBySource.get(sourceId)
         if (collidableIds?.has(tileId)) {
-          const cx = bounds.minX + col * tileSize
-          const cy = bounds.minY + row * tileSize
           cells.set(key, {
             polygons: [
               [
-                [cx, cy],
-                [cx + tileSize, cy],
-                [cx + tileSize, cy + tileSize],
-                [cx, cy + tileSize],
+                [worldX, worldY],
+                [worldX + tileSize, worldY],
+                [worldX + tileSize, worldY + tileSize],
+                [worldX, worldY + tileSize],
               ],
             ],
           })
@@ -338,8 +339,14 @@ export function createCollisionDebugOverlay(world: WorldData): Container {
   const drawn = new Set<string>()
 
   for (const layer of world.layers) {
+    const layerOffsetX = layer.offsetX ?? bounds.minX
+    const layerOffsetY = layer.offsetY ?? bounds.minY
     for (const [col, row, tileId, sourceId] of layer.data) {
-      const key = `${col},${row}`
+      const worldX = layerOffsetX + col * tileSize
+      const worldY = layerOffsetY + row * tileSize
+      const globalCol = Math.floor((worldX - bounds.minX) / tileSize)
+      const globalRow = Math.floor((worldY - bounds.minY) / tileSize)
+      const key = `${globalCol},${globalRow}`
       if (drawn.has(key)) continue
 
       const srcPolys = polygonData.get(sourceId)
@@ -348,15 +355,9 @@ export function createCollisionDebugOverlay(world: WorldData): Container {
         drawn.add(key)
         for (const poly of polys) {
           if (poly.length === 0) continue
-          g.moveTo(
-            bounds.minX + col * tileSize + poly[0][0],
-            bounds.minY + row * tileSize + poly[0][1],
-          )
+          g.moveTo(worldX + poly[0][0], worldY + poly[0][1])
           for (let i = 1; i < poly.length; i++) {
-            g.lineTo(
-              bounds.minX + col * tileSize + poly[i][0],
-              bounds.minY + row * tileSize + poly[i][1],
-            )
+            g.lineTo(worldX + poly[i][0], worldY + poly[i][1])
           }
           g.closePath()
         }
@@ -364,7 +365,7 @@ export function createCollisionDebugOverlay(world: WorldData): Container {
         const collidableIds = collidableBySource.get(sourceId)
         if (collidableIds?.has(tileId)) {
           drawn.add(key)
-          g.rect(bounds.minX + col * tileSize, bounds.minY + row * tileSize, tileSize, tileSize)
+          g.rect(worldX, worldY, tileSize, tileSize)
         }
       }
     }
