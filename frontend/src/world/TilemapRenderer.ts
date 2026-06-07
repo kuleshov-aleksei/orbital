@@ -1,6 +1,8 @@
 import { Assets, Container, Sprite, Texture } from "pixi.js"
-import type { WorldData, TileDef } from "./WorldTypes"
+import type { WorldData, TileDef, ProgressCallback } from "./WorldTypes"
 import { getTilesetUrl } from "./WorldData"
+
+const BATCH_SIZE = 500
 
 interface AnimatedSpriteState {
   sprite: Sprite
@@ -60,192 +62,208 @@ function renderLayer(
   boundsMinX: number,
   boundsMinY: number,
   animatedSprites: AnimatedSpriteState[],
-  zIndexOffset: number = 0,
-): void {
-  let rendered = 0
-  let skipped = 0
-  for (const [col, row, tileId, sourceId] of layerData) {
-    const cellSize = cellSizes.get(sourceId) ?? tileSize
-    const key = `${sourceId}:${tileId}`
-    const textures = tileTextures.get(key)
-    if (!textures || textures.length === 0) {
-      skipped++
-      continue
+  zIndexOffset: number,
+  totalAllTiles: number,
+  createdCount: { value: number },
+  onProgress?: ProgressCallback,
+): Promise<void> {
+  const total = layerData.length
+  if (total === 0) return Promise.resolve()
+  let idx = 0
+
+  function processBatch(): Promise<void> {
+    const end = Math.min(idx + BATCH_SIZE, total)
+    for (; idx < end; idx++) {
+      const [col, row, tileId, sourceId] = layerData[idx]
+      const cellSize = cellSizes.get(sourceId) ?? tileSize
+      const key = `${sourceId}:${tileId}`
+      const textures = tileTextures.get(key)
+      if (!textures || textures.length === 0) continue
+
+      const sprite = new Sprite(textures[0])
+      sprite.x = boundsMinX + col * tileSize - (cellSize - tileSize) / 2
+      sprite.y = boundsMinY + row * tileSize - (cellSize - tileSize) / 2
+      const overlapScale = (cellSize + 1) / cellSize
+      sprite.scale.set(overlapScale)
+      sprite.zIndex = row + zIndexOffset
+      container.addChild(sprite)
+
+      const tileDef = tileDefMap.get(key)
+      if (tileDef?.animated && textures.length > 1) {
+        const startFrame = tileDef.randomOffset ? Math.floor(Math.random() * textures.length) : 0
+        sprite.texture = textures[startFrame]
+        animatedSprites.push({
+          sprite,
+          textures,
+          currentFrame: startFrame,
+          elapsed: 0,
+          frameDuration: tileDef.frameDuration || 300,
+        })
+      }
+      createdCount.value++
     }
 
-    const sprite = new Sprite(textures[0])
-    sprite.x = boundsMinX + col * tileSize - (cellSize - tileSize) / 2
-    sprite.y = boundsMinY + row * tileSize - (cellSize - tileSize) / 2
-    const overlapScale = (cellSize + 1) / cellSize
-    sprite.scale.set(overlapScale)
-    sprite.zIndex = row + zIndexOffset
-    container.addChild(sprite)
-    rendered++
+    if (onProgress && totalAllTiles > 0) {
+      onProgress(50 + (createdCount.value / totalAllTiles) * 30, "Stitching tilemap…")
+    }
 
-    const tileDef = tileDefMap.get(key)
-    if (tileDef?.animated && textures.length > 1) {
-      const startFrame = tileDef.randomOffset ? Math.floor(Math.random() * textures.length) : 0
-      sprite.texture = textures[startFrame]
-      animatedSprites.push({
-        sprite,
-        textures,
-        currentFrame: startFrame,
-        elapsed: 0,
-        frameDuration: tileDef.frameDuration || 300,
+    if (idx < total) {
+      return new Promise<void>((resolve) => {
+        requestAnimationFrame(() => resolve(processBatch()))
       })
     }
+    return Promise.resolve()
   }
-  if (rendered > 0 || skipped > 0) {
-    console.log(
-      `[TilemapRenderer] renderLayer: ${rendered} sprites created, ${skipped} skipped (no texture)`,
-    )
+
+  return processBatch()
+}
+
+function getLayerContainer(
+  layerType: string,
+  layerName: string,
+  containers: {
+    backgroundContainer: Container
+    backgroundDecorationContainer: Container
+    groundContainer: Container
+    groundDecorationContainer: Container
+    decorationContainer: Container
+    skyContainer: Container
+  },
+): Container | null {
+  if (layerType === "ground") {
+    return layerName === "background" ? containers.backgroundContainer : containers.groundContainer
   }
+  if (layerType === "background_decorations") return containers.backgroundDecorationContainer
+  if (layerType === "ground_decorations") return containers.groundDecorationContainer
+  if (layerType === "decoration") return containers.decorationContainer
+  if (layerType === "sky") return containers.skyContainer
+  return null
+}
+
+async function loadTilesets(
+  worldId: string,
+  world: WorldData,
+  tileTextures: Map<string, Texture[]>,
+  tileDefMap: Map<string, TileDef>,
+  sourceCellSizes: Map<number, number>,
+  tileSize: number,
+  onProgress?: ProgressCallback,
+): Promise<void> {
+  const sources = world.sources.filter((s) => getTilesetUrl(worldId, s))
+  if (sources.length === 0) return
+
+  const sourceCount = sources.length
+  let completed = 0
+
+  const results = await Promise.all(
+    sources.map(async (source) => {
+      const url = getTilesetUrl(worldId, source)!
+      let tilesetTexture: Texture
+      try {
+        tilesetTexture = await Assets.load(url)
+      } catch (e) {
+        console.warn(`[TilemapRenderer] Failed to load tileset: ${url}`, e)
+        return null
+      }
+      const cellSize = tilesetTexture.baseTexture.width / source.tileColumns
+      tilesetTexture.baseTexture.scaleMode = cellSize === tileSize ? "nearest" : "linear"
+
+      const prefix = `${source.id}:`
+      let loadedCount = 0
+      for (const tileDef of source.tiles) {
+        const textures = getTileTextures(
+          tileDef,
+          tilesetTexture,
+          tileSize,
+          source.tileColumns,
+          cellSize,
+        )
+        tileTextures.set(prefix + tileDef.id, textures)
+        tileDefMap.set(prefix + tileDef.id, tileDef)
+        loadedCount++
+      }
+      completed++
+      onProgress?.(15 + (completed / sourceCount) * 35, "Loading tilesets…")
+
+      return { sourceId: source.id, cellSize, loadedCount }
+    }),
+  )
+
+  for (const r of results) {
+    if (r) sourceCellSizes.set(r.sourceId, r.cellSize)
+  }
+
+  console.log(
+    `[TilemapRenderer] Loaded ${tileTextures.size} tile textures across ${completed} tilesets`,
+  )
 }
 
 export async function createTilemapRenderer(
   worldId: string,
   world: WorldData,
+  onProgress?: ProgressCallback,
 ): Promise<TilemapRenderer> {
-  const backgroundContainer = new Container()
-  backgroundContainer.sortableChildren = true
+  const tileSize = world.tileSize
+  const startTime = performance.now()
 
-  const backgroundDecorationContainer = new Container()
-  backgroundDecorationContainer.sortableChildren = true
+  const containers = {
+    backgroundContainer: new Container(),
+    backgroundDecorationContainer: new Container(),
+    groundContainer: new Container(),
+    groundDecorationContainer: new Container(),
+    decorationContainer: new Container(),
+    skyContainer: new Container(),
+  }
 
-  const groundContainer = new Container()
-  groundContainer.sortableChildren = true
-
-  const groundDecorationContainer = new Container()
-  groundDecorationContainer.sortableChildren = true
-
-  const decorationContainer = new Container()
-  decorationContainer.sortableChildren = true
-
-  const skyContainer = new Container()
-  skyContainer.sortableChildren = true
+  for (const c of Object.values(containers)) {
+    c.sortableChildren = true
+  }
 
   const tileTextures = new Map<string, Texture[]>()
   const tileDefMap = new Map<string, TileDef>()
   const sourceCellSizes = new Map<number, number>()
   const animatedSprites: AnimatedSpriteState[] = []
 
-  const tileSize = world.tileSize
-
-  for (const source of world.sources) {
-    const url = getTilesetUrl(worldId, source)
-    if (!url) {
-      console.warn(`[TilemapRenderer] Source ${source.id} has no tileset, skipping`)
-      continue
-    }
-
-    console.log(
-      `[TilemapRenderer] Loading tileset source ${source.id}: ${url} (${source.tileColumns} cols, ${source.tiles.length} tiles)`,
-    )
-
-    let tilesetTexture: Texture
-    try {
-      tilesetTexture = await Assets.load(url)
-    } catch (e) {
-      console.warn(`[TilemapRenderer] Failed to load tileset: ${url}`, e)
-      continue
-    }
-    const cellSize = tilesetTexture.baseTexture.width / source.tileColumns
-    tilesetTexture.baseTexture.scaleMode = cellSize === tileSize ? "nearest" : "linear"
-    sourceCellSizes.set(source.id, cellSize)
-
-    const prefix = `${source.id}:`
-    let loadedCount = 0
-    for (const tileDef of source.tiles) {
-      const textures = getTileTextures(
-        tileDef,
-        tilesetTexture,
-        tileSize,
-        source.tileColumns,
-        cellSize,
-      )
-      tileTextures.set(prefix + tileDef.id, textures)
-      tileDefMap.set(prefix + tileDef.id, tileDef)
-      loadedCount++
-    }
-    console.log(
-      `[TilemapRenderer] Loaded ${loadedCount} tile textures for source ${source.id} (cellSize=${cellSize})`,
-    )
-  }
-
-  console.log(
-    `[TilemapRenderer] tileTextures has ${tileTextures.size} entries, tileDefMap has ${tileDefMap.size} entries`,
+  await loadTilesets(
+    worldId,
+    world,
+    tileTextures,
+    tileDefMap,
+    sourceCellSizes,
+    tileSize,
+    onProgress,
   )
+
+  const totalTiles = world.layers.reduce((sum, l) => sum + l.data.length, 0)
+  const createdCount = { value: 0 }
 
   for (const layer of world.layers) {
     if (layer.data.length === 0) continue
-    if (layer.type === "ground") {
-      const target = layer.name === "background" ? backgroundContainer : groundContainer
-      const lt = layer.tileSize ?? world.tileSize
-      renderLayer(
-        target,
-        layer.data,
-        tileTextures,
-        tileDefMap,
-        lt,
-        sourceCellSizes,
-        world.bounds.minX,
-        world.bounds.minY,
-        animatedSprites,
-      )
-    } else if (layer.type === "background_decorations") {
-      const lt = layer.tileSize ?? world.tileSize
-      renderLayer(
-        backgroundDecorationContainer,
-        layer.data,
-        tileTextures,
-        tileDefMap,
-        lt,
-        sourceCellSizes,
-        world.bounds.minX,
-        world.bounds.minY,
-        animatedSprites,
-      )
-    } else if (layer.type === "ground_decorations") {
-      const lt = layer.tileSize ?? world.tileSize
-      renderLayer(
-        groundDecorationContainer,
-        layer.data,
-        tileTextures,
-        tileDefMap,
-        lt,
-        sourceCellSizes,
-        world.bounds.minX,
-        world.bounds.minY,
-        animatedSprites,
-      )
-    } else if (layer.type === "decoration") {
-      const lt = layer.tileSize ?? world.tileSize
-      renderLayer(
-        decorationContainer,
-        layer.data,
-        tileTextures,
-        tileDefMap,
-        lt,
-        sourceCellSizes,
-        world.bounds.minX,
-        world.bounds.minY,
-        animatedSprites,
-      )
-    } else if (layer.type === "sky") {
-      const lt = layer.tileSize ?? world.tileSize
-      renderLayer(
-        skyContainer,
-        layer.data,
-        tileTextures,
-        tileDefMap,
-        lt,
-        sourceCellSizes,
-        world.bounds.minX,
-        world.bounds.minY,
-        animatedSprites,
-      )
+    const container = getLayerContainer(layer.type, layer.name, containers)
+    if (!container) {
+      console.warn(`[TilemapRenderer] Unknown layer type: ${layer.type} (${layer.name}), skipping`)
+      continue
     }
+    const lt = layer.tileSize ?? world.tileSize
+    await renderLayer(
+      container,
+      layer.data,
+      tileTextures,
+      tileDefMap,
+      lt,
+      sourceCellSizes,
+      world.bounds.minX,
+      world.bounds.minY,
+      animatedSprites,
+      0,
+      totalTiles,
+      createdCount,
+      onProgress,
+    )
   }
+
+  const elapsed = (performance.now() - startTime).toFixed(0)
+  console.log(`[TilemapRenderer] Created ${createdCount.value} tile sprites in ${elapsed}ms`)
 
   const update = (
     _cameraX: number,
@@ -271,24 +289,16 @@ export async function createTilemapRenderer(
   }
 
   const destroy = () => {
-    backgroundContainer.destroy({ children: true })
-    backgroundDecorationContainer.destroy({ children: true })
-    groundContainer.destroy({ children: true })
-    groundDecorationContainer.destroy({ children: true })
-    decorationContainer.destroy({ children: true })
-    skyContainer.destroy({ children: true })
+    for (const c of Object.values(containers)) {
+      c.destroy({ children: true })
+    }
     tileTextures.clear()
     tileDefMap.clear()
     animatedSprites.length = 0
   }
 
   return {
-    backgroundContainer,
-    backgroundDecorationContainer,
-    groundContainer,
-    groundDecorationContainer,
-    decorationContainer,
-    skyContainer,
+    ...containers,
     update,
     getTileTexture,
     destroy,

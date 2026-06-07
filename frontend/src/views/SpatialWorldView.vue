@@ -4,6 +4,7 @@
     :class="{ 'pointer-events-none': !isConnected }"
     data-testid="spatial-world-view">
     <div ref="worldContainer" class="absolute inset-0" />
+    <WorldLoadingOverlay />
 
     <div class="relative z-[100] flex flex-col flex-1" style="pointer-events: none">
       <!-- Room Header (clickable through the canvas) -->
@@ -79,7 +80,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, useTemplateRef } from "vue"
+import { ref, computed, watch, onMounted, onUnmounted, useTemplateRef, nextTick } from "vue"
 import { Container, Sprite, Assets, SCALE_MODES } from "pixi.js"
 import { RoomEvent, ParticipantEvent } from "livekit-client"
 import type { RemoteParticipant } from "livekit-client"
@@ -87,13 +88,14 @@ import AudioControls from "@/components/AudioControls.vue"
 import RoomHeader from "@/components/RoomHeader.vue"
 import CharacterPicker from "@/components/CharacterPicker.vue"
 import BoomboxModal from "@/components/BoomboxModal.vue"
+import WorldLoadingOverlay from "@/components/WorldLoadingOverlay.vue"
 import type { CharacterKey } from "@/components/CharacterPicker.vue"
 import { PhUserCircle } from "@phosphor-icons/vue"
 import { useLiveKit, useBoombox } from "@/composables"
 import { useSpatialPosition } from "@/composables/useSpatialPosition"
 import { useSpatialAudio } from "@/composables/useSpatialAudio"
 import { useGameInput } from "@/composables/useGameInput"
-import { useUserStore } from "@/stores"
+import { useUserStore, useWorldLoadingStore } from "@/stores"
 import { createWorldRenderer } from "@/world/WorldRenderer"
 import { createCharacterSprite } from "@/world/CharacterSprite"
 import { getAnimations } from "@/world/ResourceManager"
@@ -104,7 +106,7 @@ import {
   PLAYER_HITBOX,
 } from "@/world/WorldConfig"
 import { loadWorld } from "@/world/WorldData"
-import type { WorldData } from "@/world/WorldTypes"
+import type { WorldData, ProgressCallback } from "@/world/WorldTypes"
 import {
   createCollisionSystem,
   createCollisionDebugOverlay,
@@ -264,6 +266,30 @@ const { initializeAudio, resumeAudio, updateAudioPositions } = spatialAudio
 const gameInput = useGameInput()
 const { direction, keysPressed, startListening, stopListening } = gameInput
 
+const worldLoadingStore = useWorldLoadingStore()
+const stageTimings: { name: string; duration: number }[] = []
+let stageStart = 0
+
+function startStage() {
+  stageStart = performance.now()
+}
+
+function endStage(name: string) {
+  const duration = performance.now() - stageStart
+  stageTimings.push({ name, duration })
+  console.log(`[WorldLoad] ${name}: ${duration.toFixed(0)}ms`)
+}
+
+function logAllTimings() {
+  console.log(`[WorldLoad] === World Loading Summary ===`)
+  let total = 0
+  for (const s of stageTimings) {
+    console.log(`[WorldLoad]   ${s.name}: ${s.duration.toFixed(0)}ms`)
+    total += s.duration
+  }
+  console.log(`[WorldLoad]   TOTAL: ${total.toFixed(0)}ms`)
+}
+
 const worldRenderer = createWorldRenderer()
 
 let boomboxContainer: Container | null = null
@@ -314,7 +340,15 @@ function getAnimation(dir: { x: number; y: number }): AnimationState {
 async function setupWorld() {
   if (!worldContainer.value) return
 
-  worldData = await loadWorld(props.worldId)
+  const onProgress: ProgressCallback = (progress, stage) => {
+    worldLoadingStore.update(progress, stage)
+  }
+
+  worldLoadingStore.start()
+  startStage()
+  worldData = await loadWorld(props.worldId, onProgress)
+  endStage("loadWorld")
+  onProgress(8, "Initializing renderer…")
 
   const config = getWorldConfig(props.worldId)
   const available = getAvailableCharacters(config.allowedCharacters)
@@ -323,20 +357,27 @@ async function setupWorld() {
     localStorage.setItem(CHARACTER_KEY, selectedCharacter.value)
   }
 
+  startStage()
   await worldRenderer.init(worldContainer.value)
+  endStage("pixijsInit")
+  onProgress(12, "Building collision map…")
 
   boomboxPosition.value = worldData.props.find((p) => p.id === "boombox") ?? { x: 0, y: -200 }
 
+  startStage()
   collisionSystem = createCollisionSystem(worldData)
+  endStage("collisionSystem")
 
   if (worldData.sources.length > 0) {
-    tilemapRenderer = await createTilemapRenderer(props.worldId, worldData)
+    startStage()
+    tilemapRenderer = await createTilemapRenderer(props.worldId, worldData, onProgress)
     worldRenderer.addTilemapBackground(tilemapRenderer.backgroundContainer)
     worldRenderer.addTilemapBackgroundDecoration(tilemapRenderer.backgroundDecorationContainer)
     worldRenderer.addTilemapGround(tilemapRenderer.groundContainer)
     worldRenderer.addTilemapGroundDecoration(tilemapRenderer.groundDecorationContainer)
     worldRenderer.addTilemapDecoration(tilemapRenderer.decorationContainer)
     worldRenderer.addTilemapSky(tilemapRenderer.skyContainer)
+    endStage("tilemapRenderer")
 
     for (const objConfig of worldData.objects) {
       const obj = createWorldObjectSprite(objConfig, (sourceId, tileId) =>
@@ -347,13 +388,18 @@ async function setupWorld() {
     }
   }
 
+  onProgress(80, "Loading character…")
+  startStage()
   localCharacterAnimations = await getAnimations(selectedCharacter.value)
   localCharacterDisplay = createCharacterSprite(userStore.nickname, localCharacterAnimations)
+  endStage("characterLoad")
 
   if (config.movement === "vehicle") {
     vehicleController = createVehicleController()
   }
 
+  onProgress(92, "Finalizing…")
+  startStage()
   const spawn = worldData.spawn
   updateLocalPosition({ ...spawn })
   localCharacterDisplay.setPosition(spawn.x, spawn.y)
@@ -383,8 +429,13 @@ async function setupWorld() {
   }
 
   worldRenderer.addWorldObject(container)
-
   scanRemoteParticipantsForBoombox()
+  endStage("finalSetup")
+
+  onProgress(100, "")
+  logAllTimings()
+  await nextTick()
+  worldLoadingStore.finish()
 }
 
 async function addRemoteCharacter(id: string, nickname: string) {

@@ -2,6 +2,7 @@ import { useRoomStore, useUserStore, useAppStore, useCallStore } from "@/stores"
 import { wsService } from "@/services/websocket"
 import { apiService, generateNickname } from "@/services/api"
 import type { CreateRoomData, UpdateRoomData } from "@/types"
+import { loadWorld } from "@/world/WorldData"
 
 // Room ping interval (20 seconds - must be less than backend timeout of 30s)
 const ROOM_PING_INTERVAL = 20000
@@ -108,6 +109,12 @@ export function useRoomManager() {
   const handleRoomSelected = async (roomId: string) => {
     if (roomStore.activeRoomId === roomId) {
       return
+    }
+
+    // Eagerly start world data fetch for spatial_audio rooms
+    const pendingRoom = roomStore.rooms.find((r) => r.id === roomId)
+    if (pendingRoom?.type === "spatial_audio" && pendingRoom.world) {
+      loadWorld(pendingRoom.world).catch(() => {})
     }
 
     try {

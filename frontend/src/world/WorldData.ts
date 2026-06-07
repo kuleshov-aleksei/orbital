@@ -1,4 +1,11 @@
-import type { WorldData, WorldSource } from "./WorldTypes"
+import type {
+  WorldData,
+  WorldSource,
+  ProgressCallback,
+  LayerData,
+  WorldObjectData,
+  PropData,
+} from "./WorldTypes"
 
 const cache = new Map<string, WorldData>()
 
@@ -21,14 +28,16 @@ function convertV1ToV2(data: Record<string, unknown>): WorldData {
       tileset: (data.tileset as string) || "",
       tileColumns: (data.tileColumns as number) || 1,
       tiles:
-        (data.tiles as any[])?.map((t: any) => ({
-          id: t.id,
-          collidable: t.collidable ?? false,
-          animated: t.animated ?? false,
-          frames: t.frames,
-          frameDuration: t.frameDuration,
-          collisionBox: t.collisionBox,
-          collisionPolygons: t.collisionPolygons,
+        (data.tiles as unknown[])?.map((t: Record<string, unknown>) => ({
+          id: t.id as number,
+          collidable: (t.collidable as boolean) ?? false,
+          animated: (t.animated as boolean) ?? false,
+          frames: t.frames as number[] | undefined,
+          frameDuration: t.frameDuration as number | undefined,
+          collisionBox: t.collisionBox as
+            | { x: number; y: number; width: number; height: number }
+            | undefined,
+          collisionPolygons: t.collisionPolygons as [number, number][][] | undefined,
         })) || [],
     })
   }
@@ -40,32 +49,40 @@ function convertV1ToV2(data: Record<string, unknown>): WorldData {
     bounds: data.bounds as WorldData["bounds"],
     spawn: data.spawn as WorldData["spawn"],
     layers:
-      (data.layers as any[])?.map((l: any) => ({
-        name: l.name,
-        type: l.type,
-        sourceId: l.sourceId ?? (sources.length > 0 ? sources[0].id : 0),
-        data: l.data,
+      (data.layers as unknown[])?.map((l: Record<string, unknown>) => ({
+        name: l.name as string,
+        type: l.type as LayerData["type"],
+        sourceId: (l.sourceId as number) ?? (sources.length > 0 ? sources[0].id : 0),
+        data: l.data as LayerData["data"],
       })) || [],
     objects:
-      (data.objects as any[])?.map((o: any) => ({
-        ...o,
-        sourceId: o.sourceId ?? 0,
-      })) || [],
-    props: (data.props as any[]) || [],
+      (data.objects as unknown[])?.map(
+        (o: Record<string, unknown>) =>
+          ({
+            ...o,
+            sourceId: (o.sourceId as number) ?? 0,
+          }) as WorldObjectData,
+      ) || [],
+    props: (data.props as PropData[]) || [],
   }
 }
 
-export async function loadWorld(worldId: string): Promise<WorldData> {
+export async function loadWorld(
+  worldId: string,
+  onProgress?: ProgressCallback,
+): Promise<WorldData> {
   if (cache.has(worldId)) {
     return cache.get(worldId)!
   }
 
+  onProgress?.(3, "Loading world data…")
   try {
     const url = `/assets/worlds/${worldId}/world.json`
     const response = await fetch(url)
     if (!response.ok) {
       throw new Error(`Failed to load world data: ${response.statusText}`)
     }
+    onProgress?.(6, "Parsing world data…")
     const raw: Record<string, unknown> = await response.json()
     const version = (raw.version as number) || 1
     const data = version < 2 ? convertV1ToV2(raw) : (raw as unknown as WorldData)
@@ -101,8 +118,8 @@ export function getTilesetUrl(worldId: string, source: WorldSource): string {
   return `/assets/worlds/${worldId}/${source.tileset}`
 }
 
-export function preloadWorld(worldId: string): Promise<WorldData> {
-  return loadWorld(worldId)
+export function preloadWorld(worldId: string, onProgress?: ProgressCallback): Promise<WorldData> {
+  return loadWorld(worldId, onProgress)
 }
 
 export function clearWorldCache(): void {
