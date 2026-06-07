@@ -1,4 +1,4 @@
-import { Assets, Container, SCALE_MODES, Sprite, Texture } from "pixi.js"
+import { Assets, Container, Sprite, Texture } from "pixi.js"
 import type { WorldData, TileDef } from "./WorldTypes"
 import { getTilesetUrl } from "./WorldData"
 
@@ -76,6 +76,8 @@ function renderLayer(
     const sprite = new Sprite(textures[0])
     sprite.x = boundsMinX + col * tileSize - (cellSize - tileSize) / 2
     sprite.y = boundsMinY + row * tileSize - (cellSize - tileSize) / 2
+    const overlapScale = (cellSize + 1) / cellSize
+    sprite.scale.set(overlapScale)
     sprite.zIndex = row + zIndexOffset
     container.addChild(sprite)
     rendered++
@@ -94,7 +96,9 @@ function renderLayer(
     }
   }
   if (rendered > 0 || skipped > 0) {
-    console.log(`[TilemapRenderer] renderLayer: ${rendered} sprites created, ${skipped} skipped (no texture)`)
+    console.log(
+      `[TilemapRenderer] renderLayer: ${rendered} sprites created, ${skipped} skipped (no texture)`,
+    )
   }
 }
 
@@ -134,7 +138,9 @@ export async function createTilemapRenderer(
       continue
     }
 
-    console.log(`[TilemapRenderer] Loading tileset source ${source.id}: ${url} (${source.tileColumns} cols, ${source.tiles.length} tiles)`)
+    console.log(
+      `[TilemapRenderer] Loading tileset source ${source.id}: ${url} (${source.tileColumns} cols, ${source.tiles.length} tiles)`,
+    )
 
     let tilesetTexture: Texture
     try {
@@ -144,21 +150,31 @@ export async function createTilemapRenderer(
       continue
     }
     const cellSize = tilesetTexture.baseTexture.width / source.tileColumns
-    tilesetTexture.baseTexture.scaleMode = cellSize === tileSize ? SCALE_MODES.NEAREST : SCALE_MODES.LINEAR
+    tilesetTexture.baseTexture.scaleMode = cellSize === tileSize ? "nearest" : "linear"
     sourceCellSizes.set(source.id, cellSize)
 
     const prefix = `${source.id}:`
     let loadedCount = 0
     for (const tileDef of source.tiles) {
-      const textures = getTileTextures(tileDef, tilesetTexture, tileSize, source.tileColumns, cellSize)
+      const textures = getTileTextures(
+        tileDef,
+        tilesetTexture,
+        tileSize,
+        source.tileColumns,
+        cellSize,
+      )
       tileTextures.set(prefix + tileDef.id, textures)
       tileDefMap.set(prefix + tileDef.id, tileDef)
       loadedCount++
     }
-    console.log(`[TilemapRenderer] Loaded ${loadedCount} tile textures for source ${source.id} (cellSize=${cellSize})`)
+    console.log(
+      `[TilemapRenderer] Loaded ${loadedCount} tile textures for source ${source.id} (cellSize=${cellSize})`,
+    )
   }
 
-  console.log(`[TilemapRenderer] tileTextures has ${tileTextures.size} entries, tileDefMap has ${tileDefMap.size} entries`)
+  console.log(
+    `[TilemapRenderer] tileTextures has ${tileTextures.size} entries, tileDefMap has ${tileDefMap.size} entries`,
+  )
 
   for (const layer of world.layers) {
     if (layer.data.length === 0) continue

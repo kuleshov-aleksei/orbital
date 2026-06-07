@@ -68,7 +68,6 @@ export function createWorldRenderer(): WorldRenderer {
 
     stage = new Container()
     stage.sortableChildren = true
-    stage.roundPixels = true
     app.stage.addChild(stage)
 
     backgroundLayer = new Container()
