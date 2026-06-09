@@ -2,6 +2,7 @@
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { app } from "electron";
+import log from "electron-log"
 import type { LinkData, Node, PatchBay as PatchBayType } from "@vencord/venmic";
 
 const getModuleUrl = (): string => {
@@ -34,22 +35,22 @@ export function importVenmic(): boolean {
   imported = true;
 
   if (process.platform !== "linux") {
-    console.log("[Venmic] Skipping venmic import - not Linux")
+    log.info("[Venmic] Skipping venmic import - not Linux")
     return false
   }
 
   const importPath = join(DIST_DIR, `venmic-${process.arch}.node`);
-  console.log(`[Venmic] Attempting to import from: ${importPath}`);
+  log.info(`[Venmic] Attempting to import from: ${importPath}`);
 
   try {
     const venmic = require(importPath);
-    console.log("[Venmic] venmic module:", venmic);
+    log.info("[Venmic] venmic module:", venmic);
     PatchBay = venmic.PatchBay;
-    console.log("[Venmic] PatchBay constructor:", PatchBay);
+    log.info("[Venmic] PatchBay constructor:", PatchBay);
     return true;
   } catch (e) {
-    console.error("[Venmic] Failed to import:", e);
-    console.error("[Venmic] Error stack:", (e as Error).stack);
+    log.error("[Venmic] Failed to import:", e);
+    log.error("[Venmic] Error stack:", (e as Error).stack);
     return false;
   }
 }
@@ -68,48 +69,48 @@ export function listAudioSources(props?: string[]): Node[] {
     if (!importVenmic()) return [];
     try {
       patchBayInstance = new PatchBay();
-      console.log("[Venmic] PatchBay instance created");
+      log.info("[Venmic] PatchBay instance created");
     } catch (e) {
-      console.error("[Venmic] Failed to instantiate PatchBay:", e);
-      console.error("[Venmic] Error stack:", (e as Error).stack);
+      log.error("[Venmic] Failed to instantiate PatchBay:", e);
+      log.error("[Venmic] Error stack:", (e as Error).stack);
       return [];
     }
   }
   const result = patchBayInstance.list(props) ?? [];
-  console.log("[Venmic] Listed", result.length, "sources");
+  log.info("[Venmic] Listed", result.length, "sources");
   return result;
 }
 
 export function startAudioCapture(include: Node[]): boolean {
   if (!patchBayInstance) {
     if (!importVenmic()) {
-      console.error("[Venmic] Cannot start capture - venmic import failed");
+      log.error("[Venmic] Cannot start capture - venmic import failed");
       return false;
     }
     try {
       patchBayInstance = new PatchBay();
-      console.log("[Venmic] PatchBay instance created for capture");
+      log.info("[Venmic] PatchBay instance created for capture");
     } catch (e) {
-      console.error("[Venmic] Failed to instantiate PatchBay:", e);
-      console.error("[Venmic] Error stack:", (e as Error).stack);
+      log.error("[Venmic] Failed to instantiate PatchBay:", e);
+      log.error("[Venmic] Error stack:", (e as Error).stack);
       return false;
     }
   }
 
   if (!include || include.length === 0) {
-    console.error("[Venmic] No sources provided to capture");
+    log.error("[Venmic] No sources provided to capture");
     return false;
   }
 
   const allSources = patchBayInstance.list() ?? [];
-  console.log("[Venmic] All sources count:", allSources.length);
+  log.info("[Venmic] All sources count:", allSources.length);
 
   const uniqueAppIds = new Set<string>();
   for (const node of include) {
     const appId = node["application.process.id"] || node["application.name"];
     if (appId) uniqueAppIds.add(appId);
   }
-  console.log("[Venmic] Selected apps:", Array.from(uniqueAppIds));
+  log.info("[Venmic] Selected apps:", Array.from(uniqueAppIds));
 
   const appSources: Node[] = [];
   for (const appId of uniqueAppIds) {
@@ -120,10 +121,10 @@ export function startAudioCapture(include: Node[]): boolean {
     appSources.push(...matching);
   }
 
-  console.log("[Venmic] Total sources to link:", appSources.length);
+  log.info("[Venmic] Total sources to link:", appSources.length);
 
   if (appSources.length === 0) {
-    console.error("[Venmic] No matching sources found for selected apps");
+    log.error("[Venmic] No matching sources found for selected apps");
     return false;
   }
 
@@ -134,9 +135,9 @@ export function startAudioCapture(include: Node[]): boolean {
     only_speakers: true,
   };
 
-  console.log("[Venmic] Linking with", appSources.length, "sources");
+  log.info("[Venmic] Linking with", appSources.length, "sources");
   const result = patchBayInstance.link(linkData);
-  console.log("[Venmic] Link result:", result);
+  log.info("[Venmic] Link result:", result);
   return result;
 }
 

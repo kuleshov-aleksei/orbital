@@ -270,6 +270,8 @@ function createWindow() {
   })
 
   mainWindow.once("ready-to-show", () => {
+    flushPendingLogEntries()
+
     if (updateCheckInProgress) {
       log.info("[Update] Window ready but update check in progress, deferring show")
     } else {
@@ -646,16 +648,44 @@ function setupAutoUpdater() {
   }
 }
 
+const pendingLogEntries: Array<{ level: string; message: string }> = []
+const MAX_PENDING_LOG_ENTRIES = 500
+
+function logToRenderer(level: string, message: string) {
+  const formatted = `[${new Date().toISOString()}] ${message}`
+  try {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("main-process-log", level, formatted)
+    } else if (pendingLogEntries.length < MAX_PENDING_LOG_ENTRIES) {
+      pendingLogEntries.push({ level, message: formatted })
+    }
+  } catch {
+    // Ignore errors sending logs — renderer may not be ready
+  }
+}
+
+function flushPendingLogEntries() {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  const entries = pendingLogEntries.splice(0)
+  for (const entry of entries) {
+    try {
+      mainWindow.webContents.send("main-process-log", entry.level, entry.message)
+    } catch {
+      // Ignore send errors
+    }
+  }
+}
+
 function setupScreenShareHandler() {
   session.defaultSession.setDisplayMediaRequestHandler(
     async (request, callback) => {
-      log.info("[ScreenShare] Received display media request:", request)
+      log.info("[ScreenShare] Handler invoked, pendingSource:", pendingScreenShareSource)
 
       const source = pendingScreenShareSource
       pendingScreenShareSource = null
 
       if (!source || source.id === "none") {
-        log.warn("[ScreenShare] No source selected")
+        log.warn("[ScreenShare] No source selected, source was:", source)
         try {
           callback({})
         } catch (e) {
@@ -664,23 +694,26 @@ function setupScreenShareHandler() {
         return
       }
 
-      log.info(`[ScreenShare] Using pre-selected source: ${source.id}, audio: ${source.audio}`)
+      log.info(`[ScreenShare] Using source: ${source.id}, audio: ${source.audio}`)
 
       const options: Electron.Streams = {
         video: { id: source.id, name: source.name },
       }
       if (source.audio) {
         options.audio = "loopback"
+        log.info("[ScreenShare] Added audio: loopback to options")
       }
 
       try {
         callback(options)
+        log.info("[ScreenShare] Callback sent successfully")
       } catch (e) {
         log.error("[ScreenShare] Callback error:", e)
       }
     },
     { useSystemPicker: false }
   )
+  log.info("[ScreenShare] Handler registered")
 }
 
 function setupIPC() {
@@ -756,27 +789,27 @@ function setupIPC() {
   })
 
   ipcMain.handle("venmic:has-venmic", () => {
-    console.log("[IPC] venmic:has-venmic called")
+    log.info("[IPC] venmic:has-venmic called")
     const result = hasVenmic()
-    console.log("[IPC] venmic:has-venmic result:", result)
+    log.info("[IPC] venmic:has-venmic result:", result)
     return result
   })
   ipcMain.handle("venmic:has-pipewire", () => {
-    console.log("[IPC] venmic:has-pipewire called")
+    log.info("[IPC] venmic:has-pipewire called")
     const result = hasPipeWire()
-    console.log("[IPC] venmic:has-pipewire result:", result)
+    log.info("[IPC] venmic:has-pipewire result:", result)
     return result
   })
   ipcMain.handle("venmic:list-sources", () => {
-    console.log("[IPC] venmic:list-sources called")
+    log.info("[IPC] venmic:list-sources called")
     return listAudioSources()
   })
   ipcMain.handle("venmic:start", (_, include) => {
-    console.log("[IPC] venmic:start called with:", JSON.stringify(include))
+    log.info("[IPC] venmic:start called with:", JSON.stringify(include))
     return startAudioCapture(include)
   })
   ipcMain.handle("venmic:stop", () => {
-    console.log("[IPC] venmic:stop called")
+    log.info("[IPC] venmic:stop called")
     return stopAudioCapture()
   })
 
@@ -1044,24 +1077,47 @@ function registerAllHotkeys() {
   }
 }
 
+function setupMainProcessLogRelay() {
+  log.hooks.push((entry, _transFn, transName) => {
+    // Hooks are called once per transport; forward only once to avoid tripling
+    if (transName !== "console") return entry
+    const message = entry.data
+      .map((arg: unknown) => {
+        if (typeof arg === "object") {
+          try {
+            return JSON.stringify(arg)
+          } catch {
+            return String(arg)
+          }
+        }
+        return String(arg)
+      })
+      .join(" ")
+    logToRenderer(entry.level, message)
+    return entry
+  })
+}
+
 function unregisterAllHotkeys() {
   globalShortcut.unregisterAll()
   registeredAccelerators = { mute: null, deafen: null, ptt: null }
   log.info("[Hotkey] Unregistered all hotkeys")
 }
 
-app.whenReady().then(() => {
-  log.info("App ready")
-  loadConfig()
-  createWindow()
-  createTray()
-  setupDeepLink()
-  setupIPC()
-  registerAllHotkeys()
-  if (!config.skipUpdates) {
-    setupAutoUpdater()
-  }
-  setupScreenShareHandler()
+  app.whenReady().then(() => {
+    setupMainProcessLogRelay()
+    log.info("App ready")
+    loadConfig()
+    createWindow()
+    flushPendingLogEntries()
+    createTray()
+    setupDeepLink()
+    setupIPC()
+    registerAllHotkeys()
+    if (!config.skipUpdates) {
+      setupAutoUpdater()
+    }
+    setupScreenShareHandler()
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {

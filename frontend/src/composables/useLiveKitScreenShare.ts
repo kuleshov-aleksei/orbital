@@ -9,7 +9,7 @@ import type {
 import { useAudioSettingsStore } from "@/stores/audioSettings"
 import { useAudioTracksStore } from "@/stores/audioTracks"
 import { useUsersStore } from "@/stores/users"
-import { debugLog, debugWarn } from "@/utils/debug"
+import { debugLog, debugWarn, debugError } from "@/utils/debug"
 import {
   isElectron,
   getPlatform,
@@ -92,6 +92,15 @@ export function useLiveKitScreenShare(state: LiveKitState) {
     }
   }
 
+  function withTimeout<T>(promise: Promise<T>, ms: number, context: string): Promise<T> {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) =>
+        setTimeout(() => reject(new Error(`[ScreenShare] ${context} timed out after ${ms}ms`)), ms),
+      ),
+    ])
+  }
+
   const startElectronScreenShare = async (
     quality: ScreenShareQuality,
     audio: boolean,
@@ -162,14 +171,26 @@ export function useLiveKitScreenShare(state: LiveKitState) {
           audioSettingsStore.availableInputDevices,
         )
 
-        displayStream = await navigator.mediaDevices.getDisplayMedia({
-          audio: audio,
-          video: {
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-            frameRate: { ideal: maxFrameRate },
-          },
-        })
+        try {
+          displayStream = await withTimeout(
+            navigator.mediaDevices.getDisplayMedia({
+              audio: audio,
+              video: {
+                width: { ideal: 1920 },
+                height: { ideal: 1080 },
+                frameRate: { ideal: maxFrameRate },
+              },
+            }),
+            10000,
+            "getDisplayMedia (Windows)",
+          )
+        } catch (cause) {
+          const msg = cause instanceof Error ? cause.message : String(cause)
+          console.error("[ScreenShare] getDisplayMedia failed:", msg)
+          debugError("[ScreenShare] getDisplayMedia failed:", msg)
+          await stopScreenShare()
+          throw new Error(`Screen share failed: ${msg}`, { cause })
+        }
 
         // -- DIAG: enumerate audio devices after getDisplayMedia --
         const devicesAfter = await navigator.mediaDevices.enumerateDevices()

@@ -89,7 +89,21 @@ export interface ElectronAPI {
   getIsWayland: () => Promise<boolean>
   setThumbarButtons: (state: { isMuted: boolean; isDeafened: boolean } | null) => Promise<boolean>
   onThumbarButtonClick: (callback: (action: string) => void) => void
+  onMainProcessLog: (callback: (level: string, message: string) => void) => void
 }
+
+// -- Main process log relay: register listener immediately so no IPC messages are missed --
+let mainProcessLogCallback: ((level: string, message: string) => void) | null = null
+const pendingMainProcessLogs: Array<{ level: string; message: string }> = []
+const MAX_PENDING_LOGS = 500
+
+ipcRenderer.on("main-process-log", (_event, level, message) => {
+  if (mainProcessLogCallback) {
+    mainProcessLogCallback(level, message)
+  } else if (pendingMainProcessLogs.length < MAX_PENDING_LOGS) {
+    pendingMainProcessLogs.push({ level, message })
+  }
+})
 
 const electronAPI: ElectronAPI = {
   getDesktopSources: () => ipcRenderer.invoke("get-desktop-sources"),
@@ -181,6 +195,13 @@ const electronAPI: ElectronAPI = {
   setThumbarButtons: (state) => ipcRenderer.invoke("set-thumbar-buttons", state),
   onThumbarButtonClick: (callback) => {
     ipcRenderer.on("thumbar-button-clicked", (_, action) => callback(action))
+  },
+  onMainProcessLog: (callback) => {
+    mainProcessLogCallback = callback
+    for (const entry of pendingMainProcessLogs) {
+      callback(entry.level, entry.message)
+    }
+    pendingMainProcessLogs.length = 0
   },
 }
 

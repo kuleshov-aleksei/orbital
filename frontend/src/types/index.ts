@@ -436,6 +436,7 @@ export interface ElectronAPI {
   getIsWayland: () => Promise<boolean>
   setThumbarButtons: (state: { isMuted: boolean; isDeafened: boolean } | null) => Promise<boolean>
   onThumbarButtonClick: (callback: (action: string) => void) => void
+  onMainProcessLog: (callback: (level: string, message: string) => void) => void
   venmicHasVenmic?: () => Promise<boolean>
   venmicHasPipeWire?: () => Promise<boolean>
   venmicListSources?: () => Promise<VenmicNode[]>

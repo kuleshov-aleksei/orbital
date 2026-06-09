@@ -13,7 +13,7 @@ import { useRouter } from "vue-router"
 import { useAppStore, useRoomStore, useThemeStore, useUserStore } from "@/stores"
 import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts"
 import { useThumbarButtons } from "@/composables"
-import { isElectron, onDeepLink, onOAuthToken } from "@/services/electron"
+import { isElectron, onDeepLink, onOAuthToken, setupMainProcessLogRelay } from "@/services/electron"
 import { setAuthToken, apiService, getAuthToken } from "@/services/api"
 
 const router = useRouter()
@@ -86,6 +86,8 @@ onMounted(() => {
   roomStore.loadUserVolumes()
 
   if (isElectron()) {
+    setupMainProcessLogRelay()
+
     onDeepLink((url: string) => {
       console.log("[App] Deep link received:", url.substring(0, 30) + "...")
       if (url.startsWith("orbital://auth/callback")) {

@@ -1,4 +1,5 @@
 import type { DesktopSource, UpdateProgressInfo, UpdateErrorInfo } from "@/types"
+import { debugLog, debugWarn, debugError } from "@/utils/debug"
 
 const isDev = import.meta.env.DEV
 
@@ -227,7 +228,9 @@ export async function getLicenses(): Promise<License[] | null> {
   return window.electronAPI!.getLicenses()
 }
 
-export async function setThumbarButtons(state: { isMuted: boolean; isDeafened: boolean } | null): Promise<boolean> {
+export async function setThumbarButtons(
+  state: { isMuted: boolean; isDeafened: boolean } | null,
+): Promise<boolean> {
   if (!isElectron()) return false
   return window.electronAPI!.setThumbarButtons(state)
 }
@@ -236,4 +239,13 @@ export function onThumbarButtonClick(callback: (action: string) => void): void {
   if (isElectron()) {
     window.electronAPI!.onThumbarButtonClick(callback)
   }
+}
+
+export function setupMainProcessLogRelay(): void {
+  if (!isElectron()) return
+  window.electronAPI!.onMainProcessLog((level: string, message: string) => {
+    const fn = level === "error" ? debugError : level === "warn" ? debugWarn : debugLog
+    fn(`[MainProcess] ${message}`)
+  })
+  debugLog("[MainProcess] Log relay initialized")
 }
