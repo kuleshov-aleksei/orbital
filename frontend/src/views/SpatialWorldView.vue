@@ -4,6 +4,7 @@
     :class="{ 'pointer-events-none': !isConnected }"
     data-testid="spatial-world-view">
     <div ref="worldContainer" class="absolute inset-0" />
+    <WorldLoadingOverlay />
 
     <div class="relative z-[100] flex flex-col flex-1" style="pointer-events: none">
       <!-- Room Header (clickable through the canvas) -->
@@ -34,6 +35,7 @@
           <CharacterPicker
             :visible="showCharacterPicker"
             :selected="selectedCharacter"
+            :allowed-characters="worldConfig.allowedCharacters"
             @select="onSelectCharacter" />
         </div>
       </div>
@@ -78,7 +80,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, useTemplateRef } from "vue"
+import { ref, computed, watch, onMounted, onUnmounted, useTemplateRef, nextTick } from "vue"
 import { Container, Sprite, Assets, SCALE_MODES } from "pixi.js"
 import { RoomEvent, ParticipantEvent } from "livekit-client"
 import type { RemoteParticipant } from "livekit-client"
@@ -86,16 +88,17 @@ import AudioControls from "@/components/AudioControls.vue"
 import RoomHeader from "@/components/RoomHeader.vue"
 import CharacterPicker from "@/components/CharacterPicker.vue"
 import BoomboxModal from "@/components/BoomboxModal.vue"
+import WorldLoadingOverlay from "@/components/WorldLoadingOverlay.vue"
 import type { CharacterKey } from "@/components/CharacterPicker.vue"
 import { PhUserCircle } from "@phosphor-icons/vue"
 import { useLiveKit, useBoombox } from "@/composables"
 import { useSpatialPosition } from "@/composables/useSpatialPosition"
 import { useSpatialAudio } from "@/composables/useSpatialAudio"
 import { useGameInput } from "@/composables/useGameInput"
-import { useUserStore } from "@/stores"
+import { useUserStore, useWorldLoadingStore } from "@/stores"
 import { createWorldRenderer } from "@/world/WorldRenderer"
 import { createCharacterSprite } from "@/world/CharacterSprite"
-import { getAnimations, getRegisteredKeys } from "@/world/ResourceManager"
+import { getAnimations } from "@/world/ResourceManager"
 import {
   PLAYER_SPEED,
   EARSHOT_RADIUS,
@@ -103,7 +106,7 @@ import {
   PLAYER_HITBOX,
 } from "@/world/WorldConfig"
 import { loadWorld } from "@/world/WorldData"
-import type { WorldData } from "@/world/WorldTypes"
+import type { WorldData, ProgressCallback } from "@/world/WorldTypes"
 import {
   createCollisionSystem,
   createCollisionDebugOverlay,
@@ -118,6 +121,9 @@ import { assetPath } from "@/utils/assetPath"
 import type { User } from "@/types"
 import type { AnimationTextures } from "@/world/ResourceManager"
 import type { AnimationState } from "@/world/CharacterSprite"
+import { getWorldConfig } from "@/config/worlds"
+import { getAvailableCharacters } from "@/world/ResourceManager"
+import { createVehicleController, type VehicleController } from "@/world/VehicleController"
 
 interface Props {
   roomId: string
@@ -148,16 +154,21 @@ const emit = defineEmits<{
 const CHARACTER_KEY = "orbital_character"
 function loadCharacter(): CharacterKey {
   const stored = localStorage.getItem(CHARACTER_KEY)
-  const knownKeys = getRegisteredKeys()
-  if (stored && knownKeys.includes(stored)) {
+  const config = getWorldConfig(props.worldId)
+  const available = getAvailableCharacters(config.allowedCharacters)
+  if (stored && available.includes(stored)) {
     return stored as CharacterKey
   }
-  return "targ"
+  return (available.length > 0 ? available[0] : "targ") as CharacterKey
 }
+
+const worldConfig = computed(() => getWorldConfig(props.worldId))
 
 const userStore = useUserStore()
 const selectedCharacter = ref<CharacterKey>(loadCharacter())
 const showCharacterPicker = ref(false)
+
+let vehicleController: VehicleController | null = null
 
 const worldContainer = useTemplateRef<HTMLElement>("worldContainer")
 
@@ -189,6 +200,8 @@ const spatialPosition = useSpatialPosition({
   localParticipant,
   characterKey: selectedCharacter,
   onCharacterChange: (participantId, characterKey) => {
+    const allowed = worldConfig.value.allowedCharacters
+    if (allowed && !allowed.includes(characterKey)) return
     changeRemoteCharacter(participantId, characterKey)
   },
   onRemoteMove: (participantId, dx, dy) => {
@@ -251,7 +264,31 @@ const spatialAudio = useSpatialAudio({
 const { initializeAudio, resumeAudio, updateAudioPositions } = spatialAudio
 
 const gameInput = useGameInput()
-const { direction, startListening, stopListening } = gameInput
+const { direction, keysPressed, startListening, stopListening } = gameInput
+
+const worldLoadingStore = useWorldLoadingStore()
+const stageTimings: { name: string; duration: number }[] = []
+let stageStart = 0
+
+function startStage() {
+  stageStart = performance.now()
+}
+
+function endStage(name: string) {
+  const duration = performance.now() - stageStart
+  stageTimings.push({ name, duration })
+  console.log(`[WorldLoad] ${name}: ${duration.toFixed(0)}ms`)
+}
+
+function logAllTimings() {
+  console.log(`[WorldLoad] === World Loading Summary ===`)
+  let total = 0
+  for (const s of stageTimings) {
+    console.log(`[WorldLoad]   ${s.name}: ${s.duration.toFixed(0)}ms`)
+    total += s.duration
+  }
+  console.log(`[WorldLoad]   TOTAL: ${total.toFixed(0)}ms`)
+}
 
 const worldRenderer = createWorldRenderer()
 
@@ -303,22 +340,44 @@ function getAnimation(dir: { x: number; y: number }): AnimationState {
 async function setupWorld() {
   if (!worldContainer.value) return
 
-  worldData = await loadWorld(props.worldId)
+  const onProgress: ProgressCallback = (progress, stage) => {
+    worldLoadingStore.update(progress, stage)
+  }
 
+  worldLoadingStore.start()
+  startStage()
+  worldData = await loadWorld(props.worldId, onProgress)
+  endStage("loadWorld")
+  onProgress(8, "Initializing renderer…")
+
+  const config = getWorldConfig(props.worldId)
+  const available = getAvailableCharacters(config.allowedCharacters)
+  if (!available.includes(selectedCharacter.value)) {
+    selectedCharacter.value = (available.length > 0 ? available[0] : "targ") as CharacterKey
+    localStorage.setItem(CHARACTER_KEY, selectedCharacter.value)
+  }
+
+  startStage()
   await worldRenderer.init(worldContainer.value)
+  endStage("pixijsInit")
+  onProgress(12, "Building collision map…")
 
   boomboxPosition.value = worldData.props.find((p) => p.id === "boombox") ?? { x: 0, y: -200 }
 
+  startStage()
   collisionSystem = createCollisionSystem(worldData)
+  endStage("collisionSystem")
 
   if (worldData.sources.length > 0) {
-    tilemapRenderer = await createTilemapRenderer(props.worldId, worldData)
+    startStage()
+    tilemapRenderer = await createTilemapRenderer(props.worldId, worldData, onProgress)
     worldRenderer.addTilemapBackground(tilemapRenderer.backgroundContainer)
     worldRenderer.addTilemapBackgroundDecoration(tilemapRenderer.backgroundDecorationContainer)
     worldRenderer.addTilemapGround(tilemapRenderer.groundContainer)
     worldRenderer.addTilemapGroundDecoration(tilemapRenderer.groundDecorationContainer)
     worldRenderer.addTilemapDecoration(tilemapRenderer.decorationContainer)
     worldRenderer.addTilemapSky(tilemapRenderer.skyContainer)
+    endStage("tilemapRenderer")
 
     for (const objConfig of worldData.objects) {
       const obj = createWorldObjectSprite(objConfig, (sourceId, tileId) =>
@@ -329,9 +388,18 @@ async function setupWorld() {
     }
   }
 
+  onProgress(80, "Loading character…")
+  startStage()
   localCharacterAnimations = await getAnimations(selectedCharacter.value)
   localCharacterDisplay = createCharacterSprite(userStore.nickname, localCharacterAnimations)
+  endStage("characterLoad")
 
+  if (config.movement === "vehicle") {
+    vehicleController = createVehicleController()
+  }
+
+  onProgress(92, "Finalizing…")
+  startStage()
   const spawn = worldData.spawn
   updateLocalPosition({ ...spawn })
   localCharacterDisplay.setPosition(spawn.x, spawn.y)
@@ -361,8 +429,13 @@ async function setupWorld() {
   }
 
   worldRenderer.addWorldObject(container)
-
   scanRemoteParticipantsForBoombox()
+  endStage("finalSetup")
+
+  onProgress(100, "")
+  logAllTimings()
+  await nextTick()
+  worldLoadingStore.finish()
 }
 
 async function addRemoteCharacter(id: string, nickname: string) {
@@ -401,27 +474,42 @@ function gameTick(delta: number) {
 
   const frameDelta = Math.min(delta / (1000 / 60), 3)
 
-  const rawDir = direction.value
-  const magnitude = Math.sqrt(rawDir.x * rawDir.x + rawDir.y * rawDir.y)
-  const moving = magnitude > 0.01
-  const dir = moving ? { x: rawDir.x / magnitude, y: rawDir.y / magnitude } : rawDir
-
-  if (moving) {
+  if (worldConfig.value.movement === "vehicle" && vehicleController) {
+    vehicleController.update(delta, keysPressed)
+    const vel = vehicleController.getVelocity(frameDelta)
     const pos = localPosition.value
-    const velocity = {
-      x: dir.x * PLAYER_SPEED * frameDelta,
-      y: dir.y * PLAYER_SPEED * frameDelta,
-    }
     const resolved = collisionSystem
-      ? collisionSystem.resolveMovement(pos, velocity, PLAYER_HITBOX)
-      : { x: pos.x + velocity.x, y: pos.y + velocity.y }
+      ? collisionSystem.resolveMovement(pos, vel, PLAYER_HITBOX)
+      : { x: pos.x + vel.x, y: pos.y + vel.y }
     updateLocalPosition(resolved)
+    localCharacterDisplay.setPosition(localPosition.value.x, localPosition.value.y)
+    localCharacterDisplay.setAnimation("idle")
+    const visualRotation = localCharacterAnimations?.initialRotation ?? 0
+    localCharacterDisplay.setRotation(vehicleController.state.angle + visualRotation)
+  } else {
+    const rawDir = direction.value
+    const magnitude = Math.sqrt(rawDir.x * rawDir.x + rawDir.y * rawDir.y)
+    const moving = magnitude > 0.01
+    const dir = moving ? { x: rawDir.x / magnitude, y: rawDir.y / magnitude } : rawDir
+
+    if (moving) {
+      const pos = localPosition.value
+      const velocity = {
+        x: dir.x * PLAYER_SPEED * frameDelta,
+        y: dir.y * PLAYER_SPEED * frameDelta,
+      }
+      const resolved = collisionSystem
+        ? collisionSystem.resolveMovement(pos, velocity, PLAYER_HITBOX)
+        : { x: pos.x + velocity.x, y: pos.y + velocity.y }
+      updateLocalPosition(resolved)
+    }
+
+    if (dir.x !== 0) lastFacingRight = dir.x > 0
+
+    localCharacterDisplay.setPosition(localPosition.value.x, localPosition.value.y)
+    localCharacterDisplay.setAnimation(getAnimation(dir), lastFacingRight)
+    localCharacterDisplay.setRotation(0)
   }
-
-  if (dir.x !== 0) lastFacingRight = dir.x > 0
-
-  localCharacterDisplay.setPosition(localPosition.value.x, localPosition.value.y)
-  localCharacterDisplay.setAnimation(getAnimation(dir), lastFacingRight)
 
   if (showCollisionDebug && collisionDebugOverlay) {
     updateCollisionDebugOverlay(
@@ -502,6 +590,9 @@ async function changeCharacter(key: CharacterKey) {
 }
 
 async function changeRemoteCharacter(id: string, characterKey: string) {
+  const allowed = worldConfig.value.allowedCharacters
+  if (allowed && !allowed.includes(characterKey)) return
+
   cancelledCharacterCreations.add(id)
 
   const spawn = worldData?.spawn ?? { x: 10, y: 0 }
@@ -689,6 +780,7 @@ onUnmounted(async () => {
   worldRenderer.destroy()
   await cleanupLiveKit()
 
+  vehicleController = null
   worldData = null
   collisionSystem = null
 })

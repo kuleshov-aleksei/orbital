@@ -8,6 +8,7 @@ export interface CharacterConfig {
   frameHeight: number
   totalFrames: number
   scale?: number
+  initialRotation?: number
   animations: {
     walk: { frames: number[]; loop: boolean }
     idle: { frames: number[]; loop: boolean }
@@ -22,6 +23,7 @@ export interface AnimationTextures {
   walkUp?: Texture[]
   walkDown?: Texture[]
   scale: number
+  initialRotation?: number
 }
 
 const registry = new Map<string, CharacterConfig>()
@@ -33,6 +35,12 @@ export function registerCharacter(config: CharacterConfig) {
 
 export function getRegisteredKeys(): string[] {
   return Array.from(registry.keys())
+}
+
+export function getAvailableCharacters(allowedList?: string[]): string[] {
+  const allKeys = getRegisteredKeys()
+  if (!allowedList || allowedList.length === 0) return allKeys
+  return allKeys.filter((key) => allowedList.includes(key))
 }
 
 export function getAnimations(key: string): Promise<AnimationTextures> {
@@ -83,6 +91,7 @@ async function loadAnimations(config: CharacterConfig): Promise<AnimationTexture
     walkUp: walkUpTextures,
     walkDown: walkDownTextures,
     scale: config.scale ?? 3,
+    initialRotation: config.initialRotation,
   }
 }
 
@@ -204,6 +213,20 @@ export function registerDefaultCharacters() {
       walk: { frames: [4, 5, 6, 7, 8, 9, 10, 11], loop: true },
       idle: { frames: [0, 1, 2, 3], loop: true },
     },
+  })
+
+  registerCharacter({
+    key: "redbull",
+    spritesheet: "/assets/characters/redbull.png",
+    frameWidth: 64,
+    frameHeight: 108,
+    totalFrames: 1,
+    scale: 1,
+    animations: {
+      walk: { frames: [0], loop: true },
+      idle: { frames: [0], loop: true },
+    },
+    initialRotation: Math.PI / 2,
   })
 }
 

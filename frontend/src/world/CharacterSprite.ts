@@ -7,6 +7,7 @@ export interface CharacterDisplay {
   container: Container
   setPosition(x: number, y: number): void
   setAnimation(anim: AnimationState, facingRight?: boolean): void
+  setRotation(angle: number): void
   setSpeaking(speaking: boolean): void
   setMuted(muted: boolean): void
   destroy(): void
@@ -170,6 +171,14 @@ export function createCharacterSprite(
     }
   }
 
+  const spriteChildren = [idleSprite, walkSprite, walkUpSprite, walkDownSprite].filter(Boolean)
+
+  const setRotation = (angle: number) => {
+    for (const child of spriteChildren) {
+      if (child) child.rotation = angle
+    }
+  }
+
   const destroy = () => {
     container.destroy({ children: true })
   }
@@ -178,6 +187,7 @@ export function createCharacterSprite(
     container,
     setPosition,
     setAnimation,
+    setRotation,
     setSpeaking,
     setMuted,
     destroy,

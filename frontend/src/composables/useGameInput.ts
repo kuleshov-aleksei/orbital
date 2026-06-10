@@ -1,4 +1,4 @@
-import { ref, onMounted, onUnmounted, type Ref } from "vue"
+import { ref, type Ref } from "vue"
 
 export interface GameInputState {
   direction: Ref<{ x: number; y: number }>
@@ -6,14 +6,17 @@ export interface GameInputState {
 
 export function useGameInput(): {
   direction: Ref<{ x: number; y: number }>
+  keysPressed: Set<string>
   setMobileInput: (x: number, y: number) => void
   startListening: () => void
   stopListening: () => void
 } {
   const direction = ref<{ x: number; y: number }>({ x: 0, y: 0 })
+  const keysPressed = new Set<string>()
   let isListening = false
 
   const keyDownListener = (e: KeyboardEvent) => {
+    keysPressed.add(e.code)
     const prev = direction.value
     const next = { x: prev.x, y: prev.y }
 
@@ -29,6 +32,7 @@ export function useGameInput(): {
   }
 
   const keyUpListener = (e: KeyboardEvent) => {
+    keysPressed.delete(e.code)
     const prev = direction.value
     const next = { x: prev.x, y: prev.y }
 
@@ -63,6 +67,7 @@ export function useGameInput(): {
 
   return {
     direction,
+    keysPressed,
     setMobileInput,
     startListening,
     stopListening,
