@@ -660,7 +660,7 @@ export function useLiveKitScreenShare(state: LiveKitState) {
               maxBitrate: 20 * 1000 * 1000,
               maxFramerate: 30,
             },
-            degradationPreference: "balanced",
+            degradationPreference: "maintain-framerate",
             audioPreset: AudioPresets.musicHighQualityStereo,
           },
         )
