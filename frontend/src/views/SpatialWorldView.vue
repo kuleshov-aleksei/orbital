@@ -124,6 +124,7 @@ import type { AnimationState } from "@/world/CharacterSprite"
 import { getWorldConfig } from "@/config/worlds"
 import { getAvailableCharacters } from "@/world/ResourceManager"
 import { createVehicleController, type VehicleController } from "@/world/VehicleController"
+import { createSongTitleOverlay, type SongTitleOverlay } from "@/world/SongTitleOverlay"
 
 interface Props {
   roomId: string
@@ -295,6 +296,7 @@ const worldRenderer = createWorldRenderer()
 let boomboxContainer: Container | null = null
 const showBoomboxModal = ref(false)
 let boomboxSprite: Sprite | null = null
+let songTitleOverlay: SongTitleOverlay | null = null
 
 let localCharacterAnimations: AnimationTextures | null = null
 let localCharacterDisplay: ReturnType<typeof createCharacterSprite> | null = null
@@ -429,6 +431,15 @@ async function setupWorld() {
   }
 
   worldRenderer.addWorldObject(container)
+
+  // Song title overlay
+  songTitleOverlay = createSongTitleOverlay()
+  worldRenderer.addOverlay(songTitleOverlay.container)
+  if (boomboxIsPlaying.value && boomboxTrackName.value) {
+    songTitleOverlay.setSong(boomboxTrackName.value)
+    songTitleOverlay.setVisible(true)
+  }
+
   scanRemoteParticipantsForBoombox()
   endStage("finalSetup")
 
@@ -566,6 +577,11 @@ function gameTick(delta: number) {
   for (const obj of worldObjectDisplays) {
     obj.update(delta)
   }
+
+  if (songTitleOverlay) {
+    const size = worldRenderer.getScreenSize()
+    songTitleOverlay.update(size.width, size.height, delta)
+  }
 }
 
 async function changeCharacter(key: CharacterKey) {
@@ -623,6 +639,16 @@ watch(selectedCharacter, (key) => {
 
 watch(isMuted, (muted) => {
   localCharacterDisplay?.setMuted(muted)
+})
+
+watch([boomboxTrackName, boomboxIsPlaying], ([name, playing]) => {
+  if (!songTitleOverlay) return
+  if (playing && name) {
+    songTitleOverlay.setSong(name)
+    songTitleOverlay.setVisible(true)
+  } else {
+    songTitleOverlay.setVisible(false)
+  }
 })
 
 function onSelectCharacter(key: CharacterKey) {
@@ -773,6 +799,12 @@ onUnmounted(async () => {
     worldRenderer.removeTilemapSky(tilemapRenderer.skyContainer)
     tilemapRenderer.destroy()
     tilemapRenderer = null
+  }
+
+  if (songTitleOverlay) {
+    worldRenderer.removeOverlay(songTitleOverlay.container)
+    songTitleOverlay.destroy()
+    songTitleOverlay = null
   }
 
   await boomboxStop()
