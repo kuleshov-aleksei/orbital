@@ -1,3 +1,4 @@
+import { assetPath } from "@/utils/assetPath"
 import type {
   WorldData,
   WorldSource,
@@ -77,7 +78,7 @@ export async function loadWorld(
 
   onProgress?.(3, "Loading world data…")
   try {
-    const url = `/assets/worlds/${worldId}/world.json`
+    const url = assetPath(`/assets/worlds/${worldId}/world.json`)
     const response = await fetch(url)
     if (!response.ok) {
       throw new Error(`Failed to load world data: ${response.statusText}`)
@@ -115,7 +116,7 @@ export async function loadWorld(
 
 export function getTilesetUrl(worldId: string, source: WorldSource): string {
   if (!source.tileset) return ""
-  return `/assets/worlds/${worldId}/${source.tileset}`
+  return assetPath(`/assets/worlds/${worldId}/${source.tileset}`)
 }
 
 export function preloadWorld(worldId: string, onProgress?: ProgressCallback): Promise<WorldData> {
