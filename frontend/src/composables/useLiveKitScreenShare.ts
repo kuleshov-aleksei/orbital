@@ -171,10 +171,10 @@ export function useLiveKitScreenShare(state: LiveKitState) {
           audioSettingsStore.availableInputDevices,
         )
 
-        try {
-          displayStream = await withTimeout(
+        const getWindowsDisplayMedia = async (withAudio: boolean, diagLabel: string) => {
+          return await withTimeout(
             navigator.mediaDevices.getDisplayMedia({
-              audio: audio,
+              audio: withAudio,
               video: {
                 width: { ideal: 1920 },
                 height: { ideal: 1080 },
@@ -182,14 +182,40 @@ export function useLiveKitScreenShare(state: LiveKitState) {
               },
             }),
             10000,
-            "getDisplayMedia (Windows)",
+            diagLabel,
           )
+        }
+
+        try {
+          displayStream = await getWindowsDisplayMedia(audio, "getDisplayMedia (Windows)")
         } catch (cause) {
           const msg = cause instanceof Error ? cause.message : String(cause)
-          console.error("[ScreenShare] getDisplayMedia failed:", msg)
-          debugError("[ScreenShare] getDisplayMedia failed:", msg)
-          await stopScreenShare()
-          throw new Error(`Screen share failed: ${msg}`, { cause })
+          const isAudioSourceError = msg.includes("Could not start audio source")
+
+          if (isAudioSourceError && audio) {
+            debugLog("[ScreenShare] Audio source unavailable, falling back to video-only share")
+            await startElectronScreenShareIPC(sourceId, false)
+            try {
+              displayStream = await getWindowsDisplayMedia(
+                false,
+                "getDisplayMedia (Windows, no audio)",
+              )
+              state.screenShareAudioWarning.value =
+                "Could not capture system audio. Screen sharing without audio."
+              debugLog("[ScreenShare] Video-only fallback succeeded")
+            } catch (retryCause) {
+              const retryMsg = retryCause instanceof Error ? retryCause.message : String(retryCause)
+              console.error("[ScreenShare] Video-only fallback also failed:", retryMsg)
+              debugError("[ScreenShare] Video-only fallback also failed:", retryMsg)
+              await stopScreenShare()
+              throw new Error(`Screen share failed: ${retryMsg}`)
+            }
+          } else {
+            console.error("[ScreenShare] getDisplayMedia failed:", msg)
+            debugError("[ScreenShare] getDisplayMedia failed:", msg)
+            await stopScreenShare()
+            throw new Error(`Screen share failed: ${msg}`)
+          }
         }
 
         // -- DIAG: enumerate audio devices after getDisplayMedia --

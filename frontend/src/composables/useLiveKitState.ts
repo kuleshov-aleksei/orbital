@@ -47,6 +47,7 @@ export interface LiveKitState {
   isStartingCamera: Ref<boolean>
   isStoppingScreenShare: Ref<boolean>
   isStartingScreenShare: Ref<boolean>
+  screenShareAudioWarning: Ref<string | null>
   localStreamPromise: Ref<Promise<LocalAudioTrack | null> | null>
   currentPing: Ref<number>
   participantStats: Ref<Map<string, ConnectionStats>>
@@ -105,6 +106,7 @@ export function useLiveKitState(options: UseLiveKitStateOptions): LiveKitState {
   const isStartingCamera = ref(false)
   const isStoppingScreenShare = ref(false)
   const isStartingScreenShare = ref(false)
+  const screenShareAudioWarning = ref<string | null>(null)
 
   const localStreamPromise = ref<Promise<LocalAudioTrack | null> | null>(null)
 
@@ -148,6 +150,7 @@ export function useLiveKitState(options: UseLiveKitStateOptions): LiveKitState {
     isStartingCamera: isStartingCamera as Ref<boolean>,
     isStoppingScreenShare: isStoppingScreenShare as Ref<boolean>,
     isStartingScreenShare: isStartingScreenShare as Ref<boolean>,
+    screenShareAudioWarning: screenShareAudioWarning as Ref<string | null>,
     localStreamPromise: localStreamPromise as Ref<Promise<LocalAudioTrack | null> | null>,
     currentPing: currentPing as Ref<number>,
     participantStats: participantStats as Ref<Map<string, ConnectionStats>>,

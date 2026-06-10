@@ -37,6 +37,25 @@
         @click="handleNotificationClick"
         @dismiss="chatNotification.visible = false" />
 
+      <!-- Screen Share Audio Warning Notification -->
+      <Transition name="slide-in">
+        <div
+          v-if="screenShareAudioNotification"
+          class="absolute top-20 right-4 z-40 pointer-events-auto">
+          <div
+            class="bg-amber-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 max-w-xs">
+            <PhWarning class="w-5 h-5 flex-shrink-0" />
+            <span class="text-sm">{{ screenShareAudioNotification }}</span>
+            <button
+              type="button"
+              class="flex-shrink-0 p-1 hover:bg-amber-700 rounded transition-colors"
+              @click="screenShareAudioNotification = null">
+              <PhX class="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </Transition>
+
       <!-- Screen Share Quality Modal handled by parent -->
 
       <!-- Main Call Area -->
@@ -118,6 +137,7 @@ import AudioControls from "@/components/AudioControls.vue"
 import RoomHeader from "@/components/RoomHeader.vue"
 import ChatWidget from "@/components/ChatWidget.vue"
 import ChatToggleButton from "@/components/ChatToggleButton.vue"
+import { PhWarning, PhX } from "@phosphor-icons/vue"
 import ChatPreviewNotification from "@/components/ChatPreviewNotification.vue"
 import { useLiveKit, useVoiceActivity } from "@/composables"
 import {
@@ -130,7 +150,7 @@ import {
   useUsersStore,
 } from "@/stores"
 import { storeToRefs } from "pinia"
-import type { User, ScreenShareQuality } from "@/types"
+import type { User, ScreenShareQuality, VenmicNode } from "@/types"
 
 const props = withDefaults(defineProps<Props>(), {
   isMobile: false,
@@ -228,6 +248,21 @@ const handleNotificationClick = () => {
   chatStore.openChat()
 }
 
+// Screen share audio fallback notification state
+let screenShareAudioTimer: ReturnType<typeof setTimeout> | null = null
+const screenShareAudioNotification = ref<string | null>(null)
+
+const showScreenShareAudioNotification = (message: string) => {
+  if (screenShareAudioTimer) {
+    clearTimeout(screenShareAudioTimer)
+  }
+  screenShareAudioNotification.value = message
+  screenShareAudioTimer = setTimeout(() => {
+    screenShareAudioNotification.value = null
+    screenShareAudioTimer = null
+  }, 8000)
+}
+
 // Initialize LiveKit composable - destructure for template reactivity
 const {
   localStream,
@@ -254,6 +289,7 @@ const {
   unsubscribeFromScreenShare,
   subscribedScreenShares,
   screenShareVersion,
+  screenShareAudioWarning,
   cleanup,
 } = useLiveKit({
   roomId: props.roomId,
@@ -283,6 +319,14 @@ watch(
   },
   { immediate: true },
 )
+
+// Watch for screen share audio fallback warning
+watch(screenShareAudioWarning, (message) => {
+  if (message) {
+    showScreenShareAudioNotification(message)
+    screenShareAudioWarning.value = null
+  }
+})
 
 // Sync subscribed screen shares with call store watching state
 // Use screenShareVersion to trigger reactivity since Set mutations aren't detected by Vue
@@ -599,7 +643,7 @@ const startElectronScreenShareWithQuality = async (
   quality: string,
   audio: boolean,
   sourceId: string,
-  audioSources?: any[],
+  audioSources?: VenmicNode[],
 ) => {
   try {
     await startElectronScreenShare(quality as ScreenShareQuality, audio, sourceId, audioSources)

@@ -111,5 +111,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
     initializeLiveKit,
     cleanup,
     isRunningInElectron: screenShare.isRunningInElectron,
+    screenShareAudioWarning: state.screenShareAudioWarning,
   }
 }
