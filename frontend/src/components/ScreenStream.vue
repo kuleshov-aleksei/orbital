@@ -5,7 +5,10 @@
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave">
     <!-- Video Container - maintains actual stream aspect ratio within available space -->
-    <div class="relative flex items-center justify-center bg-black w-full h-full max-h-[70vh]">
+    <div
+      ref="videoContainerRef"
+      class="relative flex items-center justify-center bg-black w-full h-full max-h-[70vh]"
+      @mousemove="onFullscreenMousemove">
       <video
         :id="`screen-${userId}`"
         ref="videoElement"
@@ -19,7 +22,8 @@
 
       <!-- User Info Overlay -->
       <div
-        class="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/70 to-transparent px-4 py-3">
+        class="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/70 to-transparent px-4 py-3 transition-opacity duration-300"
+        :class="{ 'opacity-0': isFullscreen && !fullscreenControlsVisible }">
         <div class="flex items-center justify-between">
           <div class="flex items-center">
             <UserAvatar class="mr-2" :user-id="userId" :size="24" :show-status="false" />
@@ -56,6 +60,7 @@
 
       <!-- Controls Overlay -->
       <div
+        v-show="!isFullscreen"
         class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-4 py-3 transition-opacity duration-200"
         :class="{ 'opacity-100': isHovered, 'opacity-0': !isHovered }">
         <div class="flex items-center justify-between">
@@ -101,10 +106,10 @@
             <!-- Stop Watching Button -->
             <button
               type="button"
-              class="px-2 py-1 bg-red-600/80 hover:bg-red-600 rounded-lg text-theme-text-primary text-xs flex items-center transition-colors"
+              class="p-2 bg-red-600/80 hover:bg-red-600 rounded-lg text-theme-text-primary text-xs flex items-center gap-1.5 transition-colors"
               :title="isSelfView ? 'Stop sharing' : 'Stop watching'"
               @click="isSelfView ? $emit('stop-own-screen-share') : $emit('unsubscribe')">
-              <PhImageBroken class="w-3 h-3 mr-1" />
+              <PhImageBroken class="w-4 h-4" />
               Stop
             </button>
 
@@ -124,6 +129,97 @@
               title="Picture in Picture"
               @click="togglePiP">
               <PhPictureInPicture class="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Fullscreen Controls Overlay (YouTube-style, auto-hides) -->
+      <div
+        v-show="isFullscreen"
+        class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-4 py-3 transition-opacity duration-300"
+        :class="{
+          'opacity-100': fullscreenControlsVisible,
+          'opacity-0': !fullscreenControlsVisible,
+        }">
+        <div class="flex items-center justify-between">
+          <!-- Left: Volume Slider -->
+          <div class="flex items-center space-x-2">
+            <button
+              type="button"
+              class="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+              :title="isMuted ? 'Unmute' : 'Mute'"
+              @click="toggleMute">
+              <PhSpeakerHigh v-if="localVolume > 50 && !isMuted" class="w-5 h-5 text-white" />
+              <PhSpeakerLow v-else-if="localVolume > 0 && !isMuted" class="w-5 h-5 text-white" />
+              <PhSpeakerNone v-else class="w-5 h-5 text-red-400" />
+            </button>
+            <input
+              v-model.number="localVolume"
+              type="range"
+              min="0"
+              max="100"
+              class="w-24 h-1 bg-white/30 rounded-lg appearance-none cursor-pointer accent-white"
+              @input="handleVolumeChange" />
+          </div>
+
+          <!-- Right: Control Buttons -->
+          <div class="flex items-center space-x-3">
+            <!-- Mute Button -->
+            <button
+              type="button"
+              class="w-9 h-9 rounded-full flex items-center justify-center transition-colors"
+              :class="
+                isCallMuted
+                  ? 'bg-red-600 hover:bg-red-700 text-white'
+                  : 'bg-white/10 hover:bg-white/20 text-white'
+              "
+              :title="isCallMuted ? 'Unmute' : 'Mute'"
+              @click="toggleCallMute">
+              <PhMicrophoneSlash v-if="isCallMuted" class="w-4 h-4" />
+              <PhMicrophone v-else class="w-4 h-4" />
+            </button>
+
+            <!-- Deafen Button -->
+            <button
+              type="button"
+              class="w-9 h-9 rounded-full flex items-center justify-center transition-colors relative"
+              :class="
+                isCallDeafened
+                  ? 'bg-red-600 hover:bg-red-700 text-white'
+                  : 'bg-white/10 hover:bg-white/20 text-white'
+              "
+              :title="isCallDeafened ? 'Undeafen' : 'Deafen'"
+              @click="toggleCallDeafen">
+              <div class="relative">
+                <PhHeadphones class="w-4 h-4" />
+                <div
+                  v-if="isCallDeafened"
+                  class="absolute inset-0 flex items-center justify-center">
+                  <div class="w-5 h-0.5 bg-current rotate-45" />
+                </div>
+              </div>
+            </button>
+
+            <div class="w-px h-6 bg-white/20" />
+
+            <!-- Exit Fullscreen -->
+            <button
+              type="button"
+              class="p-2 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors"
+              title="Exit Fullscreen"
+              @click="toggleFullscreen">
+              <PhArrowsIn class="w-5 h-5" />
+            </button>
+
+            <!-- Stop Watching / Stop Sharing -->
+            <button
+              type="button"
+              class="p-2 bg-red-600/80 hover:bg-red-600 rounded-lg text-white text-xs font-medium flex items-center gap-1.5 transition-colors"
+              :title="isSelfView ? 'Stop sharing' : 'Stop watching'"
+              @click="isSelfView ? $emit('stop-own-screen-share') : $emit('unsubscribe')">
+              <PhImageBroken class="w-5 h-5" />
+              Stop
             </button>
           </div>
         </div>
@@ -169,6 +265,9 @@ import {
   PhSpeakerLow,
   PhSpeakerNone,
   PhImageBroken,
+  PhMicrophone,
+  PhMicrophoneSlash,
+  PhHeadphones,
 } from "@phosphor-icons/vue"
 import type { ScreenShareQuality } from "@/types"
 import type {
@@ -178,6 +277,9 @@ import type {
   LocalAudioTrack,
 } from "livekit-client"
 import UserAvatar from "@/components/UserAvatar.vue"
+import { useCallStore, useUserStore, useRoomStore } from "@/stores"
+import { useSounds } from "@/services/sounds"
+import { wsService } from "@/services/websocket"
 
 interface Props {
   userId: string
@@ -208,6 +310,7 @@ const emit = defineEmits<{
 }>()
 
 const videoElement = useTemplateRef<HTMLVideoElement>("videoElement")
+const videoContainerRef = useTemplateRef<HTMLDivElement>("videoContainerRef")
 const isFullscreen = ref(false)
 const isPiPActive = ref(false)
 const isHovered = ref(false)
@@ -216,6 +319,16 @@ const videoHeight = ref(1080)
 const localVolume = ref(80)
 const previousVolume = ref(80)
 const isMuted = ref(false)
+
+// Fullscreen controls state
+const fullscreenControlsVisible = ref(true)
+let fullscreenControlsTimer: ReturnType<typeof setTimeout> | null = null
+const callStore = useCallStore()
+const userStore = useUserStore()
+const roomStore = useRoomStore()
+const { playMute, playUnmute, playDeafen, playUndeafen } = useSounds()
+const isCallMuted = computed(() => callStore.isMuted)
+const isCallDeafened = computed(() => callStore.isDeafened)
 
 // Track if LiveKit track is attached (for cleanup)
 const isLiveKitAttached = ref(false)
@@ -367,12 +480,14 @@ watch(
 )
 
 const toggleFullscreen = async () => {
-  if (!videoElement.value) return
+  const container = videoContainerRef.value
+  if (!container) return
 
   try {
     if (!document.fullscreenElement) {
-      await videoElement.value.requestFullscreen()
+      await container.requestFullscreen()
       isFullscreen.value = true
+      showFullscreenControls()
     } else {
       await document.exitFullscreen()
       isFullscreen.value = false
@@ -380,6 +495,73 @@ const toggleFullscreen = async () => {
   } catch (error) {
     console.error("Fullscreen error:", error)
   }
+}
+
+// Fullscreen controls idle timer
+const showFullscreenControls = () => {
+  fullscreenControlsVisible.value = true
+  if (fullscreenControlsTimer) {
+    clearTimeout(fullscreenControlsTimer)
+  }
+  fullscreenControlsTimer = setTimeout(() => {
+    fullscreenControlsVisible.value = false
+  }, 3000)
+}
+
+const hideFullscreenControls = () => {
+  if (fullscreenControlsTimer) {
+    clearTimeout(fullscreenControlsTimer)
+    fullscreenControlsTimer = null
+  }
+  fullscreenControlsVisible.value = false
+}
+
+const onFullscreenMousemove = () => {
+  if (isFullscreen.value) {
+    showFullscreenControls()
+  }
+}
+
+// Mute/Deafen toggles for fullscreen overlay
+const toggleCallMute = () => {
+  const newValue = !callStore.isMuted
+
+  if (newValue) {
+    playMute()
+  } else {
+    playUnmute()
+  }
+
+  callStore.setMuted(newValue)
+
+  const roomId = roomStore.activeRoomId
+  if (roomId) {
+    wsService.sendMuteState(roomId, newValue)
+  }
+
+  roomStore.updateUserStatus(userStore.userId, { is_muted: newValue })
+}
+
+const toggleCallDeafen = () => {
+  const newValue = !callStore.isDeafened
+
+  if (newValue) {
+    playDeafen()
+  } else {
+    playUndeafen()
+  }
+
+  callStore.setDeafened(newValue)
+
+  const roomId = roomStore.activeRoomId
+  if (roomId) {
+    wsService.sendDeafenState(roomId, newValue)
+  }
+
+  roomStore.updateUserStatus(userStore.userId, {
+    is_deafened: newValue,
+    is_muted: callStore.isMuted,
+  })
 }
 
 const togglePiP = async () => {
@@ -446,7 +628,13 @@ const toggleMute = () => {
 
 // Handle fullscreen change events
 const handleFullscreenChange = () => {
+  const wasFullscreen = isFullscreen.value
   isFullscreen.value = !!document.fullscreenElement
+  if (isFullscreen.value && !wasFullscreen) {
+    showFullscreenControls()
+  } else if (!isFullscreen.value && wasFullscreen) {
+    hideFullscreenControls()
+  }
 }
 
 const handlePiPChange = () => {
