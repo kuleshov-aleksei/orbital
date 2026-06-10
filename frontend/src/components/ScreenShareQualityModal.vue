@@ -81,8 +81,15 @@
         </div>
 
         <!-- Audio Toggle -->
-        <div class="px-5 py-3 border-t border-theme-border flex-shrink-0">
-          <label class="flex items-center cursor-pointer">
+        <div class="px-5 py-3 border-t border-theme-border shrink-0">
+          <div v-if="selectedSourceIsWindow" class="flex items-start text-xs text-amber-400">
+            <PhInfo class="w-4 h-4 mr-1.5 shrink-0 mt-0.5" />
+            <span>
+              System audio can only be captured when sharing an entire screen. Audio capture is not
+              supported for individual windows.
+            </span>
+          </div>
+          <label v-else class="flex items-center cursor-pointer">
             <div class="relative">
               <input v-model="shareAudio" type="checkbox" class="sr-only" />
               <div
@@ -279,6 +286,12 @@ const venmicAvailable = ref(false)
 const audioCaptureError = ref<string | null>(null)
 const selectedAudioSources = ref<VenmicNode[]>([])
 
+const platform = ref<string | null>(null)
+
+const selectedSourceIsWindow = computed(
+  () => platform.value === "win32" && (selectedSourceId.value?.startsWith("window:") ?? false),
+)
+
 const hasSelectedSource = computed(
   () => selectedSourceId.value !== null && selectedSourceId.value !== "",
 )
@@ -301,8 +314,8 @@ watch(
         sources.value = []
         await loadSources()
 
-        const platform = await getPlatform()
-        if (platform === "linux") {
+        platform.value = await getPlatform()
+        if (platform.value === "linux") {
           const [venmic, pipewire] = await Promise.all([hasVenmic(), hasPipeWire()])
           venmicAvailable.value = venmic && pipewire
         }
@@ -346,12 +359,16 @@ function handleStartShare() {
 
   audioCaptureError.value = null
   isStarting.value = true
+  const effectiveAudio =
+    platform.value === "win32" && selectedSourceId.value.startsWith("window:")
+      ? false
+      : shareAudio.value
   emit(
     "select-electron-source",
     selectedQuality.value,
     selectedSourceId.value,
-    shareAudio.value,
-    shareAudio.value ? selectedAudioSources.value : undefined,
+    effectiveAudio,
+    effectiveAudio ? selectedAudioSources.value : undefined,
   )
 }
 

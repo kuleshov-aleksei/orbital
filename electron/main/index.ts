@@ -700,8 +700,12 @@ function setupScreenShareHandler() {
         video: { id: source.id, name: source.name },
       }
       if (source.audio) {
-        options.audio = "loopback"
-        log.info("[ScreenShare] Added audio: loopback to options")
+        if (process.platform === "win32" && source.id.startsWith("window:")) {
+          log.warn("[ScreenShare] Audio loopback not supported for window capture on Windows, skipping")
+        } else {
+          options.audio = "loopback"
+          log.info("[ScreenShare] Added audio: loopback to options")
+        }
       }
 
       try {
