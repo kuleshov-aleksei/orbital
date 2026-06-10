@@ -3,6 +3,7 @@ package websocket
 import (
 	"encoding/json"
 	"log"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -15,17 +16,17 @@ import (
 
 // Hub manages WebSocket connections
 type Hub struct {
-	clients         map[*Client]bool
-	roomClients     map[string]map[*Client]bool                    // room_id -> clients
-	onlineUsers     map[string]time.Time                            // user_id -> last_seen timestamp (global connections)
-	userAudioState  map[string]map[string]models.UserAudioState     // user_id -> room_id -> audio state (mute/deafen)
-	roomService     *service.RoomService
-	authService     *service.AuthService
-	livekitService  *service.LiveKitService
-	chatService     *service.ChatService
-	cfg             *config.Config
-	upgrader        websocket.Upgrader
-	mu              sync.RWMutex
+	clients        map[*Client]bool
+	roomClients    map[string]map[*Client]bool                 // room_id -> clients
+	onlineUsers    map[string]time.Time                        // user_id -> last_seen timestamp (global connections)
+	userAudioState map[string]map[string]models.UserAudioState // user_id -> room_id -> audio state (mute/deafen)
+	roomService    *service.RoomService
+	authService    *service.AuthService
+	livekitService *service.LiveKitService
+	chatService    *service.ChatService
+	cfg            *config.Config
+	upgrader       websocket.Upgrader
+	mu             sync.RWMutex
 }
 
 // Client represents a WebSocket client
@@ -71,6 +72,25 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		log.Printf("WebSocket upgrade error: %v", err)
 		return
+	}
+
+	// Enable TCP keepalive to detect half-open connections (power loss, network cut)
+	if tcpConn, ok := conn.UnderlyingConn().(*net.TCPConn); ok {
+		if err := tcpConn.SetKeepAlive(true); err != nil {
+			log.Printf("WebSocket keepalive error: %v", err)
+		}
+		if err := tcpConn.SetKeepAlivePeriod(15 * time.Second); err != nil {
+			log.Printf("WebSocket keepalive period error: %v", err)
+		}
+	}
+
+	// Set initial read deadline so a stale connection is detected even if the ping monitor fails
+	pingTimeout := 90 * time.Second
+	if h.cfg != nil && h.cfg.WebSocket.PingTimeout > 0 {
+		pingTimeout = h.cfg.WebSocket.PingTimeout
+	}
+	if err := conn.SetReadDeadline(time.Now().Add(pingTimeout)); err != nil {
+		log.Printf("WebSocket read deadline error: %v", err)
 	}
 
 	client := &Client{
@@ -492,6 +512,17 @@ func (c *Client) readPump() {
 	}()
 
 	for {
+		// Reset read deadline on each successful read so the connection stays alive
+		// as long as messages arrive within the ping timeout window
+		pingTimeout := 90 * time.Second
+		if c.hub.cfg != nil && c.hub.cfg.WebSocket.PingTimeout > 0 {
+			pingTimeout = c.hub.cfg.WebSocket.PingTimeout
+		}
+		if err := c.conn.SetReadDeadline(time.Now().Add(pingTimeout)); err != nil {
+			log.Printf("WebSocket read deadline error: %v", err)
+			break
+		}
+
 		var message models.WebSocketMessage
 		err := c.conn.ReadJSON(&message)
 		if err != nil {
@@ -928,12 +959,21 @@ func (h *Hub) startPingMonitor() {
 	defer broadcastTicker.Stop()
 
 	for {
-		select {
-		case <-checkTicker.C:
-			h.checkPingTimeouts()
-		case <-broadcastTicker.C:
-			h.broadcastOnlineUsers()
-		}
+		// Recover from panics so a single error doesn't kill the entire ping monitor
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("CRITICAL: Ping monitor recovered from panic: %v", r)
+				}
+			}()
+
+			select {
+			case <-checkTicker.C:
+				h.checkPingTimeouts()
+			case <-broadcastTicker.C:
+				h.broadcastOnlineUsers()
+			}
+		}()
 	}
 }
 
