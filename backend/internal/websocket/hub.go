@@ -27,6 +27,11 @@ type Hub struct {
 	cfg            *config.Config
 	upgrader       websocket.Upgrader
 	mu             sync.RWMutex
+
+	// Stats manager fields
+	statsEnabledRooms map[string]bool                        // room_id -> enabled
+	statsAdminSubs    map[string]map[*Client]bool            // room_id -> admin clients subscribed
+	statsRoomData     map[string]map[string]*roomParticipantStats // room_id -> user_id -> stats
 }
 
 // Client represents a WebSocket client
@@ -44,15 +49,18 @@ type Client struct {
 // NewHub creates a new WebSocket hub
 func NewHub(roomService *service.RoomService, authService *service.AuthService, livekitService *service.LiveKitService, chatService *service.ChatService, cfg *config.Config) *Hub {
 	hub := &Hub{
-		clients:        make(map[*Client]bool),
-		roomClients:    make(map[string]map[*Client]bool),
-		onlineUsers:    make(map[string]time.Time),
-		userAudioState: make(map[string]map[string]models.UserAudioState),
-		roomService:    roomService,
-		authService:    authService,
-		livekitService: livekitService,
-		chatService:    chatService,
-		cfg:            cfg,
+		clients:           make(map[*Client]bool),
+		roomClients:       make(map[string]map[*Client]bool),
+		onlineUsers:       make(map[string]time.Time),
+		userAudioState:    make(map[string]map[string]models.UserAudioState),
+		roomService:       roomService,
+		authService:       authService,
+		livekitService:    livekitService,
+		chatService:       chatService,
+		cfg:               cfg,
+		statsEnabledRooms: make(map[string]bool),
+		statsAdminSubs:    make(map[string]map[*Client]bool),
+		statsRoomData:     make(map[string]map[string]*roomParticipantStats),
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				return true // Allow all origins for development
@@ -470,6 +478,9 @@ func (c *Client) readPump() {
 		userID := c.userID
 		c.mu.RUnlock()
 
+		// Clean up admin stats subscription
+		c.hub.UnsubscribeAdmin(c)
+
 		// Remove from hub's client maps, but DO NOT clean up room state
 		// Room cleanup only happens on ping timeout, allowing time for reconnection
 		c.hub.mu.Lock()
@@ -577,6 +588,8 @@ func (c *Client) handleMessage(message models.WebSocketMessage) {
 		log.Printf("Received room_created broadcast")
 	case "send_message":
 		c.handleSendMessage(message.Data)
+	case "client_stats":
+		c.handleClientStats(message.Data)
 	default:
 		log.Printf("Unknown message type: %s", message.Type)
 	}
@@ -656,6 +669,19 @@ func (c *Client) handleJoinRoom(data interface{}) {
 			},
 		}
 		c.send <- marshalMessage(chatHistoryMessage)
+	}
+
+	// If stats collection is enabled for this room, notify the joining user
+	if c.hub.IsStatsEnabled(c.roomID) {
+		enableMsg := models.WebSocketMessage{
+			Type: "enable_stats_collection",
+			Data: models.StatsControlCommand{
+				RoomID:     c.roomID,
+				Action:     "enable",
+				IntervalMs: defaultStatsIntervalMs,
+			},
+		}
+		c.send <- marshalMessage(enableMsg)
 	}
 }
 
@@ -1238,3 +1264,5 @@ func (h *Hub) ClearChatHistory(roomID string) {
 		log.Printf("[Chat] Chat history cleared for room %s", roomID)
 	}
 }
+
+

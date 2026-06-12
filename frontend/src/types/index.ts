@@ -87,6 +87,10 @@ export type WebSocketMessageType =
   | "audio_states"
   | "update_mute_state"
   | "update_deafen_state"
+  | "enable_stats_collection"
+  | "disable_stats_collection"
+  | "client_stats"
+  | "room_stats"
 
 export interface WebSocketMessage {
   type: WebSocketMessageType
@@ -480,4 +484,61 @@ export interface AudioFile {
   duration?: number
   is_system: boolean
   created_at: string
+}
+
+// ==================== Remote Stats Collection Types ====================
+
+export interface TrackStatsData {
+  jitter: number
+  packet_loss: number
+  bitrate: number
+  bytes_received: number
+  timestamp: number
+  codec?: string
+  resolution?: string
+  fps?: number
+}
+
+export interface ICEPairInfo {
+  local_candidate_type: string
+  remote_candidate_type: string
+  selected: boolean
+}
+
+export interface ConnectionStatsData {
+  rtt: number
+  audio?: TrackStatsData
+  video?: TrackStatsData
+  screen_share?: TrackStatsData
+  screen_share_audio?: TrackStatsData
+  local_video?: TrackStatsData
+  ice_candidate_pairs?: ICEPairInfo[]
+}
+
+export interface ClientStatsReport {
+  room_id: string
+  user_id: string
+  timestamp: number
+  connection_stats: ConnectionStatsData
+}
+
+export interface StatsControlCommand {
+  room_id: string
+  action: "enable" | "disable"
+  interval_ms?: number
+}
+
+export interface ParticipantStatsData {
+  last_report: ClientStatsReport
+  history: ClientStatsReport[]
+}
+
+export interface RoomStatsMessage {
+  room_id: string
+  participants: Record<string, ParticipantStatsData>
+}
+
+export interface StatsStatus {
+  room_id: string
+  enabled: boolean
 }

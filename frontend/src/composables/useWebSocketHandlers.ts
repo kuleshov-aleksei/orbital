@@ -9,6 +9,7 @@ import {
   useChatStore,
 } from "@/stores"
 import { wsService } from "@/services/websocket"
+import type { ConnectionCallback, DisconnectionCallback, MessageCallback } from "@/services/websocket"
 import { apiService } from "@/services/api"
 import { debugLog } from "@/utils/debug"
 import type { User, Room, Category, PublicUser, ChatMessage } from "@/types"
@@ -23,41 +24,49 @@ export function useWebSocketHandlers() {
   const chatStore = useChatStore()
   const hasConnected = ref(false)
 
+  const cleanupFns: Array<() => void> = []
+
+  const onCleanup = (fn: () => void) => {
+    cleanupFns.push(fn)
+  }
+
   const setupWebSocketListeners = () => {
-    // Room users updates
-    wsService.on("room_users", (message) => {
+    const onRoomUsers: MessageCallback = (message) => {
       const data = message.data as User[]
       roomStore.setCurrentRoomUsers(data)
-    })
+    }
+    wsService.on("room_users", onRoomUsers)
+    onCleanup(() => wsService.off("room_users", onRoomUsers))
 
-    // Chat history on join
-    wsService.on("chat_history", (message) => {
+    const onChatHistory: MessageCallback = (message) => {
       const data = message.data as { room_id: string; messages: ChatMessage[] }
       chatStore.setMessages(data.room_id, data.messages)
       chatStore.setActiveRoom(data.room_id)
-    })
+    }
+    wsService.on("chat_history", onChatHistory)
+    onCleanup(() => wsService.off("chat_history", onChatHistory))
 
-    // New chat message received
-    wsService.on("new_message", (message) => {
+    const onNewMessage: MessageCallback = (message) => {
       const data = message.data as { room_id: string; message: ChatMessage }
       chatStore.addMessage(data.room_id, data.message)
-    })
+    }
+    wsService.on("new_message", onNewMessage)
+    onCleanup(() => wsService.off("new_message", onNewMessage))
 
-    // Nickname change updates
-    wsService.on("nickname_change", (message) => {
+    const onNicknameChange: MessageCallback = (message) => {
       const data = message.data as { user_id: string; nickname: string }
       roomStore.updateCurrentRoomUser(data.user_id, {
         nickname: data.nickname,
       })
       roomStore.updateUserNickname(data.user_id, data.nickname)
-    })
+    }
+    wsService.on("nickname_change", onNicknameChange)
+    onCleanup(() => wsService.off("nickname_change", onNicknameChange))
 
-    // Room user left (also handle via room WebSocket)
-    wsService.on("room_user_left", (message) => {
+    const onRoomUserLeft: MessageCallback = (message) => {
       const data = message.data as { room_id: string; user: User }
       roomStore.removeUserFromRoom(data.room_id, data.user.id)
 
-      // Check if current user was kicked
       if (data.user.id === userStore.userId && roomStore.activeRoomId === data.room_id) {
         debugLog("[WebSocket] Current user was kicked from room, cleaning up...")
         roomStore.setActiveRoom(null)
@@ -65,68 +74,74 @@ export function useWebSocketHandlers() {
           appStore.showRoomsView()
         }
       }
-    })
+    }
+    wsService.on("room_user_left", onRoomUserLeft)
+    onCleanup(() => wsService.off("room_user_left", onRoomUserLeft))
 
-    // Connection/disconnection
-    wsService.onConnection(() => {
+    const onConnect: ConnectionCallback = () => {
       appStore.clearError()
-    })
+    }
+    wsService.onConnection(onConnect)
+    onCleanup(() => wsService.removeConnectionCallback(onConnect))
 
-    wsService.onDisconnection((event) => {
+    const onDisconnect: DisconnectionCallback = (event) => {
       if (!event.wasClean) {
         appStore.setError("Connection lost. Attempting to reconnect...")
       }
-    })
+    }
+    wsService.onDisconnection(onDisconnect)
+    onCleanup(() => wsService.removeDisconnectionCallback(onDisconnect))
   }
 
   const setupGlobalWebSocketListeners = () => {
-    // Room creation
-    wsService.onGlobal("room_created", (message) => {
+    const onRoomCreated: MessageCallback = (message) => {
       const newRoom = message.data as Room
       debugLog("Received room_created event:", newRoom)
       roomStore.addRoom(newRoom)
       debugLog("Added new room to list:", newRoom.name)
-    })
+    }
+    wsService.onGlobal("room_created", onRoomCreated)
+    onCleanup(() => wsService.offGlobal("room_created", onRoomCreated))
 
-    // Nickname changes
-    wsService.onGlobal("nickname_change", (message) => {
+    const onGlobalNicknameChange: MessageCallback = (message) => {
       const data = message.data as { user_id: string; nickname: string }
       roomStore.updateUserNickname(data.user_id, data.nickname)
       usersStore.updateUserNickname(data.user_id, data.nickname)
-    })
+    }
+    wsService.onGlobal("nickname_change", onGlobalNicknameChange)
+    onCleanup(() => wsService.offGlobal("nickname_change", onGlobalNicknameChange))
 
-    // Room user joined
-    wsService.onGlobal("room_user_joined", (message) => {
+    const onRoomUserJoined: MessageCallback = (message) => {
       const data = message.data as { room_id: string; user: User }
       roomStore.addUserToRoom(data.room_id, data.user)
-    })
+    }
+    wsService.onGlobal("room_user_joined", onRoomUserJoined)
+    onCleanup(() => wsService.offGlobal("room_user_joined", onRoomUserJoined))
 
-    // Room user left
-    wsService.onGlobal("room_user_left", (message) => {
+    const onGlobalRoomUserLeft: MessageCallback = (message) => {
       const data = message.data as { room_id: string; user: User }
       roomStore.removeUserFromRoom(data.room_id, data.user.id)
 
-      // Check if current user was kicked
       if (data.user.id === userStore.userId && roomStore.activeRoomId === data.room_id) {
         debugLog("[WebSocket] Current user was kicked from room, cleaning up...")
-        // The user was kicked - cleanup will happen when activeRoomId becomes null
-        // Trigger leave to ensure proper cleanup
         roomStore.setActiveRoom(null)
-        // Show rooms view on mobile
         if (appStore.isMobile) {
           appStore.showRoomsView()
         }
       }
-    })
+    }
+    wsService.onGlobal("room_user_left", onGlobalRoomUserLeft)
+    onCleanup(() => wsService.offGlobal("room_user_left", onGlobalRoomUserLeft))
 
-    // Category events
-    wsService.onGlobal("category_created", (message) => {
+    const onCategoryCreated: MessageCallback = (message) => {
       const newCategory = message.data as Category
       debugLog("Received category_created event:", newCategory)
       categoryStore.addCategory(newCategory)
-    })
+    }
+    wsService.onGlobal("category_created", onCategoryCreated)
+    onCleanup(() => wsService.offGlobal("category_created", onCategoryCreated))
 
-    wsService.onGlobal("category_renamed", (message) => {
+    const onCategoryRenamed: MessageCallback = (message) => {
       const updatedCategory = message.data as Category
       debugLog("Received category_renamed event:", updatedCategory)
       const oldCategory = categoryStore.getCategoryById(updatedCategory.id)
@@ -136,9 +151,11 @@ export function useWebSocketHandlers() {
         })
         debugLog("Renamed category from", oldCategory.name, "to", updatedCategory.name)
       }
-    })
+    }
+    wsService.onGlobal("category_renamed", onCategoryRenamed)
+    onCleanup(() => wsService.offGlobal("category_renamed", onCategoryRenamed))
 
-    wsService.onGlobal("category_deleted", (message) => {
+    const onCategoryDeleted: MessageCallback = (message) => {
       const data = message.data as {
         category_id: string
         deleted_rooms: boolean
@@ -147,23 +164,24 @@ export function useWebSocketHandlers() {
       }
       debugLog("Received category_deleted event:", data)
       const deletedCategory = categoryStore.getCategoryById(data.category_id)
-
       if (deletedCategory) {
         categoryStore.removeCategory(data.category_id)
         debugLog("Deleted category:", deletedCategory.name)
       }
-    })
+    }
+    wsService.onGlobal("category_deleted", onCategoryDeleted)
+    onCleanup(() => wsService.offGlobal("category_deleted", onCategoryDeleted))
 
-    // Category order updated
-    wsService.onGlobal("category_order_updated", (message) => {
+    const onCategoryOrderUpdated: MessageCallback = (message) => {
       const data = message.data as { orders: Record<string, number> }
       debugLog("Received category_order_updated event:", data)
       categoryStore.reorderCategories(data.orders)
       debugLog("Updated category order")
-    })
+    }
+    wsService.onGlobal("category_order_updated", onCategoryOrderUpdated)
+    onCleanup(() => wsService.offGlobal("category_order_updated", onCategoryOrderUpdated))
 
-    // Room updates
-    wsService.onGlobal("room_updated", (message) => {
+    const onRoomUpdated: MessageCallback = (message) => {
       const data = message.data as {
         room_id: string
         room: Room
@@ -172,51 +190,53 @@ export function useWebSocketHandlers() {
       debugLog("Received room_updated event:", data)
       roomStore.updateRoom(data.room_id, data.room)
       debugLog("Updated room:", data.room.name)
-    })
+    }
+    wsService.onGlobal("room_updated", onRoomUpdated)
+    onCleanup(() => wsService.offGlobal("room_updated", onRoomUpdated))
 
-    // Room deletion
-    wsService.onGlobal("room_deleted", (message) => {
+    const onRoomDeleted: MessageCallback = (message) => {
       const data = message.data as { room_id: string; category: string }
       debugLog("Received room_deleted event:", data)
       roomStore.removeRoom(data.room_id)
       debugLog("Deleted room:", data.room_id)
 
-      // If the deleted room was active, leave it
       if (roomStore.activeRoomId === data.room_id) {
         roomStore.setActiveRoom(null)
         if (appStore.isMobile) {
           appStore.showRoomsView()
         }
       }
-    })
+    }
+    wsService.onGlobal("room_deleted", onRoomDeleted)
+    onCleanup(() => wsService.offGlobal("room_deleted", onRoomDeleted))
 
-    // Connection events
-    wsService.onGlobalConnection(() => {
+    const onGlobalConnected: ConnectionCallback = () => {
       debugLog("Global WebSocket connected")
-      // Start sending pings to keep connection alive and trigger periodic user list updates
       startGlobalPing()
-      // Refetch users to get updated online status now that we're connected
       void usersStore.fetchAllUsers()
-      // Sync room data to fix desync after global WebSocket reconnect
       void syncRoomsData()
-    })
+    }
+    wsService.onGlobalConnection(onGlobalConnected)
+    onCleanup(() => wsService.removeGlobalConnectionCallback(onGlobalConnected))
 
-    wsService.onGlobalDisconnection((event) => {
+    const onGlobalDisconnected: DisconnectionCallback = (event) => {
       debugLog("Global WebSocket disconnected:", event)
       stopGlobalPing()
-    })
+    }
+    wsService.onGlobalDisconnection(onGlobalDisconnected)
+    onCleanup(() => wsService.removeGlobalDisconnectionCallback(onGlobalDisconnected))
 
-    // Pong response (for latency tracking)
-    wsService.onGlobal("pong", (message) => {
+    const onPong: MessageCallback = (message) => {
       const data = message.data as { timestamp: number }
       const latency = Date.now() - data.timestamp
       if (latency > 1000) {
         debugLog(`Global WebSocket latency: ${latency}ms`)
       }
-    })
+    }
+    wsService.onGlobal("pong", onPong)
+    onCleanup(() => wsService.offGlobal("pong", onPong))
 
-    // User online/offline events for global presence
-    wsService.onGlobal("user_online", (message) => {
+    const onUserOnline: MessageCallback = (message) => {
       const data = message.data as {
         id: string
         nickname: string
@@ -232,12 +252,10 @@ export function useWebSocketHandlers() {
         usersStore.allUsers.length,
       )
 
-      // Check if user already exists
       const existingUser = usersStore.allUsers.find((u) => u.id === data.id)
       if (existingUser) {
         usersStore.updateOnlineStatus(data.id, true)
       } else {
-        // Add new user with full data
         usersStore.addUser({
           id: data.id,
           nickname: data.nickname,
@@ -246,15 +264,18 @@ export function useWebSocketHandlers() {
           is_online: true,
         })
       }
-    })
+    }
+    wsService.onGlobal("user_online", onUserOnline)
+    onCleanup(() => wsService.offGlobal("user_online", onUserOnline))
 
-    wsService.onGlobal("user_offline", (message) => {
+    const onUserOffline: MessageCallback = (message) => {
       const data = message.data as { id: string }
       usersStore.updateOnlineStatus(data.id, false)
-    })
+    }
+    wsService.onGlobal("user_offline", onUserOffline)
+    onCleanup(() => wsService.offGlobal("user_offline", onUserOffline))
 
-    // Full online users list (broadcast every 30 seconds)
-    wsService.onGlobal("online_users", (message) => {
+    const onOnlineUsers: MessageCallback = (message) => {
       const data = message.data as {
         users: Array<{
           id: string
@@ -265,7 +286,6 @@ export function useWebSocketHandlers() {
         }>
       }
 
-      // Update all users with their online status from the broadcast
       data.users.forEach((user) => {
         usersStore.updateUser({
           id: user.id,
@@ -276,17 +296,17 @@ export function useWebSocketHandlers() {
         })
       })
 
-      // Mark users not in the online list as offline
       const onlineUserIds = new Set(data.users.map((u) => u.id))
       usersStore.allUsers.forEach((user) => {
         if (user.is_online && !onlineUserIds.has(user.id)) {
           usersStore.updateOnlineStatus(user.id, false)
         }
       })
-    })
+    }
+    wsService.onGlobal("online_users", onOnlineUsers)
+    onCleanup(() => wsService.offGlobal("online_users", onOnlineUsers))
 
-    // Initial audio states (sent when joining)
-    wsService.onGlobal("audio_states", (message) => {
+    const onAudioStates: MessageCallback = (message) => {
       const data = message.data as {
         states: Array<{
           user_id: string
@@ -303,10 +323,11 @@ export function useWebSocketHandlers() {
           is_deafened: state.is_deafened,
         })
       })
-    })
+    }
+    wsService.onGlobal("audio_states", onAudioStates)
+    onCleanup(() => wsService.offGlobal("audio_states", onAudioStates))
 
-    // Individual user audio state change (mute/deafen)
-    wsService.onGlobal("user_audio_state", (message) => {
+    const onUserAudioState: MessageCallback = (message) => {
       const data = message.data as {
         user_id: string
         room_id: string
@@ -328,10 +349,11 @@ export function useWebSocketHandlers() {
         is_muted: data.is_muted,
         is_deafened: data.is_deafened,
       })
-    })
+    }
+    wsService.onGlobal("user_audio_state", onUserAudioState)
+    onCleanup(() => wsService.offGlobal("user_audio_state", onUserAudioState))
 
-    // Sound pack change
-    wsService.onGlobal("sound_pack_change", (message) => {
+    const onSoundPackChange: MessageCallback = (message) => {
       const data = message.data as {
         user_id: string
         sound_pack: string
@@ -339,7 +361,9 @@ export function useWebSocketHandlers() {
       debugLog("[WebSocket] User sound pack changed:", data.user_id, "sound_pack:", data.sound_pack)
       roomStore.updateUserSoundPack(data.user_id, data.sound_pack)
       soundPackStore.setUserPack(data.user_id, data.sound_pack)
-    })
+    }
+    wsService.onGlobal("sound_pack_change", onSoundPackChange)
+    onCleanup(() => wsService.offGlobal("sound_pack_change", onSoundPackChange))
   }
 
   const connectGlobalWebSocket = async () => {
@@ -422,6 +446,14 @@ export function useWebSocketHandlers() {
 
     // Only connect if already authenticated
     connectIfAuthenticated()
+
+    // If global WS is already connected (e.g. re-mount after admin panel),
+    // manually trigger the connection handler to start ping and sync data
+    if (wsService.isGlobalConnected()) {
+      startGlobalPing()
+      void usersStore.fetchAllUsers()
+      void syncRoomsData()
+    }
   })
 
   // Watch for auth completion and connect when ready
@@ -437,8 +469,11 @@ export function useWebSocketHandlers() {
   onUnmounted(() => {
     stopGlobalPing()
     wsService.disconnect()
-    void wsService.disconnectGlobal()
     hasConnected.value = false
+    for (const cleanup of cleanupFns) {
+      cleanup()
+    }
+    cleanupFns.length = 0
   })
 
   return {

@@ -10,6 +10,7 @@ import {
   PublicUser,
   DebugLog,
   AudioFile,
+  StatsStatus,
 } from "@/types"
 import { isElectron, openExternal, oauthAuthenticate } from "./electron"
 
@@ -536,6 +537,41 @@ export const apiService = {
 
   getAudioUrl(id: string): string {
     return `${API_BASE}/audio/${id}`
+  },
+
+  // ===== Remote Stats Collection API (super_admin only) =====
+  async enableRoomStats(roomId: string): Promise<{ status: string; message: string }> {
+    return apiRequest<{ status: string; message: string }>(`/admin/stats/rooms/${roomId}/enable`, {
+      method: "POST",
+    })
+  },
+
+  async disableRoomStats(roomId: string): Promise<{ status: string; message: string }> {
+    return apiRequest<{ status: string; message: string }>(`/admin/stats/rooms/${roomId}/disable`, {
+      method: "POST",
+    })
+  },
+
+  async subscribeRoomStats(roomId: string): Promise<{ status: string; message: string }> {
+    return apiRequest<{ status: string; message: string }>(
+      `/admin/stats/rooms/${roomId}/subscribe`,
+      {
+        method: "POST",
+      },
+    )
+  },
+
+  async unsubscribeRoomStats(roomId: string): Promise<{ status: string; message: string }> {
+    return apiRequest<{ status: string; message: string }>(
+      `/admin/stats/rooms/${roomId}/unsubscribe`,
+      {
+        method: "POST",
+      },
+    )
+  },
+
+  async getStatsStatus(): Promise<StatsStatus[]> {
+    return apiRequest<StatsStatus[]>("/admin/stats/status")
   },
 }
 

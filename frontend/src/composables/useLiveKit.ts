@@ -39,6 +39,8 @@ export function useLiveKit(options: UseLiveKitOptions) {
     startStatsPolling,
     stopStatsPolling,
     getParticipantStats,
+    startRemoteReporting,
+    stopRemoteReporting,
   } = useLiveKitStats(state, options.onPingUpdate)
 
   const connectionDeps = {
@@ -112,5 +114,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     cleanup,
     isRunningInElectron: screenShare.isRunningInElectron,
     screenShareAudioWarning: state.screenShareAudioWarning,
+    startRemoteReporting,
+    stopRemoteReporting,
   }
 }

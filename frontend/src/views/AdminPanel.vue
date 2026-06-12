@@ -52,6 +52,18 @@
           @click="activeTab = 'audio'">
           Audio
         </button>
+        <button
+          v-if="isSuperAdmin"
+          type="button"
+          class="px-4 py-2 text-sm font-medium transition-colors"
+          :class="
+            activeTab === 'stats'
+              ? 'text-white border-b-2 border-indigo-500'
+              : 'text-gray-400 hover:text-gray-200'
+          "
+          @click="activateStatsTab">
+          Stats
+        </button>
       </div>
 
       <!-- Users Section -->
@@ -348,6 +360,15 @@
         </div>
       </div>
 
+      <!-- Stats Section (Super Admin Only) -->
+      <div v-if="activeTab === 'stats' && isSuperAdmin">
+        <StatsDashboard
+          :rooms="adminStats.rooms.value"
+          :stats-statuses="adminStats.statsStatuses.value"
+          @select-room="onStatsSelectRoom"
+          @toggle-stats="onStatsToggle" />
+      </div>
+
       <!-- Info Section -->
       <div class="mt-6 bg-gray-800/50 rounded-lg border border-gray-700 p-4">
         <h3 class="text-sm font-medium text-gray-300 mb-2">Role Information</h3>
@@ -507,11 +528,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue"
+import { ref, computed, onMounted, reactive } from "vue"
 import { storeToRefs } from "pinia"
 import Avatar from "vue-boring-avatars"
 import { useUserStore } from "@/stores"
 import { apiService } from "@/services/api"
+import { useAdminStats } from "@/composables/useAdminStats"
+import StatsDashboard from "@/components/admin/StatsDashboard.vue"
 import type { User, DebugLog, AudioFile } from "@/types"
 import { PhUsers, PhFileText, PhMusicNote, PhX } from "@phosphor-icons/vue"
 
@@ -529,7 +552,7 @@ const deletingLogId = ref<number | null>(null)
 const deletingGuests = ref(false)
 const avatarErrors = ref<Set<string>>(new Set())
 
-const activeTab = ref<"users" | "logs" | "audio">("users")
+const activeTab = ref<"users" | "logs" | "audio" | "stats">("users")
 
 const showDeleteModal = ref(false)
 const userToDelete = ref<User | null>(null)
@@ -551,6 +574,22 @@ const audioToDelete = ref<string | null>(null)
 
 const currentUserId = computed(() => currentUser.value?.id)
 const currentUserRole = computed(() => currentUser.value?.role)
+
+// Admin Stats
+const adminStats = useAdminStats()
+
+const activateStatsTab = async () => {
+  activeTab.value = "stats"
+  await Promise.all([adminStats.loadRooms(), adminStats.loadStatsStatus()])
+}
+
+const onStatsSelectRoom = async (roomId: string) => {
+  await adminStats.selectRoom(roomId)
+}
+
+const onStatsToggle = async (roomId: string) => {
+  await adminStats.toggleStats(roomId)
+}
 
 const getRoleColor = (role: string): string => {
   switch (role) {
@@ -787,9 +826,11 @@ const deleteLog = async () => {
 
 onMounted(() => {
   void loadUsers()
+  void loadAudio()
   if (isSuperAdmin.value) {
     void loadLogs()
+    void adminStats.loadRooms()
+    void adminStats.loadStatsStatus()
   }
-  void loadAudio()
 })
 </script>

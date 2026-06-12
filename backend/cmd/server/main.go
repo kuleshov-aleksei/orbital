@@ -126,7 +126,7 @@ func main() {
 	roomHandler := handlers.NewRoomHandler(roomService, categoryService, livekitService, wsHub)
 	categoryHandler := handlers.NewCategoryHandler(categoryService, roomService, wsHub)
 	authHandler := handlers.NewAuthHandler(authService, roleService, cfg.Server.ExternalURL, cfg.Server.ElectronRedirectURL)
-	adminHandler := handlers.NewAdminHandlerWithDebugLog(roleService, userRepo, debugLogService)
+	adminHandler := handlers.NewAdminHandlerWithHub(roleService, userRepo, debugLogService, wsHub)
 	usersHandler := handlers.NewUsersHandler(userRepo, wsHub)
 	livekitHandler := handlers.NewLiveKitHandler(livekitService)
 	avatarHandler := handlers.NewAvatarHandler(avatarService, userRepo)
@@ -239,6 +239,13 @@ func main() {
 	superAdminRouter.HandleFunc("/logs", adminHandler.ListDebugLogs).Methods("GET")
 	superAdminRouter.HandleFunc("/logs/{id}", adminHandler.GetDebugLog).Methods("GET")
 	superAdminRouter.HandleFunc("/logs/{id}", adminHandler.DeleteDebugLog).Methods("DELETE")
+
+	// Stats collection routes (super_admin only)
+	superAdminRouter.HandleFunc("/stats/rooms/{id}/enable", adminHandler.EnableStats).Methods("POST")
+	superAdminRouter.HandleFunc("/stats/rooms/{id}/disable", adminHandler.DisableStats).Methods("POST")
+	superAdminRouter.HandleFunc("/stats/rooms/{id}/subscribe", adminHandler.StatsSubscribe).Methods("POST")
+	superAdminRouter.HandleFunc("/stats/rooms/{id}/unsubscribe", adminHandler.StatsUnsubscribe).Methods("POST")
+	superAdminRouter.HandleFunc("/stats/status", adminHandler.GetStatsStatus).Methods("GET")
 
 	// Debug log upload route (authenticated users)
 	r.Handle("/api/logs", authHandler.AuthMiddleware(http.HandlerFunc(adminHandler.UploadDebugLog))).Methods("POST")

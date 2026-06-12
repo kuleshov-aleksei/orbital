@@ -140,6 +140,7 @@ import ChatToggleButton from "@/components/ChatToggleButton.vue"
 import { PhWarning, PhX } from "@phosphor-icons/vue"
 import ChatPreviewNotification from "@/components/ChatPreviewNotification.vue"
 import { useLiveKit, useVoiceActivity } from "@/composables"
+import { useRemoteStatsReporter } from "@/composables/useRemoteStatsReporter"
 import {
   useAudioSettingsStore,
   useCallStore,
@@ -199,6 +200,9 @@ const appStore = useAppStore()
 const roomStore = useRoomStore()
 const chatStore = useChatStore()
 const usersStore = useUsersStore()
+const userStore = useUserStore()
+
+const currentUserId = computed(() => userStore.userId)
 
 const { messageVersion } = storeToRefs(chatStore)
 
@@ -291,6 +295,8 @@ const {
   screenShareVersion,
   screenShareAudioWarning,
   cleanup,
+  startRemoteReporting,
+  stopRemoteReporting,
 } = useLiveKit({
   roomId: props.roomId,
   roomName: props.roomName,
@@ -303,6 +309,12 @@ const {
   onPingUpdate: (ping: number, quality: "sub-wave" | "excellent" | "good" | "fair" | "poor") => {
     emit("ping-update", ping, quality)
   },
+})
+
+// Remote stats reporting (enabled/disabled by admin via WebSocket)
+useRemoteStatsReporter(props.roomId, {
+  startRemoteReporting,
+  stopRemoteReporting,
 })
 
 // Voice Activity Detection for local user
@@ -440,10 +452,6 @@ const currentRoom = computed(() => {
     id: props.roomId,
   }
 })
-
-// Current user info
-const userStore = useUserStore()
-const currentUserId = computed(() => userStore.userId)
 
 // Track reinitialization state
 let isReinitializing = false

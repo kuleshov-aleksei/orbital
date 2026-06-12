@@ -1,5 +1,7 @@
-import type { ConnectionStats, TrackStats } from "@/types"
+import type { ConnectionStats, TrackStats, ClientStatsReport, ConnectionStatsData } from "@/types"
 import type { LiveKitState } from "./useLiveKitState"
+import type { WebSocketService } from "@/services/websocket"
+import { getAuthToken } from "@/services/api"
 
 const PING_INTERVAL = 3000
 const STATS_INTERVAL = 2000
@@ -225,6 +227,18 @@ export function useLiveKitStats(
             }
 
             if (kind === "audio") {
+              if (stat.codecId) {
+                const codecStats = Array.from(trackStats.values()).find(
+                  (s: { type: string; id?: string }) => s.type === "codec" && s.id === stat.codecId,
+                ) as { mimeType?: string } | undefined
+                if (codecStats?.mimeType) {
+                  const codecMatch = codecStats.mimeType.match(/\/(\w+)$/)
+                  if (codecMatch) {
+                    trackStatsData.codec = codecMatch[1]
+                  }
+                }
+              }
+
               stats.set(userId, {
                 ...existing,
                 audio: trackStatsData,
@@ -468,6 +482,122 @@ export function useLiveKitStats(
     }
   }
 
+  // ===== Remote Stats Reporting =====
+
+  let remoteReportInterval: ReturnType<typeof setInterval> | null = null
+  let remoteWs: WebSocketService | null = null
+  let remoteRoomId: string = ""
+
+  const buildClientStatsReport = (): ClientStatsReport | null => {
+    const currentUserId = state.getCurrentUserId()
+    const stats = state.participantStats.value.get(currentUserId)
+    if (!stats) return null
+
+    const connectionStats: ConnectionStatsData = {
+      rtt: stats.ping,
+    }
+
+    if (stats.audio) {
+      connectionStats.audio = {
+        jitter: stats.audio.jitter,
+        packet_loss: stats.audio.packetLoss,
+        bitrate: stats.audio.bitrate,
+        bytes_received: stats.audio.bytesReceived,
+        timestamp: stats.audio.timestamp,
+        codec: stats.audio.codec,
+      }
+    }
+
+    if (stats.video) {
+      connectionStats.video = {
+        jitter: stats.video.jitter,
+        packet_loss: stats.video.packetLoss,
+        bitrate: stats.video.bitrate,
+        bytes_received: stats.video.bytesReceived,
+        timestamp: stats.video.timestamp,
+        codec: stats.video.codec,
+        resolution: stats.video.resolution,
+        fps: stats.video.fps,
+      }
+    }
+
+    if (stats.screenShare) {
+      connectionStats.screen_share = {
+        jitter: stats.screenShare.jitter,
+        packet_loss: stats.screenShare.packetLoss,
+        bitrate: stats.screenShare.bitrate,
+        bytes_received: stats.screenShare.bytesReceived,
+        timestamp: stats.screenShare.timestamp,
+        codec: stats.screenShare.codec,
+        resolution: stats.screenShare.resolution,
+        fps: stats.screenShare.fps,
+      }
+    }
+
+    if (stats.screenShareAudio) {
+      connectionStats.screen_share_audio = {
+        jitter: stats.screenShareAudio.jitter,
+        packet_loss: stats.screenShareAudio.packetLoss,
+        bitrate: stats.screenShareAudio.bitrate,
+        bytes_received: stats.screenShareAudio.bytesReceived,
+        timestamp: stats.screenShareAudio.timestamp,
+        codec: stats.screenShareAudio.codec,
+      }
+    }
+
+    if (stats.localVideo) {
+      connectionStats.local_video = {
+        jitter: stats.localVideo.jitter,
+        packet_loss: stats.localVideo.packetLoss,
+        bitrate: stats.localVideo.bitrate,
+        bytes_received: stats.localVideo.bytesReceived,
+        timestamp: stats.localVideo.timestamp,
+        codec: stats.localVideo.codec,
+        resolution: stats.localVideo.resolution,
+        fps: stats.localVideo.fps,
+      }
+    }
+
+    const userId = state.getCurrentUserId()
+    // Get user ID from auth token claim or localStorage
+    const authToken = getAuthToken()
+
+    return {
+      room_id: remoteRoomId,
+      user_id: userId,
+      timestamp: Date.now(),
+      connection_stats: connectionStats,
+    }
+  }
+
+  const sendRemoteReport = () => {
+    if (!remoteWs || !remoteWs.isConnected()) return
+
+    const report = buildClientStatsReport()
+    if (report) {
+      remoteWs.sendMessage("client_stats", report as unknown as Record<string, unknown>)
+    }
+  }
+
+  const startRemoteReporting = (ws: WebSocketService, roomId: string, intervalMs: number) => {
+    stopRemoteReporting()
+    remoteWs = ws
+    remoteRoomId = roomId
+
+    // Send first report immediately, then on interval
+    sendRemoteReport()
+    remoteReportInterval = setInterval(sendRemoteReport, intervalMs)
+  }
+
+  const stopRemoteReporting = () => {
+    if (remoteReportInterval) {
+      clearInterval(remoteReportInterval)
+      remoteReportInterval = null
+    }
+    remoteWs = null
+    remoteRoomId = ""
+  }
+
   const getParticipantStats = (userId: string): ConnectionStats => {
     return (
       state.participantStats.value.get(userId) || {
@@ -482,5 +612,8 @@ export function useLiveKitStats(
     startStatsPolling,
     stopStatsPolling,
     getParticipantStats,
+    startRemoteReporting,
+    stopRemoteReporting,
+    buildClientStatsReport,
   }
 }

@@ -87,13 +87,11 @@ import {
   useCallControls,
   useModalManager,
 } from "@/composables"
-import { useWebSocketHandlers } from "@/composables"
 import { createVersionChecker } from "@/services/version"
 import { isElectron } from "@/services/electron"
 
 // Initialize composables (auto-initialize on mount)
 useUserSession()
-useWebSocketHandlers()
 
 // Get stores and managers
 const userStore = useUserStore()

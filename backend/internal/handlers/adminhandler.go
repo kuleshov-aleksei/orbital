@@ -9,13 +9,122 @@ import (
 	"github.com/kuleshov-aleksei/orbital/internal/models"
 	"github.com/kuleshov-aleksei/orbital/internal/repository"
 	"github.com/kuleshov-aleksei/orbital/internal/service"
+	"github.com/kuleshov-aleksei/orbital/internal/websocket"
 )
+
+// StatsSubscribe subscribes the requesting admin to stats for a room (super_admin only)
+func (h *AdminHandler) StatsSubscribe(w http.ResponseWriter, r *http.Request) {
+	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	if !ok || claims == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	vars := mux.Vars(r)
+	roomID := vars["id"]
+	if roomID == "" {
+		http.Error(w, "Missing room ID", http.StatusBadRequest)
+		return
+	}
+
+	if h.wsHub != nil {
+		// Subscribe this admin via their WebSocket connection
+		// We find their global WS client and subscribe it to room stats
+		h.wsHub.SubscribeAdminByUserID(claims.UserID, roomID)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"status":  "success",
+		"message": "Subscribed to room stats",
+	})
+}
+
+// StatsUnsubscribe unsubscribes the requesting admin from stats for a room (super_admin only)
+func (h *AdminHandler) StatsUnsubscribe(w http.ResponseWriter, r *http.Request) {
+	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	if !ok || claims == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	vars := mux.Vars(r)
+	roomID := vars["id"]
+	if roomID == "" {
+		http.Error(w, "Missing room ID", http.StatusBadRequest)
+		return
+	}
+
+	if h.wsHub != nil {
+		h.wsHub.UnsubscribeAdminByUserID(claims.UserID, roomID)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"status":  "success",
+		"message": "Unsubscribed from room stats",
+	})
+}
+
+// EnableStats enables stats collection for a room (super_admin only)
+func (h *AdminHandler) EnableStats(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	roomID := vars["id"]
+	if roomID == "" {
+		http.Error(w, "Missing room ID", http.StatusBadRequest)
+		return
+	}
+
+	if h.wsHub != nil {
+		h.wsHub.EnableStatsCollection(roomID)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"status":  "success",
+		"message": "Stats collection enabled for room",
+	})
+}
+
+// DisableStats disables stats collection for a room (super_admin only)
+func (h *AdminHandler) DisableStats(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	roomID := vars["id"]
+	if roomID == "" {
+		http.Error(w, "Missing room ID", http.StatusBadRequest)
+		return
+	}
+
+	if h.wsHub != nil {
+		h.wsHub.DisableStatsCollection(roomID)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"status":  "success",
+		"message": "Stats collection disabled for room",
+	})
+}
+
+// GetStatsStatus returns which rooms have stats collection enabled (super_admin only)
+func (h *AdminHandler) GetStatsStatus(w http.ResponseWriter, r *http.Request) {
+	var statuses []models.StatsStatus
+	if h.wsHub != nil {
+		statuses = h.wsHub.GetEnabledRooms()
+	} else {
+		statuses = make([]models.StatsStatus, 0)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(statuses)
+}
 
 // AdminHandler handles admin-related HTTP requests
 type AdminHandler struct {
 	roleService     *service.RoleService
 	userRepo        *repository.UserRepository
 	debugLogService *service.DebugLogService
+	wsHub           *websocket.Hub
 }
 
 // NewAdminHandler creates a new admin handler
@@ -33,6 +142,16 @@ func NewAdminHandlerWithDebugLog(roleService *service.RoleService, userRepo *rep
 		roleService:     roleService,
 		userRepo:        userRepo,
 		debugLogService: debugLogService,
+	}
+}
+
+// NewAdminHandlerWithHub creates a new admin handler with hub and debug log service
+func NewAdminHandlerWithHub(roleService *service.RoleService, userRepo *repository.UserRepository, debugLogService *service.DebugLogService, wsHub *websocket.Hub) *AdminHandler {
+	return &AdminHandler{
+		roleService:     roleService,
+		userRepo:        userRepo,
+		debugLogService: debugLogService,
+		wsHub:           wsHub,
 	}
 }
 

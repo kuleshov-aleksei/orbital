@@ -1,0 +1,118 @@
+<template>
+  <div>
+    <canvas ref="canvasRef"></canvas>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted, watch, onUnmounted } from "vue"
+import {
+  Chart,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  LineController,
+  Filler,
+  Tooltip,
+} from "chart.js"
+
+Chart.register(CategoryScale, LinearScale, PointElement, LineElement, LineController, Filler, Tooltip)
+
+const props = defineProps<{
+  data: {
+    labels: string[]
+    datasets: {
+      label: string
+      data: number[]
+      borderColor: string
+      backgroundColor: string
+      borderWidth: number
+      pointRadius: number
+      fill: boolean
+      tension: number
+    }[]
+  }
+  height?: number
+}>()
+
+const canvasRef = ref<HTMLCanvasElement | null>(null)
+let chartInstance: Chart | null = null
+
+const renderChart = () => {
+  if (!canvasRef.value) return
+
+  if (chartInstance) {
+    chartInstance.destroy()
+  }
+
+  const ctx = canvasRef.value.getContext("2d")
+  if (!ctx) return
+
+  chartInstance = new Chart(ctx, {
+    type: "line",
+    data: props.data,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      scales: {
+        x: {
+          display: true,
+          ticks: {
+            color: "#6b7280",
+            font: { size: 10 },
+            maxTicksLimit: 5,
+          },
+          grid: {
+            color: "rgba(75, 85, 99, 0.3)",
+          },
+        },
+        y: {
+          display: true,
+          ticks: {
+            color: "#6b7280",
+            font: { size: 10 },
+            maxTicksLimit: 4,
+          },
+          grid: {
+            color: "rgba(75, 85, 99, 0.3)",
+          },
+          beginAtZero: true,
+        },
+      },
+      plugins: {
+        tooltip: {
+          enabled: true,
+          backgroundColor: "#1f2937",
+          titleColor: "#f9fafb",
+          bodyColor: "#d1d5db",
+          borderColor: "#374151",
+          borderWidth: 1,
+        },
+        legend: {
+          display: false,
+        },
+      },
+    },
+  })
+}
+
+watch(
+  () => props.data,
+  () => {
+    renderChart()
+  },
+  { deep: true },
+)
+
+onMounted(() => {
+  renderChart()
+})
+
+onUnmounted(() => {
+  if (chartInstance) {
+    chartInstance.destroy()
+  }
+})
+</script>

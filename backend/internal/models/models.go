@@ -298,3 +298,68 @@ type ChatMessage struct {
 type SendChatMessageRequest struct {
 	Content string `json:"content"`
 }
+
+// Stats models for remote stats collection (admin feature)
+
+// TrackStatsData contains stats for a single track
+type TrackStatsData struct {
+	Jitter       float64 `json:"jitter"`
+	PacketLoss   float64 `json:"packet_loss"`
+	Bitrate      float64 `json:"bitrate"`
+	BytesReceived int64  `json:"bytes_received"`
+	Timestamp    int64   `json:"timestamp"`
+	Codec        string  `json:"codec,omitempty"`
+	Resolution   string  `json:"resolution,omitempty"`
+	FPS          float64 `json:"fps,omitempty"`
+}
+
+// ICEPairInfo describes an ICE candidate pair
+type ICEPairInfo struct {
+	LocalCandidateType  string `json:"local_candidate_type"`
+	RemoteCandidateType string `json:"remote_candidate_type"`
+	Selected            bool   `json:"selected"`
+}
+
+// ConnectionStatsData contains all connection stats for a client
+type ConnectionStatsData struct {
+	RTT              float64         `json:"rtt"`
+	Audio            *TrackStatsData `json:"audio,omitempty"`
+	Video            *TrackStatsData `json:"video,omitempty"`
+	ScreenShare      *TrackStatsData `json:"screen_share,omitempty"`
+	ScreenShareAudio *TrackStatsData `json:"screen_share_audio,omitempty"`
+	LocalVideo       *TrackStatsData `json:"local_video,omitempty"`
+	ICEPairs         []ICEPairInfo   `json:"ice_candidate_pairs,omitempty"`
+}
+
+// ClientStatsReport is sent from client to server
+type ClientStatsReport struct {
+	RoomID          string             `json:"room_id"`
+	UserID          string             `json:"user_id"`
+	Timestamp       int64              `json:"timestamp"`
+	ConnectionStats ConnectionStatsData `json:"connection_stats"`
+}
+
+// StatsControlCommand is sent from server to client to enable/disable reporting
+type StatsControlCommand struct {
+	RoomID     string `json:"room_id"`
+	Action     string `json:"action"` // "enable" or "disable"
+	IntervalMs int    `json:"interval_ms,omitempty"`
+}
+
+// RoomStatsMessage is sent from server to admin with aggregated stats
+type RoomStatsMessage struct {
+	RoomID       string                            `json:"room_id"`
+	Participants map[string]ParticipantStatsData   `json:"participants"`
+}
+
+// ParticipantStatsData holds current and recent stats for one participant
+type ParticipantStatsData struct {
+	LastReport ClientStatsReport   `json:"last_report"`
+	History    []ClientStatsReport `json:"history"`
+}
+
+// StatsStatus represents the current state of stats collection for a room
+type StatsStatus struct {
+	RoomID  string `json:"room_id"`
+	Enabled bool   `json:"enabled"`
+}

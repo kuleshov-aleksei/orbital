@@ -256,7 +256,7 @@ export class WebSocketService {
     this.globalDisconnectionCallbacks.push(callback)
   }
 
-  // Remove callback for specific type
+  // Remove callback for specific type (room WS)
   off(type: string, callback?: MessageCallback): void {
     if (callback) {
       const callbacks = this.callbacks.get(type)
@@ -268,6 +268,53 @@ export class WebSocketService {
       }
     } else {
       this.callbacks.delete(type)
+    }
+  }
+
+  // Remove callback for specific type (global WS)
+  offGlobal(type: string, callback?: MessageCallback): void {
+    if (callback) {
+      const callbacks = this.globalCallbacks.get(type)
+      if (callbacks) {
+        const index = callbacks.indexOf(callback)
+        if (index > -1) {
+          callbacks.splice(index, 1)
+        }
+      }
+    } else {
+      this.globalCallbacks.delete(type)
+    }
+  }
+
+  // Remove connection callbacks
+  removeConnectionCallback(callback: ConnectionCallback): void {
+    const index = this.connectionCallbacks.indexOf(callback)
+    if (index > -1) {
+      this.connectionCallbacks.splice(index, 1)
+    }
+  }
+
+  // Remove disconnection callbacks
+  removeDisconnectionCallback(callback: DisconnectionCallback): void {
+    const index = this.disconnectionCallbacks.indexOf(callback)
+    if (index > -1) {
+      this.disconnectionCallbacks.splice(index, 1)
+    }
+  }
+
+  // Remove global connection callbacks
+  removeGlobalConnectionCallback(callback: ConnectionCallback): void {
+    const index = this.globalConnectionCallbacks.indexOf(callback)
+    if (index > -1) {
+      this.globalConnectionCallbacks.splice(index, 1)
+    }
+  }
+
+  // Remove global disconnection callbacks
+  removeGlobalDisconnectionCallback(callback: DisconnectionCallback): void {
+    const index = this.globalDisconnectionCallbacks.indexOf(callback)
+    if (index > -1) {
+      this.globalDisconnectionCallbacks.splice(index, 1)
     }
   }
 

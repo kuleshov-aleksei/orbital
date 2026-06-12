@@ -12,7 +12,7 @@ import { onMounted, onUnmounted, watch } from "vue"
 import { useRouter } from "vue-router"
 import { useAppStore, useRoomStore, useThemeStore, useUserStore } from "@/stores"
 import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts"
-import { useThumbarButtons } from "@/composables"
+import { useThumbarButtons, useWebSocketHandlers } from "@/composables"
 import { isElectron, onDeepLink, onOAuthToken, setupMainProcessLogRelay } from "@/services/electron"
 import { setAuthToken, apiService, getAuthToken } from "@/services/api"
 
@@ -24,6 +24,7 @@ const userStore = useUserStore()
 
 useKeyboardShortcuts()
 useThumbarButtons()
+useWebSocketHandlers()
 
 const checkMobile = () => {
   appStore.checkMobile()

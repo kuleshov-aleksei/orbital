@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@phosphor-icons/vue": "^2.2.1",
+    "chart.js": "^4.5.1",
     "dompurify": "^3.4.8",
     "electron-log": "^5.4.4",
     "electron-updater": "^6.8.8",
@@ -37,6 +38,7 @@
     "vue": "^3.5.35",
     "vue-advanced-cropper": "^2.8.9",
     "vue-boring-avatars": "^1.4.0",
+    "vue-chartjs": "^5.3.3",
     "vue-router": "^5.1.0",
     "vue-virtual-scroller": "^3.0.4"
   },
