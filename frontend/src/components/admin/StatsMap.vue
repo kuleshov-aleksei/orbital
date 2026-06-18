@@ -7,17 +7,41 @@
     <svg
       class="absolute inset-0 w-full h-full pointer-events-none"
       :viewBox="`0 0 ${svgSize} ${svgSize}`">
-      <line
-        v-for="(line, idx) in connectionLines"
-        :key="idx"
-        :x1="line.x1"
-        :y1="line.y1"
-        :x2="line.x2"
-        :y2="line.y2"
-        :stroke="line.highlighted ? '#818cf8' : '#374151'"
-        :stroke-width="line.highlighted ? 2 : 1"
-        :opacity="line.highlighted ? 1 : 0.3"
-        class="transition-all duration-300" />
+      <g v-for="(line, idx) in connectionLines" :key="idx">
+        <line
+          :x1="line.x1"
+          :y1="line.y1"
+          :x2="line.x2"
+          :y2="line.y2"
+          :stroke="line.highlighted ? '#818cf8' : '#374151'"
+          :stroke-width="line.highlighted ? 2 : 1"
+          :opacity="line.highlighted ? 1 : 0.3"
+          class="transition-all duration-300" />
+        <text
+          v-if="line.bitrateAtoB > 0 || line.bitrateBtoA > 0"
+          :x="(line.x1 + line.x2) / 2"
+          :y="(line.y1 + line.y2) / 2 - 10"
+          text-anchor="middle"
+          :fill="line.highlighted ? '#d1d5db' : '#6b7280'"
+          font-size="12"
+          font-family="monospace"
+          :opacity="line.highlighted ? 1 : 0.4"
+          class="pointer-events-none select-none">
+          {{ line.shortA }}→{{ line.shortB }}: {{ formatBitrate(line.bitrateAtoB) }}
+        </text>
+        <text
+          v-if="line.bitrateAtoB > 0 || line.bitrateBtoA > 0"
+          :x="(line.x1 + line.x2) / 2"
+          :y="(line.y1 + line.y2) / 2 + 6"
+          text-anchor="middle"
+          :fill="line.highlighted ? '#d1d5db' : '#6b7280'"
+          font-size="12"
+          font-family="monospace"
+          :opacity="line.highlighted ? 1 : 0.4"
+          class="pointer-events-none select-none">
+          {{ line.shortB }}→{{ line.shortA }}: {{ formatBitrate(line.bitrateBtoA) }}
+        </text>
+      </g>
     </svg>
 
     <!-- Avatar nodes (positioned using % relative to container, matching SVG viewBox scale) -->
@@ -50,9 +74,7 @@
       :reports="reports"
       :hovered-user-id="activeUserId"
       :all-user-ids="allUserIds"
-      :get-latest-rtt="getLatestRtt"
-      @popup-enter="popupHovered = true"
-      @popup-leave="popupHovered = false" />
+      :get-latest-rtt="getLatestRtt" />
 
     <!-- Empty state -->
     <div v-if="allUserIds.length === 0" class="absolute inset-0 flex items-center justify-center">
@@ -81,7 +103,6 @@ const usersStore = useUsersStore()
 const containerRef = useTemplateRef<HTMLDivElement>("containerRef")
 const hoveredUserId = ref<string | null>(null)
 const pinnedUserId = ref<string | null>(null)
-const popupHovered = ref(false)
 const showPopup = ref(false)
 
 const activeUserId = computed(() => pinnedUserId.value || hoveredUserId.value)
@@ -111,6 +132,43 @@ const avatarNodes = computed(() => {
   })
 })
 
+const getCombinedBitrate = (fromId: string, toId: string): number => {
+  const batch = props.reports[fromId]
+  if (!batch) return 0
+  const observations = batch.observations[toId]
+  if (!observations || observations.length === 0) return 0
+
+  const WINDOW = 5
+  const byType = new Map<string, number[]>()
+  for (const obs of observations) {
+    const arr = byType.get(obs.track_type)
+    if (arr) {
+      arr.push(obs.bitrate)
+    } else {
+      byType.set(obs.track_type, [obs.bitrate])
+    }
+  }
+
+  let total = 0
+  for (const bitrates of byType.values()) {
+    const recent = bitrates.slice(-WINDOW)
+    total += recent.reduce((a, b) => a + b, 0) / recent.length
+  }
+  return total
+}
+
+const formatBitrate = (bps: number): string => {
+  if (bps >= 1_000_000) return `${(bps / 1_000_000).toFixed(1)} Mbps`
+  if (bps >= 1_000) return `${(bps / 1_000).toFixed(0)} Kbps`
+  return `${bps.toFixed(0)} bps`
+}
+
+const getShortLabel = (userId: string): string => {
+  const user = usersStore.allUsers.find((u) => u.id === userId)
+  const name = user?.nickname ?? `User_${userId.slice(0, 4)}`
+  return name.length > 6 ? name.slice(0, 5) + "…" : name
+}
+
 const connectionLines = computed(() => {
   const nodes = avatarNodes.value
   const lines: {
@@ -119,18 +177,28 @@ const connectionLines = computed(() => {
     x2: number
     y2: number
     highlighted: boolean
+    bitrateAtoB: number
+    bitrateBtoA: number
+    shortA: string
+    shortB: string
   }[] = []
 
   for (let i = 0; i < nodes.length; i++) {
     for (let j = i + 1; j < nodes.length; j++) {
       const highlighted =
         activeUserId.value === nodes[i].userId || activeUserId.value === nodes[j].userId
+      const bitrateAtoB = getCombinedBitrate(nodes[j].userId, nodes[i].userId)
+      const bitrateBtoA = getCombinedBitrate(nodes[i].userId, nodes[j].userId)
       lines.push({
         x1: nodes[i].x,
         y1: nodes[i].y,
         x2: nodes[j].x,
         y2: nodes[j].y,
         highlighted,
+        bitrateAtoB,
+        bitrateBtoA,
+        shortA: getShortLabel(nodes[i].userId),
+        shortB: getShortLabel(nodes[j].userId),
       })
     }
   }
@@ -144,17 +212,10 @@ const getNickname = (userId: string): string => {
 
 const onAvatarEnter = (userId: string) => {
   hoveredUserId.value = userId
-  showPopup.value = true
 }
 
 const onAvatarLeave = () => {
   hoveredUserId.value = null
-  if (pinnedUserId.value) return
-  setTimeout(() => {
-    if (!popupHovered.value && !pinnedUserId.value) {
-      showPopup.value = false
-    }
-  }, 150)
 }
 
 const onAvatarClick = (userId: string) => {
