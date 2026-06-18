@@ -34,6 +34,7 @@ const props = defineProps<{
   }
   height?: number
   valueSuffix?: string
+  formatValue?: (value: number) => string
 }>()
 
 Chart.register(
@@ -86,7 +87,7 @@ const renderChart = () => {
             maxTicksLimit: 4,
             callback: (value: number | string) => {
               const num = typeof value === "string" ? parseFloat(value) : value
-              if (num >= 1000) return (num / 1000).toFixed(1) + "k" + (props.valueSuffix || "")
+              if (props.formatValue) return props.formatValue(num)
               return num + (props.valueSuffix || "")
             },
           },
@@ -106,7 +107,8 @@ const renderChart = () => {
           borderWidth: 1,
           callbacks: {
             label: (ctx: { parsed: { y: number } }) => {
-              return ctx.parsed.y + (props.valueSuffix || "")
+              if (props.formatValue) return props.formatValue(ctx.parsed.y)
+              return ctx.parsed.y.toFixed(2) + (props.valueSuffix || "")
             },
           },
         },

@@ -157,7 +157,7 @@
                           )
                         "
                         :height="CHART_HEIGHT"
-                        value-suffix=" kbps" />
+                        :format-value="formatBitrateShort" />
                     </div>
                   </div>
                   <!-- Extra charts for screen share (full width) -->
@@ -313,7 +313,7 @@ const getBitrateChartData = (
   const observations = getObservations(fromId, toId)
   return observations
     .filter((o) => o.track_type === trackType && o.bitrate > 0)
-    .map((o) => ({ timestamp: o.timestamp, value: o.bitrate / 1000 }))
+    .map((o) => ({ timestamp: o.timestamp, value: o.bitrate }))
     .slice(-20)
 }
 
@@ -341,6 +341,12 @@ const formatBitrate = (bps: number): string => {
   if (bps >= 1_000_000) return `${(bps / 1_000_000).toFixed(1)} Mbps`
   if (bps >= 1_000) return `${(bps / 1_000).toFixed(0)} Kbps`
   return `${bps.toFixed(0)} bps`
+}
+
+const formatBitrateShort = (bps: number): string => {
+  if (bps >= 1_000_000) return `${(bps / 1_000_000).toFixed(2)} Mbps`
+  if (bps >= 1_000) return `${(bps / 1_000).toFixed(2)} kbps`
+  return `${bps.toFixed(2)} bps`
 }
 
 const makeSparkline = (
