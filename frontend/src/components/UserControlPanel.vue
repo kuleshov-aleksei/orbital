@@ -21,8 +21,9 @@
 
         <!-- Call Control Buttons -->
         <div class="flex items-center space-x-2 ml-3">
-          <!-- Screen Share Toggle - Hidden on mobile browsers -->
+          <!-- Screen Share Toggle - Hidden on mobile browsers and in spatial rooms -->
           <ScreenShareButton
+            v-if="!isSpatialRoom"
             v-model="localScreenSharing"
             size="sm"
             @start-screen-share="$emit('start-screen-share')"
@@ -97,7 +98,7 @@ import UserAvatar from "@/components/UserAvatar.vue"
 import MicMuteButton from "@/components/MicMuteButton.vue"
 import AudioDeafenButton from "@/components/AudioDeafenButton.vue"
 import ScreenShareButton from "@/components/ScreenShareButton.vue"
-import { useModalStore, useUserStore, useCallStore } from "@/stores"
+import { useModalStore, useUserStore, useCallStore, useRoomStore } from "@/stores"
 import { PhSignOut, PhGearSix, PhImageBroken } from "@phosphor-icons/vue"
 
 interface Props {
@@ -134,6 +135,7 @@ const emit = defineEmits<{
 const modalStore = useModalStore()
 const userStore = useUserStore()
 const callStore = useCallStore()
+const roomStore = useRoomStore()
 
 // Computed properties for v-model support - parent controls all state
 const localMuted = computed({
@@ -150,6 +152,9 @@ const localScreenSharing = computed({
   get: () => props.modelValueScreenSharing,
   set: (value) => emit("update:modelValueScreenSharing", value),
 })
+
+// Whether room is spatial (hide screenshare)
+const isSpatialRoom = computed(() => roomStore.activeRoom?.type === "spatial_audio")
 
 // Status text
 const statusText = computed(() => {

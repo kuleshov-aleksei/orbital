@@ -13,6 +13,7 @@
 
     <!-- Screen Share -->
     <ScreenShareButton
+      v-if="!isSpatialRoom"
       ref="screenShareButtonRef"
       v-model="isScreenSharing"
       size="lg"
@@ -20,6 +21,7 @@
 
     <!-- Camera -->
     <CameraButton
+      v-if="!isSpatialRoom"
       v-model="isCameraEnabled"
       size="lg"
       @toggle-camera="$emit('toggle-camera', $event)"
@@ -65,7 +67,7 @@ import AudioDeafenButton from "@/components/AudioDeafenButton.vue"
 import ScreenShareButton from "@/components/ScreenShareButton.vue"
 import CameraButton from "@/components/CameraButton.vue"
 import AudioControlsDropdown from "@/components/AudioControlsDropdown.vue"
-import { useModalStore, useCallStore } from "@/stores"
+import { useModalStore, useCallStore, useRoomStore } from "@/stores"
 import type { ScreenShareQuality } from "@/types"
 
 interface Props {
@@ -102,6 +104,7 @@ const screenShareButtonRef =
 // Stores
 const modalStore = useModalStore()
 const callStore = useCallStore()
+const roomStore = useRoomStore()
 
 // Methods
 const openSettings = () => {
@@ -111,6 +114,9 @@ const openSettings = () => {
 const handleLeaveRoom = () => {
   emit("leave-room")
 }
+
+// Whether room is spatial (hide camera/screenshare)
+const isSpatialRoom = computed(() => roomStore.activeRoom?.type === "spatial_audio")
 
 // Computed v-model bindings
 const isMuted = computed({
