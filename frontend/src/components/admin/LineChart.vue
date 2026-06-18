@@ -27,11 +27,13 @@ const props = defineProps<{
       backgroundColor: string
       borderWidth: number
       pointRadius: number
+      pointHitRadius: number
       fill: boolean
       tension: number
     }[]
   }
   height?: number
+  valueSuffix?: string
 }>()
 
 Chart.register(
@@ -82,6 +84,11 @@ const renderChart = () => {
             color: "#6b7280",
             font: { size: 10 },
             maxTicksLimit: 4,
+            callback: (value: number | string) => {
+              const num = typeof value === "string" ? parseFloat(value) : value
+              if (num >= 1000) return (num / 1000).toFixed(1) + "k" + (props.valueSuffix || "")
+              return num + (props.valueSuffix || "")
+            },
           },
           grid: {
             color: "rgba(75, 85, 99, 0.3)",
@@ -97,6 +104,11 @@ const renderChart = () => {
           bodyColor: "#d1d5db",
           borderColor: "#374151",
           borderWidth: 1,
+          callbacks: {
+            label: (ctx: { parsed: { y: number } }) => {
+              return ctx.parsed.y + (props.valueSuffix || "")
+            },
+          },
         },
         legend: {
           display: false,

@@ -34,9 +34,13 @@
             <div class="min-w-0">
               <div class="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5 text-center">
                 <template v-if="direction === 'inbound'">
-                  {{ getUserDisplay(hoveredUserId).nickname }} &rarr; {{ getUserDisplay(otherId).nickname }}
+                  {{ getUserDisplay(hoveredUserId).nickname }} &rarr;
+                  {{ getUserDisplay(otherId).nickname }}
                 </template>
-                <template v-else> {{ getUserDisplay(otherId).nickname }} &rarr; {{ getUserDisplay(hoveredUserId).nickname }} </template>
+                <template v-else>
+                  {{ getUserDisplay(otherId).nickname }} &rarr;
+                  {{ getUserDisplay(hoveredUserId).nickname }}
+                </template>
               </div>
 
               <template
@@ -152,11 +156,12 @@
                             '#22c55e',
                           )
                         "
-                        :height="CHART_HEIGHT" />
+                        :height="CHART_HEIGHT"
+                        value-suffix=" kbps" />
                     </div>
                   </div>
                   <!-- Extra charts for screen share (full width) -->
-                   <div class="grid grid-cols-2 gap-1 text-[10px] mb-1">
+                  <div class="grid grid-cols-2 gap-1 text-[10px] mb-1">
                     <div v-if="obs.fps">
                       <span class="text-gray-500">FPS</span>
                       <span class="text-white font-mono block">{{ formatFps(obs.fps) }}</span>
@@ -308,7 +313,7 @@ const getBitrateChartData = (
   const observations = getObservations(fromId, toId)
   return observations
     .filter((o) => o.track_type === trackType && o.bitrate > 0)
-    .map((o) => ({ timestamp: o.timestamp, value: o.bitrate }))
+    .map((o) => ({ timestamp: o.timestamp, value: o.bitrate / 1000 }))
     .slice(-20)
 }
 
@@ -351,7 +356,8 @@ const makeSparkline = (
       borderColor: color,
       backgroundColor: color + "20",
       borderWidth: 1,
-      pointRadius: 0,
+      pointRadius: 2,
+      pointHitRadius: 10,
       fill: true,
       tension: 0.3,
     },
