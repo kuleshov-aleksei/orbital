@@ -95,7 +95,7 @@ import { useLiveKit, useBoombox } from "@/composables"
 import { useSpatialPosition } from "@/composables/useSpatialPosition"
 import { useSpatialAudio } from "@/composables/useSpatialAudio"
 import { useGameInput } from "@/composables/useGameInput"
-import { useUserStore, useWorldLoadingStore } from "@/stores"
+import { useUserStore, useCallStore, useWorldLoadingStore } from "@/stores"
 import { createWorldRenderer } from "@/world/WorldRenderer"
 import { createCharacterSprite } from "@/world/CharacterSprite"
 import { getAnimations } from "@/world/ResourceManager"
@@ -166,6 +166,7 @@ function loadCharacter(): CharacterKey {
 const worldConfig = computed(() => getWorldConfig(props.worldId))
 
 const userStore = useUserStore()
+const callStore = useCallStore()
 const selectedCharacter = ref<CharacterKey>(loadCharacter())
 const showCharacterPicker = ref(false)
 
@@ -261,6 +262,7 @@ const spatialAudio = useSpatialAudio({
   boomboxTrack,
   boomboxPosition,
   boomboxVolume,
+  isDeafened: computed(() => callStore.isDeafened),
 })
 const { initializeAudio, resumeAudio, updateAudioPositions } = spatialAudio
 
@@ -547,7 +549,7 @@ function gameTick(delta: number) {
   updateAudioPositions(localPosition.value, remotePositions.value)
 
   if (boomboxAmIPlaying()) {
-    boomboxUpdateLocalSpatial(localPosition.value, boomboxPosition.value)
+    boomboxUpdateLocalSpatial(localPosition.value, boomboxPosition.value, callStore.isDeafened)
   }
 
   const bx = boomboxPosition.value

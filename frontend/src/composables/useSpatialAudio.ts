@@ -18,6 +18,7 @@ export function useSpatialAudio(options: {
   boomboxTrack?: Ref<RemoteAudioTrack | null>
   boomboxPosition?: Ref<Vector2>
   boomboxVolume?: Ref<number>
+  isDeafened?: Ref<boolean>
 }) {
   const audioContextRef = ref<AudioContext | null>(null)
   const pannerNodes = new Map<string, PannerNode>()
@@ -177,7 +178,9 @@ export function useSpatialAudio(options: {
     if (isMobile) {
       const gain = gainNodes.get(BOOMBOX_KEY)
       if (!gain) return
-      if (outside) {
+      if (options.isDeafened?.value) {
+        gain.gain.setTargetAtTime(0, 0, 0.1)
+      } else if (outside) {
         gain.gain.setTargetAtTime(0, 0, 0.1)
       } else if (distance < 50) {
         gain.gain.setTargetAtTime(1, 0, 0.1)
@@ -192,7 +195,7 @@ export function useSpatialAudio(options: {
       panner.positionX.setTargetAtTime(relX, 0, 0.02)
       panner.positionZ.setTargetAtTime(relY, 0, 0.02)
       mute.gain.setTargetAtTime(
-        outside ? 0 : (options.boomboxVolume?.value ?? MAX_BOOMBOX_VOLUME),
+        options.isDeafened?.value ? 0 : outside ? 0 : (options.boomboxVolume?.value ?? MAX_BOOMBOX_VOLUME),
         0,
         0.05,
       )
@@ -209,7 +212,9 @@ export function useSpatialAudio(options: {
       if (isMobile) {
         const gain = gainNodes.get(userId)
         if (!gain) return
-        if (outside) {
+        if (options.isDeafened?.value) {
+          gain.gain.setTargetAtTime(0, 0, 0.1)
+        } else if (outside) {
           gain.gain.setTargetAtTime(0, 0, 0.1)
         } else if (distance < 50) {
           gain.gain.setTargetAtTime(1, 0, 0.1)
@@ -223,7 +228,7 @@ export function useSpatialAudio(options: {
         if (!panner || !mute) return
         panner.positionX.setTargetAtTime(relX, 0, 0.02)
         panner.positionZ.setTargetAtTime(relY, 0, 0.02)
-        mute.gain.setTargetAtTime(outside ? 0 : 1, 0, 0.05)
+        mute.gain.setTargetAtTime(options.isDeafened?.value ? 0 : outside ? 0 : 1, 0, 0.05)
       }
     })
 

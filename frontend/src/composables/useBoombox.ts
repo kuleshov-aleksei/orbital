@@ -327,7 +327,7 @@ export function useBoombox(options: {
     { immediate: true },
   )
 
-  const updateLocalSpatial = (myPos: Vector2, boomboxPos: Vector2) => {
+  const updateLocalSpatial = (myPos: Vector2, boomboxPos: Vector2, isDeafened?: boolean) => {
     if (!localPanner || !localMuteGain) return
     const relX = boomboxPos.x - myPos.x
     const relY = boomboxPos.y - myPos.y
@@ -335,7 +335,7 @@ export function useBoombox(options: {
     const outside = distance > EARSHOT_RADIUS
     localPanner.positionX.setTargetAtTime(relX, 0, 0.02)
     localPanner.positionZ.setTargetAtTime(relY, 0, 0.02)
-    localMuteGain.gain.setTargetAtTime(outside ? 0 : boomboxVolume.value, 0, 0.05)
+    localMuteGain.gain.setTargetAtTime(isDeafened ? 0 : outside ? 0 : boomboxVolume.value, 0, 0.05)
   }
 
   return {
