@@ -103,6 +103,19 @@ The Orbital implements a hierarchical role system:
 - `make build-electron-win` - Build windows electron app
 - `make build-electron-linux` - Build linux electron app (.AppImage, .deb, .tar.gz)
 
+## Live Stats Dashboard
+
+![Stats dashboard](docs/images/Screenshot_20260618_221317.png)
+
+The admin panel includes a real-time network stats dashboard:
+- jitter
+- packet loss
+- bitrate
+- codec
+- resolution and FPS
+
+for each media track
+
 ## Spatial Audio System
 
 ![Spatial audio system](docs/images/Screenshot_20260530_185125.png)
