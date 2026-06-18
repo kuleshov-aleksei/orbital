@@ -17,32 +17,33 @@
           :stroke-width="line.highlighted ? 2 : 1"
           :opacity="line.highlighted ? 1 : 0.3"
           class="transition-all duration-300" />
-        <text
-          v-if="line.bitrateAtoB > 0 || line.bitrateBtoA > 0"
-          :x="(line.x1 + line.x2) / 2"
-          :y="(line.y1 + line.y2) / 2 - 10"
-          text-anchor="middle"
-          :fill="line.highlighted ? '#d1d5db' : '#6b7280'"
-          font-size="12"
-          font-family="monospace"
-          :opacity="line.highlighted ? 1 : 0.4"
-          class="pointer-events-none select-none">
-          {{ line.shortA }}→{{ line.shortB }}: {{ formatBitrate(line.bitrateAtoB) }}
-        </text>
-        <text
-          v-if="line.bitrateAtoB > 0 || line.bitrateBtoA > 0"
-          :x="(line.x1 + line.x2) / 2"
-          :y="(line.y1 + line.y2) / 2 + 6"
-          text-anchor="middle"
-          :fill="line.highlighted ? '#d1d5db' : '#6b7280'"
-          font-size="12"
-          font-family="monospace"
-          :opacity="line.highlighted ? 1 : 0.4"
-          class="pointer-events-none select-none">
-          {{ line.shortB }}→{{ line.shortA }}: {{ formatBitrate(line.bitrateBtoA) }}
-        </text>
       </g>
     </svg>
+
+    <!-- Bitrate labels (HTML, positioned over SVG) -->
+    <template v-for="(line, idx) in connectionLines" :key="'lbl-' + idx">
+      <div
+        v-if="line.bitrateAtoB > 0 || line.bitrateBtoA > 0"
+        class="absolute pointer-events-none select-none z-5 transition-opacity duration-300"
+        :class="line.highlighted ? 'opacity-100' : 'opacity-40'"
+        :style="{
+          left: pct((line.x1 + line.x2) / 2) + '%',
+          top: pct((line.y1 + line.y2) / 2) + '%',
+          transform: 'translate(-50%, -50%)',
+        }">
+        <div
+          class="flex flex-col items-center gap-px text-[10px] font-mono whitespace-nowrap leading-tight">
+          <span class="text-gray-300 flex items-center gap-0.5">
+            {{ line.shortA }}<PhArrowRight :size="16" />{{ line.shortB }}:
+            {{ formatBitrate(line.bitrateAtoB) }}
+          </span>
+          <span class="text-gray-300 flex items-center gap-0.5">
+            {{ line.shortB }}<PhArrowRight :size="16" />{{ line.shortA }}:
+            {{ formatBitrate(line.bitrateBtoA) }}
+          </span>
+        </div>
+      </div>
+    </template>
 
     <!-- Avatar nodes (positioned using % relative to container, matching SVG viewBox scale) -->
     <div
@@ -92,6 +93,7 @@ import type { ClientStatsBatch } from "@/types"
 import UserAvatar from "@/components/UserAvatar.vue"
 import StatsPopup from "./StatsPopup.vue"
 import { useUsersStore } from "@/stores"
+import { PhArrowRight } from "@phosphor-icons/vue"
 
 const props = defineProps<{
   reports: Record<string, ClientStatsBatch>
