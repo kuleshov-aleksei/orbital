@@ -9,12 +9,12 @@ multi-ecosystem-groups:
       interval: "weekly"
 
 updates:
-  - package-ecosystem: "pnpm"
+  - package-ecosystem: "npm"
     directory: "/frontend"
     patterns: ["*"]
     multi-ecosystem-group: "web"
 
-  - package-ecosystem: "pnpm"
+  - package-ecosystem: "npm"
     directory: "/electron"
     patterns: ["*"]
     multi-ecosystem-group: "web"
