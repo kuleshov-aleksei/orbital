@@ -12,7 +12,7 @@
       <video
         :id="`screen-${userId}`"
         ref="videoElement"
-        class="object-contain max-h-[70vh]"
+        class="object-contain w-full max-h-full"
         :style="{ aspectRatio: videoAspectRatio }"
         autoplay
         playsinline
