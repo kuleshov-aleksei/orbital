@@ -301,61 +301,38 @@ type SendChatMessageRequest struct {
 
 // Stats models for remote stats collection (admin feature)
 
-// TrackStatsData contains stats for a single track
-type TrackStatsData struct {
-	Jitter       float64 `json:"jitter"`
-	PacketLoss   float64 `json:"packet_loss"`
-	Bitrate      float64 `json:"bitrate"`
-	BytesReceived int64  `json:"bytes_received"`
-	Timestamp    int64   `json:"timestamp"`
-	Codec        string  `json:"codec,omitempty"`
-	Resolution   string  `json:"resolution,omitempty"`
-	FPS          float64 `json:"fps,omitempty"`
+// PerPairObservation is a single stats sample for one track from one observed user
+type PerPairObservation struct {
+	TrackType  string  `json:"track_type"`            // "mic", "webcam", "screen_share", "screen_share_audio"
+	Jitter     float64 `json:"jitter"`
+	PacketLoss float64 `json:"packet_loss"`
+	Bitrate    float64 `json:"bitrate"`
+	Codec      string  `json:"codec,omitempty"`
+	Resolution string  `json:"resolution,omitempty"`
+	FPS        float64 `json:"fps,omitempty"`
+	Timestamp  int64   `json:"timestamp"`
 }
 
-// ICEPairInfo describes an ICE candidate pair
-type ICEPairInfo struct {
-	LocalCandidateType  string `json:"local_candidate_type"`
-	RemoteCandidateType string `json:"remote_candidate_type"`
-	Selected            bool   `json:"selected"`
+// ClientStatsBatch is a batch of per-pair observations sent from a client
+type ClientStatsBatch struct {
+	RoomID       string                           `json:"room_id"`
+	ReporterID   string                           `json:"reporter_id"`
+	Timestamp    int64                            `json:"timestamp"`
+	RTT          float64                          `json:"rtt"`
+	Observations map[string][]PerPairObservation  `json:"observations"` // observedUserId -> samples
 }
 
-// ConnectionStatsData contains all connection stats for a client
-type ConnectionStatsData struct {
-	RTT              float64         `json:"rtt"`
-	Audio            *TrackStatsData `json:"audio,omitempty"`
-	Video            *TrackStatsData `json:"video,omitempty"`
-	ScreenShare      *TrackStatsData `json:"screen_share,omitempty"`
-	ScreenShareAudio *TrackStatsData `json:"screen_share_audio,omitempty"`
-	LocalVideo       *TrackStatsData `json:"local_video,omitempty"`
-	ICEPairs         []ICEPairInfo   `json:"ice_candidate_pairs,omitempty"`
-}
-
-// ClientStatsReport is sent from client to server
-type ClientStatsReport struct {
-	RoomID          string             `json:"room_id"`
-	UserID          string             `json:"user_id"`
-	Timestamp       int64              `json:"timestamp"`
-	ConnectionStats ConnectionStatsData `json:"connection_stats"`
-}
-
-// StatsControlCommand is sent from server to client to enable/disable reporting
-type StatsControlCommand struct {
+// EnableStatsCommand is sent from server to client to enable reporting
+type EnableStatsCommand struct {
 	RoomID     string `json:"room_id"`
-	Action     string `json:"action"` // "enable" or "disable"
+	Action     string `json:"action"`
 	IntervalMs int    `json:"interval_ms,omitempty"`
 }
 
 // RoomStatsMessage is sent from server to admin with aggregated stats
 type RoomStatsMessage struct {
-	RoomID       string                            `json:"room_id"`
-	Participants map[string]ParticipantStatsData   `json:"participants"`
-}
-
-// ParticipantStatsData holds current and recent stats for one participant
-type ParticipantStatsData struct {
-	LastReport ClientStatsReport   `json:"last_report"`
-	History    []ClientStatsReport `json:"history"`
+	RoomID  string                        `json:"room_id"`
+	Reports map[string]ClientStatsBatch   `json:"reports"` // reporter_id -> latest batch
 }
 
 // StatsStatus represents the current state of stats collection for a room

@@ -31,6 +31,7 @@
     "dompurify": "^3.4.8",
     "electron-log": "^5.4.4",
     "electron-updater": "^6.8.8",
+    "fflate": "^0.8.3",
     "livekit-client": "^2.19.1",
     "marked": "^18.0.5",
     "pinia": "^3.0.4",

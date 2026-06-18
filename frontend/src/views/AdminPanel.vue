@@ -361,16 +361,74 @@
       </div>
 
       <!-- Stats Section (Super Admin Only) -->
-      <div v-if="activeTab === 'stats' && isSuperAdmin">
-        <StatsDashboard
-          :rooms="adminStats.rooms.value"
-          :stats-statuses="adminStats.statsStatuses.value"
-          @select-room="onStatsSelectRoom"
-          @toggle-stats="onStatsToggle" />
+      <div v-if="activeTab === 'stats' && isSuperAdmin" class="space-y-4">
+        <!-- Room Selector & Controls -->
+        <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-lg font-semibold text-white">Stats Map</h2>
+            <span class="text-sm text-gray-400">
+              {{ enabledRoomsCount }} room{{ enabledRoomsCount !== 1 ? "s" : "" }} collecting
+            </span>
+          </div>
+          <p class="text-sm text-gray-400 mb-4">
+            Hover over an avatar to see per-pair connection metrics.
+          </p>
+
+          <div class="flex items-center gap-4">
+            <div class="flex-1">
+              <select
+                v-model="statsRoomId"
+                class="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-indigo-500 outline-none"
+                @change="onStatsRoomChange">
+                <option value="" disabled>Select a room...</option>
+                <option v-for="room in adminStats.rooms.value" :key="room.id" :value="room.id">
+                  {{ room.name }} ({{ room.user_count }} user{{ room.user_count !== 1 ? "s" : "" }})
+                </option>
+              </select>
+            </div>
+
+            <button
+              type="button"
+              class="px-4 py-2 rounded text-sm font-medium transition-colors disabled:opacity-50"
+              :class="
+                adminStats.statsEnabled.value
+                  ? 'bg-red-600 hover:bg-red-700 text-white'
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+              "
+              :disabled="!statsRoomId || adminStats.toggling.value"
+              @click="onStatsToggle(statsRoomId)">
+              <span v-if="adminStats.toggling.value">Processing...</span>
+              <span v-else-if="adminStats.statsEnabled.value">Disable Stats</span>
+              <span v-else>Enable Stats</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Stats Map -->
+        <div v-if="adminStats.statsEnabled.value && statsRoomId">
+          <StatsMap :reports="adminStats.reports.value" :get-latest-rtt="adminStats.getLatestRtt" />
+        </div>
+
+        <!-- Stats disabled state -->
+        <div
+          v-else-if="statsRoomId && !adminStats.statsEnabled.value"
+          class="bg-gray-800 rounded-lg border border-gray-700 p-8 text-center">
+          <div class="text-gray-400">Stats collection is disabled for this room</div>
+          <div class="text-gray-500 text-sm mt-1">
+            Click "Enable Stats" above to start receiving connection metrics from participants.
+          </div>
+        </div>
+
+        <!-- No room selected -->
+        <div
+          v-if="!statsRoomId"
+          class="bg-gray-800 rounded-lg border border-gray-700 p-8 text-center">
+          <div class="text-gray-400">Select a room to get started</div>
+        </div>
       </div>
 
       <!-- Info Section -->
-      <div class="mt-6 bg-gray-800/50 rounded-lg border border-gray-700 p-4">
+      <div v-if="activeTab === 'users'" class="mt-6 bg-gray-800/50 rounded-lg border border-gray-700 p-4">
         <h3 class="text-sm font-medium text-gray-300 mb-2">Role Information</h3>
 
         <div class="space-y-2 text-sm text-gray-400">
@@ -528,13 +586,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, reactive } from "vue"
+import { ref, computed, onMounted, onUnmounted } from "vue"
 import { storeToRefs } from "pinia"
 import Avatar from "vue-boring-avatars"
 import { useUserStore } from "@/stores"
 import { apiService } from "@/services/api"
 import { useAdminStats } from "@/composables/useAdminStats"
-import StatsDashboard from "@/components/admin/StatsDashboard.vue"
+import StatsMap from "@/components/admin/StatsMap.vue"
+import { wsService } from "@/services/websocket"
+import type { RoomStatsMessage } from "@/types"
 import type { User, DebugLog, AudioFile } from "@/types"
 import { PhUsers, PhFileText, PhMusicNote, PhX } from "@phosphor-icons/vue"
 
@@ -577,19 +637,39 @@ const currentUserRole = computed(() => currentUser.value?.role)
 
 // Admin Stats
 const adminStats = useAdminStats()
+const statsRoomId = ref("")
+const enabledRoomsCount = computed(
+  () => adminStats.statsStatuses.value.filter((s) => s.enabled).length,
+)
+
+const handleRoomStatsMessage = (message: { type: string; data: unknown }) => {
+  if (message.type === "room_stats") {
+    const msg = message.data as RoomStatsMessage
+    if (msg.room_id === statsRoomId.value) {
+      adminStats.reports.value = msg.reports
+    }
+  }
+}
 
 const activateStatsTab = async () => {
   activeTab.value = "stats"
+  wsService.onGlobal("room_stats", handleRoomStatsMessage)
   await Promise.all([adminStats.loadRooms(), adminStats.loadStatsStatus()])
 }
 
-const onStatsSelectRoom = async (roomId: string) => {
-  await adminStats.selectRoom(roomId)
+const onStatsRoomChange = async () => {
+  if (statsRoomId.value) {
+    await adminStats.selectRoom(statsRoomId.value)
+  }
 }
 
 const onStatsToggle = async (roomId: string) => {
   await adminStats.toggleStats(roomId)
 }
+
+onUnmounted(() => {
+  wsService.offGlobal("room_stats", handleRoomStatsMessage)
+})
 
 const getRoleColor = (role: string): string => {
   switch (role) {

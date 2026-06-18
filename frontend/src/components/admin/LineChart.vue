@@ -1,11 +1,11 @@
 <template>
-  <div>
+  <div :style="height ? { height: height + 'px' } : undefined">
     <canvas ref="canvasRef"></canvas>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, onUnmounted } from "vue"
+import { onMounted, watch, onUnmounted, useTemplateRef } from "vue"
 import {
   Chart,
   CategoryScale,
@@ -16,8 +16,6 @@ import {
   Filler,
   Tooltip,
 } from "chart.js"
-
-Chart.register(CategoryScale, LinearScale, PointElement, LineElement, LineController, Filler, Tooltip)
 
 const props = defineProps<{
   data: {
@@ -36,7 +34,17 @@ const props = defineProps<{
   height?: number
 }>()
 
-const canvasRef = ref<HTMLCanvasElement | null>(null)
+Chart.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  LineController,
+  Filler,
+  Tooltip,
+)
+
+const canvasRef = useTemplateRef<HTMLCanvasElement>("canvasRef")
 let chartInstance: Chart | null = null
 
 const renderChart = () => {

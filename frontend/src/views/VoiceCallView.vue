@@ -140,7 +140,7 @@ import ChatToggleButton from "@/components/ChatToggleButton.vue"
 import { PhWarning, PhX } from "@phosphor-icons/vue"
 import ChatPreviewNotification from "@/components/ChatPreviewNotification.vue"
 import { useLiveKit, useVoiceActivity } from "@/composables"
-import { useRemoteStatsReporter } from "@/composables/useRemoteStatsReporter"
+import { useStatsCollector } from "@/composables/useStatsCollector"
 import {
   useAudioSettingsStore,
   useCallStore,
@@ -268,6 +268,16 @@ const showScreenShareAudioNotification = (message: string) => {
 }
 
 // Initialize LiveKit composable - destructure for template reactivity
+const lk = useLiveKit({
+  roomId: props.roomId,
+  roomName: props.roomName,
+  users: props.users,
+  remoteStreamVolumes: props.remoteStreamVolumes,
+  onVolumeChange: (userId: string, volume: number) => {
+    console.log(`Volume change for ${userId}: ${volume}`)
+  },
+})
+
 const {
   localStream,
   isConnected,
@@ -284,7 +294,6 @@ const {
   stopScreenShare,
   startCamera,
   stopCamera,
-  getParticipantStats,
   applyMuteState,
   applyDeafenState,
   reinitializeAudioStream,
@@ -295,26 +304,29 @@ const {
   screenShareVersion,
   screenShareAudioWarning,
   cleanup,
-  startRemoteReporting,
-  stopRemoteReporting,
-} = useLiveKit({
+  room,
+  remoteAudioTracks,
+  remoteCameraTracks,
+  remoteScreenTracks,
+} = lk
+
+// Stats collector - handles RTC stats polling, accumulation, and batch reporting
+const {
+  startCollecting,
+  stopCollecting,
+  startPingInterval,
+  stopPingInterval,
+  getParticipantStats,
+} = useStatsCollector({
+  room,
+  remoteAudioTracks,
+  remoteCameraTracks,
+  remoteScreenTracks,
   roomId: props.roomId,
-  roomName: props.roomName,
-  users: props.users,
-  remoteStreamVolumes: props.remoteStreamVolumes,
-  onVolumeChange: (userId: string, volume: number) => {
-    // Volume changes are handled by the component
-    console.log(`Volume change for ${userId}: ${volume}`)
-  },
-  onPingUpdate: (ping: number, quality: "sub-wave" | "excellent" | "good" | "fair" | "poor") => {
+  getCurrentUserId: () => userStore.userId,
+  onPingUpdate: (ping, quality) => {
     emit("ping-update", ping, quality)
   },
-})
-
-// Remote stats reporting (enabled/disabled by admin via WebSocket)
-useRemoteStatsReporter(props.roomId, {
-  startRemoteReporting,
-  stopRemoteReporting,
 })
 
 // Voice Activity Detection for local user
@@ -514,6 +526,8 @@ watch(
   async (newRoomId, oldRoomId) => {
     // If leaving the room (newRoomId becomes null), cleanup LiveKit
     if (!newRoomId && oldRoomId) {
+      stopCollecting()
+      stopPingInterval()
       await cleanup()
       return
     }
@@ -524,6 +538,8 @@ watch(
     // If switching rooms (not initial join), cleanup old LiveKit connection first
     // This handles the case where user clicks a different room card directly
     if (oldRoomId && oldRoomId !== newRoomId && isConnected.value) {
+      stopCollecting()
+      stopPingInterval()
       await cleanup()
     }
 
@@ -531,6 +547,8 @@ watch(
     appStore.setConnecting(true)
     try {
       await initializeLiveKit()
+      startCollecting()
+      startPingInterval()
     } catch (error) {
       console.error("Error initializing LiveKit:", error)
     } finally {

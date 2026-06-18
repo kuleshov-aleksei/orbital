@@ -29,9 +29,9 @@ type Hub struct {
 	mu             sync.RWMutex
 
 	// Stats manager fields
-	statsEnabledRooms map[string]bool                        // room_id -> enabled
-	statsAdminSubs    map[string]map[*Client]bool            // room_id -> admin clients subscribed
-	statsRoomData     map[string]map[string]*roomParticipantStats // room_id -> user_id -> stats
+	statsEnabledRooms map[string]bool                      // room_id -> enabled
+	statsAdminSubs    map[string]map[*Client]bool          // room_id -> admin clients subscribed
+	statsRoomData     map[string]map[string]models.ClientStatsBatch // room_id -> reporter_id -> latest batch
 }
 
 // Client represents a WebSocket client
@@ -60,7 +60,7 @@ func NewHub(roomService *service.RoomService, authService *service.AuthService, 
 		cfg:               cfg,
 		statsEnabledRooms: make(map[string]bool),
 		statsAdminSubs:    make(map[string]map[*Client]bool),
-		statsRoomData:     make(map[string]map[string]*roomParticipantStats),
+		statsRoomData:     make(map[string]map[string]models.ClientStatsBatch),
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				return true // Allow all origins for development
@@ -588,8 +588,8 @@ func (c *Client) handleMessage(message models.WebSocketMessage) {
 		log.Printf("Received room_created broadcast")
 	case "send_message":
 		c.handleSendMessage(message.Data)
-	case "client_stats":
-		c.handleClientStats(message.Data)
+	case "client_stats_batch":
+		c.handleClientStatsBatch(message.Data)
 	default:
 		log.Printf("Unknown message type: %s", message.Type)
 	}
@@ -675,7 +675,7 @@ func (c *Client) handleJoinRoom(data interface{}) {
 	if c.hub.IsStatsEnabled(c.roomID) {
 		enableMsg := models.WebSocketMessage{
 			Type: "enable_stats_collection",
-			Data: models.StatsControlCommand{
+			Data: models.EnableStatsCommand{
 				RoomID:     c.roomID,
 				Action:     "enable",
 				IntervalMs: defaultStatsIntervalMs,

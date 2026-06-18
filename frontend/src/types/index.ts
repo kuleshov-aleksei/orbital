@@ -488,54 +488,28 @@ export interface AudioFile {
 
 // ==================== Remote Stats Collection Types ====================
 
-export interface TrackStatsData {
+export interface PerPairObservation {
+  track_type: "mic" | "webcam" | "screen_share" | "screen_share_audio"
   jitter: number
   packet_loss: number
   bitrate: number
-  bytes_received: number
-  timestamp: number
   codec?: string
   resolution?: string
   fps?: number
-}
-
-export interface ICEPairInfo {
-  local_candidate_type: string
-  remote_candidate_type: string
-  selected: boolean
-}
-
-export interface ConnectionStatsData {
-  rtt: number
-  audio?: TrackStatsData
-  video?: TrackStatsData
-  screen_share?: TrackStatsData
-  screen_share_audio?: TrackStatsData
-  local_video?: TrackStatsData
-  ice_candidate_pairs?: ICEPairInfo[]
-}
-
-export interface ClientStatsReport {
-  room_id: string
-  user_id: string
   timestamp: number
-  connection_stats: ConnectionStatsData
 }
 
-export interface StatsControlCommand {
+export interface ClientStatsBatch {
   room_id: string
-  action: "enable" | "disable"
-  interval_ms?: number
-}
-
-export interface ParticipantStatsData {
-  last_report: ClientStatsReport
-  history: ClientStatsReport[]
+  reporter_id: string
+  timestamp: number
+  rtt: number
+  observations: Record<string, PerPairObservation[]>
 }
 
 export interface RoomStatsMessage {
   room_id: string
-  participants: Record<string, ParticipantStatsData>
+  reports: Record<string, ClientStatsBatch>
 }
 
 export interface StatsStatus {

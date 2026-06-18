@@ -1,7 +1,11 @@
 package websocket
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/base64"
 	"encoding/json"
+	"io"
 	"log"
 	"time"
 
@@ -9,20 +13,14 @@ import (
 )
 
 const (
-	maxStatsHistoryPerUser = 20
 	defaultStatsIntervalMs = 15000
 )
-
-type roomParticipantStats struct {
-	lastReport models.ClientStatsReport
-	history    []models.ClientStatsReport
-}
 
 func (h *Hub) EnableStatsCollection(roomID string) {
 	h.mu.Lock()
 	h.statsEnabledRooms[roomID] = true
 	if h.statsRoomData[roomID] == nil {
-		h.statsRoomData[roomID] = make(map[string]*roomParticipantStats)
+		h.statsRoomData[roomID] = make(map[string]models.ClientStatsBatch)
 	}
 	h.mu.Unlock()
 
@@ -30,7 +28,7 @@ func (h *Hub) EnableStatsCollection(roomID string) {
 
 	h.BroadcastToRoom(roomID, models.WebSocketMessage{
 		Type: "enable_stats_collection",
-		Data: models.StatsControlCommand{
+		Data: models.EnableStatsCommand{
 			RoomID:     roomID,
 			Action:     "enable",
 			IntervalMs: defaultStatsIntervalMs,
@@ -48,7 +46,7 @@ func (h *Hub) DisableStatsCollection(roomID string) {
 
 	h.BroadcastToRoom(roomID, models.WebSocketMessage{
 		Type: "disable_stats_collection",
-		Data: models.StatsControlCommand{
+		Data: models.EnableStatsCommand{
 			RoomID: roomID,
 			Action: "disable",
 		},
@@ -153,26 +151,22 @@ func (h *Hub) UnsubscribeAdminByUserID(userID, roomID string) {
 func (h *Hub) sendRoomStatsToAdmin(client *Client, roomID string) {
 	h.mu.RLock()
 	roomData, hasRoom := h.statsRoomData[roomID]
-
 	if !hasRoom || len(roomData) == 0 {
 		h.mu.RUnlock()
 		return
 	}
 
-	participants := make(map[string]models.ParticipantStatsData, len(roomData))
-	for userID, ps := range roomData {
-		participants[userID] = models.ParticipantStatsData{
-			LastReport: ps.lastReport,
-			History:    ps.history,
-		}
+	reports := make(map[string]models.ClientStatsBatch, len(roomData))
+	for reporterID, batch := range roomData {
+		reports[reporterID] = batch
 	}
 	h.mu.RUnlock()
 
 	msg := models.WebSocketMessage{
 		Type: "room_stats",
 		Data: models.RoomStatsMessage{
-			RoomID:       roomID,
-			Participants: participants,
+			RoomID:  roomID,
+			Reports: reports,
 		},
 	}
 
@@ -189,15 +183,11 @@ func (h *Hub) broadcastRoomStats(roomID string) {
 		return
 	}
 
-	participants := make(map[string]models.ParticipantStatsData, len(roomData))
-	for userID, ps := range roomData {
-		participants[userID] = models.ParticipantStatsData{
-			LastReport: ps.lastReport,
-			History:    ps.history,
-		}
+	reports := make(map[string]models.ClientStatsBatch, len(roomData))
+	for reporterID, batch := range roomData {
+		reports[reporterID] = batch
 	}
 
-	// Build a copy of subscriber list under lock
 	subList := make([]*Client, 0, len(subs))
 	for client := range subs {
 		subList = append(subList, client)
@@ -207,8 +197,8 @@ func (h *Hub) broadcastRoomStats(roomID string) {
 	msg := models.WebSocketMessage{
 		Type: "room_stats",
 		Data: models.RoomStatsMessage{
-			RoomID:       roomID,
-			Participants: participants,
+			RoomID:  roomID,
+			Reports: reports,
 		},
 	}
 
@@ -223,11 +213,35 @@ func (h *Hub) broadcastRoomStats(roomID string) {
 	}
 }
 
-func (c *Client) handleClientStats(data interface{}) {
-	var report models.ClientStatsReport
-	jsonData, _ := json.Marshal(data)
-	if err := json.Unmarshal(jsonData, &report); err != nil {
-		log.Printf("[Stats] Failed to unmarshal client stats: %v", err)
+func (c *Client) handleClientStatsBatch(data interface{}) {
+	dataStr, ok := data.(string)
+	if !ok {
+		log.Printf("[Stats] client_stats_batch data is not a string")
+		return
+	}
+
+	compressed, err := base64.StdEncoding.DecodeString(dataStr)
+	if err != nil {
+		log.Printf("[Stats] Failed to base64 decode stats batch: %v", err)
+		return
+	}
+
+	reader, err := gzip.NewReader(bytes.NewReader(compressed))
+	if err != nil {
+		log.Printf("[Stats] Failed to create gzip reader: %v", err)
+		return
+	}
+	defer reader.Close()
+
+	raw, err := io.ReadAll(reader)
+	if err != nil {
+		log.Printf("[Stats] Failed to decompress stats batch: %v", err)
+		return
+	}
+
+	var batch models.ClientStatsBatch
+	if err := json.Unmarshal(raw, &batch); err != nil {
+		log.Printf("[Stats] Failed to unmarshal stats batch: %v", err)
 		return
 	}
 
@@ -236,9 +250,9 @@ func (c *Client) handleClientStats(data interface{}) {
 	roomID := c.roomID
 	c.mu.RUnlock()
 
-	if report.RoomID != roomID || report.UserID != userID {
-		log.Printf("[Stats] Stats report room/user mismatch: client=%s/%s, report=%s/%s",
-			roomID, userID, report.RoomID, report.UserID)
+	if batch.RoomID != roomID || batch.ReporterID != userID {
+		log.Printf("[Stats] Stats batch room/user mismatch: client=%s/%s, batch=%s/%s",
+			roomID, userID, batch.RoomID, batch.ReporterID)
 		return
 	}
 
@@ -246,26 +260,16 @@ func (c *Client) handleClientStats(data interface{}) {
 		return
 	}
 
-	report.Timestamp = time.Now().UnixMilli()
+	batch.Timestamp = time.Now().UnixMilli()
 
 	c.hub.mu.Lock()
 	roomData, ok := c.hub.statsRoomData[roomID]
 	if !ok {
-		roomData = make(map[string]*roomParticipantStats)
+		roomData = make(map[string]models.ClientStatsBatch)
 		c.hub.statsRoomData[roomID] = roomData
 	}
 
-	ps, exists := roomData[userID]
-	if !exists {
-		ps = &roomParticipantStats{}
-		roomData[userID] = ps
-	}
-
-	ps.lastReport = report
-	ps.history = append(ps.history, report)
-	if len(ps.history) > maxStatsHistoryPerUser {
-		ps.history = ps.history[len(ps.history)-maxStatsHistoryPerUser:]
-	}
+	roomData[userID] = batch
 	c.hub.mu.Unlock()
 
 	c.hub.broadcastRoomStats(roomID)

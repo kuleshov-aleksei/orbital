@@ -1,12 +1,11 @@
 import { onUnmounted } from "vue"
 import type { User, ScreenShareQuality } from "@/types"
-import { useLiveKitState, type LiveKitState } from "./useLiveKitState"
+import { useLiveKitState } from "./useLiveKitState"
 import { useLiveKitAudio } from "./useLiveKitAudio"
 import { useLiveKitCamera } from "./useLiveKitCamera"
 import { useLiveKitScreenShare } from "./useLiveKitScreenShare"
 import { useLiveKitEvents } from "./useLiveKitEvents"
 import { useLiveKitConnection } from "./useLiveKitConnection"
-import { useLiveKitStats } from "./useLiveKitStats"
 
 export interface UseLiveKitOptions {
   roomId: string
@@ -14,7 +13,6 @@ export interface UseLiveKitOptions {
   users: User[]
   remoteStreamVolumes: Map<string, number>
   onVolumeChange: (userId: string, volume: number) => void
-  onPingUpdate: (ping: number, quality: "sub-wave" | "excellent" | "good" | "fair" | "poor") => void
 }
 
 export interface ScreenShareState {
@@ -23,7 +21,7 @@ export interface ScreenShareState {
 }
 
 export function useLiveKit(options: UseLiveKitOptions) {
-  const state: LiveKitState = useLiveKitState({
+  const state = useLiveKitState({
     remoteStreamVolumes: options.remoteStreamVolumes,
     onVolumeChange: options.onVolumeChange,
   })
@@ -32,16 +30,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
   const camera = useLiveKitCamera(state)
   const screenShare = useLiveKitScreenShare(state)
   const events = useLiveKitEvents(state)
-
-  const {
-    startPingInterval,
-    stopPingInterval,
-    startStatsPolling,
-    stopStatsPolling,
-    getParticipantStats,
-    startRemoteReporting,
-    stopRemoteReporting,
-  } = useLiveKitStats(state, options.onPingUpdate)
 
   const connectionDeps = {
     setupRoomEventListeners: events.setupRoomEventListeners,
@@ -52,21 +40,13 @@ export function useLiveKit(options: UseLiveKitOptions) {
   const initializeLiveKit = async (): Promise<boolean> => {
     await audio.initializeAudioTrack()
     const connected = await connection.initializeLiveKit(options.roomId)
-    if (connected) {
-      startPingInterval()
-      startStatsPolling()
-    }
     return connected
   }
 
   const cleanup = async () => {
-    stopPingInterval()
-    stopStatsPolling()
-
     if (state.isScreenSharing.value) {
       await screenShare.stopScreenShare()
     }
-
     connection.cleanup()
   }
 
@@ -106,7 +86,6 @@ export function useLiveKit(options: UseLiveKitOptions) {
     startCamera: camera.startCamera,
     stopCamera: camera.stopCamera,
     toggleCamera: camera.toggleCamera,
-    getParticipantStats,
     applyMuteState: audio.applyMuteState,
     applyDeafenState: audio.applyDeafenState,
     reinitializeAudioStream: audio.reinitializeAudioStream,
@@ -114,7 +93,5 @@ export function useLiveKit(options: UseLiveKitOptions) {
     cleanup,
     isRunningInElectron: screenShare.isRunningInElectron,
     screenShareAudioWarning: state.screenShareAudioWarning,
-    startRemoteReporting,
-    stopRemoteReporting,
   }
 }

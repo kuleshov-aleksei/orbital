@@ -1,29 +1,15 @@
 import { ref, onUnmounted } from "vue"
-import type { RoomStatsMessage, ClientStatsReport, ParticipantStatsData, StatsStatus } from "@/types"
+import type { RoomStatsMessage, ClientStatsBatch, StatsStatus } from "@/types"
 import { apiService } from "@/services/api"
-
-export interface ChartDataPoint {
-  timestamp: number
-  value: number
-}
-
-export interface ParticipantChartData {
-  userId: string
-  ping: ChartDataPoint[]
-  bitrate: ChartDataPoint[]
-  packetLoss: ChartDataPoint[]
-  jitter: ChartDataPoint[]
-}
 
 export function useAdminStats() {
   const rooms = ref<{ id: string; name: string; user_count: number }[]>([])
   const activeRoomId = ref<string | null>(null)
   const statsEnabled = ref(false)
   const statsStatuses = ref<StatsStatus[]>([])
-  const participants = ref<Record<string, ParticipantStatsData>>({})
+  const reports = ref<Record<string, ClientStatsBatch>>({})
   const loading = ref(false)
   const toggling = ref(false)
-  const chartDataMap = ref<Map<string, ParticipantChartData>>(new Map())
 
   const loadRooms = async () => {
     try {
@@ -61,8 +47,7 @@ export function useAdminStats() {
     }
 
     activeRoomId.value = roomId
-    participants.value = {}
-    chartDataMap.value = new Map()
+    reports.value = {}
     statsEnabled.value = isRoomEnabled(roomId)
 
     if (statsEnabled.value) {
@@ -84,8 +69,7 @@ export function useAdminStats() {
         await apiService.disableRoomStats(roomId)
         await apiService.unsubscribeRoomStats(roomId)
         statsEnabled.value = false
-        participants.value = {}
-        chartDataMap.value = new Map()
+        reports.value = {}
       } else {
         await apiService.enableRoomStats(roomId)
         await apiService.subscribeRoomStats(roomId)
@@ -99,28 +83,13 @@ export function useAdminStats() {
     }
   }
 
-  const formatTimestamp = (ts: number): string => {
-    const d = new Date(ts)
-    return d.toLocaleTimeString()
+  const getReporterIds = (): string[] => {
+    return Object.keys(reports.value)
   }
 
-  const getConnectionTypeLabel = (report: ClientStatsReport): string => {
-    const pairs = report.connection_stats?.ice_candidate_pairs
-    if (!pairs || pairs.length === 0) return "N/A"
-
-    const selected = pairs.find((p) => p.selected)
-    if (!selected) return "Unknown"
-
-    switch (selected.local_candidate_type) {
-      case "host":
-        return "P2P (Direct)"
-      case "srflx":
-        return "STUN (Server Reflexive)"
-      case "relay":
-        return "TURN (Relayed)"
-      default:
-        return selected.local_candidate_type
-    }
+  const getLatestRtt = (reporterId: string): number => {
+    const batch = reports.value[reporterId]
+    return batch?.rtt ?? 0
   }
 
   onUnmounted(() => {
@@ -134,8 +103,7 @@ export function useAdminStats() {
     activeRoomId,
     statsEnabled,
     statsStatuses,
-    participants,
-    chartDataMap,
+    reports,
     loading,
     toggling,
     loadRooms,
@@ -143,7 +111,7 @@ export function useAdminStats() {
     isRoomEnabled,
     selectRoom,
     toggleStats,
-    formatTimestamp,
-    getConnectionTypeLabel,
+    getReporterIds,
+    getLatestRtt,
   }
 }
