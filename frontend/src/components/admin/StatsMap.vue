@@ -50,7 +50,6 @@
       :reports="reports"
       :hovered-user-id="activeUserId"
       :all-user-ids="allUserIds"
-      :position="popupPosition"
       :get-latest-rtt="getLatestRtt"
       @popup-enter="popupHovered = true"
       @popup-leave="popupHovered = false" />
@@ -84,7 +83,6 @@ const hoveredUserId = ref<string | null>(null)
 const pinnedUserId = ref<string | null>(null)
 const popupHovered = ref(false)
 const showPopup = ref(false)
-const popupPosition = ref({ x: 0, y: 0 })
 
 const activeUserId = computed(() => pinnedUserId.value || hoveredUserId.value)
 
@@ -144,35 +142,9 @@ const getNickname = (userId: string): string => {
   return user?.nickname ?? `User_${userId.slice(0, 6)}`
 }
 
-const positionPopup = (userId: string) => {
-  const node = avatarNodes.value.find((n) => n.userId === userId)
-  if (!node || !containerRef.value) return
-
-  const popupHeight = 520
-  const popupWidth = 860
-
-  const cw = containerRef.value.offsetWidth
-  const scale = cw / svgSize
-
-  let px = (node.x + avatarSize + 8) * scale
-  if (px + popupWidth > cw) {
-    px = (node.x - 8) * scale - popupWidth
-  }
-  px = Math.max(px, -100);
-  console.log(px);
-
-  let py = (node.y - 100) * scale
-  if (py < 0) py = 0
-  if (py + popupHeight > cw) py = (svgSize - popupHeight) * scale
-  if (py < 0) py = 0
-
-  popupPosition.value = { x: Math.round(px), y: Math.round(py) }
-}
-
 const onAvatarEnter = (userId: string) => {
   hoveredUserId.value = userId
   showPopup.value = true
-  positionPopup(userId)
 }
 
 const onAvatarLeave = () => {
@@ -192,7 +164,6 @@ const onAvatarClick = (userId: string) => {
   } else {
     pinnedUserId.value = userId
     showPopup.value = true
-    positionPopup(userId)
   }
 }
 

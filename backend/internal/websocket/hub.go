@@ -29,9 +29,10 @@ type Hub struct {
 	mu             sync.RWMutex
 
 	// Stats manager fields
-	statsEnabledRooms map[string]bool                      // room_id -> enabled
-	statsAdminSubs    map[string]map[*Client]bool          // room_id -> admin clients subscribed
-	statsRoomData     map[string]map[string]models.ClientStatsBatch // room_id -> reporter_id -> latest batch
+	statsEnabledRooms map[string]bool                                   // room_id -> enabled
+	statsAdminSubs    map[string]map[*Client]bool                       // room_id -> admin clients subscribed
+	statsRoomData     map[string]map[string]models.ClientStatsBatch      // room_id -> reporter_id -> latest batch
+	pendingAdminSubs  map[string]map[string]bool                        // userID -> roomID -> pending subscription
 }
 
 // Client represents a WebSocket client
@@ -61,6 +62,7 @@ func NewHub(roomService *service.RoomService, authService *service.AuthService, 
 		statsEnabledRooms: make(map[string]bool),
 		statsAdminSubs:    make(map[string]map[*Client]bool),
 		statsRoomData:     make(map[string]map[string]models.ClientStatsBatch),
+		pendingAdminSubs:  make(map[string]map[string]bool),
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				return true // Allow all origins for development
@@ -148,6 +150,14 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 		log.Printf("WebSocket client connected for global broadcasts (user: %s, total clients: %d)", userID, len(h.clients))
 	}
 	h.mu.Unlock()
+
+	// Apply any pending admin stats subscriptions for this user
+	client.mu.RLock()
+	uid := client.userID
+	client.mu.RUnlock()
+	if uid != "" {
+		h.applyPendingAdminSubs(client, uid)
+	}
 
 	// Mark user as online if they have a valid userID
 	client.mu.RLock()
@@ -590,6 +600,8 @@ func (c *Client) handleMessage(message models.WebSocketMessage) {
 		c.handleSendMessage(message.Data)
 	case "client_stats_batch":
 		c.handleClientStatsBatch(message.Data)
+	case "request_stats_state":
+		c.handleRequestStatsState(message.Data)
 	default:
 		log.Printf("Unknown message type: %s", message.Type)
 	}
@@ -905,6 +917,11 @@ func (c *Client) handlePing(data interface{}) {
 	userID := c.userID
 	roomID := c.roomID
 	c.mu.Unlock()
+
+	// If this is a new authentication (userID was just set), apply pending admin subs
+	if isNewAuthentication {
+		c.hub.applyPendingAdminSubs(c, userID)
+	}
 
 	// Send initial audio states on first ping (client is now fully ready)
 	if shouldSendInitialData && userID != "" {

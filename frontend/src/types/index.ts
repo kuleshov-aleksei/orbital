@@ -496,6 +496,7 @@ export interface PerPairObservation {
   codec?: string
   resolution?: string
   fps?: number
+  dropped_frames?: number
   timestamp: number
 }
 

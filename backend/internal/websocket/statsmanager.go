@@ -115,7 +115,32 @@ func (h *Hub) SubscribeAdminByUserID(userID, roomID string) {
 	if targetClient != nil {
 		h.SubscribeAdmin(targetClient, roomID)
 	} else {
-		log.Printf("[Stats] No WebSocket client found for user %s to subscribe to room %s", userID, roomID)
+		// Store pending subscription for when the WS client connects/authenticates
+		h.mu.Lock()
+		if h.pendingAdminSubs[userID] == nil {
+			h.pendingAdminSubs[userID] = make(map[string]bool)
+		}
+		h.pendingAdminSubs[userID][roomID] = true
+		h.mu.Unlock()
+		log.Printf("[Stats] No WS client found for user %s, pending subscription to room %s", userID, roomID)
+	}
+}
+
+func (h *Hub) applyPendingAdminSubs(client *Client, userID string) {
+	h.mu.Lock()
+	pending, exists := h.pendingAdminSubs[userID]
+	if exists {
+		delete(h.pendingAdminSubs, userID)
+	}
+	h.mu.Unlock()
+
+	if !exists || len(pending) == 0 {
+		return
+	}
+
+	for roomID := range pending {
+		h.SubscribeAdmin(client, roomID)
+		log.Printf("[Stats] Applied pending subscription: user %s -> room %s", userID, roomID)
 	}
 }
 
@@ -282,4 +307,25 @@ func (h *Hub) CleanupRoomStats(roomID string) {
 	delete(h.statsAdminSubs, roomID)
 	h.mu.Unlock()
 	log.Printf("[Stats] Cleaned up stats data for room %s", roomID)
+}
+
+func (c *Client) handleRequestStatsState(data interface{}) {
+	c.mu.RLock()
+	roomID := c.roomID
+	c.mu.RUnlock()
+	if roomID == "" {
+		return
+	}
+
+	if c.hub.IsStatsEnabled(roomID) {
+		msg := models.WebSocketMessage{
+			Type: "enable_stats_collection",
+			Data: models.EnableStatsCommand{
+				RoomID:     roomID,
+				Action:     "enable",
+				IntervalMs: defaultStatsIntervalMs,
+			},
+		}
+		c.send <- marshalMessage(msg)
+	}
 }

@@ -34,9 +34,9 @@ export function useStatsCollector(options: StatsCollectorOptions) {
 
   const currentPing = ref(0)
   const participantStats = ref<Map<string, ConnectionStats>>(new Map())
-  const previousStats = ref<Map<string, Map<string, { bytesReceived: number; timestamp: number }>>>(
-    new Map(),
-  )
+  const previousStats = ref<
+    Map<string, Map<string, { bytesReceived: number; timestamp: number; framesDropped: number }>>
+  >(new Map())
   const observationBuffer = ref<Map<string, PerPairObservation[]>>(new Map())
 
   const calculateBitrate = (
@@ -44,29 +44,51 @@ export function useStatsCollector(options: StatsCollectorOptions) {
     trackKey: string,
     currentBytes: number,
     currentTime: number,
-  ): number => {
+    currentDropped?: number,
+  ): { bitrate: number; droppedFrames: number } => {
     const userPrev = previousStats.value.get(userKey)
     if (!userPrev) {
       previousStats.value.set(
         userKey,
-        new Map([[trackKey, { bytesReceived: currentBytes, timestamp: currentTime }]]),
+        new Map([
+          [
+            trackKey,
+            {
+              bytesReceived: currentBytes,
+              timestamp: currentTime,
+              framesDropped: currentDropped ?? 0,
+            },
+          ],
+        ]),
       )
-      return 0
+      return { bitrate: 0, droppedFrames: 0 }
     }
 
     const trackPrev = userPrev.get(trackKey)
     if (!trackPrev) {
-      userPrev.set(trackKey, { bytesReceived: currentBytes, timestamp: currentTime })
-      return 0
+      userPrev.set(trackKey, {
+        bytesReceived: currentBytes,
+        timestamp: currentTime,
+        framesDropped: currentDropped ?? 0,
+      })
+      return { bitrate: 0, droppedFrames: 0 }
     }
 
     const deltaBytes = currentBytes - trackPrev.bytesReceived
     const deltaTimeMs = currentTime - trackPrev.timestamp
+    const droppedDelta = Math.max(
+      0,
+      (currentDropped ?? trackPrev.framesDropped) - trackPrev.framesDropped,
+    )
+    const bitrate = deltaTimeMs <= 0 || deltaBytes < 0 ? 0 : (deltaBytes * 8 * 1000) / deltaTimeMs
 
-    userPrev.set(trackKey, { bytesReceived: currentBytes, timestamp: currentTime })
+    userPrev.set(trackKey, {
+      bytesReceived: currentBytes,
+      timestamp: currentTime,
+      framesDropped: currentDropped ?? trackPrev.framesDropped,
+    })
 
-    if (deltaTimeMs <= 0 || deltaBytes < 0) return 0
-    return (deltaBytes * 8 * 1000) / deltaTimeMs
+    return { bitrate, droppedFrames: droppedDelta }
   }
 
   const pushObservation = (observedUserId: string, obs: PerPairObservation) => {
@@ -95,7 +117,7 @@ export function useStatsCollector(options: StatsCollectorOptions) {
         for (const stat of receiverStats) {
           if (stat.kind !== "audio") continue
 
-          const bitrate = calculateBitrate(
+          const { bitrate } = calculateBitrate(
             userId,
             `mic-${stat.ssrc || track.sid}`,
             stat.bytesReceived || 0,
@@ -160,11 +182,12 @@ export function useStatsCollector(options: StatsCollectorOptions) {
         for (const stat of receiverStats) {
           if (stat.kind !== "video") continue
 
-          const bitrate = calculateBitrate(
+          const { bitrate, droppedFrames } = calculateBitrate(
             userId,
             `webcam-${stat.ssrc || track.sid}`,
             stat.bytesReceived || 0,
             currentTime,
+            stat.framesDropped,
           )
 
           const existing = stats.get(userId) || { ping: 0 }
@@ -199,6 +222,7 @@ export function useStatsCollector(options: StatsCollectorOptions) {
             codec,
             resolution,
             fps,
+            dropped_frames: droppedFrames,
             timestamp: currentTime,
           }
           pushObservation(userId, obs)
@@ -239,11 +263,12 @@ export function useStatsCollector(options: StatsCollectorOptions) {
             for (const stat of receiverStats) {
               if (stat.kind !== "video") continue
 
-              const bitrate = calculateBitrate(
+              const { bitrate, droppedFrames } = calculateBitrate(
                 userId,
                 `screenshare-${stat.ssrc || tracks.video!.sid}`,
                 stat.bytesReceived || 0,
                 currentTime,
+                stat.framesDropped,
               )
 
               const existing = stats.get(userId) || { ping: 0 }
@@ -278,6 +303,7 @@ export function useStatsCollector(options: StatsCollectorOptions) {
                 codec,
                 resolution,
                 fps,
+                dropped_frames: droppedFrames,
                 timestamp: currentTime,
               }
               pushObservation(userId, obs)
@@ -317,7 +343,7 @@ export function useStatsCollector(options: StatsCollectorOptions) {
             for (const stat of receiverStats) {
               if (stat.kind !== "audio") continue
 
-              const bitrate = calculateBitrate(
+              const { bitrate } = calculateBitrate(
                 userId,
                 `screenshare-audio-${stat.ssrc || tracks.audio!.sid}`,
                 stat.bytesReceived || 0,
@@ -413,6 +439,10 @@ export function useStatsCollector(options: StatsCollectorOptions) {
     statsInterval = setInterval(() => {
       void updateStats()
     }, STATS_INTERVAL)
+
+    // Explicitly request current stats state to handle race where
+    // join_room's enable_stats_collection arrives before this handler is registered
+    wsService.sendMessage("request_stats_state", { room_id: options.roomId })
   }
 
   const stopCollecting = () => {
