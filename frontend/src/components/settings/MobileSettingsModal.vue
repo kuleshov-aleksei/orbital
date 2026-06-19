@@ -18,15 +18,8 @@
             <PhCaretLeft class="w-5 h-5" />
           </button>
           <h2 class="text-lg font-semibold text-theme-text-primary flex items-center gap-2">
-            <PhGearSix v-if="!currentTab" class="w-5 h-5 text-theme-accent" />
-            <PhUser v-else-if="currentTab === 'account'" class="w-5 h-5 text-theme-accent" />
-            <PhSpeakerHigh v-else-if="currentTab === 'audio'" class="w-5 h-5 text-theme-accent" />
-            <PhCamera v-else-if="currentTab === 'video'" class="w-5 h-5 text-theme-accent" />
-            <PhPalette v-else-if="currentTab === 'appearance'" class="w-5 h-5 text-theme-accent" />
-            <PhMusicNotes v-else-if="currentTab === 'sounds'" class="w-5 h-5 text-theme-accent" />
-            <PhBug v-else-if="currentTab === 'debug'" class="w-5 h-5 text-theme-accent" />
-            <PhInfo v-else-if="currentTab === 'about'" class="w-5 h-5 text-theme-accent" />
-            {{ currentTab ? tabLabels[currentTab] : "Settings" }}
+            <component :is="currentTabIcon" class="w-5 h-5 text-theme-accent" />
+            {{ currentTab ? currentTabLabel : "Settings" }}
           </h2>
         </div>
         <button
@@ -42,78 +35,19 @@
         <!-- Main List View -->
         <div v-if="!currentTab" class="space-y-1">
           <button
+            v-for="tab in visibleTabs"
+            :key="tab.id"
             type="button"
-            class="w-full flex items-center justify-between px-3 py-3 rounded-lg text-left transition-colors duration-200 bg-theme-accent text-theme-text-on-accent"
-            @click="currentTab = 'account'">
+            class="w-full flex items-center justify-between px-3 py-3 rounded-lg text-left transition-colors duration-200"
+            :class="
+              tab.id === 'account'
+                ? 'bg-theme-accent text-theme-text-on-accent'
+                : 'text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary'
+            "
+            @click="currentTab = tab.id">
             <div class="flex items-center gap-3">
-              <PhUser class="w-5 h-5" />
-              <span class="font-medium">Account</span>
-            </div>
-            <PhCaretRight class="w-5 h-5" />
-          </button>
-
-          <button
-            type="button"
-            class="w-full flex items-center justify-between px-3 py-3 rounded-lg text-left transition-colors duration-200 text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary"
-            @click="currentTab = 'audio'">
-            <div class="flex items-center gap-3">
-              <PhSpeakerHigh class="w-5 h-5" />
-              <span class="font-medium">Audio</span>
-            </div>
-            <PhCaretRight class="w-5 h-5" />
-          </button>
-
-          <button
-            type="button"
-            class="w-full flex items-center justify-between px-3 py-3 rounded-lg text-left transition-colors duration-200 text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary"
-            @click="currentTab = 'video'">
-            <div class="flex items-center gap-3">
-              <PhCamera class="w-5 h-5" />
-              <span class="font-medium">Video</span>
-            </div>
-            <PhCaretRight class="w-5 h-5" />
-          </button>
-
-          <button
-            type="button"
-            class="w-full flex items-center justify-between px-3 py-3 rounded-lg text-left transition-colors duration-200 text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary"
-            @click="currentTab = 'appearance'">
-            <div class="flex items-center gap-3">
-              <PhPalette class="w-5 h-5" />
-              <span class="font-medium">Appearance</span>
-            </div>
-            <PhCaretRight class="w-5 h-5" />
-          </button>
-
-          <button
-            type="button"
-            class="w-full flex items-center justify-between px-3 py-3 rounded-lg text-left transition-colors duration-200 text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary"
-            @click="currentTab = 'sounds'">
-            <div class="flex items-center gap-3">
-              <PhMusicNotes class="w-5 h-5" />
-              <span class="font-medium">Sounds</span>
-            </div>
-            <PhCaretRight class="w-5 h-5" />
-          </button>
-
-          <button
-            type="button"
-            class="w-full flex items-center justify-between px-3 py-3 rounded-lg text-left transition-colors duration-200 text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary"
-            @click="currentTab = 'debug'">
-            <div class="flex items-center gap-3">
-              <PhBug class="w-5 h-5" />
-              <span class="font-medium">Debug</span>
-            </div>
-            <PhCaretRight class="w-5 h-5" />
-          </button>
-
-          <button
-            type="button"
-            class="w-full flex items-center justify-between px-3 py-3 rounded-lg text-left transition-colors duration-200 text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary"
-            @click="currentTab = 'about'">
-            <div class="flex items-center gap-3">
-              <PhInfo class="w-5 h-5" />
-              <span class="font-medium">About</span>
+              <component :is="tab.icon" class="w-5 h-5" />
+              <span class="font-medium">{{ tab.label }}</span>
             </div>
             <PhCaretRight class="w-5 h-5" />
           </button>
@@ -121,26 +55,7 @@
 
         <!-- Settings Content View -->
         <div v-else class="space-y-4 pb-4">
-          <!-- Account Settings Tab -->
-          <AccountSettings v-if="currentTab === 'account'" :hide-header="true" @logout="close" />
-
-          <!-- Audio Settings Tab -->
-          <AudioSettings v-else-if="currentTab === 'audio'" :hide-header="true" />
-
-          <!-- Video Settings Tab -->
-          <VideoSettings v-else-if="currentTab === 'video'" :hide-header="true" />
-
-          <!-- Sounds Settings Tab -->
-          <SoundPackSettings v-else-if="currentTab === 'sounds'" :hide-header="true" />
-
-          <!-- Appearance Settings Tab -->
-          <AppearanceSettings v-else-if="currentTab === 'appearance'" :hide-header="true" />
-
-          <!-- Debug Settings Tab -->
-          <DebugSettings v-else-if="currentTab === 'debug'" :hide-header="true" />
-
-          <!-- About Settings Tab -->
-          <AboutSettings v-else-if="currentTab === 'about'" :hide-header="true" />
+          <component :is="currentTabComponent" :hide-header="true" @logout="close" />
         </div>
       </div>
     </div>
@@ -150,41 +65,22 @@
 <script setup lang="ts">
 import { ref, computed } from "vue"
 import { useModalStore } from "@/stores/modal"
-import AudioSettings from "./AudioSettings.vue"
-import VideoSettings from "./VideoSettings.vue"
-import SoundPackSettings from "./SoundPackSettings.vue"
-import AppearanceSettings from "./AppearanceSettings.vue"
-import AccountSettings from "./AccountSettings.vue"
-import DebugSettings from "./DebugSettings.vue"
-import AboutSettings from "./AboutSettings.vue"
-import {
-  PhGearSix,
-  PhSpeakerHigh,
-  PhMusicNotes,
-  PhPalette,
-  PhUser,
-  PhBug,
-  PhX,
-  PhInfo,
-  PhCamera,
-  PhCaretRight,
-  PhCaretLeft,
-} from "@phosphor-icons/vue"
+import { SETTINGS_TABS } from "@/composables/useSettingsTabs"
+import { PhCaretRight, PhCaretLeft, PhX } from "@phosphor-icons/vue"
 
 const modalStore = useModalStore()
-const currentTab = ref<
-  "audio" | "video" | "sounds" | "appearance" | "account" | "debug" | "about" | undefined
->(undefined)
 
-const tabLabels: Record<string, string> = {
-  account: "Account",
-  audio: "Audio",
-  video: "Video",
-  appearance: "Appearance",
-  sounds: "Sounds",
-  debug: "Debug",
-  about: "About",
-}
+const visibleTabs = SETTINGS_TABS.filter((t) => t.id !== "application")
+
+const currentTab = ref<string | undefined>(undefined)
+
+const currentTabData = computed(() =>
+  currentTab.value ? SETTINGS_TABS.find((t) => t.id === currentTab.value) : undefined,
+)
+
+const currentTabIcon = computed(() => currentTabData.value?.icon)
+const currentTabLabel = computed(() => currentTabData.value?.label ?? "")
+const currentTabComponent = computed(() => currentTabData.value?.component)
 
 const isOpen = computed(() => modalStore.isUserSettingsModal)
 
