@@ -40,8 +40,7 @@
     "vue-advanced-cropper": "^2.8.9",
     "vue-boring-avatars": "^1.4.0",
     "vue-chartjs": "^5.3.3",
-    "vue-router": "^5.1.0",
-    "vue-virtual-scroller": "^3.0.4"
+    "vue-router": "^5.1.0"
   },
   "optionalDependencies": {
     "@vencord/venmic": "^6.1.0"
@@ -49,11 +48,9 @@
   "devDependencies": {
     "@iconify-json/logos": "^1.2.11",
     "@iconify-json/simple-icons": "^1.2.85",
-    "@tailwindcss/postcss": "^4.3.0",
     "@tailwindcss/vite": "^4.3.0",
     "@types/node": "^25.9.1",
     "@vitejs/plugin-vue": "^6.0.7",
-    "autoprefixer": "^10.5.0",
     "electron": "^42.4.0",
     "electron-builder": "^26.14.0",
     "esbuild": "^0.28.0",
