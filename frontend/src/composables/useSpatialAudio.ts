@@ -195,7 +195,11 @@ export function useSpatialAudio(options: {
       panner.positionX.setTargetAtTime(relX, 0, 0.02)
       panner.positionZ.setTargetAtTime(relY, 0, 0.02)
       mute.gain.setTargetAtTime(
-        options.isDeafened?.value ? 0 : outside ? 0 : (options.boomboxVolume?.value ?? MAX_BOOMBOX_VOLUME),
+        options.isDeafened?.value
+          ? 0
+          : outside
+            ? 0
+            : (options.boomboxVolume?.value ?? MAX_BOOMBOX_VOLUME),
         0,
         0.05,
       )

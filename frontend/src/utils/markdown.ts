@@ -6,7 +6,7 @@ marked.setOptions({
   breaks: true,
 })
 
-const URL_REGEX = /((https?:\/\/)[^\s<>\])\"']+)/g
+const URL_REGEX = /((https?:\/\/)[^\s<>\]"']+)/g
 const MARKDOWN_LINK_REGEX = /\[([^\]]*)\]\((https?:\/\/[^)]*)\)/g
 
 export function renderMarkdown(content: string): string {

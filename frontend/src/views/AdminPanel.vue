@@ -428,7 +428,9 @@
       </div>
 
       <!-- Info Section -->
-      <div v-if="activeTab === 'users'" class="mt-6 bg-gray-800/50 rounded-lg border border-gray-700 p-4">
+      <div
+        v-if="activeTab === 'users'"
+        class="mt-6 bg-gray-800/50 rounded-lg border border-gray-700 p-4">
         <h3 class="text-sm font-medium text-gray-300 mb-2">Role Information</h3>
 
         <div class="space-y-2 text-sm text-gray-400">

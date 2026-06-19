@@ -1,6 +1,5 @@
 export { useLiveKit } from "./useLiveKit"
 export { useUserSession } from "./useUserSession"
-export { useMobileState } from "./useMobileState"
 export { useWebSocketHandlers } from "./useWebSocketHandlers"
 export { useRoomManager } from "./useRoomManager"
 export { useCategoryManager } from "./useCategoryManager"

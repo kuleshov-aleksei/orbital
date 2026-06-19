@@ -482,6 +482,8 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   cameraStream: null,
+  screenShareTrack: null,
+  cameraTrack: null,
   initialVolume: 80,
   isDeafened: false,
   isScreenSharing: false,

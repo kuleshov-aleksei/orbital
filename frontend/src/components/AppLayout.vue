@@ -89,6 +89,7 @@ import {
 } from "@/composables"
 import { createVersionChecker } from "@/services/version"
 import { isElectron } from "@/services/electron"
+import type { VenmicNode } from "@/types"
 
 // Initialize composables (auto-initialize on mount)
 useUserSession()
@@ -188,7 +189,7 @@ const handleElectronSourceSelected = async (
   quality: string,
   sourceId: string,
   audio: boolean,
-  audioSources?: any[],
+  audioSources?: VenmicNode[],
 ) => {
   showScreenShareQualityModal.value = false
 
@@ -198,7 +199,7 @@ const handleElectronSourceSelected = async (
           quality: string,
           audio: boolean,
           sourceId: string,
-          audioSources?: any[],
+          audioSources?: VenmicNode[],
         ) => Promise<void>
       }
     | undefined

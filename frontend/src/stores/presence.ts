@@ -149,7 +149,7 @@ export const usePresenceStore = defineStore("presence", () => {
 
     // Initialize local attributes
     const currentUser = userStore.currentUser
-    // @ts-ignore - LiveKit attributes are stored as strings
+    // @ts-expect-error - LiveKit attributes are stored as strings
     await updateLocalAttributes({
       user_id: userStore.userId,
       nickname: currentUser?.nickname ?? userStore.userId,

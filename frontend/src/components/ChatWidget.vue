@@ -131,7 +131,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from "vue"
+import { ref, computed, watch, nextTick, useTemplateRef } from "vue"
 import { PhChatDots, PhChatCircle, PhPaperPlaneRight, PhX } from "@phosphor-icons/vue"
 import { useChatStore, useUserStore, useRoomStore, useUsersStore } from "@/stores"
 import { wsService } from "@/services/websocket"
@@ -148,9 +148,9 @@ const roomStore = useRoomStore()
 const usersStore = useUsersStore()
 
 const messageInput = ref("")
-const inputRef = ref<HTMLTextAreaElement | null>(null)
-const messagesContainerRef = ref<HTMLElement | null>(null)
-const toolbarRef = ref<HTMLElement | null>(null)
+const inputRef = useTemplateRef<HTMLTextAreaElement>("inputRef")
+const messagesContainerRef = useTemplateRef<HTMLElement>("messagesContainerRef")
+const toolbarRef = useTemplateRef<HTMLElement>("toolbarRef")
 
 const showToolbar = ref(false)
 const toolbarStyle = ref({})
@@ -258,9 +258,9 @@ const wrapSelection = (prefix: string, suffix: string) => {
   const selectedText = value.slice(start, end)
   const textBefore = value.slice(0, start)
   const textAfter = value.slice(end)
-  let newValue = value
-  let newStart = start
-  let newEnd = end
+  let newValue: string
+  let newStart: number
+  let newEnd: number
 
   if (selectedText.startsWith(prefix) && selectedText.endsWith(suffix)) {
     newValue =

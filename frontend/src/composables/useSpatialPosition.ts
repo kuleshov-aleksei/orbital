@@ -1,7 +1,6 @@
 import { ref, onUnmounted, type Ref } from "vue"
 import { DataPacket_Kind, RoomEvent } from "livekit-client"
 import type { Participant, Room, LocalParticipant } from "livekit-client"
-import { debugLog } from "@/utils/debug"
 
 export interface Vector2 {
   x: number
@@ -28,7 +27,6 @@ export function useSpatialPosition(options: {
   const _remotePositions = new Map<string, Vector2>()
   const _remoteCharacterKeys = new Map<string, string>()
   const _interpolatedPositions = new Map<string, Vector2>()
-  const _sendLock = false
   const _textEncoder = new TextEncoder()
   const _textDecoder = new TextDecoder()
 
@@ -63,7 +61,10 @@ export function useSpatialPosition(options: {
     const key = options.characterKey.value
     try {
       const payload = _textEncoder.encode(
-        JSON.stringify({ payload: { x: _myPosition.x, y: _myPosition.y, characterKey: key }, channelId: "position" }),
+        JSON.stringify({
+          payload: { x: _myPosition.x, y: _myPosition.y, characterKey: key },
+          channelId: "position",
+        }),
       )
       await options.localParticipant.value?.publishData(payload, DataPacket_Kind.LOSSY)
     } catch {
@@ -112,7 +113,7 @@ export function useSpatialPosition(options: {
     const room = options.room.value
     if (!room) return
 
-    room.on(RoomEvent.DataReceived, handleDataReceived as any)
+    room.on(RoomEvent.DataReceived, handleDataReceived)
 
     // Send position immediately so new joiners get our current position right away
     void sendMyPosition()
@@ -129,7 +130,7 @@ export function useSpatialPosition(options: {
   const stopPositionSync = () => {
     const room = options.room.value
     if (room) {
-      room.off(RoomEvent.DataReceived, handleDataReceived as any)
+      room.off(RoomEvent.DataReceived, handleDataReceived)
     }
 
     if (sendInterval) {

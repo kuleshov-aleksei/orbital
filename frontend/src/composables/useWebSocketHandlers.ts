@@ -9,7 +9,11 @@ import {
   useChatStore,
 } from "@/stores"
 import { wsService } from "@/services/websocket"
-import type { ConnectionCallback, DisconnectionCallback, MessageCallback } from "@/services/websocket"
+import type {
+  ConnectionCallback,
+  DisconnectionCallback,
+  MessageCallback,
+} from "@/services/websocket"
 import { apiService } from "@/services/api"
 import { debugLog } from "@/utils/debug"
 import type { User, Room, Category, PublicUser, ChatMessage } from "@/types"

@@ -62,9 +62,13 @@ export function useThumbarButtons() {
     }
   }
 
-  watch([() => callStore.isMuted, () => callStore.isDeafened, () => roomStore.isInRoom], updateButtons, {
-    immediate: true,
-  })
+  watch(
+    [() => callStore.isMuted, () => callStore.isDeafened, () => roomStore.isInRoom],
+    updateButtons,
+    {
+      immediate: true,
+    },
+  )
 
   onThumbarButtonClick((action: string) => {
     if (action === "mute") {

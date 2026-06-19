@@ -21,6 +21,12 @@ export default [
     },
   },
   {
+    files: ["**/ChatWidget.vue"],
+    rules: {
+      "vue/no-v-html": "off",
+    },
+  },
+  {
     files: ["**/*.{ts,vue}"],
     languageOptions: {
       ecmaVersion: "latest",

@@ -208,13 +208,13 @@ export function useLiveKitScreenShare(state: LiveKitState) {
               console.error("[ScreenShare] Video-only fallback also failed:", retryMsg)
               debugError("[ScreenShare] Video-only fallback also failed:", retryMsg)
               await stopScreenShare()
-              throw new Error(`Screen share failed: ${retryMsg}`)
+              throw new Error(`Screen share failed: ${retryMsg}`, { cause: retryCause })
             }
           } else {
             console.error("[ScreenShare] getDisplayMedia failed:", msg)
             debugError("[ScreenShare] getDisplayMedia failed:", msg)
             await stopScreenShare()
-            throw new Error(`Screen share failed: ${msg}`)
+            throw new Error(`Screen share failed: ${msg}`, { cause })
           }
         }
 

@@ -45,7 +45,7 @@ export function createWorldObjectSprite(
     }
   }
 
-  let swayPhase = Math.random() * Math.PI * 2
+  const swayPhase = Math.random() * Math.PI * 2
   let time = 0
 
   const update = (dt: number) => {

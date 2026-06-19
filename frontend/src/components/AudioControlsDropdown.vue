@@ -1,12 +1,12 @@
 <template>
-  <div class="relative w-full h-full" ref="dropdownRef">
+  <div ref="dropdownRef" class="relative w-full h-full">
     <!-- Trigger Button -->
     <button
-      @click.stop="toggleDropdown"
       type="button"
       class="absolute -top-2 -right-2 w-6 h-6 rounded flex items-center justify-center bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary transition-colors z-20 cursor-pointer"
       :class="{ 'ring-2 ring-theme-accent': isOpen }"
-      title="Audio Settings">
+      title="Audio Settings"
+      @click.stop="toggleDropdown">
       <PhCaretDown v-if="isOpen" class="w-3 h-3 pointer-events-none" />
       <PhCaretUp v-else class="w-3 h-3 pointer-events-none" />
     </button>

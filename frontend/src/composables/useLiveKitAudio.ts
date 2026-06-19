@@ -281,7 +281,7 @@ export function useLiveKitAudio(state: LiveKitState) {
     await publishAudioTrack()
 
     debugLog(
-      `[LiveKit][INFO]: 'Audio stream reinitialized, publication:', ${(state.localAudioPublication.value as any)?.trackSid}`,
+      `[LiveKit][INFO]: 'Audio stream reinitialized, publication:', ${state.localAudioPublication.value?.trackSid}`,
     )
   }
 

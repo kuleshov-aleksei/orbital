@@ -7,8 +7,7 @@
       <div
         class="bg-theme-bg-secondary rounded-xl px-8 py-6 flex flex-col items-center gap-4 min-w-[280px]">
         <div
-          class="animate-spin rounded-full h-6 w-6 border-b-2 border-t-2 border-theme-accent">
-        </div>
+          class="animate-spin rounded-full h-6 w-6 border-b-2 border-t-2 border-theme-accent"></div>
         <div class="w-full flex flex-col gap-2">
           <div class="relative w-full h-2 bg-theme-bg-tertiary rounded-full overflow-hidden">
             <div

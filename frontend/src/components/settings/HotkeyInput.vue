@@ -44,7 +44,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onUnmounted } from "vue"
+import { ref, watch, onUnmounted, useTemplateRef } from "vue"
 import { PhArrowCounterClockwise } from "@phosphor-icons/vue"
 
 const props = defineProps<{
@@ -60,7 +60,7 @@ const emit = defineEmits<{
   (e: "reset"): void
 }>()
 
-const captureButton = ref<HTMLButtonElement | null>(null)
+const captureButton = useTemplateRef<HTMLButtonElement>("captureButton")
 const isCapturing = ref(false)
 const pendingKeys = ref<string[]>([])
 const heldKeys = ref<Set<string>>(new Set())
