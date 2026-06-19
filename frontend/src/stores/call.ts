@@ -1,5 +1,6 @@
 import { defineStore } from "pinia"
 import { ref, watch } from "vue"
+import { debugWarn } from "@/utils/debug"
 
 // Local storage keys
 const MUTE_STORAGE_KEY = "orbital_mic_muted"
@@ -10,7 +11,7 @@ const saveToStorage = (key: string, value: boolean) => {
   try {
     localStorage.setItem(key, JSON.stringify(value))
   } catch (e) {
-    console.warn("Failed to save preference to localStorage:", e)
+    debugWarn("Failed to save preference to localStorage:", e)
   }
 }
 
@@ -19,7 +20,7 @@ const loadFromStorage = (key: string, defaultValue: boolean): boolean => {
     const stored = localStorage.getItem(key)
     return stored !== null ? (JSON.parse(stored) as boolean) : defaultValue
   } catch (e) {
-    console.warn("Failed to load preference from localStorage:", e)
+    debugWarn("Failed to load preference from localStorage:", e)
     return defaultValue
   }
 }

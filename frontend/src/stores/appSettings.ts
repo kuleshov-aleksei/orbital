@@ -1,5 +1,6 @@
 import { defineStore } from "pinia"
 import { ref, computed } from "vue"
+import { debugWarn } from "@/utils/debug"
 
 const APP_SETTINGS_STORAGE_KEY = "orbital_app_settings"
 
@@ -49,7 +50,7 @@ export const useAppSettingsStore = defineStore("appSettings", () => {
       }
       isLoaded.value = true
     } catch (e) {
-      console.warn("Failed to load app settings from localStorage:", e)
+      debugWarn("Failed to load app settings from localStorage:", e)
       isLoaded.value = true
     }
   }
@@ -60,7 +61,7 @@ export const useAppSettingsStore = defineStore("appSettings", () => {
     try {
       localStorage.setItem(APP_SETTINGS_STORAGE_KEY, JSON.stringify(settings.value))
     } catch (e) {
-      console.warn("Failed to save app settings to localStorage:", e)
+      debugWarn("Failed to save app settings to localStorage:", e)
     }
   }
 

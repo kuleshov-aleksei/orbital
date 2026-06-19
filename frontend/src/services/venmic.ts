@@ -1,4 +1,5 @@
 import type { VenmicNode } from "@/types"
+import { debugLog } from "@/utils/debug"
 
 export interface AudioSource {
   name: string
@@ -7,70 +8,70 @@ export interface AudioSource {
 
 export async function hasVenmic(): Promise<boolean> {
   if (!window.electronAPI?.venmicHasVenmic) {
-    console.log("[VenmicService] venmicHasVenmic not available")
+    debugLog("[VenmicService] venmicHasVenmic not available")
     return false
   }
-  console.log("[VenmicService] Calling venmicHasVenmic")
+  debugLog("[VenmicService] Calling venmicHasVenmic")
   const result = await window.electronAPI.venmicHasVenmic()
-  console.log("[VenmicService] venmicHasVenmic result:", result)
+  debugLog("[VenmicService] venmicHasVenmic result:", result)
   return result
 }
 
 export async function hasPipeWire(): Promise<boolean> {
   if (!window.electronAPI?.venmicHasPipeWire) {
-    console.log("[VenmicService] venmicHasPipeWire not available")
+    debugLog("[VenmicService] venmicHasPipeWire not available")
     return false
   }
-  console.log("[VenmicService] Calling venmicHasPipeWire")
+  debugLog("[VenmicService] Calling venmicHasPipeWire")
   const result = await window.electronAPI.venmicHasPipeWire()
-  console.log("[VenmicService] venmicHasPipeWire result:", result)
+  debugLog("[VenmicService] venmicHasPipeWire result:", result)
   return result
 }
 
 export async function listAudioSources(): Promise<VenmicNode[]> {
   if (!window.electronAPI?.venmicListSources) {
-    console.log("[VenmicService] venmicListSources not available")
+    debugLog("[VenmicService] venmicListSources not available")
     return []
   }
-  console.log("[VenmicService] Calling venmicListSources")
+  debugLog("[VenmicService] Calling venmicListSources")
   const result = await window.electronAPI.venmicListSources()
-  console.log("[VenmicService] venmicListSources result:", result)
+  debugLog("[VenmicService] venmicListSources result:", result)
   return result
 }
 
 export async function startAudioCapture(include: VenmicNode[]): Promise<boolean> {
   if (!window.electronAPI?.venmicStart) {
-    console.log("[VenmicService] venmicStart not available")
+    debugLog("[VenmicService] venmicStart not available")
     return false
   }
-  console.log("[VenmicService] Calling venmicStart with:", include)
+  debugLog("[VenmicService] Calling venmicStart with:", include)
   const plainInclude = JSON.parse(JSON.stringify(include))
-  console.log("[VenmicService] Plain include:", plainInclude)
+  debugLog("[VenmicService] Plain include:", plainInclude)
   const result = await window.electronAPI.venmicStart(plainInclude)
-  console.log("[VenmicService] venmicStart result:", result)
+  debugLog("[VenmicService] venmicStart result:", result)
   return result
 }
 
 export async function stopAudioCapture(): Promise<boolean> {
   if (!window.electronAPI?.venmicStop) {
-    console.log("[VenmicService] venmicStop not available")
+    debugLog("[VenmicService] venmicStop not available")
     return false
   }
-  console.log("[VenmicService] Calling venmicStop")
+  debugLog("[VenmicService] Calling venmicStop")
   const result = await window.electronAPI.venmicStop()
-  console.log("[VenmicService] venmicStop result:", result)
+  debugLog("[VenmicService] venmicStop result:", result)
   return result
 }
 
 export async function getVirtualMicDeviceId(): Promise<string | null> {
-  console.log("[VenmicService] Enumerating devices to find virtual mic")
+  debugLog("[VenmicService] Enumerating devices to find virtual mic")
   const devices = await navigator.mediaDevices.enumerateDevices()
-  console.log(
+  debugLog(
     "[VenmicService] All devices:",
     devices.map((d) => ({ label: d.label, kind: d.kind })),
   )
   const audioDevice = devices.find(({ label }) => label === "vencord-screen-share")
-  console.log("[VenmicService] Found virtual mic:", audioDevice?.deviceId)
+  debugLog("[VenmicService] Found virtual mic:", audioDevice?.deviceId)
   return audioDevice?.deviceId ?? null
 }
 

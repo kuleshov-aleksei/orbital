@@ -13,8 +13,6 @@
     -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell",
     "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
 
-  --color-discord-blurple: #5865f2;
-
   --color-theme-bg-primary: var(--color-bg-primary);
   --color-theme-bg-secondary: var(--color-bg-secondary);
   --color-theme-bg-tertiary: var(--color-bg-tertiary);
@@ -27,6 +25,7 @@
   --color-theme-accent: var(--color-accent);
   --color-theme-accent-hover: var(--color-accent-hover);
   --color-theme-backdrop: var(--color-backdrop);
+  --color-discord-blurple: #5865f2;
 }
 
 :root {

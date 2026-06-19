@@ -25,6 +25,7 @@ import { useRouter } from "vue-router"
 import { useUserStore, type AuthProvider } from "@/stores/user"
 import { PhPlanet } from "@phosphor-icons/vue"
 import { apiService, setAuthToken } from "@/services/api"
+import { debugLog, debugError } from "@/utils/debug"
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -56,11 +57,11 @@ onMounted(async () => {
   try {
     const { token, expires } = parseAuthParams()
 
-    console.log("[AuthCallback] Extracted token:", token ? token.substring(0, 20) + "..." : "null")
-    console.log("[AuthCallback] Token expires:", expires)
+    debugLog("[AuthCallback] Extracted token:", token ? token.substring(0, 20) + "..." : "null")
+    debugLog("[AuthCallback] Token expires:", expires)
 
     if (!token) {
-      console.error("[AuthCallback] No token found in URL")
+      debugError("[AuthCallback] No token found in URL")
       error.value = "No authentication token received"
       statusMessage.value = "Authentication failed"
       setTimeout(() => {
@@ -72,9 +73,9 @@ onMounted(async () => {
     setAuthToken(token)
 
     statusMessage.value = "Loading user data..."
-    console.log("[AuthCallback] Fetching user data from API...")
+    debugLog("[AuthCallback] Fetching user data from API...")
     const user = await apiService.getCurrentUser()
-    console.log("[AuthCallback] User data received:", user)
+    debugLog("[AuthCallback] User data received:", user)
 
     const userSession = {
       id: user.id,

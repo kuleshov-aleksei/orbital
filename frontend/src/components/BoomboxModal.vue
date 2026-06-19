@@ -129,6 +129,7 @@
 </template>
 
 <script setup lang="ts">
+import { debugWarn } from "@/utils/debug"
 import { ref, onMounted, useTemplateRef } from "vue"
 import { apiService } from "@/services/api"
 import type { AudioFile } from "@/types"
@@ -164,7 +165,7 @@ onMounted(async () => {
   try {
     tracks.value = await apiService.getAudioFiles()
   } catch (e) {
-    console.warn("[BoomboxModal] Failed to load audio files:", e)
+    debugWarn("[BoomboxModal] Failed to load audio files:", e)
   }
 })
 
@@ -215,7 +216,7 @@ const handleFileSelected = async (event: Event) => {
     selectedTrackId.value = result.id
   } catch (e) {
     uploadError.value = e instanceof Error ? e.message : "Upload failed"
-    console.warn("[BoomboxModal] Upload failed:", e)
+    debugWarn("[BoomboxModal] Upload failed:", e)
   }
 
   input.value = ""

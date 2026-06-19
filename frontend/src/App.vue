@@ -15,6 +15,7 @@ import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts"
 import { useThumbarButtons, useWebSocketHandlers } from "@/composables"
 import { isElectron, onDeepLink, onOAuthToken, setupMainProcessLogRelay } from "@/services/electron"
 import { setAuthToken, apiService, getAuthToken } from "@/services/api"
+import { debugLog, debugError } from "@/utils/debug"
 
 const router = useRouter()
 const appStore = useAppStore()
@@ -90,14 +91,14 @@ onMounted(() => {
     setupMainProcessLogRelay()
 
     onDeepLink((url: string) => {
-      console.log("[App] Deep link received:", url.substring(0, 30) + "...")
+      debugLog("[App] Deep link received:", url.substring(0, 30) + "...")
       if (url.startsWith("orbital://auth/callback")) {
         router.push(url.replace("orbital://", "/"))
       }
     })
 
     onOAuthToken(async (data: { token: string; expires: string }) => {
-      console.log("[App] OAuth token received:", data.token.substring(0, 20) + "...")
+      debugLog("[App] OAuth token received:", data.token.substring(0, 20) + "...")
       try {
         setAuthToken(data.token)
         const user = await apiService.getCurrentUser()
@@ -110,9 +111,9 @@ onMounted(() => {
           email: user.email,
           avatarUrl: user.avatar_url,
         })
-        console.log("[App] OAuth login successful!")
+        debugLog("[App] OAuth login successful!")
       } catch (error) {
-        console.error("[App] OAuth login failed:", error)
+        debugError("[App] OAuth login failed:", error)
       }
     })
   }

@@ -84,13 +84,11 @@ export function useElectronScreenShare(
               debugLog("[ScreenShare] Video-only fallback succeeded")
             } catch (retryCause) {
               const retryMsg = retryCause instanceof Error ? retryCause.message : String(retryCause)
-              console.error("[ScreenShare] Video-only fallback also failed:", retryMsg)
               debugError("[ScreenShare] Video-only fallback also failed:", retryMsg)
               await stopScreenShare()
               throw new Error(`Screen share failed: ${retryMsg}`, { cause: retryCause })
             }
           } else {
-            console.error("[ScreenShare] getDisplayMedia failed:", msg)
             debugError("[ScreenShare] getDisplayMedia failed:", msg)
             await stopScreenShare()
             throw new Error(`Screen share failed: ${msg}`, { cause })
@@ -236,7 +234,7 @@ export function useElectronScreenShare(
 
             debugLog(`[LiveKit][INFO] Screen share audio captured via venmic`)
           } catch (audioError) {
-            console.error("[ScreenShare] Venmic error:", audioError)
+            debugError("[ScreenShare] Venmic error:", audioError)
             debugWarn(
               `[LiveKit][WARN] Failed to capture audio via venmic: ${(audioError as Error).message}`,
             )
@@ -274,7 +272,7 @@ export function useElectronScreenShare(
 
       debugLog(`[LiveKit][INFO]: Electron screen sharing started successfully`)
     } catch (error) {
-      console.error("Failed to start Electron screen share:", error)
+      debugError("Failed to start Electron screen share:", error)
       throw error
     } finally {
       state.isStartingScreenShare.value = false

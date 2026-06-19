@@ -99,6 +99,7 @@
 </template>
 
 <script setup lang="ts">
+import { debugError } from "@/utils/debug"
 import { ref, onMounted, onUnmounted, watch, useTemplateRef } from "vue"
 import { useVideoSettingsStore } from "@/stores"
 import { useModalStore } from "@/stores/modal"
@@ -155,7 +156,7 @@ async function startPreview() {
 
     isPreviewActive.value = true
   } catch (e) {
-    console.error("Failed to start preview:", e)
+    debugError("Failed to start preview:", e)
     isPreviewActive.value = false
   }
 }

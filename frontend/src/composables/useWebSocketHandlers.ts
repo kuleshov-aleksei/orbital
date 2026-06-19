@@ -11,7 +11,7 @@ import {
 import { wsService } from "@/services/websocket"
 import type { ConnectionCallback, DisconnectionCallback } from "@/services/websocket"
 import { apiService } from "@/services/api"
-import { debugLog } from "@/utils/debug"
+import { debugLog, debugError } from "@/utils/debug"
 import { setupChatHandlers } from "./handlers/chat"
 import { setupUserHandlers } from "./handlers/user"
 import { setupRoomHandlers } from "./handlers/room"
@@ -33,7 +33,7 @@ export function useWebSocketHandlers() {
     try {
       await wsService.connectGlobal()
     } catch (error) {
-      console.error("Failed to connect global WebSocket:", error)
+      debugError("Failed to connect global WebSocket:", error)
     }
   }
 
@@ -43,7 +43,7 @@ export function useWebSocketHandlers() {
       roomStore.setRooms(rooms)
       debugLog("[WebSocket] Synced room data after global reconnect")
     } catch (error) {
-      console.error("Failed to sync rooms data:", error)
+      debugError("Failed to sync rooms data:", error)
     }
   }
 

@@ -1,7 +1,7 @@
 import { computed } from "vue"
 import { createLocalVideoTrack, VideoPresets } from "livekit-client"
 import type { LocalVideoTrack, RemoteVideoTrack } from "livekit-client"
-import { debugLog } from "@/utils/debug"
+import { debugLog, debugError } from "@/utils/debug"
 import { useUsersStore } from "@/stores/users"
 import { useVideoSettingsStore } from "@/stores"
 import type { LiveKitState } from "./useLiveKitState"
@@ -73,8 +73,8 @@ export function useLiveKitCamera(state: LiveKitState) {
 
       debugLog(`[LiveKit][INFO]: 'Camera stopped'`)
     } catch (error) {
-      console.error("Error stopping camera:", error)
-      console.error(`[LiveKit][ERROR]: Error stopping camera: ${(error as Error).message}`)
+      debugError("Error stopping camera:", error)
+      debugError(`[LiveKit][ERROR]: Error stopping camera: ${(error as Error).message}`)
     } finally {
       state.isStoppingCamera.value = false
     }
@@ -129,8 +129,8 @@ export function useLiveKitCamera(state: LiveKitState) {
 
       debugLog(`[LiveKit][INFO]: 'Camera started successfully'`)
     } catch (error) {
-      console.error("Failed to start camera:", error)
-      console.error(`[LiveKit][ERROR]: Camera failed: ${(error as Error).message}`)
+      debugError("Failed to start camera:", error)
+      debugError(`[LiveKit][ERROR]: Camera failed: ${(error as Error).message}`)
       throw error
     } finally {
       state.isStartingCamera.value = false

@@ -1,6 +1,7 @@
 import { Assets, Container, Sprite, Texture } from "pixi.js"
 import type { WorldData, TileDef, ProgressCallback } from "./WorldTypes"
 import { getTilesetUrl } from "./WorldData"
+import { debugLog, debugWarn } from "@/utils/debug"
 
 const BATCH_SIZE = 500
 
@@ -162,7 +163,7 @@ async function loadTilesets(
       try {
         tilesetTexture = await Assets.load(url)
       } catch (e) {
-        console.warn(`[TilemapRenderer] Failed to load tileset: ${url}`, e)
+        debugWarn(`[TilemapRenderer] Failed to load tileset: ${url}`, e)
         return null
       }
       const cellSize = tilesetTexture.baseTexture.width / source.tileColumns
@@ -193,7 +194,7 @@ async function loadTilesets(
     if (r) sourceCellSizes.set(r.sourceId, r.cellSize)
   }
 
-  console.log(
+  debugLog(
     `[TilemapRenderer] Loaded ${tileTextures.size} tile textures across ${completed} tilesets`,
   )
 }
@@ -241,7 +242,7 @@ export async function createTilemapRenderer(
     if (layer.data.length === 0) continue
     const container = getLayerContainer(layer.type, layer.name, containers)
     if (!container) {
-      console.warn(`[TilemapRenderer] Unknown layer type: ${layer.type} (${layer.name}), skipping`)
+      debugWarn(`[TilemapRenderer] Unknown layer type: ${layer.type} (${layer.name}), skipping`)
       continue
     }
     const lt = layer.tileSize ?? world.tileSize
@@ -265,7 +266,7 @@ export async function createTilemapRenderer(
   }
 
   const elapsed = (performance.now() - startTime).toFixed(0)
-  console.log(`[TilemapRenderer] Created ${createdCount.value} tile sprites in ${elapsed}ms`)
+  debugLog(`[TilemapRenderer] Created ${createdCount.value} tile sprites in ${elapsed}ms`)
 
   const update = (
     _cameraX: number,

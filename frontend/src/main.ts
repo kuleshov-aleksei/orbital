@@ -4,10 +4,11 @@ import App from "./App.vue"
 import router from "./router"
 import { useConfigStore, useSoundPackStore } from "./stores"
 import "./style.css"
+import { debugLog, debugError } from "@/utils/debug"
 
 // Log frontend version at startup
 
-console.log(`[Orbital] Frontend version: ${__APP_VERSION__}`)
+debugLog(`[Orbital] Frontend version: ${__APP_VERSION__}`)
 
 const app = createApp(App as Component)
 
@@ -19,23 +20,23 @@ app.use(router)
 const configStore = useConfigStore(pinia)
 const soundPackStore = useSoundPackStore(pinia)
 soundPackStore.loadFromStorage()
-console.log("[Orbital] Loading config...")
+debugLog("[Orbital] Loading config...")
 configStore
   .loadConfig()
   .then(() => {
-    console.log("[Orbital] Config loaded, mounting app...")
+    debugLog("[Orbital] Config loaded, mounting app...")
     app.mount("#app")
-    console.log("[Orbital] App mounted successfully")
+    debugLog("[Orbital] App mounted successfully")
   })
   .catch((error) => {
-    console.error("[Orbital] Failed to load configuration:", error)
-    console.log("[Orbital] Mounting app anyway...")
+    debugError("[Orbital] Failed to load configuration:", error)
+    debugLog("[Orbital] Mounting app anyway...")
     app.mount("#app")
-    console.log("[Orbital] App mounted with defaults")
+    debugLog("[Orbital] App mounted with defaults")
   })
 
 // Global error handler
 app.config.errorHandler = (err, _instance, info) => {
-  console.error("[Orbital] Vue error:", err)
-  console.error("[Orbital] Vue error info:", info)
+  debugError("[Orbital] Vue error:", err)
+  debugError("[Orbital] Vue error info:", info)
 }

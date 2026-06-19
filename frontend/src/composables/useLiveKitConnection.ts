@@ -2,7 +2,7 @@ import { Room, Track, AudioPresets } from "livekit-client"
 import { apiService } from "@/services/api"
 import { usePresenceStore } from "@/stores/presence"
 import { useCallStore } from "@/stores/call"
-import { debugLog } from "@/utils/debug"
+import { debugLog, debugError } from "@/utils/debug"
 import { playJoinRoom, playLeaveRoom } from "@/services/sounds"
 import type { LiveKitState } from "./useLiveKitState"
 
@@ -105,9 +105,9 @@ export function useLiveKitConnection(state: LiveKitState, deps: UseLiveKitConnec
 
       return true
     } catch (error) {
-      console.error("Failed to connect to LiveKit room:", error)
+      debugError("Failed to connect to LiveKit room:", error)
       state.connectionError.value = (error as Error).message
-      console.error(`[LiveKit][ERROR]: Connection failed: ${(error as Error).message}`)
+      debugError(`[LiveKit][ERROR]: Connection failed: ${(error as Error).message}`)
       state.isConnecting.value = false
       return false
     }
@@ -133,8 +133,8 @@ export function useLiveKitConnection(state: LiveKitState, deps: UseLiveKitConnec
 
       return connected
     } catch (error) {
-      console.error("Failed to initialize LiveKit:", error)
-      console.error(`[LiveKit][ERROR]: Initialization failed: ${(error as Error).message}`)
+      debugError("Failed to initialize LiveKit:", error)
+      debugError(`[LiveKit][ERROR]: Initialization failed: ${(error as Error).message}`)
       return false
     }
   }

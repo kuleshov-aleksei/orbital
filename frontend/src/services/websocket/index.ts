@@ -1,6 +1,7 @@
 import { WebSocketConnection } from "./connection"
 import { MessageBus } from "./messageBus"
 import type { WebSocketMessage } from "@/types"
+import { debugError } from "@/utils/debug"
 
 export type { MessageCallback, ConnectionCallback, DisconnectionCallback } from "./messageBus"
 export type {
@@ -176,7 +177,7 @@ export class WebSocketService {
       const message = JSON.parse(event.data as string) as WebSocketMessage
       this.roomBus.routeMessage(message)
     } catch (error) {
-      console.error("Error parsing WebSocket message:", error, event.data)
+      debugError("Error parsing WebSocket message:", error, event.data)
     }
   }
 
@@ -185,7 +186,7 @@ export class WebSocketService {
       const message = JSON.parse(event.data as string) as WebSocketMessage
       this.globalBus.routeMessage(message)
     } catch (error) {
-      console.error("Error parsing global WebSocket message:", error, event.data)
+      debugError("Error parsing global WebSocket message:", error, event.data)
     }
   }
 }

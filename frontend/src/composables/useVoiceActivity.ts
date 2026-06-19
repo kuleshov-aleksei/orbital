@@ -1,4 +1,5 @@
 import { ref, computed, watch, type Ref, type MaybeRefOrGetter, toValue } from "vue"
+import { debugLog, debugError } from "@/utils/debug"
 
 export interface VoiceActivityState {
   audioLevel: number
@@ -16,7 +17,7 @@ export interface UseVoiceActivityOptions {
 export function useVoiceActivity(options: UseVoiceActivityOptions) {
   const { stream, isMuted, speakingThreshold = 0.01, updateInterval = 200 } = options
 
-  console.log("[VoiceActivity] useVoiceActivity initialized")
+  debugLog("[VoiceActivity] useVoiceActivity initialized")
 
   const audioLevel = ref(0)
   const audioContext = ref<AudioContext | null>(null)
@@ -48,14 +49,14 @@ export function useVoiceActivity(options: UseVoiceActivityOptions) {
 
   const setupAudioAnalysis = (mediaStream: MediaStream) => {
     if (!mediaStream) {
-      console.log("[VoiceActivity] Stream is null, cleaning up")
+      debugLog("[VoiceActivity] Stream is null, cleaning up")
       cleanup()
       return
     }
 
     const audioTracks = mediaStream.getAudioTracks()
     if (audioTracks.length === 0) {
-      console.log("[VoiceActivity] No audio tracks in stream, waiting...")
+      debugLog("[VoiceActivity] No audio tracks in stream, waiting...")
       cleanup()
       return
     }
@@ -69,7 +70,7 @@ export function useVoiceActivity(options: UseVoiceActivityOptions) {
       )()
 
       if (audioContext.value.state === "suspended") {
-        console.log("[VoiceActivity] AudioContext is suspended, resuming...")
+        debugLog("[VoiceActivity] AudioContext is suspended, resuming...")
         void audioContext.value.resume()
       }
 
@@ -88,9 +89,9 @@ export function useVoiceActivity(options: UseVoiceActivityOptions) {
         analyzeAudioLevel()
       }, updateInterval)
 
-      console.log("[VoiceActivity] Initialized with", audioTracks.length, "audio track(s)")
+      debugLog("[VoiceActivity] Initialized with", audioTracks.length, "audio track(s)")
     } catch (error) {
-      console.error("[VoiceActivity] Error setting up:", error)
+      debugError("[VoiceActivity] Error setting up:", error)
     }
   }
 
@@ -135,10 +136,7 @@ export function useVoiceActivity(options: UseVoiceActivityOptions) {
   }
 
   const handleTrackChange = () => {
-    console.log(
-      "[VoiceActivity] Audio tracks changed:",
-      currentStream.value?.getAudioTracks().length,
-    )
+    debugLog("[VoiceActivity] Audio tracks changed:", currentStream.value?.getAudioTracks().length)
     if (currentStream.value && currentStream.value.getAudioTracks().length > 0) {
       setupAudioAnalysis(currentStream.value)
     } else {
@@ -150,17 +148,17 @@ export function useVoiceActivity(options: UseVoiceActivityOptions) {
 
   const startPolling = (streamFn: () => Promise<MediaStream | null>) => {
     stopPolling()
-    console.log("[VoiceActivity] Starting polling for stream...")
+    debugLog("[VoiceActivity] Starting polling for stream...")
     pollingInterval = window.setInterval(async () => {
       try {
         const resolved = await streamFn()
         if (resolved instanceof MediaStream && resolved.getAudioTracks().length > 0) {
-          console.log("[VoiceActivity] Polling found valid stream")
+          debugLog("[VoiceActivity] Polling found valid stream")
           stopPolling()
           setupAudioAnalysis(resolved)
         }
       } catch (e) {
-        console.error("[VoiceActivity] Polling error:", e)
+        debugError("[VoiceActivity] Polling error:", e)
       }
     }, 500)
   }
@@ -194,7 +192,7 @@ export function useVoiceActivity(options: UseVoiceActivityOptions) {
   watch(
     () => toValue(stream),
     async (newStream) => {
-      console.log("[VoiceActivity] Watch triggered, resolving stream...")
+      debugLog("[VoiceActivity] Watch triggered, resolving stream...")
       stopPolling()
 
       if (newStream instanceof MediaStream) {
@@ -214,7 +212,7 @@ export function useVoiceActivity(options: UseVoiceActivityOptions) {
       if (streamValue && streamValue.getAudioTracks().length > 0) {
         setupAudioAnalysis(streamValue)
       } else {
-        console.log("[VoiceActivity] Stream not ready yet, starting polling...")
+        debugLog("[VoiceActivity] Stream not ready yet, starting polling...")
         startPolling(resolveStream)
       }
     },

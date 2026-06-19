@@ -1,6 +1,7 @@
 import { ref, onUnmounted } from "vue"
 import type { ClientStatsBatch, StatsStatus } from "@/types"
 import { apiService } from "@/services/api"
+import { debugError } from "@/utils/debug"
 
 export function useAdminStats() {
   const rooms = ref<{ id: string; name: string; user_count: number }[]>([])
@@ -20,7 +21,7 @@ export function useAdminStats() {
         user_count: r.user_count,
       }))
     } catch (error) {
-      console.error("Failed to load rooms:", error)
+      debugError("Failed to load rooms:", error)
     }
   }
 
@@ -28,7 +29,7 @@ export function useAdminStats() {
     try {
       statsStatuses.value = await apiService.getStatsStatus()
     } catch (error) {
-      console.error("Failed to load stats status:", error)
+      debugError("Failed to load stats status:", error)
     }
   }
 
@@ -54,7 +55,7 @@ export function useAdminStats() {
       try {
         await apiService.subscribeRoomStats(roomId)
       } catch (error) {
-        console.error("Failed to subscribe to room stats:", error)
+        debugError("Failed to subscribe to room stats:", error)
       }
     }
   }
@@ -77,7 +78,7 @@ export function useAdminStats() {
       }
       await loadStatsStatus()
     } catch (error) {
-      console.error("Failed to toggle stats:", error)
+      debugError("Failed to toggle stats:", error)
     } finally {
       toggling.value = false
     }

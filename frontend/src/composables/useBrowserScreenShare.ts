@@ -1,6 +1,6 @@
 import { Track, ScreenSharePresets, AudioPresets } from "livekit-client"
 import type { LocalVideoTrack, LocalAudioTrack } from "livekit-client"
-import { debugLog, debugWarn } from "@/utils/debug"
+import { debugLog, debugWarn, debugError } from "@/utils/debug"
 import type { ScreenShareQuality } from "@/types"
 import type { LiveKitState } from "./useLiveKitState"
 
@@ -192,7 +192,7 @@ export function useBrowserScreenShare(state: LiveKitState, stopScreenShare: () =
 
       debugLog(`[LiveKit][INFO]: Screen sharing started successfully`)
     } catch (error) {
-      console.error("Failed to start screen share:", error)
+      debugError("Failed to start screen share:", error)
       throw error
     } finally {
       state.isStartingScreenShare.value = false

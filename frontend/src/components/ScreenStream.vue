@@ -102,7 +102,7 @@ import StreamControls from "@/components/StreamControls.vue"
 import { useCallStore, useUserStore, useRoomStore } from "@/stores"
 import { useSounds } from "@/services/sounds"
 import { wsService } from "@/services/websocket"
-import { debugLog } from "@/utils/debug"
+import { debugLog, debugWarn, debugError } from "@/utils/debug"
 
 interface Props {
   userId: string
@@ -189,7 +189,7 @@ const attachTrackToElement = async (track: typeof props.videoTrack, element: HTM
     try {
       await element.play()
     } catch (error) {
-      console.warn(`Self-view play failed for ${props.userId}:`, error)
+      debugWarn(`Self-view play failed for ${props.userId}:`, error)
     }
   } else {
     try {
@@ -199,11 +199,11 @@ const attachTrackToElement = async (track: typeof props.videoTrack, element: HTM
         try {
           await element.play()
         } catch (playError) {
-          console.warn(`Play after attach failed for ${props.userId}:`, playError)
+          debugWarn(`Play after attach failed for ${props.userId}:`, playError)
         }
       }
     } catch (error) {
-      console.error(`Error attaching track to ${props.userId}:`, error)
+      debugError(`Error attaching track to ${props.userId}:`, error)
     }
   }
 }
@@ -216,7 +216,7 @@ watch(
         oldTrack.detach(videoElement.value)
         isLiveKitAttached.value = false
       } catch (error) {
-        console.warn(`Error detaching track from ${props.userId}:`, error)
+        debugWarn(`Error detaching track from ${props.userId}:`, error)
       }
     }
 
@@ -268,7 +268,7 @@ const toggleFullscreen = async () => {
       isFullscreen.value = false
     }
   } catch (error) {
-    console.error("Fullscreen error:", error)
+    debugError("Fullscreen error:", error)
   }
 }
 
@@ -335,7 +335,7 @@ const togglePiP = async () => {
       await videoElement.value.requestPictureInPicture()
     }
   } catch (error) {
-    console.error("Picture-in-Picture error:", error)
+    debugError("Picture-in-Picture error:", error)
   }
 }
 

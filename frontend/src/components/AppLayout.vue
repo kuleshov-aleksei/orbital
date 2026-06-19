@@ -67,6 +67,7 @@
 </template>
 
 <script setup lang="ts">
+import { debugLog } from "@/utils/debug"
 import { onMounted, onUnmounted, ref, useTemplateRef, watch } from "vue"
 import {
   DesktopSidebar,
@@ -114,7 +115,7 @@ const handleUpdateAvailable = (isInCall: boolean) => {
     showUpdateNotification.value = true
   } else {
     // Auto-reload when not in call
-    console.log("[Update] Auto-reloading to apply update...")
+    debugLog("[Update] Auto-reloading to apply update...")
     window.location.reload()
   }
 }

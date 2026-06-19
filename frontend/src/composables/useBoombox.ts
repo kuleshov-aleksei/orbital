@@ -1,4 +1,5 @@
 import { ref, watch, type Ref } from "vue"
+import { debugWarn } from "@/utils/debug"
 import type {
   Room,
   LocalParticipant,
@@ -133,7 +134,7 @@ export function useBoombox(options: {
       try {
         await participant.unpublishTrack(localTrackPublication.track)
       } catch (e) {
-        console.warn("[Boombox] Failed to unpublish track:", e)
+        debugWarn("[Boombox] Failed to unpublish track:", e)
       }
       localTrackPublication = null
     }

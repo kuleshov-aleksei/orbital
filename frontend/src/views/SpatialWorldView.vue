@@ -125,6 +125,7 @@ import { getWorldConfig } from "@/config/worlds"
 import { getAvailableCharacters } from "@/world/ResourceManager"
 import { createVehicleController, type VehicleController } from "@/world/VehicleController"
 import { createSongTitleOverlay, type SongTitleOverlay } from "@/world/SongTitleOverlay"
+import { debugLog, debugWarn } from "@/utils/debug"
 
 interface Props {
   roomId: string
@@ -280,17 +281,17 @@ function startStage() {
 function endStage(name: string) {
   const duration = performance.now() - stageStart
   stageTimings.push({ name, duration })
-  console.log(`[WorldLoad] ${name}: ${duration.toFixed(0)}ms`)
+  debugLog(`[WorldLoad] ${name}: ${duration.toFixed(0)}ms`)
 }
 
 function logAllTimings() {
-  console.log(`[WorldLoad] === World Loading Summary ===`)
+  debugLog(`[WorldLoad] === World Loading Summary ===`)
   let total = 0
   for (const s of stageTimings) {
-    console.log(`[WorldLoad]   ${s.name}: ${s.duration.toFixed(0)}ms`)
+    debugLog(`[WorldLoad]   ${s.name}: ${s.duration.toFixed(0)}ms`)
     total += s.duration
   }
-  console.log(`[WorldLoad]   TOTAL: ${total.toFixed(0)}ms`)
+  debugLog(`[WorldLoad]   TOTAL: ${total.toFixed(0)}ms`)
 }
 
 const worldRenderer = createWorldRenderer()
@@ -426,7 +427,7 @@ async function setupWorld() {
     container.addChild(sprite)
     boomboxSprite = sprite
   } catch (e) {
-    console.warn("[Boombox] Failed to load boombox sprite:", e)
+    debugWarn("[Boombox] Failed to load boombox sprite:", e)
     const fallback = new Sprite()
     fallback.anchor.set(0.5, 0.5)
     container.addChild(fallback)

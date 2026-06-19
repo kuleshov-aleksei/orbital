@@ -1,5 +1,6 @@
 import { defineStore } from "pinia"
 import { ref, computed } from "vue"
+import { debugWarn } from "@/utils/debug"
 
 const DEBUG_LOGS_STORAGE_KEY = "orbital_debug_logs_enabled"
 
@@ -24,7 +25,7 @@ export const useDebugSettingsStore = defineStore("debugSettings", () => {
       }
       isLoaded.value = true
     } catch (e) {
-      console.warn("Failed to load debug settings from localStorage:", e)
+      debugWarn("Failed to load debug settings from localStorage:", e)
     }
   }
 
@@ -37,7 +38,7 @@ export const useDebugSettingsStore = defineStore("debugSettings", () => {
     try {
       localStorage.setItem(DEBUG_LOGS_STORAGE_KEY, String(debugLogsEnabled.value))
     } catch (e) {
-      console.warn("Failed to save debug settings to localStorage:", e)
+      debugWarn("Failed to save debug settings to localStorage:", e)
     }
   }
 

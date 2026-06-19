@@ -8,7 +8,7 @@ import type {
 } from "livekit-client"
 import { useAudioTracksStore } from "@/stores/audioTracks"
 import { useUsersStore } from "@/stores/users"
-import { debugLog, debugWarn } from "@/utils/debug"
+import { debugLog, debugWarn, debugError } from "@/utils/debug"
 import { stopAudioCapture } from "@/services/venmic"
 import { isElectron } from "@/services/electron"
 import type { ScreenShareQuality } from "@/types"
@@ -90,7 +90,7 @@ export function useScreenShareCore(state: LiveKitState) {
 
       debugLog(`[LiveKit][INFO]: Screen sharing stopped`)
     } catch (error) {
-      console.error("Error stopping screen share:", error)
+      debugError("Error stopping screen share:", error)
     } finally {
       state.isStoppingScreenShare.value = false
     }

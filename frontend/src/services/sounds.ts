@@ -6,6 +6,7 @@ import { defaultSprites } from "@/services/sprites/default"
 import { crunchySprites } from "@/services/sprites/crunchy"
 import { resolveUrl } from "@/services/api"
 import { isElectron } from "@/services/electron"
+import { debugError } from "@/utils/debug"
 
 const version = typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : ""
 
@@ -114,7 +115,7 @@ function loadSound(packId: string): ReturnType<typeof Howl> {
     volume: globalVolume,
     preload: true,
     onloaderror: (_id: string, error: string) => {
-      console.error(`Failed to load sound pack ${packId}:`, error)
+      debugError(`Failed to load sound pack ${packId}:`, error)
     },
   })
 

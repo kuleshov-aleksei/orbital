@@ -130,6 +130,7 @@
 </template>
 
 <script setup lang="ts">
+import { debugWarn } from "@/utils/debug"
 import { ref, computed, onMounted, watch, nextTick, useTemplateRef } from "vue"
 import {
   PhMicrophoneSlash,
@@ -352,7 +353,7 @@ const setupVideoStream = (
     try {
       lkTrack.attach(element)
     } catch (e) {
-      console.warn(`[ParticipantCard] LiveKit attach failed:`, e)
+      debugWarn(`[ParticipantCard] LiveKit attach failed:`, e)
     }
     return
   }

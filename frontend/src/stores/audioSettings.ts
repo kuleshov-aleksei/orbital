@@ -7,6 +7,7 @@ import {
   availableAlgorithms,
 } from "@/types/audio"
 import { getAudioProcessor } from "@/services/audio"
+import { debugWarn } from "@/utils/debug"
 
 export interface AudioInputDevice {
   deviceId: string
@@ -67,7 +68,7 @@ export const useAudioSettingsStore = defineStore("audioSettings", () => {
       availableInputDevices.value = audioInputDevices
       return audioInputDevices
     } catch (e) {
-      console.warn("Failed to enumerate audio input devices:", e)
+      debugWarn("Failed to enumerate audio input devices:", e)
       return []
     }
   }
@@ -80,7 +81,7 @@ export const useAudioSettingsStore = defineStore("audioSettings", () => {
       await navigator.mediaDevices.getUserMedia({ audio: true })
       return await enumerateInputDevices()
     } catch (e) {
-      console.warn("Failed to request audio permissions:", e)
+      debugWarn("Failed to request audio permissions:", e)
       return await enumerateInputDevices()
     }
   }
@@ -194,7 +195,7 @@ export const useAudioSettingsStore = defineStore("audioSettings", () => {
     try {
       localStorage.setItem(AUDIO_SETTINGS_STORAGE_KEY, JSON.stringify(settings.value))
     } catch (e) {
-      console.warn("Failed to save audio settings to localStorage:", e)
+      debugWarn("Failed to save audio settings to localStorage:", e)
     }
   }
 
@@ -218,7 +219,7 @@ export const useAudioSettingsStore = defineStore("audioSettings", () => {
       }
       isLoaded.value = true
     } catch (e) {
-      console.warn("Failed to load audio settings from localStorage:", e)
+      debugWarn("Failed to load audio settings from localStorage:", e)
       isLoaded.value = true
     }
   }

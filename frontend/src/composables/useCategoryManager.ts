@@ -1,4 +1,5 @@
 import { useCategoryStore, useRoomStore, useAppStore } from "@/stores"
+import { debugError } from "@/utils/debug"
 import { apiService } from "@/services/api"
 import type { CreateCategoryData } from "@/types"
 
@@ -12,7 +13,7 @@ export function useCategoryManager() {
       const categories = await apiService.getCategories()
       categoryStore.setCategories(categories)
     } catch (error) {
-      console.error("Failed to load categories:", error)
+      debugError("Failed to load categories:", error)
     }
   }
 
@@ -24,7 +25,7 @@ export function useCategoryManager() {
       const data: CreateCategoryData = { name }
       await apiService.createCategory(data)
     } catch (error) {
-      console.error("Failed to create category:", error)
+      debugError("Failed to create category:", error)
       appStore.setError("Failed to create category. Please try again.")
       throw error
     } finally {
@@ -52,7 +53,7 @@ export function useCategoryManager() {
         }
       })
     } catch (error) {
-      console.error("Failed to rename category:", error)
+      debugError("Failed to rename category:", error)
       appStore.setError("Failed to rename category. Please try again.")
       throw error
     } finally {
@@ -97,7 +98,7 @@ export function useCategoryManager() {
 
       categoryStore.removeCategory(categoryId)
     } catch (error) {
-      console.error("Failed to delete category:", error)
+      debugError("Failed to delete category:", error)
       appStore.setError("Failed to delete category. Please try again.")
       throw error
     } finally {

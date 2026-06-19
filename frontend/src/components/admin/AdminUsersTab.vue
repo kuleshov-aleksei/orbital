@@ -158,6 +158,7 @@
 </template>
 
 <script setup lang="ts">
+import { debugError } from "@/utils/debug"
 import { ref, computed, onMounted } from "vue"
 import { storeToRefs } from "pinia"
 import Avatar from "vue-boring-avatars"
@@ -214,7 +215,7 @@ const loadUsers = async () => {
   try {
     users.value = await apiService.getUsers()
   } catch (error) {
-    console.error("Failed to load users:", error)
+    debugError("Failed to load users:", error)
   }
 }
 
@@ -224,7 +225,7 @@ const promoteUser = async (userId: string) => {
     await apiService.promoteUser(userId)
     await loadUsers()
   } catch (error) {
-    console.error("Failed to promote user:", error)
+    debugError("Failed to promote user:", error)
   } finally {
     promotingUserId.value = null
   }
@@ -236,7 +237,7 @@ const demoteUser = async (userId: string) => {
     await apiService.demoteUser(userId)
     await loadUsers()
   } catch (error) {
-    console.error("Failed to demote user:", error)
+    debugError("Failed to demote user:", error)
   } finally {
     demotingUserId.value = null
   }
@@ -259,7 +260,7 @@ const deleteUser = async () => {
     await apiService.deleteUser(userToDelete.value.id)
     await loadUsers()
   } catch (error) {
-    console.error("Failed to delete user:", error)
+    debugError("Failed to delete user:", error)
   } finally {
     deletingUserId.value = null
     userToDelete.value = null
@@ -272,7 +273,7 @@ const deleteAllGuests = async () => {
     await apiService.deleteAllGuests()
     await loadUsers()
   } catch (error) {
-    console.error("Failed to delete guests:", error)
+    debugError("Failed to delete guests:", error)
   } finally {
     deletingGuests.value = false
   }

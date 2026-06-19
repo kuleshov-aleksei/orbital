@@ -1,5 +1,6 @@
 import { defineStore } from "pinia"
 import { ref } from "vue"
+import { debugWarn } from "@/utils/debug"
 
 export type Theme = "default" | "true-black" | "retrowave" | "catppuccin" | "solarized"
 
@@ -26,7 +27,7 @@ function getStoredTheme(): Theme {
       return stored
     }
   } catch (e) {
-    console.warn("Failed to load theme from localStorage:", e)
+    debugWarn("Failed to load theme from localStorage:", e)
   }
   return "default"
 }
@@ -35,7 +36,7 @@ function saveTheme(theme: Theme): void {
   try {
     localStorage.setItem(THEME_STORAGE_KEY, theme)
   } catch (e) {
-    console.warn("Failed to save theme to localStorage:", e)
+    debugWarn("Failed to save theme to localStorage:", e)
   }
 }
 

@@ -1,7 +1,7 @@
 import { defineStore } from "pinia"
 import { ref, computed } from "vue"
 import type { Room, User } from "@/types"
-import { debugLog } from "@/utils/debug"
+import { debugLog, debugWarn } from "@/utils/debug"
 import { USER_VOLUMES_STORAGE_KEY } from "@/types/audio"
 
 export const useRoomStore = defineStore("room", () => {
@@ -87,7 +87,7 @@ export const useRoomStore = defineStore("room", () => {
       is_screen_sharing?: boolean
     },
   ) {
-    console.log("[RoomStore] updateUserStatus called:", { userId, status })
+    debugLog("[RoomStore] updateUserStatus called:", { userId, status })
     // Update rooms array for sidebar display
     // Use slice() to create new array references for Vue reactivity
     let hasChanges = false
@@ -222,7 +222,7 @@ export const useRoomStore = defineStore("room", () => {
       })
       localStorage.setItem(USER_VOLUMES_STORAGE_KEY, JSON.stringify(volumeObj))
     } catch (e) {
-      console.warn("Failed to save user volumes to localStorage:", e)
+      debugWarn("Failed to save user volumes to localStorage:", e)
     }
   }
 
@@ -234,10 +234,10 @@ export const useRoomStore = defineStore("room", () => {
         Object.entries(parsed).forEach(([userId, volume]) => {
           remoteStreamVolumes.value.set(userId, volume)
         })
-        console.log(`Loaded ${Object.keys(parsed).length} user volumes from localStorage`)
+        debugLog(`Loaded ${Object.keys(parsed).length} user volumes from localStorage`)
       }
     } catch (e) {
-      console.warn("Failed to load user volumes from localStorage:", e)
+      debugWarn("Failed to load user volumes from localStorage:", e)
     }
   }
 

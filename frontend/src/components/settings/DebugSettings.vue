@@ -81,7 +81,7 @@ import { computed, ref } from "vue"
 import { useDebugSettingsStore } from "@/stores/debugSettings"
 import { useUserStore } from "@/stores/user"
 import { apiService } from "@/services/api"
-import { getLogBuffer } from "@/utils/debug"
+import { getLogBuffer, debugError } from "@/utils/debug"
 import { PhBug } from "@phosphor-icons/vue"
 
 defineProps<{
@@ -133,7 +133,7 @@ async function sendLogs() {
     sendLogsStatus.value = "Logs sent successfully!"
     sendLogsSuccess.value = true
   } catch (error) {
-    console.error("Failed to send logs:", error)
+    debugError("Failed to send logs:", error)
     sendLogsStatus.value = "Failed to send logs"
     sendLogsSuccess.value = false
   } finally {

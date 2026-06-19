@@ -113,19 +113,27 @@ export function debugError(message: string, ...optionalParams: unknown[]): void 
 }
 
 export function debugLog(message: string, ...optionalParams: unknown[]): void {
-  const debugStore = useDebugSettingsStore()
   storeInBuffer("log", message, optionalParams)
 
-  if (debugStore.isDebugLogsEnabled) {
+  try {
+    const debugStore = useDebugSettingsStore()
+    if (debugStore.isDebugLogsEnabled) {
+      console.log(message, ...optionalParams)
+    }
+  } catch {
     console.log(message, ...optionalParams)
   }
 }
 
 export function debugWarn(message: string, ...optionalParams: unknown[]): void {
-  const debugStore = useDebugSettingsStore()
   storeInBuffer("warn", message, optionalParams)
 
-  if (debugStore.isDebugLogsEnabled) {
+  try {
+    const debugStore = useDebugSettingsStore()
+    if (debugStore.isDebugLogsEnabled) {
+      console.warn(message, ...optionalParams)
+    }
+  } catch {
     console.warn(message, ...optionalParams)
   }
 }

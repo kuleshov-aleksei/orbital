@@ -7,6 +7,7 @@ import type {
   WorldObjectData,
   PropData,
 } from "./WorldTypes"
+import { debugLog, debugWarn } from "@/utils/debug"
 
 const cache = new Map<string, WorldData>()
 
@@ -87,7 +88,7 @@ export async function loadWorld(
     const raw: Record<string, unknown> = await response.json()
     const version = (raw.version as number) || 1
     const data = version < 2 ? convertV1ToV2(raw) : (raw as unknown as WorldData)
-    console.log(`[WorldData] Loaded world "${worldId}":`, {
+    debugLog(`[WorldData] Loaded world "${worldId}":`, {
       tileSize: data.tileSize,
       sourceCount: data.sources.length,
       sources: data.sources.map((s) => ({
@@ -108,7 +109,7 @@ export async function loadWorld(
     cache.set(worldId, data)
     return data
   } catch (e) {
-    console.warn(`[WorldData] Failed to load world "${worldId}", using fallback:`, e)
+    debugWarn(`[WorldData] Failed to load world "${worldId}", using fallback:`, e)
     cache.set(worldId, DEFAULT_WORLD_DATA)
     return DEFAULT_WORLD_DATA
   }

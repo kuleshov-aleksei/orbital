@@ -1,4 +1,5 @@
 import type { User } from "@/types"
+import { debugError } from "@/utils/debug"
 
 export const API_BASE = typeof __BACKEND_URL__ !== "undefined" ? `${__BACKEND_URL__}/api` : "/api"
 
@@ -110,7 +111,7 @@ export async function apiRequest<T>(endpoint: string, options: RequestInit = {})
 
     return (await response.json()) as T
   } catch (error) {
-    console.error(`API request failed to ${endpoint}:`, error)
+    debugError(`API request failed to ${endpoint}:`, error)
     throw error
   }
 }

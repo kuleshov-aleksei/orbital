@@ -1,4 +1,5 @@
 import { ref, onUnmounted, type Ref } from "vue"
+import { debugError } from "@/utils/debug"
 import type {
   Room,
   LocalTrackPublication,
@@ -429,7 +430,7 @@ export function useStatsCollector(options: StatsCollectorOptions) {
       const b64 = btoa(String.fromCharCode(...compressed))
       wsService.sendMessage("client_stats_batch", b64)
     } catch (err) {
-      console.error("[Stats] Failed to compress/send batch:", err)
+      debugError("[Stats] Failed to compress/send batch:", err)
     }
   }
 

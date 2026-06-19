@@ -126,8 +126,8 @@ export function useLiveKitAudio(state: LiveKitState) {
           )
           return track
         } catch (error) {
-          console.error("Failed to initialize audio track:", error)
-          console.error(`[LiveKit][ERROR]: Failed to initialize audio: ${(error as Error).message}`)
+          debugError("Failed to initialize audio track:", error)
+          debugError(`[LiveKit][ERROR]: Failed to initialize audio: ${(error as Error).message}`)
           return null
         }
       })()
@@ -167,8 +167,8 @@ export function useLiveKitAudio(state: LiveKitState) {
         }
       }
     } catch (error) {
-      console.error("Failed to publish audio track:", error)
-      console.error(`[LiveKit][ERROR]: Failed to publish audio: ${(error as Error).message}`)
+      debugError("Failed to publish audio track:", error)
+      debugError(`[LiveKit][ERROR]: Failed to publish audio: ${(error as Error).message}`)
     }
   }
 

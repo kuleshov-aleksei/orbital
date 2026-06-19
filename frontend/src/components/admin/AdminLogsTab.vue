@@ -122,6 +122,7 @@
 </template>
 
 <script setup lang="ts">
+import { debugError } from "@/utils/debug"
 import { ref, onMounted } from "vue"
 import { apiService } from "@/services/api"
 import type { DebugLog } from "@/types"
@@ -146,7 +147,7 @@ const loadLogs = async () => {
   try {
     logs.value = await apiService.getLogs()
   } catch (error) {
-    console.error("Failed to load logs:", error)
+    debugError("Failed to load logs:", error)
   } finally {
     loadingLogs.value = false
   }
@@ -159,7 +160,7 @@ const viewLog = async (logId: number) => {
     logContent.value = response.content
     showLogModal.value = true
   } catch (error) {
-    console.error("Failed to load log:", error)
+    debugError("Failed to load log:", error)
   }
 }
 
@@ -176,7 +177,7 @@ const downloadLog = async (log: DebugLog) => {
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
   } catch (error) {
-    console.error("Failed to download log:", error)
+    debugError("Failed to download log:", error)
   }
 }
 
@@ -193,7 +194,7 @@ const deleteLog = async () => {
     await apiService.deleteLog(logToDelete.value)
     await loadLogs()
   } catch (error) {
-    console.error("Failed to delete log:", error)
+    debugError("Failed to delete log:", error)
   } finally {
     deletingLogId.value = null
     logToDelete.value = null

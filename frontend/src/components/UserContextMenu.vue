@@ -101,6 +101,7 @@
 </template>
 
 <script setup lang="ts">
+import { debugError } from "@/utils/debug"
 import { ref, computed, onMounted, onUnmounted } from "vue"
 import {
   PhMicrophone,
@@ -242,7 +243,7 @@ const handlePromote = async () => {
     await apiService.promoteUser(effectiveUserId.value)
     hideMenu()
   } catch (error) {
-    console.error("Failed to promote user:", error)
+    debugError("Failed to promote user:", error)
   } finally {
     promoting.value = false
   }
@@ -255,7 +256,7 @@ const handleDemote = async () => {
     await apiService.demoteUser(effectiveUserId.value)
     hideMenu()
   } catch (error) {
-    console.error("Failed to demote user:", error)
+    debugError("Failed to demote user:", error)
   } finally {
     demoting.value = false
   }
@@ -268,7 +269,7 @@ const handleKick = async () => {
     await apiService.kickUser(effectiveRoomId.value, effectiveUserId.value)
     hideMenu()
   } catch (error) {
-    console.error("Failed to kick user:", error)
+    debugError("Failed to kick user:", error)
   } finally {
     kicking.value = false
   }

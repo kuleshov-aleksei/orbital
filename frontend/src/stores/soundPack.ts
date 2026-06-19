@@ -15,6 +15,7 @@ import {
   OVERRIDE_INCOMING_WITH_DEFAULT_KEY,
   SoundPack,
 } from "@/types/audio"
+import { debugError } from "@/utils/debug"
 
 export const useSoundPackStore = defineStore("soundPack", () => {
   const selectedPackId = ref<string>(DEFAULT_SOUND_PACK_ID)
@@ -45,7 +46,7 @@ export const useSoundPackStore = defineStore("soundPack", () => {
         const parsed = JSON.parse(storedOverrides) as Record<string, boolean>
         overrides.value = new Map(Object.entries(parsed))
       } catch {
-        console.error("Failed to parse sound pack overrides from storage")
+        debugError("Failed to parse sound pack overrides from storage")
       }
     }
 
@@ -93,7 +94,7 @@ export const useSoundPackStore = defineStore("soundPack", () => {
     try {
       await apiService.updateSoundPack(packId)
     } catch (error) {
-      console.error("Failed to save sound pack to backend:", error)
+      debugError("Failed to save sound pack to backend:", error)
     }
   }
 

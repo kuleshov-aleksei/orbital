@@ -78,6 +78,7 @@
 </template>
 
 <script setup lang="ts">
+import { debugError } from "@/utils/debug"
 import { ref, computed, watch, onMounted, onUnmounted, useTemplateRef } from "vue"
 import { PhArrowsOut, PhArrowsIn, PhPictureInPicture, PhSpinner } from "@phosphor-icons/vue"
 import type { RemoteVideoTrack, LocalVideoTrack } from "livekit-client"
@@ -164,7 +165,7 @@ const attachTrackToElement = async (track: typeof props.videoTrack, element: HTM
         }
       }
     } catch (error) {
-      console.error(`[CameraStream] Error attaching track to ${props.userId}:`, error)
+      debugError(`[CameraStream] Error attaching track to ${props.userId}:`, error)
     }
   }
 }
@@ -214,7 +215,7 @@ const toggleFullscreen = async () => {
       isFullscreen.value = false
     }
   } catch (error) {
-    console.error("Fullscreen error:", error)
+    debugError("Fullscreen error:", error)
   }
 }
 
@@ -230,7 +231,7 @@ const togglePiP = async () => {
       isPiPActive.value = true
     }
   } catch (error) {
-    console.error("Picture-in-Picture error:", error)
+    debugError("Picture-in-Picture error:", error)
   }
 }
 

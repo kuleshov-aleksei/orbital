@@ -1,5 +1,6 @@
 import { defineStore } from "pinia"
 import { ref, computed } from "vue"
+import { debugWarn } from "@/utils/debug"
 
 const VIDEO_SETTINGS_STORAGE_KEY = "orbital_video_settings"
 
@@ -38,7 +39,7 @@ export const useVideoSettingsStore = defineStore("videoSettings", () => {
       availableDevices.value = videoDevices
       return videoDevices
     } catch (e) {
-      console.warn("Failed to enumerate video devices:", e)
+      debugWarn("Failed to enumerate video devices:", e)
       return []
     }
   }
@@ -48,7 +49,7 @@ export const useVideoSettingsStore = defineStore("videoSettings", () => {
       await navigator.mediaDevices.getUserMedia({ video: true })
       return await enumerateDevices()
     } catch (e) {
-      console.warn("Failed to request camera permissions:", e)
+      debugWarn("Failed to request camera permissions:", e)
       return await enumerateDevices()
     }
   }
@@ -67,7 +68,7 @@ export const useVideoSettingsStore = defineStore("videoSettings", () => {
     try {
       localStorage.setItem(VIDEO_SETTINGS_STORAGE_KEY, JSON.stringify(settings.value))
     } catch (e) {
-      console.warn("Failed to save video settings to localStorage:", e)
+      debugWarn("Failed to save video settings to localStorage:", e)
     }
   }
 
@@ -83,7 +84,7 @@ export const useVideoSettingsStore = defineStore("videoSettings", () => {
       }
       isLoaded.value = true
     } catch (e) {
-      console.warn("Failed to load video settings from localStorage:", e)
+      debugWarn("Failed to load video settings from localStorage:", e)
       isLoaded.value = true
     }
   }

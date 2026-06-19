@@ -1,4 +1,5 @@
 import { useRoomStore, useUserStore, useAppStore, useCallStore } from "@/stores"
+import { debugError } from "@/utils/debug"
 import { wsService } from "@/services/websocket"
 import { apiService, generateNickname } from "@/services/api"
 import type { CreateRoomData, UpdateRoomData } from "@/types"
@@ -49,7 +50,7 @@ export function useRoomManager() {
       const rooms = await apiService.getRooms(true)
       roomStore.setRooms(rooms)
     } catch (error) {
-      console.error("Failed to load rooms:", error)
+      debugError("Failed to load rooms:", error)
       appStore.setError("Failed to load rooms. Please refresh the page.")
     } finally {
       appStore.setLoading(false)
@@ -60,7 +61,7 @@ export function useRoomManager() {
     const userId = userStore.userId
 
     if (!userId) {
-      console.error("Cannot join room: no user ID available")
+      debugError("Cannot join room: no user ID available")
       appStore.setError("Please authenticate before joining a room")
       return
     }
@@ -81,7 +82,7 @@ export function useRoomManager() {
       // Start sending pings to keep room WebSocket connection alive
       startRoomPing()
     } catch (error) {
-      console.error("Failed to join room:", error)
+      debugError("Failed to join room:", error)
       throw error
     }
   }
@@ -101,7 +102,7 @@ export function useRoomManager() {
       wsService.disconnect()
       roomStore.setCurrentRoomUsers([])
     } catch (error) {
-      console.error("Failed to leave current room:", error)
+      debugError("Failed to leave current room:", error)
       throw error
     }
   }
@@ -131,7 +132,7 @@ export function useRoomManager() {
 
       await joinRoom(roomId)
     } catch (error) {
-      console.error("Failed to switch room:", error)
+      debugError("Failed to switch room:", error)
       appStore.setError("Failed to switch room. Please try again.")
     } finally {
       appStore.setLoading(false)
@@ -149,7 +150,7 @@ export function useRoomManager() {
         appStore.showRoomsView()
       }
     } catch (error) {
-      console.error("Failed to leave room:", error)
+      debugError("Failed to leave room:", error)
       appStore.setError("Failed to leave room.")
     }
   }
@@ -180,7 +181,7 @@ export function useRoomManager() {
 
       await apiService.createRoom(roomData)
     } catch (error) {
-      console.error("Failed to create room:", error)
+      debugError("Failed to create room:", error)
       appStore.setError("Failed to create room. Please try again.")
       throw error
     } finally {
@@ -196,7 +197,7 @@ export function useRoomManager() {
       const updates: UpdateRoomData = { name, max_users: maxUsers, world }
       await apiService.updateRoom(roomId, updates)
     } catch (error) {
-      console.error("Failed to update room:", error)
+      debugError("Failed to update room:", error)
       appStore.setError("Failed to update room. Please try again.")
       throw error
     } finally {
@@ -211,7 +212,7 @@ export function useRoomManager() {
 
       await apiService.updateRoom(roomId, { category: targetCategoryId })
     } catch (error) {
-      console.error("Failed to move room:", error)
+      debugError("Failed to move room:", error)
       appStore.setError("Failed to move room. Please try again.")
       throw error
     } finally {
@@ -236,7 +237,7 @@ export function useRoomManager() {
         }
       }
     } catch (error) {
-      console.error("Failed to delete room:", error)
+      debugError("Failed to delete room:", error)
       appStore.setError("Failed to delete room. Please try again.")
       throw error
     } finally {

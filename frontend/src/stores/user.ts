@@ -2,6 +2,7 @@ import { defineStore } from "pinia"
 import { ref, computed } from "vue"
 import { apiService, setAuthToken, clearAuthToken } from "@/services/api"
 import { setUserSoundPack } from "@/services/sounds"
+import { debugError, debugLog, debugWarn } from "@/utils/debug"
 
 export type AuthProvider = "guest" | "discord" | "google" | "password"
 
@@ -56,11 +57,11 @@ export const useUserStore = defineStore("user", () => {
   function setUser(user: UserSession, authToken?: string) {
     // Validate user object
     if (!user.id || !user.nickname || !user.authProvider || typeof user.isGuest !== "boolean") {
-      console.error("Invalid user object provided:", user)
+      debugError("Invalid user object provided:", user)
       throw new Error("Invalid user object: missing required fields")
     }
 
-    console.log("Setting user:", {
+    debugLog("Setting user:", {
       id: user.id,
       nickname: user.nickname,
       authProvider: user.authProvider,
@@ -88,7 +89,7 @@ export const useUserStore = defineStore("user", () => {
 
   async function updateNickname(newNickname: string) {
     if (!currentUser.value || !currentUser.value.id) {
-      console.error("Cannot update nickname: no current user or user ID missing")
+      debugError("Cannot update nickname: no current user or user ID missing")
       return
     }
 
@@ -102,7 +103,7 @@ export const useUserStore = defineStore("user", () => {
 
       // Send update to server via WebSocket (real-time)
       const { wsService } = await import("@/services/websocket")
-      console.log("Sending nickname change:", {
+      debugLog("Sending nickname change:", {
         userId: currentUser.value.id,
         newNickname,
       })
@@ -110,7 +111,7 @@ export const useUserStore = defineStore("user", () => {
 
       nicknameUpdateStatus.value = "success"
     } catch (error) {
-      console.error("Failed to update nickname:", error)
+      debugError("Failed to update nickname:", error)
       nicknameUpdateError.value = "Failed to update nickname. Please try again."
       nicknameUpdateStatus.value = "error"
 
@@ -127,7 +128,7 @@ export const useUserStore = defineStore("user", () => {
     // This would be called by WebSocket handlers when other users change their nicknames
     // For now, this is mainly used by RoomStore for updating user lists
     // Could emit an event or use a shared user state store in the future
-    console.log(`User ${userId} updated nickname to ${nickname}`)
+    debugLog(`User ${userId} updated nickname to ${nickname}`)
   }
 
   function updateNicknameLocally(newNickname: string) {
@@ -160,7 +161,7 @@ export const useUserStore = defineStore("user", () => {
 
   async function updateAvatar(file: File): Promise<void> {
     if (!currentUser.value || !currentUser.value.id) {
-      console.error("Cannot update avatar: no current user or user ID missing")
+      debugError("Cannot update avatar: no current user or user ID missing")
       return
     }
 
@@ -173,7 +174,7 @@ export const useUserStore = defineStore("user", () => {
       localStorage.setItem("orbital_user_avatar", response.avatar_url)
       avatarUpdateStatus.value = "success"
     } catch (error) {
-      console.error("Failed to update avatar:", error)
+      debugError("Failed to update avatar:", error)
       avatarUpdateError.value = "Failed to update avatar. Please try again."
       avatarUpdateStatus.value = "error"
       throw error
@@ -224,7 +225,7 @@ export const useUserStore = defineStore("user", () => {
         currentUser.value = { ...user }
       } catch {
         // Token might be expired, clear everything
-        console.warn("Token validation failed, clearing auth state")
+        debugWarn("Token validation failed, clearing auth state")
         clearUser()
         return null
       }
@@ -274,7 +275,7 @@ export const useUserStore = defineStore("user", () => {
       hasCompletedAuth.value = true
       localStorage.setItem("orbital_has_completed_auth", "true")
     } catch (error) {
-      console.error("Guest login failed:", error)
+      debugError("Guest login failed:", error)
       throw error
     }
   }
@@ -295,7 +296,7 @@ export const useUserStore = defineStore("user", () => {
       hasCompletedAuth.value = true
       localStorage.setItem("orbital_has_completed_auth", "true")
     } catch (error) {
-      console.error("Password login failed:", error)
+      debugError("Password login failed:", error)
       throw error
     }
   }
@@ -316,7 +317,7 @@ export const useUserStore = defineStore("user", () => {
       hasCompletedAuth.value = true
       localStorage.setItem("orbital_has_completed_auth", "true")
     } catch (error) {
-      console.error("Registration failed:", error)
+      debugError("Registration failed:", error)
       throw error
     }
   }
@@ -325,7 +326,7 @@ export const useUserStore = defineStore("user", () => {
     try {
       await apiService.logout()
     } catch {
-      console.warn("Logout API call failed, clearing locally anyway")
+      debugWarn("Logout API call failed, clearing locally anyway")
     }
     clearUser()
   }

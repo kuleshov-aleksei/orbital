@@ -3,6 +3,7 @@ import { ref, computed } from "vue"
 import type { PublicUser } from "@/types"
 import { apiService } from "@/services/api"
 import { useSoundPackStore } from "./soundPack"
+import { debugError } from "@/utils/debug"
 
 export const useUsersStore = defineStore("users", () => {
   // State
@@ -86,7 +87,7 @@ export const useUsersStore = defineStore("users", () => {
         }
       })
     } catch (err) {
-      console.error("Failed to fetch users:", err)
+      debugError("Failed to fetch users:", err)
       error.value = "Failed to load users"
     } finally {
       isLoading.value = false

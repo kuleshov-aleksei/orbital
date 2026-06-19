@@ -1,4 +1,5 @@
 import type { WebSocketMessage } from "@/types"
+import { debugError } from "@/utils/debug"
 
 export type MessageCallback = (message: WebSocketMessage) => void
 export type ConnectionCallback = () => void
@@ -59,7 +60,7 @@ export class MessageBus {
         try {
           cb(message)
         } catch (error) {
-          console.error("Error in WebSocket callback:", error)
+          debugError("Error in WebSocket callback:", error)
         }
       })
     }
@@ -70,7 +71,7 @@ export class MessageBus {
       try {
         cb()
       } catch (error) {
-        console.error("Error in connection callback:", error)
+        debugError("Error in connection callback:", error)
       }
     })
   }
@@ -80,7 +81,7 @@ export class MessageBus {
       try {
         cb(event)
       } catch (error) {
-        console.error("Error in disconnection callback:", error)
+        debugError("Error in disconnection callback:", error)
       }
     })
   }

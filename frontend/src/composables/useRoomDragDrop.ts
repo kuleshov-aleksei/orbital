@@ -1,4 +1,5 @@
 import { ref } from "vue"
+import { debugError } from "@/utils/debug"
 import { apiService } from "@/services/api"
 import { useRoomStore } from "@/stores"
 import type { Room } from "@/types"
@@ -135,7 +136,7 @@ export function useRoomDragDrop() {
         return await moveRoomToCategoryAtPosition(sourceRoom, categoryId, targetIndex)
       }
     } catch (error) {
-      console.error("Failed to update room order:", error)
+      debugError("Failed to update room order:", error)
       return null
     } finally {
       handleDragEnd()
@@ -154,7 +155,7 @@ export function useRoomDragDrop() {
     try {
       return await moveRoomToCategory(draggedRoom.value, categoryId)
     } catch (error) {
-      console.error("Failed to move room to category:", error)
+      debugError("Failed to move room to category:", error)
       return null
     } finally {
       handleDragEnd()

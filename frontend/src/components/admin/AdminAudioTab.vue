@@ -100,6 +100,7 @@
 </template>
 
 <script setup lang="ts">
+import { debugError } from "@/utils/debug"
 import { ref, onMounted } from "vue"
 import { apiService } from "@/services/api"
 import type { AudioFile } from "@/types"
@@ -130,7 +131,7 @@ const loadAudio = async () => {
   try {
     audioFiles.value = await apiService.getAudioFiles()
   } catch (error) {
-    console.error("Failed to load audio files:", error)
+    debugError("Failed to load audio files:", error)
   } finally {
     loadingAudio.value = false
   }
@@ -152,7 +153,7 @@ const doRenameAudio = async (id: string) => {
     await apiService.renameAudio(id, name)
     await loadAudio()
   } catch (error) {
-    console.error("Failed to rename audio:", error)
+    debugError("Failed to rename audio:", error)
   }
 }
 
@@ -169,7 +170,7 @@ const deleteAudioFile = async () => {
     await apiService.deleteAudio(audioToDelete.value)
     await loadAudio()
   } catch (error) {
-    console.error("Failed to delete audio:", error)
+    debugError("Failed to delete audio:", error)
   } finally {
     deletingAudioId.value = null
     audioToDelete.value = null

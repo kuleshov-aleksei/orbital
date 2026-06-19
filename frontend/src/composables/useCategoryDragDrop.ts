@@ -1,4 +1,5 @@
 import { ref } from "vue"
+import { debugError } from "@/utils/debug"
 import { apiService } from "@/services/api"
 import { useCategoryStore } from "@/stores"
 import type { Category } from "@/types"
@@ -42,7 +43,7 @@ export function useCategoryDragDrop() {
 
     const sourceIndex = sortedCategories.findIndex((c) => c.id === sourceCategory.id)
     if (sourceIndex === -1) {
-      console.error("Source category not found:", sourceCategory.id)
+      debugError("Source category not found:", sourceCategory.id)
       return
     }
 
@@ -79,7 +80,7 @@ export function useCategoryDragDrop() {
     try {
       await reorderCategories(draggedCategory.value, targetIndex)
     } catch (error) {
-      console.error("Failed to update category order:", error)
+      debugError("Failed to update category order:", error)
     } finally {
       handleCategoryDragEnd()
     }

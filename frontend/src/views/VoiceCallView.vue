@@ -152,6 +152,7 @@ import {
 } from "@/stores"
 import { storeToRefs } from "pinia"
 import type { User, ScreenShareQuality, VenmicNode } from "@/types"
+import { debugLog, debugError } from "@/utils/debug"
 
 const props = withDefaults(defineProps<Props>(), {
   isMobile: false,
@@ -221,7 +222,7 @@ let notificationTimer: ReturnType<typeof setTimeout> | null = null
 const chatNotification = ref<ChatNotificationState | null>(null)
 
 const showChatNotification = (senderName: string, senderId: string, message: string) => {
-  console.log("Showing text message from " + senderName)
+  debugLog("Showing text message from " + senderName)
   if (notificationTimer) {
     clearTimeout(notificationTimer)
   }
@@ -274,7 +275,7 @@ const lk = useLiveKit({
   users: props.users,
   remoteStreamVolumes: props.remoteStreamVolumes,
   onVolumeChange: (userId: string, volume: number) => {
-    console.log(`Volume change for ${userId}: ${volume}`)
+    debugLog(`Volume change for ${userId}: ${volume}`)
   },
 })
 
@@ -474,7 +475,7 @@ watch(
   async (newAlgorithm, oldAlgorithm) => {
     // Only reinitialize if algorithm actually changed and we're in a call
     if (props.roomId && newAlgorithm !== oldAlgorithm && !isReinitializing) {
-      console.log(
+      debugLog(
         `Noise suppression algorithm changed from ${oldAlgorithm} to ${newAlgorithm}, reinitializing audio stream...`,
       )
 
@@ -493,7 +494,7 @@ watch(
 watch(
   () => callStore.isMuted,
   (newValue) => {
-    console.log(`🎤 Call store mute state changed: ${newValue}`)
+    debugLog(`🎤 Call store mute state changed: ${newValue}`)
     void applyMuteState(newValue)
     // Always emit to ensure parent v-model stays in sync
     emit("update:modelValueMuted", newValue)
@@ -503,7 +504,7 @@ watch(
 watch(
   () => callStore.isDeafened,
   (newValue) => {
-    console.log(`🎧 Call store deafen state changed: ${newValue}`)
+    debugLog(`🎧 Call store deafen state changed: ${newValue}`)
     void applyDeafenState(newValue)
     // Always emit to ensure parent v-model stays in sync
     emit("update:modelValueDeafened", newValue)
@@ -550,7 +551,7 @@ watch(
       startCollecting()
       startPingInterval()
     } catch (error) {
-      console.error("Error initializing LiveKit:", error)
+      debugError("Error initializing LiveKit:", error)
     } finally {
       appStore.setConnecting(false)
     }
@@ -580,7 +581,7 @@ watch(
       try {
         await stopScreenShare()
       } catch (error) {
-        console.error("[VoiceCallView] Error stopping screen share:", error)
+        debugError("[VoiceCallView] Error stopping screen share:", error)
       }
     }
   },
@@ -594,7 +595,7 @@ watch(
       try {
         await stopScreenShare()
       } catch (error) {
-        console.error("[VoiceCallView] Error stopping screen share from store:", error)
+        debugError("[VoiceCallView] Error stopping screen share from store:", error)
       }
     }
   },
@@ -647,7 +648,7 @@ const startScreenShareWithQuality = async (quality: string) => {
       await audioControls.confirmStartScreenShare(quality as ScreenShareQuality)
     }
   } catch (error) {
-    console.error("Failed to start screen share:", error)
+    debugError("Failed to start screen share:", error)
   }
 }
 
@@ -660,7 +661,7 @@ const handleCameraToggle = async (enabled: boolean) => {
       await stopCamera()
     }
   } catch (error) {
-    console.error("Failed to toggle camera:", error)
+    debugError("Failed to toggle camera:", error)
   }
 }
 
@@ -674,7 +675,7 @@ const startElectronScreenShareWithQuality = async (
   try {
     await startElectronScreenShare(quality as ScreenShareQuality, audio, sourceId, audioSources)
   } catch (error) {
-    console.error("Failed to start Electron screen share:", error)
+    debugError("Failed to start Electron screen share:", error)
   }
 }
 
