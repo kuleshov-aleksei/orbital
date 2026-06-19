@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div ref="rootEl">
     <!-- Category Context Menu -->
     <div
       v-if="categoryMenu.visible"
@@ -114,7 +114,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue"
+import { ref, computed, onMounted, onUnmounted, useTemplateRef } from "vue"
 import { PhPlus, PhPencil, PhTrash, PhArrowsLeftRight, PhCaretDown } from "@phosphor-icons/vue"
 import type { Room, Category } from "@/types"
 
@@ -327,6 +327,23 @@ const closeAll = () => {
   closeCategoryMenu()
   closeRoomMenu()
 }
+
+const rootEl = useTemplateRef<HTMLElement>("rootEl")
+
+const handleDocumentClick = (event: MouseEvent) => {
+  if (!isAnyMenuOpen.value) return
+  if (rootEl.value && !rootEl.value.contains(event.target as Node)) {
+    closeAll()
+  }
+}
+
+onMounted(() => {
+  document.addEventListener("mousedown", handleDocumentClick)
+})
+
+onUnmounted(() => {
+  document.removeEventListener("mousedown", handleDocumentClick)
+})
 
 defineExpose({ showCategoryMenu, showRoomMenu, isAnyMenuOpen, closeAll })
 </script>

@@ -159,12 +159,6 @@
       @move-room="handleMovedRoom"
       @edit-room="emit('edit-room', $event)"
       @delete-room="emit('delete-room', $event)" />
-
-    <div
-      v-if="contextMenuRef?.isAnyMenuOpen?.value"
-      class="fixed inset-0 z-40"
-      @click="contextMenuRef.closeAll()"
-      @contextmenu.prevent="contextMenuRef.closeAll()"></div>
   </div>
 </template>
 

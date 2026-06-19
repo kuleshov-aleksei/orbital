@@ -209,12 +209,16 @@
 import { useTemplateRef, computed } from "vue"
 import type { ConnectionStats } from "@/types"
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   stats: ConnectionStats
   show: boolean
   mouseX: number
   mouseY: number
-}>()
+}>(), {
+  show: false,
+  mouseX: 0,
+  mouseY: 0,
+})
 
 const tooltipElement = useTemplateRef<HTMLDivElement>("tooltipElement")
 const tooltipOffset = { x: 16, y: 16 }
