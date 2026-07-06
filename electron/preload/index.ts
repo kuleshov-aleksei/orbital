@@ -90,6 +90,7 @@ export interface ElectronAPI {
   setThumbarButtons: (state: { isMuted: boolean; isDeafened: boolean } | null) => Promise<boolean>
   onThumbarButtonClick: (callback: (action: string) => void) => void
   onMainProcessLog: (callback: (level: string, message: string) => void) => void
+  openDevTools: () => Promise<boolean>
 }
 
 // -- Main process log relay: register listener immediately so no IPC messages are missed --
@@ -203,6 +204,7 @@ const electronAPI: ElectronAPI = {
     }
     pendingMainProcessLogs.length = 0
   },
+  openDevTools: () => ipcRenderer.invoke("open-devtools"),
 }
 
 contextBridge.exposeInMainWorld("electronAPI", electronAPI)

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, desktopCapturer, shell, dialog, globalShortcut, session } from "electron"
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, desktopCapturer, shell, dialog, globalShortcut, session, screen } from "electron"
 import { createRequire } from "node:module"
 import { fileURLToPath } from "node:url"
 import path from "node:path"
@@ -34,7 +34,6 @@ if (process.platform === "win32") {
   // https://github.com/electron/electron/issues/2237#issuecomment-126542840
   app.commandLine.appendSwitch("enable-usermedia-screen-capturing")
 } else if (process.platform === "linux") {
-  app.commandLine.appendSwitch("ozone-platform", "wayland")
   app.commandLine.appendSwitch("enable-features", "GlobalShortcutsPortal,PipeWireCapturer")
   app.commandLine.appendSwitch("disable-features", "WebRtcAllowInputVolumeAdjustment");
 }
@@ -43,16 +42,6 @@ app.commandLine.appendSwitch("webrtc-max-cpu-consumption-percentage", "100")
 app.commandLine.appendSwitch("max-gum-fps", "120")
 app.commandLine.appendSwitch("webrtc-max-capture-framerate", "120")
 
-app.commandLine.appendSwitch("enable-zero-copy")
-app.commandLine.appendSwitch("use-gl", "angle")
-app.commandLine.appendSwitch("use-vulkan", "--disable-reading-from-canvas")
-app.commandLine.appendSwitch("enable-raw-draw")
-app.commandLine.appendSwitch("enable-gpu-rasterization")
-app.commandLine.appendSwitch("enable-native-gpu-memory-buffers")
-app.commandLine.appendSwitch("enable-accelerated-2d-canvas")
-app.commandLine.appendSwitch("enable-accelerated-video-decode")
-app.commandLine.appendSwitch("enable-accelerated-mjpeg-decode")
-app.commandLine.appendSwitch("disable-gpu-vsync")
 app.commandLine.appendSwitch("enable-gpu-compositing")
 
 const getModuleUrl = (): string => {
@@ -111,6 +100,13 @@ const isWayland = process.platform === "linux" &&
    process.argv.includes("--ozone-platform=wayland"))
 
 log.info("[Platform] Running on Wayland:", isWayland)
+
+const isDebugMode = process.argv.includes("--debug") || process.argv.includes("--devtools")
+
+if (isDebugMode) {
+  log.transports.file.level = "debug"
+  log.info("[Debug] Debug mode enabled")
+}
 
 function getConfigPath(): string {
   const configDir = app.getPath("userData")
@@ -251,22 +247,25 @@ const indexHtml = path.join(RENDERER_DIST, "index.html")
 function createWindow() {
   const iconPath = path.join(process.env.APP_ROOT, "build", "orbital-icon.png")
 
+  const primaryDisplay = screen.getPrimaryDisplay()
+  const { width: screenW, height: screenH } = primaryDisplay.workAreaSize
+
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: screenW,
+    height: screenH,
     minWidth: 800,
     minHeight: 600,
     title: "Orbital",
     backgroundColor: "#1a1a1a",
     icon: iconPath,
-    show: false,
+    show: !isWayland,
     webPreferences: {
       preload,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
     },
-    autoHideMenuBar: process.platform === "win32"
+    autoHideMenuBar: true
   })
 
   mainWindow.once("ready-to-show", () => {
@@ -275,8 +274,10 @@ function createWindow() {
     if (updateCheckInProgress) {
       log.info("[Update] Window ready but update check in progress, deferring show")
     } else {
-      mainWindow?.maximize()
       mainWindow?.show()
+      mainWindow?.maximize()
+      mainWindow?.focus()
+
       log.info("Main window shown")
     }
 
@@ -293,7 +294,7 @@ function createWindow() {
     if (!isQuitting) {
       event.preventDefault()
 
-      if (!config.hasSelectedCloseBehavior) {
+      if (!config.hasSelectedCloseBehavior && !isWayland) {
         const shouldHide = await dialog.showMessageBox(mainWindow!, {
           type: "question",
           buttons: ["Hide to Tray", "Quit"],
@@ -313,7 +314,7 @@ function createWindow() {
         saveConfig()
       }
 
-      if (config.closeToTray) {
+      if (config.closeToTray && !isWayland) {
         mainWindow?.hide()
       } else {
         isQuitting = true
@@ -328,9 +329,25 @@ function createWindow() {
 
   if (VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(VITE_DEV_SERVER_URL)
-    mainWindow.webContents.openDevTools()
   } else {
     mainWindow.loadFile(indexHtml)
+  }
+
+  if (VITE_DEV_SERVER_URL || isDebugMode) {
+    mainWindow.webContents.openDevTools()
+  }
+
+  if (isWayland) {
+    const bounds = mainWindow.getBounds()
+    const displays = screen.getAllDisplays().map(d => ({
+      id: d.id,
+      bounds: d.bounds,
+      workArea: d.workArea,
+      scaleFactor: d.scaleFactor,
+    }))
+    log.info(`[Wayland] Initial window bounds: ${JSON.stringify(bounds)}`)
+    log.info(`[Wayland] Displays: ${JSON.stringify(displays)}`)
+    log.info(`[Wayland] Window visible on creation: ${mainWindow.isVisible()}`)
   }
 
   log.info("Window created, loading content...")
@@ -1148,4 +1165,24 @@ process.on("uncaughtException", (error) => {
 
 process.on("unhandledRejection", (reason) => {
   log.error("Unhandled rejection:", reason)
+})
+
+process.on("SIGTERM", () => {
+  log.info("Received SIGTERM, quitting...")
+  isQuitting = true
+  try {
+    app.quit()
+  } catch {
+    app.exit(0)
+  }
+})
+
+process.on("SIGINT", () => {
+  log.info("Received SIGINT, quitting...")
+  isQuitting = true
+  try {
+    app.quit()
+  } catch {
+    app.exit(0)
+  }
 })
