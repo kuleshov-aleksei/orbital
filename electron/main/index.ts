@@ -250,7 +250,7 @@ const indexHtml = path.join(RENDERER_DIST, "index.html")
 
 function createWindow() {
   const iconPath = path.join(process.env.APP_ROOT, "build", "orbital-icon.png")
-  
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -266,7 +266,7 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: false,
     },
-    autoHideMenuBar: true
+    autoHideMenuBar: process.platform === "win32"
   })
 
   mainWindow.once("ready-to-show", () => {
