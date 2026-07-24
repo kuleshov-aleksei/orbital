@@ -3,10 +3,14 @@ version: 2
 multi-ecosystem-groups:
   web:
     schedule:
-      interval: "weekly"
+      interval: "daily"
+    cooldown:
+      default-days: 7
   backend:
     schedule:
-      interval: "weekly"
+      interval: "daily"
+    cooldown:
+      default-days: 7
 
 updates:
   - package-ecosystem: "npm"
