@@ -59,7 +59,7 @@
     "globals": "^17.7.0",
     "jiti": "^2.7.0",
     "patch-package": "^8.0.1",
-    "postcss": "^8.5.20",
+    "postcss": "^8.5.23",
     "prettier": "3.8.3",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
