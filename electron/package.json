@@ -44,7 +44,7 @@
     "vue-virtual-scroller": "^3.0.4"
   },
   "optionalDependencies": {
-    "@vencord/venmic": "^6.1.0"
+    "@vencord/venmic": "^7.1.0"
   },
   "devDependencies": {
     "@iconify-json/logos": "^1.2.11",

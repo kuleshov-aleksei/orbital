@@ -116,8 +116,8 @@ importers:
         version: 0.26.0(vite@8.1.5(@types/node@25.9.5)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
     optionalDependencies:
       '@vencord/venmic':
-        specifier: ^6.1.0
-        version: 6.1.0
+        specifier: ^7.1.0
+        version: 7.1.0
 
 packages:
 
@@ -733,8 +733,8 @@ packages:
   '@types/trusted-types@2.0.7':
     resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
 
-  '@vencord/venmic@6.1.0':
-    resolution: {integrity: sha512-YiCtzml/W8tYbGhu3jm5jfbbEnl2slKKARNK0jO+8qV979k9eFnfIRTxvhMN/SWq1h8ZNJdXVwvXpffQwq0RuA==}
+  '@vencord/venmic@7.1.0':
+    resolution: {integrity: sha512-HQpZoUKGz8j7m1+1BCgE+7B6T/+/IArVO8km7SjsWxe/5+2YblAs0Fwgy9C9XqCCir/u0+F1FMqrQQUX2PATYw==}
     engines: {node: '>=14.15'}
     os: [linux]
 
@@ -3383,7 +3383,7 @@ snapshots:
   '@types/trusted-types@2.0.7':
     optional: true
 
-  '@vencord/venmic@6.1.0':
+  '@vencord/venmic@7.1.0':
     dependencies:
       cmake-js: 7.4.0
       node-addon-api: 8.9.0

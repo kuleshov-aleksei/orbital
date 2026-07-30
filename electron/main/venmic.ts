@@ -133,6 +133,7 @@ export function startAudioCapture(include: Node[]): boolean {
     exclude: [{ "media.class": "Stream/Input/Audio" }],
     ignore_devices: true,
     only_speakers: true,
+    only_default_speakers: false,
   };
 
   log.info("[Venmic] Linking with", appSources.length, "sources");
