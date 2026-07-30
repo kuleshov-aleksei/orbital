@@ -21,9 +21,9 @@ export interface AppSettings {
 }
 
 const DEFAULT_HOTKEYS: HotkeysConfig = {
-  mute: { enabled: true, accelerator: "CommandOrControl+M" },
-  deafen: { enabled: true, accelerator: "CommandOrControl+D" },
-  ptt: { enabled: true, accelerator: "CommandOrControl+Space" },
+  mute: { enabled: true, accelerator: "CommandOrControl+Shift+M" },
+  deafen: { enabled: true, accelerator: "CommandOrControl+Shift+D" },
+  ptt: { enabled: true, accelerator: "CommandOrControl+Shift+Space" },
 }
 
 const defaultSettings: AppSettings = {
