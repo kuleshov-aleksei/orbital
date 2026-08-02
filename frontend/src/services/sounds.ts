@@ -4,6 +4,7 @@ import { minecraftSprites } from "@/services/sprites/minecraft"
 import { jdSherbertSprites } from "@/services/sprites/jdSherbert"
 import { defaultSprites } from "@/services/sprites/default"
 import { crunchySprites } from "@/services/sprites/crunchy"
+import { kawkawSprites } from "@/services/sprites/kawkaw"
 import { resolveUrl } from "@/services/api"
 import { isElectron } from "@/services/electron"
 
@@ -36,6 +37,12 @@ const soundPacks: Record<string, SoundPack> = {
     description: "Beer with me",
     sprites: crunchySprites,
   },
+  kawkaw: {
+    id: "kawkaw",
+    name: "Kawkaw",
+    description: "Deltarune bird",
+    sprites: kawkawSprites,
+  },
 }
 
 const spriteUrls: Record<string, string[]> = {
@@ -58,6 +65,11 @@ const spriteUrls: Record<string, string[]> = {
     "/assets/sounds/sprite/crunchy/crunchy.ogg",
     "/assets/sounds/sprite/crunchy/crunchy.m4a",
     "/assets/sounds/sprite/crunchy/crunchy.mp3",
+  ],
+  kawkaw: [
+    "/assets/sounds/sprite/kawkaw/kawkaw.ogg",
+    "/assets/sounds/sprite/kawkaw/kawkaw.m4a",
+    "/assets/sounds/sprite/kawkaw/kawkaw.mp3",
   ],
 }
 
