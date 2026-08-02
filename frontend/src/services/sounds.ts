@@ -5,6 +5,7 @@ import { jdSherbertSprites } from "@/services/sprites/jdSherbert"
 import { defaultSprites } from "@/services/sprites/default"
 import { crunchySprites } from "@/services/sprites/crunchy"
 import { kawkawSprites } from "@/services/sprites/kawkaw"
+import { dotaSprites } from "@/services/sprites/dota"
 import { resolveUrl } from "@/services/api"
 import { isElectron } from "@/services/electron"
 
@@ -43,6 +44,12 @@ const soundPacks: Record<string, SoundPack> = {
     description: "Deltarune bird",
     sprites: kawkawSprites,
   },
+  dota: {
+    id: "dota",
+    name: "Dota",
+    description: "Dota 2 sounds",
+    sprites: dotaSprites,
+  },
 }
 
 const spriteUrls: Record<string, string[]> = {
@@ -70,6 +77,11 @@ const spriteUrls: Record<string, string[]> = {
     "/assets/sounds/sprite/kawkaw/kawkaw.ogg",
     "/assets/sounds/sprite/kawkaw/kawkaw.m4a",
     "/assets/sounds/sprite/kawkaw/kawkaw.mp3",
+  ],
+  dota: [
+    "/assets/sounds/sprite/dota/dota.ogg",
+    "/assets/sounds/sprite/dota/dota.m4a",
+    "/assets/sounds/sprite/dota/dota.mp3",
   ],
 }
 
