@@ -3,6 +3,7 @@ import { ref, computed, watch } from "vue"
 import {
   Room,
   RoomEvent,
+  Track,
   type Participant,
   type RemoteParticipant,
   type LocalParticipant,
@@ -18,6 +19,10 @@ import {
   playRemoteUndeafen,
   playRemoteJoinRoom,
   playRemoteLeaveRoom,
+  playRemoteCameraStart,
+  playRemoteCameraStop,
+  playRemoteScreenShareStart,
+  playRemoteScreenShareStop,
 } from "@/services/sounds"
 import { debugLog } from "@/utils/debug"
 
@@ -76,12 +81,30 @@ interface PresenceState {
   audioLevel: number
 }
 
+// Tracks whether a "start" sound was played for a remote participant's track,
+// used to avoid duplicate sounds and to only play "stop" sounds after "start"
+interface TrackSoundState {
+  camera: boolean
+  screenShare: boolean
+}
+
 export const usePresenceStore = defineStore("presence", () => {
   // State
   const room = ref<Room | null>(null)
   const participants = ref<Map<string, PresenceState>>(new Map())
   const localParticipant = ref<LocalParticipant | null>(null)
   const isConnected = ref(false)
+
+  const trackSoundStates = new Map<string, TrackSoundState>()
+
+  const getTrackSoundState = (userId: string): TrackSoundState => {
+    let state = trackSoundStates.get(userId)
+    if (!state) {
+      state = { camera: false, screenShare: false }
+      trackSoundStates.set(userId, state)
+    }
+    return state
+  }
 
   // Getters
   const participantList = computed(() => Array.from(participants.value.values()))
@@ -159,6 +182,12 @@ export const usePresenceStore = defineStore("presence", () => {
     })
 
     // Subscribe to participant events
+    const getEffectivePack = (participant: Participant): string => {
+      const metadata = extractMetadata(participant)
+      const soundPackStore = useSoundPackStore()
+      return soundPackStore.getEffectivePack(metadata.user_id)
+    }
+
     lkRoom.on(RoomEvent.ParticipantConnected, async (participant: RemoteParticipant) => {
       debugLog("[Presence] Participant connected:", participant.identity)
       updateParticipantFromLiveKit(participant)
@@ -166,15 +195,61 @@ export const usePresenceStore = defineStore("presence", () => {
       const soundPackStore = useSoundPackStore()
       const effectivePack = soundPackStore.getEffectivePack(metadata.user_id)
       playRemoteJoinRoom(effectivePack)
+
+      // Seed track sound state so subsequent mute/unpublish events trigger
+      // "stop" sounds without playing sounds on join
+      const trackState = getTrackSoundState(metadata.user_id)
+      trackState.camera = Array.from(participant.trackPublications.values()).some(
+        (pub) => pub.track && pub.source === "camera",
+      )
+      trackState.screenShare = participant.isScreenShareEnabled
     })
 
     lkRoom.on(RoomEvent.ParticipantDisconnected, async (participant: RemoteParticipant) => {
       debugLog("[Presence] Participant disconnected:", participant.identity)
       const metadata = extractMetadata(participant)
       participants.value.delete(metadata.user_id)
+      trackSoundStates.delete(metadata.user_id)
       const soundPackStore = useSoundPackStore()
       const effectivePack = soundPackStore.getEffectivePack(metadata.user_id)
       playRemoteLeaveRoom(effectivePack)
+    })
+
+    lkRoom.on(RoomEvent.TrackPublished, (publication, participant: RemoteParticipant) => {
+      debugLog("[Presence] Track published:", participant.identity, publication.source)
+      const trackState = getTrackSoundState(extractMetadata(participant).user_id)
+
+      if (publication.source === Track.Source.Camera && !trackState.camera) {
+        trackState.camera = true
+        playRemoteCameraStart(getEffectivePack(participant))
+      } else if (publication.source === Track.Source.ScreenShare && !trackState.screenShare) {
+        trackState.screenShare = true
+        playRemoteScreenShareStart(getEffectivePack(participant))
+      }
+
+      updateParticipantFromLiveKit(participant)
+    })
+
+    lkRoom.on(RoomEvent.TrackUnpublished, (publication, participant: RemoteParticipant) => {
+      debugLog("[Presence] Track unpublished:", participant.identity, publication.source)
+
+      // Participant is disconnecting - only the leave_room sound should play
+      if (!lkRoom.remoteParticipants.has(participant.identity)) {
+        debugLog("[Presence] Participant disconnecting, skipping track sounds")
+        return
+      }
+
+      const trackState = getTrackSoundState(extractMetadata(participant).user_id)
+
+      if (publication.source === Track.Source.Camera && trackState.camera) {
+        trackState.camera = false
+        playRemoteCameraStop(getEffectivePack(participant))
+      } else if (publication.source === Track.Source.ScreenShare && trackState.screenShare) {
+        trackState.screenShare = false
+        playRemoteScreenShareStop(getEffectivePack(participant))
+      }
+
+      updateParticipantFromLiveKit(participant)
     })
 
     lkRoom.on(
@@ -258,17 +333,45 @@ export const usePresenceStore = defineStore("presence", () => {
 
     lkRoom.on(RoomEvent.TrackMuted, (track, participant: Participant) => {
       debugLog("[Presence] Track muted:", participant.identity, track.source)
+      const isLocal = participant === lkRoom.localParticipant
+
+      if (!isLocal && track.source === Track.Source.Camera) {
+        const trackState = getTrackSoundState(extractMetadata(participant).user_id)
+        if (trackState.camera) {
+          trackState.camera = false
+          playRemoteCameraStop(getEffectivePack(participant))
+        }
+      }
+
       updateParticipantFromLiveKit(participant)
     })
 
     lkRoom.on(RoomEvent.TrackUnmuted, (track, participant: Participant) => {
       debugLog("[Presence] Track unmuted:", participant.identity, track.source)
+      const isLocal = participant === lkRoom.localParticipant
+
+      if (!isLocal && track.source === Track.Source.Camera) {
+        const trackState = getTrackSoundState(extractMetadata(participant).user_id)
+        if (!trackState.camera) {
+          trackState.camera = true
+          playRemoteCameraStart(getEffectivePack(participant))
+        }
+      }
+
       updateParticipantFromLiveKit(participant)
     })
 
     // Load existing participants
     lkRoom.remoteParticipants.forEach((participant) => {
       updateParticipantFromLiveKit(participant)
+
+      // Seed track sound state so subsequent mute/unpublish events
+      // correctly trigger "stop" sounds without playing sounds on join
+      const trackState = getTrackSoundState(extractMetadata(participant).user_id)
+      trackState.camera = Array.from(participant.trackPublications.values()).some(
+        (pub) => pub.track && pub.source === "camera",
+      )
+      trackState.screenShare = participant.isScreenShareEnabled
     })
 
     // Load local participant
@@ -348,6 +451,7 @@ export const usePresenceStore = defineStore("presence", () => {
     room.value = null
     localParticipant.value = null
     participants.value.clear()
+    trackSoundStates.clear()
     isConnected.value = false
   }
 
