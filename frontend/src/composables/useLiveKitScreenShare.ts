@@ -19,6 +19,15 @@ import { startAudioCapture, stopAudioCapture, getVirtualMicDeviceId } from "@/se
 import type { ScreenShareQuality, VenmicNode } from "@/types"
 import type { LiveKitState } from "./useLiveKitState"
 
+export const SCREEN_VIEWER_EVENT_TYPE = "screen_viewer"
+
+export interface ScreenViewerEvent {
+  type: typeof SCREEN_VIEWER_EVENT_TYPE
+  action: "join" | "leave"
+  sharerId: string
+  trackSid?: string
+}
+
 export function useLiveKitScreenShare(state: LiveKitState) {
   const audioSettingsStore = useAudioSettingsStore()
   const audioTracksStore = useAudioTracksStore()
@@ -710,6 +719,34 @@ export function useLiveKitScreenShare(state: LiveKitState) {
     }
   }
 
+  const sendScreenViewerEvent = async (
+    userId: string,
+    action: "join" | "leave",
+    trackSid?: string,
+  ): Promise<void> => {
+    const room = state.room.value
+    if (!room?.localParticipant) {
+      return
+    }
+    try {
+      const payload = new TextEncoder().encode(
+        JSON.stringify({
+          type: SCREEN_VIEWER_EVENT_TYPE,
+          action,
+          sharerId: userId,
+          trackSid,
+        } satisfies ScreenViewerEvent),
+      )
+      // Targeted to the sharer only - no room-wide broadcast
+      await room.localParticipant.publishData(payload, {
+        reliable: true,
+        destinationIdentities: [userId],
+      })
+    } catch {
+      // Ignore send errors
+    }
+  }
+
   const subscribeToScreenShare = async (userId: string): Promise<void> => {
     if (!state.room.value) {
       debugWarn(`[LiveKit][WARN]: Cannot subscribe to screen share: room not connected`)
@@ -736,12 +773,16 @@ export function useLiveKitScreenShare(state: LiveKitState) {
     debugLog(`[LiveKit][INFO]: Subscribing to screen share from ${userId}`)
 
     let subscribed = false
+    let screenTrackSid: string | undefined
     participant.trackPublications.forEach((publication) => {
       const source = publication.source
       if (source === Track.Source.ScreenShare || source === Track.Source.ScreenShareAudio) {
         debugLog(`[LiveKit][INFO]: Subscribing to ${source} track from ${userId}`)
         publication.setSubscribed(true)
         subscribed = true
+        if (source === Track.Source.ScreenShare) {
+          screenTrackSid = publication.trackSid
+        }
 
         if (source === Track.Source.ScreenShareAudio && publication.track) {
           const trackKey = `${userId}-screenshare`
@@ -765,6 +806,7 @@ export function useLiveKitScreenShare(state: LiveKitState) {
     if (subscribed) {
       state.subscribedScreenShares.value.add(userId)
       state.screenShareVersion.value++
+      void sendScreenViewerEvent(userId, "join", screenTrackSid)
     } else {
       debugWarn(`[LiveKit][WARN]: No screen share tracks found for ${userId}`)
     }
@@ -791,16 +833,21 @@ export function useLiveKitScreenShare(state: LiveKitState) {
 
     debugLog(`[LiveKit][INFO]: Unsubscribing from screen share from ${userId}`)
 
+    let screenTrackSid: string | undefined
     participant.trackPublications.forEach((publication) => {
       const source = publication.source
       if (source === Track.Source.ScreenShare || source === Track.Source.ScreenShareAudio) {
         debugLog(`[LiveKit][INFO]: Unsubscribing from ${source} track from ${userId}`)
         publication.setSubscribed(false)
+        if (source === Track.Source.ScreenShare) {
+          screenTrackSid = publication.trackSid
+        }
       }
     })
 
     state.subscribedScreenShares.value.delete(userId)
     state.screenShareVersion.value++
+    void sendScreenViewerEvent(userId, "leave", screenTrackSid)
   }
 
   const screenShareData = computed(() => {

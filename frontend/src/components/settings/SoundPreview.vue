@@ -85,6 +85,31 @@
         <PhMonitor class="w-4 h-4" />
         Screen Share Stop
       </button>
+
+      <button
+        type="button"
+        class="px-3 py-2 bg-theme-bg-tertiary hover:bg-theme-bg-secondary text-theme-text-primary text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
+        @click="previewViewerJoined">
+        <PhEye class="w-4 h-4" />
+        Viewer Joined
+      </button>
+
+      <button
+        type="button"
+        class="px-3 py-2 bg-theme-bg-tertiary hover:bg-theme-bg-secondary text-theme-text-primary text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
+        @click="previewViewerLeft">
+        <PhEyeSlash class="w-4 h-4" />
+        Viewer Left
+      </button>
+
+      <button
+        type="button"
+        class="px-3 py-2 bg-theme-bg-tertiary hover:bg-theme-bg-secondary text-theme-text-primary text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
+        @click="previewMessage">
+        <PhChatText class="w-4 h-4" />
+        Message
+      </button>
+
     </div>
   </div>
 </template>
@@ -102,6 +127,9 @@ import {
   PhCameraSlash,
   PhMonitorPlay,
   PhMonitor,
+  PhChatText,
+  PhEye,
+  PhEyeSlash,
 } from "@phosphor-icons/vue"
 
 const {
@@ -115,6 +143,9 @@ const {
   playCameraStop,
   playScreenShareStart,
   playScreenShareStop,
+  playMessage,
+  playViewerJoined,
+  playViewerLeft,
 } = useSounds()
 
 function previewJoinRoom() {
@@ -155,5 +186,17 @@ function previewScreenShareStart() {
 
 function previewScreenShareStop() {
   playScreenShareStop()
+}
+
+function previewMessage() {
+  playMessage()
+}
+
+function previewViewerJoined() {
+  playViewerJoined()
+}
+
+function previewViewerLeft() {
+  playViewerLeft()
 }
 </script>

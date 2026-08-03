@@ -23,7 +23,13 @@ import {
   playRemoteCameraStop,
   playRemoteScreenShareStart,
   playRemoteScreenShareStop,
+  playRemoteViewerJoined,
+  playRemoteViewerLeft,
 } from "@/services/sounds"
+import {
+  SCREEN_VIEWER_EVENT_TYPE,
+  type ScreenViewerEvent,
+} from "@/composables/useLiveKitScreenShare"
 import { debugLog } from "@/utils/debug"
 
 // Debounce helper for batching updates
@@ -105,6 +111,8 @@ export const usePresenceStore = defineStore("presence", () => {
     }
     return state
   }
+
+  let dataReceivedHandler: ((payload: Uint8Array, participant?: Participant) => void) | null = null
 
   // Getters
   const participantList = computed(() => Array.from(participants.value.values()))
@@ -361,6 +369,26 @@ export const usePresenceStore = defineStore("presence", () => {
       updateParticipantFromLiveKit(participant)
     })
 
+    // Handle targeted screen viewer notifications (join/leave) for our own stream
+    const onDataReceived = (payload: Uint8Array, participant?: Participant) => {
+      if (!participant || participant.identity === lkRoom.localParticipant?.identity) return
+      try {
+        const msg = JSON.parse(new TextDecoder().decode(payload)) as Partial<ScreenViewerEvent>
+        if (msg.type !== SCREEN_VIEWER_EVENT_TYPE) return
+        if (msg.sharerId !== lkRoom.localParticipant?.identity) return
+        const pack = getEffectivePack(participant)
+        if (msg.action === "join") {
+          playRemoteViewerJoined(pack)
+        } else if (msg.action === "leave") {
+          playRemoteViewerLeft(pack)
+        }
+      } catch {
+        // Ignore malformed messages
+      }
+    }
+    lkRoom.on(RoomEvent.DataReceived, onDataReceived)
+    dataReceivedHandler = onDataReceived
+
     // Load existing participants
     lkRoom.remoteParticipants.forEach((participant) => {
       updateParticipantFromLiveKit(participant)
@@ -448,6 +476,10 @@ export const usePresenceStore = defineStore("presence", () => {
 
   // Cleanup
   const cleanup = () => {
+    if (room.value && dataReceivedHandler) {
+      room.value.off(RoomEvent.DataReceived, dataReceivedHandler)
+    }
+    dataReceivedHandler = null
     room.value = null
     localParticipant.value = null
     participants.value.clear()

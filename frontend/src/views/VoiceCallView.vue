@@ -149,9 +149,11 @@ import {
   useRoomStore,
   useChatStore,
   useUsersStore,
+  useSoundPackStore,
 } from "@/stores"
 import { storeToRefs } from "pinia"
 import type { User, ScreenShareQuality, VenmicNode } from "@/types"
+import { playRemoteMessage } from "@/services/sounds"
 
 const props = withDefaults(defineProps<Props>(), {
   isMobile: false,
@@ -201,6 +203,7 @@ const roomStore = useRoomStore()
 const chatStore = useChatStore()
 const usersStore = useUsersStore()
 const userStore = useUserStore()
+const soundPackStore = useSoundPackStore()
 
 const currentUserId = computed(() => userStore.userId)
 
@@ -693,6 +696,7 @@ watch(messageVersion, () => {
   const senderName = sender?.nickname || "Unknown"
 
   showChatNotification(senderName, newMessage.sender_id, newMessage.content)
+  playRemoteMessage(soundPackStore.getEffectivePack(newMessage.sender_id))
 })
 
 defineExpose({

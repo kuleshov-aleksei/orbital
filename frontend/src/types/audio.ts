@@ -103,6 +103,9 @@ export type SoundEvent =
   | "camera_stop"
   | "screenshare_start"
   | "screenshare_stop"
+  | "message"
+  | "viewer_joined"
+  | "viewer_left"
 
 /** Default audio settings */
 export const defaultAudioSettings: AudioSettings = {
