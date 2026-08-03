@@ -335,6 +335,9 @@ Name your audio files according to the supported events:
 | `camera_stop` | Played when user stops their camera |
 | `screenshare_start` | Played when user starts screen sharing |
 | `screenshare_stop` | Played when user stops screen sharing |
+| `message` | Played when a text message notification appears |
+| `viewer_joined` | Played for the sharer when someone subscribes to their screen share |
+| `viewer_left` | Played for the sharer when someone unsubscribes from their screen share |
 
 ### 2. Generate sprite with audiosprite
 
