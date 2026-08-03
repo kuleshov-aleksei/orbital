@@ -21,6 +21,16 @@ const kawkawSprites: Record<string, SoundPackSprite> = {
     "start": 2000,
     "duration": 1073
   },
+  "viewer_joined": {
+    "name": "viewer_joined",
+    "start": 0,
+    "duration": 764
+  },
+  "viewer_left": {
+    "name": "viewer_left",
+    "start": 2000,
+    "duration": 1073
+  },
   "join_room": {
     "name": "join_room",
     "start": 5000,
@@ -31,24 +41,29 @@ const kawkawSprites: Record<string, SoundPackSprite> = {
     "start": 7000,
     "duration": 1073
   },
+  "message": {
+    "name": "message",
+    "start": 10000,
+    "duration": 450
+  },
   "mute": {
     "name": "mute",
-    "start": 10000,
+    "start": 12000,
     "duration": 529
   },
   "unmute": {
     "name": "unmute",
-    "start": 12000,
+    "start": 14000,
     "duration": 903
   },
   "deafen": {
     "name": "deafen",
-    "start": 10000,
+    "start": 12000,
     "duration": 529
   },
   "undeafen": {
     "name": "undeafen",
-    "start": 12000,
+    "start": 14000,
     "duration": 903
   }
 }

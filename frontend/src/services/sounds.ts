@@ -1,7 +1,7 @@
 import { Howl } from "howler"
 import type { SoundEvent, SoundPack, SoundPackSprite } from "@/types/audio"
 import { minecraftSprites } from "@/services/sprites/minecraft"
-import { jdSherbertSprites } from "@/services/sprites/jdSherbert"
+import { jdSherbertSprites } from "@/services/sprites/jd_sherbert"
 import { defaultSprites } from "@/services/sprites/default"
 import { crunchySprites } from "@/services/sprites/crunchy"
 import { kawkawSprites } from "@/services/sprites/kawkaw"
@@ -202,6 +202,9 @@ export function useSounds() {
   const playCameraStop = () => playLocalSound("camera_stop")
   const playScreenShareStart = () => playLocalSound("screenshare_start")
   const playScreenShareStop = () => playLocalSound("screenshare_stop")
+  const playMessage = () => playLocalSound("message")
+  const playViewerJoined = () => playLocalSound("viewer_joined")
+  const playViewerLeft = () => playLocalSound("viewer_left")
 
   const playRemoteMute = (soundPack: string) => playRemoteSound("mute", soundPack)
   const playRemoteUnmute = (soundPack: string) => playRemoteSound("unmute", soundPack)
@@ -215,6 +218,9 @@ export function useSounds() {
     playRemoteSound("screenshare_start", soundPack)
   const playRemoteScreenShareStop = (soundPack: string) =>
     playRemoteSound("screenshare_stop", soundPack)
+  const playRemoteMessage = (soundPack: string) => playRemoteSound("message", soundPack)
+  const playRemoteViewerJoined = (soundPack: string) => playRemoteSound("viewer_joined", soundPack)
+  const playRemoteViewerLeft = (soundPack: string) => playRemoteSound("viewer_left", soundPack)
 
   return {
     playJoinRoom,
@@ -227,6 +233,9 @@ export function useSounds() {
     playCameraStop,
     playScreenShareStart,
     playScreenShareStop,
+    playMessage,
+    playViewerJoined,
+    playViewerLeft,
     playRemoteMute,
     playRemoteUnmute,
     playRemoteDeafen,
@@ -237,6 +246,9 @@ export function useSounds() {
     playRemoteCameraStop,
     playRemoteScreenShareStart,
     playRemoteScreenShareStop,
+    playRemoteMessage,
+    playRemoteViewerJoined,
+    playRemoteViewerLeft,
   }
 }
 
@@ -286,6 +298,18 @@ export function playRemoteScreenShareStart(soundPack: string): void {
 
 export function playRemoteScreenShareStop(soundPack: string): void {
   playRemoteSound("screenshare_stop", soundPack)
+}
+
+export function playRemoteMessage(soundPack: string): void {
+  playRemoteSound("message", soundPack)
+}
+
+export function playRemoteViewerJoined(soundPack: string): void {
+  playRemoteSound("viewer_joined", soundPack)
+}
+
+export function playRemoteViewerLeft(soundPack: string): void {
+  playRemoteSound("viewer_left", soundPack)
 }
 
 export { soundPacks, DEFAULT_SOUND_PACK_ID }

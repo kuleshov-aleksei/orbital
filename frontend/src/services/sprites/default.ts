@@ -11,6 +11,9 @@ const defaultSprites: Record<string, SoundPackSprite> = {
   camera_stop: { name: "toggle_on", start: 40000, duration: 100 },
   screenshare_start: { name: "toggle_off", start: 42000, duration: 100 },
   screenshare_stop: { name: "toggle_on", start: 40000, duration: 100 },
+  message: { name: "notification", start: 8000, duration: 200 },
+  viewer_joined: { name: "toggle_off", start: 42000, duration: 100 },
+  viewer_left: { name: "toggle_on", start: 40000, duration: 100 },
 }
 
 export { defaultSprites }

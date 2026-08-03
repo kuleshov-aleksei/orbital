@@ -26,14 +26,19 @@ const dotaSprites: Record<string, SoundPackSprite> = {
     "start": 15000,
     "duration": 1102
   },
+  "message": {
+    "name": "message",
+    "start": 18000,
+    "duration": 537
+  },
   "mute": {
     "name": "mute",
-    "start": 18000,
+    "start": 20000,
     "duration": 2000
   },
   "screenshare_start": {
     "name": "screenshare_start",
-    "start": 21000,
+    "start": 23000,
     "duration": 2647
   },
   "screenshare_stop": {
@@ -43,13 +48,23 @@ const dotaSprites: Record<string, SoundPackSprite> = {
   },
   "undeafen": {
     "name": "undeafen",
-    "start": 25000,
+    "start": 27000,
     "duration": 1745
   },
   "unmute": {
     "name": "unmute",
-    "start": 28000,
+    "start": 30000,
     "duration": 5489
+  },
+  "viewer_joined": {
+    "name": "viewer_joined",
+    "start": 37000,
+    "duration": 673
+  },
+  "viewer_left": {
+    "name": "viewer_left",
+    "start": 39000,
+    "duration": 972
   }
 }
 
