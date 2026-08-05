@@ -6,6 +6,7 @@ import { defaultSprites } from "@/services/sprites/default"
 import { crunchySprites } from "@/services/sprites/crunchy"
 import { kawkawSprites } from "@/services/sprites/kawkaw"
 import { dotaSprites } from "@/services/sprites/dota"
+import { destinySprites } from "@/services/sprites/destiny"
 import { resolveUrl } from "@/services/api"
 import { isElectron } from "@/services/electron"
 
@@ -50,6 +51,12 @@ const soundPacks: Record<string, SoundPack> = {
     description: "Dota 2 sounds",
     sprites: dotaSprites,
   },
+  destiny: {
+    id: "destiny",
+    name: "Destiny",
+    description: "Wake up, guardian",
+    sprites: destinySprites,
+  },
 }
 
 const spriteUrls: Record<string, string[]> = {
@@ -82,6 +89,11 @@ const spriteUrls: Record<string, string[]> = {
     "/assets/sounds/sprite/dota/dota.ogg",
     "/assets/sounds/sprite/dota/dota.m4a",
     "/assets/sounds/sprite/dota/dota.mp3",
+  ],
+  destiny: [
+    "/assets/sounds/sprite/destiny/destiny.ogg",
+    "/assets/sounds/sprite/destiny/destiny.m4a",
+    "/assets/sounds/sprite/destiny/destiny.mp3",
   ],
 }
 

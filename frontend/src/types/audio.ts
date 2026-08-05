@@ -91,8 +91,6 @@ export interface SoundPackOverride {
  * Available sound events that can be played
  */
 export type SoundEvent =
-  | "toggle_on"
-  | "toggle_off"
   | "join_room"
   | "leave_room"
   | "mute"
