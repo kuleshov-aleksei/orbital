@@ -317,7 +317,13 @@ Checkout [deploy.yml](.github/workflows/deploy.yml) to see how it is deployed in
 
 ## Audio sprites
 
-UI SFX supports custom audio sprites. To create a new pack:
+UI SFX supports custom audio sprites.
+
+There are 2 options: special tool: [audiospriter.encamy.com/](https://audiospriter.encamy.com/)
+
+![editor.png](docs/images/editor.png)
+
+Or create audio pack manually:
 
 ### 1. Gather audio samples
 
