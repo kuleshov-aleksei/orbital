@@ -66,6 +66,27 @@
           </button>
         </div>
       </div>
+
+      <div class="pt-4 border-t border-theme-border">
+        <div class="flex items-center justify-between">
+          <div>
+            <label class="text-sm font-medium text-theme-text-primary block">
+              Create Your Own Sound Pack
+            </label>
+            <p class="text-xs text-theme-text-muted mt-0.5">
+              Build and share custom sound packs with AudioSpriter
+            </p>
+          </div>
+
+          <button
+            type="button"
+            class="flex items-center gap-1.5 text-sm text-theme-accent hover:text-theme-accent/80 transition-colors"
+            @click="handleOpenExternal('https://audiospriter.encamy.com/')">
+            <PhLinkSimple class="w-4 h-4" />
+            <span>Open</span>
+          </button>
+        </div>
+      </div>
     </div>
 
     <div
@@ -139,7 +160,8 @@ import { ref, computed, onMounted } from "vue"
 import { storeToRefs } from "pinia"
 import { useSoundPackStore, useRoomStore } from "@/stores"
 import SoundPreview from "./SoundPreview.vue"
-import { PhSpeakerHigh, PhX } from "@phosphor-icons/vue"
+import { PhSpeakerHigh, PhX, PhLinkSimple } from "@phosphor-icons/vue"
+import { isElectron, openExternal } from "@/services/electron"
 
 defineProps<{
   hideHeader?: boolean
@@ -187,6 +209,14 @@ function toggleOverride(userId: string) {
 
 function toggleUseDefaultForAll() {
   soundPackStore.setOverrideIncomingWithDefault(!useDefaultForAll.value)
+}
+
+function handleOpenExternal(url: string) {
+  if (isElectron()) {
+    openExternal(url)
+  } else {
+    window.open(url, "_blank", "noopener")
+  }
 }
 
 onMounted(() => {
