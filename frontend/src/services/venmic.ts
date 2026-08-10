@@ -62,16 +62,36 @@ export async function stopAudioCapture(): Promise<boolean> {
   return result
 }
 
-export async function getVirtualMicDeviceId(): Promise<string | null> {
-  console.log("[VenmicService] Enumerating devices to find virtual mic")
-  const devices = await navigator.mediaDevices.enumerateDevices()
-  console.log(
-    "[VenmicService] All devices:",
-    devices.map((d) => ({ label: d.label, kind: d.kind })),
-  )
-  const audioDevice = devices.find(({ label }) => label === "vencord-screen-share")
-  console.log("[VenmicService] Found virtual mic:", audioDevice?.deviceId)
-  return audioDevice?.deviceId ?? null
+const VIRTUAL_MIC_LABEL = "vencord-screen-share"
+
+function findVirtualMic(devices: MediaDeviceInfo[]): MediaDeviceInfo | undefined {
+  return devices.find((d) => d.kind === "audioinput" && d.label === VIRTUAL_MIC_LABEL)
+}
+
+export async function getVirtualMicDeviceId(timeoutMs = 8000): Promise<string | null> {
+  console.log(`[VenmicService] Waiting for virtual mic (${timeoutMs}ms)`)
+  const deadline = Date.now() + timeoutMs
+  let audioDevice: MediaDeviceInfo | undefined
+
+  while (!audioDevice && Date.now() < deadline) {
+    const devices = await navigator.mediaDevices.enumerateDevices()
+    audioDevice = findVirtualMic(devices)
+    if (!audioDevice) {
+      await new Promise((r) => setTimeout(r, 250))
+    }
+  }
+
+  if (!audioDevice) {
+    const devices = await navigator.mediaDevices.enumerateDevices()
+    console.log(
+      "[VenmicService] Virtual mic not found within timeout. All devices:",
+      devices.map((d) => ({ label: d.label, kind: d.kind })),
+    )
+    return null
+  }
+
+  console.log("[VenmicService] Found virtual mic:", audioDevice.deviceId)
+  return audioDevice.deviceId
 }
 
 export function formatAudioSourceName(node: VenmicNode): string {
