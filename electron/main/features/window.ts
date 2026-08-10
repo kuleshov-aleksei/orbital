@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, nativeImage, screen } from "electron"
+import { app, BrowserWindow, dialog, nativeImage, screen, shell } from "electron"
 import type { ThumbarButton } from "electron"
 import path from "node:path"
 import log from "electron-log"
@@ -106,6 +106,24 @@ export function createWindow() {
   })
 
   setMainWindow(win)
+
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith("https:") || url.startsWith("http:")) {
+      shell.openExternal(url)
+    }
+    return { action: "deny" }
+  })
+
+  win.webContents.on("will-navigate", (event, url) => {
+    const currentUrl = win.webContents.getURL()
+    const isDevServerUrl = VITE_DEV_SERVER_URL !== undefined && url.startsWith(VITE_DEV_SERVER_URL)
+    if (url !== currentUrl && !isDevServerUrl) {
+      event.preventDefault()
+      if (url.startsWith("https:") || url.startsWith("http:")) {
+        shell.openExternal(url)
+      }
+    }
+  })
 
   win.once("ready-to-show", () => {
     flushPendingLogEntries()

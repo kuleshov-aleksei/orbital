@@ -5,7 +5,7 @@
   "main": "dist-electron/main/index.js",
   "author": {
     "name": "Orbital Team",
-    "email": "orbital@example.com"
+    "email": "orbital@encamy.com"
   },
   "license": "MIT",
   "homepage": "https://github.com/kuleshov-aleksei/orbital",
