@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory, createWebHashHistory } from "vue-router"
 import { useUserStore } from "@/stores"
 
-const isElectron = window.location.protocol === "file:"
+const isElectron = window.location.protocol === "orbital:" || window.location.protocol === "file:"
 const routerHistory = isElectron ? createWebHashHistory() : createWebHistory()
 
 const router = createRouter({

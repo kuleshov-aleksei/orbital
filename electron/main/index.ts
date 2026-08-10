@@ -1,10 +1,11 @@
-import { app, BrowserWindow } from "electron"
+import { app, BrowserWindow, protocol } from "electron"
 import log from "electron-log"
 import { autoUpdater } from "electron-updater"
 import "./platform"
 import { getMainWindow, setIsQuitting } from "./state"
 import { loadConfig, getConfig } from "./features/config"
 import { setupMainProcessLogRelay, flushPendingLogEntries } from "./features/logRelay"
+import { setupAppProtocol } from "./features/protocol"
 import { createWindow } from "./features/window"
 import { createTray } from "./features/tray"
 import { setupDeepLink } from "./features/deeplink"
@@ -17,6 +18,18 @@ log.transports.file.level = "info"
 log.transports.console.level = "debug"
 
 autoUpdater.logger = log
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "orbital",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+    },
+  },
+])
 
 log.info("Orbital desktop starting...")
 
@@ -46,6 +59,7 @@ app.whenReady().then(() => {
   setupMainProcessLogRelay()
   log.info("App ready")
   loadConfig()
+  setupAppProtocol()
   createWindow()
   flushPendingLogEntries()
   createTray()

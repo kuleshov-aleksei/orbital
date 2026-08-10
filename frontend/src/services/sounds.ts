@@ -113,8 +113,7 @@ function getSpriteUrls(packId: string): string[] {
     if (typeof __VITE_DEV_SERVER_URL__ !== "undefined" && __VITE_DEV_SERVER_URL__) {
       return urls.map((url) => `${__VITE_DEV_SERVER_URL__}${appendVersion(url)}`)
     }
-    const basePath = window.location.pathname.replace(/\/[^/]*$/, "")
-    return urls.map((url) => `file://${basePath}${appendVersion(url)}`)
+    return urls.map((url) => `.${appendVersion(url)}`)
   }
   return urls.map((url) => resolveUrl(appendVersion(url)))
 }

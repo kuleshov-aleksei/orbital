@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, nativeImage, screen, shell } from "electron
 import type { ThumbarButton } from "electron"
 import path from "node:path"
 import log from "electron-log"
-import { APP_ROOT, VITE_DEV_SERVER_URL, __dirname, preloadPath, indexHtmlPath } from "../paths"
+import { APP_ROOT, VITE_DEV_SERVER_URL, __dirname, preloadPath } from "../paths"
 import { getMainWindow, setMainWindow, getIsQuitting, setIsQuitting } from "../state"
 import { isWayland, isDebugMode } from "../platform"
 import { getConfig, setCloseToTray, setHasSelectedCloseBehavior } from "./config"
@@ -179,7 +179,7 @@ export function createWindow() {
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL)
   } else {
-    win.loadFile(indexHtmlPath)
+    win.loadURL("orbital://app/")
   }
 
   if (VITE_DEV_SERVER_URL || isDebugMode) {

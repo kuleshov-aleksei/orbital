@@ -50,7 +50,7 @@ export function registerSystemIpc() {
     try {
       const licensesPath = app.isPackaged
         ? path.join(process.resourcesPath, "build", "licenses.json")
-        : path.join(__dirname, "..", "dist", "licenses.json")
+        : path.join(__dirname, "../..", "build", "licenses.json")
 
       const content = fs.readFileSync(licensesPath, "utf-8")
       return JSON.parse(content)

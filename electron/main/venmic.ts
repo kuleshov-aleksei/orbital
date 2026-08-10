@@ -9,8 +9,7 @@ const getModuleUrl = (): string => {
   if (typeof import.meta !== "undefined" && import.meta.url && import.meta.url !== "undefined") {
     return import.meta.url
   }
-  const appPath = app.isPackaged ? app.getAppPath() : join(__dirname, "..", "..")
-  return `file://${join(appPath, "dist-electron/main/index.js")}`
+  return `file://${join(app.getAppPath(), "dist-electron/main/index.js")}`
 }
 
 const moduleUrl = getModuleUrl()

@@ -4,6 +4,22 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/orbital-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'self' orbital:;
+        script-src 'self' orbital: 'unsafe-eval';
+        style-src 'self' 'unsafe-inline' orbital:;
+        img-src 'self' orbital: data: blob: https: http:;
+        media-src 'self' orbital: blob:;
+        font-src 'self' orbital: data:;
+        connect-src 'self' orbital: https: http: wss: ws: data:;
+        object-src 'none';
+        base-uri 'self';
+        worker-src 'self' blob:;
+        form-action 'self';
+      "
+    />
     <meta name="theme-color" content="#5865F2" />
     <title>The Orbital</title>
     <meta property="og:title" content="The Orbital" />
