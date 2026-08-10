@@ -253,6 +253,7 @@ electron/dist/
 electron/dist-electron/
 electron/release/
 !electron/build/
+electron/build/licenses.json
 
 #LATEST_RELEASE.md
 ISSUES.md
