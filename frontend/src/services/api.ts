@@ -462,7 +462,8 @@ export const apiService = {
     userId: string,
     username: string,
     version: string,
-    logs: string[],
+    logs: string,
+    systemInfo?: string,
   ): Promise<{ status: string; message: string; log_id: number }> {
     return apiRequest<{ status: string; message: string; log_id: number }>("/logs", {
       method: "POST",
@@ -470,7 +471,8 @@ export const apiService = {
         user_id: userId,
         username: username,
         version: version,
-        logs: logs.join("\n"),
+        logs: logs,
+        system_info: systemInfo ?? "",
       }),
     })
   },

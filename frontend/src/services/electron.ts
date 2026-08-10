@@ -1,4 +1,9 @@
-import type { DesktopSource, UpdateProgressInfo, UpdateErrorInfo } from "@/types"
+import type {
+  DesktopSource,
+  UpdateProgressInfo,
+  UpdateErrorInfo,
+  ElectronSystemInfoData,
+} from "@/types"
 import { debugLog, debugWarn, debugError } from "@/utils/debug"
 
 const isDev = import.meta.env.DEV
@@ -43,6 +48,13 @@ export async function getPlatform(): Promise<NodeJS.Platform> {
     return process.platform
   }
   return window.electronAPI!.getPlatform()
+}
+
+export async function getSystemInfo(): Promise<ElectronSystemInfoData | null> {
+  if (!isElectron()) {
+    return null
+  }
+  return window.electronAPI!.getSystemInfo()
 }
 
 export function onDeepLink(callback: (url: string) => void): void {

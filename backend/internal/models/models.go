@@ -269,16 +269,28 @@ type DebugLog struct {
 	UserID      string    `json:"user_id"`
 	Username    string    `json:"username"`
 	Version     string    `json:"version"`
+	SystemInfo  string    `json:"system_info"`
 	CreatedAt   time.Time `json:"created_at"`
 	LogFilename string    `json:"log_filename"`
 }
 
 // DebugLogUploadRequest represents a request to upload debug logs
 type DebugLogUploadRequest struct {
-	UserID   string `json:"user_id"`
-	Username string `json:"username"`
-	Version  string `json:"version"`
-	Logs     string `json:"logs"`
+	UserID     string `json:"user_id"`
+	Username   string `json:"username"`
+	Version    string `json:"version"`
+	SystemInfo string `json:"system_info"`
+	Logs       string `json:"logs"`
+}
+
+// RequestLogsMessage is sent by a super admin to request logs from a target user
+type RequestLogsMessage struct {
+	TargetUserID string `json:"target_user_id"`
+}
+
+// RequestLogsCommand is sent by the server to a user whose logs were requested
+type RequestLogsCommand struct {
+	RequestID string `json:"request_id"`
 }
 
 // UpdateSoundPackRequest represents a request to update user's sound pack preference

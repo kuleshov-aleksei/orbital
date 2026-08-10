@@ -9,10 +9,19 @@ import {
   useChatStore,
 } from "@/stores"
 import { wsService } from "@/services/websocket"
-import type { ConnectionCallback, DisconnectionCallback, MessageCallback } from "@/services/websocket"
+import type {
+  ConnectionCallback,
+  DisconnectionCallback,
+  MessageCallback,
+} from "@/services/websocket"
 import { apiService } from "@/services/api"
-import { debugLog } from "@/utils/debug"
+import { buildLogReport } from "@/services/systemInfo"
+import { debugLog, debugError } from "@/utils/debug"
 import type { User, Room, Category, PublicUser, ChatMessage } from "@/types"
+
+declare const __APP_VERSION__: string
+
+const appVersion = __APP_VERSION__
 
 export function useWebSocketHandlers() {
   const roomStore = useRoomStore()
@@ -91,6 +100,39 @@ export function useWebSocketHandlers() {
     }
     wsService.onDisconnection(onDisconnect)
     onCleanup(() => wsService.removeDisconnectionCallback(onDisconnect))
+
+    // Super admin requested this user's debug logs
+    const recentLogRequests = new Map<string, number>()
+    const onRequestLogs: MessageCallback = async (message) => {
+      const data = message.data as { request_id: string } | undefined
+      if (!data?.request_id) return
+
+      const now = Date.now()
+      for (const [requestId, timestamp] of recentLogRequests) {
+        if (now - timestamp > 60000) {
+          recentLogRequests.delete(requestId)
+        }
+      }
+      if (recentLogRequests.has(data.request_id)) return
+      recentLogRequests.set(data.request_id, now)
+
+      const user = userStore.currentUser
+      if (!user) {
+        debugLog("[LogRequest] Logs requested but user is not authenticated, skipping")
+        return
+      }
+
+      debugLog("[LogRequest] Logs requested by a super admin, sending...")
+      try {
+        const { logs, system_info } = await buildLogReport()
+        await apiService.sendLogs(user.id, user.nickname, appVersion, logs, system_info)
+        debugLog("[LogRequest] Logs sent successfully")
+      } catch (error) {
+        debugError("[LogRequest] Failed to send requested logs:", error)
+      }
+    }
+    wsService.on("request_logs", onRequestLogs)
+    onCleanup(() => wsService.off("request_logs", onRequestLogs))
   }
 
   const setupGlobalWebSocketListeners = () => {

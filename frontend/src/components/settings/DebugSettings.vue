@@ -82,6 +82,7 @@ import { useDebugSettingsStore } from "@/stores/debugSettings"
 import { useUserStore } from "@/stores/user"
 import { apiService } from "@/services/api"
 import { getLogBuffer } from "@/utils/debug"
+import { buildLogReport } from "@/services/systemInfo"
 import { PhBug } from "@phosphor-icons/vue"
 
 defineProps<{
@@ -116,19 +117,20 @@ async function sendLogs() {
   sendLogsStatus.value = ""
 
   try {
-    const logs = getLogBuffer()
-    if (logs.length === 0) {
+    const logMessages = getLogBuffer()
+    if (logMessages.length === 0) {
       sendLogsStatus.value = "No logs to send"
       sendLogsSuccess.value = false
       return
     }
 
-    const logMessages = logs.map((log) => log.message)
+    const { logs, system_info } = await buildLogReport()
     await apiService.sendLogs(
       userStore.currentUser.id,
       userStore.currentUser.nickname,
       appVersion,
-      logMessages,
+      logs,
+      system_info,
     )
     sendLogsStatus.value = "Logs sent successfully!"
     sendLogsSuccess.value = true

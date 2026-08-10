@@ -81,6 +81,19 @@
       </div>
     </template>
 
+    <!-- Request Logs -->
+    <template v-if="canRequestLogs">
+      <div class="border-t border-theme-border my-1"></div>
+
+      <button
+        type="button"
+        class="w-full px-3 py-2 text-left text-sm text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary transition-colors flex items-center gap-2"
+        @click="handleRequestLogs">
+        <PhBug class="w-4 h-4" />
+        <span>Request Logs</span>
+      </button>
+    </template>
+
     <!-- Kick User -->
     <template v-if="canKick">
       <div class="border-t border-theme-border my-1"></div>
@@ -111,9 +124,11 @@ import {
   PhCrown,
   PhSignOut,
   PhWarning,
+  PhBug,
 } from "@phosphor-icons/vue"
 import { useUsersStore, useRoomStore, useUserStore, useCallStore } from "@/stores"
 import { apiService } from "@/services/api"
+import { wsService } from "@/services/websocket"
 import { useUserContextMenu } from "@/composables/useUserContextMenu"
 
 interface Props {
@@ -179,6 +194,10 @@ const canKick = computed(() => {
   if (effectiveUserId.value === userStore.userId) return false
   if (userStore.isSuperAdmin) return true
   return !targetUserIsSuperAdmin.value
+})
+
+const canRequestLogs = computed(() => {
+  return userStore.isSuperAdmin && effectiveUserId.value !== userStore.userId
 })
 
 const MENU_MIN_WIDTH = 192
@@ -272,6 +291,14 @@ const handleKick = async () => {
   } finally {
     kicking.value = false
   }
+}
+
+const handleRequestLogs = () => {
+  if (!canRequestLogs.value) return
+  wsService.sendMessage("request_logs", {
+    target_user_id: effectiveUserId.value,
+  })
+  hideMenu()
 }
 
 const handleKeydown = (event: KeyboardEvent) => {

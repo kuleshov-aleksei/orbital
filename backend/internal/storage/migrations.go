@@ -152,6 +152,11 @@ CREATE INDEX IF NOT EXISTS idx_audio_files_is_system ON audio_files(is_system);`
 		Name:    "add_world_to_rooms",
 		SQL:     `ALTER TABLE rooms ADD COLUMN world TEXT NOT NULL DEFAULT 'default';`,
 	},
+	{
+		Version: 18,
+		Name:    "add_system_info_to_debug_logs",
+		SQL:     `ALTER TABLE debug_logs ADD COLUMN system_info TEXT DEFAULT '';`,
+	},
 }
 
 func (db *DB) RunMigrations() error {

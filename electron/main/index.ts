@@ -6,6 +6,7 @@ import fs from "node:fs"
 import http from "node:http"
 import https from "node:https"
 import crypto from "node:crypto"
+import os from "node:os"
 import log from "electron-log"
 import { autoUpdater } from "electron-updater"
 import type { ThumbarButton } from "electron"
@@ -807,6 +808,26 @@ function setupIPC() {
 
   ipcMain.handle("get-platform", () => {
     return process.platform
+  })
+
+  ipcMain.handle("get-system-info", () => {
+    return {
+      platform: process.platform,
+      electronVersion: process.versions.electron,
+      chromiumVersion: process.versions.chrome,
+      nodeVersion: process.versions.node,
+      osType: os.type(),
+      osRelease: os.release(),
+      osVersion: os.version(),
+      osArch: os.arch(),
+      desktopEnvironment:
+        process.env.XDG_CURRENT_DESKTOP ||
+        process.env.XDG_SESSION_DESKTOP ||
+        process.env.DESKTOP_SESSION ||
+        "",
+      wayland: isWayland,
+      appVersion: app.getVersion(),
+    }
   })
 
   ipcMain.handle("venmic:has-venmic", () => {

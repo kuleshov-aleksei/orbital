@@ -602,6 +602,8 @@ func (c *Client) handleMessage(message models.WebSocketMessage) {
 		c.handleClientStatsBatch(message.Data)
 	case "request_stats_state":
 		c.handleRequestStatsState(message.Data)
+	case "request_logs":
+		c.handleRequestLogs(message.Data)
 	default:
 		log.Printf("Unknown message type: %s", message.Type)
 	}

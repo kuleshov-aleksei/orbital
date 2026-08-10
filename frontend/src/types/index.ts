@@ -91,6 +91,7 @@ export type WebSocketMessageType =
   | "disable_stats_collection"
   | "client_stats"
   | "room_stats"
+  | "request_logs"
 
 export interface WebSocketMessage {
   type: WebSocketMessageType
@@ -273,6 +274,52 @@ export interface ConnectionQuality {
   issues: string[]
 }
 
+// System info types
+// Electron system info as returned by the Electron main process IPC (camelCase)
+export interface ElectronSystemInfoData {
+  platform: string
+  electronVersion: string
+  chromiumVersion: string
+  nodeVersion: string
+  osType: string
+  osRelease: string
+  osVersion: string
+  osArch: string
+  desktopEnvironment: string
+  wayland: boolean
+  appVersion: string
+}
+
+// Combined system info report, serialized to snake_case for the backend
+export interface SystemInfo {
+  app_version: string
+  browser: { name: string; version: string }
+  viewport: { width: number; height: number; dpr: number }
+  screen: { width: number; height: number; color_depth: number }
+  language: string
+  platform: string
+  user_agent: string
+  is_electron: boolean
+  electron: {
+    app_version: string
+    electron_version: string
+    chromium_version: string
+    node_version: string
+    os_type: string
+    os_release: string
+    os_version: string
+    os_arch: string
+    desktop_environment: string
+    wayland: boolean
+    platform: string
+  } | null
+}
+
+// Server -> client command to request debug logs from this user
+export interface RequestLogsCommand {
+  request_id: string
+}
+
 // Debugging and monitoring types
 export interface DebugInfo {
   peerId: string
@@ -346,6 +393,7 @@ export interface DebugLog {
   user_id: string
   username: string
   version: string
+  system_info: string
   created_at: string
   log_filename: string
 }
@@ -419,6 +467,7 @@ export interface ElectronAPI {
   onUpdateNotAvailable: (callback: () => void) => void
   installUpdate: () => void
   getPlatform: () => Promise<NodeJS.Platform>
+  getSystemInfo: () => Promise<ElectronSystemInfoData>
   minimizeWindow: () => void
   maximizeWindow: () => void
   closeWindow: () => void

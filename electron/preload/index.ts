@@ -48,6 +48,20 @@ export interface License {
   custom: string | null
 }
 
+export interface SystemInfoData {
+  platform: string
+  electronVersion: string
+  chromiumVersion: string
+  nodeVersion: string
+  osType: string
+  osRelease: string
+  osVersion: string
+  osArch: string
+  desktopEnvironment: string
+  wayland: boolean
+  appVersion: string
+}
+
 export interface ElectronAPI {
   getDesktopSources: () => Promise<DesktopSource[]>
   startScreenshare: (sourceId: string, audioEnabled: boolean) => Promise<{ success: boolean; error?: string }>
@@ -62,6 +76,7 @@ export interface ElectronAPI {
   onUpdateNotAvailable: (callback: () => void) => void
   installUpdate: () => void
   getPlatform: () => Promise<NodeJS.Platform>
+  getSystemInfo: () => Promise<SystemInfoData>
   minimizeWindow: () => void
   maximizeWindow: () => void
   closeWindow: () => void
@@ -146,6 +161,7 @@ const electronAPI: ElectronAPI = {
   },
 
   getPlatform: () => ipcRenderer.invoke("get-platform"),
+  getSystemInfo: () => ipcRenderer.invoke("get-system-info"),
 
   minimizeWindow: () => {
     ipcRenderer.invoke("minimize-window")
