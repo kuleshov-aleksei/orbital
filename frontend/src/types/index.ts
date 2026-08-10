@@ -320,6 +320,44 @@ export interface RequestLogsCommand {
   request_id: string
 }
 
+// Analytics types (backend reports snake_case)
+export interface AnalyticsNode {
+  id: string
+  name: string
+}
+
+export interface AnalyticsLink {
+  source: string
+  target: string
+  value: number
+}
+
+export interface SankeyDistribution {
+  nodes: AnalyticsNode[]
+  links: AnalyticsLink[]
+}
+
+export interface PlatformStat {
+  platform: string
+  system_name: string
+  users: number
+  sessions: number
+  duration_seconds: number
+  first_seen: string
+  last_seen: string
+}
+
+export interface AnalyticsReport {
+  generated_at: string
+  total_users: number
+  total_sessions: number
+  total_duration_seconds: number
+  both_platforms_users: number
+  users_sankey: SankeyDistribution
+  time_sankey: SankeyDistribution
+  platforms: PlatformStat[]
+}
+
 // Debugging and monitoring types
 export interface DebugInfo {
   peerId: string

@@ -119,12 +119,41 @@ func (h *AdminHandler) GetStatsStatus(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(statuses)
 }
 
+// GetAnalyticsReport returns pre-calculated usage analytics (super_admin only)
+func (h *AdminHandler) GetAnalyticsReport(w http.ResponseWriter, r *http.Request) {
+	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	if !ok || claims == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if claims.Role != models.RoleSuperAdmin {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	if h.analyticsService == nil {
+		http.Error(w, "Analytics service not available", http.StatusInternalServerError)
+		return
+	}
+
+	report, err := h.analyticsService.GetReport()
+	if err != nil {
+		http.Error(w, "Failed to load analytics report: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(report)
+}
+
 // AdminHandler handles admin-related HTTP requests
 type AdminHandler struct {
-	roleService     *service.RoleService
-	userRepo        *repository.UserRepository
-	debugLogService *service.DebugLogService
-	wsHub           *websocket.Hub
+	roleService      *service.RoleService
+	userRepo         *repository.UserRepository
+	debugLogService  *service.DebugLogService
+	analyticsService *service.AnalyticsService
+	wsHub            *websocket.Hub
 }
 
 // NewAdminHandler creates a new admin handler
@@ -146,12 +175,13 @@ func NewAdminHandlerWithDebugLog(roleService *service.RoleService, userRepo *rep
 }
 
 // NewAdminHandlerWithHub creates a new admin handler with hub and debug log service
-func NewAdminHandlerWithHub(roleService *service.RoleService, userRepo *repository.UserRepository, debugLogService *service.DebugLogService, wsHub *websocket.Hub) *AdminHandler {
+func NewAdminHandlerWithHub(roleService *service.RoleService, userRepo *repository.UserRepository, debugLogService *service.DebugLogService, analyticsService *service.AnalyticsService, wsHub *websocket.Hub) *AdminHandler {
 	return &AdminHandler{
-		roleService:     roleService,
-		userRepo:        userRepo,
-		debugLogService: debugLogService,
-		wsHub:           wsHub,
+		roleService:      roleService,
+		userRepo:         userRepo,
+		debugLogService:  debugLogService,
+		analyticsService: analyticsService,
+		wsHub:            wsHub,
 	}
 }
 

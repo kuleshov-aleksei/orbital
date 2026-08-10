@@ -64,6 +64,18 @@
           @click="activateStatsTab">
           Stats
         </button>
+        <button
+          v-if="isSuperAdmin"
+          type="button"
+          class="px-4 py-2 text-sm font-medium transition-colors"
+          :class="
+            activeTab === 'analytics'
+              ? 'text-white border-b-2 border-indigo-500'
+              : 'text-gray-400 hover:text-gray-200'
+          "
+          @click="activeTab = 'analytics'">
+          Analytics
+        </button>
       </div>
 
       <!-- Users Section -->
@@ -427,8 +439,15 @@
         </div>
       </div>
 
+      <!-- Analytics Section (Super Admin Only) -->
+      <div v-if="activeTab === 'analytics' && isSuperAdmin">
+        <UsageAnalytics />
+      </div>
+
       <!-- Info Section -->
-      <div v-if="activeTab === 'users'" class="mt-6 bg-gray-800/50 rounded-lg border border-gray-700 p-4">
+      <div
+        v-if="activeTab === 'users'"
+        class="mt-6 bg-gray-800/50 rounded-lg border border-gray-700 p-4">
         <h3 class="text-sm font-medium text-gray-300 mb-2">Role Information</h3>
 
         <div class="space-y-2 text-sm text-gray-400">
@@ -593,6 +612,7 @@ import { useUserStore } from "@/stores"
 import { apiService } from "@/services/api"
 import { useAdminStats } from "@/composables/useAdminStats"
 import StatsMap from "@/components/admin/StatsMap.vue"
+import UsageAnalytics from "@/components/admin/UsageAnalytics.vue"
 import { wsService } from "@/services/websocket"
 import type { RoomStatsMessage } from "@/types"
 import type { User, DebugLog, AudioFile } from "@/types"
@@ -612,7 +632,7 @@ const deletingLogId = ref<number | null>(null)
 const deletingGuests = ref(false)
 const avatarErrors = ref<Set<string>>(new Set())
 
-const activeTab = ref<"users" | "logs" | "audio" | "stats">("users")
+const activeTab = ref<"users" | "logs" | "audio" | "stats" | "analytics">("users")
 
 const showDeleteModal = ref(false)
 const userToDelete = ref<User | null>(null)

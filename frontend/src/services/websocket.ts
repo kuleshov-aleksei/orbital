@@ -31,7 +31,7 @@ export class WebSocketService {
   }
 
   // Connect to WebSocket for a room
-  async connect(roomId: string, userId: string): Promise<void> {
+  async connect(roomId: string, userId: string, deviceInfo?: string): Promise<void> {
     this.roomId = roomId
     this.userId = userId
 
@@ -52,6 +52,7 @@ export class WebSocketService {
             user_id: this.userId,
             nickname:
               localStorage.getItem("orbital_user_nickname") || `User_${this.userId.substr(0, 8)}`,
+            ...(deviceInfo ? { device_info: deviceInfo } : {}),
           })
 
           this.notifyConnectionCallbacks()

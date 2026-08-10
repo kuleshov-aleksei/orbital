@@ -123,9 +123,10 @@ type UpdateRoomRequest struct {
 
 // JoinRoomRequest represents a request to join a room
 type JoinRoomRequest struct {
-	RoomID   string `json:"room_id"`
-	UserID   string `json:"user_id"`
-	Nickname string `json:"nickname"`
+	RoomID     string `json:"room_id"`
+	UserID     string `json:"user_id"`
+	Nickname   string `json:"nickname"`
+	DeviceInfo string `json:"device_info,omitempty"`
 }
 
 // ICECandidate represents WebRTC ICE candidate
@@ -315,7 +316,7 @@ type SendChatMessageRequest struct {
 
 // PerPairObservation is a single stats sample for one track from one observed user
 type PerPairObservation struct {
-	TrackType  string  `json:"track_type"`            // "mic", "webcam", "screen_share", "screen_share_audio"
+	TrackType  string  `json:"track_type"` // "mic", "webcam", "screen_share", "screen_share_audio"
 	Jitter     float64 `json:"jitter"`
 	PacketLoss float64 `json:"packet_loss"`
 	Bitrate    float64 `json:"bitrate"`
@@ -327,11 +328,11 @@ type PerPairObservation struct {
 
 // ClientStatsBatch is a batch of per-pair observations sent from a client
 type ClientStatsBatch struct {
-	RoomID       string                           `json:"room_id"`
-	ReporterID   string                           `json:"reporter_id"`
-	Timestamp    int64                            `json:"timestamp"`
-	RTT          float64                          `json:"rtt"`
-	Observations map[string][]PerPairObservation  `json:"observations"` // observedUserId -> samples
+	RoomID       string                          `json:"room_id"`
+	ReporterID   string                          `json:"reporter_id"`
+	Timestamp    int64                           `json:"timestamp"`
+	RTT          float64                         `json:"rtt"`
+	Observations map[string][]PerPairObservation `json:"observations"` // observedUserId -> samples
 }
 
 // EnableStatsCommand is sent from server to client to enable reporting
@@ -343,12 +344,66 @@ type EnableStatsCommand struct {
 
 // RoomStatsMessage is sent from server to admin with aggregated stats
 type RoomStatsMessage struct {
-	RoomID  string                        `json:"room_id"`
-	Reports map[string]ClientStatsBatch   `json:"reports"` // reporter_id -> latest batch
+	RoomID  string                      `json:"room_id"`
+	Reports map[string]ClientStatsBatch `json:"reports"` // reporter_id -> latest batch
 }
 
 // StatsStatus represents the current state of stats collection for a room
 type StatsStatus struct {
 	RoomID  string `json:"room_id"`
 	Enabled bool   `json:"enabled"`
+}
+
+// UserSession represents one call session (1 row per user per call)
+type UserSession struct {
+	ID         int64     `json:"id"`
+	UserID     string    `json:"user_id"`
+	RoomID     string    `json:"room_id"`
+	FirstSeen  time.Time `json:"first_seen"`
+	LastSeen   time.Time `json:"last_seen"`
+	Platform   string    `json:"platform"`    // "web" | "electron" | "unknown"
+	SystemName string    `json:"system_name"` // browser name (web) or OS name (electron)
+	DeviceInfo string    `json:"device_info"` // raw system info JSON for future processing
+}
+
+// AnalyticsNode is a single node in a sankey distribution
+type AnalyticsNode struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// AnalyticsLink is a weighted edge between two sankey nodes
+type AnalyticsLink struct {
+	Source string  `json:"source"`
+	Target string  `json:"target"`
+	Value  float64 `json:"value"`
+}
+
+// SankeyDistribution is a pre-calculated two-level sankey structure
+type SankeyDistribution struct {
+	Nodes []AnalyticsNode `json:"nodes"`
+	Links []AnalyticsLink `json:"links"`
+}
+
+// PlatformStat aggregates usage statistics for one platform/system combination
+type PlatformStat struct {
+	Platform        string    `json:"platform"`
+	SystemName      string    `json:"system_name"`
+	Users           int64     `json:"users"`
+	Sessions        int64     `json:"sessions"`
+	DurationSeconds int64     `json:"duration_seconds"`
+	FirstSeen       time.Time `json:"first_seen"`
+	LastSeen        time.Time `json:"last_seen"`
+}
+
+// AnalyticsReport contains pre-calculated usage data for the admin frontend
+type AnalyticsReport struct {
+	GeneratedAt          time.Time          `json:"generated_at"`
+	TotalUsers           int64              `json:"total_users"`
+	TotalSessions        int64              `json:"total_sessions"`
+	TotalDurationSeconds int64              `json:"total_duration_seconds"`
+	BothPlatformsUsers   int64              `json:"both_platforms_users"`
+	UsersSankey          SankeyDistribution `json:"users_sankey"`
+	TimeSankey           SankeyDistribution `json:"time_sankey"`
+	Platforms            []PlatformStat     `json:"platforms"`
 }

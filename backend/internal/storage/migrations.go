@@ -157,6 +157,23 @@ CREATE INDEX IF NOT EXISTS idx_audio_files_is_system ON audio_files(is_system);`
 		Name:    "add_system_info_to_debug_logs",
 		SQL:     `ALTER TABLE debug_logs ADD COLUMN system_info TEXT DEFAULT '';`,
 	},
+	{
+		Version: 19,
+		Name:    "create_user_sessions_table",
+		SQL: `CREATE TABLE IF NOT EXISTS user_sessions (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id TEXT NOT NULL,
+			room_id TEXT NOT NULL,
+			first_seen DATETIME NOT NULL,
+			last_seen DATETIME NOT NULL,
+			platform TEXT NOT NULL DEFAULT 'unknown',
+			system_name TEXT NOT NULL DEFAULT 'unknown',
+			device_info TEXT NOT NULL DEFAULT '',
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user_room ON user_sessions(user_id, room_id, last_seen);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_last_seen ON user_sessions(last_seen);`,
+	},
 }
 
 func (db *DB) RunMigrations() error {

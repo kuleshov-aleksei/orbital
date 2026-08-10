@@ -11,6 +11,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/kuleshov-aleksei/orbital/internal/config"
 	"github.com/kuleshov-aleksei/orbital/internal/models"
+	"github.com/kuleshov-aleksei/orbital/internal/repository"
 	"github.com/kuleshov-aleksei/orbital/internal/service"
 )
 
@@ -24,15 +25,16 @@ type Hub struct {
 	authService    *service.AuthService
 	livekitService *service.LiveKitService
 	chatService    *service.ChatService
+	sessionRepo    *repository.SessionRepository
 	cfg            *config.Config
 	upgrader       websocket.Upgrader
 	mu             sync.RWMutex
 
 	// Stats manager fields
-	statsEnabledRooms map[string]bool                                   // room_id -> enabled
-	statsAdminSubs    map[string]map[*Client]bool                       // room_id -> admin clients subscribed
-	statsRoomData     map[string]map[string]models.ClientStatsBatch      // room_id -> reporter_id -> latest batch
-	pendingAdminSubs  map[string]map[string]bool                        // userID -> roomID -> pending subscription
+	statsEnabledRooms map[string]bool                               // room_id -> enabled
+	statsAdminSubs    map[string]map[*Client]bool                   // room_id -> admin clients subscribed
+	statsRoomData     map[string]map[string]models.ClientStatsBatch // room_id -> reporter_id -> latest batch
+	pendingAdminSubs  map[string]map[string]bool                    // userID -> roomID -> pending subscription
 }
 
 // Client represents a WebSocket client
@@ -48,7 +50,7 @@ type Client struct {
 }
 
 // NewHub creates a new WebSocket hub
-func NewHub(roomService *service.RoomService, authService *service.AuthService, livekitService *service.LiveKitService, chatService *service.ChatService, cfg *config.Config) *Hub {
+func NewHub(roomService *service.RoomService, authService *service.AuthService, livekitService *service.LiveKitService, chatService *service.ChatService, sessionRepo *repository.SessionRepository, cfg *config.Config) *Hub {
 	hub := &Hub{
 		clients:           make(map[*Client]bool),
 		roomClients:       make(map[string]map[*Client]bool),
@@ -58,6 +60,7 @@ func NewHub(roomService *service.RoomService, authService *service.AuthService, 
 		authService:       authService,
 		livekitService:    livekitService,
 		chatService:       chatService,
+		sessionRepo:       sessionRepo,
 		cfg:               cfg,
 		statsEnabledRooms: make(map[string]bool),
 		statsAdminSubs:    make(map[string]map[*Client]bool),
@@ -486,10 +489,14 @@ func (c *Client) readPump() {
 		// Get userID before removing from maps
 		c.mu.RLock()
 		userID := c.userID
+		roomID := c.roomID
 		c.mu.RUnlock()
 
 		// Clean up admin stats subscription
 		c.hub.UnsubscribeAdmin(c)
+
+		// Finalize the call session (abrupt disconnect, e.g. page close)
+		c.hub.updateSessionLastSeen(userID, roomID)
 
 		// Remove from hub's client maps, but DO NOT clean up room state
 		// Room cleanup only happens on ping timeout, allowing time for reconnection
@@ -645,6 +652,9 @@ func (c *Client) handleJoinRoom(data interface{}) {
 		return
 	}
 
+	// Track the call session (1 row per user per call)
+	c.hub.recordSessionStart(req.UserID, c.roomID, req.DeviceInfo)
+
 	// Broadcast room_user_joined to all clients (not just room) so they update their rooms list
 	if previewUser != nil {
 		roomUserJoinedMessage := models.WebSocketMessage{
@@ -707,6 +717,9 @@ func (c *Client) handleLeaveRoom(data interface{}) {
 	c.mu.RUnlock()
 
 	c.hub.roomService.LeaveRoom(roomID, userID)
+
+	// Finalize the call session last_seen so short calls get accurate durations
+	c.hub.updateSessionLastSeen(userID, roomID)
 
 	// Broadcast user left message
 	leaveMessage := models.WebSocketMessage{
@@ -934,6 +947,8 @@ func (c *Client) handlePing(data interface{}) {
 	// Update ping time in room service (this is what actually matters for timeout detection)
 	if roomID != "" && userID != "" {
 		c.hub.roomService.UpdateUserPingTime(roomID, userID)
+		// Refresh the call session last_seen
+		c.hub.updateSessionLastSeen(userID, roomID)
 	}
 
 	// Update global presence (for users connected via global WebSocket)
@@ -1171,6 +1186,9 @@ func (h *Hub) disconnectUserDueToTimeout(roomID, userID string) {
 	// Remove user from room service
 	h.roomService.LeaveRoom(roomID, userID)
 
+	// Finalize the call session last_seen (ping timeout)
+	h.updateSessionLastSeen(userID, roomID)
+
 	// Broadcast user_left message globally
 	leaveMessage := models.WebSocketMessage{
 		Type: "user_left",
@@ -1283,5 +1301,3 @@ func (h *Hub) ClearChatHistory(roomID string) {
 		log.Printf("[Chat] Chat history cleared for room %s", roomID)
 	}
 }
-
-

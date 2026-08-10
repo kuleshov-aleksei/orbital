@@ -52,6 +52,8 @@ func main() {
 	var userRepo *repository.UserRepository
 	var debugLogService *service.DebugLogService
 	var audioService *service.AudioService
+	var sessionRepo *repository.SessionRepository
+	var analyticsService *service.AnalyticsService
 
 	if cfg.Database.Path != "" {
 		db, err := storage.NewDB(cfg.Database.Path)
@@ -70,6 +72,7 @@ func main() {
 		roomRepo := repository.NewRoomRepository(db)
 		userRepo = repository.NewUserRepository(db)
 		debugLogRepo := repository.NewDebugLogRepository(db)
+		sessionRepo = repository.NewSessionRepository(db)
 		userRepo = repository.NewUserRepository(db)
 
 		// Initialize services with repositories
@@ -77,6 +80,7 @@ func main() {
 		roomService = service.NewRoomService(roomRepo, userRepo)
 		debugLogService = service.NewDebugLogService(debugLogRepo, "data")
 		audioService = service.NewAudioService(repository.NewAudioRepository(db), "data")
+		analyticsService = service.NewAnalyticsService(sessionRepo)
 
 		// Load data from database
 		if err := categoryService.LoadFromDB(); err != nil {
@@ -117,7 +121,7 @@ func main() {
 		log.Println("LiveKit is not configured, LiveKit features will be disabled")
 	}
 
-	wsHub := websocket.NewHub(roomService, authService, livekitService, service.NewChatService(), cfg)
+	wsHub := websocket.NewHub(roomService, authService, livekitService, service.NewChatService(), sessionRepo, cfg)
 
 	// Initialize avatar service
 	avatarService := service.NewAvatarService("data")
@@ -126,7 +130,7 @@ func main() {
 	roomHandler := handlers.NewRoomHandler(roomService, categoryService, livekitService, wsHub)
 	categoryHandler := handlers.NewCategoryHandler(categoryService, roomService, wsHub)
 	authHandler := handlers.NewAuthHandler(authService, roleService, cfg.Server.ExternalURL, cfg.Server.ElectronRedirectURL)
-	adminHandler := handlers.NewAdminHandlerWithHub(roleService, userRepo, debugLogService, wsHub)
+	adminHandler := handlers.NewAdminHandlerWithHub(roleService, userRepo, debugLogService, analyticsService, wsHub)
 	usersHandler := handlers.NewUsersHandler(userRepo, wsHub)
 	livekitHandler := handlers.NewLiveKitHandler(livekitService)
 	avatarHandler := handlers.NewAvatarHandler(avatarService, userRepo)
@@ -246,6 +250,7 @@ func main() {
 	superAdminRouter.HandleFunc("/stats/rooms/{id}/subscribe", adminHandler.StatsSubscribe).Methods("POST")
 	superAdminRouter.HandleFunc("/stats/rooms/{id}/unsubscribe", adminHandler.StatsUnsubscribe).Methods("POST")
 	superAdminRouter.HandleFunc("/stats/status", adminHandler.GetStatsStatus).Methods("GET")
+	superAdminRouter.HandleFunc("/analytics/report", adminHandler.GetAnalyticsReport).Methods("GET")
 
 	// Debug log upload route (authenticated users)
 	r.Handle("/api/logs", authHandler.AuthMiddleware(http.HandlerFunc(adminHandler.UploadDebugLog))).Methods("POST")

@@ -1,6 +1,7 @@
 import { useRoomStore, useUserStore, useAppStore, useCallStore } from "@/stores"
 import { wsService } from "@/services/websocket"
 import { apiService, generateNickname } from "@/services/api"
+import { collectSystemInfo } from "@/services/systemInfo"
 import type { CreateRoomData, UpdateRoomData } from "@/types"
 import { loadWorld } from "@/world/WorldData"
 
@@ -74,8 +75,17 @@ export function useRoomManager() {
         nickname: userStore.nickname || generateNickname(userId),
       })
 
+      // Collect device info for session analytics (non-fatal: the call still joins on failure)
+      let deviceInfo: string | undefined
+      try {
+        const systemInfo = await collectSystemInfo()
+        deviceInfo = JSON.stringify(systemInfo)
+      } catch (error) {
+        console.error("Failed to collect system info:", error)
+      }
+
       // Connect to WebSocket for new room
-      await wsService.connect(roomId, userId)
+      await wsService.connect(roomId, userId, deviceInfo)
       roomStore.setActiveRoom(roomId)
 
       // Start sending pings to keep room WebSocket connection alive

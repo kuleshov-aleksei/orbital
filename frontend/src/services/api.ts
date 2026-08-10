@@ -11,6 +11,7 @@ import {
   DebugLog,
   AudioFile,
   StatsStatus,
+  AnalyticsReport,
 } from "@/types"
 import { isElectron, openExternal, oauthAuthenticate } from "./electron"
 
@@ -574,6 +575,11 @@ export const apiService = {
 
   async getStatsStatus(): Promise<StatsStatus[]> {
     return apiRequest<StatsStatus[]>("/admin/stats/status")
+  },
+
+  // ===== Usage Analytics API (super_admin only) =====
+  async getAnalyticsReport(): Promise<AnalyticsReport> {
+    return apiRequest<AnalyticsReport>("/admin/analytics/report")
   },
 }
 
