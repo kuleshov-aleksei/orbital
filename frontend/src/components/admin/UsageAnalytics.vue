@@ -46,6 +46,26 @@
       </div>
     </div>
 
+    <!-- Platform distribution pie chart -->
+    <div
+      v-if="systemPie.values.length > 0"
+      class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-sm font-medium text-gray-300">Users by system</h3>
+
+        <span class="text-xs text-gray-500">Distinct users per browser / OS</span>
+      </div>
+
+      <div class="mx-auto max-w-md" style="height: 220px">
+        <PieChart
+          :labels="systemPie.labels"
+          :values="systemPie.values"
+          :colors="systemPie.colors"
+          :height="220"
+          :format-value="formatUsers" />
+      </div>
+    </div>
+
     <!-- Sankey diagrams -->
     <div v-if="report && report.total_sessions > 0" class="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
@@ -89,10 +109,6 @@
               <th class="px-4 py-2 font-medium text-right">Sessions</th>
 
               <th class="px-4 py-2 font-medium text-right">Total time</th>
-
-              <th class="px-4 py-2 font-medium text-right">First seen</th>
-
-              <th class="px-4 py-2 font-medium text-right">Last seen</th>
             </tr>
           </thead>
 
@@ -121,10 +137,6 @@
               <td class="px-4 py-2 text-gray-300 text-right">
                 {{ formatDuration(stat.duration_seconds) }}
               </td>
-
-              <td class="px-4 py-2 text-gray-500 text-right">{{ formatDate(stat.first_seen) }}</td>
-
-              <td class="px-4 py-2 text-gray-500 text-right">{{ formatDate(stat.last_seen) }}</td>
             </tr>
           </tbody>
         </table>
@@ -150,6 +162,7 @@ import { apiService } from "@/services/api"
 import { PhChartBar } from "@phosphor-icons/vue"
 import type { AnalyticsReport } from "@/types"
 import SankeyDiagram from "@/components/admin/SankeyDiagram.vue"
+import PieChart from "@/components/admin/PieChart.vue"
 
 const report = ref<AnalyticsReport | null>(null)
 const loading = ref(false)
@@ -159,6 +172,51 @@ const usersSankeySubtitle = computed(() => {
     return "Distinct users by platform"
   }
   return `${report.value.both_platforms_users} user${report.value.both_platforms_users === 1 ? "" : "s"} on both web & electron`
+})
+
+const pieColorPalette = [
+  "#818cf8",
+  "#34d399",
+  "#f472b6",
+  "#fbbf24",
+  "#60a5fa",
+  "#a78bfa",
+  "#f87171",
+  "#2dd4bf",
+  "#fb923c",
+  "#e879f9",
+  "#94a3b8",
+  "#4ade80",
+]
+
+const colorForNode = (key: string): string => {
+  let hash = 0
+  for (let i = 0; i < key.length; i++) {
+    hash = (hash * 31 + key.charCodeAt(i)) >>> 0
+  }
+  return pieColorPalette[hash % pieColorPalette.length]
+}
+
+const systemPie = computed(() => {
+  const reportData = report.value
+  if (!reportData) {
+    return { labels: [] as string[], values: [] as number[], colors: [] as string[] }
+  }
+
+  const labels: string[] = []
+  const values: number[] = []
+  const colors: string[] = []
+
+  for (const link of reportData.users_sankey.links) {
+    if (link.source === "all") continue
+
+    const node = reportData.users_sankey.nodes.find((n) => n.id === link.target)
+    labels.push(node?.name ?? link.target)
+    values.push(Math.round(link.value))
+    colors.push(colorForNode(link.target))
+  }
+
+  return { labels, values, colors }
 })
 
 const loadReport = async () => {
