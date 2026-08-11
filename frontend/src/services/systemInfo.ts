@@ -79,13 +79,44 @@ export async function collectSystemInfo(): Promise<SystemInfo> {
 
 function getPlatformString(): string {
   if (typeof navigator !== "undefined") {
-    const platform = (navigator as Navigator & { userAgentData?: { platform?: string } })
+    const platform = navigator as Navigator & { userAgentData?: { platform?: string } }
     if (platform.userAgentData?.platform) {
       return platform.userAgentData.platform
     }
     return navigator.platform || "unknown"
   }
   return "unknown"
+}
+
+// Maps Windows build numbers to their marketing revisions (e.g. 25H2).
+const WINDOWS_REVISIONS: Record<string, string> = {
+  "10.0.26200": "25H2",
+  "10.0.26100": "24H2",
+  "10.0.22631": "23H2",
+  "10.0.22621": "22H2",
+  "10.0.22000": "21H2",
+  "10.0.19045": "22H2",
+  "10.0.19044": "21H2",
+  "10.0.19043": "21H1",
+  "10.0.19042": "20H2",
+  "10.0.19041": "2004",
+}
+
+function windowsRevision(osRelease: string): string {
+  return WINDOWS_REVISIONS[osRelease] ?? ""
+}
+
+function osTypeDisplayName(osType: string): string {
+  switch (osType.toLowerCase()) {
+    case "windows_nt":
+      return "Windows"
+    case "darwin":
+      return "macOS"
+    case "linux":
+      return "Linux"
+    default:
+      return osType
+  }
 }
 
 export function formatSystemInfoHeader(info: SystemInfo): string {
@@ -99,8 +130,13 @@ export function formatSystemInfoHeader(info: SystemInfo): string {
   lines.push(`User agent: ${info.user_agent}`)
   if (info.electron) {
     const e = info.electron
-    lines.push(`Electron: ${e.electron_version} (Chromium: ${e.chromium_version}, Node: ${e.node_version})`)
-    lines.push(`OS: ${e.os_type} ${e.os_release}${e.os_version ? ` (${e.os_version})` : ""} (${e.os_arch})`)
+    lines.push(
+      `Electron: ${e.electron_version} (Chromium: ${e.chromium_version}, Node: ${e.node_version})`,
+    )
+    const osDetails = [e.os_version, windowsRevision(e.os_release)].filter(Boolean).join(", ")
+    lines.push(
+      `OS: ${osTypeDisplayName(e.os_type)} ${e.os_release}${osDetails ? ` (${osDetails})` : ""} (${e.os_arch})`,
+    )
     lines.push(`Desktop environment: ${e.desktop_environment}${e.wayland ? " (Wayland)" : ""}`)
   }
   lines.push("===============================================")

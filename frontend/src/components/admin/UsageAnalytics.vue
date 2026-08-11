@@ -244,14 +244,23 @@ const formatUsers = (value: number): string => {
   return `${count} user${count === 1 ? "" : "s"}`
 }
 
-const displayName = (key: string): string => {
-  if (!key) return "Unknown"
-  return key.charAt(0).toUpperCase() + key.slice(1)
+const displayNames: Record<string, string> = {
+  web: "Web",
+  electron: "Electron",
+  windows: "Windows",
+  windows_nt: "Windows",
+  win32: "Windows",
+  darwin: "macOS",
+  macos: "macOS",
+  mac: "macOS",
+  linux: "Linux",
+  android: "Android",
+  ios: "iOS",
 }
 
-const formatDate = (dateStr: string): string => {
-  if (!dateStr) return ""
-  return new Date(dateStr).toLocaleDateString()
+const displayName = (key: string): string => {
+  if (!key) return "Unknown"
+  return displayNames[key] ?? key.charAt(0).toUpperCase() + key.slice(1)
 }
 
 onMounted(() => {

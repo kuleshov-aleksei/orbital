@@ -250,7 +250,7 @@ func displayName(key string) string {
 		return "Electron"
 	case "darwin", "macos", "mac":
 		return "macOS"
-	case "windows", "win32":
+	case "windows", "win32", "windows_nt":
 		return "Windows"
 	case "linux":
 		return "Linux"
