@@ -22,7 +22,7 @@ export const useSoundPackStore = defineStore("soundPack", () => {
   const overrides = ref<Map<string, boolean>>(new Map())
   const overrideIncomingAudioPacksWithDefault = ref(false)
   const isLoading = ref(false)
-  const volume = ref(0.7)
+  const volume = ref(0.25)
 
   const availablePacks = computed((): SoundPack[] => {
     return Object.values(soundPacks)
