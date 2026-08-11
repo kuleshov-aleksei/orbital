@@ -63,7 +63,10 @@ export function useSpatialPosition(options: {
     const key = options.characterKey.value
     try {
       const payload = _textEncoder.encode(
-        JSON.stringify({ payload: { x: _myPosition.x, y: _myPosition.y, characterKey: key }, channelId: "position" }),
+        JSON.stringify({
+          payload: { x: _myPosition.x, y: _myPosition.y, characterKey: key },
+          channelId: "position",
+        }),
       )
       await options.localParticipant.value?.publishData(payload, DataPacket_Kind.LOSSY)
     } catch {

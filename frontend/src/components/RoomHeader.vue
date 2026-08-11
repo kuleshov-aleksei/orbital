@@ -83,16 +83,6 @@
 import { PhArrowLeft, PhUsers, PhGridFour, PhArrowsOut } from "@phosphor-icons/vue"
 import { useChatStore } from "@/stores"
 
-const chatStore = useChatStore()
-
-interface Props {
-  roomName: string
-  screenShareCount: number
-  cameraCount?: number
-  screenShareLayout: "grid" | "focus"
-  isMobile?: boolean
-}
-
 withDefaults(defineProps<Props>(), {
   isMobile: false,
   cameraCount: 0,
@@ -104,4 +94,14 @@ defineEmits<{
   "toggle-user-sidebar": []
   "update:screenShareLayout": [value: "grid" | "focus"]
 }>()
+
+const chatStore = useChatStore()
+
+interface Props {
+  roomName: string
+  screenShareCount: number
+  cameraCount?: number
+  screenShareLayout: "grid" | "focus"
+  isMobile?: boolean
+}
 </script>
