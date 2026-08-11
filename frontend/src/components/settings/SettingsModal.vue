@@ -118,6 +118,21 @@
           </button>
 
           <button
+            v-if="isElectronApp"
+            type="button"
+            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
+            :class="
+              currentTab === 'debugaudio'
+                ? 'bg-theme-accent text-theme-text-on-accent'
+                : 'text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary'
+            "
+            @click="currentTab = 'debugaudio'">
+            <PhHeadphones class="w-5 h-5" />
+
+            <span class="font-medium">Debug Audio</span>
+          </button>
+
+          <button
             type="button"
             class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
             :class="
@@ -169,6 +184,9 @@
           <!-- Debug Settings Tab -->
           <DebugSettings v-else-if="currentTab === 'debug'" />
 
+          <!-- Debug Audio Tab -->
+          <DebugAudioSettings v-else-if="isElectronApp && currentTab === 'debugaudio'" />
+
           <!-- About Settings Tab -->
           <AboutSettings v-else-if="currentTab === 'about'" />
         </div>
@@ -187,6 +205,7 @@ import SoundPackSettings from "./SoundPackSettings.vue"
 import AppearanceSettings from "./AppearanceSettings.vue"
 import AccountSettings from "./AccountSettings.vue"
 import DebugSettings from "./DebugSettings.vue"
+import DebugAudioSettings from "./DebugAudioSettings.vue"
 import ApplicationSettings from "./ApplicationSettings.vue"
 import AboutSettings from "./AboutSettings.vue"
 import {
@@ -200,12 +219,21 @@ import {
   PhInfo,
   PhCamera,
   PhMonitor,
+  PhHeadphones,
 } from "@phosphor-icons/vue"
 
 const modalStore = useModalStore()
 const isElectronApp = isElectron()
 const currentTab = ref<
-  "application" | "audio" | "video" | "sounds" | "appearance" | "account" | "debug" | "about"
+  | "application"
+  | "audio"
+  | "video"
+  | "sounds"
+  | "appearance"
+  | "account"
+  | "debug"
+  | "debugaudio"
+  | "about"
 >("account")
 
 const isOpen = computed(() => modalStore.isUserSettingsModal)

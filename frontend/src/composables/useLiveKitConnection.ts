@@ -55,7 +55,7 @@ export function useLiveKitConnection(state: LiveKitState, deps: UseLiveKitConnec
       state.isConnected.value = true
       state.isConnecting.value = false
 
-      debugLog(`[LiveKit][INFO]: 'Connected to LiveKit room successfully'}`)
+      debugLog(`[LiveKit][INFO]: 'Connected to LiveKit room successfully'`)
 
       playJoinRoom()
 

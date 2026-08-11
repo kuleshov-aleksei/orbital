@@ -162,9 +162,20 @@ export function useLiveKitScreenShare(state: LiveKitState) {
             label: d.label,
             groupId: d.groupId,
           }))
+        const audioOutputsBefore = devicesBefore
+          .filter((d) => d.kind === "audiooutput")
+          .map((d) => ({
+            deviceId: d.deviceId,
+            label: d.label,
+            groupId: d.groupId,
+          }))
         debugLog(
           "[ScreenShare-DIAG] Audio input devices BEFORE getDisplayMedia:",
           audioInputsBefore,
+        )
+        debugLog(
+          "[ScreenShare-DIAG] Audio output devices BEFORE getDisplayMedia:",
+          audioOutputsBefore,
         )
 
         // -- DIAG: current mic track settings --
@@ -195,10 +206,32 @@ export function useLiveKitScreenShare(state: LiveKitState) {
           )
         }
 
+        // -- DIAG: watch for devices changing during the capture attempt --
+        const onDeviceChange = () => {
+          void navigator.mediaDevices
+            .enumerateDevices()
+            .then((devices) => {
+              const inputs = devices.filter((d) => d.kind === "audioinput").map((d) => d.deviceId)
+              const outputs = devices.filter((d) => d.kind === "audiooutput").map((d) => d.deviceId)
+              debugLog("[ScreenShare-DIAG] devicechange during capture:", { inputs, outputs })
+            })
+            .catch((e) => debugWarn("[ScreenShare-DIAG] devicechange enumerate failed:", e))
+        }
+        navigator.mediaDevices.addEventListener("devicechange", onDeviceChange)
+
         try {
           displayStream = await getWindowsDisplayMedia(audio, "getDisplayMedia (Windows)")
         } catch (cause) {
           const msg = cause instanceof Error ? cause.message : String(cause)
+          if (cause instanceof Error) {
+            debugError("[ScreenShare-DIAG] getDisplayMedia failed:", {
+              name: cause.name,
+              message: cause.message,
+              code: cause instanceof DOMException ? cause.code : undefined,
+            })
+          } else {
+            debugError("[ScreenShare-DIAG] getDisplayMedia failed:", String(cause))
+          }
           const isAudioSourceError = msg.includes("Could not start audio source")
 
           if (isAudioSourceError && audio) {
@@ -217,14 +250,18 @@ export function useLiveKitScreenShare(state: LiveKitState) {
               console.error("[ScreenShare] Video-only fallback also failed:", retryMsg)
               debugError("[ScreenShare] Video-only fallback also failed:", retryMsg)
               await stopScreenShare()
+              // eslint-disable-next-line preserve-caught-error
               throw new Error(`Screen share failed: ${retryMsg}`)
             }
           } else {
             console.error("[ScreenShare] getDisplayMedia failed:", msg)
             debugError("[ScreenShare] getDisplayMedia failed:", msg)
             await stopScreenShare()
+            // eslint-disable-next-line preserve-caught-error
             throw new Error(`Screen share failed: ${msg}`)
           }
+        } finally {
+          navigator.mediaDevices.removeEventListener("devicechange", onDeviceChange)
         }
 
         // -- DIAG: enumerate audio devices after getDisplayMedia --
@@ -236,7 +273,18 @@ export function useLiveKitScreenShare(state: LiveKitState) {
             label: d.label,
             groupId: d.groupId,
           }))
+        const audioOutputsAfter = devicesAfter
+          .filter((d) => d.kind === "audiooutput")
+          .map((d) => ({
+            deviceId: d.deviceId,
+            label: d.label,
+            groupId: d.groupId,
+          }))
         debugLog("[ScreenShare-DIAG] Audio input devices AFTER getDisplayMedia:", audioInputsAfter)
+        debugLog(
+          "[ScreenShare-DIAG] Audio output devices AFTER getDisplayMedia:",
+          audioOutputsAfter,
+        )
 
         // -- DIAG: compare device lists --
         const newDevices = audioInputsAfter.filter(
