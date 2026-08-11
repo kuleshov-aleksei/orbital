@@ -25,6 +25,11 @@
       "from": "build",
       "to": "build",
       "filter": ["**/*"]
+    },
+    {
+      "from": "main/icons",
+      "to": "main/icons",
+      "filter": ["**/*"]
     }
   ],
   "win": {
