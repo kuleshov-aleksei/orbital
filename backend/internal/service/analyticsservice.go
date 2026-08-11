@@ -57,7 +57,7 @@ func (s *AnalyticsService) GetReport() (*models.AnalyticsReport, error) {
 		report.TotalSessions++
 		report.TotalDurationSeconds += duration
 
-		platform := normalize(session.Platform)
+		platform := normalizePlatform(session.Platform)
 		systemName := normalize(session.SystemName)
 
 		// Aggregate time/session stats per platform + system
@@ -231,6 +231,16 @@ func normalize(key string) string {
 	return key
 }
 
+// normalizePlatform maps legacy "web" sessions (recorded before mobile
+// detection existed) to "web-desktop" so old data folds into the new
+// structure instead of appearing as a separate "web" bucket.
+func normalizePlatform(key string) string {
+	if key == "web" {
+		return "web-desktop"
+	}
+	return normalize(key)
+}
+
 // sortedKeys returns the map keys sorted alphabetically
 func sortedKeys[T any](m map[string]T) []string {
 	keys := make([]string, 0, len(m))
@@ -246,6 +256,10 @@ func displayName(key string) string {
 	switch key {
 	case "web":
 		return "Web"
+	case "web-desktop":
+		return "Web Desktop"
+	case "web-mobile":
+		return "Web Mobile"
 	case "electron":
 		return "Electron"
 	case "darwin", "macos", "mac":

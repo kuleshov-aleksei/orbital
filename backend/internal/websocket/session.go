@@ -16,6 +16,7 @@ const sessionDedupeWindow = 5 * time.Minute
 // deviceInfoJSON mirrors the relevant fields of the client's system info payload
 type deviceInfoJSON struct {
 	IsElectron bool `json:"is_electron"`
+	IsMobile   bool `json:"is_mobile"`
 	Browser    struct {
 		Name string `json:"name"`
 	} `json:"browser"`
@@ -24,9 +25,9 @@ type deviceInfoJSON struct {
 	} `json:"electron"`
 }
 
-// parseDeviceInfo extracts platform ("web"/"electron") and system_name
-// (browser name for web, OS name for electron) from the client's JSON
-// system info payload. Falls back to "unknown" for missing values.
+// parseDeviceInfo extracts platform ("web-desktop"/"web-mobile"/"electron")
+// and system_name (browser name for web, OS name for electron) from the
+// client's JSON system info payload. Falls back to "unknown" for missing values.
 func parseDeviceInfo(jsonStr string) (platform, systemName string) {
 	platform = "unknown"
 	systemName = "unknown"
@@ -47,7 +48,11 @@ func parseDeviceInfo(jsonStr string) (platform, systemName string) {
 			systemName = strings.ToLower(info.Electron.OsType)
 		}
 	} else {
-		platform = "web"
+		if info.IsMobile {
+			platform = "web-mobile"
+		} else {
+			platform = "web-desktop"
+		}
 		if name := strings.ToLower(info.Browser.Name); name != "" {
 			systemName = name
 		}

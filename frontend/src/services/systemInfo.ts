@@ -60,6 +60,7 @@ export async function collectSystemInfo(): Promise<SystemInfo> {
     platform: getPlatformString(),
     user_agent: navigator.userAgent,
     is_electron: false,
+    is_mobile: detectMobile(),
     electron: null,
   }
 
@@ -67,6 +68,7 @@ export async function collectSystemInfo(): Promise<SystemInfo> {
     const electronInfo = await getSystemInfo()
     if (electronInfo) {
       info.is_electron = true
+      info.is_mobile = false
       info.platform = electronInfo.platform
       info.electron = mapElectronSystemInfo(electronInfo)
     }
@@ -86,6 +88,13 @@ function getPlatformString(): string {
     return navigator.platform || "unknown"
   }
   return "unknown"
+}
+
+function detectMobile(): boolean {
+  if (typeof navigator === "undefined") {
+    return false
+  }
+  return /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(navigator.userAgent)
 }
 
 // Maps Windows build numbers to their marketing revisions (e.g. 25H2).

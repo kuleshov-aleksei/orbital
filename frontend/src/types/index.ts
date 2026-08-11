@@ -300,6 +300,7 @@ export interface SystemInfo {
   platform: string
   user_agent: string
   is_electron: boolean
+  is_mobile: boolean
   electron: {
     app_version: string
     electron_version: string

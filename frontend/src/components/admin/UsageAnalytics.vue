@@ -120,7 +120,7 @@
                   :class="
                     stat.platform === 'electron'
                       ? 'bg-purple-600/20 text-purple-400'
-                      : stat.platform === 'web'
+                      : stat.platform.startsWith('web')
                         ? 'bg-indigo-600/20 text-indigo-400'
                         : 'bg-gray-600/20 text-gray-400'
                   ">
@@ -171,7 +171,7 @@ const usersSankeySubtitle = computed(() => {
   if (!report.value || report.value.both_platforms_users === 0) {
     return "Distinct users by platform"
   }
-  return `${report.value.both_platforms_users} user${report.value.both_platforms_users === 1 ? "" : "s"} on both web & electron`
+  return `${report.value.both_platforms_users} user${report.value.both_platforms_users === 1 ? "" : "s"} active on multiple platforms or devices`
 })
 
 const pieColorPalette = [
@@ -203,17 +203,24 @@ const systemPie = computed(() => {
     return { labels: [] as string[], values: [] as number[], colors: [] as string[] }
   }
 
-  const labels: string[] = []
-  const values: number[] = []
-  const colors: string[] = []
+  const byLabel = new Map<string, number>()
 
   for (const link of reportData.users_sankey.links) {
     if (link.source === "all") continue
 
     const node = reportData.users_sankey.nodes.find((n) => n.id === link.target)
-    labels.push(node?.name ?? link.target)
-    values.push(Math.round(link.value))
-    colors.push(colorForNode(link.target))
+    const label = node?.name ?? link.target
+    byLabel.set(label, (byLabel.get(label) ?? 0) + Math.round(link.value))
+  }
+
+  const labels: string[] = []
+  const values: number[] = []
+  const colors: string[] = []
+
+  for (const [label, value] of byLabel) {
+    labels.push(label)
+    values.push(value)
+    colors.push(colorForNode(label))
   }
 
   return { labels, values, colors }
@@ -246,6 +253,8 @@ const formatUsers = (value: number): string => {
 
 const displayNames: Record<string, string> = {
   web: "Web",
+  "web-desktop": "Web Desktop",
+  "web-mobile": "Web Mobile",
   electron: "Electron",
   windows: "Windows",
   windows_nt: "Windows",
