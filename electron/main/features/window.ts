@@ -7,7 +7,7 @@ import { getMainWindow, setMainWindow, getIsQuitting, setIsQuitting } from "../s
 import { isWayland, isDebugMode } from "../platform"
 import { getConfig, setCloseToTray, setHasSelectedCloseBehavior } from "./config"
 import { flushPendingLogEntries } from "./logRelay"
-import { isUpdateCheckInProgress, replayCachedEvents } from "./update"
+import { replayCachedEvents } from "./update"
 import { consumePendingDeepLink } from "./deeplink"
 
 let thumbarIcons: Record<string, nativeImage> = {}
@@ -128,15 +128,11 @@ export function createWindow() {
   win.once("ready-to-show", () => {
     flushPendingLogEntries()
 
-    if (isUpdateCheckInProgress()) {
-      log.info("[Update] Window ready but update check in progress, deferring show")
-    } else {
-      win.show()
-      win.maximize()
-      win.focus()
+    win.show()
+    win.maximize()
+    win.focus()
 
-      log.info("Main window shown")
-    }
+    log.info("Main window shown")
 
     const pendingDeepLink = consumePendingDeepLink()
     if (pendingDeepLink) {
