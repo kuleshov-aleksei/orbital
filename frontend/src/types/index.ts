@@ -177,13 +177,6 @@ export interface HealthResponse {
   version: string
 }
 
-// Screen sharing data for WebSocket messages
-export interface ScreenShareData {
-  user_id: string
-  quality: ScreenShareQuality
-  has_audio: boolean
-}
-
 // WebRTC related types
 export interface IceCandidateData {
   user_id: string

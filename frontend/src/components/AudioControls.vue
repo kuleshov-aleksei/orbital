@@ -68,7 +68,6 @@ import ScreenShareButton from "@/components/ScreenShareButton.vue"
 import CameraButton from "@/components/CameraButton.vue"
 import AudioControlsDropdown from "@/components/AudioControlsDropdown.vue"
 import { useModalStore, useCallStore, useRoomStore } from "@/stores"
-import type { ScreenShareQuality } from "@/types"
 
 interface Props {
   modelValueMuted?: boolean
@@ -140,12 +139,12 @@ const isCameraEnabled = computed({
 })
 
 // Confirm screen share start (called by parent after quality selection)
-const confirmStartScreenShare = async (quality: ScreenShareQuality) => {
+const confirmStartScreenShare = async () => {
   const button = screenShareButtonRef.value as unknown as {
-    confirmStartScreenShare?: (quality: ScreenShareQuality) => Promise<void>
+    confirmStartScreenShare?: () => Promise<void>
   } | null
   if (button?.confirmStartScreenShare) {
-    await button.confirmStartScreenShare(quality)
+    await button.confirmStartScreenShare()
   }
 }
 

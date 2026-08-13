@@ -526,23 +526,6 @@ func (rs *RoomService) UpdateUserDeafenStatus(roomID, userID string, isDeafened 
 	}
 }
 
-// UpdateUserScreenShareStatus updates user's screen sharing status
-func (rs *RoomService) UpdateUserScreenShareStatus(roomID, userID string, isSharing bool, quality string) {
-	rs.mu.Lock()
-	defer rs.mu.Unlock()
-
-	if rs.members[roomID] != nil {
-		if member, exists := rs.members[roomID][userID]; exists {
-			member.IsScreenSharing = isSharing
-			member.ScreenShareQuality = quality
-		}
-	}
-
-	if user, exists := rs.users[userID]; exists {
-		user.LastSeen = time.Now()
-	}
-}
-
 // UpdateUserNickname updates user's nickname
 func (rs *RoomService) UpdateUserNickname(roomID, userID, nickname string) error {
 	rs.mu.Lock()

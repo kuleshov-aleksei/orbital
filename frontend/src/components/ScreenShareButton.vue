@@ -134,7 +134,8 @@ const toggleScreenShare = () => {
 }
 
 // Method to be called by parent after quality is selected
-// Note: LiveKit handles all screen sharing signaling internally
+// Note: LiveKit handles all screen sharing signaling internally;
+// the actual publish happens in VoiceCallView via startScreenShareWithQuality
 const confirmStartScreenShare = () => {
   const newValue = true
 

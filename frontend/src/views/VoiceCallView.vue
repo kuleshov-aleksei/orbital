@@ -644,10 +644,10 @@ const startScreenShareWithQuality = async (quality: string) => {
     await startScreenShare(quality as ScreenShareQuality)
     // Tell AudioControls to update state and send WebSocket message
     const audioControls = audioControlsRef.value as unknown as {
-      confirmStartScreenShare?: (quality: ScreenShareQuality) => Promise<void>
+      confirmStartScreenShare?: () => Promise<void>
     } | null
     if (audioControls?.confirmStartScreenShare) {
-      await audioControls.confirmStartScreenShare(quality as ScreenShareQuality)
+      await audioControls.confirmStartScreenShare()
     }
   } catch (error) {
     console.error("Failed to start screen share:", error)

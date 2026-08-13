@@ -340,12 +340,12 @@ export function useLiveKitEvents(state: LiveKitState) {
         state.localScreenVideoPublication.value = null
         state.localScreenVideoTrack.value = null
         state.isScreenSharing.value = false
-        state.screenShareQuality.value = "fullhd60"
+        state.screenShareQuality.value = "adaptive"
         state.screenShareVersion.value++
 
         state.userScreenShareStates.value.set(state.getCurrentUserId(), {
           isSharing: false,
-          quality: "fullhd60",
+          quality: "adaptive",
         })
 
         state.isStoppingScreenShare.value = false
