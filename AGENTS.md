@@ -4,6 +4,10 @@ This document outlines the development guidelines and agent configurations for T
 
 The role of this file is to describe common mistakes and confusion points that agents might encounter while working on this project. If you encounter something in the project that surprises you, please alert the developer you're working with and suggest updating AGENTS.md to help prevent future agents from having the same issue.
 
+## Subagents
+
+Follow sub-agents instructions. If sub-agent instruction says save patch notes to file, that means SAVE PATCH NOTES TO THE FILE
+
 ## Project Overview
 
 The Orbital is a voice chat web application for 5-10 people using LiveKit SFU technology.
