@@ -65,14 +65,6 @@ RUN --mount=type=cache,target=/root/.cache/electron,sharing=locked \
     --mount=type=cache,target=/root/.cache/electron-builder,sharing=locked \
     pnpm run build:win
 
-# Generate SHA256 hashes for Windows builds
-RUN for f in /app/electron/release/Orbital-Setup-*.exe; do \
-      if [ -f "$f" ]; then \
-        echo "Calculating SHA256 for $f..."; \
-        openssl dgst -sha256 -binary "$f" | openssl base64 -A > "$f.sha256"; \
-      fi; \
-    done
-
 # Build Linux with cache mounts for electron/electron-builder downloads
 RUN --mount=type=cache,target=/root/.cache/electron,sharing=locked \
     --mount=type=cache,target=/root/.cache/electron-builder,sharing=locked \

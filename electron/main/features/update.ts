@@ -1,8 +1,6 @@
 import { app } from "electron"
 import path from "node:path"
 import fs from "node:fs"
-import http from "node:http"
-import https from "node:https"
 import crypto from "node:crypto"
 import log from "electron-log"
 import { autoUpdater } from "electron-updater"
@@ -14,28 +12,9 @@ export function installUpdate() {
   autoUpdater.quitAndInstall(true, true)
 }
 
-export function isUpdateCheckInProgress(): boolean {
-  return updateCheckInProgress
-}
-
-function fetchUrl(url: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const client = url.startsWith("https") ? https : http
-    client.get(url, (res) => {
-      if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.location) {
-        fetchUrl(res.location).then(resolve).catch(reject)
-        return
-      }
-      let data = ""
-      res.on("data", (chunk) => (data += chunk))
-      res.on("end", () => resolve(data))
-    }).on("error", reject)
-  })
-}
-
 function calculateFileHash(filePath: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const hash = crypto.createHash("sha256")
+    const hash = crypto.createHash("sha512")
     const file = fs.createReadStream(filePath)
     file.on("data", (chunk: Buffer) => hash.update(chunk))
     file.on("end", () => resolve(hash.digest("base64")))
@@ -43,24 +22,20 @@ function calculateFileHash(filePath: string): Promise<string> {
   })
 }
 
-async function verifyUpdateHash(updateInfo: UpdateInfo, installerPath: string): Promise<boolean> {
-  const version = updateInfo.version
-
-  log.info(`[Update] Verifying hash for version ${version}`)
-  log.info(`[Update] Installer path: ${installerPath}`)
-
-  const expectedHash = await fetchExpectedHashFromRelease(version)
-  if (!expectedHash) {
-    log.warn("[Update] Could not fetch expected hash, skipping verification")
+async function verifyUpdateHash(installerPath: string, expectedSha512?: string): Promise<boolean> {
+  if (!expectedSha512) {
+    log.warn("[Update] No published checksum available, skipping verification")
     return true
   }
 
-  log.info(`[Update] Expected hash (from GitHub): ${expectedHash}`)
+  log.info("[Update] Verifying downloaded file checksum")
+  log.info("[Update] Installer path:", installerPath)
+  log.info("[Update] Expected sha512 (from release):", expectedSha512)
 
   const actualHash = await calculateFileHash(installerPath)
-  log.info(`[Update] Actual hash (calculated): ${actualHash}`)
+  log.info("[Update] Actual sha512 (calculated):", actualHash)
 
-  if (expectedHash === actualHash) {
+  if (expectedSha512 === actualHash) {
     log.info("[Update] Hash verification PASSED")
     return true
   } else {
@@ -69,31 +44,9 @@ async function verifyUpdateHash(updateInfo: UpdateInfo, installerPath: string): 
   }
 }
 
-async function fetchExpectedHashFromRelease(version: string): Promise<string | null> {
-  const artifactNames = [
-    `Orbital-Setup-${version}.exe.sha256`,
-    `Orbital-Setup-${version}.sha256`,
-  ]
-
-  for (const artifactName of artifactNames) {
-    const url = `https://github.com/kuleshov-aleksei/orbital/releases/download/v${version}/${artifactName}`
-    log.info(`[Update] Fetching hash from: ${url}`)
-
-    try {
-      const content = await fetchUrl(url)
-      const hash = content.trim()
-      log.info(`[Update] Fetched hash: ${hash}`)
-      return hash
-    } catch (error) {
-      log.warn(`[Update] Failed to fetch ${artifactName}: ${error}`)
-    }
-  }
-
-  return null
-}
-
 interface UpdateInfo {
   version: string
+  sha512?: string
   releaseUrl?: string
   releaseNotes?: string
 }
@@ -118,7 +71,6 @@ let cachedUpdateState: CachedUpdateState = { status: "idle" }
 let currentUpdateInfo: UpdateInfo | null = null
 let updateAvailableSent = false
 let updateDownloadedSent = false
-let updateCheckInProgress = false
 
 function sendToRenderer(channel: string, data?: unknown): void {
   const mainWindow = getMainWindow()
@@ -162,7 +114,6 @@ export function setupAutoUpdater() {
 
   autoUpdater.on("checking-for-update", () => {
     log.info("[Update] Checking for update...")
-    updateCheckInProgress = true
     updateAvailableSent = false
     updateDownloadedSent = false
     sendToRenderer("update-checking")
@@ -202,9 +153,9 @@ export function setupAutoUpdater() {
     }
     updateDownloadedSent = true
 
-    const installerPath = (info as any).installerPath
+    const installerPath = (info as any).installerPath ?? (info as any).downloadedFile
     if (installerPath && currentUpdateInfo) {
-      const isValid = await verifyUpdateHash(currentUpdateInfo, installerPath)
+      const isValid = await verifyUpdateHash(installerPath, currentUpdateInfo.sha512)
       if (!isValid) {
         log.error("[Update] Hash verification failed - rejecting update")
         getMainWindow()?.webContents.send("update-error", { message: "Update integrity check failed. The downloaded file may be corrupted or tampered with." })
@@ -213,8 +164,7 @@ export function setupAutoUpdater() {
     }
 
     getMainWindow()?.webContents.send("update-downloaded", info)
-    
-    updateCheckInProgress = false
+
     const mainWindow = getMainWindow()
     if (mainWindow && !mainWindow.isVisible()) {
       mainWindow.show()
@@ -225,15 +175,11 @@ export function setupAutoUpdater() {
   autoUpdater.on("error", (error) => {
     log.error("Auto updater error:", error)
     log.error("Auto updater error stack:", error.stack)
-    updateCheckInProgress = false
-    getMainWindow()?.show()
     sendToRenderer("update-error", { message: error.message || "Failed to check for updates" })
   })
 
   autoUpdater.on("update-not-available", () => {
     log.info("[Update] No update available")
-    updateCheckInProgress = false
-    getMainWindow()?.show()
     sendToRenderer("update-not-available")
   })
 
