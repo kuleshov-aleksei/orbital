@@ -6,14 +6,13 @@ import type {
   RemoteVideoTrack,
   RemoteAudioTrack,
 } from "livekit-client"
-import { useAudioSettingsStore } from "@/stores/audioSettings"
 import { useAudioTracksStore } from "@/stores/audioTracks"
 import { useUsersStore } from "@/stores/users"
 import { debugLog, debugWarn, debugError } from "@/utils/debug"
 import {
   isElectron,
   getPlatform,
-  startElectronScreenShare as startElectronScreenShareIPC,
+  startScreenshare as startElectronScreenShareIPC,
 } from "@/services/electron"
 import { startAudioCapture, stopAudioCapture, getVirtualMicDeviceId } from "@/services/venmic"
 import type { ScreenShareQuality, VenmicNode } from "@/types"
@@ -29,7 +28,6 @@ export interface ScreenViewerEvent {
 }
 
 export function useLiveKitScreenShare(state: LiveKitState) {
-  const audioSettingsStore = useAudioSettingsStore()
   const audioTracksStore = useAudioTracksStore()
   const usersStore = useUsersStore()
 
@@ -151,40 +149,15 @@ export function useLiveKitScreenShare(state: LiveKitState) {
 
       await startElectronScreenShareIPC(sourceId, audio)
 
-      // -- DIAG: enumerate audio devices before getDisplayMedia --
-      const devicesBefore = await navigator.mediaDevices.enumerateDevices()
-      const audioInputsBefore = devicesBefore
-        .filter((d) => d.kind === "audioinput")
-        .map((d) => ({
-          deviceId: d.deviceId,
-          label: d.label,
-          groupId: d.groupId,
-        }))
-      const audioOutputsBefore = devicesBefore
+      // -- DIAG: log available audio output devices at the start of the attempt (loopback capture depends on the default output) --
+      const audioOutputs = (await navigator.mediaDevices.enumerateDevices())
         .filter((d) => d.kind === "audiooutput")
         .map((d) => ({
           deviceId: d.deviceId,
           label: d.label,
           groupId: d.groupId,
         }))
-      debugLog("[ScreenShare-DIAG] Audio input devices BEFORE getDisplayMedia:", audioInputsBefore)
-      debugLog(
-        "[ScreenShare-DIAG] Audio output devices BEFORE getDisplayMedia:",
-        audioOutputsBefore,
-      )
-
-      // -- DIAG: current mic track settings --
-      if (state.localAudioTrack.value?.mediaStreamTrack) {
-        const micSettings = state.localAudioTrack.value.mediaStreamTrack.getSettings()
-        debugLog("[ScreenShare-DIAG] Mic track settings BEFORE:", micSettings)
-      }
-
-      // -- DIAG: selected input device --
-      debugLog("[ScreenShare-DIAG] Selected input deviceId:", audioSettingsStore.inputDeviceId)
-      debugLog(
-        "[ScreenShare-DIAG] Available input devices:",
-        audioSettingsStore.availableInputDevices,
-      )
+      debugLog("[ScreenShare-DIAG] Audio output devices:", audioOutputs)
 
       const getDisplayMediaStream = async (withAudio: boolean, diagLabel: string) => {
         return await withTimeout(
@@ -201,32 +174,15 @@ export function useLiveKitScreenShare(state: LiveKitState) {
         )
       }
 
-      // -- DIAG: watch for devices changing during the capture attempt --
-      const onDeviceChange = () => {
-        void navigator.mediaDevices
-          .enumerateDevices()
-          .then((devices) => {
-            const inputs = devices.filter((d) => d.kind === "audioinput").map((d) => d.deviceId)
-            const outputs = devices.filter((d) => d.kind === "audiooutput").map((d) => d.deviceId)
-            debugLog("[ScreenShare-DIAG] devicechange during capture:", { inputs, outputs })
-          })
-          .catch((e) => debugWarn("[ScreenShare-DIAG] devicechange enumerate failed:", e))
-      }
-      navigator.mediaDevices.addEventListener("devicechange", onDeviceChange)
-
       try {
         displayStream = await getDisplayMediaStream(audio, "getDisplayMedia")
       } catch (cause) {
         const msg = cause instanceof Error ? cause.message : String(cause)
-        if (cause instanceof Error) {
-          debugError("[ScreenShare-DIAG] getDisplayMedia failed:", {
-            name: cause.name,
-            message: cause.message,
-            code: cause instanceof DOMException ? cause.code : undefined,
-          })
-        } else {
-          debugError("[ScreenShare-DIAG] getDisplayMedia failed:", String(cause))
-        }
+        debugError("[ScreenShare] getDisplayMedia failed:", {
+          name: cause instanceof Error ? cause.name : undefined,
+          message: msg,
+          code: cause instanceof DOMException ? cause.code : undefined,
+        })
         const isAudioSourceError = msg.includes("Could not start audio source")
 
         if (isAudioSourceError && audio) {
@@ -252,73 +208,6 @@ export function useLiveKitScreenShare(state: LiveKitState) {
           // eslint-disable-next-line preserve-caught-error
           throw new Error(`Screen share failed: ${msg}`)
         }
-      } finally {
-        navigator.mediaDevices.removeEventListener("devicechange", onDeviceChange)
-      }
-
-      // -- DIAG: enumerate audio devices after getDisplayMedia --
-      const devicesAfter = await navigator.mediaDevices.enumerateDevices()
-      const audioInputsAfter = devicesAfter
-        .filter((d) => d.kind === "audioinput")
-        .map((d) => ({
-          deviceId: d.deviceId,
-          label: d.label,
-          groupId: d.groupId,
-        }))
-      const audioOutputsAfter = devicesAfter
-        .filter((d) => d.kind === "audiooutput")
-        .map((d) => ({
-          deviceId: d.deviceId,
-          label: d.label,
-          groupId: d.groupId,
-        }))
-      debugLog("[ScreenShare-DIAG] Audio input devices AFTER getDisplayMedia:", audioInputsAfter)
-      debugLog("[ScreenShare-DIAG] Audio output devices AFTER getDisplayMedia:", audioOutputsAfter)
-
-      // -- DIAG: compare device lists --
-      const newDevices = audioInputsAfter.filter(
-        (a) => !audioInputsBefore.some((b) => b.deviceId === a.deviceId),
-      )
-      if (newDevices.length > 0) {
-        debugLog(
-          "[ScreenShare-DIAG] NEW audio input device(s) appeared after getDisplayMedia:",
-          newDevices,
-        )
-      } else {
-        debugLog("[ScreenShare-DIAG] No new audio input devices appeared")
-      }
-
-      const missingDevices = audioInputsBefore.filter(
-        (b) => !audioInputsAfter.some((a) => a.deviceId === b.deviceId),
-      )
-      if (missingDevices.length > 0) {
-        debugLog(
-          "[ScreenShare-DIAG] Audio input devices DISAPPEARED after getDisplayMedia:",
-          missingDevices,
-        )
-      }
-
-      // -- DIAG: loopback track settings --
-      const loopbackTrack = displayStream.getAudioTracks()[0]
-      if (loopbackTrack) {
-        const loopbackSettings = loopbackTrack.getSettings()
-        debugLog("[ScreenShare-DIAG] Loopback audio track settings:", loopbackSettings)
-
-        if (state.localAudioTrack.value?.mediaStreamTrack) {
-          const micSettings = state.localAudioTrack.value.mediaStreamTrack.getSettings()
-          debugLog(
-            "[ScreenShare-DIAG] Mic vs Loopback — mic deviceId:",
-            micSettings.deviceId,
-            "loopback deviceId:",
-            loopbackSettings.deviceId,
-            "same groupId?",
-            micSettings.groupId === loopbackSettings.groupId,
-            "same deviceId?",
-            micSettings.deviceId === loopbackSettings.deviceId,
-          )
-        }
-      } else {
-        debugLog("[ScreenShare-DIAG] No loopback audio track in display stream")
       }
 
       const videoTrackFromStream = displayStream.getVideoTracks()[0]
@@ -458,40 +347,6 @@ export function useLiveKitScreenShare(state: LiveKitState) {
         } else {
           console.log("[ScreenShare] Using system audio from display stream")
           const audioTrackFromStream = displayStream.getAudioTracks()[0]
-
-          // -- DIAG: screen share audio track settings --
-          if (audioTrackFromStream) {
-            const displayAudioSettings = audioTrackFromStream.getSettings()
-            debugLog("[ScreenShare-DIAG] Screen share audio track settings:", displayAudioSettings)
-
-            if (state.localAudioTrack.value?.mediaStreamTrack) {
-              const micSettings = state.localAudioTrack.value.mediaStreamTrack.getSettings()
-              debugLog(
-                "[ScreenShare-DIAG] During publish — mic deviceId:",
-                micSettings.deviceId,
-                "share deviceId:",
-                displayAudioSettings.deviceId,
-                "same groupId?",
-                micSettings.groupId === displayAudioSettings.groupId,
-                "same deviceId?",
-                micSettings.deviceId === displayAudioSettings.deviceId,
-              )
-            }
-
-            // -- DIAG: enumerate devices during audio publish --
-            const devicesDuring = await navigator.mediaDevices.enumerateDevices()
-            const audioInputsDuring = devicesDuring
-              .filter((d) => d.kind === "audioinput")
-              .map((d) => ({
-                deviceId: d.deviceId,
-                label: d.label,
-                groupId: d.groupId,
-              }))
-            debugLog(
-              "[ScreenShare-DIAG] Audio input devices DURING audio publish:",
-              audioInputsDuring,
-            )
-          }
 
           const audioPublication = await state.room.value.localParticipant.publishTrack(
             audioTrackFromStream,

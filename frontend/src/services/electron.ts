@@ -33,16 +33,6 @@ export async function startScreenshare(
   return window.electronAPI!.startScreenshare(sourceId, audioEnabled)
 }
 
-export async function startElectronScreenShare(
-  sourceId: string,
-  audioEnabled: boolean,
-): Promise<{ success: boolean; error?: string }> {
-  if (!isElectron()) {
-    throw new Error("Not running in Electron")
-  }
-  return window.electronAPI!.startScreenshare(sourceId, audioEnabled)
-}
-
 export async function getPlatform(): Promise<NodeJS.Platform> {
   if (!isElectron()) {
     return process.platform
