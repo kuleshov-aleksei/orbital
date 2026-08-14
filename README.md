@@ -377,6 +377,14 @@ Include the generated sprites in `sounds.ts` to make the pack available in the a
 
 # Known issues:
 
+## Screen share audio capture fails with some wireless headsets (Windows 11)
+
+On Windows, screen share system-audio capture relies on WASAPI loopback of the **default playback device**. There is no supported API to pick a different device — Chromium/Electron loopback is always bound to the default render endpoint.
+
+On some devices, screen share audio capture fails entirely. Some audio drivers (**Logitech** wireless headsets in particular) simply do not have loopback capture capabilities, and there is no known way around this: The app falls back to video-only sharing.
+
+Unfortunately, I do not have a large team that can develop custom DLL injection for capturing the audio of a specific application (like Discord does), nor do I have the reputation with antivirus/anticheat clients to do so.
+
 ## Global hotkeys (Linux + Wayland + KDE Plasma)
 
 For some reason, electron fails to unregister global hotkeys on wayland DE. So if you change hotkeys, you may need to clear old hotkeys manually in Settings > Keyboard > Shortcuts > Orbital
