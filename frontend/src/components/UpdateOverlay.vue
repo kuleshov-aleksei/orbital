@@ -2,9 +2,7 @@
   <div class="fixed inset-0 z-[100] flex items-center justify-center bg-[#1a1a1a]">
     <div class="w-full max-w-md px-6">
       <div class="flex flex-col items-center">
-        <div class="w-20 h-20 mb-8 rounded-2xl bg-indigo-600 flex items-center justify-center">
-          <PhArrowClockwise class="w-10 h-10 text-white" :class="{ 'animate-spin': isAnimating }" />
-        </div>
+        <img v-show="isAnimating" :src="updateAnimationUrl" alt="" class="w-80 h-auto mb-8" />
 
         <h2 class="text-2xl font-bold text-white mb-2">Updating Orbital</h2>
         <p class="text-gray-400 text-center mb-8">
@@ -55,8 +53,8 @@
 
 <script setup lang="ts">
 import { computed } from "vue"
-import { PhArrowClockwise } from "@phosphor-icons/vue"
 import { installUpdate } from "@/services/electron"
+import updateAnimationUrl from "@/assets/update-animation.gif"
 
 interface UpdateProgress {
   percent: number
