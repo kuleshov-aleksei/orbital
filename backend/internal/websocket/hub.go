@@ -980,8 +980,6 @@ func (c *Client) handlePing(data interface{}) {
 			} else {
 				log.Printf("[WebSocket] Cannot broadcast user_online for %s: authService is nil", userID)
 			}
-		} else {
-			log.Printf("[WebSocket] Not broadcasting user_online for %s: wasOnline=%v, isNewAuth=%v", userID, wasOnline, isNewAuthentication)
 		}
 	}
 
