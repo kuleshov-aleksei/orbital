@@ -88,6 +88,54 @@
           :format-value="formatDuration" />
       </div>
     </div>
+
+    <!-- Daily time distribution -->
+    <div
+      v-if="report && report.daily_time_sankey.entries.length > 0"
+      class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+      <div class="flex items-center justify-between mb-3">
+        <div>
+          <h3 class="text-sm font-medium text-gray-300">Daily time in calls</h3>
+          <p class="text-xs text-gray-500 mt-0.5">Total time spent connected per day</p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <select
+            v-model="timeRangePreset"
+            class="bg-gray-700 text-white text-sm px-2 py-1 rounded border border-gray-600 focus:border-indigo-500 focus:outline-none">
+            <option value="7d">Last 7 days</option>
+            <option value="14d">Last 14 days</option>
+            <option value="30d">Last 30 days</option>
+            <option value="year">This year</option>
+            <option value="custom">Custom range</option>
+          </select>
+
+          <template v-if="timeRangePreset === 'custom'">
+            <input
+              v-model="customStartDate"
+              type="date"
+              class="bg-gray-700 text-white text-sm px-2 py-1 rounded border border-gray-600 focus:border-indigo-500 focus:outline-none" />
+            <span class="text-gray-500 text-sm">to</span>
+            <input
+              v-model="customEndDate"
+              type="date"
+              class="bg-gray-700 text-white text-sm px-2 py-1 rounded border border-gray-600 focus:border-indigo-500 focus:outline-none" />
+          </template>
+        </div>
+      </div>
+
+      <div style="height: 240px">
+        <BarChart
+          v-if="dailyTimeChartData.labels.length > 0"
+          :data="dailyTimeChartData"
+          :height="240"
+          :format-value="formatHours" />
+        <div v-else class="flex items-center justify-center h-full text-gray-500 text-sm">
+          No data for selected time range
+        </div>
+      </div>
+    </div>
+
     <!-- Platform breakdown table -->
     <div
       v-if="report && report.platforms.length > 0"
@@ -163,9 +211,15 @@ import { PhChartBar } from "@phosphor-icons/vue"
 import type { AnalyticsReport } from "@/types"
 import SankeyDiagram from "@/components/admin/SankeyDiagram.vue"
 import PieChart from "@/components/admin/PieChart.vue"
+import BarChart from "@/components/admin/BarChart.vue"
 
 const report = ref<AnalyticsReport | null>(null)
 const loading = ref(false)
+
+type TimeRangePreset = "7d" | "14d" | "30d" | "year" | "custom"
+const timeRangePreset = ref<TimeRangePreset>("7d")
+const customStartDate = ref("")
+const customEndDate = ref("")
 
 const usersSankeySubtitle = computed(() => {
   if (!report.value || report.value.both_platforms_users === 0) {
@@ -225,6 +279,85 @@ const systemPie = computed(() => {
 
   return { labels, values, colors }
 })
+
+const toLocalDateStr = (utcDateStr: string): string => {
+  const [year, month, day] = utcDateStr.split("-").map(Number)
+  const date = new Date(year, month - 1, day)
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+}
+
+const isDateInRange = (utcDateStr: string, startDate: Date, endDate: Date): boolean => {
+  const [year, month, day] = utcDateStr.split("-").map(Number)
+  const date = new Date(year, month - 1, day)
+  return date >= startDate && date <= endDate
+}
+
+const dailyTimeChartData = computed(() => {
+  const reportData = report.value
+  if (!reportData || reportData.daily_time_sankey.entries.length === 0) {
+    return {
+      labels: [] as string[],
+      datasets: [] as { label: string; data: number[]; backgroundColor: string }[],
+    }
+  }
+
+  const now = new Date()
+  let startDate: Date
+  let endDate: Date
+
+  if (timeRangePreset.value === "custom") {
+    if (!customStartDate.value || !customEndDate.value) {
+      return {
+        labels: [] as string[],
+        datasets: [] as { label: string; data: number[]; backgroundColor: string }[],
+      }
+    }
+    const [startYear, startMonth, startDay] = customStartDate.value.split("-").map(Number)
+    const [endYear, endMonth, endDay] = customEndDate.value.split("-").map(Number)
+    startDate = new Date(startYear, startMonth - 1, startDay)
+    endDate = new Date(endYear, endMonth - 1, endDay, 23, 59, 59)
+  } else {
+    endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+    switch (timeRangePreset.value) {
+      case "7d":
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6)
+        break
+      case "14d":
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 13)
+        break
+      case "30d":
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29)
+        break
+      case "year":
+        startDate = new Date(now.getFullYear(), 0, 1)
+        break
+    }
+  }
+
+  const filtered = reportData.daily_time_sankey.entries.filter((e) =>
+    isDateInRange(e.date, startDate!, endDate!),
+  )
+
+  const labels = filtered.map((e) => toLocalDateStr(e.date))
+  const values = filtered.map((e) => e.seconds / 3600)
+
+  return {
+    labels,
+    datasets: [
+      {
+        label: "Time in calls (hours)",
+        data: values,
+        backgroundColor: "#818cf8",
+        borderRadius: 4,
+      },
+    ],
+  }
+})
+
+const formatHours = (value: number): string => {
+  if (value < 1) return `${Math.round(value * 60)}m`
+  return `${value.toFixed(1)}h`
+}
 
 const loadReport = async () => {
   loading.value = true

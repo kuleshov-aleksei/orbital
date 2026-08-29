@@ -331,6 +331,15 @@ export interface SankeyDistribution {
   links: AnalyticsLink[]
 }
 
+export interface DailyTimeEntry {
+  date: string // "2024-01-15"
+  seconds: number
+}
+
+export interface DailyTimeDistribution {
+  entries: DailyTimeEntry[]
+}
+
 export interface PlatformStat {
   platform: string
   system_name: string
@@ -349,6 +358,7 @@ export interface AnalyticsReport {
   both_platforms_users: number
   users_sankey: SankeyDistribution
   time_sankey: SankeyDistribution
+  daily_time_sankey: DailyTimeDistribution
   platforms: PlatformStat[]
 }
 

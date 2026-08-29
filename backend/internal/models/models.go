@@ -385,6 +385,17 @@ type SankeyDistribution struct {
 	Links []AnalyticsLink `json:"links"`
 }
 
+// DailyTimeEntry holds the total call time for a single calendar day (UTC)
+type DailyTimeEntry struct {
+	Date    string  `json:"date"`    // "2024-01-15"
+	Seconds float64 `json:"seconds"` // total call time in seconds for this day
+}
+
+// DailyTimeDistribution is a list of daily time entries
+type DailyTimeDistribution struct {
+	Entries []DailyTimeEntry `json:"entries"`
+}
+
 // PlatformStat aggregates usage statistics for one platform/system combination
 type PlatformStat struct {
 	Platform        string    `json:"platform"`
@@ -404,6 +415,7 @@ type AnalyticsReport struct {
 	TotalDurationSeconds int64              `json:"total_duration_seconds"`
 	BothPlatformsUsers   int64              `json:"both_platforms_users"`
 	UsersSankey          SankeyDistribution `json:"users_sankey"`
-	TimeSankey           SankeyDistribution `json:"time_sankey"`
-	Platforms            []PlatformStat     `json:"platforms"`
+	TimeSankey           SankeyDistribution     `json:"time_sankey"`
+	DailyTimeSankey      DailyTimeDistribution  `json:"daily_time_sankey"`
+	Platforms            []PlatformStat         `json:"platforms"`
 }

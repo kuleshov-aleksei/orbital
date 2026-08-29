@@ -131,6 +131,7 @@ func (s *AnalyticsService) GetReport() (*models.AnalyticsReport, error) {
 		return stats[i].Platform < stats[j].Platform
 	})
 	report.Platforms = stats
+	report.DailyTimeSankey = buildDailyTimeDistribution(sessions)
 
 	return report, nil
 }
@@ -221,6 +222,68 @@ func buildTimeSankey(statByPlatformSystem map[string]map[string]*models.Platform
 	}
 
 	return dist
+}
+
+// buildDailyTimeDistribution computes total call time per calendar day (UTC).
+// Sessions that span midnight are split across the days they touch.
+func buildDailyTimeDistribution(sessions []*models.UserSession) models.DailyTimeDistribution {
+	if len(sessions) == 0 {
+		return models.DailyTimeDistribution{Entries: []models.DailyTimeEntry{}}
+	}
+
+	type dayBucket struct {
+		seconds float64
+	}
+
+	buckets := make(map[string]*dayBucket)
+
+	for _, session := range sessions {
+		start := session.FirstSeen
+		end := session.LastSeen
+		if end.Before(start) {
+			continue
+		}
+
+		// Walk day-by-day from start to end, splitting at midnight boundaries
+		current := start
+		for current.Before(end) {
+			// Find the next midnight UTC
+			nextMidnight := time.Date(current.Year(), current.Month(), current.Day()+1, 0, 0, 0, 0, time.UTC)
+
+			// Determine the end of this segment
+			segmentEnd := end
+			if end.After(nextMidnight) {
+				segmentEnd = nextMidnight
+			}
+
+			seconds := segmentEnd.Sub(current).Seconds()
+			dateKey := current.Format("2006-01-02")
+
+			bucket, exists := buckets[dateKey]
+			if !exists {
+				bucket = &dayBucket{}
+				buckets[dateKey] = bucket
+			}
+			bucket.seconds += seconds
+
+			// Move to the next day
+			current = nextMidnight
+		}
+	}
+
+	// Collect and sort by date
+	entries := make([]models.DailyTimeEntry, 0, len(buckets))
+	for date, bucket := range buckets {
+		entries = append(entries, models.DailyTimeEntry{
+			Date:    date,
+			Seconds: bucket.seconds,
+		})
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Date < entries[j].Date
+	})
+
+	return models.DailyTimeDistribution{Entries: entries}
 }
 
 // normalize returns a non-empty identifier, defaulting to "unknown"
