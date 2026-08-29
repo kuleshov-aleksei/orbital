@@ -35,7 +35,7 @@
     "fflate": "^0.8.3",
     "livekit-client": "^2.21.0",
     "marked": "^18.0.7",
-    "pinia": "^3.0.4",
+    "pinia": "^4.0.0",
     "pixi.js": "^8.19.0",
     "vue": "^3.5.40",
     "vue-advanced-cropper": "^2.8.9",
@@ -64,8 +64,8 @@
     "unplugin-icons": "^23.0.1",
     "vite": "^8.1.5",
     "vite-plugin-compression": "^0.5.1",
-    "vite-plugin-electron": "^0.29.1",
-    "vite-plugin-electron-renderer": "^0.14.7",
+    "vite-plugin-electron": "^1.0.0",
+    "vite-plugin-electron-renderer": "^1.0.0",
     "vite-plugin-node-polyfills": "^0.28.0"
   }
 }
