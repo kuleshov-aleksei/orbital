@@ -1,12 +1,17 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    ":semanticCommitTypeAll(chore)"
   ],
   "minimumReleaseAge": "7 days",
   "schedule": ["* * * * 5,6"],
   "labels": ["dependencies"],
   "packageRules": [
+    {
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "!/^7\\.0\\./"
+    },
     {
       "matchPackageNames": ["**"],
       "groupName": "all-dependencies",
