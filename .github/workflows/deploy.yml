@@ -14,8 +14,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
-          fetch-depth: 0
+          fetch-depth: 10
           fetch-tags: true
+      
+      - name: Fetch tags
+        run: git fetch --prune --unshallow --tags
       
       - name: Install pnpm
         uses: pnpm/action-setup@v6
@@ -28,6 +31,13 @@ jobs:
           VERSION=$(./scripts/version.sh)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "Deploying version: $VERSION"
+      
+      - name: Validate version
+        run: |
+          if [ "$VERSION" = "0.0.0-unknown" ]; then
+            echo "ERROR: Failed to extract version. Aborting deployment."
+            exit 1
+          fi
       
       - name: Build Docker images
         run: |
