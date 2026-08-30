@@ -5,3 +5,4 @@ allowBuilds:
   esbuild: true
 packages: []
 minimumReleaseAge: 7200
+minimumReleaseAgeStrict: false
