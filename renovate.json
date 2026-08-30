@@ -15,7 +15,8 @@
     {
       "matchPackageNames": ["**"],
       "groupName": "all-dependencies",
-      "automerge": false
+      "automerge": false,
+      "internalChecksFilter": "strict"
     }
   ],
   "ignorePaths": [
