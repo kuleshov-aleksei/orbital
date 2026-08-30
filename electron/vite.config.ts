@@ -80,7 +80,7 @@ export default defineConfig(({ command, mode }) => {
         main: {
           entry: resolve(electronPath, "main/index.ts"),
           onstart({ startup }) {
-            startup()
+            startup(undefined, { cwd: electronPath })
           },
           vite: {
             build: {
