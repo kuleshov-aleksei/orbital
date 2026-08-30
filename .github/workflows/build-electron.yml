@@ -16,6 +16,7 @@ jobs:
       
       - name: Fetch tags
         run: |
+          export HOME=/opt/actions-runner/_work/
           git config --global --add safe.directory /opt/actions-runner/_work/orbital/orbital
           git fetch --prune --unshallow --tags
 
