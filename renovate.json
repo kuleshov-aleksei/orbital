@@ -23,5 +23,6 @@
     "docker/Dockerfile.backend",
     "docker/Dockerfile.electron",
     "docker/Dockerfile.frontend"
-  ]
+  ],
+  "rangeStrategy": "bump"
 }
