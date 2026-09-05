@@ -23,7 +23,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v6
         with:
-          version: 11
+          version: 12.1.0
 
       - name: Extract version
         id: get_version
