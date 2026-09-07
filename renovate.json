@@ -22,7 +22,9 @@
   "ignorePaths": [
     "docker/Dockerfile.backend",
     "docker/Dockerfile.electron",
-    "docker/Dockerfile.frontend"
+    "docker/Dockerfile.frontend",
+    ".github/workflows/build-electron.yml",
+    ".github/workflows/deploy.yml"
   ],
   "rangeStrategy": "bump"
 }
