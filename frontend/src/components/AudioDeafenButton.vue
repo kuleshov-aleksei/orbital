@@ -8,7 +8,7 @@
         ? 'bg-red-600 hover:bg-red-700 text-white'
         : 'bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary',
     ]"
-    :title="isDeafened ? 'Undeafen' : 'Deafen'"
+    :title="buttonTitle"
     @click="toggleDeafen">
     <Transition name="icon-toggle" mode="out-in">
       <!-- Headphones with slash when deafened -->
@@ -30,6 +30,7 @@ import { computed } from "vue"
 import { PhHeadphones } from "@phosphor-icons/vue"
 import { useCallStore, useUserStore, useRoomStore } from "@/stores"
 import { useSounds } from "@/services/sounds"
+import { isElectron } from "@/services/electron"
 import { wsService } from "@/services/websocket"
 
 interface Props {
@@ -54,6 +55,14 @@ const roomStore = useRoomStore()
 
 // Sounds
 const { playDeafen, playUndeafen } = useSounds()
+
+// Show hotkey hint (D) only in web browser mode (hidden in spatial rooms where D is disabled)
+const showHotkey = !isElectron() && roomStore.activeRoom?.type !== "spatial_audio"
+
+const buttonTitle = computed(() => {
+  const base = isDeafened.value ? "Undeafen" : "Deafen"
+  return showHotkey ? `${base} (D)` : base
+})
 
 // Computed v-model
 const isDeafened = computed({

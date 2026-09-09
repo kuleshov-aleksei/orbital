@@ -8,7 +8,7 @@
         ? 'bg-red-600 hover:bg-red-700 text-white'
         : 'bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary',
     ]"
-    :title="isMuted ? 'Unmute' : 'Mute'"
+    :title="buttonTitle"
     @click="toggleMute">
     <Transition name="icon-toggle" mode="out-in">
       <PhMicrophoneSlash v-if="isMuted" key="muted" :class="iconClasses" />
@@ -23,6 +23,7 @@ import { computed } from "vue"
 import { PhMicrophone, PhMicrophoneSlash } from "@phosphor-icons/vue"
 import { useCallStore, useUserStore, useRoomStore } from "@/stores"
 import { useSounds } from "@/services/sounds"
+import { isElectron } from "@/services/electron"
 import { wsService } from "@/services/websocket"
 
 interface Props {
@@ -54,6 +55,14 @@ const isMuted = computed({
   set: (value) => {
     emit("update:modelValue", value)
   },
+})
+
+// Show hotkey hint (M) only in web browser mode
+const showHotkey = !isElectron()
+
+const buttonTitle = computed(() => {
+  const base = isMuted.value ? "Unmute" : "Mute"
+  return showHotkey ? `${base} (M)` : base
 })
 
 // Corner radius classes (for split-button look with the quick-settings caret)
