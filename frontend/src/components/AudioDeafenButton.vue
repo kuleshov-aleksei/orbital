@@ -35,10 +35,12 @@ import { wsService } from "@/services/websocket"
 interface Props {
   modelValue: boolean
   size?: "sm" | "md" | "lg"
+  corner?: "all" | "left" | "right"
 }
 
 const props = withDefaults(defineProps<Props>(), {
   size: "md",
+  corner: "all",
 })
 
 const emit = defineEmits<{
@@ -61,13 +63,25 @@ const isDeafened = computed({
   },
 })
 
+// Corner radius classes (for split-button look with the mute button)
+const cornerClasses = computed(() => {
+  switch (props.corner) {
+    case "left":
+      return "rounded-l-lg"
+    case "right":
+      return "rounded-r-lg"
+    default:
+      return "rounded-lg"
+  }
+})
+
 // Size classes based on prop
 const sizeClasses = computed(() => {
   switch (props.size) {
     case "sm":
-      return "w-8 h-8 rounded-full"
+      return `h-8 w-10 ${cornerClasses.value}`
     case "lg":
-      return "h-10 w-14 rounded-lg"
+      return `h-10 w-14 ${cornerClasses.value}`
     case "md":
     default:
       return "w-10 h-10 rounded-full"
@@ -97,7 +111,7 @@ const slashClasses = computed(() => {
   const baseClasses = "bg-current rotate-45"
   switch (props.size) {
     case "sm":
-      return `${baseClasses} w-4 h-0.5`
+      return `${baseClasses} w-5 h-0.5`
     case "lg":
       return `${baseClasses} w-6 h-0.5`
     case "md":

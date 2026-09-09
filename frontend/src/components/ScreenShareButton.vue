@@ -78,7 +78,7 @@ const isScreenSharing = computed({
 const sizeClasses = computed(() => {
   switch (props.size) {
     case "sm":
-      return "w-9 h-9 rounded-lg"
+      return "h-9 w-12 rounded-lg"
     case "lg":
       return "h-10 w-14 rounded-lg"
     case "md":
@@ -91,7 +91,7 @@ const sizeClasses = computed(() => {
 const iconClasses = computed(() => {
   switch (props.size) {
     case "sm":
-      return "w-4 h-4"
+      return "w-5 h-5"
     case "lg":
       return "w-5 h-5"
     case "md":

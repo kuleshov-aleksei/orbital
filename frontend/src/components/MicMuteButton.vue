@@ -72,7 +72,7 @@ const cornerClasses = computed(() => {
 const sizeClasses = computed(() => {
   switch (props.size) {
     case "sm":
-      return "w-8 h-8 rounded-full"
+      return `h-8 w-10 ${cornerClasses.value}`
     case "lg":
       return `h-10 w-14 ${cornerClasses.value}`
     case "md":

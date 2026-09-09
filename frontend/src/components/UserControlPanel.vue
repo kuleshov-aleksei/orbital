@@ -33,17 +33,17 @@
           <button
             v-if="callStore.watchingUserIds.size > 0"
             type="button"
-            class="w-9 h-9 rounded-lg flex items-center justify-center bg-amber-600 hover:bg-amber-700 text-white transition-colors duration-200"
+            class="h-8 w-10 rounded-lg flex items-center justify-center bg-amber-600 hover:bg-amber-700 text-white transition-colors duration-200"
             title="Stop watching"
             @click="callStore.triggerStopWatching()">
-            <PhImageBroken class="w-5 h-5" />
+            <PhImageBroken class="w-4 h-4" />
           </button>
 
           <!-- Leave Room Button -->
           <button
             v-else
             type="button"
-            class="w-9 h-9 rounded-lg flex items-center justify-center bg-red-600 hover:bg-red-700 text-white transition-colors duration-200"
+            class="h-9 w-12 rounded-lg flex items-center justify-center bg-red-600 hover:bg-red-700 text-white transition-colors duration-200"
             title="Leave Room"
             @click="leaveRoom">
             <PhSignOut class="w-5 h-5" />
@@ -72,16 +72,16 @@
 
         <!-- Control Buttons -->
         <div class="flex items-center space-x-2 ml-2">
-          <!-- Microphone Toggle -->
-          <MicMuteButton v-model="localMuted" size="sm" />
-
-          <!-- Headphone/Deafen Toggle -->
-          <AudioDeafenButton v-model="localDeafened" size="sm" />
+          <!-- Mute + Deafen split button -->
+          <div class="flex items-center">
+            <MicMuteButton v-model="localMuted" size="sm" corner="left" />
+            <AudioDeafenButton v-model="localDeafened" size="sm" corner="right" />
+          </div>
 
           <!-- Settings Button -->
           <button
             type="button"
-            class="w-8 h-8 rounded-full flex items-center justify-center bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary transition-colors duration-200"
+            class="h-8 w-10 rounded-lg flex items-center justify-center bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary transition-colors duration-200"
             title="Settings"
             @click="openSettings">
             <PhGearSix class="w-4 h-4" />
