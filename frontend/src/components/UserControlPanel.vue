@@ -33,17 +33,17 @@
           <button
             v-if="callStore.watchingUserIds.size > 0"
             type="button"
-            class="h-8 w-10 rounded-lg flex items-center justify-center bg-amber-600 hover:bg-amber-700 text-white transition-colors duration-200"
+            class="control-button h-9 w-12 rounded-lg bg-amber-600 hover:bg-amber-700 text-white"
             title="Stop watching"
             @click="callStore.triggerStopWatching()">
-            <PhImageBroken class="w-4 h-4" />
+            <PhImageBroken class="w-5 h-5" />
           </button>
 
           <!-- Leave Room Button -->
           <button
             v-else
             type="button"
-            class="h-9 w-12 rounded-lg flex items-center justify-center bg-red-600 hover:bg-red-700 text-white transition-colors duration-200"
+            class="control-button h-9 w-12 rounded-lg bg-red-600 hover:bg-red-700 text-white"
             title="Leave Room"
             @click="leaveRoom">
             <PhSignOut class="w-5 h-5" />
@@ -81,7 +81,7 @@
           <!-- Settings Button -->
           <button
             type="button"
-            class="h-8 w-10 rounded-lg flex items-center justify-center bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary transition-colors duration-200"
+            class="control-button h-8 w-10 rounded-lg bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary"
             title="Settings"
             @click="openSettings">
             <PhGearSix class="w-4 h-4" />

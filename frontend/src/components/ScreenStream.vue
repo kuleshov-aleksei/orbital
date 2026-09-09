@@ -106,7 +106,7 @@
             <!-- Stop Watching Button -->
             <button
               type="button"
-              class="p-2 bg-red-600/80 hover:bg-red-600 rounded-lg text-theme-text-primary text-xs flex items-center gap-1.5 transition-colors"
+              class="p-2 bg-amber-600 hover:bg-amber-700 rounded-lg text-theme-text-primary text-xs flex items-center gap-1.5 transition-colors"
               :title="isSelfView ? 'Stop sharing' : 'Stop watching'"
               @click="isSelfView ? $emit('stop-own-screen-share') : $emit('unsubscribe')">
               <PhImageBroken class="w-4 h-4" />

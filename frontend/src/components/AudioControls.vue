@@ -24,22 +24,22 @@
         size="lg"
         @start-screen-share="$emit('start-screen-share')" />
 
-        <!-- Settings (mobile only) -->
-        <button
-          v-if="isMobile"
-          type="button"
-          class="h-10 w-12 rounded-lg flex items-center justify-center bg-theme-bg-tertiary hover:bg-theme-bg-hover transition-colors duration-200"
-          title="Settings"
-          @click="openSettings">
-          <PhGearSix class="w-5 h-5" />
-        </button>
+      <!-- Settings (mobile only) -->
+      <button
+        v-if="isMobile"
+        type="button"
+        class="control-button h-10 w-12 rounded-lg bg-theme-bg-tertiary hover:bg-theme-bg-hover"
+        title="Settings"
+        @click="openSettings">
+        <PhGearSix class="w-5 h-5" />
+      </button>
     </div>
 
     <!-- Stop Watching -->
     <button
       v-if="callStore.watchingUserIds.size > 0"
       type="button"
-      class="h-12 w-12 rounded-lg flex items-center justify-center bg-amber-600 hover:bg-amber-700 transition-colors duration-200"
+      class="control-button h-12 w-16 rounded-lg bg-amber-600 hover:bg-amber-700"
       title="Stop watching"
       @click="callStore.triggerStopWatching()">
       <PhImageBroken class="w-5 h-5" />
@@ -49,7 +49,7 @@
     <button
       v-else
       type="button"
-      class="h-12 w-16 rounded-lg flex items-center justify-center bg-red-600 hover:bg-red-700 transition-colors duration-200"
+      class="control-button h-12 w-16 rounded-lg bg-red-600 hover:bg-red-700"
       title="Leave Room"
       @click="handleLeaveRoom">
       <PhSignOut class="w-5 h-5" />
