@@ -41,9 +41,11 @@
 
       <!-- Controls Overlay -->
       <div
+        v-if="showControls"
         class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-3 py-2 opacity-0 hover:opacity-100 transition-opacity duration-200">
         <div class="flex items-center justify-end space-x-2">
           <button
+            v-if="showFullscreenButton"
             type="button"
             class="p-1.5 bg-theme-bg-tertiary/80 hover:bg-theme-bg-hover rounded-lg text-theme-text-primary transition-colors"
             :title="isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'"
@@ -54,7 +56,7 @@
           </button>
 
           <button
-            v-if="showPiPButton"
+            v-if="showPipButton"
             type="button"
             class="p-1.5 bg-theme-bg-tertiary/80 hover:bg-theme-bg-hover rounded-lg text-theme-text-primary transition-colors"
             title="Picture in Picture"
@@ -93,7 +95,8 @@ interface Props {
   isFocused?: boolean
   isSelfView?: boolean
   isCompact?: boolean
-  showPiPButton?: boolean
+  showPipButton?: boolean
+  showFullscreenButton?: boolean
   fullscreenHost?: HTMLElement | null
 }
 
@@ -102,7 +105,8 @@ const props = withDefaults(defineProps<Props>(), {
   isFocused: false,
   isSelfView: false,
   isCompact: false,
-  showPiPButton: true,
+  showPipButton: true,
+  showFullscreenButton: true,
   fullscreenHost: null,
 })
 
@@ -117,6 +121,8 @@ const videoSettingsStore = useVideoSettingsStore()
 const shouldMirror = computed(() => {
   return props.isSelfView && videoSettingsStore.isMirrored
 })
+
+const showControls = computed(() => props.showFullscreenButton || props.showPipButton)
 
 // Compute aspect ratio from actual video dimensions
 const videoAspectRatio = computed(() => {

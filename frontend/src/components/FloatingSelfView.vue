@@ -19,7 +19,8 @@
       :connection-state="connectionState"
       :is-self-view="true"
       :is-compact="true"
-      :show-pip-button="true"
+      :show-pip-button="false"
+      :show-fullscreen-button="false"
       class="shadow-2xl" />
   </div>
 </template>
