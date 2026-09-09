@@ -78,13 +78,11 @@ const renderChart = () => {
       data: {
         datasets: [
           {
-            data: props.links.map(
-              (link): SankeyDataPoint => ({
-                from: link.source,
-                to: link.target,
-                flow: link.value,
-              }),
-            ),
+            data: props.links.map((link): SankeyDataPoint => ({
+              from: link.source,
+              to: link.target,
+              flow: link.value,
+            })),
             colorFrom: (context) => colorForNode(context.raw.from),
             colorTo: (context) => colorForNode(context.raw.to),
             colorMode: "from",

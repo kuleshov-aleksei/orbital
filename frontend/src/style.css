@@ -159,17 +159,19 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition:
-    background-color 200ms var(--ease-out-smooth),
-    transform 100ms var(--ease-out-smooth);
+  transition: background-color 200ms var(--ease-out-smooth);
 }
 
-.control-button:hover {
-  transform: scale(1.05);
+.control-button > * {
+  transition: transform 120ms var(--ease-out-smooth);
 }
 
-.control-button:active {
-  transform: scale(0.95);
+.control-button:hover > * {
+  transform: scale(1.15);
+}
+
+.control-button:active > * {
+  transform: scale(0.9);
 }
 
 .icon-toggle-enter-active {
@@ -195,16 +197,13 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .control-button {
+  .control-button,
+  .control-button > * {
     transition: none;
-    transform: none !important;
   }
 
-  .control-button:hover {
-    transform: none;
-  }
-
-  .control-button:active {
+  .control-button:hover > *,
+  .control-button:active > * {
     transform: none;
   }
 

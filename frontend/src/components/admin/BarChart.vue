@@ -6,14 +6,7 @@
 
 <script setup lang="ts">
 import { onMounted, watch, onUnmounted, useTemplateRef } from "vue"
-import {
-  Chart,
-  CategoryScale,
-  LinearScale,
-  BarController,
-  BarElement,
-  Tooltip,
-} from "chart.js"
+import { Chart, CategoryScale, LinearScale, BarController, BarElement, Tooltip } from "chart.js"
 
 const props = defineProps<{
   data: {

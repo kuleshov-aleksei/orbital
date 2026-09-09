@@ -36,8 +36,7 @@ function convertV1ToV2(data: Record<string, unknown>): WorldData {
           frames: t.frames as number[] | undefined,
           frameDuration: t.frameDuration as number | undefined,
           collisionBox: t.collisionBox as
-            | { x: number; y: number; width: number; height: number }
-            | undefined,
+            { x: number; y: number; width: number; height: number } | undefined,
           collisionPolygons: t.collisionPolygons as [number, number][][] | undefined,
         })) || [],
     })

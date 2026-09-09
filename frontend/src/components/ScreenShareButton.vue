@@ -20,7 +20,7 @@
     <!-- Lock Icon Overlay for Guests -->
     <div
       v-if="isGuest"
-      class="absolute -bottom-1 -right-1 bg-theme-bg-secondary rounded-full p-0.5 border border-theme-border">
+      class="absolute bottom-1 right-1 bg-theme-bg-secondary rounded-full p-0.5 border border-theme-border">
       <PhLock class="w-3 h-3 text-theme-text-muted" />
     </div>
   </div>
@@ -80,7 +80,7 @@ const sizeClasses = computed(() => {
     case "sm":
       return "w-9 h-9 rounded-lg"
     case "lg":
-      return "w-12 h-12 rounded-full"
+      return "h-10 w-14 rounded-lg"
     case "md":
     default:
       return "w-10 h-10 rounded-full"

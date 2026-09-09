@@ -67,7 +67,7 @@ const sizeClasses = computed(() => {
     case "sm":
       return "w-8 h-8 rounded-full"
     case "lg":
-      return "w-12 h-12 rounded-full"
+      return "h-10 w-14 rounded-lg"
     case "md":
     default:
       return "w-10 h-10 rounded-full"

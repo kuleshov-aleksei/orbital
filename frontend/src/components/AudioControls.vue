@@ -1,47 +1,45 @@
 <template>
-  <div class="flex items-center justify-center space-x-4 shrink-0 px-4 py-3">
-    <!-- Mute/Unmute -->
-    <div class="relative w-12 h-12">
-      <div class="absolute">
-        <AudioControlsDropdown />
-        <MicMuteButton v-model="isMuted" size="lg" />
+  <div class="flex items-center justify-center gap-2 shrink-0 px-4 py-3">
+    <!-- Group: Mute + Audio quick-settings caret + Deafen -->
+    <div class="flex items-center gap-1.5 p-1.5 rounded-xl bg-theme-bg-secondary">
+      <div class="flex items-center">
+        <MicMuteButton v-model="isMuted" size="lg" corner="left" />
+        <AudioControlsDropdown :muted="isMuted" />
       </div>
+      <AudioDeafenButton v-model="isDeafened" size="lg" />
     </div>
 
-    <!-- Deafen/Undeafen -->
-    <AudioDeafenButton v-model="isDeafened" size="lg" />
-
-    <!-- Screen Share -->
-    <ScreenShareButton
+    <!-- Group: Camera + Screen Share -->
+    <div
       v-if="!isSpatialRoom"
-      ref="screenShareButtonRef"
-      v-model="isScreenSharing"
-      size="lg"
-      @start-screen-share="$emit('start-screen-share')" />
+      class="flex items-center gap-1.5 p-1.5 rounded-xl bg-theme-bg-secondary">
+      <CameraButton
+        v-model="isCameraEnabled"
+        size="lg"
+        @toggle-camera="$emit('toggle-camera', $event)"
+        @auth-required="$emit('auth-required')" />
+      <ScreenShareButton
+        ref="screenShareButtonRef"
+        v-model="isScreenSharing"
+        size="lg"
+        @start-screen-share="$emit('start-screen-share')" />
 
-    <!-- Camera -->
-    <CameraButton
-      v-if="!isSpatialRoom"
-      v-model="isCameraEnabled"
-      size="lg"
-      @toggle-camera="$emit('toggle-camera', $event)"
-      @auth-required="$emit('auth-required')" />
-
-    <!-- Settings (mobile only) -->
-    <button
-      v-if="isMobile"
-      type="button"
-      class="w-12 h-12 rounded-full flex items-center justify-center bg-theme-bg-tertiary hover:bg-theme-bg-hover transition-colors duration-200"
-      title="Settings"
-      @click="openSettings">
-      <PhGearSix class="w-5 h-5" />
-    </button>
+        <!-- Settings (mobile only) -->
+        <button
+          v-if="isMobile"
+          type="button"
+          class="h-10 w-12 rounded-lg flex items-center justify-center bg-theme-bg-tertiary hover:bg-theme-bg-hover transition-colors duration-200"
+          title="Settings"
+          @click="openSettings">
+          <PhGearSix class="w-5 h-5" />
+        </button>
+    </div>
 
     <!-- Stop Watching -->
     <button
       v-if="callStore.watchingUserIds.size > 0"
       type="button"
-      class="w-12 h-12 rounded-full flex items-center justify-center bg-amber-600 hover:bg-amber-700 transition-colors duration-200"
+      class="h-12 w-12 rounded-lg flex items-center justify-center bg-amber-600 hover:bg-amber-700 transition-colors duration-200"
       title="Stop watching"
       @click="callStore.triggerStopWatching()">
       <PhImageBroken class="w-5 h-5" />
@@ -51,7 +49,7 @@
     <button
       v-else
       type="button"
-      class="w-12 h-12 rounded-full flex items-center justify-center bg-red-600 hover:bg-red-700 transition-colors duration-200"
+      class="h-12 w-16 rounded-lg flex items-center justify-center bg-red-600 hover:bg-red-700 transition-colors duration-200"
       title="Leave Room"
       @click="handleLeaveRoom">
       <PhSignOut class="w-5 h-5" />

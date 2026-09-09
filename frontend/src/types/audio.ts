@@ -4,11 +4,7 @@
  */
 
 export type NoiseSuppressionAlgorithm =
-  | "off"
-  | "browser-native"
-  | "livekit-native"
-  | "rnnoise"
-  | "speex"
+  "off" | "browser-native" | "livekit-native" | "rnnoise" | "speex"
 
 export interface NoiseSuppressionConfig {
   enabled: boolean

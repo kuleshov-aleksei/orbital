@@ -6,13 +6,7 @@ export type ConnectionQuality = "sub-wave" | "excellent" | "good" | "fair" | "po
 export type MobileView = "rooms" | "room"
 
 export type UpdateState =
-  | "idle"
-  | "checking"
-  | "available"
-  | "downloading"
-  | "ready"
-  | "error"
-  | "not-available"
+  "idle" | "checking" | "available" | "downloading" | "ready" | "error" | "not-available"
 
 export const useAppStore = defineStore("app", () => {
   // State

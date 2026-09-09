@@ -1,14 +1,19 @@
 <template>
-  <div ref="dropdownRef" class="relative w-full h-full">
-    <!-- Trigger Button -->
+  <div ref="dropdownRef" class="relative">
+    <!-- Trigger Button (inline segment) -->
     <button
       type="button"
-      class="absolute -top-2 -right-2 w-6 h-6 rounded flex items-center justify-center bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary transition-colors z-20 cursor-pointer"
-      :class="{ 'ring-2 ring-theme-accent': isOpen }"
+      class="h-10 w-6 rounded-r-lg flex items-center justify-center transition-colors cursor-pointer"
+      :class="[
+        props.muted
+          ? 'bg-red-600 hover:bg-red-700 text-white'
+          : 'bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary',
+        { 'text-theme-accent': isOpen && !props.muted },
+      ]"
       title="Audio Settings"
       @click.stop="toggleDropdown">
-      <PhCaretDown v-if="isOpen" class="w-3 h-3 pointer-events-none" />
-      <PhCaretUp v-else class="w-3 h-3 pointer-events-none" />
+      <PhCaretUp v-if="isOpen" class="w-4 h-4 pointer-events-none" />
+      <PhCaretDown v-else class="w-4 h-4 pointer-events-none" />
     </button>
 
     <!-- Dropdown Panel -->
@@ -93,6 +98,14 @@
 import { ref, computed, onMounted, onUnmounted, useTemplateRef } from "vue"
 import { PhCaretUp, PhCaretDown } from "@phosphor-icons/vue"
 import { useAudioSettingsStore } from "@/stores"
+
+interface Props {
+  muted?: boolean
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  muted: false,
+})
 
 const audioStore = useAudioSettingsStore()
 const isOpen = ref(false)
