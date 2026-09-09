@@ -2,7 +2,11 @@
   <div
     ref="rootEl"
     class="floating-self-view absolute z-20 select-none touch-none cursor-grab active:cursor-grabbing w-40 lg:w-52 max-h-[45vh] overflow-hidden rounded-xl shadow-2xl ring-1 ring-black/40"
-    :class="{ 'right-3 bottom-3': !position }"
+    :class="{
+      'right-3': !position,
+      'bottom-3': !position && !isFullscreen,
+      'bottom-[10%]': !position && isFullscreen,
+    }"
     :style="position ? { left: `${position.x}px`, top: `${position.y}px` } : undefined"
     @pointerdown="onPointerDown"
     @pointermove="onPointerMove"
@@ -36,11 +40,13 @@ interface Props {
   videoTrack: RemoteVideoTrack | LocalVideoTrack | null
   connectionState?: string
   position?: SelfViewPosition | null
+  isFullscreen?: boolean
 }
 
 withDefaults(defineProps<Props>(), {
   connectionState: "connecting",
   position: null,
+  isFullscreen: false,
 })
 
 const emit = defineEmits<{

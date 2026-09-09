@@ -54,11 +54,13 @@
           <Transition name="fade">
             <FloatingSelfView
               v-if="floatingSelfView"
-              v-model:position="selfViewPosition"
+              :position="isFullscreen ? selfViewPositionFullscreen : selfViewPosition"
+              :is-fullscreen="isFullscreen"
               :user-id="floatingSelfView.userId"
               :user-nickname="floatingSelfView.userNickname"
               :video-track="floatingSelfView.videoTrack"
               :connection-state="floatingSelfView.connectionState"
+              @update:position="onSelfViewPositionUpdate"
               @focus="handleSelfViewFocus" />
           </Transition>
         </div>
@@ -394,8 +396,27 @@ const focusedPlaceholder = computed(() => {
   return null
 })
 
-// Floating self-view (PiP) so the current user always sees themselves when their camera isn't focused
+// Floating self-view (PiP) so the current user always sees themselves when their camera isn't focused.
+// Position is tracked separately for normal and fullscreen modes so that dragging in fullscreen
+// never moves the view out of bounds when fullscreen is exited.
 const selfViewPosition = ref<SelfViewPosition | null>(null)
+const selfViewPositionFullscreen = ref<SelfViewPosition | null>(null)
+
+// Track whether the main stream area is currently the fullscreen element
+const isFullscreen = ref(false)
+const onFullscreenChange = () => {
+  isFullscreen.value = document.fullscreenElement === mainStreamAreaRef.value
+}
+document.addEventListener("fullscreenchange", onFullscreenChange)
+onUnmounted(() => document.removeEventListener("fullscreenchange", onFullscreenChange))
+
+const onSelfViewPositionUpdate = (value: SelfViewPosition) => {
+  if (isFullscreen.value) {
+    selfViewPositionFullscreen.value = value
+  } else {
+    selfViewPosition.value = value
+  }
+}
 
 const floatingSelfView = computed((): CameraStreamData | null => {
   if (props.layout !== "focus") return null
