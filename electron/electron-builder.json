@@ -19,6 +19,9 @@
   "asarUnpack": [
     "node_modules/electron-updater/**/*"
   ],
+  "electronLanguages": [
+    "en-US"
+  ],
   "extraResources": [
     {
       "from": "build",
