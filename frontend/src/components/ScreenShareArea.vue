@@ -7,7 +7,8 @@
       <div v-if="props.layout === 'focus'" class="flex flex-col lg:flex-row h-full gap-2 lg:gap-4">
         <!-- Main focused stream - 80% width on desktop, full width on mobile -->
         <div
-          class="flex-1 min-w-0 min-h-0 lg:flex-[8] lg:min-w-48 lg:min-h-48 self-center w-full h-full">
+          ref="mainStreamAreaRef"
+          class="relative flex-1 min-w-0 min-h-0 lg:flex-[8] lg:min-w-48 lg:min-h-48 self-center w-full h-full">
           <!-- Screen Share in main area -->
           <ScreenStream
             v-if="focusedStream?.type === 'screen'"
@@ -21,6 +22,7 @@
             :is-focused="true"
             :show-focus-button="false"
             :is-self-view="focusedStream.isSelfView"
+            :fullscreen-host="mainStreamAreaRef"
             :volume="getVolumeForUser(focusedStream.userId)"
             @volume-change="handleVolumeChange(focusedStream.userId, $event, true)"
             @unsubscribe="$emit('unsubscribe-screen-share', focusedStream.userId)"
@@ -44,8 +46,21 @@
             :video-track="focusedStream.videoTrack"
             :connection-state="focusedStream.connectionState"
             :is-focused="true"
+            :fullscreen-host="mainStreamAreaRef"
             class="max-w-full"
             :is-self-view="focusedStream.isSelfView" />
+
+          <!-- Floating self-view so the current user always sees themselves when not focused -->
+          <Transition name="fade">
+            <FloatingSelfView
+              v-if="floatingSelfView"
+              v-model:position="selfViewPosition"
+              :user-id="floatingSelfView.userId"
+              :user-nickname="floatingSelfView.userNickname"
+              :video-track="floatingSelfView.videoTrack"
+              :connection-state="floatingSelfView.connectionState"
+              @focus="handleSelfViewFocus" />
+          </Transition>
         </div>
 
         <!-- User panel for participants - 20% width on desktop, below on mobile -->
@@ -139,11 +154,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted } from "vue"
+import { ref, computed, watch, onUnmounted, useTemplateRef } from "vue"
 import ScreenStream from "./ScreenStream.vue"
 import ScreenSharePlaceholder from "./ScreenSharePlaceholder.vue"
 import CameraStream from "./CameraStream.vue"
 import ParticipantCard from "./ParticipantCard.vue"
+import FloatingSelfView, { type SelfViewPosition } from "./FloatingSelfView.vue"
 import { useRoomStore } from "@/stores"
 import type { ScreenShareQuality, User, ConnectionStats } from "@/types"
 import type {
@@ -247,6 +263,10 @@ const localLayout = computed({
   set: (value) => emit("update:layout", value),
 })
 const focusedUserId = ref<string | null>(null)
+
+// Host element for fullscreen - fullscreening this wrapper keeps the floating
+// self-view visible on top of the fullscreen stream (same mechanism as the controls)
+const mainStreamAreaRef = useTemplateRef<HTMLDivElement>("mainStreamAreaRef")
 
 // Normalize userId using store helper
 const normalizeUserId = (userId: string): string => {
@@ -373,6 +393,26 @@ const focusedPlaceholder = computed(() => {
   }
   return null
 })
+
+// Floating self-view (PiP) so the current user always sees themselves when their camera isn't focused
+const selfViewPosition = ref<SelfViewPosition | null>(null)
+
+const floatingSelfView = computed((): CameraStreamData | null => {
+  if (props.layout !== "focus") return null
+  const self = props.cameraStreams.find((c) => c.isSelfView && c.userId === props.currentUserId)
+  if (!self?.videoTrack) return null
+  const focused = focusedStream.value
+  if (focused?.type === "camera" && focused.isSelfView && focused.userId === props.currentUserId) {
+    return null
+  }
+  return self
+})
+
+// Maximize the self-view: ensure the current user's camera (not their screen share) becomes the main stream
+const handleSelfViewFocus = () => {
+  roomStore.setUserShowCameraAsMain(props.currentUserId, true)
+  setFocusedShare(props.currentUserId)
+}
 
 // Check if a participant's stream is currently being viewed in the main area
 const isParticipantViewingMainStream = (userId: string): boolean => {
@@ -544,5 +584,30 @@ onUnmounted(() => {
 <style scoped>
 .screen-share-area {
   /* Uses flex layout to fit available space */
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.15s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>
+
+<style>
+/* When the main stream area is fullscreened, let the stream fill the whole screen
+   instead of being capped at 70vh (which left empty space at the bottom). */
+:fullscreen .screen-stream,
+:fullscreen .camera-stream {
+  height: 100%;
+}
+
+:fullscreen .screen-stream .stream-video-container,
+:fullscreen .camera-stream .stream-video-container {
+  height: 100%;
+  max-height: 100vh;
 }
 </style>

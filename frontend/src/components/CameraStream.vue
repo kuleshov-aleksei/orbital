@@ -3,7 +3,8 @@
     class="camera-stream relative bg-theme-bg-primary rounded-lg overflow-hidden border border-theme-border flex flex-col"
     :class="{ 'border-theme-accent ring-2 ring-theme-accent/50': isFocused }">
     <!-- Video Container -->
-    <div class="relative flex items-center justify-center bg-black w-full h-full max-h-[70vh]">
+    <div
+      class="stream-video-container relative flex items-center justify-center bg-black w-full h-full max-h-[70vh]">
       <video
         :id="`camera-${userId}`"
         ref="videoElement"
@@ -93,6 +94,7 @@ interface Props {
   isSelfView?: boolean
   isCompact?: boolean
   showPiPButton?: boolean
+  fullscreenHost?: HTMLElement | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -101,6 +103,7 @@ const props = withDefaults(defineProps<Props>(), {
   isSelfView: false,
   isCompact: false,
   showPiPButton: true,
+  fullscreenHost: null,
 })
 
 const videoElement = useTemplateRef<HTMLVideoElement>("videoElement")
@@ -203,11 +206,12 @@ watch(
 )
 
 const toggleFullscreen = async () => {
-  if (!videoElement.value) return
+  const target = props.fullscreenHost ?? videoElement.value
+  if (!target) return
 
   try {
     if (!document.fullscreenElement) {
-      await videoElement.value.requestFullscreen()
+      await target.requestFullscreen()
       isFullscreen.value = true
     } else {
       await document.exitFullscreen()

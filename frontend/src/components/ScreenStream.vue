@@ -7,7 +7,7 @@
     <!-- Video Container - maintains actual stream aspect ratio within available space -->
     <div
       ref="videoContainerRef"
-      class="relative flex items-center justify-center bg-black w-full h-full max-h-[70vh]"
+      class="stream-video-container relative flex items-center justify-center bg-black w-full h-full max-h-[70vh]"
       @mousemove="onFullscreenMousemove">
       <video
         :id="`screen-${userId}`"
@@ -292,6 +292,7 @@ interface Props {
   showFocusButton?: boolean
   isSelfView?: boolean
   volume?: number
+  fullscreenHost?: HTMLElement | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -300,6 +301,7 @@ const props = withDefaults(defineProps<Props>(), {
   showFocusButton: false,
   isSelfView: false,
   volume: 80,
+  fullscreenHost: null,
 })
 
 const emit = defineEmits<{
@@ -480,12 +482,12 @@ watch(
 )
 
 const toggleFullscreen = async () => {
-  const container = videoContainerRef.value
-  if (!container) return
+  const target = props.fullscreenHost ?? videoContainerRef.value
+  if (!target) return
 
   try {
     if (!document.fullscreenElement) {
-      await container.requestFullscreen()
+      await target.requestFullscreen()
       isFullscreen.value = true
       showFullscreenControls()
     } else {
