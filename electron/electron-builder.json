@@ -8,17 +8,16 @@
   "files": [
     "dist/**/*",
     "dist-electron/**/*",
-    "dist/venmic-x64.node",
-    "dist/venmic-arm64.node",
+    "!dist/venmic-x64.node",
+    "!dist/venmic-arm64.node",
+    "!**/node_modules/@vencord/venmic/**/*",
     "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
     "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
     "!**/node_modules/.bin"
   ],
   "asar": true,
   "asarUnpack": [
-    "node_modules/electron-updater/**/*",
-    "dist/venmic-x64.node",
-    "dist/venmic-arm64.node"
+    "node_modules/electron-updater/**/*"
   ],
   "extraResources": [
     {
@@ -40,7 +39,15 @@
       }
     ],
     "icon": "build/orbital-icon.png",
-    "artifactName": "${productName}-Setup-${version}.${ext}"
+    "artifactName": "${productName}-Setup-${version}.${ext}",
+    "files": [
+      "!dist/venmic-x64.node",
+      "!dist/venmic-arm64.node",
+      "!**/node_modules/@vencord/venmic/**/*"
+    ],
+    "asarUnpack": [
+      "node_modules/electron-updater/**/*"
+    ]
   },
   "nsis": {
     "oneClick": false,
@@ -62,7 +69,19 @@
     "category": "Network",
     "icon": "build/orbital-icon.png",
     "artifactName": "${productName}-${version}.${ext}",
-    "maintainer": "orbital@encamy.com"
+    "maintainer": "orbital@encamy.com",
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "dist/venmic-x64.node",
+      "dist/venmic-arm64.node",
+      "!**/node_modules/@vencord/venmic/**/*"
+    ],
+    "asarUnpack": [
+      "node_modules/electron-updater/**/*",
+      "dist/venmic-x64.node",
+      "dist/venmic-arm64.node"
+    ]
   },
   "publish": {
     "provider": "github",

@@ -19,8 +19,9 @@
     "dev": "VITE_DEV_SERVER_URL=http://localhost:3001 npx vite",
     "prebuild": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true});require('fs').cpSync('../frontend/dist','dist',{recursive:true})\"",
     "prebuild:venmic": "npx tsx scripts/copyVenmic.mts",
+    "clean:venmic": "npx tsx scripts/cleanVenmic.mts",
     "build": "npx tsx scripts/generate-licenses.js && npx vite build && npx tsx scripts/copyVenmic.mts && electron-builder --linux",
-    "build:win": "npx tsx scripts/generate-licenses.js && npx vite build && npx tsx scripts/copyVenmic.mts && electron-builder --win",
+    "build:win": "npx tsx scripts/generate-licenses.js && npx vite build && npx tsx scripts/cleanVenmic.mts && electron-builder --win",
     "build:linux": "npx tsx scripts/generate-licenses.js && npx vite build && npx tsx scripts/copyVenmic.mts && electron-builder --linux",
     "build:all": "npx tsx scripts/generate-licenses.js && npx vite build && npx tsx scripts/copyVenmic.mts && electron-builder -wl",
     "postinstall": "electron-builder install-app-deps"
