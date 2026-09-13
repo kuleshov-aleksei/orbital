@@ -69,24 +69,6 @@ func (cs *CategoryService) LoadFromDB() error {
 	return nil
 }
 
-// Reset clears all categories and reinitializes with default.
-// Intended for test environments only.
-func (cs *CategoryService) Reset() {
-	cs.mu.Lock()
-	defer cs.mu.Unlock()
-
-	cs.categories = make(map[string]*models.Category)
-
-	// Re-create default "general" category
-	generalID := generateID()
-	cs.categories[generalID] = &models.Category{
-		ID:        generalID,
-		Name:      "general",
-		CreatedAt: time.Now(),
-		SortOrder: 1,
-	}
-}
-
 // CreateCategory creates a new category
 func (cs *CategoryService) CreateCategory(name string) (*models.Category, error) {
 	// Validate name length (max 32 characters)

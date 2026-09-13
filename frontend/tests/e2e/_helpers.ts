@@ -8,22 +8,14 @@ export function setAuthToken(token: string) {
   authToken = token
 }
 
-export async function resetBackend(request: APIRequestContext) {
-  authToken = null
-  const res = await request.post(`${BACKEND_URL}/api/test/reset`, {
-    headers: {
-      "X-Orbital-E2E": "1",
-    },
-  })
+export async function deleteRoom(request: APIRequestContext, roomId: string) {
+  const headers: Record<string, string> = {}
+  if (authToken) {
+    headers["Authorization"] = `Bearer ${authToken}`
+  }
+  const res = await request.delete(`${BACKEND_URL}/api/rooms/${roomId}`, { headers })
   if (!res.ok()) {
-    if (res.status() === 404) {
-      throw new Error(
-        `Failed to reset backend: 404 ${await res.text()}\n` +
-          `The backend on ${BACKEND_URL} does not expose /api/test/reset. ` +
-          `Stop any running backend on :8080 and rerun Playwright so it can start the test backend.`,
-      )
-    }
-    throw new Error(`Failed to reset backend: ${res.status()} ${await res.text()}`)
+    throw new Error(`Failed to delete room: ${res.status()} ${await res.text()}`)
   }
 }
 

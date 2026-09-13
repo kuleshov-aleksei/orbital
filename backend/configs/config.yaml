@@ -29,10 +29,6 @@ room:
   max_users: 6
   default_max_users: 6
 
-# Security configuration
-security:
-  e2e_mode: false  # Enable E2E testing mode (allows test/reset endpoint)
-
 # Database configuration
 database:
   path: "./data/orbital.db"  # Path to SQLite database file

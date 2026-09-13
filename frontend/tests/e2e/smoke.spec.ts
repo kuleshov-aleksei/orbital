@@ -1,9 +1,6 @@
 import { test, expect } from "@playwright/test"
-import { resetBackend } from "./_helpers"
 
-test("loads welcome screen (empty rooms)", async ({ page, request }) => {
-  await resetBackend(request)
-
+test("loads welcome screen (empty rooms)", async ({ page }) => {
   await page.goto("/")
 
   await expect(page.getByTestId("welcome-view")).toBeVisible()

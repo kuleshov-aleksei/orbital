@@ -255,20 +255,6 @@ func main() {
 	// Debug log upload route (authenticated users)
 	r.Handle("/api/logs", authHandler.AuthMiddleware(http.HandlerFunc(adminHandler.UploadDebugLog))).Methods("POST")
 
-	// Test-only routes (guarded to avoid accidental use).
-	// Allowed when either ORBITAL_E2E=1 is set OR the request explicitly opts in.
-	r.HandleFunc("/api/test/reset", func(w http.ResponseWriter, r *http.Request) {
-		if !cfg.IsE2EMode() && r.Header.Get("X-Orbital-E2E") != "1" {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-		roomService.Reset()
-		categoryService.Reset()
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-	}).Methods("POST")
-
 	// WebSocket routes
 	r.HandleFunc("/ws/{roomId}", func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)

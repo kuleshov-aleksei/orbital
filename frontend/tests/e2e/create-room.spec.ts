@@ -1,9 +1,7 @@
 import { test, expect } from "@playwright/test"
-import { resetBackend } from "./_helpers"
+import { deleteRoom } from "./_helpers"
 
 test("create room via UI and leave", async ({ page, request }) => {
-  await resetBackend(request)
-
   await page.goto("/")
 
   // Open create room modal
@@ -29,4 +27,12 @@ test("create room via UI and leave", async ({ page, request }) => {
   // Leave the room
   await page.getByTestId("leave-room-header").click()
   await expect(page.getByTestId("welcome-view")).toBeVisible()
+
+  // Clean up the created room
+  const roomsRes = await request.get("http://127.0.0.1:8080/api/rooms")
+  const rooms = (await roomsRes.json()) as Array<{ id: string; name: string }>
+  const room = rooms.find((r) => r.name === "E2E Room")
+  if (room) {
+    await deleteRoom(request, room.id)
+  }
 })

@@ -13,7 +13,8 @@
     "lint:full": "eslint --config eslint.config.js src/ --fix",
     "prettier": "npx prettier . --write src/",
     "test": "vitest",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test --grep-invert @screenshot",
+    "test:e2e:screenshots": "playwright test --grep @screenshot",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "postinstall": "patch-package"

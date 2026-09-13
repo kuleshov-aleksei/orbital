@@ -20,7 +20,6 @@ type WebSocketConfig struct {
 type Config struct {
 	Server    ServerConfig    `yaml:"server"`
 	Room      RoomSettings    `yaml:"room"`
-	Security  SecurityConfig  `yaml:"security"`
 	Logging   LoggingConfig   `yaml:"logging"`
 	Database  DatabaseConfig  `yaml:"database"`
 	Auth      AuthConfig      `yaml:"auth"`
@@ -65,11 +64,6 @@ type RoomSettings struct {
 	DefaultMaxUsers int `yaml:"default_max_users"`
 }
 
-// SecurityConfig holds security-related configuration
-type SecurityConfig struct {
-	E2EMode bool `yaml:"e2e_mode"`
-}
-
 // LoggingConfig holds logging-related configuration
 type LoggingConfig struct {
 	Level          string `yaml:"level"`
@@ -90,9 +84,6 @@ func DefaultConfig() *Config {
 			MinUsers:        2,
 			MaxUsers:        10,
 			DefaultMaxUsers: 10,
-		},
-		Security: SecurityConfig{
-			E2EMode: false,
 		},
 		Logging: LoggingConfig{
 			Level:          "info",
@@ -195,11 +186,6 @@ func (c *Config) loadFromEnv() {
 		}
 	}
 
-	// Security config
-	if v := os.Getenv("ORBITAL_E2E"); v == "1" || strings.ToLower(v) == "true" {
-		c.Security.E2EMode = true
-	}
-
 	// Logging config
 	if v := os.Getenv("LOG_LEVEL"); v != "" {
 		c.Logging.Level = v
@@ -294,11 +280,6 @@ func (c *Config) IsProduction() bool {
 	return c.Server.Mode == "production"
 }
 
-// IsE2EMode returns true if E2E testing mode is enabled
-func (c *Config) IsE2EMode() bool {
-	return c.Security.E2EMode
-}
-
 // GetAddress returns the full server address (host:port)
 func (c *Config) GetAddress() string {
 	return ":" + c.Server.Port
@@ -338,12 +319,11 @@ func (c *Config) String() string {
 		livekitConfigured = "yes"
 	}
 	return fmt.Sprintf(
-		"Config{Server: {Port: %s, Mode: %s}, Room: {Min: %d, Max: %d}, Security: {E2E: %v}, Logging: {Level: %s, Requests: %v}, Database: {Configured: %s}, LiveKit: {URL: %s, Configured: %s}}",
+		"Config{Server: {Port: %s, Mode: %s}, Room: {Min: %d, Max: %d}, Logging: {Level: %s, Requests: %v}, Database: {Configured: %s}, LiveKit: {URL: %s, Configured: %s}}",
 		c.Server.Port,
 		c.Server.Mode,
 		c.Room.MinUsers,
 		c.Room.MaxUsers,
-		c.Security.E2EMode,
 		c.Logging.Level,
 		c.Logging.RequestLogging,
 		dbConfigured,

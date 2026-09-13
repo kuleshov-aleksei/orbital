@@ -1,8 +1,7 @@
 import { test, expect } from "@playwright/test"
-import { resetBackend, seedRoom, setUserIdentity } from "./_helpers"
+import { deleteRoom, seedRoom, setUserIdentity } from "./_helpers"
 
 test("two users establish WebRTC audio connection", async ({ browser, request }) => {
-  await resetBackend(request)
   const room = await seedRoom(request, { name: "E2E WebRTC Test Room" })
 
   const ctxA = await browser.newContext()
@@ -111,4 +110,7 @@ test("two users establish WebRTC audio connection", async ({ browser, request })
 
   await ctxA.close()
   await ctxB.close()
+
+  // Clean up the seeded room
+  await deleteRoom(request, room.id)
 })

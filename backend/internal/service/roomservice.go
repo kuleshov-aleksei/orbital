@@ -37,17 +37,6 @@ func (rs *RoomService) SetCategoryService(cs *CategoryService) {
 	rs.categoryService = cs
 }
 
-// Reset clears all rooms/users.
-// Intended for test environments only.
-func (rs *RoomService) Reset() {
-	rs.mu.Lock()
-	defer rs.mu.Unlock()
-
-	rs.rooms = make(map[string]*models.Room)
-	rs.members = make(map[string]map[string]*models.RoomMember)
-	rs.users = make(map[string]*models.User)
-}
-
 // LoadFromDB loads all rooms and users from the database into memory
 func (rs *RoomService) LoadFromDB() error {
 	rs.mu.Lock()

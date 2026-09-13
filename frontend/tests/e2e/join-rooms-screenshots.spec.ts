@@ -11,7 +11,7 @@ const NICKNAMES = [
   "Zavala's Hair",
 ]
 
-test("join rooms: 5 users join Room A, 2 users join Room B", async ({ browser, request }) => {
+test("join rooms: 5 users join Room A, 2 users join Room B @screenshot", async ({ browser, request }) => {
   // Get existing users from the backend
   const usersRes = await request.get("http://127.0.0.1:8080/api/users")
   const users = (await usersRes.json()) as Array<{ id: string; nickname: string }>

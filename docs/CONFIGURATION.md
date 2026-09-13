@@ -33,11 +33,6 @@ room:
   max_users: 6
   default_max_users: 6
 
-# Security configuration
-# For local automated tests
-security:
-  e2e_mode: false
-
 # Database configuration
 database:
   path: "./data/orbital.db"
@@ -83,7 +78,6 @@ All configuration values can be overridden via environment variables:
 | `ROOM_MAX_USERS` | Maximum users per room | 6 |
 | `ROOM_DEFAULT_MAX_USERS` | Default max users | 6 |
 | `JWT_SECRET` | JWT secret for token signing | change-this-in-production |
-| `ORBITAL_E2E` | Enable E2E testing mode (set to "1" or "true") | false |
 | `LOG_LEVEL` | Log level (debug, info, warn, error) | info |
 | `LOG_REQUESTS` | Enable request logging | true |
 | `DATABASE_PATH` | SQLite database path | ./data/orbital.db |
@@ -194,8 +188,6 @@ logging:
   level: "warn"
   request_logging: false
 
-security:
-  e2e_mode: false
 ```
 
 Or via environment variables:
@@ -220,11 +212,9 @@ export LIVEKIT_URL=wss://your-domain.com/livekit
    openssl rand -base64 32
    ```
 
-3. **E2E Mode**: Never enable `ORBITAL_E2E` in production. It exposes dangerous test endpoints.
+3. **CORS Origins**: In production, specify exact domains instead of using `*`.
 
-4. **CORS Origins**: In production, specify exact domains instead of using `*`.
-
-5. **OAuth Secrets**: Never commit `DISCORD_CLIENT_SECRET` or `GOOGLE_CLIENT_SECRET` to version control.
+4. **OAuth Secrets**: Never commit `DISCORD_CLIENT_SECRET` or `GOOGLE_CLIENT_SECRET` to version control.
 
 ## Deployment
 

@@ -14,7 +14,7 @@ const NICKNAMES = [
   "Zavala's Hair",
 ]
 
-test("setup: create categories, rooms and 7 regular users", async ({ request }) => {
+test("setup: create categories, rooms and 7 regular users @screenshot", async ({ request }) => {
   const loginRes = await request.post("http://127.0.0.1:8080/api/auth/login", {
     data: { login: ADMIN_NICKNAME, password: ADMIN_PASSWORD },
   })

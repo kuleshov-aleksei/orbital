@@ -43,12 +43,8 @@ export default defineConfig({
       cwd: "../backend",
       url: `${BACKEND_URL}/api/health`,
       // Do not reuse a manually started backend on :8080.
-      // E2E expects test-only endpoints and a clean in-memory state.
+      // E2E expects a clean in-memory state.
       reuseExistingServer: false,
-      env: {
-        ...process.env,
-        ORBITAL_E2E: "1",
-      },
     },
     {
       command: "pnpm run dev -- --host 127.0.0.1 --port 3000",

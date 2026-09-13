@@ -1,8 +1,7 @@
 import { test, expect } from "@playwright/test"
-import { resetBackend, seedRoom, setUserIdentity } from "./_helpers"
+import { deleteRoom, seedRoom, setUserIdentity } from "./_helpers"
 
 test("two users join same room and see each other", async ({ browser, request }) => {
-  await resetBackend(request)
   const room = await seedRoom(request, { name: "E2E Multiuser Room" })
 
   const ctxA = await browser.newContext()
@@ -32,4 +31,7 @@ test("two users join same room and see each other", async ({ browser, request })
 
   await ctxA.close()
   await ctxB.close()
+
+  // Clean up the seeded room
+  await deleteRoom(request, room.id)
 })
