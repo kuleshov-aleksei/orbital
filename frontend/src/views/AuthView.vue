@@ -25,6 +25,7 @@
           <div class="flex border-b border-theme-border mb-6">
             <button
               type="button"
+              data-testid="auth-tab-oauth"
               class="flex-1 py-2 text-center font-medium transition-colors"
               :class="
                 activeTab === 'oauth'
@@ -36,6 +37,7 @@
             </button>
             <button
               type="button"
+              data-testid="auth-tab-password"
               class="flex-1 py-2 text-center font-medium transition-colors"
               :class="
                 activeTab === 'password'

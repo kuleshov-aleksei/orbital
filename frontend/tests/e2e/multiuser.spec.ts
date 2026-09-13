@@ -1,14 +1,18 @@
 import { test, expect } from "@playwright/test"
-import { deleteRoom, seedRoom, setUserIdentity } from "./_helpers"
+import { deleteRoom, ensureAdmin, ensureUser, injectSession, seedRoom } from "./_helpers"
 
 test("two users join same room and see each other", async ({ browser, request }) => {
-  const room = await seedRoom(request, { name: "E2E Multiuser Room" })
+  const admin = await ensureAdmin(request)
+  const alice = await ensureUser(request, { email: "alice@orbital-e2e.test", nickname: "Alice" })
+  const bob = await ensureUser(request, { email: "bob@orbital-e2e.test", nickname: "Bob" })
+
+  const room = await seedRoom(request, admin.token, { name: "E2E Multiuser Room" })
 
   const ctxA = await browser.newContext()
   const ctxB = await browser.newContext()
 
-  await setUserIdentity(ctxA, { id: "e2e-user-a", nickname: "Alice" })
-  await setUserIdentity(ctxB, { id: "e2e-user-b", nickname: "Bob" })
+  await injectSession(ctxA, alice)
+  await injectSession(ctxB, bob)
 
   const pageA = await ctxA.newPage()
   const pageB = await ctxB.newPage()
@@ -24,14 +28,14 @@ test("two users join same room and see each other", async ({ browser, request })
 
   // `user-list` is a single container element; assert on individual user cards to avoid
   // array semantics of toContainText() (which expects multiple matched elements).
-  await expect(pageA.getByTestId("user-card-e2e-user-a")).toContainText("Alice")
-  await expect(pageA.getByTestId("user-card-e2e-user-b")).toContainText("Bob")
-  await expect(pageB.getByTestId("user-card-e2e-user-a")).toContainText("Alice")
-  await expect(pageB.getByTestId("user-card-e2e-user-b")).toContainText("Bob")
+  await expect(pageA.getByTestId(`user-card-${alice.id}`)).toContainText("Alice")
+  await expect(pageA.getByTestId(`user-card-${bob.id}`)).toContainText("Bob")
+  await expect(pageB.getByTestId(`user-card-${alice.id}`)).toContainText("Alice")
+  await expect(pageB.getByTestId(`user-card-${bob.id}`)).toContainText("Bob")
 
   await ctxA.close()
   await ctxB.close()
 
   // Clean up the seeded room
-  await deleteRoom(request, room.id)
+  await deleteRoom(request, room.id, admin.token)
 })

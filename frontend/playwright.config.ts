@@ -9,8 +9,8 @@ export default defineConfig({
   expect: {
     timeout: 10_000,
   },
-  // Backend is an in-memory singleton on :8080; tests reset shared state.
-  // Run serially to avoid cross-test interference.
+  // Backend is a fresh single-tenant server on :8080 (dedicated e2e DB, wiped
+  // each run). Run serially to avoid cross-test interference.
   fullyParallel: false,
   retries: process.env.CI ? 2 : 0,
   workers: 1,
@@ -39,11 +39,13 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: "go run ./cmd/server",
+      // E2E uses a dedicated SQLite DB that is wiped before each run so the
+      // first registered user deterministically becomes super_admin (needed
+      // for admin-gated room create/delete) and real dev data stays untouched.
+      command:
+        "sh -c 'rm -f data/orbital-e2e.db data/orbital-e2e.db-* && DATABASE_PATH=data/orbital-e2e.db go run ./cmd/server'",
       cwd: "../backend",
       url: `${BACKEND_URL}/api/health`,
-      // Do not reuse a manually started backend on :8080.
-      // E2E expects a clean in-memory state.
       reuseExistingServer: false,
     },
     {

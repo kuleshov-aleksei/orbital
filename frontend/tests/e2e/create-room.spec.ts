@@ -1,11 +1,13 @@
 import { test, expect } from "@playwright/test"
-import { deleteRoom } from "./_helpers"
+import { ADMIN_EMAIL, TEST_PASSWORD, deleteRoom, ensureAdmin, loginViaUi } from "./_helpers"
 
 test("create room via UI and leave", async ({ page, request }) => {
-  await page.goto("/")
+  const admin = await ensureAdmin(request)
 
-  // Open create room modal
-  await page.getByTestId("create-room-welcome").click()
+  await loginViaUi(page, ADMIN_EMAIL, TEST_PASSWORD)
+
+  // Empty state: admins get the "Create First Room" button
+  await page.getByTestId("create-room-empty").click()
   await expect(page.getByTestId("room-modal")).toBeVisible()
 
   // Fill in room details and create
@@ -33,6 +35,6 @@ test("create room via UI and leave", async ({ page, request }) => {
   const rooms = (await roomsRes.json()) as Array<{ id: string; name: string }>
   const room = rooms.find((r) => r.name === "E2E Room")
   if (room) {
-    await deleteRoom(request, room.id)
+    await deleteRoom(request, room.id, admin.token)
   }
 })
