@@ -637,18 +637,23 @@ watch(
   },
 )
 
+// Confirm screen share start through AudioControls (plays sound, syncs store state)
+const confirmAudioControlsScreenShare = async () => {
+  const audioControls = audioControlsRef.value as unknown as {
+    confirmStartScreenShare?: () => Promise<void>
+  } | null
+  if (audioControls?.confirmStartScreenShare) {
+    await audioControls.confirmStartScreenShare()
+  }
+}
+
 // Start screen share wrapper - called by parent (AppLayout)
 const startScreenShareWithQuality = async (quality: string) => {
   try {
     // Start the actual LiveKit screen share
     await startScreenShare(quality as ScreenShareQuality)
     // Tell AudioControls to update state and send WebSocket message
-    const audioControls = audioControlsRef.value as unknown as {
-      confirmStartScreenShare?: () => Promise<void>
-    } | null
-    if (audioControls?.confirmStartScreenShare) {
-      await audioControls.confirmStartScreenShare()
-    }
+    await confirmAudioControlsScreenShare()
   } catch (error) {
     console.error("Failed to start screen share:", error)
   }
@@ -676,6 +681,8 @@ const startElectronScreenShareWithQuality = async (
 ) => {
   try {
     await startElectronScreenShare(quality as ScreenShareQuality, audio, sourceId, audioSources)
+    // Follow the same unified flow as web start: plays sound and syncs store state
+    await confirmAudioControlsScreenShare()
   } catch (error) {
     console.error("Failed to start Electron screen share:", error)
   }
