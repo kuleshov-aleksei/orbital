@@ -1,5 +1,7 @@
 <template>
-  <div class="flex items-center justify-center gap-2 shrink-0 px-4 py-3">
+  <div
+    data-testid="audio-controls"
+    class="flex items-center justify-center gap-2 shrink-0 px-4 py-3">
     <!-- Group: Mute + Audio quick-settings caret + Deafen -->
     <div class="flex items-center gap-1.5 p-1.5 rounded-xl bg-theme-bg-secondary">
       <div class="flex items-center">

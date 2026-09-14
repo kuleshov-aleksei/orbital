@@ -1,6 +1,7 @@
 <template>
   <button
     type="button"
+    data-testid="mic-mute-button"
     class="control-button relative"
     :class="[
       sizeClasses,

@@ -16,7 +16,7 @@
     "test:e2e": "playwright test --grep-invert @screenshot",
     "test:e2e:screenshots": "playwright test --grep @screenshot",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:headed": "playwright test --headed --grep-invert @screenshot",
     "postinstall": "patch-package"
   },
   "dependencies": {

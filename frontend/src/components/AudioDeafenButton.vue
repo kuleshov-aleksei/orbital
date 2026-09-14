@@ -1,6 +1,7 @@
 <template>
   <button
     type="button"
+    data-testid="audio-deafen-button"
     class="control-button"
     :class="[
       sizeClasses,
