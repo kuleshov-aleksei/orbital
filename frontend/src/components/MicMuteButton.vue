@@ -9,7 +9,7 @@
         : 'bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary',
     ]"
     :title="buttonTitle"
-    @click="toggleMute">
+    @click="handleToggleMute">
     <Transition name="icon-toggle" mode="out-in">
       <PhMicrophoneSlash v-if="isMuted" key="muted" :class="iconClasses" />
 
@@ -21,10 +21,8 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { PhMicrophone, PhMicrophoneSlash } from "@phosphor-icons/vue"
-import { useCallStore, useUserStore, useRoomStore } from "@/stores"
-import { useSounds } from "@/services/sounds"
+import { useMuteDeafenToggle } from "@/composables/useMuteDeafenToggle"
 import { isElectron } from "@/services/electron"
-import { wsService } from "@/services/websocket"
 
 interface Props {
   modelValue: boolean
@@ -41,13 +39,8 @@ const emit = defineEmits<{
   "update:modelValue": [value: boolean]
 }>()
 
-// Stores
-const callStore = useCallStore()
-const userStore = useUserStore()
-const roomStore = useRoomStore()
-
-// Sounds
-const { playMute, playUnmute } = useSounds()
+// Shared mute/deafen toggle logic (sounds + store + ws sync)
+const { toggleMute } = useMuteDeafenToggle()
 
 // Computed v-model
 const isMuted = computed({
@@ -104,28 +97,11 @@ const iconClasses = computed(() => {
 })
 
 // Toggle mute - presence store will sync with LiveKit
-const toggleMute = async () => {
+const handleToggleMute = () => {
   const newValue = !isMuted.value
+  // Emit v-model for immediate UI update (parent applies mute state)
   isMuted.value = newValue
-
-  // Play sound locally (remote users hear it via presence.ts)
-  if (newValue) {
-    playMute()
-  } else {
-    playUnmute()
-  }
-
-  // Update call store (presence store watches this and syncs with LiveKit)
-  callStore.setMuted(newValue)
-
-  // Send to server for global state sync (users outside the call will see the state)
-  const roomId = roomStore.activeRoomId
-  if (roomId) {
-    wsService.sendMuteState(roomId, newValue)
-  }
-
-  // Immediately update room store for local user so UI updates right away
-  roomStore.updateUserStatus(userStore.userId, { is_muted: newValue })
+  toggleMute(newValue)
 }
 </script>
 

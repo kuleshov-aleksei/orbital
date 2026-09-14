@@ -62,6 +62,10 @@ export const useCallStore = defineStore("call", () => {
   // Actions
   function setMuted(muted: boolean) {
     isMuted.value = muted
+    // Unmuting while deafened auto-undeafens so the user can hear others again
+    if (!muted && isDeafened.value) {
+      isDeafened.value = false
+    }
   }
 
   function setDeafened(deafened: boolean) {

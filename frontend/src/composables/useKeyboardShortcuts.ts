@@ -1,14 +1,12 @@
 import { onMounted, onUnmounted } from "vue"
 import { isElectron, onHotkeyTriggered } from "@/services/electron"
-import { useCallStore, useUserStore, useRoomStore } from "@/stores"
-import { useSounds } from "@/services/sounds"
-import { wsService } from "@/services/websocket"
+import { useCallStore, useRoomStore } from "@/stores"
+import { useMuteDeafenToggle } from "@/composables/useMuteDeafenToggle"
 
 export function useKeyboardShortcuts() {
   const callStore = useCallStore()
-  const userStore = useUserStore()
   const roomStore = useRoomStore()
-  const { playMute, playUnmute, playDeafen, playUndeafen } = useSounds()
+  const { toggleMute, toggleDeafen } = useMuteDeafenToggle()
 
   let wasMutedBeforePTT = false
 
@@ -20,42 +18,11 @@ export function useKeyboardShortcuts() {
   }
 
   const handleMuteToggle = () => {
-    const newValue = !callStore.isMuted
-    callStore.setMuted(newValue)
-
-    if (newValue) {
-      playMute()
-    } else {
-      playUnmute()
-    }
-
-    const roomId = roomStore.activeRoomId
-    if (roomId) {
-      wsService.sendMuteState(roomId, newValue)
-    }
-
-    roomStore.updateUserStatus(userStore.userId, { is_muted: newValue })
+    toggleMute()
   }
 
   const handleDeafenToggle = () => {
-    const newValue = !callStore.isDeafened
-    callStore.setDeafened(newValue)
-
-    if (newValue) {
-      playDeafen()
-    } else {
-      playUndeafen()
-    }
-
-    const roomId = roomStore.activeRoomId
-    if (roomId) {
-      wsService.sendDeafenState(roomId, newValue)
-    }
-
-    roomStore.updateUserStatus(userStore.userId, {
-      is_deafened: newValue,
-      is_muted: callStore.isMuted,
-    })
+    toggleDeafen()
   }
 
   const handlePTTDown = () => {

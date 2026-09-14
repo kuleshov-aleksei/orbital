@@ -1,54 +1,21 @@
 import { watch } from "vue"
-import { useCallStore, useUserStore, useRoomStore } from "@/stores"
+import { useCallStore, useRoomStore } from "@/stores"
 import { setThumbarButtons, onThumbarButtonClick, isElectron } from "@/services/electron"
-import { useSounds } from "@/services/sounds"
-import { wsService } from "@/services/websocket"
+import { useMuteDeafenToggle } from "@/composables/useMuteDeafenToggle"
 
 export function useThumbarButtons() {
   if (!isElectron()) return
 
   const callStore = useCallStore()
-  const userStore = useUserStore()
   const roomStore = useRoomStore()
-  const { playMute, playUnmute, playDeafen, playUndeafen } = useSounds()
+  const { toggleMute, toggleDeafen } = useMuteDeafenToggle()
 
   const handleMuteToggle = () => {
-    const newValue = !callStore.isMuted
-    callStore.setMuted(newValue)
-
-    if (newValue) {
-      playMute()
-    } else {
-      playUnmute()
-    }
-
-    const roomId = roomStore.activeRoomId
-    if (roomId) {
-      wsService.sendMuteState(roomId, newValue)
-    }
-
-    roomStore.updateUserStatus(userStore.userId, { is_muted: newValue })
+    toggleMute()
   }
 
   const handleDeafenToggle = () => {
-    const newValue = !callStore.isDeafened
-    callStore.setDeafened(newValue)
-
-    if (newValue) {
-      playDeafen()
-    } else {
-      playUndeafen()
-    }
-
-    const roomId = roomStore.activeRoomId
-    if (roomId) {
-      wsService.sendDeafenState(roomId, newValue)
-    }
-
-    roomStore.updateUserStatus(userStore.userId, {
-      is_deafened: newValue,
-      is_muted: callStore.isMuted,
-    })
+    toggleDeafen()
   }
 
   const updateButtons = () => {

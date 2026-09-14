@@ -277,9 +277,8 @@ import type {
   LocalAudioTrack,
 } from "livekit-client"
 import UserAvatar from "@/components/UserAvatar.vue"
-import { useCallStore, useUserStore, useRoomStore } from "@/stores"
-import { useSounds } from "@/services/sounds"
-import { wsService } from "@/services/websocket"
+import { useCallStore } from "@/stores"
+import { useMuteDeafenToggle } from "@/composables/useMuteDeafenToggle"
 
 interface Props {
   userId: string
@@ -326,9 +325,8 @@ const isMuted = ref(false)
 const fullscreenControlsVisible = ref(true)
 let fullscreenControlsTimer: ReturnType<typeof setTimeout> | null = null
 const callStore = useCallStore()
-const userStore = useUserStore()
-const roomStore = useRoomStore()
-const { playMute, playUnmute, playDeafen, playUndeafen } = useSounds()
+const { toggleMute: toggleCallMuteState, toggleDeafen: toggleCallDeafenState } =
+  useMuteDeafenToggle()
 const isCallMuted = computed(() => callStore.isMuted)
 const isCallDeafened = computed(() => callStore.isDeafened)
 
@@ -526,44 +524,11 @@ const onFullscreenMousemove = () => {
 
 // Mute/Deafen toggles for fullscreen overlay
 const toggleCallMute = () => {
-  const newValue = !callStore.isMuted
-
-  if (newValue) {
-    playMute()
-  } else {
-    playUnmute()
-  }
-
-  callStore.setMuted(newValue)
-
-  const roomId = roomStore.activeRoomId
-  if (roomId) {
-    wsService.sendMuteState(roomId, newValue)
-  }
-
-  roomStore.updateUserStatus(userStore.userId, { is_muted: newValue })
+  toggleCallMuteState()
 }
 
 const toggleCallDeafen = () => {
-  const newValue = !callStore.isDeafened
-
-  if (newValue) {
-    playDeafen()
-  } else {
-    playUndeafen()
-  }
-
-  callStore.setDeafened(newValue)
-
-  const roomId = roomStore.activeRoomId
-  if (roomId) {
-    wsService.sendDeafenState(roomId, newValue)
-  }
-
-  roomStore.updateUserStatus(userStore.userId, {
-    is_deafened: newValue,
-    is_muted: callStore.isMuted,
-  })
+  toggleCallDeafenState()
 }
 
 const togglePiP = async () => {

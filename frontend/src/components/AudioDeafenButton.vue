@@ -9,7 +9,7 @@
         : 'bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary',
     ]"
     :title="buttonTitle"
-    @click="toggleDeafen">
+    @click="handleToggleDeafen">
     <Transition name="icon-toggle" mode="out-in">
       <!-- Headphones with slash when deafened -->
       <div v-if="isDeafened" :key="'deafened'" :class="iconWrapperClasses">
@@ -28,10 +28,9 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { PhHeadphones } from "@phosphor-icons/vue"
-import { useCallStore, useUserStore, useRoomStore } from "@/stores"
-import { useSounds } from "@/services/sounds"
+import { useRoomStore } from "@/stores"
+import { useMuteDeafenToggle } from "@/composables/useMuteDeafenToggle"
 import { isElectron } from "@/services/electron"
-import { wsService } from "@/services/websocket"
 
 interface Props {
   modelValue: boolean
@@ -49,12 +48,10 @@ const emit = defineEmits<{
 }>()
 
 // Stores
-const callStore = useCallStore()
-const userStore = useUserStore()
 const roomStore = useRoomStore()
 
-// Sounds
-const { playDeafen, playUndeafen } = useSounds()
+// Shared mute/deafen toggle logic (sounds + store + ws sync)
+const { toggleDeafen } = useMuteDeafenToggle()
 
 // Show hotkey hint (D) only in web browser mode (hidden in spatial rooms where D is disabled)
 const showHotkey = !isElectron() && roomStore.activeRoom?.type !== "spatial_audio"
@@ -130,32 +127,8 @@ const slashClasses = computed(() => {
 })
 
 // Toggle deafen - presence store will sync with LiveKit
-const toggleDeafen = async () => {
-  const newValue = !isDeafened.value
-
-  // Play sound locally (remote users hear it via presence.ts)
-  if (newValue) {
-    playDeafen()
-  } else {
-    playUndeafen()
-  }
-
-  // Update call store (presence store watches this and syncs with LiveKit)
-  // This also handles auto-mute on deafen and restore-mute on undeafen
-  callStore.setDeafened(newValue)
-
-  // Send to server for global state sync (users outside the call will see the state)
-  const roomId = roomStore.activeRoomId
-  if (roomId) {
-    wsService.sendDeafenState(roomId, newValue)
-  }
-
-  // Immediately update room store for local user so UI updates right away
-  // Use callStore.isMuted to get the actual current mute state after setDeafened
-  roomStore.updateUserStatus(userStore.userId, {
-    is_deafened: newValue,
-    is_muted: callStore.isMuted,
-  })
+const handleToggleDeafen = () => {
+  toggleDeafen()
 }
 </script>
 
