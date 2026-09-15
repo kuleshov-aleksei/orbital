@@ -381,6 +381,32 @@ func (h *Hub) SendToUser(roomID string, userID string, message interface{}) {
 	}
 }
 
+// BroadcastHalloweenPumpkinState broadcasts a user's pumpkin customization
+// change to every room the user is currently in.
+func (h *Hub) BroadcastHalloweenPumpkinState(userID string, equippedJSON string) {
+	h.mu.RLock()
+	rooms := make(map[string]bool)
+	for roomID, clients := range h.roomClients {
+		for client := range clients {
+			if client != nil && client.userID == userID {
+				rooms[roomID] = true
+				break
+			}
+		}
+	}
+	h.mu.RUnlock()
+
+	for roomID := range rooms {
+		h.BroadcastToRoom(roomID, models.WebSocketMessage{
+			Type: "halloween_pumpkin_state",
+			Data: map[string]string{
+				"user_id":       userID,
+				"equipped_json": equippedJSON,
+			},
+		})
+	}
+}
+
 // UpdateUserPing updates a user's last seen timestamp (called on ping)
 func (h *Hub) UpdateUserPing(userID string) {
 	if userID == "" {

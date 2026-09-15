@@ -174,6 +174,67 @@ CREATE INDEX IF NOT EXISTS idx_audio_files_is_system ON audio_files(is_system);`
 CREATE INDEX IF NOT EXISTS idx_user_sessions_user_room ON user_sessions(user_id, room_id, last_seen);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_last_seen ON user_sessions(last_seen);`,
 	},
+	{
+		Version: 20,
+		Name:    "create_halloween_tables",
+		SQL: `CREATE TABLE IF NOT EXISTS halloween_items (
+			id         TEXT PRIMARY KEY,
+			name       TEXT NOT NULL,
+			socket     TEXT NOT NULL,
+			rarity     TEXT NOT NULL,
+			sort_order INTEGER DEFAULT 0
+		);
+CREATE INDEX IF NOT EXISTS idx_halloween_items_rarity ON halloween_items(rarity);
+
+CREATE TABLE IF NOT EXISTS halloween_game_results (
+			id               INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id          TEXT NOT NULL,
+			completed_rounds INTEGER NOT NULL,
+			score            INTEGER NOT NULL,
+			is_incomplete    BOOLEAN NOT NULL DEFAULT 0,
+			is_cheater       BOOLEAN NOT NULL DEFAULT 0,
+			report_json      TEXT NOT NULL,
+			reward_json      TEXT,
+			created_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);
+CREATE INDEX IF NOT EXISTS idx_halloween_game_results_user  ON halloween_game_results(user_id);
+CREATE INDEX IF NOT EXISTS idx_halloween_game_results_score ON halloween_game_results(score);
+
+CREATE TABLE IF NOT EXISTS halloween_rewards (
+			id         INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id    TEXT NOT NULL,
+			item_id    TEXT NOT NULL,
+			source     TEXT NOT NULL DEFAULT 'game',
+			game_id    INTEGER,
+			granted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE (user_id, item_id),
+			FOREIGN KEY (item_id) REFERENCES halloween_items(id),
+			FOREIGN KEY (game_id) REFERENCES halloween_game_results(id)
+		);
+CREATE INDEX IF NOT EXISTS idx_halloween_rewards_user ON halloween_rewards(user_id);
+
+CREATE TABLE IF NOT EXISTS halloween_pumpkins (
+			user_id      TEXT PRIMARY KEY,
+			equipped_json TEXT NOT NULL DEFAULT '{}',
+			updated_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+		);`,
+	},
+	{
+		Version: 21,
+		Name:    "seed_halloween_items",
+		SQL: `INSERT OR IGNORE INTO halloween_items (id, name, socket, rarity, sort_order) VALUES
+			('hat_party', 'Party hat', 'hat', 'rare', 1),
+			('hat_frog', 'Frog hat', 'hat', 'rare', 2),
+			('hat_beret', 'Beret', 'hat', 'regular', 3),
+			('eyes_sinister', 'Sinister', 'eyes', 'rare', 10),
+			('eyes_scared', 'Scared', 'eyes', 'common', 11),
+			('eyes_smiling', 'Smiling', 'eyes', 'uncommon', 12),
+			('eyes_cat', 'Cat eyes', 'eyes', 'uncommon', 13),
+			('mouth_vampire', 'Vampire', 'mouth', 'rare', 20),
+			('mouth_crooked', 'Crooked', 'mouth', 'uncommon', 21),
+			('mouth_pumpkin', 'Pumpkin', 'mouth', 'common', 22);`,
+	},
 }
 
 func (db *DB) RunMigrations() error {

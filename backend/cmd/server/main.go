@@ -54,6 +54,7 @@ func main() {
 	var audioService *service.AudioService
 	var sessionRepo *repository.SessionRepository
 	var analyticsService *service.AnalyticsService
+	var halloweenService *service.HalloweenService
 
 	if cfg.Database.Path != "" {
 		db, err := storage.NewDB(cfg.Database.Path)
@@ -81,6 +82,7 @@ func main() {
 		debugLogService = service.NewDebugLogService(debugLogRepo, "data")
 		audioService = service.NewAudioService(repository.NewAudioRepository(db), "data")
 		analyticsService = service.NewAnalyticsService(sessionRepo)
+		halloweenService = service.NewHalloweenService(repository.NewHalloweenRepository(db))
 
 		// Load data from database
 		if err := categoryService.LoadFromDB(); err != nil {
@@ -130,7 +132,7 @@ func main() {
 	roomHandler := handlers.NewRoomHandler(roomService, categoryService, livekitService, wsHub)
 	categoryHandler := handlers.NewCategoryHandler(categoryService, roomService, wsHub)
 	authHandler := handlers.NewAuthHandler(authService, roleService, cfg.Server.ExternalURL, cfg.Server.ElectronRedirectURL)
-	adminHandler := handlers.NewAdminHandlerWithHub(roleService, userRepo, debugLogService, analyticsService, wsHub)
+	adminHandler := handlers.NewAdminHandlerWithHub(roleService, userRepo, debugLogService, analyticsService, halloweenService, wsHub)
 	usersHandler := handlers.NewUsersHandler(userRepo, wsHub)
 	livekitHandler := handlers.NewLiveKitHandler(livekitService)
 	avatarHandler := handlers.NewAvatarHandler(avatarService, userRepo)
@@ -138,6 +140,11 @@ func main() {
 	var audioHandler *handlers.AudioHandler
 	if audioService != nil {
 		audioHandler = handlers.NewAudioHandler(audioService)
+	}
+
+	var halloweenHandler *handlers.HalloweenHandler
+	if halloweenService != nil {
+		halloweenHandler = handlers.NewHalloweenHandler(halloweenService, wsHub)
 	}
 
 	// Setup router
@@ -187,6 +194,17 @@ func main() {
 
 	// General configuration route (public)
 	r.HandleFunc("/api/config", roomHandler.GetConfig).Methods("GET")
+
+	// Halloween routes (protected)
+	if halloweenHandler != nil {
+		halloweenRouter := r.PathPrefix("/api/halloween").Subrouter()
+		halloweenRouter.Use(authHandler.AuthMiddleware)
+		halloweenRouter.HandleFunc("/state", halloweenHandler.GetState).Methods("GET")
+		halloweenRouter.HandleFunc("/pumpkin", halloweenHandler.UpdatePumpkin).Methods("PUT")
+		halloweenRouter.HandleFunc("/game/config", halloweenHandler.GetConfig).Methods("GET")
+		halloweenRouter.HandleFunc("/game/report", halloweenHandler.SubmitGame).Methods("POST")
+		halloweenRouter.HandleFunc("/leaderboard", halloweenHandler.GetLeaderboard).Methods("GET")
+	}
 
 	// LiveKit routes (protected)
 	r.Handle("/api/livekit/token", authHandler.AuthMiddleware(http.HandlerFunc(livekitHandler.GenerateToken))).Methods("POST")
@@ -251,6 +269,12 @@ func main() {
 	superAdminRouter.HandleFunc("/stats/rooms/{id}/unsubscribe", adminHandler.StatsUnsubscribe).Methods("POST")
 	superAdminRouter.HandleFunc("/stats/status", adminHandler.GetStatsStatus).Methods("GET")
 	superAdminRouter.HandleFunc("/analytics/report", adminHandler.GetAnalyticsReport).Methods("GET")
+
+	// Halloween admin routes (super_admin only)
+	if halloweenHandler != nil {
+		superAdminRouter.HandleFunc("/halloween/games", halloweenHandler.AdminGetGames).Methods("GET")
+		superAdminRouter.HandleFunc("/halloween/rewards", halloweenHandler.AdminIssueReward).Methods("POST")
+	}
 
 	// Debug log upload route (authenticated users)
 	r.Handle("/api/logs", authHandler.AuthMiddleware(http.HandlerFunc(adminHandler.UploadDebugLog))).Methods("POST")
