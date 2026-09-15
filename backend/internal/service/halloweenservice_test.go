@@ -368,3 +368,65 @@ func TestHalloweenAdminIssueReward(t *testing.T) {
 		t.Fatal("expected unknown item to error")
 	}
 }
+
+func TestHalloweenAdminGameIncomeSplit(t *testing.T) {
+	s := newHalloweenTestService(t)
+
+	// 2 scouts (kill_reward 5) + 1 marvin (kill_reward 10) killed; coins_earned
+	// includes +40 seeds produced by cramer.
+	report := &models.HalloweenGameReport{
+		SpawnedPumpkins: map[string]int{"ferdinand": 2, "cramer": 1},
+		Kills: []models.HalloweenSlugKill{
+			{Type: HalloweenSlugScout, X: 800, Source: "pumpkin"},
+			{Type: HalloweenSlugScout, X: 600, Source: "pumpkin"},
+			{Type: HalloweenSlugMarvin, X: 400, Source: "pumpkin"},
+		},
+		CompletedRounds: 1,
+		Score:           10 + 7 + 10 + 1000, // scouts + marvin + round bonus
+		CoinsEarned:     5 + 5 + 10 + 40,
+		CoinsSpent:      40,
+	}
+
+	if _, err := s.SubmitGame("user-1", report); err != nil {
+		t.Fatalf("SubmitGame failed: %v", err)
+	}
+
+	games, err := s.GetAdminGames()
+	if err != nil {
+		t.Fatalf("GetAdminGames failed: %v", err)
+	}
+	if len(games) != 1 {
+		t.Fatalf("expected 1 game, got %d", len(games))
+	}
+
+	g := games[0]
+	if g.KillIncome != 20 {
+		t.Errorf("kill_income = %d, want 20", g.KillIncome)
+	}
+	if g.CramerIncome != 40 {
+		t.Errorf("cramer_income = %d, want 40", g.CramerIncome)
+	}
+	if g.SpawnedPumpkins["cramer"] != 1 {
+		t.Errorf("spawned pumpkins = %v, want cramer x1", g.SpawnedPumpkins)
+	}
+	if g.KillsByType[HalloweenSlugScout] != 2 || g.KillsByType[HalloweenSlugMarvin] != 1 {
+		t.Errorf("kills_by_type = %v, want scout x2 marvin x1", g.KillsByType)
+	}
+	if g.CoinsEarned != 60 || g.CoinsSpent != 40 {
+		t.Errorf("coins earned/spent = %d/%d, want 60/40", g.CoinsEarned, g.CoinsSpent)
+	}
+
+	rewards, err := s.GetAdminRewards()
+	if err != nil {
+		t.Fatalf("GetAdminRewards failed: %v", err)
+	}
+	if len(rewards) != 1 {
+		t.Fatalf("expected 1 reward for score 1027, got %d", len(rewards))
+	}
+	if rewards[0].UserID != "user-1" || rewards[0].Rarity != HalloweenRarityRegular {
+		t.Errorf("unexpected reward row: %+v", rewards[0])
+	}
+	if rewards[0].Source != "game" {
+		t.Errorf("expected game source, got %q", rewards[0].Source)
+	}
+}

@@ -19,6 +19,9 @@ import type {
   HalloweenGameReport,
   SubmitGameReportResponse,
   HalloweenLeaderboardEntry,
+  HalloweenAdminGame,
+  HalloweenAdminReward,
+  HalloweenItem,
 } from "@/halloween/types"
 import { isElectron, openExternal, oauthAuthenticate } from "./electron"
 
@@ -314,6 +317,32 @@ export const apiService = {
 
   async getHalloweenLeaderboard(): Promise<HalloweenLeaderboardEntry[]> {
     return apiRequest<HalloweenLeaderboardEntry[]>("/halloween/leaderboard")
+  },
+
+  // Halloween admin calls (super_admin only)
+  async getHalloweenAdminGames(): Promise<HalloweenAdminGame[]> {
+    return apiRequest<HalloweenAdminGame[]>("/admin/halloween/games")
+  },
+
+  async getHalloweenAdminItems(): Promise<HalloweenItem[]> {
+    return apiRequest<HalloweenItem[]>("/admin/halloween/items")
+  },
+
+  async getHalloweenAdminRewards(): Promise<HalloweenAdminReward[]> {
+    return apiRequest<HalloweenAdminReward[]>("/admin/halloween/rewards")
+  },
+
+  async issueHalloweenReward(
+    userId: string,
+    itemId: string,
+  ): Promise<{ status: string; message: string; granted: boolean }> {
+    return apiRequest<{ status: string; message: string; granted: boolean }>(
+      "/admin/halloween/rewards",
+      {
+        method: "POST",
+        body: JSON.stringify({ user_id: userId, item_id: itemId }),
+      },
+    )
   },
 
   // Auth API calls

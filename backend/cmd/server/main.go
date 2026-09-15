@@ -273,6 +273,8 @@ func main() {
 	// Halloween admin routes (super_admin only)
 	if halloweenHandler != nil {
 		superAdminRouter.HandleFunc("/halloween/games", halloweenHandler.AdminGetGames).Methods("GET")
+		superAdminRouter.HandleFunc("/halloween/items", halloweenHandler.AdminGetItems).Methods("GET")
+		superAdminRouter.HandleFunc("/halloween/rewards", halloweenHandler.AdminGetRewards).Methods("GET")
 		superAdminRouter.HandleFunc("/halloween/rewards", halloweenHandler.AdminIssueReward).Methods("POST")
 	}
 

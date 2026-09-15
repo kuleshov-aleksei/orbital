@@ -109,9 +109,10 @@ func (h *HalloweenHandler) GetLeaderboard(w http.ResponseWriter, r *http.Request
 	json.NewEncoder(w).Encode(entries)
 }
 
-// AdminGetGames returns all stored game results (super_admin only).
+// AdminGetGames returns all stored game results with parsed reports and stats
+// (super_admin only).
 func (h *HalloweenHandler) AdminGetGames(w http.ResponseWriter, r *http.Request) {
-	results, err := h.halloweenService.GetGameResults()
+	results, err := h.halloweenService.GetAdminGames()
 	if err != nil {
 		http.Error(w, "Failed to load game history: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -119,6 +120,30 @@ func (h *HalloweenHandler) AdminGetGames(w http.ResponseWriter, r *http.Request)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(results)
+}
+
+// AdminGetRewards returns the full rewards ledger (super_admin only).
+func (h *HalloweenHandler) AdminGetRewards(w http.ResponseWriter, r *http.Request) {
+	rewards, err := h.halloweenService.GetAdminRewards()
+	if err != nil {
+		http.Error(w, "Failed to load rewards: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(rewards)
+}
+
+// AdminGetItems returns the decoration catalog (super_admin only).
+func (h *HalloweenHandler) AdminGetItems(w http.ResponseWriter, r *http.Request) {
+	items, err := h.halloweenService.GetAdminCatalog()
+	if err != nil {
+		http.Error(w, "Failed to load catalog: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(items)
 }
 
 // AdminIssueReward grants a specific item to a user (super_admin only).

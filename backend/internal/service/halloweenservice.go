@@ -428,16 +428,103 @@ func (s *HalloweenService) GetLeaderboard() ([]*models.HalloweenLeaderboardEntry
 	return entries, nil
 }
 
-// GetGameResults returns all game results for the admin panel.
-func (s *HalloweenService) GetGameResults() ([]*models.GameResult, error) {
+// GetAdminGames returns the full admin view of every stored game: parsed
+// report, per-game stats, income split (kills vs cramer), and rewards.
+func (s *HalloweenService) GetAdminGames() ([]*models.HalloweenAdminGame, error) {
 	results, err := s.repo.GetAllGameResults()
 	if err != nil {
 		return nil, err
 	}
-	if results == nil {
-		results = []*models.GameResult{}
+
+	cfg := s.Config()
+	games := make([]*models.HalloweenAdminGame, 0, len(results))
+	for _, r := range results {
+		games = append(games, s.adminGameFromResult(r, cfg))
 	}
-	return results, nil
+	return games, nil
+}
+
+// adminGameFromResult converts a stored result into the admin DTO, parsing the
+// report and computing kill vs cramer income from the server-side config.
+func (s *HalloweenService) adminGameFromResult(r *models.GameResult, cfg *HalloweenGameConfig) *models.HalloweenAdminGame {
+	report := models.HalloweenGameReport{}
+	if r.ReportJSON != "" {
+		_ = json.Unmarshal([]byte(r.ReportJSON), &report)
+	}
+
+	killIncome := 0
+	killsByType := map[string]int{}
+	for _, kill := range report.Kills {
+		killsByType[kill.Type]++
+		if slugCfg, ok := cfg.Slugs[kill.Type]; ok {
+			killIncome += slugCfg.KillReward
+		}
+	}
+
+	cramerIncome := report.CoinsEarned - killIncome
+	if cramerIncome < 0 {
+		cramerIncome = 0
+	}
+
+	rewards, err := s.repo.GetRewardsForGame(r.ID)
+	if err != nil {
+		rewards = nil
+	}
+	rewardsOut := make([]models.HalloweenRewardGranted, 0, len(rewards))
+	for _, rw := range rewards {
+		rewardsOut = append(rewardsOut, *rw)
+	}
+
+	if report.SpawnedPumpkins == nil {
+		report.SpawnedPumpkins = map[string]int{}
+	}
+	if report.UsedItems == nil {
+		report.UsedItems = map[string]int{}
+	}
+
+	return &models.HalloweenAdminGame{
+		ID:              r.ID,
+		UserID:          r.UserID,
+		Nickname:        r.Nickname,
+		CompletedRounds: r.CompletedRounds,
+		Score:           r.Score,
+		IsIncomplete:    r.IsIncomplete,
+		IsCheater:       r.IsCheater,
+		CoinsEarned:     report.CoinsEarned,
+		CoinsSpent:      report.CoinsSpent,
+		KillIncome:      killIncome,
+		CramerIncome:    cramerIncome,
+		SpawnedPumpkins: report.SpawnedPumpkins,
+		Kills:           report.Kills,
+		KillsByType:     killsByType,
+		UsedItems:       report.UsedItems,
+		Rewards:         rewardsOut,
+		CreatedAt:       r.CreatedAt,
+	}
+}
+
+// GetAdminRewards returns the full rewards ledger (admin view).
+func (s *HalloweenService) GetAdminRewards() ([]*models.HalloweenAdminReward, error) {
+	rewards, err := s.repo.GetAllRewards()
+	if err != nil {
+		return nil, err
+	}
+	if rewards == nil {
+		rewards = []*models.HalloweenAdminReward{}
+	}
+	return rewards, nil
+}
+
+// GetAdminCatalog returns the full decoration catalog (admin view).
+func (s *HalloweenService) GetAdminCatalog() ([]*models.HalloweenItem, error) {
+	items, err := s.repo.GetAllItems()
+	if err != nil {
+		return nil, err
+	}
+	if items == nil {
+		items = []*models.HalloweenItem{}
+	}
+	return items, nil
 }
 
 // IssueReward grants a specific item to a user (admin action).

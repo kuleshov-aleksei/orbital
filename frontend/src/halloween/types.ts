@@ -135,3 +135,47 @@ export interface PumpkinDisplay {
   equipped: EquippedCustomization
   isLocal: boolean
 }
+
+// HalloweenRewardGranted is one decoration granted for a specific game.
+export interface HalloweenRewardGranted {
+  item_id: string
+  name: string
+  rarity: HalloweenRarity
+  socket: PumpkinSocket
+  source: "game" | "admin"
+}
+
+// HalloweenAdminReward is one row of the full rewards ledger (admin view).
+export interface HalloweenAdminReward {
+  user_id: string
+  nickname: string
+  item_id: string
+  name: string
+  rarity: HalloweenRarity
+  socket: PumpkinSocket
+  source: "game" | "admin"
+  game_id: number | null
+  granted_at: string
+}
+
+// HalloweenAdminGame is the admin view of one stored game result with parsed
+// report, computed stats, and granted rewards.
+export interface HalloweenAdminGame {
+  id: number
+  user_id: string
+  nickname: string
+  completed_rounds: number
+  score: number
+  is_incomplete: boolean
+  is_cheater: boolean
+  coins_earned: number
+  coins_spent: number
+  kill_income: number
+  cramer_income: number
+  spawned_pumpkins: Record<string, number>
+  kills: HalloweenSlugKill[]
+  kills_by_type: Record<string, number>
+  used_items: Record<string, number>
+  rewards: HalloweenRewardGranted[]
+  created_at: string
+}

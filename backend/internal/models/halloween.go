@@ -41,6 +41,7 @@ type HalloweenGameReport struct {
 type GameResult struct {
 	ID              int64     `json:"id"`
 	UserID          string    `json:"user_id"`
+	Nickname        string    `json:"nickname"`
 	CompletedRounds int       `json:"completed_rounds"`
 	Score           int       `json:"score"`
 	IsIncomplete    bool      `json:"is_incomplete"`
@@ -98,4 +99,48 @@ type SubmitGameReportResponse struct {
 type IssueRewardRequest struct {
 	UserID string `json:"user_id"`
 	ItemID string `json:"item_id"`
+}
+
+// HalloweenRewardGranted is one decoration granted for a specific game.
+type HalloweenRewardGranted struct {
+	ItemID string `json:"item_id"`
+	Name   string `json:"name"`
+	Rarity string `json:"rarity"`
+	Socket string `json:"socket"`
+	Source string `json:"source"` // game | admin
+}
+
+// HalloweenAdminReward is one row of the full rewards ledger (admin view).
+type HalloweenAdminReward struct {
+	UserID    string    `json:"user_id"`
+	Nickname  string    `json:"nickname"`
+	ItemID    string    `json:"item_id"`
+	Name      string    `json:"name"`
+	Rarity    string    `json:"rarity"`
+	Socket    string    `json:"socket"`
+	Source    string    `json:"source"` // game | admin
+	GameID    *int64    `json:"game_id"`
+	GrantedAt time.Time `json:"granted_at"`
+}
+
+// HalloweenAdminGame is the admin view of one stored game result: the parsed
+// report, computed stats (income split, kills per slug type), and rewards.
+type HalloweenAdminGame struct {
+	ID              int64                     `json:"id"`
+	UserID          string                    `json:"user_id"`
+	Nickname        string                    `json:"nickname"`
+	CompletedRounds int                       `json:"completed_rounds"`
+	Score           int                       `json:"score"`
+	IsIncomplete    bool                      `json:"is_incomplete"`
+	IsCheater       bool                      `json:"is_cheater"`
+	CoinsEarned     int                       `json:"coins_earned"`
+	CoinsSpent      int                       `json:"coins_spent"`
+	KillIncome      int                       `json:"kill_income"`
+	CramerIncome    int                       `json:"cramer_income"`
+	SpawnedPumpkins map[string]int            `json:"spawned_pumpkins"`
+	Kills           []HalloweenSlugKill       `json:"kills"`
+	KillsByType     map[string]int            `json:"kills_by_type"`
+	UsedItems       map[string]int            `json:"used_items"`
+	Rewards         []HalloweenRewardGranted  `json:"rewards"`
+	CreatedAt       time.Time                 `json:"created_at"`
 }

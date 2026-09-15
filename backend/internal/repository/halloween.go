@@ -208,8 +208,12 @@ func (r *HalloweenRepository) GetLeaderboard(limit int) ([]*models.HalloweenLead
 
 func (r *HalloweenRepository) GetAllGameResults() ([]*models.GameResult, error) {
 	rows, err := r.db.Query(
-		`SELECT id, user_id, completed_rounds, score, is_incomplete, is_cheater, report_json, reward_json, created_at
-		 FROM halloween_game_results ORDER BY created_at DESC`,
+		`SELECT gr.id, gr.user_id, COALESCE(u.nickname, ?) AS nickname, gr.completed_rounds, gr.score,
+		        gr.is_incomplete, gr.is_cheater, gr.report_json, gr.reward_json, gr.created_at
+		 FROM halloween_game_results gr
+		 LEFT JOIN users u ON u.id = gr.user_id
+		 ORDER BY gr.created_at DESC`,
+		DeletedUserPlaceholder,
 	)
 	if err != nil {
 		return nil, err
@@ -223,7 +227,7 @@ func (r *HalloweenRepository) GetAllGameResults() ([]*models.GameResult, error) 
 		var rewardJSON sql.NullString
 
 		if err := rows.Scan(
-			&result.ID, &result.UserID, &result.CompletedRounds, &result.Score,
+			&result.ID, &result.UserID, &result.Nickname, &result.CompletedRounds, &result.Score,
 			&result.IsIncomplete, &result.IsCheater, &result.ReportJSON, &rewardJSON, &createdAt,
 		); err != nil {
 			return nil, err
@@ -234,6 +238,76 @@ func (r *HalloweenRepository) GetAllGameResults() ([]*models.GameResult, error) 
 		results = append(results, result)
 	}
 	return results, rows.Err()
+}
+
+// GetRewardsForGame returns the decorations granted for a single game.
+func (r *HalloweenRepository) GetRewardsForGame(gameID int64) ([]*models.HalloweenRewardGranted, error) {
+	rows, err := r.db.Query(
+		`SELECT hr.item_id, COALESCE(hi.name, hr.item_id) AS name, hi.rarity, hi.socket, hr.source
+		 FROM halloween_rewards hr
+		 LEFT JOIN halloween_items hi ON hi.id = hr.item_id
+		 WHERE hr.game_id = ?
+		 ORDER BY hr.granted_at ASC`,
+		gameID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var rewards []*models.HalloweenRewardGranted
+	for rows.Next() {
+		reward := &models.HalloweenRewardGranted{}
+		var rarity, socket sql.NullString
+		if err := rows.Scan(&reward.ItemID, &reward.Name, &rarity, &socket, &reward.Source); err != nil {
+			return nil, err
+		}
+		reward.Rarity = rarity.String
+		reward.Socket = socket.String
+		rewards = append(rewards, reward)
+	}
+	return rewards, rows.Err()
+}
+
+// GetAllRewards returns the full rewards ledger with user nicknames (admin view).
+func (r *HalloweenRepository) GetAllRewards() ([]*models.HalloweenAdminReward, error) {
+	rows, err := r.db.Query(
+		`SELECT hr.user_id, COALESCE(u.nickname, ?) AS nickname, hr.item_id,
+		        COALESCE(hi.name, hr.item_id) AS name, hi.rarity, hi.socket, hr.source, hr.game_id, hr.granted_at
+		 FROM halloween_rewards hr
+		 LEFT JOIN users u ON u.id = hr.user_id
+		 LEFT JOIN halloween_items hi ON hi.id = hr.item_id
+		 ORDER BY hr.granted_at DESC`,
+		DeletedUserPlaceholder,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var rewards []*models.HalloweenAdminReward
+	for rows.Next() {
+		reward := &models.HalloweenAdminReward{}
+		var rarity, socket sql.NullString
+		var gameID sql.NullInt64
+		var grantedAt time.Time
+
+		if err := rows.Scan(
+			&reward.UserID, &reward.Nickname, &reward.ItemID, &reward.Name,
+			&rarity, &socket, &reward.Source, &gameID, &grantedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		reward.Rarity = rarity.String
+		reward.Socket = socket.String
+		if gameID.Valid {
+			reward.GameID = &gameID.Int64
+		}
+		reward.GrantedAt = grantedAt
+		rewards = append(rewards, reward)
+	}
+	return rewards, rows.Err()
 }
 
 // IssueReward grants an item directly (admin). Returns false if the user
