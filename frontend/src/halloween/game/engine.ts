@@ -331,10 +331,20 @@ export class HalloweenGameEngine {
     }
     const lane = laneForY(y)
     const col = columnForX(x)
+    if (this.pumpkinAtCell(col, lane)) {
+      this.prompt = "That spot is already taken — pick another"
+      return
+    }
     const index = this.inventory.indexOf(item)
     this.spawnPumpkin(item.pumpkinType, columnX(col), laneCenterY(lane))
     this.consumeInventoryItem(index)
     this.clearInteraction()
+  }
+
+  private pumpkinAtCell(col: number, lane: number): boolean {
+    return this.pumpkins.some(
+      (p) => p.health > 0 && laneForY(p.y) === lane && columnForX(p.x) === col,
+    )
   }
 
   private findPumpkinAt(x: number, y: number): GamePumpkin | null {
