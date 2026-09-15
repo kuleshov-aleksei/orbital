@@ -60,7 +60,7 @@ export interface SubmitGameReportResponse {
   game_id: number
   score: number
   is_cheater: boolean
-  granted: string[]
+  granted: string[] | null
   message: string
 }
 

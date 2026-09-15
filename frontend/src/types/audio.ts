@@ -100,6 +100,11 @@ export type SoundEvent =
   | "message"
   | "viewer_joined"
   | "viewer_left"
+  | "shooting"
+  | "slug_destroyed"
+  | "pumpkin_destroyed"
+  | "item_used"
+  | "slug_movement"
 
 /** Default audio settings */
 export const defaultAudioSettings: AudioSettings = {

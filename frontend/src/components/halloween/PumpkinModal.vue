@@ -1,5 +1,7 @@
 <template>
+  <MiniGame v-if="view === 'game'" @exit="view = 'menu'" />
   <div
+    v-else
     class="fixed inset-0 bg-theme-backdrop flex items-center justify-center z-50 p-4"
     data-testid="pumpkin-modal"
     @click.self="$emit('close')">
@@ -41,7 +43,7 @@
 
       <!-- Content -->
       <div class="p-5 max-h-[60vh] overflow-y-auto">
-        <DefendTab v-if="activeTab === 'defend'" @play="$emit('play')" />
+        <DefendTab v-if="activeTab === 'defend'" @play="view = 'game'" />
         <CustomizationTab v-else-if="activeTab === 'customization'" />
         <LeaderboardTab v-else-if="activeTab === 'leaderboard'" />
       </div>
@@ -55,6 +57,7 @@ import { PhPottedPlant, PhX, PhShieldCheck, PhPencilSimple, PhTrophy } from "@ph
 import DefendTab from "./DefendTab.vue"
 import CustomizationTab from "./CustomizationTab.vue"
 import LeaderboardTab from "./LeaderboardTab.vue"
+import MiniGame from "./MiniGame.vue"
 
 defineEmits<{
   close: []
@@ -64,6 +67,7 @@ defineEmits<{
 type TabId = "defend" | "customization" | "leaderboard"
 
 const activeTab = ref<TabId>("defend")
+const view = ref<"menu" | "game">("menu")
 
 const tabs = [
   { id: "defend" as const, label: "Defend", icon: PhShieldCheck },

@@ -160,12 +160,15 @@ function loadSound(packId: string): ReturnType<typeof Howl> {
 }
 
 function playSoundById(packId: string, soundId: string): void {
+  // Packs may not have sprites for every event yet; fall back to a generic one.
+  const sprites = getSprites(packId)
+  const resolved = sprites[soundId] ? soundId : "message"
   const sound = loadSound(packId)
   if (sound.state() === "loaded") {
-    sound.play(soundId)
+    sound.play(resolved)
   } else {
     sound.once("load", () => {
-      sound.play(soundId)
+      sound.play(resolved)
     })
   }
 }
@@ -232,6 +235,11 @@ export function useSounds() {
   const playRemoteMessage = (soundPack: string) => playRemoteSound("message", soundPack)
   const playRemoteViewerJoined = (soundPack: string) => playRemoteSound("viewer_joined", soundPack)
   const playRemoteViewerLeft = (soundPack: string) => playRemoteSound("viewer_left", soundPack)
+  const playShooting = () => playLocalSound("shooting")
+  const playSlugDestroyed = () => playLocalSound("slug_destroyed")
+  const playPumpkinDestroyed = () => playLocalSound("pumpkin_destroyed")
+  const playItemUsed = () => playLocalSound("item_used")
+  const playSlugMovement = () => playLocalSound("slug_movement")
 
   return {
     playJoinRoom,
@@ -260,6 +268,11 @@ export function useSounds() {
     playRemoteMessage,
     playRemoteViewerJoined,
     playRemoteViewerLeft,
+    playShooting,
+    playSlugDestroyed,
+    playPumpkinDestroyed,
+    playItemUsed,
+    playSlugMovement,
   }
 }
 

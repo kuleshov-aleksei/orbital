@@ -11,7 +11,6 @@
       @click="$emit('play')">
       Defend Pumpkin
     </button>
-    <span class="text-xs text-theme-text-muted">The battle begins here (coming soon)</span>
   </div>
 </template>
 
