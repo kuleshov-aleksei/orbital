@@ -13,6 +13,13 @@ import {
   StatsStatus,
   AnalyticsReport,
 } from "@/types"
+import type {
+  HalloweenGameConfig,
+  HalloweenStateResponse,
+  HalloweenGameReport,
+  SubmitGameReportResponse,
+  HalloweenLeaderboardEntry,
+} from "@/halloween/types"
 import { isElectron, openExternal, oauthAuthenticate } from "./electron"
 
 const API_BASE = typeof __BACKEND_URL__ !== "undefined" ? `${__BACKEND_URL__}/api` : "/api"
@@ -280,6 +287,33 @@ export const apiService = {
   async getTurnConfig(userId?: string): Promise<TURNConfigResponse> {
     const endpoint = userId ? `/turn-config?user_id=${userId}` : "/turn-config"
     return apiRequest<TURNConfigResponse>(endpoint)
+  },
+
+  // Halloween API calls
+  async getHalloweenConfig(): Promise<HalloweenGameConfig> {
+    return apiRequest<HalloweenGameConfig>("/halloween/game/config")
+  },
+
+  async getHalloweenState(): Promise<HalloweenStateResponse> {
+    return apiRequest<HalloweenStateResponse>("/halloween/state")
+  },
+
+  async updatePumpkin(equippedJson: string): Promise<{ status: string }> {
+    return apiRequest<{ status: string }>("/halloween/pumpkin", {
+      method: "PUT",
+      body: JSON.stringify({ equipped_json: equippedJson }),
+    })
+  },
+
+  async submitHalloweenGame(report: HalloweenGameReport): Promise<SubmitGameReportResponse> {
+    return apiRequest<SubmitGameReportResponse>("/halloween/game/report", {
+      method: "POST",
+      body: JSON.stringify(report),
+    })
+  },
+
+  async getHalloweenLeaderboard(): Promise<HalloweenLeaderboardEntry[]> {
+    return apiRequest<HalloweenLeaderboardEntry[]>("/halloween/leaderboard")
   },
 
   // Auth API calls
