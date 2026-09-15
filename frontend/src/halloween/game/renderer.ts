@@ -1,6 +1,17 @@
 import { Application, Assets, Container, Graphics, Sprite } from "pixi.js"
 import type { HalloweenGameEngine } from "./engine"
-import { FIELD_HEIGHT } from "./engine"
+import {
+  COLUMN_SPACING,
+  COLUMN_START_X,
+  FIELD_HEIGHT,
+  LANE_COUNT,
+  LANE_HEIGHT,
+  PLACEMENT_COLUMNS,
+  columnForX,
+  columnX,
+  laneCenterY,
+  laneForY,
+} from "./engine"
 import type { PumpkinType, SlugType } from "./types"
 
 const PUMPKIN_TINTS: Record<PumpkinType, number> = {
@@ -80,13 +91,21 @@ export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRen
     background.clear()
     background.rect(0, 0, width(), FIELD_HEIGHT)
     background.fill({ color: 0x1a1f16 })
-    for (let x = 100; x < width(); x += 100) {
-      background.moveTo(x, 0)
-      background.lineTo(x, FIELD_HEIGHT)
-      background.stroke({ width: 1, color: 0x2b3324 })
+    // Only the placable grid positions are drawn: the 5×6 placement cells.
+    const gridX0 = COLUMN_START_X
+    const gridW = PLACEMENT_COLUMNS * COLUMN_SPACING
+    for (let lane = 0; lane < LANE_COUNT; lane++) {
+      for (let col = 0; col < PLACEMENT_COLUMNS; col++) {
+        const x = gridX0 + col * COLUMN_SPACING
+        const y = lane * LANE_HEIGHT
+        background.rect(x, y, COLUMN_SPACING, LANE_HEIGHT)
+        background.fill({ color: 0x22301c, alpha: 0.35 })
+        background.rect(x, y, COLUMN_SPACING, LANE_HEIGHT)
+        background.stroke({ width: 1, color: 0x3b4a2f, alpha: 0.7 })
+      }
     }
-    background.rect(0, 0, 560, FIELD_HEIGHT)
-    background.stroke({ width: 1, color: 0x3b4a2f, alpha: 0.6 })
+    background.rect(gridX0, 0, gridW, FIELD_HEIGHT)
+    background.stroke({ width: 1, color: 0x3b4a2f, alpha: 0.9 })
   }
 
   const makeHealthBar = (container: Container, w: number, y: number): Graphics => {
@@ -192,8 +211,8 @@ export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRen
 
     app.canvas.addEventListener("pointermove", (e: PointerEvent) => {
       mouseWorld = eventToWorld(e)
-      if (mouseWorld && engine.mode === "target-override") {
-        engine.setSelectedTarget(mouseWorld.x, mouseWorld.y)
+      if (mouseWorld && engine.mode === "gwynevere-aim") {
+        engine.setGwynevereAim(mouseWorld.x)
       }
       renderCursor()
     })
@@ -230,9 +249,15 @@ export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRen
     const g = new Graphics()
 
     if (engine.mode === "place-pumpkin") {
-      g.circle(x, y, 28)
-      g.fill({ color: 0xffffff, alpha: 0.25 })
-      g.circle(x, y, 28)
+      const col = columnForX(x)
+      const lane = laneForY(y)
+      const cx = columnX(col)
+      const cy = laneCenterY(lane)
+      g.rect(cx - COLUMN_SPACING / 2, lane * LANE_HEIGHT, COLUMN_SPACING, LANE_HEIGHT)
+      g.fill({ color: 0xffffff, alpha: 0.12 })
+      g.rect(cx - COLUMN_SPACING / 2, lane * LANE_HEIGHT, COLUMN_SPACING, LANE_HEIGHT)
+      g.stroke({ width: 2, color: 0xffffff, alpha: 0.5 })
+      g.circle(cx, cy, 28)
       g.stroke({ width: 2, color: 0xffffff, alpha: 0.6 })
     } else if (engine.mode === "ability-point" && engine.pendingAbilityId) {
       g.circle(x, y, 6)
@@ -240,33 +265,28 @@ export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRen
       const radius = engine.pendingAbilityId === "holy_grenade" ? 300 : 70
       g.circle(x, y, radius)
       g.stroke({ width: 2, color: 0xfff3c4, alpha: 0.6 })
-    } else if (engine.mode === "target-override") {
-      g.moveTo(x - 10, y)
-      g.lineTo(x + 10, y)
-      g.moveTo(x, y - 10)
-      g.lineTo(x, y + 10)
-      g.stroke({ width: 2, color: 0xfbbf24 })
     }
     cursorLayer.addChild(g)
   }
 
-  const renderTargetMarker = () => {
+  const renderGwynevereAim = () => {
     if (!overlayLayer) return
     overlayLayer.removeChildren()
-    if (engine.mode !== "target-override" || engine.selectedPumpkinId == null) return
-    const pumpkin = engine.pumpkins.find((p) => p.id === engine.selectedPumpkinId && p.health > 0)
+    if (engine.mode !== "gwynevere-aim" || engine.gwynevereAimId == null) return
+    const pumpkin = engine.pumpkins.find((p) => p.id === engine.gwynevereAimId && p.health > 0)
     const target = pumpkin?.override
-    if (!target) return
+    if (!pumpkin || !target) return
     const g = new Graphics()
+    const dist = Math.max(pumpkin.x - target.x, 1)
     g.moveTo(pumpkin.x, pumpkin.y)
-    g.lineTo(target.x, target.y)
+    for (let i = 1; i < 10; i++) {
+      const u = i / 10
+      const px = pumpkin.x - u * (pumpkin.x - target.x)
+      const py = pumpkin.y - 4 * Math.min(dist, 240) * 0.25 * u * (1 - u)
+      g.lineTo(px, py)
+    }
     g.stroke({ width: 1, color: 0xfbbf24, alpha: 0.5 })
     g.circle(target.x, target.y, 6)
-    g.stroke({ width: 2, color: 0xfbbf24 })
-    g.moveTo(target.x - 8, target.y)
-    g.lineTo(target.x + 8, target.y)
-    g.moveTo(target.x, target.y - 8)
-    g.lineTo(target.x, target.y + 8)
     g.stroke({ width: 2, color: 0xfbbf24 })
     overlayLayer.addChild(g)
   }
@@ -275,7 +295,7 @@ export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRen
     if (!world || !app) return
     recomputeTransform()
     drawBackground()
-    renderTargetMarker()
+    renderGwynevereAim()
 
     // effects (grenades, beer cups, salt lines)
     effectLayer?.removeChildren()
@@ -322,15 +342,6 @@ export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRen
       updateBar(display.bar, p.radius * 2, p.health, p.maxHealth)
       display.sprite.alpha = p.health > 0 ? 1 : 0.3
       if (p.health <= 0) display.sprite.tint = 0x444444
-    }
-    if (engine.selectedPumpkinId != null) {
-      const sel = engine.pumpkins.find((p) => p.id === engine.selectedPumpkinId)
-      if (sel) {
-        const ring = new Graphics()
-        ring.circle(sel.x, sel.y, sel.radius + 6)
-        ring.stroke({ width: 2, color: 0xfbbf24 })
-        world.addChild(ring)
-      }
     }
 
     // slugs

@@ -28,8 +28,12 @@ const SLUG_RADII: Record<SlugType, number> = {
   gerald: 26,
   dell: 16,
 }
-const PUMPKIN_MIN_X = 40
-const PUMPKIN_MAX_X = 520
+// Battleground grid: 5 horizontal stripes, 6 placement columns on the left.
+export const LANE_COUNT = 5
+export const LANE_HEIGHT = FIELD_HEIGHT / LANE_COUNT
+export const PLACEMENT_COLUMNS = 6
+export const COLUMN_START_X = 80
+export const COLUMN_SPACING = 80
 const SLUG_ATTACK_INTERVAL = 3
 const DELL_SPAWN_INTERVAL = 5
 const DISTRACTION_DURATION = 5
@@ -44,6 +48,25 @@ const SALT_WIDTH = 14
 const SALT_TICK = 5
 const SALT_DAMAGE = 1
 const GWYN_BLAST_RADIUS = 70
+
+export function laneForY(y: number): number {
+  return Math.max(0, Math.min(LANE_COUNT - 1, Math.floor(y / LANE_HEIGHT)))
+}
+
+export function laneCenterY(lane: number): number {
+  return LANE_HEIGHT * (lane + 0.5)
+}
+
+export function columnForX(x: number): number {
+  return Math.max(
+    0,
+    Math.min(PLACEMENT_COLUMNS - 1, Math.round((x - COLUMN_START_X) / COLUMN_SPACING)),
+  )
+}
+
+export function columnX(col: number): number {
+  return COLUMN_START_X + col * COLUMN_SPACING
+}
 
 interface PendingAbility {
   abilityId: AbilityId
@@ -76,7 +99,7 @@ export class HalloweenGameEngine {
 
   mode: GameInputMode = "none"
   private pendingAbility: PendingAbility | null = null
-  selectedPumpkinId: number | null = null
+  gwynevereAimId: number | null = null
   prompt: string | null = null
   gameOverReason: string | null = null
 
@@ -107,7 +130,6 @@ export class HalloweenGameEngine {
       popupIndex: this.popupIndex,
       popupTotal: this.popupTotal,
       mode: this.mode,
-      selectedPumpkinId: this.selectedPumpkinId,
       pendingAbility: this.pendingAbility?.abilityId ?? null,
       prompt: this.prompt,
       gameOverReason: this.gameOverReason,
@@ -156,7 +178,7 @@ export class HalloweenGameEngine {
     this.cards = { cards: buildCardOffer() }
     this.phase = "cards"
     this.prompt = null
-    this.selectedPumpkinId = null
+    this.gwynevereAimId = null
     this.mode = "none"
   }
 
@@ -187,12 +209,13 @@ export class HalloweenGameEngine {
 
   // ---- Input -------------------------------------------------------------
 
-  // Manual targeting: while a pumpkin is selected the override follows the
-  // user's cursor. Clicking the pumpkin again clears it back to autotarget.
-  setSelectedTarget(x: number, y: number) {
-    if (this.mode !== "target-override" || this.selectedPumpkinId == null) return
-    const pumpkin = this.pumpkins.find((p) => p.id === this.selectedPumpkinId && p.health > 0)
-    if (pumpkin) pumpkin.override = { x, y }
+  // Gwynevere free aim: while a Gwynevere is armed its landing point (locked
+  // to its lane) follows the cursor. Clicking it again restores autotarget.
+  setGwynevereAim(x: number) {
+    if (this.mode !== "gwynevere-aim" || this.gwynevereAimId == null) return
+    const pumpkin = this.pumpkins.find((p) => p.id === this.gwynevereAimId && p.health > 0)
+    if (pumpkin)
+      pumpkin.override = { x: columnX(columnForX(x)), y: laneCenterY(laneForY(pumpkin.y)) }
   }
 
   selectInventoryItem(index: number) {
@@ -241,29 +264,29 @@ export class HalloweenGameEngine {
         else this.prompt = "No pumpkin there — click one of your pumpkins"
         break
       }
-      case "target-override": {
+      case "gwynevere-aim": {
         const pumpkin = this.findPumpkinAt(x, y)
-        if (pumpkin) {
-          if (pumpkin.id === this.selectedPumpkinId) {
+        if (pumpkin && pumpkin.type === "gwynevere") {
+          if (pumpkin.id === this.gwynevereAimId) {
             pumpkin.override = null
-            this.selectedPumpkinId = null
+            this.gwynevereAimId = null
             this.mode = "none"
             this.prompt = "Autotarget restored"
           } else {
-            this.selectedPumpkinId = pumpkin.id
+            this.gwynevereAimId = pumpkin.id
             this.prompt =
-              "Aiming follows your cursor — click this pumpkin again to restore autotarget"
+              "Landing point follows your cursor — click this Gwynevere again to restore autotarget"
           }
         }
         break
       }
       case "none": {
         const pumpkin = this.findPumpkinAt(x, y)
-        if (pumpkin) {
-          this.selectedPumpkinId = pumpkin.id
-          this.mode = "target-override"
+        if (pumpkin && pumpkin.type === "gwynevere") {
+          this.gwynevereAimId = pumpkin.id
+          this.mode = "gwynevere-aim"
           this.prompt =
-            "Aiming follows your cursor — click this pumpkin again to restore autotarget"
+            "Landing point follows your cursor — click this Gwynevere again to restore autotarget"
         }
         break
       }
@@ -276,17 +299,10 @@ export class HalloweenGameEngine {
       this.clearInteraction()
       return
     }
-    if (
-      x < PUMPKIN_MIN_X ||
-      x > PUMPKIN_MAX_X ||
-      y < PUMPKIN_RADIUS ||
-      y > FIELD_HEIGHT - PUMPKIN_RADIUS
-    ) {
-      this.prompt = "Pumpkins can only be placed on the left side of the battlefield"
-      return
-    }
+    const lane = laneForY(y)
+    const col = columnForX(x)
     const index = this.inventory.indexOf(item)
-    this.spawnPumpkin(item.pumpkinType, x, y)
+    this.spawnPumpkin(item.pumpkinType, columnX(col), laneCenterY(lane))
     this.consumeInventoryItem(index)
     this.clearInteraction()
   }
@@ -304,6 +320,7 @@ export class HalloweenGameEngine {
   private clearInteraction() {
     this.mode = "none"
     this.pendingAbility = null
+    this.gwynevereAimId = null
     this.prompt = null
   }
 
@@ -344,6 +361,7 @@ export class HalloweenGameEngine {
       type,
       x,
       y,
+      lane: laneForY(y),
       health: cfg?.health ?? 10,
       maxHealth: cfg?.health ?? 10,
       speed: (cfg?.speed ?? 0) * speedMul,
@@ -478,7 +496,8 @@ export class HalloweenGameEngine {
       const type = this.spawnQueue.shift()!
       const variation = this.speedVariationForRound(this.round)
       const speedMul = 1 + (Math.random() * 2 - 1) * variation
-      this.spawnSlug(type, this.width + 20, 40 + Math.random() * (FIELD_HEIGHT - 80), speedMul)
+      const lane = Math.floor(Math.random() * LANE_COUNT)
+      this.spawnSlug(type, this.width + 20, laneCenterY(lane), speedMul)
       this.spawnTimer = spawnTableForRound(this.round).interval
     }
   }
@@ -489,6 +508,7 @@ export class HalloweenGameEngine {
   }
 
   private updateSlugs(dt: number) {
+    const escaped: number[] = []
     for (const slug of this.slugs) {
       if (slug.frozenFor > 0) {
         slug.frozenFor -= dt
@@ -503,15 +523,20 @@ export class HalloweenGameEngine {
         slug.spawnTimer += dt
         if (slug.spawnTimer >= DELL_SPAWN_INTERVAL) {
           slug.spawnTimer = 0
-          this.spawnSlug("marvin", slug.x + 10, slug.y + (Math.random() * 40 - 20))
+          this.spawnSlug("marvin", slug.x + 10, slug.y)
         }
         continue
       }
 
-      // Attack the pumpkin we've reached.
+      // Attack the pumpkin we've reached on our lane.
       const attacked = this.findAttackTarget(slug)
       if (attacked) {
+        const justEngaged = slug.attackingPumpkinId !== attacked.id
         slug.attackingPumpkinId = attacked.id
+        if (justEngaged) {
+          // First bite lands immediately; subsequent bites every interval.
+          slug.attackTimer = SLUG_ATTACK_INTERVAL
+        }
         slug.attackTimer += dt
         if (slug.attackTimer >= SLUG_ATTACK_INTERVAL) {
           slug.attackTimer = 0
@@ -542,18 +567,19 @@ export class HalloweenGameEngine {
         }
       }
 
-      // Once a slug enters the pumpkin placement area it picks the nearest
-      // pumpkin and steers toward it so it attacks instead of walking past.
-      if (slug.distractionFor <= 0 && slug.x < 620) {
-        const pursuit = this.nearestPumpkin(slug)
-        if (pursuit) {
-          const dy = pursuit.y - slug.y
-          slug.y += Math.sign(dy) * Math.min(Math.abs(dy), slug.speed * 0.7 * dt)
-        }
-      }
-
       slug.x += slug.speed * moveDir * dt
-      if (slug.x < 0) slug.x = 0
+
+      // Reaching the left border punishes the player: the slug deals its full
+      // damage to every pumpkin, then escapes without a reward.
+      if (slug.x < -slug.radius) {
+        for (const p of this.pumpkins) {
+          if (p.health <= 0) continue
+          p.health -= slug.damage
+          if (p.health <= 0) this.onEvent?.("pumpkin_destroyed")
+        }
+        escaped.push(slug.id)
+        continue
+      }
 
       // Genocide salt line damage.
       for (const line of this.saltLines) {
@@ -569,26 +595,22 @@ export class HalloweenGameEngine {
         }
       }
     }
+    if (escaped.length > 0) {
+      this.slugs = this.slugs.filter((s) => !escaped.includes(s.id))
+    }
   }
 
   private findAttackTarget(slug: GameSlug): GamePumpkin | null {
-    for (const p of this.pumpkins) {
-      if (p.health <= 0) continue
-      const dist = Math.hypot(p.x - slug.x, p.y - slug.y)
-      if (dist <= p.radius + slug.radius) return p
-    }
-    return null
-  }
-
-  private nearestPumpkin(slug: GameSlug): GamePumpkin | null {
     let best: GamePumpkin | null = null
-    let bestDist = Infinity
+    let bestX = -Infinity
     for (const p of this.pumpkins) {
       if (p.health <= 0) continue
-      const d = Math.hypot(p.x - slug.x, p.y - slug.y)
-      if (d < bestDist) {
-        bestDist = d
-        best = p
+      if (laneForY(p.y) !== slug.lane) continue
+      if (Math.hypot(p.x - slug.x, p.y - slug.y) <= p.radius + slug.radius) {
+        if (p.x > bestX) {
+          bestX = p.x
+          best = p
+        }
       }
     }
     return best
@@ -610,7 +632,7 @@ export class HalloweenGameEngine {
     if (!cfg) return
 
     if (pumpkin.type === "gwynevere") {
-      const point = pumpkin.override ?? this.gwynevereTarget()
+      const point = pumpkin.override ?? this.gwynevereTarget(pumpkin)
       if (!point) return
       this.projectiles.push(
         this.makeProjectile(
@@ -642,17 +664,10 @@ export class HalloweenGameEngine {
       }
     }
 
-    const target = this.nearestSlug(pumpkin)
+    // Normal pumpkins shoot straight horizontally along their own lane.
+    const target = this.nearestSlugOnLane(pumpkin)
     if (!target) return
-    if (pumpkin.override) {
-      this.projectiles.push(
-        this.makeProjectile("seed", pumpkin, pumpkin.override, null, cfg.damage_per_shot, 0),
-      )
-    } else {
-      this.projectiles.push(
-        this.makeProjectile("seed", pumpkin, null, target.id, cfg.damage_per_shot, 0),
-      )
-    }
+    this.projectiles.push(this.makeProjectile("seed", pumpkin, null, null, cfg.damage_per_shot, 0))
     this.onEvent?.("shooting")
   }
 
@@ -664,23 +679,33 @@ export class HalloweenGameEngine {
     damage: number,
     blastRadius: number,
   ): GameProjectile {
-    // Manual override fires along the pumpkin→point direction as a vector.
-    const dirX = targetPoint ? targetPoint.x - pumpkin.x : 1
-    const dirY = targetPoint ? targetPoint.y - pumpkin.y : 0
-    const dirLen = Math.hypot(dirX, dirY) || 1
+    let vx = 0
+    const vy = 0
+    let arcStart: { x: number; y: number } | null = null
+    let arcPeak = 0
+    if (kind === "seed") {
+      vx = pumpkin.projectileSpeed
+    } else if (kind === "missile" && targetPoint) {
+      const dist = Math.max(pumpkin.x - targetPoint.x, 1)
+      vx = -pumpkin.projectileSpeed
+      arcStart = { x: pumpkin.x, y: pumpkin.y }
+      arcPeak = Math.min(dist, 240) * 0.25
+    }
     return {
       id: this.nextId++,
       kind,
       x: pumpkin.x,
       y: pumpkin.y,
-      vx: (dirX / dirLen) * pumpkin.projectileSpeed,
-      vy: (dirY / dirLen) * pumpkin.projectileSpeed,
+      vx,
+      vy,
       speed: pumpkin.projectileSpeed,
       damage,
       radius: kind === "missile" ? 6 : 4,
       targetId,
       targetPoint,
       override: pumpkin.override,
+      arcStart,
+      arcPeak,
       blastRadius,
       sourcePumpkinId: pumpkin.id,
       life: 2,
@@ -688,12 +713,14 @@ export class HalloweenGameEngine {
     }
   }
 
-  private nearestSlug(pumpkin: GamePumpkin): GameSlug | null {
+  private nearestSlugOnLane(pumpkin: GamePumpkin): GameSlug | null {
     let best: GameSlug | null = null
     let bestDist = Infinity
     for (const s of this.slugs) {
       if (s.health <= 0) continue
-      const d = Math.hypot(s.x - pumpkin.x, s.y - pumpkin.y)
+      if (laneForY(s.y) !== laneForY(pumpkin.y)) continue
+      if (s.x <= pumpkin.x) continue
+      const d = s.x - pumpkin.x
       if (d < bestDist) {
         bestDist = d
         best = s
@@ -702,19 +729,21 @@ export class HalloweenGameEngine {
     return best
   }
 
-  private gwynevereTarget(): { x: number; y: number } | null {
-    if (this.slugs.length === 0) return null
+  private gwynevereTarget(pumpkin: GamePumpkin): { x: number; y: number } | null {
+    const laneY = laneCenterY(laneForY(pumpkin.y))
+    const laneSlugs = this.slugs.filter((s) => laneForY(s.y) === laneForY(pumpkin.y))
+    if (laneSlugs.length === 0) return null
     let bestPoint: { x: number; y: number } | null = null
     let bestCount = 0
-    for (const slug of this.slugs) {
-      const flightTime = Math.hypot(slug.x - 100, slug.y) / 40 || 1
+    for (const slug of laneSlugs) {
+      const flightTime = Math.max(pumpkin.x - slug.x, 1) / pumpkin.projectileSpeed || 1
       const px = slug.x + (slug.distractionFor > 0 ? 1 : -1) * slug.speed * flightTime
-      const point = { x: px, y: slug.y }
+      const point = { x: Math.max(0, Math.min(this.width, px)), y: laneY }
       let count = 0
-      for (const s of this.slugs) {
-        const t = Math.hypot(s.x - 100, s.y) / 40 || 1
+      for (const s of laneSlugs) {
+        const t = Math.max(pumpkin.x - s.x, 1) / pumpkin.projectileSpeed || 1
         const sx = s.x + (s.distractionFor > 0 ? 1 : -1) * s.speed * t
-        if (Math.hypot(sx - point.x, s.y - point.y) <= GWYN_BLAST_RADIUS) count++
+        if (Math.abs(sx - point.x) <= GWYN_BLAST_RADIUS) count++
       }
       if (count > bestCount) {
         bestCount = count
@@ -746,14 +775,14 @@ export class HalloweenGameEngine {
         continue
       }
 
-      // Gwynevere missiles fly to a fixed point and explode on arrival.
+      // Gwynevere missiles follow a parabolic arc to a fixed landing point.
       if (proj.kind === "missile") {
-        if (proj.targetPoint) {
-          this.homingStep(proj, proj.targetPoint.x, proj.targetPoint.y, dt)
-          if (
-            Math.hypot(proj.x - proj.targetPoint.x, proj.y - proj.targetPoint.y) <=
-            proj.radius + 4
-          ) {
+        if (proj.targetPoint && proj.arcStart) {
+          const dist = Math.max(proj.arcStart.x - proj.targetPoint.x, 1)
+          proj.x += proj.vx * dt
+          const u = Math.max(0, Math.min(1, (proj.arcStart.x - proj.x) / dist))
+          proj.y = proj.arcStart.y - 4 * proj.arcPeak * u * (1 - u)
+          if (u >= 1) {
             proj.dead = true
             this.explodeAt(proj.x, proj.y, proj.blastRadius, proj.damage, "pumpkin")
           }
@@ -763,18 +792,8 @@ export class HalloweenGameEngine {
         continue
       }
 
-      // Seeds home to their target slug; if it dies mid-flight they keep going.
-      if (proj.targetId != null) {
-        const target = this.slugs.find((s) => s.id === proj.targetId && s.health > 0)
-        if (target) this.homingStep(proj, target.x, target.y, dt)
-        else {
-          proj.targetId = null
-          this.coast(proj, dt)
-        }
-      } else {
-        // Manual override seeds (targetPoint) fly straight along their vector.
-        this.coast(proj, dt)
-      }
+      // Seeds fly straight horizontally along their lane.
+      this.coast(proj, dt)
 
       // Collision vs any slug — a seed damages the first slug it reaches.
       let hit = false

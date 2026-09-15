@@ -345,7 +345,6 @@ onMounted(async () => {
       popupIndex: 0,
       popupTotal: 0,
       mode: "none",
-      selectedPumpkinId: null,
       pendingAbility: null,
       prompt: null,
       gameOverReason: "Game config unavailable",

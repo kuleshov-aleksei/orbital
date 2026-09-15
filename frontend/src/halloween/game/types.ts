@@ -50,6 +50,7 @@ export interface GameSlug {
   type: SlugType
   x: number
   y: number
+  lane: number // horizontal stripe the slug crawls along (0-based)
   health: number
   maxHealth: number
   speed: number
@@ -80,6 +81,8 @@ export interface GameProjectile {
   targetId: number | null // slug or pumpkin id for homing
   targetPoint: { x: number; y: number } | null // fixed destination (gwynevere)
   override: { x: number; y: number } | null
+  arcStart: { x: number; y: number } | null // gwynevere parabola launch point
+  arcPeak: number // gwynevere parabola peak height
   blastRadius: number
   sourcePumpkinId: number
   life: number // seconds before a stray projectile fades
@@ -142,11 +145,10 @@ export interface GameSnapshot {
   popupIndex: number
   popupTotal: number
   mode: GameInputMode
-  selectedPumpkinId: number | null
   pendingAbility: AbilityId | null
   prompt: string | null
   gameOverReason: string | null
 }
 
 export type GameInputMode =
-  "none" | "place-pumpkin" | "ability-point" | "ability-pumpkin" | "target-override"
+  "none" | "place-pumpkin" | "ability-point" | "ability-pumpkin" | "gwynevere-aim"
