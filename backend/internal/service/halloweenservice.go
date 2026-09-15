@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/kuleshov-aleksei/orbital/internal/config"
 	"github.com/kuleshov-aleksei/orbital/internal/models"
 	"github.com/kuleshov-aleksei/orbital/internal/repository"
 )
@@ -84,16 +85,24 @@ var halloweenTierOrder = []string{
 }
 
 type HalloweenService struct {
-	repo *repository.HalloweenRepository
+	repo     *repository.HalloweenRepository
+	seasonal *config.SeasonalConfig
 }
 
-func NewHalloweenService(repo *repository.HalloweenRepository) *HalloweenService {
-	return &HalloweenService{repo: repo}
+func NewHalloweenService(repo *repository.HalloweenRepository, seasonal *config.SeasonalConfig) *HalloweenService {
+	return &HalloweenService{repo: repo, seasonal: seasonal}
 }
 
 // IsEnabled reports whether the halloween event is currently visible.
 func (s *HalloweenService) IsEnabled() bool {
-	start, err := time.Parse("2006-01-02", HalloweenStartsAt)
+	if s.seasonal == nil || !s.seasonal.Halloween.Enabled {
+		return false
+	}
+	startsAt := s.seasonal.Halloween.StartsAt
+	if startsAt == "" {
+		return true
+	}
+	start, err := time.Parse("2006-01-02", startsAt)
 	if err != nil {
 		return false
 	}
@@ -102,9 +111,14 @@ func (s *HalloweenService) IsEnabled() bool {
 
 // Config returns the server-authoritative balance payload.
 func (s *HalloweenService) Config() *HalloweenGameConfig {
+	startsAt := HalloweenStartsAt
+	if s.seasonal != nil && s.seasonal.Halloween.StartsAt != "" {
+		startsAt = s.seasonal.Halloween.StartsAt
+	}
+
 	return &HalloweenGameConfig{
 		Enabled:           s.IsEnabled(),
-		StartsAt:          HalloweenStartsAt,
+		StartsAt:          startsAt,
 		BattlefieldLength: 1000,
 		Pumpkins: map[string]HalloweenPumpkinConfig{
 			"ferdinand": {FireRate: 1, Health: 10, DamagePerShot: 5, ProjectileSpeed: 100},

@@ -82,7 +82,7 @@ func main() {
 		debugLogService = service.NewDebugLogService(debugLogRepo, "data")
 		audioService = service.NewAudioService(repository.NewAudioRepository(db), "data")
 		analyticsService = service.NewAnalyticsService(sessionRepo)
-		halloweenService = service.NewHalloweenService(repository.NewHalloweenRepository(db))
+		halloweenService = service.NewHalloweenService(repository.NewHalloweenRepository(db), cfg.GetSeasonalConfig())
 
 		// Load data from database
 		if err := categoryService.LoadFromDB(); err != nil {

@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kuleshov-aleksei/orbital/internal/config"
 	"github.com/kuleshov-aleksei/orbital/internal/models"
 	"github.com/kuleshov-aleksei/orbital/internal/repository"
 	"github.com/kuleshov-aleksei/orbital/internal/storage"
@@ -22,26 +23,60 @@ func newHalloweenTestService(t *testing.T) *HalloweenService {
 	}
 
 	repo := repository.NewHalloweenRepository(db)
-	return NewHalloweenService(repo)
+	seasonal := &config.SeasonalConfig{
+		Halloween: config.HalloweenConfig{
+			Enabled:  true,
+			StartsAt: HalloweenStartsAt,
+		},
+	}
+	return NewHalloweenService(repo, seasonal)
 }
 
 func TestHalloweenConfigEnabledGate(t *testing.T) {
 	s := newHalloweenTestService(t)
 	cfg := s.Config()
 
-	start, err := time.Parse("2006-01-02", HalloweenStartsAt)
+	start, err := time.Parse("2006-01-02", cfg.StartsAt)
 	if err != nil {
-		t.Fatalf("invalid HalloweenStartsAt: %v", err)
+		t.Fatalf("invalid starts_at %q: %v", cfg.StartsAt, err)
 	}
 	wantEnabled := !time.Now().UTC().Before(start)
 	if cfg.Enabled != wantEnabled {
-		t.Fatalf("enabled = %v, want %v (starts %s)", cfg.Enabled, wantEnabled, HalloweenStartsAt)
-	}
-	if cfg.StartsAt != "2026-10-17" {
-		t.Fatalf("unexpected starts_at: %s", cfg.StartsAt)
+		t.Fatalf("enabled = %v, want %v (starts %s)", cfg.Enabled, wantEnabled, cfg.StartsAt)
 	}
 	if cfg.BattlefieldLength != 1000 {
 		t.Fatalf("unexpected battlefield length: %d", cfg.BattlefieldLength)
+	}
+}
+
+func TestHalloweenIsEnabledMasterSwitch(t *testing.T) {
+	s := newHalloweenTestService(t)
+
+	// Master switch off → always disabled regardless of date.
+	disabled := &config.SeasonalConfig{
+		Halloween: config.HalloweenConfig{Enabled: false, StartsAt: "2000-01-01"},
+	}
+	s.seasonal = disabled
+	if s.IsEnabled() {
+		t.Fatal("expected feature to be disabled when master switch is off")
+	}
+
+	// Master switch on, empty starts_at → always enabled.
+	alwaysOn := &config.SeasonalConfig{
+		Halloween: config.HalloweenConfig{Enabled: true, StartsAt: ""},
+	}
+	s.seasonal = alwaysOn
+	if !s.IsEnabled() {
+		t.Fatal("expected feature to be enabled with no starts_at")
+	}
+
+	// Future starts_at → disabled.
+	future := &config.SeasonalConfig{
+		Halloween: config.HalloweenConfig{Enabled: true, StartsAt: "2999-12-31"},
+	}
+	s.seasonal = future
+	if s.IsEnabled() {
+		t.Fatal("expected feature to be disabled before starts_at")
 	}
 }
 
