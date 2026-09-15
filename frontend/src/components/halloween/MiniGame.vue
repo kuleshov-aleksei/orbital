@@ -13,6 +13,10 @@
             >Pumpkins: {{ engine?.alivePumpkinCount() ?? 0 }}</span
           >
           <span class="text-theme-text-secondary">Slugs: {{ engine?.aliveSlugCount() ?? 0 }}</span>
+          <span class="flex items-center gap-1 text-theme-text-secondary">
+            <span aria-hidden="true">🌰</span>
+            {{ hud?.coins ?? 0 }}
+          </span>
         </div>
         <div class="flex items-center gap-2">
           <div
@@ -52,42 +56,80 @@
         {{ hud.prompt }}
       </div>
 
-      <!-- Inventory -->
+      <!-- Shop + Inventory -->
       <div
-        class="px-5 py-3 border-t border-theme-border flex items-center gap-2 justify-center"
-        data-testid="game-inventory">
-        <button
-          v-for="(item, index) in inventorySlots"
-          :key="index"
-          type="button"
-          class="w-14 h-14 rounded-xl border flex flex-col items-center justify-center transition-colors"
-          :class="[
-            item
-              ? 'bg-theme-bg-secondary border-theme-border hover:bg-theme-bg-tertiary cursor-pointer'
-              : 'bg-theme-bg-primary border-theme-border/50 cursor-default',
-            hud?.mode === 'place-pumpkin' && item?.kind === 'pumpkin'
-              ? 'ring-2 ring-orange-500'
-              : '',
-            item?.kind === 'ability' && hud?.pendingAbility === item.abilityId
-              ? 'ring-2 ring-orange-500'
-              : '',
-          ]"
-          :data-testid="`inventory-slot-${index}`"
-          :title="item ? itemLabel(item) : 'Empty slot'"
-          :disabled="!item"
-          @click="item && selectItem(index)">
-          <template v-if="item">
-            <span
-              class="text-xl leading-none"
-              :class="item.kind === 'ability' ? '' : 'text-orange-400'">
-              {{ itemIcon(item) }}
-            </span>
-            <span class="text-[10px] mt-1 text-theme-text-muted font-semibold">{{
-              itemLabel(item)
-            }}</span>
-          </template>
-          <span v-else class="text-theme-text-muted/40">—</span>
-        </button>
+        class="px-5 py-3 border-t border-theme-border flex items-stretch gap-3 justify-center"
+        data-testid="game-bottom-bar">
+        <!-- Shop -->
+        <div
+          class="flex flex-col items-center gap-2 rounded-xl bg-theme-bg-secondary border border-theme-border p-2"
+          data-testid="game-shop">
+          <span
+            class="flex items-center gap-1 text-xs font-bold text-theme-text-primary"
+            data-testid="seeds-counter">
+            <span aria-hidden="true">🌰</span>
+            {{ hud?.coins ?? 0 }} seeds
+          </span>
+          <div class="flex items-center gap-1.5">
+            <button
+              v-for="item in shopItems"
+              :key="item.type"
+              type="button"
+              class="w-14 h-14 rounded-xl border flex flex-col items-center justify-center transition-colors"
+              :class="[
+                canBuy(item)
+                  ? 'bg-theme-bg-primary border-theme-border hover:bg-theme-bg-tertiary cursor-pointer'
+                  : 'bg-theme-bg-primary border-theme-border/50 cursor-not-allowed opacity-60',
+              ]"
+              :data-testid="`shop-${item.type}`"
+              :title="`${item.type} — ${item.cost} seeds`"
+              :disabled="!canBuy(item)"
+              @click="buy(item.type)">
+              <span class="text-xl leading-none text-orange-400">{{
+                PUMPKIN_ICONS[item.type] ?? "P"
+              }}</span>
+              <span class="text-[10px] mt-1 text-theme-text-muted font-semibold"
+                >{{ item.cost }} 🌰</span
+              >
+            </button>
+          </div>
+        </div>
+
+        <!-- Inventory -->
+        <div class="flex items-center gap-2" data-testid="game-inventory">
+          <button
+            v-for="(item, index) in inventorySlots"
+            :key="index"
+            type="button"
+            class="w-14 h-14 rounded-xl border flex flex-col items-center justify-center transition-colors"
+            :class="[
+              item
+                ? 'bg-theme-bg-secondary border-theme-border hover:bg-theme-bg-tertiary cursor-pointer'
+                : 'bg-theme-bg-primary border-theme-border/50 cursor-default',
+              hud?.mode === 'place-pumpkin' && item?.kind === 'pumpkin'
+                ? 'ring-2 ring-orange-500'
+                : '',
+              item?.kind === 'ability' && hud?.pendingAbility === item.abilityId
+                ? 'ring-2 ring-orange-500'
+                : '',
+            ]"
+            :data-testid="`inventory-slot-${index}`"
+            :title="item ? itemLabel(item) : 'Empty slot'"
+            :disabled="!item"
+            @click="item && selectItem(index)">
+            <template v-if="item">
+              <span
+                class="text-xl leading-none"
+                :class="item.kind === 'ability' ? '' : 'text-orange-400'">
+                {{ itemIcon(item) }}
+              </span>
+              <span class="text-[10px] mt-1 text-theme-text-muted font-semibold">{{
+                itemLabel(item)
+              }}</span>
+            </template>
+            <span v-else class="text-theme-text-muted/40">—</span>
+          </button>
+        </div>
       </div>
 
       <!-- Card popup -->
@@ -211,7 +253,7 @@ import type { SubmitGameReportResponse } from "@/halloween/types"
 import { HalloweenGameEngine } from "@/halloween/game/engine"
 import { createMiniGameRenderer } from "@/halloween/game/renderer"
 import { ABILITY_META } from "@/halloween/game/balance"
-import type { GameInventoryItem, GameSnapshot } from "@/halloween/game/types"
+import type { GameInventoryItem, GameSnapshot, PumpkinType } from "@/halloween/game/types"
 
 defineEmits<{
   exit: []
@@ -245,6 +287,7 @@ const PUMPKIN_ICONS: Record<string, string> = {
   chunky: "C",
   herbert: "H",
   gwynevere: "G",
+  cramer: "🌰",
 }
 
 const ABILITY_ICONS: Record<string, string> = {
@@ -274,6 +317,23 @@ function cardLabel(abilityId: string): string {
 
 function selectItem(index: number) {
   engine?.selectInventoryItem(index)
+}
+
+const shopItems = computed(() => {
+  const cfg = halloweenStore.config
+  if (!cfg) return []
+  return (Object.keys(cfg.pumpkins) as PumpkinType[]).map((type) => ({
+    type,
+    cost: cfg.pumpkins[type].cost,
+  }))
+})
+
+function canBuy(item: { type: PumpkinType; cost: number }): boolean {
+  return hud.value?.phase === "playing" && (hud.value?.coins ?? 0) >= item.cost
+}
+
+function buy(type: PumpkinType) {
+  engine?.buyPumpkin(type)
 }
 
 async function submitReport(isIncomplete: boolean) {
@@ -340,6 +400,7 @@ onMounted(async () => {
       round: 1,
       completedRounds: 0,
       score: 0,
+      coins: 0,
       inventory: [],
       cards: null,
       popupIndex: 0,

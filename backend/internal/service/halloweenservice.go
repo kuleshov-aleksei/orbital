@@ -22,6 +22,7 @@ type HalloweenGameConfig struct {
 	Enabled           bool                              `json:"enabled"`
 	StartsAt          string                            `json:"starts_at"`
 	BattlefieldLength int                               `json:"battlefield_length"`
+	StartingCoins     int                               `json:"starting_coins"`
 	Pumpkins          map[string]HalloweenPumpkinConfig `json:"pumpkins"`
 	Slugs             map[string]HalloweenSlugConfig    `json:"slugs"`
 	Abilities         map[string]HalloweenAbilityConfig `json:"abilities"`
@@ -36,6 +37,9 @@ type HalloweenPumpkinConfig struct {
 	Health          int     `json:"health"`
 	DamagePerShot   int     `json:"damage_per_shot"`
 	ProjectileSpeed float64 `json:"projectile_speed"` // units per second
+	Cost            int     `json:"cost"`            // seeds to buy in the shop
+	CoinIntervalS   float64 `json:"coin_interval_s"` // seconds per coin tick (cramer)
+	CoinsPerTick    int     `json:"coins_per_tick"`  // seeds produced per tick (cramer)
 }
 
 type HalloweenSlugConfig struct {
@@ -43,6 +47,7 @@ type HalloweenSlugConfig struct {
 	Health          int     `json:"health"`
 	DamageToPumpkin int     `json:"damage_to_pumpkin"`
 	RewardPoints    int     `json:"reward_points"`
+	KillReward      int     `json:"kill_reward"` // seeds earned per kill
 }
 
 type HalloweenAbilityConfig struct {
@@ -120,17 +125,19 @@ func (s *HalloweenService) Config() *HalloweenGameConfig {
 		Enabled:           s.IsEnabled(),
 		StartsAt:          startsAt,
 		BattlefieldLength: 1000,
+		StartingCoins:     20,
 		Pumpkins: map[string]HalloweenPumpkinConfig{
-			"ferdinand": {FireRate: 1, Health: 10, DamagePerShot: 5, ProjectileSpeed: 100},
-			"chunky":    {FireRate: 0, Health: 50, DamagePerShot: 0, ProjectileSpeed: 0},
-			"herbert":   {FireRate: 0.5, Health: 10, DamagePerShot: 5, ProjectileSpeed: 150},
-			"gwynevere": {FireRate: 0.1, Health: 5, DamagePerShot: 10, ProjectileSpeed: 40},
+			"ferdinand": {FireRate: 1, Health: 10, DamagePerShot: 5, ProjectileSpeed: 100, Cost: 20},
+			"chunky":    {FireRate: 0, Health: 50, DamagePerShot: 0, ProjectileSpeed: 0, Cost: 40},
+			"herbert":   {FireRate: 0.5, Health: 10, DamagePerShot: 5, ProjectileSpeed: 150, Cost: 40},
+			"gwynevere": {FireRate: 0.1, Health: 5, DamagePerShot: 10, ProjectileSpeed: 40, Cost: 70},
+			"cramer":    {FireRate: 0, Health: 10, DamagePerShot: 0, ProjectileSpeed: 0, Cost: 75, CoinIntervalS: 5, CoinsPerTick: 1},
 		},
 		Slugs: map[string]HalloweenSlugConfig{
-			HalloweenSlugScout:  {Speed: 50, Health: 10, DamageToPumpkin: 2, RewardPoints: 10},
-			HalloweenSlugMarvin: {Speed: 50, Health: 20, DamageToPumpkin: 5, RewardPoints: 20},
-			HalloweenSlugGerald: {Speed: 30, Health: 100, DamageToPumpkin: 20, RewardPoints: 50},
-			HalloweenSlugDell:   {Speed: 0, Health: 10, DamageToPumpkin: 0, RewardPoints: 100},
+			HalloweenSlugScout:  {Speed: 50, Health: 10, DamageToPumpkin: 2, RewardPoints: 10, KillReward: 5},
+			HalloweenSlugMarvin: {Speed: 50, Health: 20, DamageToPumpkin: 5, RewardPoints: 20, KillReward: 10},
+			HalloweenSlugGerald: {Speed: 30, Health: 100, DamageToPumpkin: 20, RewardPoints: 50, KillReward: 30},
+			HalloweenSlugDell:   {Speed: 0, Health: 10, DamageToPumpkin: 0, RewardPoints: 100, KillReward: 50},
 		},
 		Abilities: map[string]HalloweenAbilityConfig{
 			HalloweenAbilityAnnihilation: {Score: 70, Kind: "multiplier"}, // 70% of slug reward

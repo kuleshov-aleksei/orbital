@@ -80,6 +80,9 @@ export class HalloweenGameEngine {
   private round = 1
   private completedRounds = 0
   private score = 0
+  private coins = 0
+  private coinsEarned = 0
+  private coinsSpent = 0
 
   pumpkins: GamePumpkin[] = []
   slugs: GameSlug[] = []
@@ -114,6 +117,7 @@ export class HalloweenGameEngine {
   constructor(config: HalloweenGameConfig) {
     this.config = config
     this.width = config.battlefield_length
+    this.coins = config.starting_coins
     this.inventory.push({ kind: "pumpkin", pumpkinType: "ferdinand" })
     this.inventory.push({ kind: "pumpkin", pumpkinType: "ferdinand" })
     this.startRound(1)
@@ -125,6 +129,7 @@ export class HalloweenGameEngine {
       round: this.round,
       completedRounds: this.completedRounds,
       score: this.score,
+      coins: this.coins,
       inventory: this.inventory.map((i) => ({ ...i })),
       cards: this.cards,
       popupIndex: this.popupIndex,
@@ -205,6 +210,27 @@ export class HalloweenGameEngine {
       this.inventory.shift()
     }
     this.inventory.push(item)
+  }
+
+  // ---- Shop --------------------------------------------------------------
+
+  // buyPumpkin spends seeds to place a pumpkin directly into the inventory.
+  // Costs are server-authoritative (config.pumpkins[type].cost).
+  buyPumpkin(type: PumpkinType): boolean {
+    if (this.phase !== "playing") return false
+    const cfg = this.config.pumpkins[type]
+    const cost = cfg?.cost ?? 0
+    if (this.coins < cost) return false
+    this.coins -= cost
+    this.coinsSpent += cost
+    this.addInventoryItem({ kind: "pumpkin", pumpkinType: type })
+    return true
+  }
+
+  private addCoins(amount: number) {
+    if (amount <= 0) return
+    this.coins += amount
+    this.coinsEarned += amount
   }
 
   // ---- Input -------------------------------------------------------------
@@ -349,6 +375,7 @@ export class HalloweenGameEngine {
       damage: cfg?.damage_per_shot ?? 0,
       projectileSpeed: cfg?.projectile_speed ?? 0,
       fireRateMul: 1,
+      coinTimer: 0,
       override: null,
     })
     this.spawnedPumpkins[type] = (this.spawnedPumpkins[type] ?? 0) + 1
@@ -480,6 +507,7 @@ export class HalloweenGameEngine {
     this.updateSlugSpawns(dtClamped)
     this.updateSlugs(dtClamped)
     this.updatePumpkins(dtClamped)
+    this.updateCramers(dtClamped)
     this.updateProjectiles(dtClamped)
     this.updateGrenades(dtClamped)
     this.updateBeerCups(dtClamped)
@@ -623,6 +651,22 @@ export class HalloweenGameEngine {
       while (pumpkin.fireTimer >= pumpkin.fireInterval) {
         pumpkin.fireTimer -= pumpkin.fireInterval
         this.firePumpkin(pumpkin)
+      }
+    }
+  }
+
+  // Cramer produces seeds (coins) every coin_interval_s seconds.
+  private updateCramers(dt: number) {
+    for (const pumpkin of this.pumpkins) {
+      if (pumpkin.type !== "cramer" || pumpkin.health <= 0) continue
+      const cfg = this.config.pumpkins["cramer"]
+      const interval = cfg?.coin_interval_s ?? 0
+      const amount = cfg?.coins_per_tick ?? 0
+      if (interval <= 0 || amount <= 0) continue
+      pumpkin.coinTimer += dt
+      while (pumpkin.coinTimer >= interval) {
+        pumpkin.coinTimer -= interval
+        this.addCoins(amount)
       }
     }
   }
@@ -868,6 +912,7 @@ export class HalloweenGameEngine {
     slug.health = 0
     this.kills.push({ type: slug.type, x: slug.x, source })
     this.score += this.killScore(slug, source)
+    this.addCoins(this.config.slugs[slug.type]?.kill_reward ?? 0)
     this.slugs = this.slugs.filter((s) => s.id !== slug.id)
     this.onEvent?.("slug_destroyed")
   }
@@ -928,6 +973,8 @@ export class HalloweenGameEngine {
       used_items: { ...this.usedItems },
       completed_rounds: this.completedRounds,
       score: this.score,
+      coins_earned: this.coinsEarned,
+      coins_spent: this.coinsSpent,
       is_incomplete: isIncomplete,
     }
   }

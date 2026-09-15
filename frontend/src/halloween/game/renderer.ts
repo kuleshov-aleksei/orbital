@@ -19,6 +19,7 @@ const PUMPKIN_TINTS: Record<PumpkinType, number> = {
   chunky: 0xb45309,
   herbert: 0x4ade80,
   gwynevere: 0x8b5cf6,
+  cramer: 0xfbbf24,
 }
 
 const SLUG_TINTS: Record<SlugType, number> = {

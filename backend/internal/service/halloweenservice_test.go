@@ -129,6 +129,57 @@ func TestHalloweenProximityBoundaries(t *testing.T) {
 	}
 }
 
+func TestHalloweenShopEconomyConfig(t *testing.T) {
+	s := newHalloweenTestService(t)
+	cfg := s.Config()
+
+	if cfg.StartingCoins != 20 {
+		t.Fatalf("starting_coins = %d, want 20", cfg.StartingCoins)
+	}
+
+	wantCosts := map[string]int{
+		"ferdinand": 20,
+		"chunky":    40,
+		"herbert":   40,
+		"gwynevere": 70,
+		"cramer":    75,
+	}
+	if len(cfg.Pumpkins) != len(wantCosts) {
+		t.Fatalf("pumpkins = %d types, want %d", len(cfg.Pumpkins), len(wantCosts))
+	}
+	for name, cost := range wantCosts {
+		p, ok := cfg.Pumpkins[name]
+		if !ok {
+			t.Fatalf("missing pumpkin %q in config", name)
+		}
+		if p.Cost != cost {
+			t.Errorf("pumpkin %q cost = %d, want %d", name, p.Cost, cost)
+		}
+	}
+
+	cramer := cfg.Pumpkins["cramer"]
+	if cramer.CoinIntervalS != 5 || cramer.CoinsPerTick != 1 {
+		t.Errorf("cramer production = %v s / %v per tick, want 5 / 1",
+			cramer.CoinIntervalS, cramer.CoinsPerTick)
+	}
+
+	wantKillRewards := map[string]int{
+		HalloweenSlugScout:  5,
+		HalloweenSlugMarvin: 10,
+		HalloweenSlugGerald: 30,
+		HalloweenSlugDell:   50,
+	}
+	for name, reward := range wantKillRewards {
+		slug, ok := cfg.Slugs[name]
+		if !ok {
+			t.Fatalf("missing slug %q in config", name)
+		}
+		if slug.KillReward != reward {
+			t.Errorf("slug %q kill_reward = %d, want %d", name, slug.KillReward, reward)
+		}
+	}
+}
+
 func TestHalloweenSubmitGameGrantsRewards(t *testing.T) {
 	s := newHalloweenTestService(t)
 

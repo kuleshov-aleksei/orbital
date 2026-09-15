@@ -52,6 +52,8 @@ export interface HalloweenGameReport {
   used_items: Record<string, number>
   completed_rounds: number
   score: number
+  coins_earned: number
+  coins_spent: number
   is_incomplete: boolean
 }
 
@@ -78,6 +80,9 @@ export interface HalloweenPumpkinConfig {
   health: number
   damage_per_shot: number
   projectile_speed: number
+  cost: number
+  coin_interval_s: number // seconds per coin tick (cramer)
+  coins_per_tick: number // seeds produced per tick (cramer)
 }
 
 // HalloweenSlugConfig mirrors the slug balance table.
@@ -86,6 +91,7 @@ export interface HalloweenSlugConfig {
   health: number
   damage_to_pumpkin: number
   reward_points: number
+  kill_reward: number // seeds earned per kill
 }
 
 // HalloweenAbilityConfig mirrors the ability scoring rules.
@@ -111,6 +117,7 @@ export interface HalloweenGameConfig {
   enabled: boolean
   starts_at: string
   battlefield_length: number
+  starting_coins: number
   pumpkins: Record<string, HalloweenPumpkinConfig>
   slugs: Record<string, HalloweenSlugConfig>
   abilities: Record<string, HalloweenAbilityConfig>

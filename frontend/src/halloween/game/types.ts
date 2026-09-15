@@ -1,7 +1,7 @@
 // Game entity + state types for the Halloween mini game (Phase 3).
 // Pure logic — no pixi.js imports here; the renderer consumes these.
 
-export type PumpkinType = "ferdinand" | "chunky" | "herbert" | "gwynevere"
+export type PumpkinType = "ferdinand" | "chunky" | "herbert" | "gwynevere" | "cramer"
 
 export type SlugType = "scout" | "marvin" | "gerald" | "dell"
 
@@ -42,6 +42,7 @@ export interface GamePumpkin {
   damage: number
   projectileSpeed: number
   fireRateMul: number
+  coinTimer: number // cramer seed production accumulator
   override: { x: number; y: number } | null
 }
 
@@ -140,6 +141,7 @@ export interface GameSnapshot {
   round: number
   completedRounds: number
   score: number
+  coins: number
   inventory: GameInventoryItem[]
   cards: CardOffer | null
   popupIndex: number

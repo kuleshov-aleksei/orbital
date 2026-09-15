@@ -27,7 +27,13 @@ export function spawnTableForRound(round: number): RoundSpawnTable {
   }
 }
 
-export const ALL_PUMPKIN_TYPES: PumpkinType[] = ["ferdinand", "chunky", "herbert", "gwynevere"]
+export const ALL_PUMPKIN_TYPES: PumpkinType[] = [
+  "ferdinand",
+  "chunky",
+  "herbert",
+  "gwynevere",
+  "cramer",
+]
 
 export const ALL_ABILITY_IDS: AbilityId[] = [
   "annihilation",

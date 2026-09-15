@@ -32,6 +32,8 @@ type HalloweenGameReport struct {
 	UsedItems       map[string]int      `json:"used_items"` // ability id -> count
 	CompletedRounds int                 `json:"completed_rounds"`
 	Score           int                 `json:"score"`
+	CoinsEarned     int                 `json:"coins_earned"`
+	CoinsSpent      int                 `json:"coins_spent"`
 	IsIncomplete    bool                `json:"is_incomplete"` // tab closed / left the call
 }
 
