@@ -43,10 +43,11 @@ const GRENADE_RADIUS = 300
 const GRENADE_DAMAGE = 50
 const BEER_RADIUS = 70
 const BEER_DURATION = 30
+const BEER_ATTRACT_RANGE = 200
+const BEER_SLOW = 0.1 // permanent slow applied when a slug reaches the cup
 const SALT_DURATION = 30
-const SALT_WIDTH = 14
-const SALT_TICK = 5
-const SALT_DAMAGE = 1
+const SALT_WIDTH = 60
+const SALT_SLOW = 0.3 // slow applied while a slug steps on the line
 const GWYN_BLAST_RADIUS = 70
 
 export function laneForY(y: number): number {
@@ -102,7 +103,6 @@ export class HalloweenGameEngine {
 
   mode: GameInputMode = "none"
   private pendingAbility: PendingAbility | null = null
-  gwynevereAimId: number | null = null
   prompt: string | null = null
   gameOverReason: string | null = null
 
@@ -183,7 +183,6 @@ export class HalloweenGameEngine {
     this.cards = { cards: buildCardOffer() }
     this.phase = "cards"
     this.prompt = null
-    this.gwynevereAimId = null
     this.mode = "none"
   }
 
@@ -235,15 +234,6 @@ export class HalloweenGameEngine {
 
   // ---- Input -------------------------------------------------------------
 
-  // Gwynevere free aim: while a Gwynevere is armed its landing point (locked
-  // to its lane) follows the cursor. Clicking it again restores autotarget.
-  setGwynevereAim(x: number) {
-    if (this.mode !== "gwynevere-aim" || this.gwynevereAimId == null) return
-    const pumpkin = this.pumpkins.find((p) => p.id === this.gwynevereAimId && p.health > 0)
-    if (pumpkin)
-      pumpkin.override = { x: columnX(columnForX(x)), y: laneCenterY(laneForY(pumpkin.y)) }
-  }
-
   selectInventoryItem(index: number) {
     const item = this.inventory[index]
     if (!item || this.phase !== "playing") return
@@ -290,32 +280,9 @@ export class HalloweenGameEngine {
         else this.prompt = "No pumpkin there — click one of your pumpkins"
         break
       }
-      case "gwynevere-aim": {
-        const pumpkin = this.findPumpkinAt(x, y)
-        if (pumpkin && pumpkin.type === "gwynevere") {
-          if (pumpkin.id === this.gwynevereAimId) {
-            pumpkin.override = null
-            this.gwynevereAimId = null
-            this.mode = "none"
-            this.prompt = "Autotarget restored"
-          } else {
-            this.gwynevereAimId = pumpkin.id
-            this.prompt =
-              "Landing point follows your cursor — click this Gwynevere again to restore autotarget"
-          }
-        }
+      case "none":
+        // Clicks on empty battlefield do nothing; Gwynevere always autotargets.
         break
-      }
-      case "none": {
-        const pumpkin = this.findPumpkinAt(x, y)
-        if (pumpkin && pumpkin.type === "gwynevere") {
-          this.gwynevereAimId = pumpkin.id
-          this.mode = "gwynevere-aim"
-          this.prompt =
-            "Landing point follows your cursor — click this Gwynevere again to restore autotarget"
-        }
-        break
-      }
     }
   }
 
@@ -346,7 +313,6 @@ export class HalloweenGameEngine {
   private clearInteraction() {
     this.mode = "none"
     this.pendingAbility = null
-    this.gwynevereAimId = null
     this.prompt = null
   }
 
@@ -376,7 +342,6 @@ export class HalloweenGameEngine {
       projectileSpeed: cfg?.projectile_speed ?? 0,
       fireRateMul: 1,
       coinTimer: 0,
-      override: null,
     })
     this.spawnedPumpkins[type] = (this.spawnedPumpkins[type] ?? 0) + 1
   }
@@ -400,7 +365,6 @@ export class HalloweenGameEngine {
       direction: -1,
       frozenFor: 0,
       distractionFor: 0,
-      acidTick: 0,
       spawnTimer: 0,
     })
   }
@@ -456,7 +420,7 @@ export class HalloweenGameEngine {
           attracted: new Set(),
         })
         break
-      case "genocide":
+      case "salt_line":
         this.saltLines.push({ id: this.nextId++, x, duration: SALT_DURATION, width: SALT_WIDTH })
         break
       default:
@@ -578,24 +542,29 @@ export class HalloweenGameEngine {
 
       slug.attackingPumpkinId = null
 
-      // Beer attraction: slugs behind a cup are lured toward it.
+      // Beer attraction: slugs behind a cup are lured toward it; reaching it
+      // permanently slows the slug by 10%.
       let moveDir = direction
       for (const cup of this.beerCups) {
         if (cup.attracted.has(slug.id)) continue
-        if (slug.x > cup.x && Math.abs(slug.x - cup.x) < 200) {
+        if (slug.x > cup.x && Math.abs(slug.x - cup.x) < BEER_ATTRACT_RANGE) {
           if (Math.hypot(slug.x - cup.x, slug.y - cup.y) <= cup.radius + slug.radius) {
-            slug.health -= 1
+            slug.speed *= 1 - BEER_SLOW
             cup.attracted.add(slug.id)
-            if (slug.health <= 0) {
-              this.killSlug(slug, "beer")
-            }
             continue
           }
           moveDir = slug.x > cup.x ? -1 : 1
         }
       }
 
-      slug.x += slug.speed * moveDir * dt
+      // Salt line: slugs stepping on the line move 30% slower.
+      let moveSpeed = slug.speed
+      for (const line of this.saltLines) {
+        if (Math.abs(slug.x - line.x) <= line.width / 2 + slug.radius) {
+          moveSpeed *= 1 - SALT_SLOW
+        }
+      }
+      slug.x += moveSpeed * moveDir * dt
 
       // Reaching the left border punishes the player: the slug deals its full
       // damage to every pumpkin, then escapes without a reward.
@@ -607,20 +576,6 @@ export class HalloweenGameEngine {
         }
         escaped.push(slug.id)
         continue
-      }
-
-      // Genocide salt line damage.
-      for (const line of this.saltLines) {
-        if (Math.abs(slug.x - line.x) <= line.width / 2 + slug.radius) {
-          slug.acidTick += dt
-          if (slug.acidTick >= SALT_TICK) {
-            slug.acidTick = 0
-            slug.health -= SALT_DAMAGE
-            if (slug.health <= 0) {
-              this.killSlug(slug, "genocide")
-            }
-          }
-        }
       }
     }
     if (escaped.length > 0) {
@@ -647,12 +602,31 @@ export class HalloweenGameEngine {
   private updatePumpkins(dt: number) {
     for (const pumpkin of this.pumpkins) {
       if (pumpkin.health <= 0 || !Number.isFinite(pumpkin.fireInterval)) continue
+      // Stay cocked while nothing is in range so the first shot fires the
+      // moment a target appears — Gwynevere reacts across its whole row.
+      if (!this.pumpkinHasTarget(pumpkin)) {
+        pumpkin.fireTimer = pumpkin.fireInterval
+        continue
+      }
       pumpkin.fireTimer += dt
       while (pumpkin.fireTimer >= pumpkin.fireInterval) {
         pumpkin.fireTimer -= pumpkin.fireInterval
         this.firePumpkin(pumpkin)
       }
     }
+  }
+
+  private pumpkinHasTarget(pumpkin: GamePumpkin): boolean {
+    if (pumpkin.type === "gwynevere") {
+      return this.slugs.some((s) => laneForY(s.y) === laneForY(pumpkin.y))
+    }
+    if (pumpkin.type === "herbert") {
+      return (
+        this.pumpkins.some((p) => p.health > 0 && p.health < p.maxHealth) ||
+        this.nearestSlugOnLane(pumpkin) !== null
+      )
+    }
+    return this.nearestSlugOnLane(pumpkin) !== null
   }
 
   // Cramer produces seeds (coins) every coin_interval_s seconds.
@@ -676,7 +650,7 @@ export class HalloweenGameEngine {
     if (!cfg) return
 
     if (pumpkin.type === "gwynevere") {
-      const point = pumpkin.override ?? this.gwynevereTarget(pumpkin)
+      const point = this.gwynevereTarget(pumpkin)
       if (!point) return
       this.projectiles.push(
         this.makeProjectile(
@@ -730,8 +704,8 @@ export class HalloweenGameEngine {
     if (kind === "seed") {
       vx = pumpkin.projectileSpeed
     } else if (kind === "missile" && targetPoint) {
-      const dist = Math.max(pumpkin.x - targetPoint.x, 1)
-      vx = -pumpkin.projectileSpeed
+      const dist = Math.max(targetPoint.x - pumpkin.x, 1)
+      vx = pumpkin.projectileSpeed
       arcStart = { x: pumpkin.x, y: pumpkin.y }
       arcPeak = Math.min(dist, 240) * 0.25
     }
@@ -747,7 +721,6 @@ export class HalloweenGameEngine {
       radius: kind === "missile" ? 6 : 4,
       targetId,
       targetPoint,
-      override: pumpkin.override,
       arcStart,
       arcPeak,
       blastRadius,
@@ -777,21 +750,34 @@ export class HalloweenGameEngine {
     const laneY = laneCenterY(laneForY(pumpkin.y))
     const laneSlugs = this.slugs.filter((s) => laneForY(s.y) === laneForY(pumpkin.y))
     if (laneSlugs.length === 0) return null
+    const v = pumpkin.projectileSpeed
+    if (v <= 0) return null
+    const x0 = pumpkin.x
+
+    // Landing point where a missile launched from the pumpkin would intercept a
+    // slug (slug crawls toward the pumpkin while the missile flies toward it).
+    // This keeps far-away slugs in range — the point is where their paths meet.
+    const interceptFor = (slug: GameSlug): number => {
+      const w = slug.distractionFor > 0 ? slug.speed : -slug.speed
+      const t = (slug.x - x0) / (v - w)
+      const l = t > 0 && Number.isFinite(t) ? x0 + v * t : slug.x
+      return Math.max(x0 + 1, Math.min(this.width, l))
+    }
+
     let bestPoint: { x: number; y: number } | null = null
     let bestCount = 0
     for (const slug of laneSlugs) {
-      const flightTime = Math.max(pumpkin.x - slug.x, 1) / pumpkin.projectileSpeed || 1
-      const px = slug.x + (slug.distractionFor > 0 ? 1 : -1) * slug.speed * flightTime
-      const point = { x: Math.max(0, Math.min(this.width, px)), y: laneY }
+      const lx = interceptFor(slug)
+      const arrival = (lx - x0) / v
       let count = 0
       for (const s of laneSlugs) {
-        const t = Math.max(pumpkin.x - s.x, 1) / pumpkin.projectileSpeed || 1
-        const sx = s.x + (s.distractionFor > 0 ? 1 : -1) * s.speed * t
-        if (Math.abs(sx - point.x) <= GWYN_BLAST_RADIUS) count++
+        const w = s.distractionFor > 0 ? s.speed : -s.speed
+        const sx = s.x + w * arrival
+        if (Math.abs(sx - lx) <= GWYN_BLAST_RADIUS) count++
       }
       if (count > bestCount) {
         bestCount = count
-        bestPoint = point
+        bestPoint = { x: lx, y: laneY }
       }
     }
     return bestPoint
@@ -822,9 +808,9 @@ export class HalloweenGameEngine {
       // Gwynevere missiles follow a parabolic arc to a fixed landing point.
       if (proj.kind === "missile") {
         if (proj.targetPoint && proj.arcStart) {
-          const dist = Math.max(proj.arcStart.x - proj.targetPoint.x, 1)
+          const dist = Math.max(proj.targetPoint.x - proj.arcStart.x, 1)
           proj.x += proj.vx * dt
-          const u = Math.max(0, Math.min(1, (proj.arcStart.x - proj.x) / dist))
+          const u = Math.max(0, Math.min(1, (proj.x - proj.arcStart.x) / dist))
           proj.y = proj.arcStart.y - 4 * proj.arcPeak * u * (1 - u)
           if (u >= 1) {
             proj.dead = true
@@ -929,9 +915,9 @@ export class HalloweenGameEngine {
       case "holy_grenade":
         return Math.round(points * ((abilities.holy_grenade?.score ?? 80) / 100))
       case "beer":
-        return abilities.beer?.score ?? 500
-      case "genocide":
-        return abilities.genocide?.score ?? 10
+        return abilities.beer?.score ?? 0
+      case "salt_line":
+        return abilities.salt_line?.score ?? 0
       default:
         return points
     }

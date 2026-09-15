@@ -91,13 +91,13 @@ func TestHalloweenComputeScore(t *testing.T) {
 			{Type: HalloweenSlugScout, X: 200, Source: "pumpkin"},                   // 10 * 0.35 = 3.5 -> 4
 			{Type: HalloweenSlugMarvin, X: 0, Source: HalloweenAbilityAnnihilation}, // 20 * 0.7 = 14
 			{Type: HalloweenSlugGerald, X: 0, Source: HalloweenAbilityHolyGrenade},  // 50 * 0.8 = 40
-			{Type: HalloweenSlugMarvin, X: 0, Source: HalloweenAbilityBeer},         // 500
-			{Type: HalloweenSlugGerald, X: 0, Source: HalloweenAbilityGenocide},     // 10
+			{Type: HalloweenSlugMarvin, X: 0, Source: HalloweenAbilityBeer},         // 0
+			{Type: HalloweenSlugGerald, X: 0, Source: HalloweenAbilitySaltLine},     // 0
 		},
 		CompletedRounds: 2, // 1000 * (2*3)/2 = 3000
 	}
 
-	want := 10 + 7 + 5 + 4 + 14 + 40 + 500 + 10 + 3000
+	want := 10 + 7 + 5 + 4 + 14 + 40 + 0 + 0 + 3000
 	got := s.ComputeScore(report)
 	if got != want {
 		t.Fatalf("ComputeScore = %d, want %d", got, want)

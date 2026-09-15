@@ -43,7 +43,7 @@ export const ALL_ABILITY_IDS: AbilityId[] = [
   "wide_pumpkin",
   "holy_grenade",
   "beer",
-  "genocide",
+  "salt_line",
 ]
 
 export interface AbilityMeta {
@@ -86,12 +86,14 @@ export const ABILITY_META: Record<AbilityId, AbilityMeta> = {
   },
   beer: {
     name: "Beer",
-    description: "A cup that attracts slugs for 30 seconds. Slugs that touch it take 1 damage.",
+    description:
+      "A cup that attracts slugs. Slugs that reach it are permanently slowed by 10%. Lasts 30 seconds.",
     target: "point",
   },
-  genocide: {
-    name: "Genocide",
-    description: "A vertical salt line dealing 1 damage every 5s. Lasts 30 seconds.",
+  salt_line: {
+    name: "Salt line",
+    description:
+      "A vertical line of salt that slows slugs by 30% while they step on it. Lasts 30 seconds.",
     target: "point",
   },
 }

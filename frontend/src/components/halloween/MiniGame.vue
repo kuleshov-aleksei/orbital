@@ -298,7 +298,7 @@ const ABILITY_ICONS: Record<string, string> = {
   wide_pumpkin: "W",
   holy_grenade: "G",
   beer: "🍺",
-  genocide: "✚",
+  salt_line: "🧂",
 }
 
 function itemIcon(item: GameInventoryItem): string {

@@ -51,7 +51,7 @@ type HalloweenSlugConfig struct {
 }
 
 type HalloweenAbilityConfig struct {
-	Score int    `json:"score"` // absolute score for beer/genocide; multiplier for others
+	Score int    `json:"score"` // absolute score for flat abilities; multiplier (percent) for others
 	Kind  string `json:"kind"`  // "multiplier" | "flat"
 }
 
@@ -74,7 +74,7 @@ const (
 	HalloweenAbilityAnnihilation = "annihilation"
 	HalloweenAbilityHolyGrenade  = "holy_grenade"
 	HalloweenAbilityBeer         = "beer"
-	HalloweenAbilityGenocide     = "genocide"
+	HalloweenAbilitySaltLine     = "salt_line"
 
 	HalloweenRarityRegular  = "regular"
 	HalloweenRarityCommon   = "common"
@@ -142,8 +142,8 @@ func (s *HalloweenService) Config() *HalloweenGameConfig {
 		Abilities: map[string]HalloweenAbilityConfig{
 			HalloweenAbilityAnnihilation: {Score: 70, Kind: "multiplier"}, // 70% of slug reward
 			HalloweenAbilityHolyGrenade:  {Score: 80, Kind: "multiplier"}, // 80% of slug reward
-			HalloweenAbilityBeer:         {Score: 500, Kind: "flat"},
-			HalloweenAbilityGenocide:     {Score: 10, Kind: "flat"},
+			HalloweenAbilityBeer:         {Score: 0, Kind: "flat"},         // 0 damage — pure utility (slow)
+			HalloweenAbilitySaltLine:     {Score: 0, Kind: "flat"},         // 0 damage — pure utility (slow)
 		},
 		Proximity: []HalloweenProximityThreshold{
 			{MinX: 700, Factor: 1.0},
@@ -300,8 +300,8 @@ func (s *HalloweenService) ComputeScore(report *models.HalloweenGameReport) int 
 			total += int(math.Round(float64(slugCfg.RewardPoints) * mult))
 		case HalloweenAbilityBeer:
 			total += cfg.Abilities[HalloweenAbilityBeer].Score
-		case HalloweenAbilityGenocide:
-			total += cfg.Abilities[HalloweenAbilityGenocide].Score
+		case HalloweenAbilitySaltLine:
+			total += cfg.Abilities[HalloweenAbilitySaltLine].Score
 		default:
 			// Unknown source — count as a normal pumpkin kill at full reward.
 			total += slugCfg.RewardPoints

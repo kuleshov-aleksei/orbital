@@ -5,8 +5,8 @@ export type PumpkinType = "ferdinand" | "chunky" | "herbert" | "gwynevere" | "cr
 
 export type SlugType = "scout" | "marvin" | "gerald" | "dell"
 
-// Player abilities. The scoring ones (annihilation/holy_grenade/beer/genocide)
-// are defined server-side; the rest are purely mechanical.
+// Player abilities. The scoring ones (annihilation/holy_grenade) are defined
+// server-side; the rest are purely mechanical.
 export type AbilityId =
   | "annihilation"
   | "freeze"
@@ -15,9 +15,9 @@ export type AbilityId =
   | "wide_pumpkin"
   | "holy_grenade"
   | "beer"
-  | "genocide"
+  | "salt_line"
 
-export type KillSource = "pumpkin" | "annihilation" | "holy_grenade" | "beer" | "genocide"
+export type KillSource = "pumpkin" | "annihilation" | "holy_grenade" | "beer" | "salt_line"
 
 export type GameInventoryItem =
   | {
@@ -43,7 +43,6 @@ export interface GamePumpkin {
   projectileSpeed: number
   fireRateMul: number
   coinTimer: number // cramer seed production accumulator
-  override: { x: number; y: number } | null
 }
 
 export interface GameSlug {
@@ -63,7 +62,6 @@ export interface GameSlug {
   direction: number // -1 = crawling left, +1 = reversed (distraction)
   frozenFor: number
   distractionFor: number
-  acidTick: number // genocide salt line damage cooldown
   spawnTimer: number // dell spawns marvins
 }
 
@@ -81,7 +79,6 @@ export interface GameProjectile {
   radius: number
   targetId: number | null // slug or pumpkin id for homing
   targetPoint: { x: number; y: number } | null // fixed destination (gwynevere)
-  override: { x: number; y: number } | null
   arcStart: { x: number; y: number } | null // gwynevere parabola launch point
   arcPeak: number // gwynevere parabola peak height
   blastRadius: number
@@ -152,5 +149,4 @@ export interface GameSnapshot {
   gameOverReason: string | null
 }
 
-export type GameInputMode =
-  "none" | "place-pumpkin" | "ability-point" | "ability-pumpkin" | "gwynevere-aim"
+export type GameInputMode = "none" | "place-pumpkin" | "ability-point" | "ability-pumpkin"

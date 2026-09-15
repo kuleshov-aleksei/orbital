@@ -42,7 +42,7 @@ export interface EquippedCustomization {
 export interface HalloweenSlugKill {
   type: "scout" | "marvin" | "gerald" | "dell"
   x: number
-  source: "pumpkin" | "annihilation" | "holy_grenade" | "beer" | "genocide"
+  source: "pumpkin" | "annihilation" | "holy_grenade" | "beer" | "salt_line"
 }
 
 // HalloweenGameReport is the payload submitted after a game.

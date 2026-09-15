@@ -59,7 +59,6 @@ export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRen
   let background: Graphics | null = null
   let cursorLayer: Container | null = null
   let effectLayer: Container | null = null
-  let overlayLayer: Container | null = null
 
   const pumpkins = new Map<number, PumpkinDisplay>()
   const slugs = new Map<number, SlugDisplay>()
@@ -205,16 +204,10 @@ export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRen
     cursorLayer = new Container()
     world.addChild(cursorLayer)
 
-    overlayLayer = new Container()
-    world.addChild(overlayLayer)
-
     recomputeTransform()
 
     app.canvas.addEventListener("pointermove", (e: PointerEvent) => {
       mouseWorld = eventToWorld(e)
-      if (mouseWorld && engine.mode === "gwynevere-aim") {
-        engine.setGwynevereAim(mouseWorld.x)
-      }
       renderCursor()
     })
 
@@ -270,33 +263,10 @@ export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRen
     cursorLayer.addChild(g)
   }
 
-  const renderGwynevereAim = () => {
-    if (!overlayLayer) return
-    overlayLayer.removeChildren()
-    if (engine.mode !== "gwynevere-aim" || engine.gwynevereAimId == null) return
-    const pumpkin = engine.pumpkins.find((p) => p.id === engine.gwynevereAimId && p.health > 0)
-    const target = pumpkin?.override
-    if (!pumpkin || !target) return
-    const g = new Graphics()
-    const dist = Math.max(pumpkin.x - target.x, 1)
-    g.moveTo(pumpkin.x, pumpkin.y)
-    for (let i = 1; i < 10; i++) {
-      const u = i / 10
-      const px = pumpkin.x - u * (pumpkin.x - target.x)
-      const py = pumpkin.y - 4 * Math.min(dist, 240) * 0.25 * u * (1 - u)
-      g.lineTo(px, py)
-    }
-    g.stroke({ width: 1, color: 0xfbbf24, alpha: 0.5 })
-    g.circle(target.x, target.y, 6)
-    g.stroke({ width: 2, color: 0xfbbf24 })
-    overlayLayer.addChild(g)
-  }
-
   const sync = () => {
     if (!world || !app) return
     recomputeTransform()
     drawBackground()
-    renderGwynevereAim()
 
     // effects (grenades, beer cups, salt lines)
     effectLayer?.removeChildren()
