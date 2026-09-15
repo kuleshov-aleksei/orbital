@@ -35,6 +35,35 @@ export const ALL_PUMPKIN_TYPES: PumpkinType[] = [
   "cramer",
 ]
 
+export interface PumpkinMeta {
+  name: string
+  description: string
+}
+
+export const PUMPKIN_META: Record<PumpkinType, PumpkinMeta> = {
+  ferdinand: {
+    name: "Ferdinand",
+    description: "A regular pumpkin that shoots seeds at the closest slug.",
+  },
+  chunky: {
+    name: "Chunky",
+    description: "A tank pumpkin with a huge health pool. Does not shoot.",
+  },
+  herbert: {
+    name: "Herbert",
+    description: "A healer pumpkin that fires glowing seeds that heal other pumpkins.",
+  },
+  gwynevere: {
+    name: "Gwynevere",
+    description:
+      "Artillery pumpkin that fires homing missiles in an arc, dealing area damage. Picks the shot with the most impact.",
+  },
+  cramer: {
+    name: "Cramer",
+    description: "Produces seeds (coins) instead of shooting.",
+  },
+}
+
 export const ALL_ABILITY_IDS: AbilityId[] = [
   "annihilation",
   "freeze",

@@ -50,6 +50,8 @@ export interface MiniGameRenderer {
   init(container: HTMLElement): Promise<void>
   destroy(): void
   sync(): void
+  screenToWorld(clientX: number, clientY: number): { x: number; y: number } | null
+  worldToScreen(x: number, y: number): { x: number; y: number }
 }
 
 export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRenderer {
@@ -207,11 +209,16 @@ export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRen
     recomputeTransform()
 
     app.canvas.addEventListener("pointermove", (e: PointerEvent) => {
+      // Hover detection is handled by the field wrapper (MiniGame.vue) so the
+      // tooltip can keep a hover frozen while the pointer is over it.
       mouseWorld = eventToWorld(e)
       renderCursor()
     })
 
     app.canvas.addEventListener("pointerleave", () => {
+      // Note: hover is NOT cleared here — the pointer may simply have moved
+      // onto the hover tooltip that sits above the canvas. The field wrapper
+      // clears hover on pointerleave (see MiniGame.vue).
       mouseWorld = null
       renderCursor()
     })
@@ -234,6 +241,13 @@ export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRen
       y: (cy - offsetY) / scale,
     }
   }
+
+  const worldToScreen = (x: number, y: number) => ({
+    x: offsetX + x * scale,
+    y: offsetY + y * scale,
+  })
+
+  const screenToWorld = (clientX: number, clientY: number) => eventToWorld({ clientX, clientY })
 
   const renderCursor = () => {
     if (!cursorLayer) return
@@ -368,5 +382,5 @@ export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRen
     projectiles.clear()
   }
 
-  return { init, destroy, sync }
+  return { init, destroy, sync, screenToWorld, worldToScreen }
 }

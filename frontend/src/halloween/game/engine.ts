@@ -103,6 +103,7 @@ export class HalloweenGameEngine {
 
   mode: GameInputMode = "none"
   private pendingAbility: PendingAbility | null = null
+  hoveredPumpkinId: number | null = null
   prompt: string | null = null
   gameOverReason: string | null = null
 
@@ -230,6 +231,42 @@ export class HalloweenGameEngine {
     if (amount <= 0) return
     this.coins += amount
     this.coinsEarned += amount
+  }
+
+  // ---- Hover & selling ---------------------------------------------------
+
+  setHover(x: number, y: number) {
+    this.hoveredPumpkinId = this.findPumpkinAt(x, y)?.id ?? null
+  }
+
+  clearHover() {
+    this.hoveredPumpkinId = null
+  }
+
+  get hoveredPumpkin(): GamePumpkin | null {
+    if (this.hoveredPumpkinId == null) return null
+    return this.pumpkins.find((p) => p.id === this.hoveredPumpkinId) ?? null
+  }
+
+  sellRefundFor(type: PumpkinType): number {
+    return Math.floor((this.config.pumpkins[type]?.cost ?? 0) * 0.5)
+  }
+
+  // Selling removes the pumpkin from the field and refunds 50% of its cost.
+  sellPumpkin(id: number): boolean {
+    if (this.phase !== "playing") return false
+    const index = this.pumpkins.findIndex((p) => p.id === id)
+    if (index < 0 || this.pumpkins[index].health <= 0) return false
+    const pumpkin = this.pumpkins[index]
+    this.pumpkins.splice(index, 1)
+    if (this.hoveredPumpkinId === id) this.hoveredPumpkinId = null
+    this.coins += this.sellRefundFor(pumpkin.type)
+    this.onEvent?.("item_used")
+    if (this.alivePumpkinCount() === 0) {
+      this.phase = "gameover"
+      this.gameOverReason = "All pumpkins were sold"
+    }
+    return true
   }
 
   // ---- Input -------------------------------------------------------------

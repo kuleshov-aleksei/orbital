@@ -49,7 +49,52 @@
       </div>
 
       <!-- Battlefield -->
-      <div ref="canvasEl" class="flex-1 min-h-0" data-testid="game-canvas"></div>
+      <div
+        ref="canvasEl"
+        class="relative flex-1 min-h-0"
+        data-testid="game-canvas"
+        @pointermove="onFieldPointerMove"
+        @pointerleave="onFieldPointerLeave">
+        <!-- Pumpkin hover tooltip (absolute → positioned against this wrapper) -->
+        <div
+          v-if="hoverInfo"
+          ref="tooltipElement"
+          class="absolute z-10 w-60 rounded-xl bg-theme-bg-secondary border border-theme-border shadow-2xl p-3"
+          :style="tooltipStyle"
+          data-testid="pumpkin-tooltip">
+          <div class="flex items-center justify-between gap-2">
+            <span class="font-bold text-theme-text-primary text-sm">{{ hoverInfo.name }}</span>
+            <span class="text-[10px] uppercase tracking-wide text-theme-text-muted">{{
+              hoverInfo.type
+            }}</span>
+          </div>
+          <p class="text-[11px] text-theme-text-muted mt-1 leading-snug">
+            {{ hoverInfo.description }}
+          </p>
+          <div v-if="hoverInfo.buffs.length" class="flex flex-wrap gap-1 mt-2">
+            <span
+              v-for="buff in hoverInfo.buffs"
+              :key="buff"
+              class="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-500/15 text-orange-400 border border-orange-500/30">
+              {{ buff }}
+            </span>
+          </div>
+          <div class="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-[11px]">
+            <template v-for="stat in hoverInfo.stats" :key="stat.label">
+              <span class="text-theme-text-muted">{{ stat.label }}</span>
+              <span class="text-right text-theme-text-primary font-semibold">{{ stat.value }}</span>
+            </template>
+          </div>
+          <button
+            v-if="hud?.phase === 'playing'"
+            type="button"
+            class="mt-2.5 w-full py-1.5 rounded-lg text-xs font-bold bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-500/25 transition-colors"
+            data-testid="sell-pumpkin"
+            @click="sellPumpkin(hoverInfo.id)">
+            Sell for {{ hoverInfo.refund }} 🌰
+          </button>
+        </div>
+      </div>
 
       <!-- Prompt -->
       <div v-if="hud?.prompt" class="px-5 py-1.5 text-center text-xs text-theme-text-muted">
@@ -252,8 +297,13 @@ import { useHalloweenStore } from "@/stores"
 import type { SubmitGameReportResponse } from "@/halloween/types"
 import { HalloweenGameEngine } from "@/halloween/game/engine"
 import { createMiniGameRenderer } from "@/halloween/game/renderer"
-import { ABILITY_META } from "@/halloween/game/balance"
-import type { GameInventoryItem, GameSnapshot, PumpkinType } from "@/halloween/game/types"
+import { ABILITY_META, PUMPKIN_META } from "@/halloween/game/balance"
+import type {
+  GameInventoryItem,
+  GamePumpkin,
+  GameSnapshot,
+  PumpkinType,
+} from "@/halloween/game/types"
 
 defineEmits<{
   exit: []
@@ -272,6 +322,122 @@ const hud = shallowRef<GameSnapshot | null>(null)
 const result = ref<SubmitGameReportResponse | null>(null)
 const submitting = ref(false)
 const speed = ref(1)
+
+const hoveredPumpkin = ref<GamePumpkin | null>(null)
+const tooltipElement = useTemplateRef<HTMLDivElement>("tooltipElement")
+
+interface PumpkinHoverInfo {
+  id: number
+  x: number
+  y: number
+  type: PumpkinType
+  name: string
+  description: string
+  stats: { label: string; value: string }[]
+  buffs: string[]
+  refund: number
+}
+
+const hoverInfo = computed<PumpkinHoverInfo | null>(() => {
+  const p = hoveredPumpkin.value
+  const config = halloweenStore.config
+  if (!p || !config) return null
+  // Hide while the player is aiming a placement — the tooltip would cover the
+  // placement cell highlight and get in the way.
+  if (hud.value?.mode === "place-pumpkin") return null
+  const meta = PUMPKIN_META[p.type]
+  const cfg = config.pumpkins[p.type]
+  const baseHealth = cfg?.health ?? p.maxHealth
+  const ratePerSec =
+    Number.isFinite(p.fireInterval) && p.fireInterval > 0 ? p.fireRateMul / p.fireInterval : 0
+  const buffs: string[] = []
+  if (p.fireRateMul > 1) buffs.push(`Fire rate ×${p.fireRateMul}`)
+  if (p.maxHealth > baseHealth) buffs.push("Health ×2")
+
+  // Per-type stats: combat pumpkins show damage, Herbert shows healing,
+  // Cramer shows seed production, and Chunky is pure HP.
+  const stats: { label: string; value: string }[] = [
+    { label: "Health", value: `${Math.ceil(p.health)} / ${Math.ceil(p.maxHealth)}` },
+  ]
+  if (p.type === "cramer") {
+    const perMin =
+      cfg && cfg.coin_interval_s > 0 ? (cfg.coins_per_tick / cfg.coin_interval_s) * 60 : 0
+    stats.push({ label: "Seeds / min", value: `${Math.round(perMin)}` })
+  } else if (p.type === "herbert") {
+    stats.push({ label: "Heal / shot", value: `${p.damage}` })
+    stats.push({ label: "Heal / sec", value: (p.damage * ratePerSec).toFixed(1) })
+  } else if (p.type === "chunky") {
+    stats.push({ label: "Role", value: "Tank" })
+  } else {
+    stats.push({ label: "Damage / shot", value: `${p.damage}` })
+    stats.push({ label: "Damage / sec", value: (p.damage * ratePerSec).toFixed(1) })
+  }
+
+  return {
+    id: p.id,
+    x: p.x,
+    y: p.y,
+    type: p.type,
+    name: meta?.name ?? p.type,
+    description: meta?.description ?? "",
+    buffs,
+    stats,
+    refund: Math.floor((cfg?.cost ?? 0) * 0.5),
+  }
+})
+
+// The tooltip is anchored to the pumpkin (frozen), not following the cursor,
+// so its Sell button is always reachable. Boundaries are clamped like the
+// other tooltips in the app (see ParticipantCard).
+const tooltipStyle = computed(() => {
+  const info = hoverInfo.value
+  const el = canvasEl.value
+  if (!info || !el || !renderer) return {}
+  const rect = el.getBoundingClientRect()
+  const screen = renderer.worldToScreen(info.x, info.y)
+  const tooltipWidth = 240 // w-60
+  const tooltipHeight = tooltipElement.value?.offsetHeight || 220
+  const padding = 8
+  const margin = 14
+  let left = screen.x - tooltipWidth / 2
+  left = Math.max(padding, Math.min(left, rect.width - tooltipWidth - padding))
+  let top = screen.y - margin - tooltipHeight
+  if (top < padding) top = screen.y + margin
+  top = Math.max(padding, Math.min(top, rect.height - tooltipHeight - padding))
+  return { left: `${left}px`, top: `${top}px` }
+})
+
+function onFieldPointerMove(e: PointerEvent) {
+  // Keep the hover frozen while the pointer is over the tooltip (so the Sell
+  // button stays clickable) or in the narrow strip between the pumpkin and
+  // the tooltip (so the cursor can actually travel up to it).
+  const tooltipEl = tooltipElement.value
+  const info = hoverInfo.value
+  const el = canvasEl.value
+  const render = renderer
+  if (tooltipEl && info && el && render) {
+    const r = tooltipEl.getBoundingClientRect()
+    const elRect = el.getBoundingClientRect()
+    const s = render.worldToScreen(info.x, info.y)
+    const sx = elRect.left + s.x
+    const sy = elRect.top + s.y
+    const overTooltip =
+      e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom
+    const overBridge =
+      e.clientX >= sx - 50 &&
+      e.clientX <= sx + 50 &&
+      e.clientY >= Math.min(r.top, sy) &&
+      e.clientY <= sy + 10
+    if (overTooltip || overBridge) return
+  }
+  const world = render?.screenToWorld(e.clientX, e.clientY)
+  if (world) engine?.setHover(world.x, world.y)
+  else engine?.clearHover()
+}
+
+function onFieldPointerLeave() {
+  engine?.clearHover()
+}
 
 const isEnded = computed(() => hud.value?.phase === "gameover" || hud.value?.phase === "ended")
 const resultTitle = computed(() => (hud.value?.phase === "gameover" ? "Game Over" : "Battle Ended"))
@@ -336,6 +502,10 @@ function buy(type: PumpkinType) {
   engine?.buyPumpkin(type)
 }
 
+function sellPumpkin(id: number) {
+  engine?.sellPumpkin(id)
+}
+
 async function submitReport(isIncomplete: boolean) {
   if (!engine || engine.wasReportSubmitted || submitting.value) return
   submitting.value = true
@@ -386,6 +556,7 @@ const tick = (now: number) => {
     engine.update(dt * speed.value)
     renderer?.sync()
     hud.value = engine.snapshot()
+    hoveredPumpkin.value = engine.hoveredPumpkin ? { ...engine.hoveredPumpkin } : null
   }
   raf = requestAnimationFrame(tick)
 }
