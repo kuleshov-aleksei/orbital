@@ -488,9 +488,10 @@ function selectItem(index: number) {
 const shopItems = computed(() => {
   const cfg = halloweenStore.config
   if (!cfg) return []
+  const prices = hud.value?.shopPrices
   return (Object.keys(cfg.pumpkins) as PumpkinType[]).map((type) => ({
     type,
-    cost: cfg.pumpkins[type].cost,
+    cost: prices?.[type] ?? cfg.pumpkins[type].cost,
   }))
 })
 
@@ -572,6 +573,7 @@ onMounted(async () => {
       completedRounds: 0,
       score: 0,
       coins: 0,
+      shopPrices: {},
       inventory: [],
       cards: null,
       popupIndex: 0,

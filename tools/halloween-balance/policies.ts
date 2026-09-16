@@ -191,11 +191,14 @@ export class HeuristicPolicy implements Policy {
   }
 
   private buy(engine: HalloweenGameEngine, config: HalloweenGameConfig): void {
+    void config // prices come from engine.costFor (inflated); base config unused
     const snap = engine.snapshot()
     if (snap.inventory.length >= 6) return
     const coins = snap.coins
     const alive = aliveByType(engine)
-    const cost = (t: PumpkinType) => config.pumpkins[t]?.cost ?? Infinity
+    // Use live inflated shop prices so sims feel the same rising costs as
+    // the game (config.pumpkins cost is only the base).
+    const cost = (t: PumpkinType) => engine.costFor(t)
     const afford = (t: PumpkinType) => coins >= cost(t)
 
     // 1. One Cramer early for economy.
@@ -349,6 +352,7 @@ export class RandomPolicy implements Policy {
   private tick = 0
 
   onTick(engine: HalloweenGameEngine, config: HalloweenGameConfig, rng: Rng): void {
+    void config // affordability uses engine.costFor (inflated live prices)
     this.tick++
 
     // 1. Dump every pumpkin in the inventory onto random free cells.
@@ -363,7 +367,7 @@ export class RandomPolicy implements Policy {
     // 2. Roughly once per sim-second, buy a random affordable pumpkin.
     if (this.tick % 30 === 0 && rng() < 0.8) {
       const coins = engine.snapshot().coins
-      const affordable = ALL_PUMPKIN_TYPES.filter((t) => (config.pumpkins[t]?.cost ?? Infinity) <= coins)
+      const affordable = ALL_PUMPKIN_TYPES.filter((t) => engine.costFor(t) <= coins)
       if (affordable.length > 0) engine.buyPumpkin(pick(rng, affordable))
     }
 

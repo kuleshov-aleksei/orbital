@@ -139,6 +139,8 @@ export interface GameSnapshot {
   completedRounds: number
   score: number
   coins: number
+  // Current per-type shop prices including inflation (see costFor).
+  shopPrices: Record<string, number>
   inventory: GameInventoryItem[]
   cards: CardOffer | null
   popupIndex: number

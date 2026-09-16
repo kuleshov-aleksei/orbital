@@ -57,6 +57,12 @@ const SALT_DURATION = 30
 const SALT_WIDTH = 60
 const SALT_SLOW = 0.3 // slow applied while a slug steps on the line
 const GWYN_BLAST_RADIUS = 70
+// Shop inflation: each shop purchase of a type raises its future price as
+// floor(base * 1.15^n), capped at 5x base. Counters snowballing (mass
+// Ferdinand spam) while keeping the first few buys affordable. Refunds stay
+// tied to the base cost so selling can never profit from inflation.
+export const SHOP_PRICE_GROWTH = 1.15
+export const SHOP_PRICE_CAP_MULT = 5
 
 export function laneForY(y: number): number {
   return Math.max(0, Math.min(LANE_COUNT - 1, Math.floor(y / LANE_HEIGHT)))
@@ -92,6 +98,8 @@ export class HalloweenGameEngine {
   private coins = 0
   private coinsEarned = 0
   private coinsSpent = 0
+  // Shop purchases per pumpkin type — drives rising shop prices.
+  private purchaseCounts: Record<string, number> = {}
 
   pumpkins: GamePumpkin[] = []
   slugs: GameSlug[] = []
@@ -145,6 +153,7 @@ export class HalloweenGameEngine {
       completedRounds: this.completedRounds,
       score: this.score,
       coins: this.coins,
+      shopPrices: this.shopPrices(),
       inventory: this.inventory.map((i) => ({ ...i })),
       cards: this.cards,
       popupIndex: this.popupIndex,
@@ -228,15 +237,34 @@ export class HalloweenGameEngine {
 
   // ---- Shop --------------------------------------------------------------
 
+  // Current shop price for a type: floor(base * 1.15^purchases), capped at
+  // 5x base. Only shop buys count — free card pumpkins don't inflate prices.
+  costFor(type: PumpkinType): number {
+    const base = this.config.pumpkins[type]?.cost ?? 0
+    if (base <= 0) return base
+    const n = this.purchaseCounts[type] ?? 0
+    const inflated = Math.floor(base * Math.pow(SHOP_PRICE_GROWTH, n))
+    return Math.min(inflated, base * SHOP_PRICE_CAP_MULT)
+  }
+
+  private shopPrices(): Record<string, number> {
+    const out: Record<string, number> = {}
+    for (const type of Object.keys(this.config.pumpkins)) {
+      out[type] = this.costFor(type as PumpkinType)
+    }
+    return out
+  }
+
   // buyPumpkin spends seeds to place a pumpkin directly into the inventory.
-  // Costs are server-authoritative (config.pumpkins[type].cost).
+  // Costs are server-authoritative base prices (config.pumpkins[type].cost)
+  // plus per-type inflation from costFor(); refunds stay at base cost.
   buyPumpkin(type: PumpkinType): boolean {
     if (this.phase !== "playing") return false
-    const cfg = this.config.pumpkins[type]
-    const cost = cfg?.cost ?? 0
+    const cost = this.costFor(type)
     if (this.coins < cost) return false
     this.coins -= cost
     this.coinsSpent += cost
+    this.purchaseCounts[type] = (this.purchaseCounts[type] ?? 0) + 1
     this.addInventoryItem({ kind: "pumpkin", pumpkinType: type })
     return true
   }
@@ -263,6 +291,8 @@ export class HalloweenGameEngine {
   }
 
   sellRefundFor(type: PumpkinType): number {
+    // Refund stays at 50% of the BASE cost so inflation can never be
+    // arbitraged (buy low, sell at inflated refund).
     return Math.floor((this.config.pumpkins[type]?.cost ?? 0) * 0.5)
   }
 
