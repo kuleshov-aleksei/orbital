@@ -23,6 +23,7 @@ type HalloweenGameConfig struct {
 	StartsAt          string                            `json:"starts_at"`
 	BattlefieldLength int                               `json:"battlefield_length"`
 	StartingCoins     int                               `json:"starting_coins"`
+	StartingPumpkins  []string                          `json:"starting_pumpkins"`
 	Pumpkins          map[string]HalloweenPumpkinConfig `json:"pumpkins"`
 	Slugs             map[string]HalloweenSlugConfig    `json:"slugs"`
 	Abilities         map[string]HalloweenAbilityConfig `json:"abilities"`
@@ -30,6 +31,8 @@ type HalloweenGameConfig struct {
 	RoundBonus        int                               `json:"round_bonus"`
 	RewardBrackets    []HalloweenRewardBracket          `json:"reward_brackets"`
 	RewardsPerRound   map[int]int                       `json:"rewards_per_round"`
+	SpawnRounds       []HalloweenSpawnRoundConfig       `json:"spawn_rounds"`
+	SpawnScaling      HalloweenSpawnScalingConfig       `json:"spawn_scaling"`
 }
 
 type HalloweenPumpkinConfig struct {
@@ -37,9 +40,9 @@ type HalloweenPumpkinConfig struct {
 	Health          int     `json:"health"`
 	DamagePerShot   int     `json:"damage_per_shot"`
 	ProjectileSpeed float64 `json:"projectile_speed"` // units per second
-	Cost            int     `json:"cost"`            // seeds to buy in the shop
-	CoinIntervalS   float64 `json:"coin_interval_s"` // seconds per coin tick (cramer)
-	CoinsPerTick    int     `json:"coins_per_tick"`  // seeds produced per tick (cramer)
+	Cost            int     `json:"cost"`             // seeds to buy in the shop
+	CoinIntervalS   float64 `json:"coin_interval_s"`  // seconds per coin tick (cramer)
+	CoinsPerTick    int     `json:"coins_per_tick"`   // seeds produced per tick (cramer)
 }
 
 type HalloweenSlugConfig struct {
@@ -63,6 +66,27 @@ type HalloweenProximityThreshold struct {
 type HalloweenRewardBracket struct {
 	MinScore int    `json:"min_score"`
 	Tier     string `json:"tier"` // regular | common | uncommon | rare
+}
+
+// HalloweenSpawnRoundConfig is one explicit per-round slug spawn table.
+// Rounds beyond the explicit list use HalloweenSpawnScalingConfig.
+type HalloweenSpawnRoundConfig struct {
+	Round          int            `json:"round"`
+	Interval       float64        `json:"interval"`        // seconds between spawns
+	Pool           map[string]int `json:"pool"`            // scout | marvin | gerald | dell
+	SpeedVariation float64        `json:"speed_variation"` // e.g. 0.01 = +-1%
+}
+
+// HalloweenSpawnScalingConfig generates endless-round spawn tables.
+// Counts use ceil(): scout = ceil(n*ScoutPerRound), marvin = ceil(n*MarvinPerRound),
+// gerald/dell = ceil(sqrt(n)*coef).
+type HalloweenSpawnScalingConfig struct {
+	Interval       float64 `json:"interval"`
+	ScoutPerRound  float64 `json:"scout_per_round"`
+	MarvinPerRound float64 `json:"marvin_per_round"`
+	GeraldSqrt     float64 `json:"gerald_sqrt"`
+	DellSqrt       float64 `json:"dell_sqrt"`
+	SpeedVariation float64 `json:"speed_variation"`
 }
 
 const (
@@ -126,6 +150,7 @@ func (s *HalloweenService) Config() *HalloweenGameConfig {
 		StartsAt:          startsAt,
 		BattlefieldLength: 1000,
 		StartingCoins:     20,
+		StartingPumpkins:  []string{"ferdinand", "ferdinand"},
 		Pumpkins: map[string]HalloweenPumpkinConfig{
 			"ferdinand": {FireRate: 1, Health: 10, DamagePerShot: 5, ProjectileSpeed: 100, Cost: 20},
 			"chunky":    {FireRate: 0, Health: 50, DamagePerShot: 0, ProjectileSpeed: 0, Cost: 40},
@@ -142,8 +167,8 @@ func (s *HalloweenService) Config() *HalloweenGameConfig {
 		Abilities: map[string]HalloweenAbilityConfig{
 			HalloweenAbilityAnnihilation: {Score: 70, Kind: "multiplier"}, // 70% of slug reward
 			HalloweenAbilityHolyGrenade:  {Score: 80, Kind: "multiplier"}, // 80% of slug reward
-			HalloweenAbilityBeer:         {Score: 0, Kind: "flat"},         // 0 damage — pure utility (slow)
-			HalloweenAbilitySaltLine:     {Score: 0, Kind: "flat"},         // 0 damage — pure utility (slow)
+			HalloweenAbilityBeer:         {Score: 0, Kind: "flat"},        // 0 damage — pure utility (slow)
+			HalloweenAbilitySaltLine:     {Score: 0, Kind: "flat"},        // 0 damage — pure utility (slow)
 		},
 		Proximity: []HalloweenProximityThreshold{
 			{MinX: 700, Factor: 1.0},
@@ -160,6 +185,22 @@ func (s *HalloweenService) Config() *HalloweenGameConfig {
 		},
 		RewardsPerRound: map[int]int{
 			1: 1, 2: 1, 3: 1, 4: 2, 5: 2, 6: 2, 7: 3, 8: 3, 9: 3, 10: 4,
+		},
+		SpawnRounds: []HalloweenSpawnRoundConfig{
+			{Round: 1, Interval: 7, Pool: map[string]int{"scout": 10, "marvin": 2, "gerald": 0, "dell": 0}, SpeedVariation: 0.01},
+			{Round: 2, Interval: 7, Pool: map[string]int{"scout": 16, "marvin": 8, "gerald": 1, "dell": 0}, SpeedVariation: 0.02},
+			{Round: 3, Interval: 5, Pool: map[string]int{"scout": 16, "marvin": 8, "gerald": 0, "dell": 1}, SpeedVariation: 0.04},
+			{Round: 4, Interval: 4, Pool: map[string]int{"scout": 24, "marvin": 8, "gerald": 3, "dell": 2}, SpeedVariation: 0.04},
+			{Round: 5, Interval: 4, Pool: map[string]int{"scout": 25, "marvin": 8, "gerald": 3, "dell": 3}, SpeedVariation: 0.04},
+			{Round: 6, Interval: 4, Pool: map[string]int{"scout": 30, "marvin": 9, "gerald": 3, "dell": 3}, SpeedVariation: 0.04},
+			{Round: 7, Interval: 4, Pool: map[string]int{"scout": 35, "marvin": 11, "gerald": 3, "dell": 3}, SpeedVariation: 0.04},
+			{Round: 8, Interval: 4, Pool: map[string]int{"scout": 40, "marvin": 12, "gerald": 3, "dell": 3}, SpeedVariation: 0.04},
+			{Round: 9, Interval: 4, Pool: map[string]int{"scout": 45, "marvin": 14, "gerald": 3, "dell": 3}, SpeedVariation: 0.04},
+			{Round: 10, Interval: 4, Pool: map[string]int{"scout": 50, "marvin": 15, "gerald": 4, "dell": 4}, SpeedVariation: 0.04},
+		},
+		SpawnScaling: HalloweenSpawnScalingConfig{
+			Interval: 4, ScoutPerRound: 5, MarvinPerRound: 1.5,
+			GeraldSqrt: 1, DellSqrt: 1, SpeedVariation: 0.04,
 		},
 	}
 }

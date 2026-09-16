@@ -180,6 +180,58 @@ func TestHalloweenShopEconomyConfig(t *testing.T) {
 	}
 }
 
+func TestHalloweenSpawnTablesConfig(t *testing.T) {
+	s := newHalloweenTestService(t)
+	cfg := s.Config()
+
+	if len(cfg.StartingPumpkins) != 2 ||
+		cfg.StartingPumpkins[0] != "ferdinand" || cfg.StartingPumpkins[1] != "ferdinand" {
+		t.Fatalf("starting_pumpkins = %v, want [ferdinand ferdinand]", cfg.StartingPumpkins)
+	}
+
+	// Rounds 1-4 must match HALLOWEEN.md verbatim; 5-10 are the ceil() formula
+	// pre-computed so the payload is fully data-driven.
+	wantRounds := map[int]HalloweenSpawnRoundConfig{
+		1:  {Round: 1, Interval: 7, Pool: map[string]int{"scout": 10, "marvin": 2, "gerald": 0, "dell": 0}, SpeedVariation: 0.01},
+		2:  {Round: 2, Interval: 7, Pool: map[string]int{"scout": 16, "marvin": 8, "gerald": 1, "dell": 0}, SpeedVariation: 0.02},
+		3:  {Round: 3, Interval: 5, Pool: map[string]int{"scout": 16, "marvin": 8, "gerald": 0, "dell": 1}, SpeedVariation: 0.04},
+		4:  {Round: 4, Interval: 4, Pool: map[string]int{"scout": 24, "marvin": 8, "gerald": 3, "dell": 2}, SpeedVariation: 0.04},
+		5:  {Round: 5, Interval: 4, Pool: map[string]int{"scout": 25, "marvin": 8, "gerald": 3, "dell": 3}, SpeedVariation: 0.04},
+		6:  {Round: 6, Interval: 4, Pool: map[string]int{"scout": 30, "marvin": 9, "gerald": 3, "dell": 3}, SpeedVariation: 0.04},
+		7:  {Round: 7, Interval: 4, Pool: map[string]int{"scout": 35, "marvin": 11, "gerald": 3, "dell": 3}, SpeedVariation: 0.04},
+		8:  {Round: 8, Interval: 4, Pool: map[string]int{"scout": 40, "marvin": 12, "gerald": 3, "dell": 3}, SpeedVariation: 0.04},
+		9:  {Round: 9, Interval: 4, Pool: map[string]int{"scout": 45, "marvin": 14, "gerald": 3, "dell": 3}, SpeedVariation: 0.04},
+		10: {Round: 10, Interval: 4, Pool: map[string]int{"scout": 50, "marvin": 15, "gerald": 4, "dell": 4}, SpeedVariation: 0.04},
+	}
+	if len(cfg.SpawnRounds) != len(wantRounds) {
+		t.Fatalf("spawn_rounds = %d entries, want %d", len(cfg.SpawnRounds), len(wantRounds))
+	}
+	for _, entry := range cfg.SpawnRounds {
+		want, ok := wantRounds[entry.Round]
+		if !ok {
+			t.Errorf("unexpected spawn_round %d", entry.Round)
+			continue
+		}
+		if entry.Interval != want.Interval {
+			t.Errorf("round %d interval = %v, want %v", entry.Round, entry.Interval, want.Interval)
+		}
+		if entry.SpeedVariation != want.SpeedVariation {
+			t.Errorf("round %d speed_variation = %v, want %v", entry.Round, entry.SpeedVariation, want.SpeedVariation)
+		}
+		for _, slug := range []string{"scout", "marvin", "gerald", "dell"} {
+			if entry.Pool[slug] != want.Pool[slug] {
+				t.Errorf("round %d pool[%s] = %d, want %d", entry.Round, slug, entry.Pool[slug], want.Pool[slug])
+			}
+		}
+	}
+
+	scaling := cfg.SpawnScaling
+	if scaling.Interval != 4 || scaling.ScoutPerRound != 5 || scaling.MarvinPerRound != 1.5 ||
+		scaling.GeraldSqrt != 1 || scaling.DellSqrt != 1 || scaling.SpeedVariation != 0.04 {
+		t.Errorf("unexpected spawn_scaling: %+v", scaling)
+	}
+}
+
 func TestHalloweenSubmitGameGrantsRewards(t *testing.T) {
 	s := newHalloweenTestService(t)
 

@@ -1,6 +1,10 @@
 import type { AbilityId, PumpkinType, SlugType } from "./types"
+import type { HalloweenGameConfig } from "../types"
 
 // Slug spawn tables per round (HALLOWEEN.md "Slug per round balance table").
+// Server-authoritative values now live in HalloweenGameConfig.spawn_rounds /
+// spawn_scaling; the constants below are the deprecated fallback for cached
+// payloads and headless tests that construct a partial config.
 export interface RoundSpawnTable {
   interval: number // seconds between spawns
   pool: Record<SlugType, number> // ceil() applied for round 5+ fractions
@@ -13,6 +17,8 @@ export const ROUND_SPAWN_TABLES: Record<number, RoundSpawnTable> = {
   4: { interval: 4, pool: { scout: 24, marvin: 8, gerald: 3, dell: 2 } },
 }
 
+// Deprecated: use resolveSpawnTable(round, config) so spawns are configurable.
+// Kept for callers/tests without a server config payload.
 export function spawnTableForRound(round: number): RoundSpawnTable {
   if (round <= 4) return ROUND_SPAWN_TABLES[round]
   const n = round
@@ -25,6 +31,75 @@ export function spawnTableForRound(round: number): RoundSpawnTable {
       dell: Math.ceil(Math.sqrt(n)),
     },
   }
+}
+
+type SpawnConfig = Pick<HalloweenGameConfig, "spawn_rounds" | "spawn_scaling" | "starting_pumpkins">
+
+// resolveSpawnTable prefers the server config: exact match in spawn_rounds,
+// scaling rule beyond the explicit list, legacy fallback when absent.
+export function resolveSpawnTable(round: number, config?: SpawnConfig): RoundSpawnTable {
+  const rounds = config?.spawn_rounds
+  if (rounds && rounds.length > 0) {
+    const entry = rounds.find((r) => r.round === round)
+    if (entry) {
+      return {
+        interval: entry.interval,
+        pool: {
+          scout: entry.pool["scout"] ?? 0,
+          marvin: entry.pool["marvin"] ?? 0,
+          gerald: entry.pool["gerald"] ?? 0,
+          dell: entry.pool["dell"] ?? 0,
+        },
+      }
+    }
+    const scaling = config?.spawn_scaling
+    if (scaling) {
+      const n = round
+      return {
+        interval: scaling.interval,
+        pool: {
+          scout: Math.ceil(n * scaling.scout_per_round),
+          marvin: Math.ceil(n * scaling.marvin_per_round),
+          gerald: Math.ceil(Math.sqrt(n) * scaling.gerald_sqrt),
+          dell: Math.ceil(Math.sqrt(n) * scaling.dell_sqrt),
+        },
+      }
+    }
+  }
+  return spawnTableForRound(round)
+}
+
+// speedVariationForRound prefers the server config, same fallback chain.
+export function speedVariationForRound(round: number, config?: SpawnConfig): number {
+  const rounds = config?.spawn_rounds
+  if (rounds && rounds.length > 0) {
+    const entry = rounds.find((r) => r.round === round)
+    if (entry) return entry.speed_variation
+    if (config?.spawn_scaling) return config.spawn_scaling.speed_variation
+  }
+  if (round <= 4) return [0.01, 0.02, 0.04, 0.04][round - 1]
+  return 0.04
+}
+
+const VALID_STARTING_PUMPKINS: PumpkinType[] = [
+  "ferdinand",
+  "chunky",
+  "herbert",
+  "gwynevere",
+  "cramer",
+]
+
+// startingPumpkinsForConfig returns the configured starting inventory,
+// defaulting to 2x ferdinand (HALLOWEEN.md "Starting conditions").
+export function startingPumpkinsForConfig(config?: SpawnConfig): PumpkinType[] {
+  const list = config?.starting_pumpkins
+  if (list && list.length > 0) {
+    const valid = list.filter((t): t is PumpkinType =>
+      (VALID_STARTING_PUMPKINS as string[]).includes(t),
+    )
+    if (valid.length > 0) return valid
+  }
+  return ["ferdinand", "ferdinand"]
 }
 
 export const ALL_PUMPKIN_TYPES: PumpkinType[] = [

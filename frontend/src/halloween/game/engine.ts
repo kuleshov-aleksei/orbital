@@ -16,7 +16,14 @@ import type {
   PumpkinType,
   SlugType,
 } from "./types"
-import { ABILITY_META, INVENTORY_CAPACITY, buildCardOffer, spawnTableForRound } from "./balance"
+import {
+  ABILITY_META,
+  INVENTORY_CAPACITY,
+  buildCardOffer,
+  resolveSpawnTable,
+  speedVariationForRound,
+  startingPumpkinsForConfig,
+} from "./balance"
 import type { RandomFn } from "./balance"
 
 export type GameEvent = "shooting" | "slug_destroyed" | "pumpkin_destroyed" | "item_used"
@@ -125,8 +132,9 @@ export class HalloweenGameEngine {
     this.rng = rng
     this.width = config.battlefield_length
     this.coins = config.starting_coins
-    this.inventory.push({ kind: "pumpkin", pumpkinType: "ferdinand" })
-    this.inventory.push({ kind: "pumpkin", pumpkinType: "ferdinand" })
+    for (const pumpkinType of startingPumpkinsForConfig(config)) {
+      this.inventory.push({ kind: "pumpkin", pumpkinType })
+    }
     this.startRound(1)
   }
 
@@ -168,7 +176,7 @@ export class HalloweenGameEngine {
 
   private startRound(round: number) {
     this.round = round
-    const table = spawnTableForRound(round)
+    const table = resolveSpawnTable(round, this.config)
     this.spawnQueue = []
     for (const type of Object.keys(table.pool) as SlugType[]) {
       for (let i = 0; i < table.pool[type]; i++) this.spawnQueue.push(type)
@@ -539,17 +547,12 @@ export class HalloweenGameEngine {
     this.spawnTimer -= dt
     if (this.spawnTimer <= 0) {
       const type = this.spawnQueue.shift()!
-      const variation = this.speedVariationForRound(this.round)
+      const variation = speedVariationForRound(this.round, this.config)
       const speedMul = 1 + (this.rng() * 2 - 1) * variation
       const lane = Math.floor(this.rng() * LANE_COUNT)
       this.spawnSlug(type, this.width + 20, laneCenterY(lane), speedMul)
-      this.spawnTimer = spawnTableForRound(this.round).interval
+      this.spawnTimer = resolveSpawnTable(this.round, this.config).interval
     }
-  }
-
-  private speedVariationForRound(round: number): number {
-    if (round <= 4) return [0.01, 0.02, 0.04, 0.04][round - 1]
-    return 0.04
   }
 
   private updateSlugs(dt: number) {

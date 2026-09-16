@@ -112,12 +112,34 @@ export interface HalloweenRewardBracket {
   tier: HalloweenRarity
 }
 
+// HalloweenSpawnRoundConfig is one explicit per-round slug spawn table.
+// Rounds beyond the explicit list use HalloweenSpawnScalingConfig.
+export interface HalloweenSpawnRoundConfig {
+  round: number
+  interval: number // seconds between spawns
+  pool: Record<string, number> // scout | marvin | gerald | dell
+  speed_variation: number // e.g. 0.01 = +-1%
+}
+
+// HalloweenSpawnScalingConfig generates endless-round spawn tables.
+// Counts use ceil(): scout = ceil(n*scout_per_round), marvin = ceil(n*marvin_per_round),
+// gerald/dell = ceil(sqrt(n)*coef).
+export interface HalloweenSpawnScalingConfig {
+  interval: number
+  scout_per_round: number
+  marvin_per_round: number
+  gerald_sqrt: number
+  dell_sqrt: number
+  speed_variation: number
+}
+
 // HalloweenGameConfig is the server-authoritative balance payload.
 export interface HalloweenGameConfig {
   enabled: boolean
   starts_at: string
   battlefield_length: number
   starting_coins: number
+  starting_pumpkins?: string[]
   pumpkins: Record<string, HalloweenPumpkinConfig>
   slugs: Record<string, HalloweenSlugConfig>
   abilities: Record<string, HalloweenAbilityConfig>
@@ -125,6 +147,8 @@ export interface HalloweenGameConfig {
   round_bonus: number
   reward_brackets: HalloweenRewardBracket[]
   rewards_per_round: Record<number, number>
+  spawn_rounds?: HalloweenSpawnRoundConfig[]
+  spawn_scaling?: HalloweenSpawnScalingConfig
 }
 
 // PumpkinDisplay is the view model used by the pumpkin strip: a user with
