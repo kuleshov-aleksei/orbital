@@ -94,16 +94,19 @@ export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRen
     background.rect(0, 0, width(), FIELD_HEIGHT)
     background.fill({ color: 0x1a1f16 })
     // Only the placable grid positions are drawn: the 5×6 placement cells.
+    // On round 1 only the 3 center lanes are active — locked lanes render dim.
     const gridX0 = COLUMN_START_X
     const gridW = PLACEMENT_COLUMNS * COLUMN_SPACING
+    const active = new Set(engine.activeLanes())
     for (let lane = 0; lane < LANE_COUNT; lane++) {
+      const open = active.has(lane)
       for (let col = 0; col < PLACEMENT_COLUMNS; col++) {
         const x = gridX0 + col * COLUMN_SPACING
         const y = lane * LANE_HEIGHT
         background.rect(x, y, COLUMN_SPACING, LANE_HEIGHT)
-        background.fill({ color: 0x22301c, alpha: 0.35 })
+        background.fill({ color: 0x22301c, alpha: open ? 0.35 : 0.07 })
         background.rect(x, y, COLUMN_SPACING, LANE_HEIGHT)
-        background.stroke({ width: 1, color: 0x3b4a2f, alpha: 0.7 })
+        background.stroke({ width: 1, color: 0x3b4a2f, alpha: open ? 0.7 : 0.2 })
       }
     }
     background.rect(gridX0, 0, gridW, FIELD_HEIGHT)
@@ -261,12 +264,13 @@ export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRen
       const lane = laneForY(y)
       const cx = columnX(col)
       const cy = laneCenterY(lane)
+      const tint = engine.activeLanes().includes(lane) ? 0xffffff : 0xef4444
       g.rect(cx - COLUMN_SPACING / 2, lane * LANE_HEIGHT, COLUMN_SPACING, LANE_HEIGHT)
       g.fill({ color: 0xffffff, alpha: 0.12 })
       g.rect(cx - COLUMN_SPACING / 2, lane * LANE_HEIGHT, COLUMN_SPACING, LANE_HEIGHT)
-      g.stroke({ width: 2, color: 0xffffff, alpha: 0.5 })
+      g.stroke({ width: 2, color: tint, alpha: 0.5 })
       g.circle(cx, cy, 28)
-      g.stroke({ width: 2, color: 0xffffff, alpha: 0.6 })
+      g.stroke({ width: 2, color: tint, alpha: 0.6 })
     } else if (engine.mode === "ability-point" && engine.pendingAbilityId) {
       g.circle(x, y, 6)
       g.fill({ color: 0xfff3c4 })

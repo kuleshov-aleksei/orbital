@@ -181,6 +181,15 @@ export class HalloweenGameEngine {
     return this.slugs.length
   }
 
+  // ---- Line availability -------------------------------------------------
+  // Hardcoded: round 1 restricts play to the 3 center lanes so an unlucky
+  // spawn lane can't ruin the run before the player has coverage. Round 2+
+  // opens all 5 lanes. Applies to both pumpkin placement and slug spawns.
+  activeLanes(): number[] {
+    if (this.round <= 1) return [1, 2, 3]
+    return Array.from({ length: LANE_COUNT }, (_, i) => i)
+  }
+
   // ---- Rounds ------------------------------------------------------------
 
   private startRound(round: number) {
@@ -375,6 +384,10 @@ export class HalloweenGameEngine {
     }
     const lane = laneForY(y)
     const col = columnForX(x)
+    if (!this.activeLanes().includes(lane)) {
+      this.prompt = "That lane opens in round 2 — pick a glowing lane"
+      return
+    }
     if (this.pumpkinAtCell(col, lane)) {
       this.prompt = "That spot is already taken — pick another"
       return
@@ -579,7 +592,8 @@ export class HalloweenGameEngine {
       const type = this.spawnQueue.shift()!
       const variation = speedVariationForRound(this.round, this.config)
       const speedMul = 1 + (this.rng() * 2 - 1) * variation
-      const lane = Math.floor(this.rng() * LANE_COUNT)
+      const lanes = this.activeLanes()
+      const lane = lanes[Math.floor(this.rng() * lanes.length)]
       this.spawnSlug(type, this.width + 20, laneCenterY(lane), speedMul)
       this.spawnTimer = resolveSpawnTable(this.round, this.config).interval
     }

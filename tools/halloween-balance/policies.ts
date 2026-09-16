@@ -28,16 +28,19 @@ export interface CardContext {
   damagedAny: boolean
 }
 
-/** Free (col, lane) cells derived from live pumpkins. */
+/** Free (col, lane) cells derived from live pumpkins, restricted to the
+ * engine's currently active lanes (round 1 = 3 center lanes only). */
 export function freeCells(engine: HalloweenGameEngine): Array<{ col: number; lane: number }> {
   const taken = new Set<string>()
   for (const p of engine.pumpkins) {
     if (p.health <= 0) continue
     taken.add(`${columnForX(p.x)}:${laneForY(p.y)}`)
   }
+  const lanes = new Set(engine.activeLanes())
   const out: Array<{ col: number; lane: number }> = []
   for (let col = 0; col < PLACEMENT_COLUMNS; col++) {
     for (let lane = 0; lane < LANE_COUNT; lane++) {
+      if (!lanes.has(lane)) continue
       if (!taken.has(`${col}:${lane}`)) out.push({ col, lane })
     }
   }
@@ -73,7 +76,8 @@ export function useAbilityAt(
   if (!item || item.kind !== "ability") return
   engine.selectInventoryItem(index)
   if (engine.mode === "ability-point") {
-    const lane = randInt(rng, LANE_COUNT)
+    const lanes = engine.activeLanes()
+    const lane = lanes[randInt(rng, lanes.length)]
     const x = engine.getWidth() * (0.3 + rng() * 0.6)
     engine.onWorldClick(x, laneCenterY(lane))
   } else if (engine.mode === "ability-pumpkin") {
