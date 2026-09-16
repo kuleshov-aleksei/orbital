@@ -1,6 +1,17 @@
 // Aggregation + ASCII report for a batch of sim results.
 import type { GameResult } from "./driver"
-import { checkGates, formatGateReport, gatesPass, type Gate } from "./targets"
+import {
+  bandPenalty,
+  bandsPass,
+  checkBands,
+  checkGates,
+  formatBandReport,
+  formatGateReport,
+  gatesPass,
+  type Band,
+  type BandResult,
+  type Gate,
+} from "./targets"
 
 export interface BatchSummary {
   games: number
@@ -15,6 +26,9 @@ export interface BatchSummary {
   reachProb: Record<number, number> // P(completedRounds >= r)
   gateResults: ReturnType<typeof checkGates>
   gatesPass: boolean
+  bandResults: BandResult[]
+  bandsPass: boolean
+  bandPenalty: number
   scoreMean: number
   scoreStd: number
   scoreMax: number
@@ -39,6 +53,7 @@ export function summarize(
   results: GameResult[],
   wallMs: number,
   gates?: Gate[],
+  bands?: Band[],
 ): BatchSummary {
   const rounds = results.map((r) => r.completedRounds)
   const scores = results.map((r) => r.score)
@@ -59,6 +74,9 @@ export function summarize(
     gameOverReasons[reason] = (gameOverReasons[reason] ?? 0) + 1
   }
   const gateResults = checkGates(reachProb, results.length, gates)
+  const policy = results[0]?.policy ?? "?"
+  const bandResults = checkBands(reachProb, policy, bands)
+  const penalty = bandPenalty(bandResults)
   const killsByTypeMean: Record<string, number> = {}
   for (const res of results) {
     for (const [k, v] of Object.entries(res.killsByType)) {
@@ -78,6 +96,9 @@ export function summarize(
     reachProb,
     gateResults,
     gatesPass: gatesPass(gateResults),
+    bandResults,
+    bandsPass: bandsPass(bandResults),
+    bandPenalty: penalty,
     scoreMean: sm,
     scoreStd: std(scores, sm),
     scoreMax: Math.max(...scores),
@@ -111,7 +132,10 @@ export function printSummary(s: BatchSummary): void {
     .map((r) => `P(>=${r})=${(s.reachProb[r] * 100).toFixed(0)}%`)
     .join("  ")
   console.log(`  survival: ${reach}`)
-  console.log(`  gates (heuristic targets):\n  ${formatGateReport(s.gateResults).replace(/\n/g, "\n  ")}`)
+  console.log(`  gates (legacy caps):\n  ${formatGateReport(s.gateResults).replace(/\n/g, "\n  ")}`)
+  console.log(
+    `  bands (penalty=${s.bandPenalty.toFixed(4)} ${s.bandsPass ? "ALL PASS" : "FAIL"}):\n  ${formatBandReport(s.bandResults).replace(/\n/g, "\n  ")}`,
+  )
   const deaths = Object.keys(s.deathHist)
     .map(Number)
     .sort((a, b) => a - b)
@@ -145,6 +169,13 @@ export function printSummary(s: BatchSummary): void {
   )
   console.log(
     `coins/game: earned ${f1(s.coinsEarnedMean)}  spent ${f1(s.coinsSpentMean)}`,
+  )
+  // Economy snowball guard: heuristic earns >> spends means kill/cramer
+  // income outscales shop costs and the build goes infinite.
+  const econRatio = s.coinsSpentMean > 0 ? s.coinsEarnedMean / s.coinsSpentMean : Infinity
+  const p12 = s.reachProb[12] ?? 0
+  console.log(
+    `  economy: earned/spent=${Number.isFinite(econRatio) ? econRatio.toFixed(2) : "inf"} P(>=12)=${(p12 * 100).toFixed(1)}%${econRatio > 2 && p12 > 0.05 ? " — SNOWBALL RISK (income outscales costs)" : ""}`,
   )
   const speedup = s.simSecondsTotal / Math.max(s.wallMs / 1000, 1e-3)
   console.log(

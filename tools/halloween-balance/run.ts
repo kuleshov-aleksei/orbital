@@ -6,10 +6,13 @@
 // Useful flags:
 //   --config-override '{"starting_coins":40}'   deep-merge patch (or @file.json)
 //   --config-dump                               print effective config, then run
-//   --check-gates                               exit 1 when heuristic gates fail
+//   --policy both                               run heuristic + random (for band checks)
+//   --check-gates                               exit 1 when legacy caps fail
+//   --check-bands                               exit 1 when skill-aware bands fail
+//   --json-summary                              print machine-readable summaries (for sweep.ts)
 import { applyConfigOverride, defaultConfig } from "./config"
 import { runSingleGame } from "./driver"
-import { printSummary, summarize } from "./metrics"
+import { printSummary, summarize, type BatchSummary } from "./metrics"
 import { HeuristicPolicy, RandomPolicy, type Policy } from "./policies"
 
 function arg(name: string, fallback: string): string {
@@ -32,11 +35,12 @@ export function main(): void {
   const policyName = arg("--policy", "random")
   const dt = parseFloat(arg("--dt", String(1 / 30)))
 
-  let makePolicy: () => Policy
-  if (policyName === "random") makePolicy = () => new RandomPolicy()
-  else if (policyName === "heuristic") makePolicy = () => new HeuristicPolicy()
+  const makers: Array<() => Policy> = []
+  if (policyName === "random") makers.push(() => new RandomPolicy())
+  else if (policyName === "heuristic") makers.push(() => new HeuristicPolicy())
+  else if (policyName === "both") makers.push(() => new HeuristicPolicy(), () => new RandomPolicy())
   else {
-    console.error(`unknown policy "${policyName}" (available: random, heuristic)`)
+    console.error(`unknown policy "${policyName}" (available: random, heuristic, both)`)
     process.exit(1)
   }
 
@@ -52,17 +56,31 @@ export function main(): void {
   }
   if (has("--config-dump")) console.log(JSON.stringify(config, null, 1))
 
-  const wall0 = Date.now()
-  const results = []
-  for (let i = 0; i < games; i++) {
-    results.push(runSingleGame(config, makePolicy(), seed0 + i, { dt }))
-    if ((i + 1) % 10 === 0) console.log(`... ${i + 1}/${games} games done`)
+  const summaries: BatchSummary[] = []
+  let failed = false
+  for (const makePolicy of makers) {
+    const wall0 = Date.now()
+    const results = []
+    const policyLabel = makePolicy().name
+    for (let i = 0; i < games; i++) {
+      results.push(runSingleGame(config, makePolicy(), seed0 + i, { dt }))
+      if ((i + 1) % 10 === 0) console.log(`... [${policyLabel}] ${i + 1}/${games} games done`)
+    }
+    const summary = summarize(results, Date.now() - wall0)
+    printSummary(summary)
+    summaries.push(summary)
+    if (has("--json")) console.log(JSON.stringify(results, null, 1))
+    if (has("--check-gates") && !summary.gatesPass) {
+      console.error(`BALANCE GATES FAILED [${policyLabel}] (legacy caps, see above)`)
+      failed = true
+    }
+    if (has("--check-bands") && !summary.bandsPass) {
+      console.error(
+        `BALANCE BANDS FAILED [${policyLabel}] penalty=${summary.bandPenalty.toFixed(4)} (see above)`,
+      )
+      failed = true
+    }
   }
-  const summary = summarize(results, Date.now() - wall0)
-  printSummary(summary)
-  if (has("--json")) console.log(JSON.stringify(results, null, 1))
-  if (has("--check-gates") && !summary.gatesPass) {
-    console.error("BALANCE GATES FAILED (heuristic targets, see above)")
-    process.exit(1)
-  }
+  if (has("--json-summary")) console.log(JSON.stringify(summaries, null, 1))
+  if (failed) process.exit(1)
 }
