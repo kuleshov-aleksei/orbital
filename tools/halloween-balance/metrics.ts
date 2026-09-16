@@ -1,5 +1,6 @@
 // Aggregation + ASCII report for a batch of sim results.
 import type { GameResult } from "./driver"
+import { checkGates, formatGateReport, gatesPass, type Gate } from "./targets"
 
 export interface BatchSummary {
   games: number
@@ -9,7 +10,11 @@ export interface BatchSummary {
   roundsMin: number
   roundsMax: number
   roundsHist: Record<number, number>
+  deathHist: Record<number, number> // games that died while attempting round r
+  gameOverReasons: Record<string, number>
   reachProb: Record<number, number> // P(completedRounds >= r)
+  gateResults: ReturnType<typeof checkGates>
+  gatesPass: boolean
   scoreMean: number
   scoreStd: number
   scoreMax: number
@@ -30,7 +35,11 @@ function std(xs: number[], m: number): number {
   return Math.sqrt(xs.reduce((a, b) => a + (b - m) * (b - m), 0) / xs.length)
 }
 
-export function summarize(results: GameResult[], wallMs: number): BatchSummary {
+export function summarize(
+  results: GameResult[],
+  wallMs: number,
+  gates?: Gate[],
+): BatchSummary {
   const rounds = results.map((r) => r.completedRounds)
   const scores = results.map((r) => r.score)
   const rm = mean(rounds)
@@ -42,6 +51,14 @@ export function summarize(results: GameResult[], wallMs: number): BatchSummary {
   for (let r = 1; r <= maxR + 1; r++) {
     reachProb[r] = results.filter((x) => x.completedRounds >= r).length / results.length
   }
+  const deathHist: Record<number, number> = {}
+  const gameOverReasons: Record<string, number> = {}
+  for (const res of results) {
+    if (res.deathRound != null) deathHist[res.deathRound] = (deathHist[res.deathRound] ?? 0) + 1
+    const reason = res.gameOverReason ?? res.endPhase
+    gameOverReasons[reason] = (gameOverReasons[reason] ?? 0) + 1
+  }
+  const gateResults = checkGates(reachProb, results.length, gates)
   const killsByTypeMean: Record<string, number> = {}
   for (const res of results) {
     for (const [k, v] of Object.entries(res.killsByType)) {
@@ -56,7 +73,11 @@ export function summarize(results: GameResult[], wallMs: number): BatchSummary {
     roundsMin: Math.min(...rounds),
     roundsMax: maxR,
     roundsHist: hist,
+    deathHist,
+    gameOverReasons,
     reachProb,
+    gateResults,
+    gatesPass: gatesPass(gateResults),
     scoreMean: sm,
     scoreStd: std(scores, sm),
     scoreMax: Math.max(...scores),
@@ -90,6 +111,30 @@ export function printSummary(s: BatchSummary): void {
     .map((r) => `P(>=${r})=${(s.reachProb[r] * 100).toFixed(0)}%`)
     .join("  ")
   console.log(`  survival: ${reach}`)
+  console.log(`  gates (heuristic targets):\n  ${formatGateReport(s.gateResults).replace(/\n/g, "\n  ")}`)
+  const deaths = Object.keys(s.deathHist)
+    .map(Number)
+    .sort((a, b) => a - b)
+    .map((r) => `R${r}:${s.deathHist[r]}`)
+    .join("  ")
+  if (deaths) console.log(`  deaths by round: ${deaths}`)
+  console.log(
+    `  end reasons: ${Object.entries(s.gameOverReasons)
+      .map(([k, v]) => `${k}=${v}`)
+      .join("  ")}`,
+  )
+  // RNG-dependence: late game should be clearable but not reliably —
+  // low P(>=6) with a long tail (max >> mean) means good card/lane RNG matters.
+  const p6 = s.reachProb[6] ?? 0
+  const rngVerdict =
+    p6 <= 0
+      ? "R6 unclearable — too hard / no RNG tail"
+      : p6 < 0.3 && s.roundsMax > s.roundsMean + 2 * s.roundsStd
+        ? "RNG-dependent (low clear rate, long tail) — as designed"
+        : "reliably clearable — consider steepening 6+"
+  console.log(
+    `  late-game: P(>=6)=${(p6 * 100).toFixed(1)}% max=${s.roundsMax} — ${rngVerdict}`,
+  )
   console.log(
     `score: mean ${Math.round(s.scoreMean)} ± ${Math.round(s.scoreStd)}  max ${s.scoreMax}`,
   )

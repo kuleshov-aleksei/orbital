@@ -1,4 +1,4 @@
-.PHONY: help install build dev dev-public dev-electron lint lint-full prettier test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all
+.PHONY: help install build dev dev-public dev-electron lint lint-full prettier test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all balance-drift balance-check
 
 # Default target
 help:
@@ -247,6 +247,15 @@ build-electron-linux:
 	else \
 		cd electron && VITE_BACKEND_URL=$$VITE_BACKEND_URL pnpm run build:linux; \
 	fi
+
+# Halloween balance sims (no new installs — runs through frontend jiti)
+balance-drift:
+	@echo "Checking balance fixture vs backend Config()..."
+	node tools/halloween-balance/check-drift.cjs
+
+balance-check: balance-drift
+	@echo "Running heuristic balance gates (200 games)..."
+	./frontend/node_modules/.bin/jiti tools/halloween-balance/run.cjs -- --policy heuristic --games 200 --seed 1 --check-gates
 
 build-electron-all:
 	@echo "Installing electron dependencies..."

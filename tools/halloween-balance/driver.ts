@@ -14,6 +14,8 @@ export interface GameResult {
   seed: number
   policy: string
   completedRounds: number
+  reachedRound: number // highest snap.round observed (death round when game over)
+  deathRound: number | null // reachedRound when endPhase === "gameover", else null
   score: number
   ticks: number
   simSeconds: number
@@ -39,11 +41,13 @@ export function runSingleGame(
   const engine = new HalloweenGameEngine(config, rng)
 
   let ticks = 0
+  let reachedRound = 1
   // eslint-disable-next-line no-constant-condition
   while (true) {
     const snap = engine.snapshot()
     if (snap.phase === "gameover" || snap.phase === "ended") break
     if (ticks * dt >= maxSimSeconds) break
+    if (snap.round > reachedRound) reachedRound = snap.round
 
     if (snap.phase === "cards" && snap.cards) {
       // Sequential popups, like the UI: one pick per tick.
@@ -70,6 +74,8 @@ export function runSingleGame(
     seed,
     policy: policy.name,
     completedRounds: report.completed_rounds,
+    reachedRound,
+    deathRound: final.phase === "gameover" ? reachedRound : null,
     score: report.score,
     ticks,
     simSeconds: ticks * dt,
