@@ -91,10 +91,10 @@ export function defaultConfig(): HalloweenGameConfig {
       },
     },
     slugs: {
-      scout: { speed: 50, health: 10, damage_to_pumpkin: 2, reward_points: 10, kill_reward: 5 },
-      marvin: { speed: 50, health: 20, damage_to_pumpkin: 5, reward_points: 20, kill_reward: 10 },
-      gerald: { speed: 30, health: 100, damage_to_pumpkin: 20, reward_points: 50, kill_reward: 30 },
-      dell: { speed: 0, health: 10, damage_to_pumpkin: 0, reward_points: 100, kill_reward: 50 },
+      scout: { speed: 50, health: 10, damage_to_pumpkin: 2, reward_points: 10, kill_reward: 2 },
+      marvin: { speed: 50, health: 20, damage_to_pumpkin: 5, reward_points: 20, kill_reward: 5 },
+      gerald: { speed: 30, health: 100, damage_to_pumpkin: 20, reward_points: 50, kill_reward: 15 },
+      dell: { speed: 0, health: 10, damage_to_pumpkin: 0, reward_points: 100, kill_reward: 25 },
     },
     abilities: {
       annihilation: { score: 70, kind: "multiplier" },

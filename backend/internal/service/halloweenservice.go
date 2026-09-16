@@ -159,10 +159,10 @@ func (s *HalloweenService) Config() *HalloweenGameConfig {
 			"cramer":    {FireRate: 0, Health: 10, DamagePerShot: 0, ProjectileSpeed: 0, Cost: 75, CoinIntervalS: 5, CoinsPerTick: 1},
 		},
 		Slugs: map[string]HalloweenSlugConfig{
-			HalloweenSlugScout:  {Speed: 50, Health: 10, DamageToPumpkin: 2, RewardPoints: 10, KillReward: 5},
-			HalloweenSlugMarvin: {Speed: 50, Health: 20, DamageToPumpkin: 5, RewardPoints: 20, KillReward: 10},
-			HalloweenSlugGerald: {Speed: 30, Health: 100, DamageToPumpkin: 20, RewardPoints: 50, KillReward: 30},
-			HalloweenSlugDell:   {Speed: 0, Health: 10, DamageToPumpkin: 0, RewardPoints: 100, KillReward: 50},
+			HalloweenSlugScout:  {Speed: 50, Health: 10, DamageToPumpkin: 2, RewardPoints: 10, KillReward: 2},
+			HalloweenSlugMarvin: {Speed: 50, Health: 20, DamageToPumpkin: 5, RewardPoints: 20, KillReward: 5},
+			HalloweenSlugGerald: {Speed: 30, Health: 100, DamageToPumpkin: 20, RewardPoints: 50, KillReward: 15},
+			HalloweenSlugDell:   {Speed: 0, Health: 10, DamageToPumpkin: 0, RewardPoints: 100, KillReward: 25},
 		},
 		Abilities: map[string]HalloweenAbilityConfig{
 			HalloweenAbilityAnnihilation: {Score: 70, Kind: "multiplier"}, // 70% of slug reward
