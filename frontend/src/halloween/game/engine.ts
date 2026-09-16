@@ -1,4 +1,4 @@
-import type { HalloweenGameConfig } from "@/halloween/types"
+import type { HalloweenGameConfig } from "../types"
 import type {
   AbilityId,
   CardOffer,
@@ -17,6 +17,7 @@ import type {
   SlugType,
 } from "./types"
 import { ABILITY_META, INVENTORY_CAPACITY, buildCardOffer, spawnTableForRound } from "./balance"
+import type { RandomFn } from "./balance"
 
 export type GameEvent = "shooting" | "slug_destroyed" | "pumpkin_destroyed" | "item_used"
 
@@ -115,8 +116,13 @@ export class HalloweenGameEngine {
 
   onEvent: ((event: GameEvent) => void) | null = null
 
-  constructor(config: HalloweenGameConfig) {
+  // Injectable RNG for seeded headless sims. Defaults to Math.random so the
+  // live game is unaffected.
+  private rng: RandomFn
+
+  constructor(config: HalloweenGameConfig, rng: RandomFn = Math.random) {
     this.config = config
+    this.rng = rng
     this.width = config.battlefield_length
     this.coins = config.starting_coins
     this.inventory.push({ kind: "pumpkin", pumpkinType: "ferdinand" })
@@ -169,7 +175,7 @@ export class HalloweenGameEngine {
     }
     // Random spawn order
     for (let i = this.spawnQueue.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
+      const j = Math.floor(this.rng() * (i + 1))
       ;[this.spawnQueue[i], this.spawnQueue[j]] = [this.spawnQueue[j], this.spawnQueue[i]]
     }
     this.spawnTimer = table.interval
@@ -181,7 +187,7 @@ export class HalloweenGameEngine {
     this.score += this.round * this.config.round_bonus
     this.popupTotal = Math.min(this.round, 3)
     this.popupIndex = 0
-    this.cards = { cards: buildCardOffer() }
+    this.cards = { cards: buildCardOffer(this.rng) }
     this.phase = "cards"
     this.prompt = null
     this.mode = "none"
@@ -201,7 +207,7 @@ export class HalloweenGameEngine {
       this.phase = "playing"
       this.startRound(this.round + 1)
     } else {
-      this.cards = { cards: buildCardOffer() }
+      this.cards = { cards: buildCardOffer(this.rng) }
     }
   }
 
@@ -534,8 +540,8 @@ export class HalloweenGameEngine {
     if (this.spawnTimer <= 0) {
       const type = this.spawnQueue.shift()!
       const variation = this.speedVariationForRound(this.round)
-      const speedMul = 1 + (Math.random() * 2 - 1) * variation
-      const lane = Math.floor(Math.random() * LANE_COUNT)
+      const speedMul = 1 + (this.rng() * 2 - 1) * variation
+      const lane = Math.floor(this.rng() * LANE_COUNT)
       this.spawnSlug(type, this.width + 20, laneCenterY(lane), speedMul)
       this.spawnTimer = spawnTableForRound(this.round).interval
     }

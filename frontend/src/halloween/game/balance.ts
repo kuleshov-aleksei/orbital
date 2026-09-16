@@ -137,27 +137,31 @@ export type CardDefinition =
       abilityId: AbilityId
     }
 
+// RandomFn is an injectable RNG so headless balance sims can be seeded.
+// Game code defaults to Math.random — behavior is unchanged there.
+export type RandomFn = () => number
+
 // Each post-round popup offers: 1 pumpkin card, 1 ability card, 1 random card.
-export function buildCardOffer(): CardDefinition[] {
+export function buildCardOffer(rng: RandomFn = Math.random): CardDefinition[] {
   const pumpkin: CardDefinition = {
     kind: "pumpkin",
-    pumpkinType: ALL_PUMPKIN_TYPES[Math.floor(Math.random() * ALL_PUMPKIN_TYPES.length)],
+    pumpkinType: ALL_PUMPKIN_TYPES[Math.floor(rng() * ALL_PUMPKIN_TYPES.length)],
   }
   const ability: CardDefinition = {
     kind: "ability",
-    abilityId: ALL_ABILITY_IDS[Math.floor(Math.random() * ALL_ABILITY_IDS.length)],
+    abilityId: ALL_ABILITY_IDS[Math.floor(rng() * ALL_ABILITY_IDS.length)],
   }
   const random: CardDefinition =
-    Math.random() < 0.5
+    rng() < 0.5
       ? {
           kind: "pumpkin",
-          pumpkinType: ALL_PUMPKIN_TYPES[Math.floor(Math.random() * ALL_PUMPKIN_TYPES.length)],
+          pumpkinType: ALL_PUMPKIN_TYPES[Math.floor(rng() * ALL_PUMPKIN_TYPES.length)],
         }
       : {
           kind: "ability",
-          abilityId: ALL_ABILITY_IDS[Math.floor(Math.random() * ALL_ABILITY_IDS.length)],
+          abilityId: ALL_ABILITY_IDS[Math.floor(rng() * ALL_ABILITY_IDS.length)],
         }
-  return [pumpkin, ability, random].sort(() => Math.random() - 0.5)
+  return [pumpkin, ability, random].sort(() => rng() - 0.5)
 }
 
 export const INVENTORY_CAPACITY = 6
