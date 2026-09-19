@@ -35,10 +35,12 @@ import { useSounds } from "@/services/sounds"
 interface Props {
   modelValue: boolean
   size?: "sm" | "md" | "lg"
+  corner?: "all" | "left" | "right"
 }
 
 const props = withDefaults(defineProps<Props>(), {
   size: "md",
+  corner: "all",
 })
 
 const emit = defineEmits<{
@@ -72,13 +74,25 @@ const isCameraEnabled = computed({
   },
 })
 
+// Corner radius classes (for split-button look with the switch-camera button)
+const cornerClasses = computed(() => {
+  switch (props.corner) {
+    case "left":
+      return "rounded-l-lg"
+    case "right":
+      return "rounded-r-lg"
+    default:
+      return "rounded-lg"
+  }
+})
+
 // Size classes based on prop
 const sizeClasses = computed(() => {
   switch (props.size) {
     case "sm":
-      return "w-9 h-9 rounded-lg"
+      return `w-9 h-9 ${cornerClasses.value}`
     case "lg":
-      return "h-10 w-14 rounded-lg"
+      return `h-10 w-14 ${cornerClasses.value}`
     case "md":
     default:
       return "w-10 h-10 rounded-full"

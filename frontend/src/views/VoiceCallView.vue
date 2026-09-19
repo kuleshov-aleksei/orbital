@@ -117,6 +117,7 @@
             :is-mobile="isMobile"
             @start-screen-share="$emit('request-screen-share')"
             @toggle-camera="handleCameraToggle"
+            @flip-camera="handleFlipCamera"
             @auth-required="$emit('show-room-list')"
             @leave-room="$emit('leave-room')" />
         </div>
@@ -297,6 +298,7 @@ const {
   stopScreenShare,
   startCamera,
   stopCamera,
+  flipCamera,
   applyMuteState,
   applyDeafenState,
   reinitializeAudioStream,
@@ -669,6 +671,15 @@ const handleCameraToggle = async (enabled: boolean) => {
     }
   } catch (error) {
     console.error("Failed to toggle camera:", error)
+  }
+}
+
+// Handle camera flip from AudioControls (switch to next available camera)
+const handleFlipCamera = async () => {
+  try {
+    await flipCamera()
+  } catch (error) {
+    console.error("Failed to flip camera:", error)
   }
 }
 

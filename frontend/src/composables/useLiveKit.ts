@@ -86,6 +86,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     startCamera: camera.startCamera,
     stopCamera: camera.stopCamera,
     toggleCamera: camera.toggleCamera,
+    flipCamera: camera.flipCamera,
     applyMuteState: audio.applyMuteState,
     applyDeafenState: audio.applyDeafenState,
     reinitializeAudioStream: audio.reinitializeAudioStream,

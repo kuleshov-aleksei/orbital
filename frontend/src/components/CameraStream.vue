@@ -86,6 +86,7 @@ import { PhArrowsOut, PhArrowsIn, PhPictureInPicture, PhSpinner } from "@phospho
 import type { RemoteVideoTrack, LocalVideoTrack } from "livekit-client"
 import UserAvatar from "@/components/UserAvatar.vue"
 import { useVideoSettingsStore } from "@/stores"
+import { isRearCamera } from "@/utils/camera"
 
 interface Props {
   userId: string
@@ -119,7 +120,7 @@ const videoHeight = ref(720)
 const videoSettingsStore = useVideoSettingsStore()
 
 const shouldMirror = computed(() => {
-  return props.isSelfView && videoSettingsStore.isMirrored
+  return props.isSelfView && videoSettingsStore.isMirrored && !isRearCamera(props.videoTrack)
 })
 
 const showControls = computed(() => props.showFullscreenButton || props.showPipButton)
