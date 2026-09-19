@@ -123,6 +123,7 @@
             :is-mobile="isMobile"
             @start-screen-share="$emit('request-screen-share')"
             @toggle-camera="handleCameraToggle"
+            @flip-camera="handleFlipCamera"
             @auth-required="$emit('show-room-list')"
             @leave-room="$emit('leave-room')" />
         </div>
@@ -304,6 +305,7 @@ const {
   stopScreenShare,
   startCamera,
   stopCamera,
+  flipCamera,
   applyMuteState,
   applyDeafenState,
   reinitializeAudioStream,
@@ -644,18 +646,23 @@ watch(
   },
 )
 
+// Confirm screen share start through AudioControls (plays sound, syncs store state)
+const confirmAudioControlsScreenShare = async () => {
+  const audioControls = audioControlsRef.value as unknown as {
+    confirmStartScreenShare?: () => Promise<void>
+  } | null
+  if (audioControls?.confirmStartScreenShare) {
+    await audioControls.confirmStartScreenShare()
+  }
+}
+
 // Start screen share wrapper - called by parent (AppLayout)
 const startScreenShareWithQuality = async (quality: string) => {
   try {
     // Start the actual LiveKit screen share
     await startScreenShare(quality as ScreenShareQuality)
     // Tell AudioControls to update state and send WebSocket message
-    const audioControls = audioControlsRef.value as unknown as {
-      confirmStartScreenShare?: () => Promise<void>
-    } | null
-    if (audioControls?.confirmStartScreenShare) {
-      await audioControls.confirmStartScreenShare()
-    }
+    await confirmAudioControlsScreenShare()
   } catch (error) {
     console.error("Failed to start screen share:", error)
   }
@@ -674,6 +681,15 @@ const handleCameraToggle = async (enabled: boolean) => {
   }
 }
 
+// Handle camera flip from AudioControls (switch to next available camera)
+const handleFlipCamera = async () => {
+  try {
+    await flipCamera()
+  } catch (error) {
+    console.error("Failed to flip camera:", error)
+  }
+}
+
 // Expose methods to parent component
 const startElectronScreenShareWithQuality = async (
   quality: string,
@@ -683,6 +699,8 @@ const startElectronScreenShareWithQuality = async (
 ) => {
   try {
     await startElectronScreenShare(quality as ScreenShareQuality, audio, sourceId, audioSources)
+    // Follow the same unified flow as web start: plays sound and syncs store state
+    await confirmAudioControlsScreenShare()
   } catch (error) {
     console.error("Failed to start Electron screen share:", error)
   }

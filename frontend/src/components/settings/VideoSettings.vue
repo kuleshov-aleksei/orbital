@@ -60,7 +60,7 @@
           playsinline
           muted
           class="w-full h-full object-cover"
-          :class="{ 'scale-x-[-1]': isMirrored }" />
+          :class="{ 'scale-x-[-1]': previewShouldMirror }" />
 
         <div
           v-if="!isPreviewActive"
@@ -99,10 +99,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, useTemplateRef } from "vue"
+import { ref, computed, onMounted, onUnmounted, watch, useTemplateRef } from "vue"
 import { useVideoSettingsStore } from "@/stores"
 import { useModalStore } from "@/stores/modal"
 import { PhCamera, PhArrowCounterClockwise } from "@phosphor-icons/vue"
+import { isRearCamera } from "@/utils/camera"
 
 defineProps<{
   hideHeader?: boolean
@@ -119,6 +120,8 @@ const previewStream = ref<MediaStream | null>(null)
 const previewTrack = ref<MediaStreamTrack | null>(null)
 
 const availableDevices = ref<{ deviceId: string; label: string }[]>([])
+
+const previewShouldMirror = computed(() => isMirrored.value && !isRearCamera(previewTrack.value))
 
 async function loadDevices() {
   const devices = await videoStore.requestPermissionsAndEnumerate()

@@ -145,6 +145,33 @@ export function useLiveKitCamera(state: LiveKitState) {
     }
   }
 
+  const flipCamera = async (): Promise<void> => {
+    const devices = videoSettingsStore.availableDevices.filter((d) => d.deviceId)
+    if (devices.length < 2) {
+      return
+    }
+
+    let currentDeviceId: string | undefined
+    try {
+      currentDeviceId =
+        state.localCameraTrack.value?.mediaStreamTrack.getSettings().deviceId ||
+        videoSettingsStore.selectedDeviceId ||
+        undefined
+    } catch {
+      currentDeviceId = videoSettingsStore.selectedDeviceId || undefined
+    }
+
+    const currentIndex = devices.findIndex((d) => d.deviceId === currentDeviceId)
+    const nextDevice = devices[(currentIndex + 1) % devices.length]
+
+    videoSettingsStore.setSelectedDeviceId(nextDevice.deviceId)
+
+    if (state.isCameraEnabled.value) {
+      await stopCamera()
+      await startCamera()
+    }
+  }
+
   const cameraData = computed(() => {
     void state.cameraVersion.value
     const currentUserId = state.getCurrentUserId()
@@ -187,6 +214,7 @@ export function useLiveKitCamera(state: LiveKitState) {
     startCamera,
     stopCamera,
     toggleCamera,
+    flipCamera,
     cameraData,
   }
 }

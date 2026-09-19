@@ -15,11 +15,22 @@
     <div
       v-if="!isSpatialRoom"
       class="flex items-center gap-1.5 p-1.5 rounded-xl bg-theme-bg-secondary">
-      <CameraButton
-        v-model="isCameraEnabled"
-        size="lg"
-        @toggle-camera="$emit('toggle-camera', $event)"
-        @auth-required="$emit('auth-required')" />
+      <div class="flex items-center">
+        <CameraButton
+          v-model="isCameraEnabled"
+          size="lg"
+          :corner="hasMultipleCameras ? 'left' : 'all'"
+          @toggle-camera="$emit('toggle-camera', $event)"
+          @auth-required="$emit('auth-required')" />
+        <button
+          v-if="hasMultipleCameras"
+          type="button"
+          class="h-10 w-6 rounded-r-lg flex items-center justify-center transition-colors cursor-pointer bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary"
+          title="Switch Camera"
+          @click="handleFlipCamera">
+          <PhArrowsClockwise class="w-4 h-4 pointer-events-none" />
+        </button>
+      </div>
       <ScreenShareButton
         ref="screenShareButtonRef"
         v-model="isScreenSharing"
@@ -60,14 +71,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, useTemplateRef } from "vue"
-import { PhSignOut, PhGearSix, PhImageBroken } from "@phosphor-icons/vue"
+import { computed, onMounted, onUnmounted, useTemplateRef } from "vue"
+import { PhSignOut, PhGearSix, PhImageBroken, PhArrowsClockwise } from "@phosphor-icons/vue"
 import MicMuteButton from "@/components/MicMuteButton.vue"
 import AudioDeafenButton from "@/components/AudioDeafenButton.vue"
 import ScreenShareButton from "@/components/ScreenShareButton.vue"
 import CameraButton from "@/components/CameraButton.vue"
 import AudioControlsDropdown from "@/components/AudioControlsDropdown.vue"
-import { useModalStore, useCallStore, useRoomStore } from "@/stores"
+import { useModalStore, useCallStore, useRoomStore, useVideoSettingsStore } from "@/stores"
 
 interface Props {
   modelValueMuted?: boolean
@@ -92,6 +103,7 @@ const emit = defineEmits<{
   "update:modelValueCameraEnabled": [value: boolean]
   "start-screen-share": []
   "toggle-camera": [enabled: boolean]
+  "flip-camera": []
   "auth-required": []
   "leave-room": []
 }>()
@@ -104,6 +116,33 @@ const screenShareButtonRef =
 const modalStore = useModalStore()
 const callStore = useCallStore()
 const roomStore = useRoomStore()
+const videoSettingsStore = useVideoSettingsStore()
+
+// Whether room is spatial (hide camera/screenshare)
+const isSpatialRoom = computed(() => roomStore.activeRoom?.type === "spatial_audio")
+
+// Show the switch-camera button only when more than one camera is available
+const hasMultipleCameras = computed(() => videoSettingsStore.availableDevices.length > 1)
+
+const refreshCameras = async () => {
+  await videoSettingsStore.enumerateDevices()
+}
+
+const handleFlipCamera = async () => {
+  await refreshCameras()
+  emit("flip-camera")
+}
+
+onMounted(async () => {
+  if (!isSpatialRoom.value) {
+    await refreshCameras()
+    navigator.mediaDevices?.addEventListener("devicechange", refreshCameras)
+  }
+})
+
+onUnmounted(() => {
+  navigator.mediaDevices?.removeEventListener("devicechange", refreshCameras)
+})
 
 // Methods
 const openSettings = () => {
@@ -113,9 +152,6 @@ const openSettings = () => {
 const handleLeaveRoom = () => {
   emit("leave-room")
 }
-
-// Whether room is spatial (hide camera/screenshare)
-const isSpatialRoom = computed(() => roomStore.activeRoom?.type === "spatial_audio")
 
 // Computed v-model bindings
 const isMuted = computed({
