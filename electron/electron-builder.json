@@ -73,6 +73,7 @@
     "icon": "build/orbital-icon.png",
     "artifactName": "${productName}-${version}.${ext}",
     "maintainer": "orbital@encamy.com",
+    "syncDesktopName": true,
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
