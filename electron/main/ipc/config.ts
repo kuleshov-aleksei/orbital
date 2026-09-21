@@ -1,5 +1,6 @@
 import { ipcMain } from "electron"
 import log from "electron-log"
+import { isWayland } from "../platform"
 import {
   getConfig,
   setCloseToTray,
@@ -34,15 +35,26 @@ export function registerConfigIpc() {
     log.info("[IPC] set-hotkeys called:", JSON.stringify(hotkeys))
     try {
       setHotkeys(hotkeys)
-      registerAllHotkeys()
+      // On Wayland the GlobalShortcuts portal is consent-gated: kglobalacceld owns
+      // the binding after the "Global Shortcut Requested" dialog, so live re-registration
+      // tears down the session against a binding the DE still holds, leaving stale or
+      // broken shortcuts. Persist only and require a restart on Wayland.
+      if (!isWayland) {
+        registerAllHotkeys()
+      }
+      return { requiresRestart: isWayland }
     } catch (e) {
       log.error("[IPC] set-hotkeys error:", e)
+      return { requiresRestart: false }
     }
   })
 
   ipcMain.handle("reset-hotkeys", () => {
     resetHotkeys()
-    registerAllHotkeys()
+    if (!isWayland) {
+      registerAllHotkeys()
+    }
+    return { requiresRestart: isWayland }
   })
 
   ipcMain.handle("pause-hotkeys", () => {

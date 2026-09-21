@@ -185,13 +185,13 @@ export async function getHotkeys(): Promise<HotkeysConfig | null> {
   return window.electronAPI!.getHotkeys()
 }
 
-export async function setHotkeys(hotkeys: HotkeysConfig): Promise<void> {
-  if (!isElectron()) return
+export async function setHotkeys(hotkeys: HotkeysConfig): Promise<{ requiresRestart: boolean }> {
+  if (!isElectron()) return { requiresRestart: false }
   return window.electronAPI!.setHotkeys(hotkeys)
 }
 
-export async function resetHotkeys(): Promise<void> {
-  if (!isElectron()) return
+export async function resetHotkeys(): Promise<{ requiresRestart: boolean }> {
+  if (!isElectron()) return { requiresRestart: false }
   return window.electronAPI!.resetHotkeys()
 }
 
