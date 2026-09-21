@@ -9,6 +9,7 @@ import { dotaSprites } from "@/services/sprites/dota"
 import { destinySprites } from "@/services/sprites/destiny"
 import { resolveUrl } from "@/services/api"
 import { isElectron } from "@/services/electron"
+import { useCallStore } from "@/stores/call"
 
 const version = typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : ""
 
@@ -195,6 +196,8 @@ export function playLocalSound(event: SoundEvent): void {
 }
 
 export function playRemoteSound(event: SoundEvent, remoteUserSoundPack: string): void {
+  // When deafened, silence all remote presence sounds (mute/deafen, join/leave, camera, etc.)
+  if (useCallStore().isDeafened) return
   playSoundById(remoteUserSoundPack, event)
 }
 
