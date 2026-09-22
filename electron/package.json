@@ -9,7 +9,7 @@
   },
   "license": "MIT",
   "homepage": "https://github.com/kuleshov-aleksei/orbital",
-  "desktopName": "orbital",
+  "desktopName": "com.orbital.app",
   "debug": {
     "env": {
       "VITE_DEV_SERVER_URL": "http://localhost:3001"
@@ -29,13 +29,13 @@
   "dependencies": {
     "@phosphor-icons/vue": "^2.2.1",
     "chart.js": "^4.5.1",
-    "chartjs-chart-sankey": "^0.15.3",
+    "chartjs-chart-sankey": "^0.19.1",
     "dompurify": "^3.4.15",
     "electron-log": "^5.4.4",
     "electron-updater": "^6.8.9",
     "fflate": "^0.8.3",
     "livekit-client": "^2.22.3",
-    "marked": "^18.0.12",
+    "marked": "^18.0.13",
     "pinia": "^4.0.3",
     "pixi.js": "^8.20.1",
     "vue": "^3.5.42",
@@ -46,16 +46,17 @@
     "vue-virtual-scroller": "^3.0.5"
   },
   "optionalDependencies": {
-    "@vencord/venmic": "^7.2.3"
+    "@vencord/venmic": "^7.2.3",
+    "dbus-native": "^0.15.2"
   },
   "devDependencies": {
     "@iconify-json/logos": "^1.2.14",
-    "@iconify-json/simple-icons": "^1.2.95",
+    "@iconify-json/simple-icons": "^1.2.96",
     "@tailwindcss/postcss": "^4.3.3",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^25.9.6",
-    "@vitejs/plugin-vue": "^6.0.8",
-    "autoprefixer": "^10.5.6",
+    "@vitejs/plugin-vue": "^6.0.9",
+    "autoprefixer": "^10.6.0",
     "electron": "^44.3.0",
     "electron-builder": "^26.15.3",
     "esbuild": "^0.28.2",

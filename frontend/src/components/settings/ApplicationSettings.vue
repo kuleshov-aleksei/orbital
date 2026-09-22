@@ -136,6 +136,7 @@ import {
   pauseHotkeys,
   resumeHotkeys,
   getIsWayland,
+  getHotkeyBackend,
   type HotkeysConfig,
 } from "@/services/electron"
 import { PhMonitor, PhWarning } from "@phosphor-icons/vue"
@@ -152,6 +153,7 @@ const hotkeys = computed(() => appSettingsStore.hotkeys)
 const hasCustomHotkeys = computed(() => appSettingsStore.hasCustomHotkeys)
 const isWayland = ref(false)
 const showWaylandNotice = ref(false)
+const hotkeyBackend = ref("")
 
 const defaultHotkeys: HotkeysConfig = {
   mute: { enabled: true, accelerator: "CommandOrControl+M" },
@@ -162,12 +164,16 @@ const defaultHotkeys: HotkeysConfig = {
 onMounted(async () => {
   if (isElectron()) {
     isWayland.value = await getIsWayland()
+    hotkeyBackend.value = await getHotkeyBackend()
 
-    if (isWayland.value) {
-      showWaylandNotice.value = true
-    } else {
+    // The portal backend (e.g. GNOME Wayland) can't re-register hotkeys live,
+    // so changes need an app restart there. KGlobalAccel (KDE) and native
+    // backends re-register instantly — pause while capturing instead.
+    if (hotkeyBackend.value !== "portal") {
       await pauseHotkeys()
     }
+
+    showWaylandNotice.value = isWayland.value && hotkeyBackend.value === "portal"
 
     const mainCloseToTray = await getCloseToTray()
     const mainHasSelected = await hasSelectedCloseBehavior()
@@ -185,7 +191,7 @@ onMounted(async () => {
 })
 
 onUnmounted(async () => {
-  if (isElectron() && !isWayland.value) {
+  if (isElectron() && hotkeyBackend.value !== "portal") {
     await resumeHotkeys()
   }
 })

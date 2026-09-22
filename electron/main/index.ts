@@ -11,7 +11,7 @@ import { createTray } from "./features/tray"
 import { setupDeepLink } from "./features/deeplink"
 import { setupAutoUpdater } from "./features/update"
 import { setupScreenShareHandler } from "./features/screenshare"
-import { registerAllHotkeys } from "./features/hotkeys"
+import { registerAllHotkeys, closeHotkeyBackend } from "./features/hotkeys"
 import { setupIPC } from "./ipc"
 
 log.transports.file.level = "info"
@@ -88,6 +88,7 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   setIsQuitting(true)
+  closeHotkeyBackend()
 })
 
 process.on("uncaughtException", (error) => {

@@ -46,7 +46,8 @@
     "files": [
       "!dist/venmic-x64.node",
       "!dist/venmic-arm64.node",
-      "!**/node_modules/@vencord/venmic/**/*"
+      "!**/node_modules/@vencord/venmic/**/*",
+      "!**/node_modules/dbus-native/**/*"
     ],
     "asarUnpack": [
       "node_modules/electron-updater/**/*"
@@ -73,6 +74,7 @@
     "icon": "build/orbital-icon.png",
     "artifactName": "${productName}-${version}.${ext}",
     "maintainer": "orbital@encamy.com",
+    "syncDesktopName": true,
     "files": [
       "dist/**/*",
       "dist-electron/**/*",

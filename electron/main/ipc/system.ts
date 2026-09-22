@@ -5,10 +5,15 @@ import os from "node:os"
 import log from "electron-log"
 import { __dirname, VITE_DEV_SERVER_URL } from "../paths"
 import { isWayland } from "../platform"
+import { getHotkeyBackend } from "../features/hotkeys"
 
 export function registerSystemIpc() {
   ipcMain.handle("get-platform", () => {
     return process.platform
+  })
+
+  ipcMain.handle("get-hotkey-backend", () => {
+    return getHotkeyBackend()
   })
 
   ipcMain.handle("get-system-info", () => {
