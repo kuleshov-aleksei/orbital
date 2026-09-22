@@ -12,7 +12,6 @@ import { setupDeepLink } from "./features/deeplink"
 import { setupAutoUpdater } from "./features/update"
 import { setupScreenShareHandler } from "./features/screenshare"
 import { registerAllHotkeys } from "./features/hotkeys"
-import { ensureLinuxDesktopEntry } from "./features/desktopEntry"
 import { setupIPC } from "./ipc"
 
 log.transports.file.level = "info"
@@ -66,7 +65,6 @@ app.whenReady().then(() => {
   createTray()
   setupDeepLink()
   setupIPC()
-  ensureLinuxDesktopEntry()
   registerAllHotkeys()
   if (!getConfig().skipUpdates) {
     setupAutoUpdater()
