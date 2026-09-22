@@ -130,8 +130,18 @@ export class HeuristicPolicy implements Policy {
   private placeAll(engine: HalloweenGameEngine): void {
     // NOTE: the engine always places the FIRST pumpkin-kind inventory item,
     // so cell choice is driven by that item's type.
+    // Round-1 reserve: 3 Ferdinands (one per open lane) clear round 1 on
+    // their own, and lanes 1/5 don't even unlock until round 2. So hold
+    // everything past one-body-per-open-lane in the pocket — the moment
+    // round 2 starts, coverage-first placement drops the reserves exactly
+    // onto the two fresh lanes with zero bare-lane leak window.
+    const round1 = engine.snapshot().round <= 1
+    const maxField = engine.activeLanes().length
+    let placed = 0
     // eslint-disable-next-line no-constant-condition
     while (true) {
+      // Round-1 reserve (see above); replacements still allowed up to the cap.
+      if (round1 && engine.alivePumpkinCount() + placed >= maxField) break
       const first = engine.inventory.find((i) => i.kind === "pumpkin")
       if (!first || first.kind !== "pumpkin") break
       const cell = this.cellFor(engine, first.pumpkinType)
@@ -141,6 +151,7 @@ export class HeuristicPolicy implements Policy {
       if (engine.mode !== "place-pumpkin") break
       engine.onWorldClick(columnX(cell.col), laneCenterY(cell.lane))
       if (currentMode(engine) !== "none") break // occupied (stale view) — retry next act
+      placed++
     }
   }
 
