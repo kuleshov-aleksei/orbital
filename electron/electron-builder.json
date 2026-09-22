@@ -46,7 +46,8 @@
     "files": [
       "!dist/venmic-x64.node",
       "!dist/venmic-arm64.node",
-      "!**/node_modules/@vencord/venmic/**/*"
+      "!**/node_modules/@vencord/venmic/**/*",
+      "!**/node_modules/dbus-native/**/*"
     ],
     "asarUnpack": [
       "node_modules/electron-updater/**/*"

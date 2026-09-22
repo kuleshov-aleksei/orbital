@@ -387,7 +387,7 @@ Unfortunately, I do not have a large team that can develop custom DLL injection 
 
 ## Global hotkeys (Linux + Wayland + KDE Plasma)
 
-For some reason, electron fails to unregister global hotkeys on wayland DE. So if you change hotkeys, you may need to clear old hotkeys manually in Settings > Keyboard > Shortcuts > Orbital
+Electron's global shortcuts are a joke on Wayland - change a hotkey and the old grab stays registered with the compositor forever. So on KDE/Plasma, Orbital doesn't trust them. It talks to kglobalacceld directly over D-Bus instead: the app registers its hotkeys with the global shortcuts daemon under the `com.orbital.app` component, the compositor does the actual grabbing, and the daemon notifies the app when a hotkey is pressed. The daemon persists the bindings, so they survive app relaunches and reboots. Edit them in System Settings > Keyboard > Shortcuts and Orbital syncs your changes back automatically. Non-KDE Wayland desktops fall back to the desktop portal; everywhere else, Electron's own shortcuts.
 
 # Building on Windows
 

@@ -523,11 +523,12 @@ export interface ElectronAPI {
   setHasSelectedCloseBehavior: (value: boolean) => Promise<void>
   showCloseDialog: () => Promise<boolean>
   getHotkeys: () => Promise<HotkeysConfig>
-  setHotkeys: (hotkeys: HotkeysConfig) => Promise<void>
-  resetHotkeys: () => Promise<void>
+  setHotkeys: (hotkeys: HotkeysConfig) => Promise<{ requiresRestart: boolean }>
+  resetHotkeys: () => Promise<{ requiresRestart: boolean }>
   onHotkeyTriggered: (callback: (action: string) => void) => void
   pauseHotkeys: () => Promise<{ requiresRestart: boolean }>
   resumeHotkeys: () => Promise<{ requiresRestart: boolean }>
+  getHotkeyBackend: () => Promise<string>
   getIsWayland: () => Promise<boolean>
   setThumbarButtons: (state: { isMuted: boolean; isDeafened: boolean } | null) => Promise<boolean>
   onThumbarButtonClick: (callback: (action: string) => void) => void

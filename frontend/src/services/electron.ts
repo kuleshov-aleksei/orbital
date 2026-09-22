@@ -211,6 +211,11 @@ export async function resumeHotkeys(): Promise<{ requiresRestart: boolean }> {
   return window.electronAPI!.resumeHotkeys()
 }
 
+export async function getHotkeyBackend(): Promise<string> {
+  if (!isElectron()) return "portal"
+  return window.electronAPI!.getHotkeyBackend()
+}
+
 export async function getIsWayland(): Promise<boolean> {
   if (!isElectron()) return false
   return window.electronAPI!.getIsWayland()

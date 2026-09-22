@@ -1,7 +1,18 @@
 import { globalShortcut } from "electron"
 import log from "electron-log"
+import { isWayland } from "../platform"
 import { getMainWindow } from "../state"
 import { getConfig } from "./config"
+import {
+  initKdeHotkeys,
+  registerKdeHotkeys,
+  unregisterKdeHotkeys,
+  closeKdeHotkeys,
+} from "./hotkeysLinux"
+
+export type HotkeyBackend = "kglobalaccel" | "portal" | "electron"
+
+let backendPromise: Promise<HotkeyBackend> | null = null
 
 let registeredAccelerators: {
   mute: string | null
@@ -15,7 +26,26 @@ let registeredAccelerators: {
 
 let hotkeysPaused = false
 
-export function registerAllHotkeys() {
+function resolveBackend(): Promise<HotkeyBackend> {
+  if (!backendPromise) {
+    backendPromise = initKdeHotkeys().then((active) => {
+      if (active) {
+        log.info("[Hotkey] Backend: kglobalaccel (D-Bus)")
+        return "kglobalaccel" as const
+      }
+      const backend: HotkeyBackend = isWayland ? "portal" : "electron"
+      log.info("[Hotkey] Backend:", backend)
+      return backend
+    })
+  }
+  return backendPromise
+}
+
+export function getHotkeyBackend(): Promise<HotkeyBackend> {
+  return resolveBackend()
+}
+
+function registerElectronHotkeys() {
   globalShortcut.unregisterAll()
   registeredAccelerators = { mute: null, deafen: null, ptt: null }
 
@@ -79,22 +109,45 @@ export function registerAllHotkeys() {
   }
 }
 
-export function unregisterAllHotkeys() {
+export async function registerAllHotkeys(): Promise<void> {
+  const backend = await resolveBackend()
+  if (backend === "kglobalaccel") {
+    await registerKdeHotkeys()
+    return
+  }
+  registerElectronHotkeys()
+}
+
+export async function unregisterAllHotkeys(): Promise<void> {
+  const backend = await resolveBackend()
+  if (backend === "kglobalaccel") {
+    await unregisterKdeHotkeys()
+    return
+  }
   globalShortcut.unregisterAll()
   registeredAccelerators = { mute: null, deafen: null, ptt: null }
   log.info("[Hotkey] Unregistered all hotkeys")
 }
 
-export function pauseHotkeys(): boolean {
-  unregisterAllHotkeys()
+export async function pauseHotkeys(): Promise<boolean> {
+  await unregisterAllHotkeys()
   hotkeysPaused = true
   log.info("[Hotkey] Hotkeys paused")
   return true
 }
 
-export function resumeHotkeys(): boolean {
+export async function resumeHotkeys(): Promise<boolean> {
   hotkeysPaused = false
-  registerAllHotkeys()
+  await registerAllHotkeys()
   log.info("[Hotkey] Hotkeys resumed")
   return true
+}
+
+export function closeHotkeyBackend(): void {
+  if (!backendPromise) return
+  void backendPromise.then((backend) => {
+    if (backend === "kglobalaccel") {
+      closeKdeHotkeys()
+    }
+  })
 }

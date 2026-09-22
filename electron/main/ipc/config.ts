@@ -8,7 +8,7 @@ import {
   setHotkeys,
   resetHotkeys,
 } from "../features/config"
-import { registerAllHotkeys, pauseHotkeys, resumeHotkeys } from "../features/hotkeys"
+import { registerAllHotkeys, pauseHotkeys, resumeHotkeys, getHotkeyBackend } from "../features/hotkeys"
 
 export function registerConfigIpc() {
   ipcMain.handle("get-close-to-tray", () => {
@@ -31,16 +31,23 @@ export function registerConfigIpc() {
     return getConfig().hotkeys
   })
 
-  ipcMain.handle("set-hotkeys", (_, hotkeys: ReturnType<typeof getConfig>["hotkeys"]) => {
+  ipcMain.handle("set-hotkeys", async (_, hotkeys: ReturnType<typeof getConfig>["hotkeys"]) => {
     log.info("[IPC] set-hotkeys called:", JSON.stringify(hotkeys))
     try {
       setHotkeys(hotkeys)
-      // On Wayland the GlobalShortcuts portal is consent-gated: kglobalacceld owns
-      // the binding after the "Global Shortcut Requested" dialog, so live re-registration
-      // tears down the session against a binding the DE still holds, leaving stale or
-      // broken shortcuts. Persist only and require a restart on Wayland.
+      // On KDE/Plasma we register with kglobalaccel directly over D-Bus, which
+      // re-registers live — no restart needed. On other Wayland desktops the
+      // GlobalShortcuts portal is consent-gated: kglobalacceld owns the
+      // binding after the "Global Shortcut Requested" dialog, so live
+      // re-registration tears down the session against a binding the DE still
+      // holds, leaving stale or broken shortcuts. Persist only and require a
+      // restart there.
+      if (await getHotkeyBackend() === "kglobalaccel") {
+        await registerAllHotkeys()
+        return { requiresRestart: false }
+      }
       if (!isWayland) {
-        registerAllHotkeys()
+        await registerAllHotkeys()
       }
       return { requiresRestart: isWayland }
     } catch (e) {
@@ -49,21 +56,25 @@ export function registerConfigIpc() {
     }
   })
 
-  ipcMain.handle("reset-hotkeys", () => {
+  ipcMain.handle("reset-hotkeys", async () => {
     resetHotkeys()
+    if (await getHotkeyBackend() === "kglobalaccel") {
+      await registerAllHotkeys()
+      return { requiresRestart: false }
+    }
     if (!isWayland) {
-      registerAllHotkeys()
+      await registerAllHotkeys()
     }
     return { requiresRestart: isWayland }
   })
 
-  ipcMain.handle("pause-hotkeys", () => {
-    pauseHotkeys()
+  ipcMain.handle("pause-hotkeys", async () => {
+    await pauseHotkeys()
     return { requiresRestart: false }
   })
 
-  ipcMain.handle("resume-hotkeys", () => {
-    resumeHotkeys()
+  ipcMain.handle("resume-hotkeys", async () => {
+    await resumeHotkeys()
     return { requiresRestart: false }
   })
 }

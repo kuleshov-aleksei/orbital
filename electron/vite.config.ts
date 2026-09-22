@@ -87,8 +87,11 @@ export default defineConfig(({ command, mode }) => {
               sourcemap,
               minify: isBuild,
               outDir: resolve(electronPath, "dist-electron/main"),
-              rollupOptions: {
-                external: [],
+              rolldownOptions: {
+                // dbus-native is loaded lazily at runtime, only on Linux.
+                // Keeping it external means it is never bundled into the main
+                // process output, so Windows/macOS builds cannot ship it.
+                external: ["dbus-native"],
               },
             },
             define: {
