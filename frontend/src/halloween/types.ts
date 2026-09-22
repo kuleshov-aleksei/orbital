@@ -83,6 +83,7 @@ export interface HalloweenPumpkinConfig {
   cost: number
   coin_interval_s: number // seconds per coin tick (cramer)
   coins_per_tick: number // seeds produced per tick (cramer)
+  draft_only?: boolean // true: card-exclusive, never sold in the shop (silas)
 }
 
 // HalloweenSlugConfig mirrors the slug balance table.
@@ -119,6 +120,7 @@ export interface HalloweenSpawnRoundConfig {
   interval: number // seconds between spawns
   pool: Record<string, number> // scout | marvin | gerald | dell
   speed_variation: number // e.g. 0.01 = +-1%
+  shielded: number // slugs arriving with shields (0 = R1 innocence)
 }
 
 // HalloweenSpawnScalingConfig generates endless-round spawn tables.
@@ -131,6 +133,7 @@ export interface HalloweenSpawnScalingConfig {
   gerald_sqrt: number
   dell_sqrt: number
   speed_variation: number
+  shield_per_round: number // shielded slugs per round beyond explicit tables
 }
 
 // HalloweenGameConfig is the server-authoritative balance payload.
@@ -149,6 +152,10 @@ export interface HalloweenGameConfig {
   rewards_per_round: Record<number, number>
   spawn_rounds?: HalloweenSpawnRoundConfig[]
   spawn_scaling?: HalloweenSpawnScalingConfig
+  // Per-round slug HP multiplier base: HP *= growth^(round-1). Absent = 1 (flat).
+  slug_hp_growth?: number
+  shield_min: number // shields rolled by a shielded slug (min)
+  shield_max: number // shields rolled by a shielded slug (max)
 }
 
 // PumpkinDisplay is the view model used by the pumpkin strip: a user with

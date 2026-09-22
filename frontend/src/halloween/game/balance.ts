@@ -8,13 +8,14 @@ import type { HalloweenGameConfig } from "../types"
 export interface RoundSpawnTable {
   interval: number // seconds between spawns
   pool: Record<SlugType, number> // ceil() applied for round 5+ fractions
+  shielded: number // how many slugs arrive with shields (3-6 each)
 }
 
 export const ROUND_SPAWN_TABLES: Record<number, RoundSpawnTable> = {
-  1: { interval: 7, pool: { scout: 10, marvin: 2, gerald: 0, dell: 0 } },
-  2: { interval: 7, pool: { scout: 16, marvin: 8, gerald: 1, dell: 0 } },
-  3: { interval: 5, pool: { scout: 16, marvin: 8, gerald: 0, dell: 1 } },
-  4: { interval: 4, pool: { scout: 24, marvin: 8, gerald: 3, dell: 2 } },
+  1: { interval: 7, pool: { scout: 10, marvin: 2, gerald: 0, dell: 0 }, shielded: 0 },
+  2: { interval: 7, pool: { scout: 16, marvin: 8, gerald: 1, dell: 0 }, shielded: 0 },
+  3: { interval: 5, pool: { scout: 16, marvin: 8, gerald: 0, dell: 1 }, shielded: 0 },
+  4: { interval: 4, pool: { scout: 24, marvin: 8, gerald: 3, dell: 2 }, shielded: 0 },
 }
 
 // Deprecated: use resolveSpawnTable(round, config) so spawns are configurable.
@@ -30,6 +31,7 @@ export function spawnTableForRound(round: number): RoundSpawnTable {
       gerald: Math.ceil(Math.sqrt(n)),
       dell: Math.ceil(Math.sqrt(n)),
     },
+    shielded: 0,
   }
 }
 
@@ -50,6 +52,7 @@ export function resolveSpawnTable(round: number, config?: SpawnConfig): RoundSpa
           gerald: entry.pool["gerald"] ?? 0,
           dell: entry.pool["dell"] ?? 0,
         },
+        shielded: entry.shielded ?? 0,
       }
     }
     const scaling = config?.spawn_scaling
@@ -63,6 +66,7 @@ export function resolveSpawnTable(round: number, config?: SpawnConfig): RoundSpa
           gerald: Math.ceil(Math.sqrt(n) * scaling.gerald_sqrt),
           dell: Math.ceil(Math.sqrt(n) * scaling.dell_sqrt),
         },
+        shielded: Math.ceil(n * (scaling.shield_per_round ?? 0)),
       }
     }
   }
@@ -87,6 +91,7 @@ const VALID_STARTING_PUMPKINS: PumpkinType[] = [
   "herbert",
   "gwynevere",
   "cramer",
+  // No silas. Draft-only means draft-only. Read the card.
 ]
 
 // startingPumpkinsForConfig returns the configured starting inventory,
@@ -108,6 +113,7 @@ export const ALL_PUMPKIN_TYPES: PumpkinType[] = [
   "herbert",
   "gwynevere",
   "cramer",
+  "silas",
 ]
 
 export interface PumpkinMeta {
@@ -136,6 +142,11 @@ export const PUMPKIN_META: Record<PumpkinType, PumpkinMeta> = {
   cramer: {
     name: "Cramer",
     description: "Produces seeds (coins) instead of shooting.",
+  },
+  silas: {
+    name: "Silas",
+    description:
+      "Card-exclusive marksman. Fires slow, heavy seeds that pierce through slugs in his lane. Not for sale — you couldn't afford him anyway.",
   },
 }
 

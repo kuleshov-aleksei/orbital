@@ -489,10 +489,12 @@ const shopItems = computed(() => {
   const cfg = halloweenStore.config
   if (!cfg) return []
   const prices = hud.value?.shopPrices
-  return (Object.keys(cfg.pumpkins) as PumpkinType[]).map((type) => ({
-    type,
-    cost: prices?.[type] ?? cfg.pumpkins[type].cost,
-  }))
+  return (Object.keys(cfg.pumpkins) as PumpkinType[])
+    .filter((type) => !cfg.pumpkins[type].draft_only)
+    .map((type) => ({
+      type,
+      cost: prices?.[type] ?? cfg.pumpkins[type].cost,
+    }))
 })
 
 function canBuy(item: { type: PumpkinType; cost: number }): boolean {
@@ -592,6 +594,7 @@ onMounted(async () => {
     else if (event === "slug_destroyed") sounds.playSlugDestroyed()
     else if (event === "pumpkin_destroyed") sounds.playPumpkinDestroyed()
     else if (event === "item_used") sounds.playItemUsed()
+    else if (event === "shield_break") sounds.playShieldBreak()
   }
   hud.value = engine.snapshot()
 

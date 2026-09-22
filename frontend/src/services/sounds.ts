@@ -243,6 +243,7 @@ export function useSounds() {
   const playPumpkinDestroyed = () => playLocalSound("pumpkin_destroyed")
   const playItemUsed = () => playLocalSound("item_used")
   const playSlugMovement = () => playLocalSound("slug_movement")
+  const playShieldBreak = () => playLocalSound("shield_break")
 
   return {
     playJoinRoom,
@@ -276,6 +277,7 @@ export function useSounds() {
     playPumpkinDestroyed,
     playItemUsed,
     playSlugMovement,
+    playShieldBreak,
   }
 }
 

@@ -1,7 +1,7 @@
 // Game entity + state types for the Halloween mini game (Phase 3).
 // Pure logic — no pixi.js imports here; the renderer consumes these.
 
-export type PumpkinType = "ferdinand" | "chunky" | "herbert" | "gwynevere" | "cramer"
+export type PumpkinType = "ferdinand" | "chunky" | "herbert" | "gwynevere" | "cramer" | "silas"
 
 export type SlugType = "scout" | "marvin" | "gerald" | "dell"
 
@@ -63,6 +63,8 @@ export interface GameSlug {
   frozenFor: number
   distractionFor: number
   spawnTimer: number // dell spawns marvins
+  shields: number // shield hits remaining — each hit strips one, HP untouched
+  maxShields: number // for the renderer ring; sentimentality, mostly
 }
 
 export type ProjectileKind = "seed" | "heal" | "missile"
@@ -85,6 +87,8 @@ export interface GameProjectile {
   sourcePumpkinId: number
   life: number // seconds before a stray projectile fades
   dead: boolean
+  pierce: number // remaining slugs this projectile can pass through (silas)
+  hitIds: number[] // slugs already pierced — no double-dipping
 }
 
 export interface GameGrenade {

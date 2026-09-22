@@ -105,6 +105,7 @@ export type SoundEvent =
   | "pumpkin_destroyed"
   | "item_used"
   | "slug_movement"
+  | "shield_break"
 
 /** Default audio settings */
 export const defaultAudioSettings: AudioSettings = {

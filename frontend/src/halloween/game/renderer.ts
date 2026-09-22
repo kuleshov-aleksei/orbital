@@ -20,6 +20,7 @@ const PUMPKIN_TINTS: Record<PumpkinType, number> = {
   herbert: 0x4ade80,
   gwynevere: 0x8b5cf6,
   cramer: 0xfbbf24,
+  silas: 0xdc2626,
 }
 
 const SLUG_TINTS: Record<SlugType, number> = {
@@ -39,6 +40,7 @@ interface SlugDisplay {
   container: Container
   sprite: Sprite | Graphics
   bar: Graphics
+  shield: Graphics
 }
 
 interface ProjDisplay {
@@ -158,8 +160,10 @@ export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRen
     body.tint = SLUG_TINTS[type]
     container.addChild(body)
     const bar = makeHealthBar(container, radius * 2, -radius - 10)
+    const shield = new Graphics()
+    container.addChild(shield)
     world?.addChild(container)
-    slugs.set(id, { container, sprite: body, bar })
+    slugs.set(id, { container, sprite: body, bar, shield })
   }
 
   const addProjectile = (id: number, kind: string) => {
@@ -350,6 +354,21 @@ export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRen
       }
       display.container.position.set(s.x, s.y)
       updateBar(display.bar, s.radius * 2, s.health, s.maxHealth)
+      // Shield ring: cyan circle plus one tick per remaining shield.
+      // No shields, no ring. Minimalism even Gilfoyle respects.
+      display.shield.clear()
+      if (s.shields > 0) {
+        display.shield.circle(0, 0, s.radius + 5)
+        display.shield.stroke({ width: 2.5, color: 0x67e8f9, alpha: 0.9 })
+        for (let i = 0; i < s.shields; i++) {
+          const a = (i / Math.max(1, s.maxShields)) * Math.PI * 2 - Math.PI / 2
+          const r1 = s.radius + 8
+          const r2 = s.radius + 12
+          display.shield.moveTo(Math.cos(a) * r1, Math.sin(a) * r1)
+          display.shield.lineTo(Math.cos(a) * r2, Math.sin(a) * r2)
+        }
+        display.shield.stroke({ width: 2, color: 0x67e8f9, alpha: 0.9 })
+      }
     }
 
     // projectiles

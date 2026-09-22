@@ -3,17 +3,17 @@
 // RNG-dependent (clearable with good card/lane RNG, not reliably).
 //
 // P(complete >= r) = fraction of games with completedRounds >= r.
-// Each band is [minProb, maxProb] for one policy:
-//   - heuristic = "reasonable player" (skill ceiling proxy)
-//   - random    = unskilled floor (calibrates the difficulty floor)
+// Each band is [minProb, maxProb] for the heuristic ("reasonable player",
+// skill ceiling proxy). The random bot was deleted — it kept passing away
+// from natural causes and taught us nothing.
 //
 // Heuristic bands encode the design goal directly:
-//   R1/R2 high (forgiving), R3-R5 decaying (challenging),
+//   R1 high (tutorial, near-certain), R2 60-90 (filter round: two fresh
+//   uncovered lanes), R3-R5 decaying (challenging),
 //   R6+ low but nonzero (hard, RNG tail), R12 ~0 (no infinite snowball).
-// Random bands pin the floor: R1 coin-flip-ish, R2+ mostly dead, R6 ~never.
 export interface Band {
   round: number
-  policy: "heuristic" | "random"
+  policy: "heuristic"
   minProb: number
   maxProb: number
 }
@@ -21,18 +21,14 @@ export interface Band {
 export const DEFAULT_BANDS: Band[] = [
   // Skilled play: forgiving start, challenging mid, hard RNG late.
   { round: 1, policy: "heuristic", minProb: 0.9, maxProb: 1.0 },
-  { round: 2, policy: "heuristic", minProb: 0.8, maxProb: 1.0 },
+  // R2 opens two uncovered lanes; it's a filter round, not a formality.
+  { round: 2, policy: "heuristic", minProb: 0.6, maxProb: 0.9 },
   { round: 3, policy: "heuristic", minProb: 0.5, maxProb: 0.85 },
   { round: 4, policy: "heuristic", minProb: 0.3, maxProb: 0.65 },
   { round: 5, policy: "heuristic", minProb: 0.15, maxProb: 0.45 },
   { round: 6, policy: "heuristic", minProb: 0.03, maxProb: 0.2 },
   { round: 7, policy: "heuristic", minProb: 0.0, maxProb: 0.1 },
   { round: 12, policy: "heuristic", minProb: 0.0, maxProb: 0.05 },
-  // Unskilled floor: R1 survivable, then steep falloff, late ~never.
-  { round: 1, policy: "random", minProb: 0.45, maxProb: 0.85 },
-  { round: 2, policy: "random", minProb: 0.1, maxProb: 0.4 },
-  { round: 3, policy: "random", minProb: 0.02, maxProb: 0.2 },
-  { round: 6, policy: "random", minProb: 0.0, maxProb: 0.05 },
 ]
 
 export interface BandResult {

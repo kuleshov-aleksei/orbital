@@ -1,19 +1,18 @@
 // CLI entry. Run from this directory:
-//   ../../frontend/node_modules/.bin/jiti ./run.cjs -- --games 30 --seed 1 --policy random
+//   ../../frontend/node_modules/.bin/jiti ./run.cjs -- --games 30 --seed 1 --policy heuristic
 // (jiti is already a frontend devDependency — no new installs.)
 // The extra `--` separates jiti's own flags from ours.
 //
 // Useful flags:
 //   --config-override '{"starting_coins":40}'   deep-merge patch (or @file.json)
 //   --config-dump                               print effective config, then run
-//   --policy both                               run heuristic + random (for band checks)
 //   --check-gates                               exit 1 when legacy caps fail
 //   --check-bands                               exit 1 when skill-aware bands fail
 //   --json-summary                              print machine-readable summaries (for sweep.ts)
 import { applyConfigOverride, defaultConfig } from "./config"
 import { runSingleGame } from "./driver"
 import { printSummary, summarize, type BatchSummary } from "./metrics"
-import { HeuristicPolicy, RandomPolicy, type Policy } from "./policies"
+import { HeuristicPolicy, type Policy } from "./policies"
 
 function arg(name: string, fallback: string): string {
   const i = process.argv.indexOf(name)
@@ -32,15 +31,15 @@ function has(name: string): boolean {
 export function main(): void {
   const games = parseInt(arg("--games", "30"), 10)
   const seed0 = parseInt(arg("--seed", "1"), 10)
-  const policyName = arg("--policy", "random")
+  const policyName = arg("--policy", "heuristic")
   const dt = parseFloat(arg("--dt", String(1 / 30)))
 
+  // One policy: heuristic. The random bot was retired — it contributed
+  // nothing but noise and an inflated sense of coverage.
   const makers: Array<() => Policy> = []
-  if (policyName === "random") makers.push(() => new RandomPolicy())
-  else if (policyName === "heuristic") makers.push(() => new HeuristicPolicy())
-  else if (policyName === "both") makers.push(() => new HeuristicPolicy(), () => new RandomPolicy())
+  if (policyName === "heuristic") makers.push(() => new HeuristicPolicy())
   else {
-    console.error(`unknown policy "${policyName}" (available: random, heuristic, both)`)
+    console.error(`unknown policy "${policyName}" (available: heuristic)`)
     process.exit(1)
   }
 

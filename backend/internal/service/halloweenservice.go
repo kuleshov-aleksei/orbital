@@ -33,6 +33,13 @@ type HalloweenGameConfig struct {
 	RewardsPerRound   map[int]int                       `json:"rewards_per_round"`
 	SpawnRounds       []HalloweenSpawnRoundConfig       `json:"spawn_rounds"`
 	SpawnScaling      HalloweenSpawnScalingConfig       `json:"spawn_scaling"`
+	// SlugHPGrowth compounds slug max HP per round: HP *= growth^(round-1).
+	// Round 1 is exactly 1.0 — the tutorial round doesn't need surprises.
+	SlugHPGrowth float64 `json:"slug_hp_growth"`
+	// ShieldMin/ShieldMax bound the shields rolled by each shielded slug.
+	// One hit strips one shield regardless of damage. Yes, really.
+	ShieldMin int `json:"shield_min"`
+	ShieldMax int `json:"shield_max"`
 }
 
 type HalloweenPumpkinConfig struct {
@@ -43,6 +50,8 @@ type HalloweenPumpkinConfig struct {
 	Cost            int     `json:"cost"`             // seeds to buy in the shop
 	CoinIntervalS   float64 `json:"coin_interval_s"`  // seconds per coin tick (cramer)
 	CoinsPerTick    int     `json:"coins_per_tick"`   // seeds produced per tick (cramer)
+	// DraftOnly marks card-exclusive pumpkins the shop refuses to sell.
+	DraftOnly bool `json:"draft_only,omitempty"`
 }
 
 type HalloweenSlugConfig struct {
@@ -75,6 +84,7 @@ type HalloweenSpawnRoundConfig struct {
 	Interval       float64        `json:"interval"`        // seconds between spawns
 	Pool           map[string]int `json:"pool"`            // scout | marvin | gerald | dell
 	SpeedVariation float64        `json:"speed_variation"` // e.g. 0.01 = +-1%
+	Shielded       int            `json:"shielded"`        // slugs arriving with shields
 }
 
 // HalloweenSpawnScalingConfig generates endless-round spawn tables.
@@ -87,6 +97,7 @@ type HalloweenSpawnScalingConfig struct {
 	GeraldSqrt     float64 `json:"gerald_sqrt"`
 	DellSqrt       float64 `json:"dell_sqrt"`
 	SpeedVariation float64 `json:"speed_variation"`
+	ShieldPerRound float64 `json:"shield_per_round"`
 }
 
 const (
@@ -149,7 +160,7 @@ func (s *HalloweenService) Config() *HalloweenGameConfig {
 		Enabled:           s.IsEnabled(),
 		StartsAt:          startsAt,
 		BattlefieldLength: 1000,
-		StartingCoins:     20,
+		StartingCoins:     40,
 		StartingPumpkins:  []string{"ferdinand", "ferdinand"},
 		Pumpkins: map[string]HalloweenPumpkinConfig{
 			"ferdinand": {FireRate: 1, Health: 10, DamagePerShot: 5, ProjectileSpeed: 100, Cost: 20},
@@ -157,6 +168,8 @@ func (s *HalloweenService) Config() *HalloweenGameConfig {
 			"herbert":   {FireRate: 0.5, Health: 10, DamagePerShot: 5, ProjectileSpeed: 150, Cost: 40},
 			"gwynevere": {FireRate: 0.1, Health: 5, DamagePerShot: 10, ProjectileSpeed: 40, Cost: 70},
 			"cramer":    {FireRate: 0, Health: 10, DamagePerShot: 0, ProjectileSpeed: 0, Cost: 75, CoinIntervalS: 5, CoinsPerTick: 1},
+			// Silas: card-exclusive piercing sniper. Not for sale at any price.
+			"silas": {FireRate: 0.25, Health: 5, DamagePerShot: 25, ProjectileSpeed: 200, Cost: 100, DraftOnly: true},
 		},
 		Slugs: map[string]HalloweenSlugConfig{
 			HalloweenSlugScout:  {Speed: 50, Health: 10, DamageToPumpkin: 2, RewardPoints: 10, KillReward: 2},
@@ -187,21 +200,26 @@ func (s *HalloweenService) Config() *HalloweenGameConfig {
 			1: 1, 2: 1, 3: 1, 4: 2, 5: 2, 6: 2, 7: 3, 8: 3, 9: 3, 10: 4,
 		},
 		SpawnRounds: []HalloweenSpawnRoundConfig{
-			{Round: 1, Interval: 7, Pool: map[string]int{"scout": 10, "marvin": 2, "gerald": 0, "dell": 0}, SpeedVariation: 0.01},
-			{Round: 2, Interval: 7, Pool: map[string]int{"scout": 16, "marvin": 8, "gerald": 1, "dell": 0}, SpeedVariation: 0.02},
-			{Round: 3, Interval: 5, Pool: map[string]int{"scout": 16, "marvin": 8, "gerald": 0, "dell": 1}, SpeedVariation: 0.04},
-			{Round: 4, Interval: 4, Pool: map[string]int{"scout": 24, "marvin": 8, "gerald": 3, "dell": 2}, SpeedVariation: 0.04},
-			{Round: 5, Interval: 4, Pool: map[string]int{"scout": 25, "marvin": 8, "gerald": 3, "dell": 3}, SpeedVariation: 0.04},
-			{Round: 6, Interval: 4, Pool: map[string]int{"scout": 30, "marvin": 9, "gerald": 3, "dell": 3}, SpeedVariation: 0.04},
-			{Round: 7, Interval: 4, Pool: map[string]int{"scout": 35, "marvin": 11, "gerald": 3, "dell": 3}, SpeedVariation: 0.04},
-			{Round: 8, Interval: 4, Pool: map[string]int{"scout": 40, "marvin": 12, "gerald": 3, "dell": 3}, SpeedVariation: 0.04},
-			{Round: 9, Interval: 4, Pool: map[string]int{"scout": 45, "marvin": 14, "gerald": 3, "dell": 3}, SpeedVariation: 0.04},
-			{Round: 10, Interval: 4, Pool: map[string]int{"scout": 50, "marvin": 15, "gerald": 4, "dell": 4}, SpeedVariation: 0.04},
+			{Round: 1, Interval: 7, Pool: map[string]int{"scout": 10, "marvin": 2, "gerald": 0, "dell": 0}, SpeedVariation: 0.01, Shielded: 0},
+			{Round: 2, Interval: 6, Pool: map[string]int{"scout": 16, "marvin": 8, "gerald": 0, "dell": 0}, SpeedVariation: 0.02, Shielded: 2},
+			{Round: 3, Interval: 5, Pool: map[string]int{"scout": 20, "marvin": 10, "gerald": 2, "dell": 1}, SpeedVariation: 0.04, Shielded: 4},
+			{Round: 4, Interval: 3, Pool: map[string]int{"scout": 40, "marvin": 16, "gerald": 5, "dell": 3}, SpeedVariation: 0.04, Shielded: 6},
+			{Round: 5, Interval: 3, Pool: map[string]int{"scout": 48, "marvin": 18, "gerald": 6, "dell": 4}, SpeedVariation: 0.04, Shielded: 8},
+			{Round: 6, Interval: 2.5, Pool: map[string]int{"scout": 56, "marvin": 20, "gerald": 7, "dell": 5}, SpeedVariation: 0.04, Shielded: 10},
+			{Round: 7, Interval: 2.5, Pool: map[string]int{"scout": 64, "marvin": 22, "gerald": 8, "dell": 5}, SpeedVariation: 0.04, Shielded: 14},
+			{Round: 8, Interval: 3, Pool: map[string]int{"scout": 64, "marvin": 20, "gerald": 6, "dell": 5}, SpeedVariation: 0.04, Shielded: 14},
+			{Round: 9, Interval: 3, Pool: map[string]int{"scout": 72, "marvin": 22, "gerald": 7, "dell": 5}, SpeedVariation: 0.04, Shielded: 16},
+			{Round: 10, Interval: 3, Pool: map[string]int{"scout": 80, "marvin": 24, "gerald": 7, "dell": 6}, SpeedVariation: 0.04, Shielded: 18},
 		},
 		SpawnScaling: HalloweenSpawnScalingConfig{
-			Interval: 4, ScoutPerRound: 5, MarvinPerRound: 1.5,
-			GeraldSqrt: 1, DellSqrt: 1, SpeedVariation: 0.04,
+			Interval: 3, ScoutPerRound: 8, MarvinPerRound: 2.5,
+			GeraldSqrt: 1.2, DellSqrt: 1.2, SpeedVariation: 0.04,
+			ShieldPerRound: 2,
 		},
+		// Slugs lift weights between rounds. Your pumpkins don't. Adapt.
+		SlugHPGrowth: 1.27,
+		ShieldMin:    3,
+		ShieldMax:    6,
 	}
 }
 

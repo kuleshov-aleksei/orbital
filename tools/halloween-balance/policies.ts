@@ -13,7 +13,6 @@ import type { CardDefinition } from "../../frontend/src/halloween/game/balance"
 import type { GameInputMode, PumpkinType } from "../../frontend/src/halloween/game/types"
 import type { HalloweenGameConfig } from "../../frontend/src/halloween/types"
 import { pick, randInt, type Rng } from "./rng"
-
 export interface Policy {
   readonly name: string
   /** Called every sim tick while phase === "playing". */
@@ -88,8 +87,6 @@ export function useAbilityAt(
   }
   // mode "none" here means it was instant — already applied + consumed.
 }
-
-const ALL_PUMPKIN_TYPES: PumpkinType[] = ["ferdinand", "chunky", "herbert", "gwynevere", "cramer"]
 
 /** Slugs per lane, for lane-priority decisions. */
 function slugsPerLane(engine: HalloweenGameEngine): number[] {
@@ -246,7 +243,9 @@ export class HeuristicPolicy implements Policy {
 
     switch (item.abilityId) {
       case "annihilation":
-        if (gerald || slugs.length > 10) engine.selectInventoryItem(idx)
+        // Shielded heavies eat entire volleys; delete one instead.
+        if (gerald || slugs.some((s) => s.shields > 0) || slugs.length > 10)
+          engine.selectInventoryItem(idx)
         break
       case "freeze":
       case "distraction":
@@ -318,6 +317,9 @@ export class HeuristicPolicy implements Policy {
           case "cramer":
             score = ctx.cramerCount < 2 ? 2.5 : 0.5
             break
+          case "silas":
+            score = 5 // card-exclusive pierce DPS — take it every time
+            break
         }
       } else {
         switch (card.abilityId) {
@@ -343,50 +345,5 @@ export class HeuristicPolicy implements Policy {
       }
     })
     return best
-  }
-}
-
-/**
- * Phase-1 baseline: pure randomness. Places pumpkins on random free cells,
- * buys random affordable pumpkins, fires abilities at random targets, picks
- * random cards. Expected to play badly — it calibrates the difficulty floor.
- */
-export class RandomPolicy implements Policy {
-  readonly name = "random"
-  private tick = 0
-
-  onTick(engine: HalloweenGameEngine, config: HalloweenGameConfig, rng: Rng): void {
-    void config // affordability uses engine.costFor (inflated live prices)
-    this.tick++
-
-    // 1. Dump every pumpkin in the inventory onto random free cells.
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const free = freeCells(engine)
-      if (free.length === 0) break
-      const cell = pick(rng, free)
-      if (!placeFirstPumpkin(engine, cell.col, cell.lane)) break
-    }
-
-    // 2. Roughly once per sim-second, buy a random affordable pumpkin.
-    if (this.tick % 30 === 0 && rng() < 0.8) {
-      const coins = engine.snapshot().coins
-      const affordable = ALL_PUMPKIN_TYPES.filter((t) => engine.costFor(t) <= coins)
-      if (affordable.length > 0) engine.buyPumpkin(pick(rng, affordable))
-    }
-
-    // 3. Roughly every two sim-seconds, fire a random ability at random.
-    if (this.tick % 60 === 0 && rng() < 0.5) {
-      const abilities: number[] = []
-      engine.inventory.forEach((item, i) => {
-        if (item.kind === "ability") abilities.push(i)
-      })
-      if (abilities.length > 0) useAbilityAt(engine, pick(rng, abilities), rng)
-    }
-  }
-
-  pickCard(cards: CardDefinition[], rng: Rng, _ctx: CardContext): number {
-    if (rng() < 0.1) return -1 // occasional skip, like a real player
-    return randInt(rng, cards.length)
   }
 }

@@ -26,7 +26,8 @@ import {
 } from "./balance"
 import type { RandomFn } from "./balance"
 
-export type GameEvent = "shooting" | "slug_destroyed" | "pumpkin_destroyed" | "item_used"
+export type GameEvent =
+  "shooting" | "slug_destroyed" | "pumpkin_destroyed" | "item_used" | "shield_break"
 
 export const FIELD_HEIGHT = 600
 const PUMPKIN_RADIUS = 28
@@ -63,6 +64,10 @@ const GWYN_BLAST_RADIUS = 70
 // tied to the base cost so selling can never profit from inflation.
 export const SHOP_PRICE_GROWTH = 1.15
 export const SHOP_PRICE_CAP_MULT = 5
+
+// Silas is a piercing sniper: each seed passes through this many slugs.
+// More than enough — if you need more than 8, you're showing off.
+export const SILAS_PIERCE = 8
 
 export function laneForY(y: number): number {
   return Math.max(0, Math.min(LANE_COUNT - 1, Math.floor(y / LANE_HEIGHT)))
@@ -123,7 +128,7 @@ export class HalloweenGameEngine {
   prompt: string | null = null
   gameOverReason: string | null = null
 
-  private spawnQueue: SlugType[] = []
+  private spawnQueue: Array<{ type: SlugType; shielded: boolean }> = []
   private spawnTimer = 0
 
   private nextId = 1
@@ -197,15 +202,22 @@ export class HalloweenGameEngine {
     const table = resolveSpawnTable(round, this.config)
     this.spawnQueue = []
     for (const type of Object.keys(table.pool) as SlugType[]) {
-      for (let i = 0; i < table.pool[type]; i++) this.spawnQueue.push(type)
+      for (let i = 0; i < table.pool[type]; i++) this.spawnQueue.push({ type, shielded: false })
     }
     // Random spawn order
     for (let i = this.spawnQueue.length - 1; i > 0; i--) {
       const j = Math.floor(this.rng() * (i + 1))
       ;[this.spawnQueue[i], this.spawnQueue[j]] = [this.spawnQueue[j], this.spawnQueue[i]]
     }
+    // The first N in the shuffled queue get shields. Random slugs, random
+    // count of 3-6 each at spawn time. Yes, your scout can have 6 shields.
+    const shielded = Math.min(table.shielded ?? 0, this.spawnQueue.length)
+    for (let i = 0; i < shielded; i++) this.spawnQueue[i].shielded = true
     this.spawnTimer = table.interval
-    this.prompt = `Round ${round} — ${this.spawnQueue.length} slugs incoming`
+    this.prompt =
+      shielded > 0
+        ? `Round ${round} — ${this.spawnQueue.length} slugs incoming (${shielded} shielded)`
+        : `Round ${round} — ${this.spawnQueue.length} slugs incoming`
   }
 
   private completeRound() {
@@ -269,6 +281,8 @@ export class HalloweenGameEngine {
   // plus per-type inflation from costFor(); refunds stay at base cost.
   buyPumpkin(type: PumpkinType): boolean {
     if (this.phase !== "playing") return false
+    // Draft-only pumpkins aren't for sale. The shop has standards. So does Silas.
+    if (this.config.pumpkins[type]?.draft_only) return false
     const cost = this.costFor(type)
     if (this.coins < cost) return false
     this.coins -= cost
@@ -450,16 +464,22 @@ export class HalloweenGameEngine {
     this.spawnedPumpkins[type] = (this.spawnedPumpkins[type] ?? 0) + 1
   }
 
-  private spawnSlug(type: SlugType, x: number, y: number, speedMul = 1) {
+  private spawnSlug(type: SlugType, x: number, y: number, speedMul = 1, shields = 0) {
     const cfg = this.config.slugs[type]
+    // Slugs compound HP every round; pumpkins don't. Round 1 is exempt —
+    // exponent is round-1, so the tutorial round stays exactly at base.
+    // Dell-spawned marvins come through here too. No free rides.
+    const baseHP = cfg?.health ?? 10
+    const hpMul = Math.pow(this.config.slug_hp_growth ?? 1, Math.max(0, this.round - 1))
+    const health = Math.max(1, Math.round(baseHP * hpMul))
     this.slugs.push({
       id: this.nextId++,
       type,
       x,
       y,
       lane: laneForY(y),
-      health: cfg?.health ?? 10,
-      maxHealth: cfg?.health ?? 10,
+      health,
+      maxHealth: health,
       speed: (cfg?.speed ?? 0) * speedMul,
       damage: cfg?.damage_to_pumpkin ?? 0,
       rewardPoints: cfg?.reward_points ?? 0,
@@ -470,7 +490,23 @@ export class HalloweenGameEngine {
       frozenFor: 0,
       distractionFor: 0,
       spawnTimer: 0,
+      shields,
+      maxShields: shields,
     })
+  }
+
+  // Shields absorb hits, not HP. One hit strips exactly one shield no matter
+  // how much damage the shot deals — Silas's 25-damage tracers are worth
+  // precisely as much as a spitball here. Annihilation bypasses shields
+  // entirely (it doesn't deal damage; it just deletes).
+  private damageSlug(slug: GameSlug, damage: number, source: KillSource): void {
+    if (slug.shields > 0) {
+      slug.shields--
+      this.onEvent?.("shield_break")
+      return
+    }
+    slug.health -= damage
+    if (slug.health <= 0) this.killSlug(slug, source)
   }
 
   // ---- Abilities ---------------------------------------------------------
@@ -589,12 +625,17 @@ export class HalloweenGameEngine {
     if (this.spawnQueue.length === 0) return
     this.spawnTimer -= dt
     if (this.spawnTimer <= 0) {
-      const type = this.spawnQueue.shift()!
+      const { type, shielded } = this.spawnQueue.shift()!
       const variation = speedVariationForRound(this.round, this.config)
       const speedMul = 1 + (this.rng() * 2 - 1) * variation
       const lanes = this.activeLanes()
       const lane = lanes[Math.floor(this.rng() * lanes.length)]
-      this.spawnSlug(type, this.width + 20, laneCenterY(lane), speedMul)
+      // Shielded slugs roll 3-6 shields (config shield_min/max). Dell's
+      // mid-round marvins arrive unshielded — even elites have standards.
+      const min = this.config.shield_min ?? 0
+      const max = this.config.shield_max ?? 0
+      const shields = shielded && max > 0 ? min + Math.floor(this.rng() * (max - min + 1)) : 0
+      this.spawnSlug(type, this.width + 20, laneCenterY(lane), speedMul, shields)
       this.spawnTimer = resolveSpawnTable(this.round, this.config).interval
     }
   }
@@ -730,14 +771,19 @@ export class HalloweenGameEngine {
   }
 
   // Cramer produces seeds (coins) every coin_interval_s seconds.
+  // Diminishing returns: the nth alive cramer works at 1/2^(n-1) rate.
+  // Infinite money printers are a bug, not a strategy.
   private updateCramers(dt: number) {
+    let seen = 0
     for (const pumpkin of this.pumpkins) {
       if (pumpkin.type !== "cramer" || pumpkin.health <= 0) continue
       const cfg = this.config.pumpkins["cramer"]
       const interval = cfg?.coin_interval_s ?? 0
       const amount = cfg?.coins_per_tick ?? 0
       if (interval <= 0 || amount <= 0) continue
-      pumpkin.coinTimer += dt
+      const rate = 1 / Math.pow(2, seen)
+      seen++
+      pumpkin.coinTimer += dt * rate
       while (pumpkin.coinTimer >= interval) {
         pumpkin.coinTimer -= interval
         this.addCoins(amount)
@@ -783,9 +829,21 @@ export class HalloweenGameEngine {
     }
 
     // Normal pumpkins shoot straight horizontally along their own lane.
+    // Silas's seeds pierce: they pass through up to SILAS_PIERCE slugs,
+    // hitting each one once. Subtlety is for pumpkins that can't aim.
     const target = this.nearestSlugOnLane(pumpkin)
     if (!target) return
-    this.projectiles.push(this.makeProjectile("seed", pumpkin, null, null, cfg.damage_per_shot, 0))
+    this.projectiles.push(
+      this.makeProjectile(
+        "seed",
+        pumpkin,
+        null,
+        null,
+        cfg.damage_per_shot,
+        0,
+        pumpkin.type === "silas" ? SILAS_PIERCE : 0,
+      ),
+    )
     this.onEvent?.("shooting")
   }
 
@@ -796,6 +854,7 @@ export class HalloweenGameEngine {
     targetId: number | null,
     damage: number,
     blastRadius: number,
+    pierce = 0,
   ): GameProjectile {
     let vx = 0
     const vy = 0
@@ -827,6 +886,8 @@ export class HalloweenGameEngine {
       sourcePumpkinId: pumpkin.id,
       life: 2,
       dead: false,
+      pierce,
+      hitIds: [],
     }
   }
 
@@ -925,12 +986,20 @@ export class HalloweenGameEngine {
       // Seeds fly straight horizontally along their lane.
       this.coast(proj, dt)
 
-      // Collision vs any slug — a seed damages the first slug it reaches.
+      // Collision vs any slug — a seed damages the first slug it reaches,
+      // unless it pierces (silas): then it keeps going, one hit per slug.
+      // Shielded slugs swallow the hit either way (see damageSlug).
       let hit = false
       for (const slug of this.slugs) {
         if (Math.hypot(proj.x - slug.x, proj.y - slug.y) <= proj.radius + slug.radius) {
-          slug.health -= proj.damage
-          if (slug.health <= 0) this.killSlug(slug, "pumpkin")
+          if (proj.pierce > 0 && !proj.hitIds.includes(slug.id)) {
+            proj.hitIds.push(slug.id)
+            proj.pierce--
+            this.damageSlug(slug, proj.damage, "pumpkin")
+            continue
+          }
+          if (proj.pierce > 0) continue // already tagged this one — fly through
+          this.damageSlug(slug, proj.damage, "pumpkin")
           hit = true
           break
         }
@@ -966,8 +1035,7 @@ export class HalloweenGameEngine {
   private explodeAt(x: number, y: number, radius: number, damage: number, source: KillSource) {
     for (const slug of [...this.slugs]) {
       if (Math.hypot(slug.x - x, slug.y - y) <= radius) {
-        slug.health -= damage
-        if (slug.health <= 0) this.killSlug(slug, source)
+        this.damageSlug(slug, damage, source)
       }
     }
   }

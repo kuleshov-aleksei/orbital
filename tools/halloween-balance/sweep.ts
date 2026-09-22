@@ -18,12 +18,12 @@
 //   2. Port the winning numbers into backend/internal/service/halloweenservice.go
 //      Config() (source of truth) + tools/halloween-balance/config.ts fixture.
 //   3. Run node tools/halloween-balance/check-drift.cjs, then a full validation:
-//      jiti ./run.cjs -- --games 200 --seed 1 --policy both --check-bands
+//      jiti ./run.cjs -- --games 200 --seed 1 --policy heuristic --check-bands
 import { writeFileSync } from "fs"
 import { applyConfigOverride, defaultConfig } from "./config"
 import { runSingleGame } from "./driver"
 import { summarize } from "./metrics"
-import { HeuristicPolicy, RandomPolicy } from "./policies"
+import { HeuristicPolicy } from "./policies"
 
 type Patch = Record<string, unknown>
 
@@ -244,49 +244,37 @@ export function main(): void {
   const rows: Array<{
     name: string
     heurPenalty: number
-    randPenalty: number
     total: number
     heurP: Record<number, number>
-    randP: Record<number, number>
   }> = []
 
   for (const c of cands) {
     const config = applyConfigOverride(base, JSON.stringify(c.patch))
     const wall0 = Date.now()
     const heur = []
-    const rand = []
     for (let i = 0; i < games; i++) {
       heur.push(runSingleGame(config, new HeuristicPolicy(), seed0 + i))
-      rand.push(runSingleGame(config, new RandomPolicy(), seed0 + i))
     }
     const hs = summarize(heur, Date.now() - wall0)
-    const rs = summarize(rand, 0)
     // Snowball surcharge: infinite builds must rank badly even if bands shift.
-    const surcharge = (hs.reachProb[12] ?? 0) * 2 + (rs.reachProb[12] ?? 0) * 2
-    const total = hs.bandPenalty + rs.bandPenalty + surcharge * surcharge
+    const surcharge = (hs.reachProb[12] ?? 0) * 2
+    const total = hs.bandPenalty + surcharge * surcharge
     rows.push({
       name: c.name,
       heurPenalty: hs.bandPenalty,
-      randPenalty: rs.bandPenalty,
       total,
       heurP: hs.reachProb,
-      randP: rs.reachProb,
     })
     const fmt = (p: Record<number, number>, rounds: number[]) =>
       rounds.map((r) => `R${r}=${((p[r] ?? 0) * 100).toFixed(0)}%`).join(" ")
-    console.log(
-      `candidate=${c.name} total=${total.toFixed(4)} (heur=${hs.bandPenalty.toFixed(4)} rand=${rs.bandPenalty.toFixed(4)})`,
-    )
+    console.log(`candidate=${c.name} total=${total.toFixed(4)} (heur=${hs.bandPenalty.toFixed(4)})`)
     console.log(`  heur: ${fmt(hs.reachProb, [1, 2, 3, 4, 5, 6, 12])}`)
-    console.log(`  rand: ${fmt(rs.reachProb, [1, 2, 3, 6, 12])}`)
   }
 
   rows.sort((a, b) => a.total - b.total)
   console.log("\n=== ranking (lower penalty is better) ===")
   rows.forEach((r, i) => {
-    console.log(
-      `${i + 1}. ${r.name} total=${r.total.toFixed(4)} (heur=${r.heurPenalty.toFixed(4)} rand=${r.randPenalty.toFixed(4)})`,
-    )
+    console.log(`${i + 1}. ${r.name} total=${r.total.toFixed(4)} (heur=${r.heurPenalty.toFixed(4)})`)
   })
 
   const best = rows[0]

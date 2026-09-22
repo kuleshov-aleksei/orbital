@@ -19,6 +19,7 @@ const defaultSprites: Record<string, SoundPackSprite> = {
   pumpkin_destroyed: { name: "transition_down", start: 44000, duration: 200 },
   item_used: { name: "toggle_on", start: 40000, duration: 120 },
   slug_movement: { name: "notification", start: 8000, duration: 80 },
+  shield_break: { name: "notification", start: 8200, duration: 80 },
 }
 
 export { defaultSprites }

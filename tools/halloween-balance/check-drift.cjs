@@ -22,15 +22,15 @@ function check(label, goVal, tsVal) {
   }
 }
 
-// --- spawn rounds: {Round: N, Interval: X, scout/marvin/gerald/dell, SpeedVariation} ---
+// --- spawn rounds: {Round: N, Interval: X, scout/marvin/gerald/dell, SpeedVariation, Shielded} ---
 const goRounds = [
   ...GO.matchAll(
-    /\{Round:\s*(\d+),\s*Interval:\s*([\d.]+),\s*Pool:\s*map\[string\]int\{"scout":\s*(\d+),\s*"marvin":\s*(\d+),\s*"gerald":\s*(\d+),\s*"dell":\s*(\d+)\},\s*SpeedVariation:\s*([\d.]+)\}/g,
+    /\{Round:\s*(\d+),\s*Interval:\s*([\d.]+),\s*Pool:\s*map\[string\]int\{"scout":\s*(\d+),\s*"marvin":\s*(\d+),\s*"gerald":\s*(\d+),\s*"dell":\s*(\d+)\},\s*SpeedVariation:\s*([\d.]+),\s*Shielded:\s*(\d+)\}/g,
   ),
 ].map((m) => m.slice(1).join(","))
 const tsRounds = [
   ...TS.matchAll(
-    /\{\s*round:\s*(\d+),\s*interval:\s*([\d.]+),\s*pool:\s*\{\s*scout:\s*(\d+),\s*marvin:\s*(\d+),\s*gerald:\s*(\d+),\s*dell:\s*(\d+)\s*\},\s*speed_variation:\s*([\d.]+)\s*\}/g,
+    /\{\s*round:\s*(\d+),\s*interval:\s*([\d.]+),\s*pool:\s*\{\s*scout:\s*(\d+),\s*marvin:\s*(\d+),\s*gerald:\s*(\d+),\s*dell:\s*(\d+)\s*\},\s*speed_variation:\s*([\d.]+),\s*shielded:\s*(\d+)\s*\}/g,
   ),
 ].map((m) => m.slice(1).join(","))
 check("spawn_rounds.length", String(goRounds.length), String(tsRounds.length))
@@ -38,23 +38,24 @@ for (let i = 0; i < Math.max(goRounds.length, tsRounds.length); i++) {
   check(`spawn_rounds[${i}]`, goRounds[i] ?? "<missing>", tsRounds[i] ?? "<missing>")
 }
 
-// --- pumpkins: fire_rate, health, damage, speed, cost ---
-for (const name of ["ferdinand", "chunky", "herbert", "gwynevere", "cramer"]) {
+// --- pumpkins: fire_rate, health, damage, speed, cost, draft_only ---
+for (const name of ["ferdinand", "chunky", "herbert", "gwynevere", "cramer", "silas"]) {
   const go = GO.match(
     new RegExp(
-      `"${name}":\\s*\\{FireRate:\\s*([\\d.]+),\\s*Health:\\s*([\\d.]+),\\s*DamagePerShot:\\s*([\\d.]+),\\s*ProjectileSpeed:\\s*([\\d.]+),\\s*Cost:\\s*(\\d+)(?:,\\s*CoinIntervalS:\\s*([\\d.]+),\\s*CoinsPerTick:\\s*(\\d+))?\\}`,
+      `"${name}":\\s*\\{FireRate:\\s*([\\d.]+),\\s*Health:\\s*([\\d.]+),\\s*DamagePerShot:\\s*([\\d.]+),\\s*ProjectileSpeed:\\s*([\\d.]+),\\s*Cost:\\s*(\\d+)(?:,\\s*CoinIntervalS:\\s*([\\d.]+),\\s*CoinsPerTick:\\s*(\\d+))?(?:,\\s*DraftOnly:\\s*(true|false))?\\}`,
     ),
   )
   const ts = TS.match(
     new RegExp(
-      `${name}:\\s*\\{\\s*fire_rate:\\s*([\\d.]+),\\s*health:\\s*([\\d.]+),\\s*damage_per_shot:\\s*([\\d.]+),\\s*projectile_speed:\\s*([\\d.]+),\\s*cost:\\s*(\\d+)(?:,\\s*coin_interval_s:\\s*([\\d.]+),\\s*coins_per_tick:\\s*(\\d+))?`,
+      `${name}:\\s*\\{\\s*fire_rate:\\s*([\\d.]+),\\s*health:\\s*([\\d.]+),\\s*damage_per_shot:\\s*([\\d.]+),\\s*projectile_speed:\\s*([\\d.]+),\\s*cost:\\s*(\\d+)(?:,\\s*coin_interval_s:\\s*([\\d.]+),\\s*coins_per_tick:\\s*(\\d+))?(?:,\\s*draft_only:\\s*(true|false))?`,
     ),
   )
   check(
     `pumpkins.${name}`,
     // Backend omits zero-value CoinIntervalS/CoinsPerTick; fixture spells out 0,0.
-    go ? [...go.slice(1, 6), go[6] ?? "0", go[7] ?? "0"].join(",") : "<missing>",
-    ts ? ts.slice(1).join(",") : "<missing>",
+    // Absent DraftOnly means false on both sides.
+    go ? [...go.slice(1, 6), go[6] ?? "0", go[7] ?? "0", go[8] ?? "false"].join(",") : "<missing>",
+    ts ? [...ts.slice(1, 8), ts[8] ?? "false"].join(",") : "<missing>",
   )
 }
 
@@ -82,12 +83,25 @@ check("starting_coins", goCoins ?? "<missing>", tsCoins ?? "<missing>")
 
 // --- spawn scaling ---
 const goScaling = (GO.match(
-  /SpawnScaling:\s*HalloweenSpawnScalingConfig\{\s*Interval:\s*([\d.]+),\s*ScoutPerRound:\s*([\d.]+),\s*MarvinPerRound:\s*([\d.]+),\s*GeraldSqrt:\s*([\d.]+),\s*DellSqrt:\s*([\d.]+),\s*SpeedVariation:\s*([\d.]+)/,
+  /SpawnScaling:\s*HalloweenSpawnScalingConfig\{\s*Interval:\s*([\d.]+),\s*ScoutPerRound:\s*([\d.]+),\s*MarvinPerRound:\s*([\d.]+),\s*GeraldSqrt:\s*([\d.]+),\s*DellSqrt:\s*([\d.]+),\s*SpeedVariation:\s*([\d.]+),\s*ShieldPerRound:\s*([\d.]+)/,
 ) || []).slice(1).join(",")
 const tsScaling = (TS.match(
-  /spawn_scaling:\s*\{\s*interval:\s*([\d.]+),\s*scout_per_round:\s*([\d.]+),\s*marvin_per_round:\s*([\d.]+),\s*gerald_sqrt:\s*([\d.]+),\s*dell_sqrt:\s*([\d.]+),\s*speed_variation:\s*([\d.]+)/,
+  /spawn_scaling:\s*\{\s*interval:\s*([\d.]+),\s*scout_per_round:\s*([\d.]+),\s*marvin_per_round:\s*([\d.]+),\s*gerald_sqrt:\s*([\d.]+),\s*dell_sqrt:\s*([\d.]+),\s*speed_variation:\s*([\d.]+),\s*shield_per_round:\s*([\d.]+)/,
 ) || []).slice(1).join(",")
 check("spawn_scaling", goScaling || "<missing>", tsScaling || "<missing>")
+
+// --- shield bounds (each shielded slug rolls shield_min..shield_max) ---
+const goShieldMin = (GO.match(/ShieldMin:\s*(\d+)/) || [])[1]
+const tsShieldMin = (TS.match(/shield_min:\s*(\d+)/) || [])[1]
+check("shield_min", goShieldMin ?? "<missing>", tsShieldMin ?? "<missing>")
+const goShieldMax = (GO.match(/ShieldMax:\s*(\d+)/) || [])[1]
+const tsShieldMax = (TS.match(/shield_max:\s*(\d+)/) || [])[1]
+check("shield_max", goShieldMax ?? "<missing>", tsShieldMax ?? "<missing>")
+
+// --- slug HP growth (compounds per round; R1 stays at base) ---
+const goHP = (GO.match(/SlugHPGrowth:\s*([\d.]+)/) || [])[1]
+const tsHP = (TS.match(/slug_hp_growth:\s*([\d.]+)/) || [])[1]
+check("slug_hp_growth", goHP ?? "<missing>", tsHP ?? "<missing>")
 
 if (failures > 0) {
   console.error(`\n${failures} drifted value(s). Update tools/halloween-balance/config.ts to match the backend.`)
