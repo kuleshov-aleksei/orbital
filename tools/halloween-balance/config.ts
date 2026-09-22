@@ -41,7 +41,7 @@ export function defaultConfig(): HalloweenGameConfig {
     enabled: true,
     starts_at: "2026-10-17",
     battlefield_length: 1000,
-    starting_coins: 40,
+    starting_coins: 20,
     starting_pumpkins: ["ferdinand", "ferdinand"],
     pumpkins: {
       ferdinand: {
@@ -127,7 +127,7 @@ export function defaultConfig(): HalloweenGameConfig {
     ],
     rewards_per_round: { 1: 1, 2: 1, 3: 1, 4: 2, 5: 2, 6: 2, 7: 3, 8: 3, 9: 3, 10: 4 },
     spawn_rounds: [
-      { round: 1, interval: 7, pool: { scout: 10, marvin: 2, gerald: 0, dell: 0 }, speed_variation: 0.01, shielded: 0 },
+      { round: 1, interval: 7, pool: { scout: 20, marvin: 4, gerald: 0, dell: 0 }, speed_variation: 0.01, shielded: 0 },
       { round: 2, interval: 6, pool: { scout: 16, marvin: 8, gerald: 0, dell: 0 }, speed_variation: 0.02, shielded: 2 },
       { round: 3, interval: 5, pool: { scout: 20, marvin: 10, gerald: 2, dell: 1 }, speed_variation: 0.04, shielded: 4 },
       { round: 4, interval: 3, pool: { scout: 40, marvin: 16, gerald: 5, dell: 3 }, speed_variation: 0.04, shielded: 6 },

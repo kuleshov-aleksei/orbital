@@ -133,8 +133,8 @@ func TestHalloweenShopEconomyConfig(t *testing.T) {
 	s := newHalloweenTestService(t)
 	cfg := s.Config()
 
-	if cfg.StartingCoins != 40 {
-		t.Fatalf("starting_coins = %d, want 40", cfg.StartingCoins)
+	if cfg.StartingCoins != 20 {
+		t.Fatalf("starting_coins = %d, want 20", cfg.StartingCoins)
 	}
 
 	wantCosts := map[string]int{
@@ -193,7 +193,7 @@ func TestHalloweenSpawnTablesConfig(t *testing.T) {
 	// Rounds 1-4 must match HALLOWEEN.md verbatim; 5-10 are the ceil() formula
 	// pre-computed so the payload is fully data-driven.
 	wantRounds := map[int]HalloweenSpawnRoundConfig{
-		1:  {Round: 1, Interval: 7, Pool: map[string]int{"scout": 10, "marvin": 2, "gerald": 0, "dell": 0}, SpeedVariation: 0.01, Shielded: 0},
+		1:  {Round: 1, Interval: 7, Pool: map[string]int{"scout": 20, "marvin": 4, "gerald": 0, "dell": 0}, SpeedVariation: 0.01, Shielded: 0},
 		2:  {Round: 2, Interval: 6, Pool: map[string]int{"scout": 16, "marvin": 8, "gerald": 0, "dell": 0}, SpeedVariation: 0.02, Shielded: 2},
 		3:  {Round: 3, Interval: 5, Pool: map[string]int{"scout": 20, "marvin": 10, "gerald": 2, "dell": 1}, SpeedVariation: 0.04, Shielded: 4},
 		4:  {Round: 4, Interval: 3, Pool: map[string]int{"scout": 40, "marvin": 16, "gerald": 5, "dell": 3}, SpeedVariation: 0.04, Shielded: 6},

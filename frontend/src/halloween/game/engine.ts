@@ -707,14 +707,22 @@ export class HalloweenGameEngine {
       }
       slug.x += moveSpeed * moveDir * dt
 
-      // Reaching the left border punishes the player: the slug deals its full
-      // damage to every pumpkin, then escapes without a reward.
+      // Reaching the left border punishes the player: the slug lashes out at
+      // the 4 closest pumpkins with falloff (100/75/50/25%), then escapes
+      // without a reward. Death by a thousand papercuts, not a firing squad.
       if (slug.x < -slug.radius) {
-        for (const p of this.pumpkins) {
-          if (p.health <= 0) continue
-          p.health -= slug.damage
+        const falloff = [1, 0.75, 0.5, 0.25]
+        const targets = this.pumpkins
+          .filter((p) => p.health > 0)
+          .sort(
+            (a, b) =>
+              Math.hypot(a.x - slug.x, a.y - slug.y) - Math.hypot(b.x - slug.x, b.y - slug.y),
+          )
+          .slice(0, falloff.length)
+        targets.forEach((p, i) => {
+          p.health -= Math.round(slug.damage * falloff[i])
           if (p.health <= 0) this.onEvent?.("pumpkin_destroyed")
-        }
+        })
         escaped.push(slug.id)
         continue
       }

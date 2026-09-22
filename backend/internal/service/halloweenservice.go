@@ -160,7 +160,7 @@ func (s *HalloweenService) Config() *HalloweenGameConfig {
 		Enabled:           s.IsEnabled(),
 		StartsAt:          startsAt,
 		BattlefieldLength: 1000,
-		StartingCoins:     40,
+		StartingCoins:     20,
 		StartingPumpkins:  []string{"ferdinand", "ferdinand"},
 		Pumpkins: map[string]HalloweenPumpkinConfig{
 			"ferdinand": {FireRate: 1, Health: 10, DamagePerShot: 5, ProjectileSpeed: 100, Cost: 20},
@@ -200,7 +200,7 @@ func (s *HalloweenService) Config() *HalloweenGameConfig {
 			1: 1, 2: 1, 3: 1, 4: 2, 5: 2, 6: 2, 7: 3, 8: 3, 9: 3, 10: 4,
 		},
 		SpawnRounds: []HalloweenSpawnRoundConfig{
-			{Round: 1, Interval: 7, Pool: map[string]int{"scout": 10, "marvin": 2, "gerald": 0, "dell": 0}, SpeedVariation: 0.01, Shielded: 0},
+			{Round: 1, Interval: 7, Pool: map[string]int{"scout": 20, "marvin": 4, "gerald": 0, "dell": 0}, SpeedVariation: 0.01, Shielded: 0},
 			{Round: 2, Interval: 6, Pool: map[string]int{"scout": 16, "marvin": 8, "gerald": 0, "dell": 0}, SpeedVariation: 0.02, Shielded: 2},
 			{Round: 3, Interval: 5, Pool: map[string]int{"scout": 20, "marvin": 10, "gerald": 2, "dell": 1}, SpeedVariation: 0.04, Shielded: 4},
 			{Round: 4, Interval: 3, Pool: map[string]int{"scout": 40, "marvin": 16, "gerald": 5, "dell": 3}, SpeedVariation: 0.04, Shielded: 6},

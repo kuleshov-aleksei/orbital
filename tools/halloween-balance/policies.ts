@@ -46,6 +46,11 @@ export function freeCells(engine: HalloweenGameEngine): Array<{ col: number; lan
   return out
 }
 
+/** Read round through a function boundary (widens literal narrowing). */
+function snapRound(engine: HalloweenGameEngine): number {
+  return engine.snapshot().round
+}
+
 /** Read input mode through a function boundary (widens literal narrowing). */
 function currentMode(engine: HalloweenGameEngine): GameInputMode {
   return engine.mode
@@ -150,10 +155,19 @@ export class HeuristicPolicy implements Policy {
     for (const p of engine.pumpkins) {
       if (p.health > 0) lanePumpkins[laneForY(p.y)]++
     }
-    // Most threatened lane first, then the emptiest one.
-    const lanes = [...Array(LANE_COUNT).keys()].sort(
-      (a, b) => perLane[b] - perLane[a] || lanePumpkins[a] - lanePumpkins[b],
+    // Most threatened lane first, then the emptiest one — except a lane with
+    // no defender at all jumps the queue. An empty lane is a free highway to
+    // the end zone: every slug there leaks for falloff damage instead of
+    // taking fire. Coverage first, depth second.
+    const empty = [...Array(LANE_COUNT).keys()].filter(
+      (l) => lanePumpkins[l] === 0 && free.some((c) => c.lane === l),
     )
+    const lanes =
+      empty.length > 0
+        ? empty.sort((a, b) => perLane[b] - perLane[a])
+        : [...Array(LANE_COUNT).keys()].sort(
+            (a, b) => perLane[b] - perLane[a] || lanePumpkins[a] - lanePumpkins[b],
+          )
     if (type === "chunky") {
       // Meat shield: rightmost free cell in the most threatened lane.
       for (const lane of lanes) {
@@ -202,18 +216,20 @@ export class HeuristicPolicy implements Policy {
     const cost = (t: PumpkinType) => engine.costFor(t)
     const afford = (t: PumpkinType) => coins >= cost(t)
 
-    // 1. One Cramer early for economy.
-    if ((alive.cramer ?? 0) < 1 && snap.round <= 2 && afford("cramer")) {
+    // 1. Economy can wait — rounds 1-3 are won with bodies, not interest.
+    // A Cramer costs almost 4 Ferdinands; buy it once the mid-game is survivable.
+    if ((alive.cramer ?? 0) < 1 && snap.round >= 4 && afford("cramer")) {
       engine.buyPumpkin("cramer")
       return
     }
-    // 2. Core DPS line.
+    // 2. Core DPS line. Cheap bodies first, always.
     if ((alive.ferdinand ?? 0) < 5 && afford("ferdinand")) {
       engine.buyPumpkin("ferdinand")
       return
     }
-    // 3. Artillery once there is income.
-    if ((alive.gwynevere ?? 0) < 2 && afford("gwynevere")) {
+    // 3. Artillery only on top of an established line — a 5-HP Gwynevere
+    // alone in round 2 is a donation to the slugs.
+    if ((alive.gwynevere ?? 0) < 2 && (alive.ferdinand ?? 0) >= 4 && afford("gwynevere")) {
       engine.buyPumpkin("gwynevere")
       return
     }
@@ -243,13 +259,18 @@ export class HeuristicPolicy implements Policy {
 
     switch (item.abilityId) {
       case "annihilation":
-        // Shielded heavies eat entire volleys; delete one instead.
-        if (gerald || slugs.some((s) => s.shields > 0) || slugs.length > 10)
+        // Shielded heavies eat entire volleys; delete one instead. But don't
+        // waste it on round-2 shielded scouts — a free annihilation is for
+        // Geralds, Dells, and round-3+ crowds.
+        if (gerald || (snapRound(engine) >= 3 && (slugs.some((s) => s.shields > 0) || slugs.length > 10)))
           engine.selectInventoryItem(idx)
         break
       case "freeze":
       case "distraction":
-        if (leak && slugs.length > 4) engine.selectInventoryItem(idx)
+        // Don't wait for the leak: freezing a crowded field keeps marvins off
+        // the col-0 line, which is where ferdinands lose 1v1s. Leak = use it
+        // now; crowd = use it before contact.
+        if ((leak && slugs.length > 4) || slugs.length > 8) engine.selectInventoryItem(idx)
         break
       case "holy_grenade": {
         if (slugs.length < 4) break

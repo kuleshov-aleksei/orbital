@@ -127,7 +127,7 @@
                   : 'bg-theme-bg-primary border-theme-border/50 cursor-not-allowed opacity-60',
               ]"
               :data-testid="`shop-${item.type}`"
-              :title="`${item.type} — ${item.cost} seeds`"
+              :title="shopTooltip(item)"
               :disabled="!canBuy(item)"
               @click="buy(item.type)">
               <span class="text-xl leading-none text-orange-400">{{
@@ -499,6 +499,27 @@ const shopItems = computed(() => {
 
 function canBuy(item: { type: PumpkinType; cost: number }): boolean {
   return hud.value?.phase === "playing" && (hud.value?.coins ?? 0) >= item.cost
+}
+
+// Hover tooltip: name + cost, description, and the stats that matter —
+// HP, damage, fire interval, and Cramer's coin rate. Non-shooters skip the
+// gun stats instead of showing a wall of zeros.
+function shopTooltip(item: { type: PumpkinType; cost: number }): string {
+  const meta = PUMPKIN_META[item.type]
+  const cfg = halloweenStore.config?.pumpkins[item.type]
+  const lines = [`${meta?.name ?? item.type} — ${item.cost} seeds`, meta?.description ?? ""]
+  if (cfg) {
+    const stats: string[] = [`${cfg.health} HP`]
+    if (cfg.fire_rate > 0) {
+      stats.push(`${cfg.damage_per_shot} dmg/shot`)
+      stats.push(`every ${(1 / cfg.fire_rate).toFixed(cfg.fire_rate >= 1 ? 1 : 2)}s`)
+    }
+    if (cfg.coins_per_tick > 0) {
+      stats.push(`${cfg.coins_per_tick} coin / ${cfg.coin_interval_s}s`)
+    }
+    lines.push(stats.join(" · "))
+  }
+  return lines.join("\n")
 }
 
 function buy(type: PumpkinType) {
