@@ -5,9 +5,6 @@ import { execFile } from "node:child_process"
 import log from "electron-log"
 
 const DESKTOP_FILE_NAME = "com.orbital.app.desktop"
-const APP_ID = "com.orbital.app"
-const ICON_NAME = "com.orbital.app"
-const ICON_PATH_REL = path.join("hicolor", "256x256", "apps", `${ICON_NAME}.png`)
 
 function getApplicationsDir(): string {
   const dataDir = process.env.XDG_DATA_HOME || path.join(app.getPath("home"), ".local", "share")
@@ -18,78 +15,19 @@ function getDesktopEntryPath(): string {
   return path.join(getApplicationsDir(), DESKTOP_FILE_NAME)
 }
 
-function getIconDir(): string {
-  const dataDir = process.env.XDG_DATA_HOME || path.join(app.getPath("home"), ".local", "share")
-  return path.join(dataDir, "icons")
-}
-
-function getIconPath(): string {
-  return path.join(getIconDir(), ICON_PATH_REL)
-}
-
-function getSourceIconPath(): string {
-  return path.join(process.resourcesPath, "build", "orbital-icon.png")
-}
-
-/**
- * AppImageLauncher integrates AppImages as `appimagekit_<hash>-<name>.desktop`,
- * which never matches the app's `app_id`. That entry carries `StartupWMClass`
- * and a stable icon, so our own `com.orbital.app.desktop` must not compete for
- * window association. Returns true when such an integrated entry exists.
- */
-function isAppImageLauncherIntegrated(): boolean {
-  if (!process.env.APPIMAGE) return false
-  try {
-    const files = fs.readdirSync(getApplicationsDir())
-    for (const file of files) {
-      if (!file.endsWith(".desktop") || file === DESKTOP_FILE_NAME) continue
-      const content = fs.readFileSync(path.join(getApplicationsDir(), file), "utf-8")
-      const hasWMClass = content.split("\n").some((line) => line.startsWith(`StartupWMClass=${APP_ID}`))
-      const hasExec = content.split("\n").some((line) => line.startsWith("Exec=") && line.includes(process.env.APPIMAGE!))
-      if (hasWMClass || hasExec) {
-        log.info("[DesktopEntry] AppImageLauncher-integrated entry found:", file)
-        return true
-      }
-    }
-  } catch (e) {
-    log.warn("[DesktopEntry] Failed to scan applications dir for AppImage integration:", e)
-  }
-  return false
-}
-
-function installIcon(): void {
-  const source = getSourceIconPath()
-  const target = getIconPath()
-  try {
-    if (!fs.existsSync(source)) {
-      log.warn("[DesktopEntry] Source icon missing, skipping icon install:", source)
-      return
-    }
-    if (fs.existsSync(target) && fs.readFileSync(target).equals(fs.readFileSync(source))) {
-      return
-    }
-    fs.mkdirSync(path.dirname(target), { recursive: true })
-    fs.copyFileSync(source, target)
-    log.info("[DesktopEntry] Installed icon:", target)
-  } catch (e) {
-    log.warn("[DesktopEntry] Failed to install icon:", e)
-  }
-}
-
-function renderDesktopEntry(execTarget: string, hidden: boolean, includeWMClass: boolean): string {
+function renderDesktopEntry(execTarget: string, hidden: boolean): string {
+  const iconPath = path.join(process.resourcesPath, "build", "orbital-icon.png")
   const lines = [
     "[Desktop Entry]",
     "Type=Application",
     "Name=Orbital",
     "Comment=The Orbital - Voice Chat Desktop App",
     `Exec=${execTarget} --no-sandbox %U`,
-    `Icon=${ICON_NAME}`,
+    `Icon=${iconPath}`,
     "Terminal=false",
     "Categories=Network;",
+    "StartupWMClass=com.orbital.app",
   ]
-  if (includeWMClass) {
-    lines.push(`StartupWMClass=${APP_ID}`)
-  }
   if (hidden) {
     lines.push("NoDisplay=true")
   }
@@ -105,12 +43,11 @@ function refreshDesktopDatabase(): void {
   })
 }
 
-function writeDesktopEntry(execTarget: string, hidden: boolean, includeWMClass: boolean): void {
+function writeDesktopEntry(execTarget: string, hidden: boolean): void {
   try {
-    installIcon()
     const target = getDesktopEntryPath()
     fs.mkdirSync(path.dirname(target), { recursive: true })
-    fs.writeFileSync(target, renderDesktopEntry(execTarget, hidden, includeWMClass))
+    fs.writeFileSync(target, renderDesktopEntry(execTarget, hidden))
     log.info("[DesktopEntry] Wrote desktop entry:", target, hidden ? "(hidden)" : "(visible)")
     refreshDesktopDatabase()
   } catch (e) {
@@ -125,39 +62,24 @@ function writeDesktopEntry(execTarget: string, hidden: boolean, includeWMClass: 
  * against installed `.desktop` files. AppImageLauncher integrates AppImages under
  * an `appimagekit_<hash>-<name>.desktop` name that never matches the app_id, so
  * hotkey registration silently fails without a properly-named entry. This writes
- * one at first launch, repairs it after AppImage updates, and keeps it from
- * competing with an AppImageLauncher-integrated entry for window association.
+ * one at first launch, and repairs the `Exec=` path after AppImage updates.
  */
 export function ensureLinuxDesktopEntry(): void {
   if (process.platform !== "linux" || !app.isPackaged) return
 
   const target = getDesktopEntryPath()
   const execTarget = process.env.APPIMAGE || process.execPath
-  const integrated = isAppImageLauncherIntegrated()
 
   if (fs.existsSync(target)) {
     try {
       const content = fs.readFileSync(target, "utf-8")
       const execLine = content.split("\n").find((line) => line.startsWith("Exec="))
-      const hasWMClass = content.includes(`StartupWMClass=${APP_ID}`)
-      const hasStaleIcon = content.includes("/tmp/.mount_") || content.includes(`Icon=${ICON_NAME}`) === false
-      const upToDate =
-        !!execLine &&
-        execLine.includes(execTarget) &&
-        hasWMClass === !integrated &&
-        !hasStaleIcon
-
-      if (upToDate) {
+      if (execLine && execLine.includes(execTarget)) {
         log.info("[DesktopEntry] Desktop entry present and up to date:", target)
         return
       }
-
-      const hidden = content.includes("NoDisplay=true")
-      log.info(
-        "[DesktopEntry] Desktop entry present but needs repair (Exec/hidden/icon):",
-        execLine,
-      )
-      writeDesktopEntry(execTarget, hidden, !integrated)
+      log.info("[DesktopEntry] Desktop entry present but Exec is stale, updating:", execLine)
+      writeDesktopEntry(execTarget, content.includes("NoDisplay=true"))
     } catch (e) {
       log.error("[DesktopEntry] Failed to read existing desktop entry:", e)
     }
@@ -169,7 +91,7 @@ export function ensureLinuxDesktopEntry(): void {
     title: "Orbital desktop integration",
     message: "Install Orbital into the application menu?",
     detail:
-      "A desktop entry is required for global shortcuts (hotkeys) to work on Linux (KDE Wayland).\n\n" +
+      "A desktop entry is required for global shortcuts (hotkeys) to work on Linux (under Wayland).\n\n" +
       "If the app was already integrated with AppImageLauncher, a visible entry may duplicate it in the menu. " +
       'Choose "Install hidden" to avoid the duplicate while still enabling hotkeys.',
     buttons: ["Install", "Install hidden", "Skip"],
@@ -179,9 +101,9 @@ export function ensureLinuxDesktopEntry(): void {
   })
 
   if (choice === 0) {
-    writeDesktopEntry(execTarget, false, !integrated)
+    writeDesktopEntry(execTarget, false)
   } else if (choice === 1) {
-    writeDesktopEntry(execTarget, true, !integrated)
+    writeDesktopEntry(execTarget, true)
   } else {
     log.info("[DesktopEntry] User skipped desktop entry installation")
   }
