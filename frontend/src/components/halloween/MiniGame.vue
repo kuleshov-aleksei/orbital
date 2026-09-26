@@ -187,10 +187,10 @@
               item
                 ? 'bg-theme-bg-secondary border-theme-border hover:bg-theme-bg-tertiary cursor-pointer'
                 : 'bg-theme-bg-primary border-theme-border/50 cursor-default',
-              hud?.mode === 'place-pumpkin' && item?.kind === 'pumpkin'
+              hud?.mode === 'place-pumpkin' && hud?.selectedInventoryIndex === index
                 ? 'ring-2 ring-orange-500'
                 : '',
-              item?.kind === 'ability' && hud?.pendingAbility === item.abilityId
+              item?.kind === 'ability' && hud?.selectedInventoryIndex === index
                 ? 'ring-2 ring-orange-500'
                 : '',
             ]"
@@ -711,6 +711,7 @@ onMounted(async () => {
       popupTotal: 0,
       mode: "none",
       pendingAbility: null,
+      selectedInventoryIndex: null,
       prompt: null,
       gameOverReason: "Game config unavailable",
     } as GameSnapshot

@@ -90,6 +90,7 @@ export function columnX(col: number): number {
 
 interface PendingAbility {
   abilityId: AbilityId
+  index: number
 }
 
 export class HalloweenGameEngine {
@@ -124,6 +125,7 @@ export class HalloweenGameEngine {
 
   mode: GameInputMode = "none"
   private pendingAbility: PendingAbility | null = null
+  private pendingPlacementIndex: number | null = null
   hoveredPumpkinId: number | null = null
   prompt: string | null = null
   gameOverReason: string | null = null
@@ -165,6 +167,10 @@ export class HalloweenGameEngine {
       popupTotal: this.popupTotal,
       mode: this.mode,
       pendingAbility: this.pendingAbility?.abilityId ?? null,
+      selectedInventoryIndex:
+        this.mode === "place-pumpkin"
+          ? this.pendingPlacementIndex
+          : (this.pendingAbility?.index ?? null),
       prompt: this.prompt,
       gameOverReason: this.gameOverReason,
     }
@@ -180,6 +186,12 @@ export class HalloweenGameEngine {
 
   get pendingAbilityId(): AbilityId | null {
     return this.pendingAbility?.abilityId ?? null
+  }
+
+  get selectedInventoryIndex(): number | null {
+    if (this.mode === "place-pumpkin") return this.pendingPlacementIndex
+    if (this.pendingAbility) return this.pendingAbility.index
+    return null
   }
 
   aliveSlugCount(): number {
@@ -252,6 +264,16 @@ export class HalloweenGameEngine {
   private addInventoryItem(item: GameInventoryItem) {
     if (this.inventory.length >= INVENTORY_CAPACITY) {
       this.inventory.shift()
+      // The oldest slot vanished — shift armed indexes so they still point
+      // at the same item.
+      if (this.pendingPlacementIndex != null) {
+        this.pendingPlacementIndex -= 1
+        if (this.pendingPlacementIndex < 0) this.clearInteraction()
+      }
+      if (this.pendingAbility) {
+        this.pendingAbility.index -= 1
+        if (this.pendingAbility.index < 0) this.clearInteraction()
+      }
     }
     this.inventory.push(item)
   }
@@ -342,13 +364,20 @@ export class HalloweenGameEngine {
     const item = this.inventory[index]
     if (!item || this.phase !== "playing") return
 
-    // Clicking a slot while aiming cancels the current placement and reselects.
+    // Clicking the armed slot again cancels aiming (toggle-off).
+    if (this.mode !== "none" && this.selectedInventoryIndex === index) {
+      this.clearInteraction()
+      return
+    }
+
+    // Clicking another slot while aiming cancels the current placement and reselects.
     if (this.mode !== "none") {
       this.clearInteraction()
     }
 
     if (item.kind === "pumpkin") {
       this.mode = "place-pumpkin"
+      this.pendingPlacementIndex = index
       this.prompt = `Click the battlefield to place a ${item.pumpkinType} pumpkin`
     } else {
       const meta = ABILITY_META[item.abilityId]
@@ -356,7 +385,7 @@ export class HalloweenGameEngine {
         this.applyInstantAbility(item.abilityId)
         this.consumeInventoryItem(index)
       } else {
-        this.pendingAbility = { abilityId: item.abilityId }
+        this.pendingAbility = { abilityId: item.abilityId, index }
         if (meta.target === "point") {
           this.mode = "ability-point"
           this.prompt = `Click the battlefield to use ${meta.name}`
@@ -391,8 +420,15 @@ export class HalloweenGameEngine {
   }
 
   private tryPlacePumpkinFromInventory(x: number, y: number) {
-    const item = this.inventory.find((i) => i.kind === "pumpkin")
-    if (!item || item.kind !== "pumpkin") {
+    // Use the exact slot the player armed — not the first pumpkin in the
+    // inventory. Inventory can shift (shop buys, card picks) while aiming,
+    // so validate the stored index before using it.
+    const index = this.pendingPlacementIndex
+    const item =
+      index != null && index >= 0 && index < this.inventory.length
+        ? this.inventory[index]
+        : undefined
+    if (index == null || !item || item.kind !== "pumpkin") {
       this.clearInteraction()
       return
     }
@@ -406,7 +442,6 @@ export class HalloweenGameEngine {
       this.prompt = "That spot is already taken — pick another"
       return
     }
-    const index = this.inventory.indexOf(item)
     this.spawnPumpkin(item.pumpkinType, columnX(col), laneCenterY(lane))
     this.consumeInventoryItem(index)
     this.clearInteraction()
@@ -431,6 +466,7 @@ export class HalloweenGameEngine {
   private clearInteraction() {
     this.mode = "none"
     this.pendingAbility = null
+    this.pendingPlacementIndex = null
     this.prompt = null
   }
 
@@ -533,6 +569,22 @@ export class HalloweenGameEngine {
     }
   }
 
+  // Consume the exact armed slot; fall back to first matching ability only
+  // if the stored index went stale (inventory shifted while aiming).
+  private consumePendingAbility(): void {
+    const pending = this.pendingAbility
+    if (!pending) return
+    const item = this.inventory[pending.index]
+    if (item && item.kind === "ability" && item.abilityId === pending.abilityId) {
+      this.consumeInventoryItem(pending.index)
+      return
+    }
+    const fallback = this.inventory.find(
+      (i) => i.kind === "ability" && i.abilityId === pending.abilityId,
+    )
+    if (fallback) this.consumeInventoryItem(this.inventory.indexOf(fallback))
+  }
+
   private applyPointAbility(x: number, y: number) {
     const abilityId = this.pendingAbility?.abilityId
     if (!abilityId) return
@@ -567,8 +619,7 @@ export class HalloweenGameEngine {
         break
     }
 
-    const item = this.inventory.find((i) => i.kind === "ability" && i.abilityId === abilityId)
-    if (item) this.consumeInventoryItem(this.inventory.indexOf(item))
+    this.consumePendingAbility()
     this.clearInteraction()
   }
 
@@ -589,13 +640,21 @@ export class HalloweenGameEngine {
       pumpkin.health += pumpkin.maxHealth / 2
     }
 
-    const item = this.inventory.find((i) => i.kind === "ability" && i.abilityId === abilityId)
-    if (item) this.consumeInventoryItem(this.inventory.indexOf(item))
+    this.consumePendingAbility()
     this.clearInteraction()
   }
 
   private consumeInventoryItem(index: number) {
+    if (index < 0 || index >= this.inventory.length) return
     this.inventory.splice(index, 1)
+    // Keep armed indexes valid when an earlier slot is consumed (e.g. an
+    // instant ability used while aiming a placement).
+    if (this.pendingPlacementIndex != null && index < this.pendingPlacementIndex) {
+      this.pendingPlacementIndex -= 1
+    }
+    if (this.pendingAbility && index < this.pendingAbility.index) {
+      this.pendingAbility.index -= 1
+    }
   }
 
   private trackUse(abilityId: AbilityId) {

@@ -151,6 +151,7 @@ export interface GameSnapshot {
   popupTotal: number
   mode: GameInputMode
   pendingAbility: AbilityId | null
+  selectedInventoryIndex: number | null
   prompt: string | null
   gameOverReason: string | null
 }
