@@ -13,6 +13,10 @@
       "allowedVersions": "!/^7\\.0\\./"
     },
     {
+      "matchPackagePatterns": ["livekit/protocol"],
+      "allowedVersions": "<=1.50.4"
+    },
+    {
       "matchPackageNames": ["**"],
       "groupName": "all-dependencies",
       "automerge": false,
