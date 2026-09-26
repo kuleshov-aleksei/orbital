@@ -34,6 +34,7 @@ interface PumpkinDisplay {
   container: Container
   sprite: Sprite | Graphics
   bar: Graphics
+  pips: Graphics
 }
 
 interface SlugDisplay {
@@ -132,6 +133,20 @@ export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRen
     bar.fill({ color })
   }
 
+  // Level pips: one dot per pumkin level under the body. L1 is a single dim
+  // dot; L2+ glow emerald so leveled pumpkins read at a glance.
+  const updatePips = (pips: Graphics, radius: number, level: number) => {
+    pips.clear()
+    const n = Math.max(1, Math.min(3, level))
+    const color = n > 1 ? 0x34d399 : 0x4b5563
+    const spacing = 9
+    const y = radius + 8
+    for (let i = 0; i < n; i++) {
+      pips.circle((i - (n - 1) / 2) * spacing, y, 2.5)
+      pips.fill({ color, alpha: n > 1 ? 0.95 : 0.6 })
+    }
+  }
+
   const spriteFor = (texture: ReturnType<typeof Assets.get>, height: number): Sprite => {
     const sprite = new Sprite(texture)
     sprite.anchor.set(0.5)
@@ -148,8 +163,10 @@ export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRen
     body.tint = PUMPKIN_TINTS[type]
     container.addChild(body)
     const bar = makeHealthBar(container, radius * 2, -radius - 12)
+    const pips = new Graphics()
+    container.addChild(pips)
     world?.addChild(container)
-    pumpkins.set(id, { container, sprite: body, bar })
+    pumpkins.set(id, { container, sprite: body, bar, pips })
   }
 
   const addSlug = (id: number, type: SlugType, radius: number) => {
@@ -333,6 +350,7 @@ export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRen
       }
       display.container.position.set(p.x, p.y)
       updateBar(display.bar, p.radius * 2, p.health, p.maxHealth)
+      updatePips(display.pips, p.radius, p.level)
       display.sprite.alpha = p.health > 0 ? 1 : 0.3
       if (p.health <= 0) display.sprite.tint = 0x444444
     }

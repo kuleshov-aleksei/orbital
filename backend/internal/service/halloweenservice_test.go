@@ -181,6 +181,70 @@ func TestHalloweenShopEconomyConfig(t *testing.T) {
 	}
 }
 
+func TestHalloweenLevelUpConfig(t *testing.T) {
+	s := newHalloweenTestService(t)
+	cfg := s.Config()
+
+	// Level 1->2 costs 40 XP, 2->3 costs 80 XP (120 XP to max out).
+	if len(cfg.LevelCosts) != 2 || cfg.LevelCosts[0] != 40 || cfg.LevelCosts[1] != 80 {
+		t.Fatalf("level_costs = %v, want [40 80]", cfg.LevelCosts)
+	}
+
+	wantXP := map[string]int{
+		HalloweenSlugScout:  2,
+		HalloweenSlugMarvin: 3,
+		HalloweenSlugGerald: 3,
+		HalloweenSlugDell:   5,
+	}
+	for name, xp := range wantXP {
+		slug, ok := cfg.Slugs[name]
+		if !ok {
+			t.Fatalf("missing slug %q in config", name)
+		}
+		if slug.XpReward != xp {
+			t.Errorf("slug %q xp_reward = %d, want %d", name, slug.XpReward, xp)
+		}
+	}
+
+	// Every pumpkin has exactly 3 levels; level 1 mirrors the top-level row.
+	for name, p := range cfg.Pumpkins {
+		if len(p.Levels) != 3 {
+			t.Errorf("pumpkin %q has %d levels, want 3", name, len(p.Levels))
+			continue
+		}
+		l1 := p.Levels[0]
+		if l1.Health != p.Health || l1.FireRate != p.FireRate ||
+			l1.DamagePerShot != p.DamagePerShot || l1.ProjectileSpeed != p.ProjectileSpeed {
+			t.Errorf("pumpkin %q level 1 %+v does not mirror top-level row", name, l1)
+		}
+	}
+
+	// Herbert is nerfed: heal amount stays flat, only fire rate scales.
+	herbert := cfg.Pumpkins["herbert"].Levels
+	for i, lvl := range herbert {
+		if lvl.DamagePerShot != 5 {
+			t.Errorf("herbert level %d heal = %d, want 5 (flat)", i+1, lvl.DamagePerShot)
+		}
+	}
+	if herbert[0].FireRate != 0.5 || herbert[1].FireRate != 0.6 || herbert[2].FireRate != 0.7 {
+		t.Errorf("herbert fire rates = %v/%v/%v, want 0.5/0.6/0.7",
+			herbert[0].FireRate, herbert[1].FireRate, herbert[2].FireRate)
+	}
+
+	// A level 2 pumpkin must stay weaker than two level 1s (spot-check HP).
+	if chunky := cfg.Pumpkins["chunky"].Levels; chunky[1].Health >= 2*chunky[0].Health {
+		t.Errorf("chunky level 2 HP = %d, must be < 2x level 1 (%d)",
+			chunky[1].Health, 2*chunky[0].Health)
+	}
+	if cramer := cfg.Pumpkins["cramer"].Levels; cramer[1].CoinIntervalS != 4 || cramer[2].CoinIntervalS != 3 {
+		t.Errorf("cramer coin intervals = %v/%v, want 4/3",
+			cramer[1].CoinIntervalS, cramer[2].CoinIntervalS)
+	}
+	if gwyn := cfg.Pumpkins["gwynevere"].Levels; gwyn[0].BlastRadius != 70 || gwyn[2].BlastRadius != 90 {
+		t.Errorf("gwynevere blast = %v/%v, want 70/90", gwyn[0].BlastRadius, gwyn[2].BlastRadius)
+	}
+}
+
 func TestHalloweenSpawnTablesConfig(t *testing.T) {
 	s := newHalloweenTestService(t)
 	cfg := s.Config()

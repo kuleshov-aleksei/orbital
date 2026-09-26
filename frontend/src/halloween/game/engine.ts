@@ -19,7 +19,10 @@ import type {
 import {
   ABILITY_META,
   INVENTORY_CAPACITY,
+  MAX_PUMPKIN_LEVEL,
   buildCardOffer,
+  levelStatsFor,
+  levelUpCost,
   resolveSpawnTable,
   speedVariationForRound,
   startingPumpkinsForConfig,
@@ -45,6 +48,9 @@ export const COLUMN_START_X = 80
 export const COLUMN_SPACING = 80
 const SLUG_ATTACK_INTERVAL = 3
 const DELL_SPAWN_INTERVAL = 5
+// Dr. Dell Conagher retires after this many Marvins — an immortal Dell would
+// otherwise be an infinite XP/coin farm (each Marvin is 3 XP + kill reward).
+const DELL_MAX_SPAWNS = 20
 const DISTRACTION_DURATION = 5
 const FREEZE_DURATION = 5
 const GRENADE_FUSE = 3
@@ -104,6 +110,10 @@ export class HalloweenGameEngine {
   private coins = 0
   private coinsEarned = 0
   private coinsSpent = 0
+  // Global level-up pool: every slug kill grants xp_reward, spendable on
+  // any pumkin via levelUpPumpkin. Selling never refunds spent XP.
+  private xp = 0
+  private xpEarned = 0
   // Shop purchases per pumpkin type — drives rising shop prices.
   private purchaseCounts: Record<string, number> = {}
 
@@ -160,6 +170,7 @@ export class HalloweenGameEngine {
       completedRounds: this.completedRounds,
       score: this.score,
       coins: this.coins,
+      xp: this.xp,
       shopPrices: this.shopPrices(),
       inventory: this.inventory.map((i) => ({ ...i })),
       cards: this.cards,
@@ -480,24 +491,103 @@ export class HalloweenGameEngine {
   // ---- Entities ----------------------------------------------------------
 
   private spawnPumpkin(type: PumpkinType, x: number, y: number) {
-    const cfg = this.config.pumpkins[type]
-    const health = cfg?.health ?? 10
+    const stats = levelStatsFor(type, 1, this.config)
+    const health = stats?.health ?? this.config.pumpkins[type]?.health ?? 10
+    const fireRate = stats?.fire_rate ?? this.config.pumpkins[type]?.fire_rate ?? 0
     this.pumpkins.push({
       id: this.nextId++,
       type,
       x,
       y,
+      level: 1,
       health,
       maxHealth: health,
       radius: PUMPKIN_RADIUS,
       fireTimer: 0,
-      fireInterval: cfg?.fire_rate && cfg.fire_rate > 0 ? 1 / cfg.fire_rate : Infinity,
-      damage: cfg?.damage_per_shot ?? 0,
-      projectileSpeed: cfg?.projectile_speed ?? 0,
+      fireInterval: fireRate > 0 ? 1 / fireRate : Infinity,
+      damage: stats?.damage_per_shot ?? this.config.pumpkins[type]?.damage_per_shot ?? 0,
+      projectileSpeed: stats?.projectile_speed ?? this.config.pumpkins[type]?.projectile_speed ?? 0,
+      blastRadius: stats?.blast_radius || GWYN_BLAST_RADIUS,
       fireRateMul: 1,
       coinTimer: 0,
     })
     this.spawnedPumpkins[type] = (this.spawnedPumpkins[type] ?? 0) + 1
+  }
+
+  // ---- Level-ups ---------------------------------------------------------
+
+  // levelUpCostFor returns the XP price of leveling the given pumpkin,
+  // or null when it is already maxed.
+  levelUpCostFor(pumpkin: GamePumpkin): number | null {
+    return levelUpCost(pumpkin.level, this.config)
+  }
+
+  // levelUpPreview returns the next level number, its XP cost, and its
+  // balance row for tooltip diffs. Null when the pumpkin is maxed.
+  levelUpPreview(pumpkinId: number): {
+    level: number
+    cost: number
+    stats: {
+      health: number
+      fireRate: number
+      damage: number
+      blastRadius: number
+      coinInterval: number
+    }
+  } | null {
+    const pumpkin = this.pumpkins.find((p) => p.id === pumpkinId)
+    if (!pumpkin || pumpkin.health <= 0) return null
+    const cost = this.levelUpCostFor(pumpkin)
+    if (cost == null) return null
+    const stats = levelStatsFor(pumpkin.type, pumpkin.level + 1, this.config)
+    if (!stats) return null
+    return {
+      level: pumpkin.level + 1,
+      cost,
+      stats: {
+        health: stats.health,
+        fireRate: stats.fire_rate,
+        damage: stats.damage_per_shot,
+        blastRadius: stats.blast_radius || GWYN_BLAST_RADIUS,
+        coinInterval: stats.coin_interval_s,
+      },
+    }
+  }
+
+  // levelUpPumpkin spends global XP to level a pumpkin (playing phase only).
+  // Max-HP buffs (wide_pumpkin x2) are preserved proportionally; current
+  // health gains exactly the max-HP delta — no free full heal.
+  levelUpPumpkin(id: number): boolean {
+    if (this.phase !== "playing") return false
+    const pumpkin = this.pumpkins.find((p) => p.id === id)
+    if (!pumpkin || pumpkin.health <= 0) return false
+    if (pumpkin.level >= MAX_PUMPKIN_LEVEL) return false
+    const cost = this.levelUpCostFor(pumpkin)
+    if (cost == null || this.xp < cost) return false
+    const stats = levelStatsFor(pumpkin.type, pumpkin.level + 1, this.config)
+    if (!stats) return false
+    const prevBase =
+      levelStatsFor(pumpkin.type, pumpkin.level, this.config)?.health ?? pumpkin.maxHealth
+    this.xp -= cost
+    pumpkin.level += 1
+    const oldMax = pumpkin.maxHealth
+    // Preserve proportional max-HP buffs (e.g. wide_pumpkin x2) by scaling
+    // the buff multiplier, not the absolute bonus.
+    const buffMul = prevBase > 0 ? oldMax / prevBase : 1
+    const newMax = Math.max(1, Math.round(stats.health * buffMul))
+    pumpkin.maxHealth = newMax
+    pumpkin.health += newMax - oldMax
+    if (stats.fire_rate > 0) {
+      pumpkin.fireInterval = 1 / stats.fire_rate / pumpkin.fireRateMul
+    } else {
+      pumpkin.fireInterval = Infinity
+    }
+    pumpkin.damage = stats.damage_per_shot
+    pumpkin.projectileSpeed = stats.projectile_speed
+    if (stats.blast_radius > 0) pumpkin.blastRadius = stats.blast_radius
+    pumpkin.fireTimer = Math.min(pumpkin.fireTimer, pumpkin.fireInterval)
+    this.onEvent?.("item_used")
+    return true
   }
 
   private spawnSlug(type: SlugType, x: number, y: number, speedMul = 1, shields = 0) {
@@ -526,6 +616,7 @@ export class HalloweenGameEngine {
       frozenFor: 0,
       distractionFor: 0,
       spawnTimer: 0,
+      spawnedCount: 0,
       shields,
       maxShields: shields,
     })
@@ -710,11 +801,12 @@ export class HalloweenGameEngine {
 
       const direction = slug.distractionFor > 0 ? 1 : -1
 
-      // Dr. Dell Conagher doesn't move; spawns Marvins.
+      // Dr. Dell Conagher doesn't move; spawns Marvins (capped per Dell).
       if (slug.type === "dell" && slug.health > 0) {
         slug.spawnTimer += dt
-        if (slug.spawnTimer >= DELL_SPAWN_INTERVAL) {
+        if (slug.spawnTimer >= DELL_SPAWN_INTERVAL && slug.spawnedCount < DELL_MAX_SPAWNS) {
           slug.spawnTimer = 0
+          slug.spawnedCount += 1
           this.spawnSlug("marvin", slug.x + 10, slug.y)
         }
         continue
@@ -839,16 +931,17 @@ export class HalloweenGameEngine {
     return this.nearestSlugOnLane(pumpkin) !== null
   }
 
-  // Cramer produces seeds (coins) every coin_interval_s seconds.
+  // Cramer produces seeds (coins) on its level's coin tick.
   // Diminishing returns: the nth alive cramer works at 1/2^(n-1) rate.
   // Infinite money printers are a bug, not a strategy.
   private updateCramers(dt: number) {
     let seen = 0
     for (const pumpkin of this.pumpkins) {
       if (pumpkin.type !== "cramer" || pumpkin.health <= 0) continue
-      const cfg = this.config.pumpkins["cramer"]
-      const interval = cfg?.coin_interval_s ?? 0
-      const amount = cfg?.coins_per_tick ?? 0
+      const stats = levelStatsFor(pumpkin.type, pumpkin.level, this.config)
+      const interval =
+        stats?.coin_interval_s ?? this.config.pumpkins["cramer"]?.coin_interval_s ?? 0
+      const amount = stats?.coins_per_tick ?? this.config.pumpkins["cramer"]?.coins_per_tick ?? 0
       if (interval <= 0 || amount <= 0) continue
       const rate = 1 / Math.pow(2, seen)
       seen++
@@ -868,14 +961,7 @@ export class HalloweenGameEngine {
       const point = this.gwynevereTarget(pumpkin)
       if (!point) return
       this.projectiles.push(
-        this.makeProjectile(
-          "missile",
-          pumpkin,
-          point,
-          null,
-          cfg.damage_per_shot,
-          GWYN_BLAST_RADIUS,
-        ),
+        this.makeProjectile("missile", pumpkin, point, null, pumpkin.damage, pumpkin.blastRadius),
       )
       this.onEvent?.("shooting")
       return
@@ -892,7 +978,7 @@ export class HalloweenGameEngine {
       }
       if (lowest) {
         this.projectiles.push(
-          this.makeProjectile("heal", pumpkin, null, lowest.id, cfg.damage_per_shot, 0),
+          this.makeProjectile("heal", pumpkin, null, lowest.id, pumpkin.damage, 0),
         )
         this.onEvent?.("shooting")
       }
@@ -910,7 +996,7 @@ export class HalloweenGameEngine {
         pumpkin,
         null,
         null,
-        cfg.damage_per_shot,
+        pumpkin.damage,
         0,
         pumpkin.type === "pearcer" ? PEARCER_PIERCE : 0,
       ),
@@ -998,6 +1084,7 @@ export class HalloweenGameEngine {
 
     let bestPoint: { x: number; y: number } | null = null
     let bestCount = 0
+    const blast = pumpkin.blastRadius || GWYN_BLAST_RADIUS
     for (const slug of laneSlugs) {
       const lx = interceptFor(slug)
       const arrival = (lx - x0) / v
@@ -1005,7 +1092,7 @@ export class HalloweenGameEngine {
       for (const s of laneSlugs) {
         const w = s.distractionFor > 0 ? s.speed : -s.speed
         const sx = s.x + w * arrival
-        if (Math.abs(sx - lx) <= GWYN_BLAST_RADIUS) count++
+        if (Math.abs(sx - lx) <= blast) count++
       }
       if (count > bestCount) {
         bestCount = count
@@ -1138,6 +1225,13 @@ export class HalloweenGameEngine {
     this.kills.push({ type: slug.type, x: slug.x, source })
     this.score += this.killScore(slug, source)
     this.addCoins(this.config.slugs[slug.type]?.kill_reward ?? 0)
+    // XP is granted for every kill regardless of source — including
+    // Dell-spawned Marvins, which flow through here like any other kill.
+    const xp = this.config.slugs[slug.type]?.xp_reward ?? 0
+    if (xp > 0) {
+      this.xp += xp
+      this.xpEarned += xp
+    }
     this.slugs = this.slugs.filter((s) => s.id !== slug.id)
     this.onEvent?.("slug_destroyed")
   }
@@ -1200,6 +1294,7 @@ export class HalloweenGameEngine {
       score: this.score,
       coins_earned: this.coinsEarned,
       coins_spent: this.coinsSpent,
+      xp_earned: this.xpEarned,
       is_incomplete: isIncomplete,
     }
   }

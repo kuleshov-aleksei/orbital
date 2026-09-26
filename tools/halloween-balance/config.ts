@@ -52,6 +52,11 @@ export function defaultConfig(): HalloweenGameConfig {
         cost: 20,
         coin_interval_s: 0,
         coins_per_tick: 0,
+        levels: [
+          { health: 10, fire_rate: 1, damage_per_shot: 5, projectile_speed: 100, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 0 },
+          { health: 14, fire_rate: 1.15, damage_per_shot: 6, projectile_speed: 100, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 0 },
+          { health: 18, fire_rate: 1.3, damage_per_shot: 7, projectile_speed: 100, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 0 },
+        ],
       },
       chunky: {
         fire_rate: 0,
@@ -61,6 +66,11 @@ export function defaultConfig(): HalloweenGameConfig {
         cost: 40,
         coin_interval_s: 0,
         coins_per_tick: 0,
+        levels: [
+          { health: 50, fire_rate: 0, damage_per_shot: 0, projectile_speed: 0, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 0 },
+          { health: 75, fire_rate: 0, damage_per_shot: 0, projectile_speed: 0, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 0 },
+          { health: 100, fire_rate: 0, damage_per_shot: 0, projectile_speed: 0, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 0 },
+        ],
       },
       herbert: {
         fire_rate: 0.5,
@@ -70,6 +80,11 @@ export function defaultConfig(): HalloweenGameConfig {
         cost: 40,
         coin_interval_s: 0,
         coins_per_tick: 0,
+        levels: [
+          { health: 10, fire_rate: 0.5, damage_per_shot: 5, projectile_speed: 150, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 0 },
+          { health: 14, fire_rate: 0.6, damage_per_shot: 5, projectile_speed: 150, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 0 },
+          { health: 18, fire_rate: 0.7, damage_per_shot: 5, projectile_speed: 150, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 0 },
+        ],
       },
       gwynevere: {
         fire_rate: 0.1,
@@ -79,6 +94,11 @@ export function defaultConfig(): HalloweenGameConfig {
         cost: 70,
         coin_interval_s: 0,
         coins_per_tick: 0,
+        levels: [
+          { health: 5, fire_rate: 0.1, damage_per_shot: 10, projectile_speed: 40, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 70 },
+          { health: 7, fire_rate: 0.115, damage_per_shot: 13, projectile_speed: 40, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 80 },
+          { health: 9, fire_rate: 0.13, damage_per_shot: 16, projectile_speed: 40, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 90 },
+        ],
       },
       cramer: {
         fire_rate: 0,
@@ -88,6 +108,11 @@ export function defaultConfig(): HalloweenGameConfig {
         cost: 75,
         coin_interval_s: 5,
         coins_per_tick: 1,
+        levels: [
+          { health: 10, fire_rate: 0, damage_per_shot: 0, projectile_speed: 0, coin_interval_s: 5, coins_per_tick: 1, blast_radius: 0 },
+          { health: 14, fire_rate: 0, damage_per_shot: 0, projectile_speed: 0, coin_interval_s: 4, coins_per_tick: 1, blast_radius: 0 },
+          { health: 18, fire_rate: 0, damage_per_shot: 0, projectile_speed: 0, coin_interval_s: 3, coins_per_tick: 1, blast_radius: 0 },
+        ],
       },
       pearcer: {
         fire_rate: 0.25,
@@ -98,13 +123,18 @@ export function defaultConfig(): HalloweenGameConfig {
         coin_interval_s: 0,
         coins_per_tick: 0,
         draft_only: true,
+        levels: [
+          { health: 5, fire_rate: 0.25, damage_per_shot: 25, projectile_speed: 200, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 0 },
+          { health: 7, fire_rate: 0.278, damage_per_shot: 30, projectile_speed: 200, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 0 },
+          { health: 9, fire_rate: 0.323, damage_per_shot: 35, projectile_speed: 200, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 0 },
+        ],
       },
     },
     slugs: {
-      scout: { speed: 50, health: 10, damage_to_pumpkin: 2, reward_points: 10, kill_reward: 2 },
-      marvin: { speed: 50, health: 20, damage_to_pumpkin: 5, reward_points: 20, kill_reward: 5 },
-      gerald: { speed: 30, health: 100, damage_to_pumpkin: 20, reward_points: 50, kill_reward: 15 },
-      dell: { speed: 0, health: 10, damage_to_pumpkin: 0, reward_points: 100, kill_reward: 25 },
+      scout: { speed: 50, health: 10, damage_to_pumpkin: 2, reward_points: 10, kill_reward: 2, xp_reward: 2 },
+      marvin: { speed: 50, health: 20, damage_to_pumpkin: 5, reward_points: 20, kill_reward: 5, xp_reward: 3 },
+      gerald: { speed: 30, health: 100, damage_to_pumpkin: 20, reward_points: 50, kill_reward: 15, xp_reward: 3 },
+      dell: { speed: 0, health: 10, damage_to_pumpkin: 0, reward_points: 100, kill_reward: 25, xp_reward: 5 },
     },
     abilities: {
       annihilation: { score: 70, kind: "multiplier" },
@@ -148,6 +178,7 @@ export function defaultConfig(): HalloweenGameConfig {
       shield_per_round: 2,
     },
     slug_hp_growth: 1.27,
+    level_costs: [40, 80],
     shield_min: 3,
     shield_max: 6,
   }

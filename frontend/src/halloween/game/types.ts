@@ -34,6 +34,7 @@ export interface GamePumpkin {
   type: PumpkinType
   x: number
   y: number
+  level: number // 1-based pumkin level (1..MAX_PUMPKIN_LEVEL)
   health: number
   maxHealth: number
   radius: number
@@ -41,6 +42,7 @@ export interface GamePumpkin {
   fireInterval: number
   damage: number
   projectileSpeed: number
+  blastRadius: number // gwynevere AoE radius; 0 for the rest
   fireRateMul: number
   coinTimer: number // cramer seed production accumulator
 }
@@ -63,6 +65,7 @@ export interface GameSlug {
   frozenFor: number
   distractionFor: number
   spawnTimer: number // dell spawns marvins
+  spawnedCount: number // dell: marvins spawned so far (capped — no infinite farms)
   shields: number // shield hits remaining — each hit strips one, HP untouched
   maxShields: number // for the renderer ring; sentimentality, mostly
 }
@@ -143,6 +146,7 @@ export interface GameSnapshot {
   completedRounds: number
   score: number
   coins: number
+  xp: number // global level-up pool (spend via levelUpPumpkin)
   // Current per-type shop prices including inflation (see costFor).
   shopPrices: Record<string, number>
   inventory: GameInventoryItem[]

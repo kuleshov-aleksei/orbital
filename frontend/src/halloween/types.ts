@@ -54,6 +54,7 @@ export interface HalloweenGameReport {
   score: number
   coins_earned: number
   coins_spent: number
+  xp_earned: number // global level-up pool telemetry; ignored by scoring
   is_incomplete: boolean
 }
 
@@ -74,6 +75,19 @@ export interface HalloweenLeaderboardEntry {
   completed_rounds: number
 }
 
+// HalloweenPumpkinLevelConfig is one row of the pumkin level balance table
+// (HALLOWEEN.md "Pumkin level balance table"). BlastRadius only matters for
+// Gwynevere; CoinIntervalS/CoinsPerTick only matter for Cramer.
+export interface HalloweenPumpkinLevelConfig {
+  health: number
+  fire_rate: number
+  damage_per_shot: number
+  projectile_speed: number
+  coin_interval_s: number
+  coins_per_tick: number
+  blast_radius: number
+}
+
 // HalloweenPumpkinConfig mirrors the pumpkin balance table.
 export interface HalloweenPumpkinConfig {
   fire_rate: number
@@ -84,6 +98,7 @@ export interface HalloweenPumpkinConfig {
   coin_interval_s: number // seconds per coin tick (cramer)
   coins_per_tick: number // seeds produced per tick (cramer)
   draft_only?: boolean // true: card-exclusive, never sold in the shop (pearcer)
+  levels?: HalloweenPumpkinLevelConfig[] // index 0 = level 1; top-level fields mirror levels[0]
 }
 
 // HalloweenSlugConfig mirrors the slug balance table.
@@ -93,6 +108,7 @@ export interface HalloweenSlugConfig {
   damage_to_pumpkin: number
   reward_points: number
   kill_reward: number // seeds earned per kill
+  xp_reward?: number // xp earned per kill (global level-up pool); absent = 0
 }
 
 // HalloweenAbilityConfig mirrors the ability scoring rules.
@@ -154,6 +170,9 @@ export interface HalloweenGameConfig {
   spawn_scaling?: HalloweenSpawnScalingConfig
   // Per-round slug HP multiplier base: HP *= growth^(round-1). Absent = 1 (flat).
   slug_hp_growth?: number
+  // XP price per level-up: index 0 levels 1->2, index 1 levels 2->3.
+  // Absent = [40, 80] fallback.
+  level_costs?: number[]
   shield_min: number // shields rolled by a shielded slug (min)
   shield_max: number // shields rolled by a shielded slug (max)
 }

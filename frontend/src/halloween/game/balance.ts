@@ -1,5 +1,5 @@
 import type { AbilityId, PumpkinType, SlugType } from "./types"
-import type { HalloweenGameConfig } from "../types"
+import type { HalloweenGameConfig, HalloweenPumpkinLevelConfig } from "../types"
 
 // Slug spawn tables per round (HALLOWEEN.md "Slug per round balance table").
 // Server-authoritative values now live in HalloweenGameConfig.spawn_rounds /
@@ -251,3 +251,50 @@ export function buildCardOffer(rng: RandomFn = Math.random): CardDefinition[] {
 }
 
 export const INVENTORY_CAPACITY = 6
+
+// Pumkin level-up tuning (HALLOWEEN.md "Pumkin level up mechanic").
+// A level 2 pumkin is never as powerful as 2 pumkins at level 1 —
+// levels buy board-space efficiency, not raw power.
+export const MAX_PUMPKIN_LEVEL = 3
+export const FALLBACK_LEVEL_COSTS = [40, 80]
+
+// levelCostsFor prefers the server config, same fallback chain as spawns.
+export function levelCostsFor(config?: Pick<HalloweenGameConfig, "level_costs">): number[] {
+  const costs = config?.level_costs
+  if (costs && costs.length >= MAX_PUMPKIN_LEVEL - 1) return costs
+  return FALLBACK_LEVEL_COSTS
+}
+
+// levelUpCost returns the XP price of leveling a pumpkin from `level`
+// (1-based) to the next one, or null when already maxed.
+export function levelUpCost(
+  level: number,
+  config?: Pick<HalloweenGameConfig, "level_costs">,
+): number | null {
+  if (level < 1 || level >= MAX_PUMPKIN_LEVEL) return null
+  return levelCostsFor(config)[level - 1] ?? null
+}
+
+// levelStatsFor returns the balance row for a pumpkin type at a 1-based
+// level. Prefers the server `levels` table; falls back to the top-level
+// (level 1) fields when absent so cached payloads keep working.
+export function levelStatsFor(
+  type: PumpkinType,
+  level: number,
+  config?: Pick<HalloweenGameConfig, "pumpkins">,
+): HalloweenPumpkinLevelConfig | null {
+  const cfg = config?.pumpkins[type]
+  if (!cfg) return null
+  const clamped = Math.max(1, Math.min(MAX_PUMPKIN_LEVEL, level))
+  const row = cfg.levels?.[clamped - 1]
+  if (row) return row
+  return {
+    health: cfg.health,
+    fire_rate: cfg.fire_rate,
+    damage_per_shot: cfg.damage_per_shot,
+    projectile_speed: cfg.projectile_speed,
+    coin_interval_s: cfg.coin_interval_s,
+    coins_per_tick: cfg.coins_per_tick,
+    blast_radius: 0,
+  }
+}

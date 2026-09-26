@@ -34,6 +34,7 @@ type HalloweenGameReport struct {
 	Score           int                 `json:"score"`
 	CoinsEarned     int                 `json:"coins_earned"`
 	CoinsSpent      int                 `json:"coins_spent"`
+	XpEarned        int                 `json:"xp_earned"` // global level-up pool telemetry; ignored by scoring
 	IsIncomplete    bool                `json:"is_incomplete"` // tab closed / left the call
 }
 

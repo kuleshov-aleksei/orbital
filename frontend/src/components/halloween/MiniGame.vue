@@ -17,6 +17,12 @@
             <span aria-hidden="true">🌰</span>
             {{ hud?.coins ?? 0 }}
           </span>
+          <span
+            class="flex items-center gap-1 text-theme-text-secondary"
+            title="XP for leveling up pumpkins">
+            <span aria-hidden="true">✨</span>
+            {{ hud?.xp ?? 0 }}
+          </span>
         </div>
         <div class="flex items-center gap-2">
           <div
@@ -68,6 +74,9 @@
               hoverInfo.type
             }}</span>
           </div>
+          <div class="mt-1 text-[11px] font-bold text-amber-400" data-testid="pumpkin-level">
+            Level {{ hoverInfo.level }} {{ levelPips(hoverInfo.level) }}
+          </div>
           <p class="text-[11px] text-theme-text-muted mt-1 leading-snug">
             {{ hoverInfo.description }}
           </p>
@@ -82,8 +91,33 @@
           <div class="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-[11px]">
             <template v-for="stat in hoverInfo.stats" :key="stat.label">
               <span class="text-theme-text-muted">{{ stat.label }}</span>
-              <span class="text-right text-theme-text-primary font-semibold">{{ stat.value }}</span>
+              <span class="text-right text-theme-text-primary font-semibold">
+                {{ stat.value }}
+                <template v-if="stat.next">
+                  <span class="text-theme-text-muted font-normal"> → </span>
+                  <span class="text-emerald-400 font-bold">{{ stat.next }}</span>
+                </template>
+              </span>
             </template>
+          </div>
+          <button
+            v-if="hoverInfo.levelCost != null && hud?.phase === 'playing'"
+            type="button"
+            class="mt-2.5 w-full py-1.5 rounded-lg text-xs font-bold border transition-colors"
+            :class="
+              hoverInfo.canLevelUp
+                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
+                : 'bg-theme-bg-tertiary text-theme-text-muted border-theme-border cursor-not-allowed'
+            "
+            :disabled="!hoverInfo.canLevelUp"
+            data-testid="levelup-pumpkin"
+            @click="levelUpPumpkin(hoverInfo.id)">
+            Level up ({{ hoverInfo.levelCost }} ✨)
+          </button>
+          <div
+            v-else-if="hud?.phase === 'playing'"
+            class="mt-2.5 w-full py-1 text-center text-[11px] font-bold text-amber-400/80">
+            MAX LEVEL
           </div>
           <button
             v-if="hud?.phase === 'playing'"
@@ -333,7 +367,12 @@ import { useHalloweenStore } from "@/stores"
 import type { SubmitGameReportResponse } from "@/halloween/types"
 import { HalloweenGameEngine } from "@/halloween/game/engine"
 import { createMiniGameRenderer } from "@/halloween/game/renderer"
-import { ABILITY_META, PUMPKIN_META } from "@/halloween/game/balance"
+import {
+  ABILITY_META,
+  MAX_PUMPKIN_LEVEL,
+  PUMPKIN_META,
+  levelStatsFor,
+} from "@/halloween/game/balance"
 import type {
   GameInventoryItem,
   GamePumpkin,
@@ -387,6 +426,12 @@ function onShopPointerLeave() {
   shopTooltipPos.value = null
 }
 
+interface TooltipStat {
+  label: string
+  value: string
+  next?: string // improved value at the next level — rendered with accent
+}
+
 interface PumpkinHoverInfo {
   id: number
   x: number
@@ -394,9 +439,19 @@ interface PumpkinHoverInfo {
   type: PumpkinType
   name: string
   description: string
-  stats: { label: string; value: string }[]
+  stats: TooltipStat[]
   buffs: string[]
   refund: number
+  level: number
+  levelCost: number | null // XP price of the next level; null when maxed
+  canLevelUp: boolean
+}
+
+// fmtInterval renders a fire rate as a shot interval ("Every 1.00s"),
+// matching the shop tooltip style.
+function fmtInterval(ratePerSec: number): string {
+  if (!Number.isFinite(ratePerSec) || ratePerSec <= 0) return "—"
+  return `${(1 / ratePerSec).toFixed(ratePerSec >= 1 ? 1 : 2)}s`
 }
 
 const hoverInfo = computed<PumpkinHoverInfo | null>(() => {
@@ -408,32 +463,79 @@ const hoverInfo = computed<PumpkinHoverInfo | null>(() => {
   if (hud.value?.mode === "place-pumpkin") return null
   const meta = PUMPKIN_META[p.type]
   const cfg = config.pumpkins[p.type]
-  const baseHealth = cfg?.health ?? p.maxHealth
-  const ratePerSec =
-    Number.isFinite(p.fireInterval) && p.fireInterval > 0 ? p.fireRateMul / p.fireInterval : 0
+  // Level-aware base health: a leveled pumpkin's bigger max HP is not a
+  // wide_pumpkin buff, so only max HP above the *current level's* base earns
+  // the badge.
+  const baseHealth = levelStatsFor(p.type, p.level, config)?.health ?? cfg?.health ?? p.maxHealth
+  // fireInterval already encodes fireRateMul (daddy halves the interval AND
+  // bumps the multiplier; level-ups divide by it) — so the live rate is
+  // simply 1/interval. Dividing by the multiplier again would double-count
+  // buffs and make level-ups look like downgrades.
+  const ratePerSec = Number.isFinite(p.fireInterval) && p.fireInterval > 0 ? 1 / p.fireInterval : 0
   const buffs: string[] = []
   if (p.fireRateMul > 1) buffs.push(`Fire rate ×${p.fireRateMul}`)
   if (p.maxHealth > baseHealth) buffs.push("Health ×2")
 
+  // Next-level preview for the improvement diff (null when maxed or dead).
+  const preview = engine?.levelUpPreview(p.id) ?? null
+  const next = preview?.stats ?? null
+  const nextRate = next && next.fireRate > 0 ? next.fireRate * p.fireRateMul : 0
+  const improved = <T,>(cur: T, nxt: T): string | undefined =>
+    next && nxt !== cur ? `${nxt}` : undefined
+
   // Per-type stats: combat pumpkins show damage, Herbert shows healing,
-  // Cramer shows seed production, and Chunky is pure HP.
-  const stats: { label: string; value: string }[] = [
-    { label: "Health", value: `${Math.ceil(p.health)} / ${Math.ceil(p.maxHealth)}` },
+  // Cramer shows seed production, and Chunky is pure HP. Rows that improve
+  // on level-up carry `next`, rendered as "current → next" with accent.
+  // wide_pumpkin doubles max HP, so the previewed max keeps that multiplier.
+  const buffMul = baseHealth > 0 ? p.maxHealth / baseHealth : 1
+  const nextMax = next ? Math.round(next.health * buffMul) : 0
+  const stats: TooltipStat[] = [
+    {
+      label: "Health",
+      value: `${Math.ceil(p.health)} / ${Math.ceil(p.maxHealth)}`,
+      next: next && nextMax !== Math.ceil(p.maxHealth) ? `${nextMax}` : undefined,
+    },
   ]
   if (p.type === "cramer") {
-    const perMin =
-      cfg && cfg.coin_interval_s > 0 ? (cfg.coins_per_tick / cfg.coin_interval_s) * 60 : 0
+    const coinStats = levelStatsFor(p.type, p.level, config)
+    const curInterval = coinStats?.coin_interval_s ?? cfg?.coin_interval_s ?? 0
+    const perMin = curInterval > 0 ? ((coinStats?.coins_per_tick ?? 0) / curInterval) * 60 : 0
     stats.push({ label: "Seeds / min", value: `${Math.round(perMin)}` })
+    if (next && next.coinInterval > 0) {
+      stats.push({
+        label: "Seeds every",
+        value: `${curInterval}s`,
+        next: next.coinInterval !== curInterval ? `${next.coinInterval}s` : undefined,
+      })
+    }
   } else if (p.type === "herbert") {
+    // Herbert's heal amount never scales (nerfed) — only the interval does,
+    // so Heal / shot intentionally has no `next`.
     stats.push({ label: "Heal / shot", value: `${p.damage}` })
-    stats.push({ label: "Heal / sec", value: (p.damage * ratePerSec).toFixed(1) })
+    stats.push({
+      label: "Heal every",
+      value: fmtInterval(ratePerSec),
+      next: nextRate > 0 && nextRate !== ratePerSec ? fmtInterval(nextRate) : undefined,
+    })
   } else if (p.type === "chunky") {
     stats.push({ label: "Role", value: "Tank" })
   } else {
-    stats.push({ label: "Damage / shot", value: `${p.damage}` })
-    stats.push({ label: "Damage / sec", value: (p.damage * ratePerSec).toFixed(1) })
+    stats.push({
+      label: "Damage / shot",
+      value: `${p.damage}`,
+      next: improved(p.damage, next?.damage ?? p.damage),
+    })
+    stats.push({
+      label: "Every",
+      value: fmtInterval(ratePerSec),
+      next: nextRate > 0 && nextRate !== ratePerSec ? fmtInterval(nextRate) : undefined,
+    })
+    if (p.type === "gwynevere" && next && next.blastRadius !== p.blastRadius) {
+      stats.push({ label: "Blast", value: `${p.blastRadius}`, next: `${next.blastRadius}` })
+    }
   }
 
+  const levelCost = preview?.cost ?? null
   return {
     id: p.id,
     x: p.x,
@@ -444,6 +546,10 @@ const hoverInfo = computed<PumpkinHoverInfo | null>(() => {
     buffs,
     stats,
     refund: Math.floor((cfg?.cost ?? 0) * 0.5),
+    level: p.level,
+    levelCost,
+    canLevelUp:
+      hud.value?.phase === "playing" && levelCost != null && (hud.value?.xp ?? 0) >= levelCost,
   }
 })
 
@@ -638,6 +744,15 @@ function sellPumpkin(id: number) {
   engine?.sellPumpkin(id)
 }
 
+function levelUpPumpkin(id: number) {
+  engine?.levelUpPumpkin(id)
+}
+
+// levelPips renders the level as filled/empty diamonds (◆◆◇).
+function levelPips(level: number): string {
+  return Array.from({ length: MAX_PUMPKIN_LEVEL }, (_, i) => (i < level ? "◆" : "◇")).join("")
+}
+
 async function submitReport(isIncomplete: boolean) {
   if (!engine || engine.wasReportSubmitted || submitting.value) return
   submitting.value = true
@@ -704,6 +819,7 @@ onMounted(async () => {
       completedRounds: 0,
       score: 0,
       coins: 0,
+      xp: 0,
       shopPrices: {},
       inventory: [],
       cards: null,

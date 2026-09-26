@@ -33,6 +33,9 @@ type HalloweenGameConfig struct {
 	RewardsPerRound   map[int]int                       `json:"rewards_per_round"`
 	SpawnRounds       []HalloweenSpawnRoundConfig       `json:"spawn_rounds"`
 	SpawnScaling      HalloweenSpawnScalingConfig       `json:"spawn_scaling"`
+	// LevelCosts is the XP price of each level-up: index 0 levels 1->2,
+	// index 1 levels 2->3. The XP pool is global; selling never refunds XP.
+	LevelCosts []int `json:"level_costs"`
 	// SlugHPGrowth compounds slug max HP per round: HP *= growth^(round-1).
 	// Round 1 is exactly 1.0 — the tutorial round doesn't need surprises.
 	SlugHPGrowth float64 `json:"slug_hp_growth"`
@@ -52,6 +55,22 @@ type HalloweenPumpkinConfig struct {
 	CoinsPerTick    int     `json:"coins_per_tick"`   // seeds produced per tick (cramer)
 	// DraftOnly marks card-exclusive pumpkins the shop refuses to sell.
 	DraftOnly bool `json:"draft_only,omitempty"`
+	// Levels holds the per-level stats (index 0 = level 1). The top-level
+	// fields mirror Levels[0] for backwards compatibility.
+	Levels []HalloweenPumpkinLevelConfig `json:"levels"`
+}
+
+// HalloweenPumpkinLevelConfig is one row of the pumkin level balance table
+// (HALLOWEEN.md "Pumkin level balance table"). BlastRadius only matters for
+// Gwynevere; CoinIntervalS/CoinsPerTick only matter for Cramer.
+type HalloweenPumpkinLevelConfig struct {
+	Health          int     `json:"health"`
+	FireRate        float64 `json:"fire_rate"`
+	DamagePerShot   int     `json:"damage_per_shot"`
+	ProjectileSpeed float64 `json:"projectile_speed"`
+	CoinIntervalS   float64 `json:"coin_interval_s"`
+	CoinsPerTick    int     `json:"coins_per_tick"`
+	BlastRadius     float64 `json:"blast_radius"`
 }
 
 type HalloweenSlugConfig struct {
@@ -60,6 +79,7 @@ type HalloweenSlugConfig struct {
 	DamageToPumpkin int     `json:"damage_to_pumpkin"`
 	RewardPoints    int     `json:"reward_points"`
 	KillReward      int     `json:"kill_reward"` // seeds earned per kill
+	XpReward        int     `json:"xp_reward"`   // xp earned per kill (global pool)
 }
 
 type HalloweenAbilityConfig struct {
@@ -163,19 +183,61 @@ func (s *HalloweenService) Config() *HalloweenGameConfig {
 		StartingCoins:     20,
 		StartingPumpkins:  []string{"ferdinand", "ferdinand"},
 		Pumpkins: map[string]HalloweenPumpkinConfig{
-			"ferdinand": {FireRate: 1, Health: 10, DamagePerShot: 5, ProjectileSpeed: 100, Cost: 20},
-			"chunky":    {FireRate: 0, Health: 50, DamagePerShot: 0, ProjectileSpeed: 0, Cost: 40},
-			"herbert":   {FireRate: 0.5, Health: 10, DamagePerShot: 5, ProjectileSpeed: 150, Cost: 40},
-			"gwynevere": {FireRate: 0.1, Health: 5, DamagePerShot: 10, ProjectileSpeed: 40, Cost: 70},
-			"cramer":    {FireRate: 0, Health: 10, DamagePerShot: 0, ProjectileSpeed: 0, Cost: 75, CoinIntervalS: 5, CoinsPerTick: 1},
+			"ferdinand": {
+				FireRate: 1, Health: 10, DamagePerShot: 5, ProjectileSpeed: 100, Cost: 20,
+				Levels: []HalloweenPumpkinLevelConfig{
+					{Health: 10, FireRate: 1, DamagePerShot: 5, ProjectileSpeed: 100, CoinIntervalS: 0, CoinsPerTick: 0, BlastRadius: 0},
+					{Health: 14, FireRate: 1.15, DamagePerShot: 6, ProjectileSpeed: 100, CoinIntervalS: 0, CoinsPerTick: 0, BlastRadius: 0},
+					{Health: 18, FireRate: 1.3, DamagePerShot: 7, ProjectileSpeed: 100, CoinIntervalS: 0, CoinsPerTick: 0, BlastRadius: 0},
+				},
+			},
+			"chunky": {
+				FireRate: 0, Health: 50, DamagePerShot: 0, ProjectileSpeed: 0, Cost: 40,
+				Levels: []HalloweenPumpkinLevelConfig{
+					{Health: 50, FireRate: 0, DamagePerShot: 0, ProjectileSpeed: 0, CoinIntervalS: 0, CoinsPerTick: 0, BlastRadius: 0},
+					{Health: 75, FireRate: 0, DamagePerShot: 0, ProjectileSpeed: 0, CoinIntervalS: 0, CoinsPerTick: 0, BlastRadius: 0},
+					{Health: 100, FireRate: 0, DamagePerShot: 0, ProjectileSpeed: 0, CoinIntervalS: 0, CoinsPerTick: 0, BlastRadius: 0},
+				},
+			},
+			"herbert": {
+				FireRate: 0.5, Health: 10, DamagePerShot: 5, ProjectileSpeed: 150, Cost: 40,
+				Levels: []HalloweenPumpkinLevelConfig{
+					{Health: 10, FireRate: 0.5, DamagePerShot: 5, ProjectileSpeed: 150, CoinIntervalS: 0, CoinsPerTick: 0, BlastRadius: 0},
+					{Health: 14, FireRate: 0.6, DamagePerShot: 5, ProjectileSpeed: 150, CoinIntervalS: 0, CoinsPerTick: 0, BlastRadius: 0},
+					{Health: 18, FireRate: 0.7, DamagePerShot: 5, ProjectileSpeed: 150, CoinIntervalS: 0, CoinsPerTick: 0, BlastRadius: 0},
+				},
+			},
+			"gwynevere": {
+				FireRate: 0.1, Health: 5, DamagePerShot: 10, ProjectileSpeed: 40, Cost: 70,
+				Levels: []HalloweenPumpkinLevelConfig{
+					{Health: 5, FireRate: 0.1, DamagePerShot: 10, ProjectileSpeed: 40, CoinIntervalS: 0, CoinsPerTick: 0, BlastRadius: 70},
+					{Health: 7, FireRate: 0.115, DamagePerShot: 13, ProjectileSpeed: 40, CoinIntervalS: 0, CoinsPerTick: 0, BlastRadius: 80},
+					{Health: 9, FireRate: 0.13, DamagePerShot: 16, ProjectileSpeed: 40, CoinIntervalS: 0, CoinsPerTick: 0, BlastRadius: 90},
+				},
+			},
+			"cramer": {
+				FireRate: 0, Health: 10, DamagePerShot: 0, ProjectileSpeed: 0, Cost: 75, CoinIntervalS: 5, CoinsPerTick: 1,
+				Levels: []HalloweenPumpkinLevelConfig{
+					{Health: 10, FireRate: 0, DamagePerShot: 0, ProjectileSpeed: 0, CoinIntervalS: 5, CoinsPerTick: 1, BlastRadius: 0},
+					{Health: 14, FireRate: 0, DamagePerShot: 0, ProjectileSpeed: 0, CoinIntervalS: 4, CoinsPerTick: 1, BlastRadius: 0},
+					{Health: 18, FireRate: 0, DamagePerShot: 0, ProjectileSpeed: 0, CoinIntervalS: 3, CoinsPerTick: 1, BlastRadius: 0},
+				},
+			},
 			// PEARcer: card-exclusive piercing sniper (pear skin, pumpkin mechanics). Not for sale at any price.
-			"pearcer": {FireRate: 0.25, Health: 5, DamagePerShot: 25, ProjectileSpeed: 200, Cost: 100, DraftOnly: true},
+			"pearcer": {
+				FireRate: 0.25, Health: 5, DamagePerShot: 25, ProjectileSpeed: 200, Cost: 100, DraftOnly: true,
+				Levels: []HalloweenPumpkinLevelConfig{
+					{Health: 5, FireRate: 0.25, DamagePerShot: 25, ProjectileSpeed: 200, CoinIntervalS: 0, CoinsPerTick: 0, BlastRadius: 0},
+					{Health: 7, FireRate: 0.278, DamagePerShot: 30, ProjectileSpeed: 200, CoinIntervalS: 0, CoinsPerTick: 0, BlastRadius: 0},
+					{Health: 9, FireRate: 0.323, DamagePerShot: 35, ProjectileSpeed: 200, CoinIntervalS: 0, CoinsPerTick: 0, BlastRadius: 0},
+				},
+			},
 		},
 		Slugs: map[string]HalloweenSlugConfig{
-			HalloweenSlugScout:  {Speed: 50, Health: 10, DamageToPumpkin: 2, RewardPoints: 10, KillReward: 2},
-			HalloweenSlugMarvin: {Speed: 50, Health: 20, DamageToPumpkin: 5, RewardPoints: 20, KillReward: 5},
-			HalloweenSlugGerald: {Speed: 30, Health: 100, DamageToPumpkin: 20, RewardPoints: 50, KillReward: 15},
-			HalloweenSlugDell:   {Speed: 0, Health: 10, DamageToPumpkin: 0, RewardPoints: 100, KillReward: 25},
+			HalloweenSlugScout:  {Speed: 50, Health: 10, DamageToPumpkin: 2, RewardPoints: 10, KillReward: 2, XpReward: 2},
+			HalloweenSlugMarvin: {Speed: 50, Health: 20, DamageToPumpkin: 5, RewardPoints: 20, KillReward: 5, XpReward: 3},
+			HalloweenSlugGerald: {Speed: 30, Health: 100, DamageToPumpkin: 20, RewardPoints: 50, KillReward: 15, XpReward: 3},
+			HalloweenSlugDell:   {Speed: 0, Health: 10, DamageToPumpkin: 0, RewardPoints: 100, KillReward: 25, XpReward: 5},
 		},
 		Abilities: map[string]HalloweenAbilityConfig{
 			HalloweenAbilityAnnihilation: {Score: 70, Kind: "multiplier"}, // 70% of slug reward
@@ -218,6 +280,9 @@ func (s *HalloweenService) Config() *HalloweenGameConfig {
 		},
 		// Slugs lift weights between rounds. Your pumpkins don't. Adapt.
 		SlugHPGrowth: 1.27,
+		// Level 1->2 costs 40 XP, 2->3 costs 80 XP. Full max-out is 120 XP;
+		// ~1000 XP is earnable through round 7, so 7-10 maxed pumpkins max.
+		LevelCosts: []int{40, 80},
 		ShieldMin:    3,
 		ShieldMax:    6,
 	}

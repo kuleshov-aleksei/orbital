@@ -42,7 +42,7 @@ for (let i = 0; i < Math.max(goRounds.length, tsRounds.length); i++) {
 for (const name of ["ferdinand", "chunky", "herbert", "gwynevere", "cramer", "pearcer"]) {
   const go = GO.match(
     new RegExp(
-      `"${name}":\\s*\\{FireRate:\\s*([\\d.]+),\\s*Health:\\s*([\\d.]+),\\s*DamagePerShot:\\s*([\\d.]+),\\s*ProjectileSpeed:\\s*([\\d.]+),\\s*Cost:\\s*(\\d+)(?:,\\s*CoinIntervalS:\\s*([\\d.]+),\\s*CoinsPerTick:\\s*(\\d+))?(?:,\\s*DraftOnly:\\s*(true|false))?\\}`,
+      `"${name}":\\s*\\{\\s*FireRate:\\s*([\\d.]+),\\s*Health:\\s*([\\d.]+),\\s*DamagePerShot:\\s*([\\d.]+),\\s*ProjectileSpeed:\\s*([\\d.]+),\\s*Cost:\\s*(\\d+)(?:,\\s*CoinIntervalS:\\s*([\\d.]+),\\s*CoinsPerTick:\\s*(\\d+))?(?:,\\s*DraftOnly:\\s*(true|false))?`,
     ),
   )
   const ts = TS.match(
@@ -59,22 +59,48 @@ for (const name of ["ferdinand", "chunky", "herbert", "gwynevere", "cramer", "pe
   )
 }
 
-// --- slugs: speed, health, damage, reward, kill_reward, positionally
-// (scout, marvin, gerald, dell in both files). ---
+// --- slugs: speed, health, damage, reward, kill_reward, xp_reward,
+// positionally (scout, marvin, gerald, dell in both files). ---
 const goSlugs = [
   ...GO.matchAll(
-    /Speed:\s*([\d.]+),\s*Health:\s*([\d.]+),\s*DamageToPumpkin:\s*([\d.]+),\s*RewardPoints:\s*([\d.]+),\s*KillReward:\s*([\d.]+)/g,
+    /Speed:\s*([\d.]+),\s*Health:\s*([\d.]+),\s*DamageToPumpkin:\s*([\d.]+),\s*RewardPoints:\s*([\d.]+),\s*KillReward:\s*([\d.]+),\s*XpReward:\s*([\d.]+)/g,
   ),
 ].map((m) => m.slice(1).join(","))
 const tsSlugs = [
   ...TS.matchAll(
-    /(?:scout|marvin|gerald|dell):\s*\{\s*speed:\s*([\d.]+),\s*health:\s*([\d.]+),\s*damage_to_pumpkin:\s*([\d.]+),\s*reward_points:\s*([\d.]+),\s*kill_reward:\s*([\d.]+)\s*\}/g,
+    /(?:scout|marvin|gerald|dell):\s*\{\s*speed:\s*([\d.]+),\s*health:\s*([\d.]+),\s*damage_to_pumpkin:\s*([\d.]+),\s*reward_points:\s*([\d.]+),\s*kill_reward:\s*([\d.]+),\s*xp_reward:\s*([\d.]+)\s*\}/g,
   ),
 ].map((m) => m.slice(1).join(","))
 check("slugs.length", String(goSlugs.length), String(tsSlugs.length))
 for (let i = 0; i < Math.max(goSlugs.length, tsSlugs.length); i++) {
   check(`slugs[${i}]`, goSlugs[i] ?? "<missing>", tsSlugs[i] ?? "<missing>")
 }
+
+// --- pumkin levels: per-level health, fire_rate, damage, speed,
+// coin tick, coins, blast radius (in type order) ---
+const goLevels = [
+  ...GO.matchAll(
+    /\{Health:\s*([\d.]+),\s*FireRate:\s*([\d.]+),\s*DamagePerShot:\s*([\d.]+),\s*ProjectileSpeed:\s*([\d.]+),\s*CoinIntervalS:\s*([\d.]+),\s*CoinsPerTick:\s*([\d.]+),\s*BlastRadius:\s*([\d.]+)\}/g,
+  ),
+].map((m) => m.slice(1).join(","))
+const tsLevels = [
+  ...TS.matchAll(
+    /\{\s*health:\s*([\d.]+),\s*fire_rate:\s*([\d.]+),\s*damage_per_shot:\s*([\d.]+),\s*projectile_speed:\s*([\d.]+),\s*coin_interval_s:\s*([\d.]+),\s*coins_per_tick:\s*([\d.]+),\s*blast_radius:\s*([\d.]+)\s*\}/g,
+  ),
+].map((m) => m.slice(1).join(","))
+check("levels.length", String(goLevels.length), String(tsLevels.length))
+for (let i = 0; i < Math.max(goLevels.length, tsLevels.length); i++) {
+  check(`levels[${i}]`, goLevels[i] ?? "<missing>", tsLevels[i] ?? "<missing>")
+}
+
+// --- level costs (XP per level-up) ---
+const goLevelCosts = (GO.match(/LevelCosts:\s*\[\]int\{([\d,\s]+)\}/) || [])[1]
+const tsLevelCosts = (TS.match(/level_costs:\s*\[([\d,\s]+)\]/) || [])[1]
+check(
+  "level_costs",
+  goLevelCosts ? goLevelCosts.replace(/\s/g, "") : "<missing>",
+  tsLevelCosts ? tsLevelCosts.replace(/\s/g, "") : "<missing>",
+)
 
 // --- starting coins ---
 const goCoins = (GO.match(/StartingCoins:\s*(\d+)/) || [])[1]
