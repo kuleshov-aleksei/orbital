@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@phosphor-icons/vue": "^2.2.1",
-    "@sapphi-red/web-noise-suppressor": "^0.4.0",
+    "@sapphi-red/web-noise-suppressor": "^0.4.1",
     "@vueuse/sound": "^2.1.3",
     "chart.js": "^4.5.1",
     "chartjs-chart-sankey": "^0.19.1",
