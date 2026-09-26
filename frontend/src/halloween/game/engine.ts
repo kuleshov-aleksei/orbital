@@ -770,9 +770,11 @@ export class HalloweenGameEngine {
       return this.slugs.some((s) => laneForY(s.y) === laneForY(pumpkin.y))
     }
     if (pumpkin.type === "herbert") {
-      return (
-        this.pumpkins.some((p) => p.health > 0 && p.health < p.maxHealth) ||
-        this.nearestSlugOnLane(pumpkin) !== null
+      // Herbert is a pure healer: only damaged non-Herbert allies count.
+      // No self-heal, no Herbert-to-Herbert healing (balance), never slugs.
+      return this.pumpkins.some(
+        (p) =>
+          p.id !== pumpkin.id && p.type !== "herbert" && p.health > 0 && p.health < p.maxHealth,
       )
     }
     return this.nearestSlugOnLane(pumpkin) !== null
@@ -821,9 +823,11 @@ export class HalloweenGameEngine {
     }
 
     if (pumpkin.type === "herbert") {
-      // Heal the most damaged pumpkin; otherwise shoot the nearest slug.
+      // Pure healer: heal the most damaged non-Herbert ally (never self,
+      // never another Herbert, never slugs). No heal target → hold fire.
       let lowest: GamePumpkin | null = null
       for (const p of this.pumpkins) {
+        if (p.id === pumpkin.id || p.type === "herbert") continue
         if (p.health <= 0 || p.health >= p.maxHealth) continue
         if (!lowest || p.health / p.maxHealth < lowest.health / lowest.maxHealth) lowest = p
       }
@@ -832,8 +836,8 @@ export class HalloweenGameEngine {
           this.makeProjectile("heal", pumpkin, null, lowest.id, cfg.damage_per_shot, 0),
         )
         this.onEvent?.("shooting")
-        return
       }
+      return
     }
 
     // Normal pumpkins shoot straight horizontally along their own lane.
