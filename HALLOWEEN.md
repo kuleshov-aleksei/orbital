@@ -33,16 +33,24 @@ If user closes tab/leaves the call, game ends, but client should send achieved s
 
 When all cards choosen, next round starts immidiatelly
 
+Player have coins for which he can purchase more pumkins. He earns coins for every kill. Coins are shown as pumkin seeds near shop
+
+There is a shop with every purchasable type of pumkin (Silas is card-exclusive and never appears there). Shop should be displayed side-by-side near inventory. Player can spend seeds (coins) in order to purchase a pumkin. Purchased pumkins placed directly into his inventory. Shop prices inflate per purchase: floor(base * 1.15^n), capped at 5x base — only shop buys count, free card pumpkins don't inflate prices.
+
+Player can sell pumpkins for 50% of their cost
+
 #### Pumkins mechanics
 
 Pumkins have health. If health drops to 0 - pumkin is destroyed
 If all pumkins die - game ends
 
-There should be 4 types of pumpkins:
+There should be 6 types of pumpkins:
 - Ferdinand - regular pumkin, shoots with pumkin seeds
 - Chunky - tank pumkin, have high health pool, but do not shoot
 - Herbert - healer pumkin, shoots with glowing seeds at other pumpkins and health them
 - Gwynevere - artillery, shoots with homing missles that does aoe damage (automatically picks shooting point with the most impact)
+- Cramer - pumkin that produces seeds (coins that player can use). Do not shoot
+- Silas - card-exclusive sniper (never in the shop), slow heavy piercing seeds
 
 Pumkins shoot automatically:
 - Ferdinand picks closest target and shoots at the slug. It should predict slug trajectory and seed speed
@@ -53,12 +61,14 @@ User can override automatic targeting and point to any place on the playble area
 
 #### Pumkin balance table
 
-| Pumkin | Fire rate/s | Health | Damage per shot | Projectile speed |
-|-|-|-|-|-|
-| Ferdinand | 1/s | 10 | 5 | 100 units/s |
-| Chunky | 0/s | 50 | 0 | 0 units/s |
-| Herbert | 0.5/s | 10 | 5 | 150 units/s |
-| Gwynevere | 1 shot every 10 seconds | 5 | 10 | 40 units/s (elliptic curve) |
+| Pumkin | Fire rate/s | Health | Damage per shot | Projectile speed | Special notes | Cost in the shop |
+|-|-|-|-|-|-|
+| Ferdinand | 1/s | 10 | 5 | 100 units/s |-| 20 |
+| Chunky | 0/s | 50 | 0 | 0 units/s |-| 40 |
+| Herbert | 0.5/s | 10 | 5 | 150 units/s |-| 40 |
+| Gwynevere | 1 shot every 10 seconds | 5 | 10 | 40 units/s (elliptic curve) |-| 70 |
+| Cramer | 0/s | 10 | 0 | 0 | Produces 1 coin every 5 seconds (diminishing: nth alive Cramer works at 1/2^(n-1) rate) | 75 |
+| Silas | 1 shot every 4 seconds | 5 | 25 | 200 units/s | Card-exclusive sniper, never sold in the shop. Seeds pierce through up to 8 slugs in his lane, hitting each once | not for sale (sells for 50) |
 
 #### Slugs mechanic
 
@@ -73,18 +83,24 @@ When slug reaches a pumkin, it deals damage every 3 seconds until slug or pumkin
 
 #### Slug balance table
 
-| Slug | Speed | Health | Damage to pumkin | Reward points |
-|-|-|-|-|-|
-| Scout | 50 units/s | 10 | 2 | 10 |
-| Marvin | 50 units/s | 20 | 5 | 20 |
-| Gerald | 30 units/s | 100 | 20 | 50 |
-| Dr. Dell Conagher | 0 units/s | 10 | 0 | 100 |
+| Slug | Speed | Health | Damage to pumkin | Reward points | Kill reward (coins/seeds) |
+|-|-|-|-|-|-|
+| Scout | 50 units/s | 10 | 2 | 10 | 5 |
+| Marvin | 50 units/s | 20 | 5 | 20 | 10 |
+| Gerald | 30 units/s | 100 | 20 | 50 | 30 |
+| Dr. Dell Conagher | 0 units/s | 10 | 0 | 100 | 50 |
 
 Reward per slug also depends on position. Battlefield - 1000 units
 - 700+ units - 100% reward
 - 500+ units - 70% reward
 - 300+ units - 50% reward
 - 0-299 units - 35% reward
+
+Slug max HP compounds every round: HP *= 1.27^(round-1). Round 1 is exactly at base values; a round 6 scout has ~18 HP, a round 10 Gerald ~280+. Dell-spawned Marvins inherit the current round multiplier.
+
+#### Shielded slugs (elites)
+
+From round 2 on, a configured number of slugs per round arrives shielded (round 1: none). Each shielded slug rolls 3-6 shields. One hit strips exactly one shield and deals no HP damage, regardless of how much damage the shot deals. Slows (beer, salt), freeze, distraction and Herbert heals ignore shields. Annihilation bypasses shields entirely. Shielded slugs render with a cyan ring plus one tick per remaining shield, and the round prompt calls out how many are incoming.
 
 Every slug moves with slightly different speed (e.g. slug A moves 1% slower than slug B). More in the balance table
 
@@ -100,8 +116,8 @@ All abilities are single use items
 - "Do not stop, daddy" - Permanently increase shooting speed of a single selected pumkin
 - "Wide pumpkin" - Permanently inreases health pool x2 of a single selected pumpkin
 - "Holy grenade" - player choses a spot to spawn a grenade that will detonate in 3 seconds after landing. It deals damage only to slugs in 300 units radius
-- "Beer" - a cup, placed in the battlefield that attracts slugs. Slug take 1 hit point of damage and resume their crawl towards pumkins. Only slugs that are behind a cup notice it. Slugs that already passed the cup just move as always. Cup duration is 30 seconds
-- "Genocide" - a salt bottle that creates a vertical line of salt. Any slug that steps on the salt takes 1 hit per 5 seconds of damage. Salt duration is 30 seconds
+- "Beer" - a cup, placed in the battlefield that attracts slugs. If slug reaches the beer cup, it permanently slows down by 10%. Cup duration is 30 seconds
+- "Salt line" - a salt bottle that creates a vertical line of salt. Any slug that steps on this line slows down by 30%. Line width is 60 units Salt duration is 30 seconds
 
 #### Ability balance table
 
@@ -109,12 +125,10 @@ All abilities are single use items
 |-|-|
 | Annihilation | Full health | 70% of regular reward for killing current slug type | 
 | Holy grenade | 50 | 80% of regular reward for killing current slug type | 
-| Beer | 1 | 500 |
-| Genocide | 1 per 5 second | 10 |
+| Beer | 0 | 0 |
+| Salt line | 0 | 0 |
 
 Slug position do not impact score for killing slugs using abilities. Score is rewarded only for killing the slug, not for using the item.
-
-Beer kill is so rare that it worth so much points
 
 #### Game loop
 
@@ -124,7 +138,7 @@ After each round a popup appears. Popup contains a choice of 3 random cards:
 - 1 Pumking card - item that spawns a pumkin in a selected place
 - 1 Ability card - item that uses an ability from list above
 - 1 random card - pumkin OR ability
-Card is selected randomly from available ability + pumkin pool (all described above) and shown to a player
+Card is selected randomly from available ability + pumkin pool (all described above, including card-exclusive Silas) and shown to a player
 
 1 round - 1 popup
 2 round - 2 popups
@@ -137,51 +151,112 @@ Player can exit the game between rounds - a button should just stop it and give 
 
 #### Slug per round balance table
 
-Round 1:
+Round 1 (no shields — the tutorial round stays innocent):
 
 time between spawns: 7 seconds
 
 | Slug type | Amount | Speed variation |
-| Scout | 10 | 1% |
-| Marvin | 2 | 1% |
+| Scout | 20 | 1% |
+| Marvin | 4 | 1% |
 
-Round 2:
+Round 2 (2 shielded):
 
-time between spawns: 7 seconds
+time between spawns: 6 seconds
 
 | Slug type | Amount | Speed variation |
 | Scout | 16 | 2% |
 | Marvin | 8 | 2% |
-| Gerald | 1 | 1% |
 
-Round 3:
+Round 3 (4 shielded):
 
 time between spawns: 5 seconds
 
 | Slug type | Amount | Speed variation |
-| Scout | 16 | 4% |
-| Marvin | 8 | 4% |
+| Scout | 20 | 4% |
+| Marvin | 10 | 4% |
+| Gerald | 2 | 4% |
 | Dr. Dell Conagher | 1 | 0% |
 
-Round 4:
+Round 4 (6 shielded):
 
-time between spawns: 4 seconds
-
-| Slug type | Amount | Speed variation |
-| Scout | 24 | 4% |
-| Marvin | 8 | 4% |
-| Gerald | 3 | 6% |
-| Dr. Dell Conagher | 2 | 0% |
-
-rounds 5+:
-
-time between spawns: 4 seconds
+time between spawns: 3 seconds
 
 | Slug type | Amount | Speed variation |
-| Scout | round number * 5 | 4% |
-| Marvin | round number * 1.5 | 4% |
-| Gerald | sqrt(round number) | 4% |
-| Dr. Dell Conagher | sqrt(round number) | 0% |
+| Scout | 40 | 4% |
+| Marvin | 16 | 4% |
+| Gerald | 5 | 4% |
+| Dr. Dell Conagher | 3 | 0% |
+
+Round 5 (8 shielded):
+
+time between spawns: 3 seconds
+
+| Slug type | Amount | Speed variation |
+| Scout | 48 | 4% |
+| Marvin | 18 | 4% |
+| Gerald | 6 | 4% |
+| Dr. Dell Conagher | 4 | 0% |
+
+Round 6 (10 shielded):
+
+time between spawns: 2.5 seconds
+
+| Slug type | Amount | Speed variation |
+| Scout | 56 | 4% |
+| Marvin | 20 | 4% |
+| Gerald | 7 | 4% |
+| Dr. Dell Conagher | 5 | 0% |
+
+Round 7 (14 shielded):
+
+time between spawns: 2.5 seconds
+
+| Slug type | Amount | Speed variation |
+| Scout | 64 | 4% |
+| Marvin | 22 | 4% |
+| Gerald | 8 | 4% |
+| Dr. Dell Conagher | 5 | 0% |
+
+Round 8 (14 shielded):
+
+time between spawns: 3 seconds
+
+| Slug type | Amount | Speed variation |
+| Scout | 64 | 4% |
+| Marvin | 20 | 4% |
+| Gerald | 6 | 4% |
+| Dr. Dell Conagher | 5 | 0% |
+
+Round 9 (16 shielded):
+
+time between spawns: 3 seconds
+
+| Slug type | Amount | Speed variation |
+| Scout | 72 | 4% |
+| Marvin | 22 | 4% |
+| Gerald | 7 | 4% |
+| Dr. Dell Conagher | 5 | 0% |
+
+Round 10 (18 shielded):
+
+time between spawns: 3 seconds
+
+| Slug type | Amount | Speed variation |
+| Scout | 80 | 4% |
+| Marvin | 24 | 4% |
+| Gerald | 7 | 4% |
+| Dr. Dell Conagher | 6 | 0% |
+
+rounds 11+:
+
+time between spawns: 3 seconds
+
+| Slug type | Amount | Speed variation |
+| Scout | round number * 8 | 4% |
+| Marvin | round number * 2.5 | 4% |
+| Gerald | sqrt(round number) * 1.2 | 4% |
+| Dr. Dell Conagher | sqrt(round number) * 1.2 | 0% |
+| Shielded | round number * 2 | - |
 
 slug cound rounds via ceil().
 
@@ -189,7 +264,11 @@ Slugs spawns in random order every N seconds
 
 #### Starting conditions
 
-Player starts with 2 Ferdinands in inventory and they can place them just as regular pumkins
+Player starts with 2 Ferdinands in inventory and they can place them just as regular pumkins. Starting coins: 20.
+
+#### Line availability
+
+Round 1 restricts play to the 3 center lanes: pumpkins can only be placed there and slugs only spawn there. From round 2 on, all 5 lanes open (locked lanes render dim, placement ghost turns red over them). Surviving round 1 with 3 lanes and then covering 2 fresh lanes is the round 2 filter.
 
 ##### Score
 
@@ -285,7 +364,7 @@ We already have pixi js integrated into our app. And there is some stuff to rend
 
 ## Assets
 
-Currently, there are not assets - no sfx, no background images, no pumkins or slugs. Use some placeholders, like solid color, rectangles, etc
+Currently, there are not assets - no sfx, no background images, no pumkins or slugs. Use placeholders from frontend/public/assets/hw26
 
 Pretty much all events should have sound effects such as:
 - pumkin destruction
@@ -307,72 +386,9 @@ Guests can participate, but they lose earned pumkin decorations when deleted. Ga
 
 The game continues even if focus was lost. Nothing can stop slug expansion!
 
-# Implementation draft
+## Battleground
 
-Migration 20 — create_halloween_tables (order: items → game_results → rewards → pumpkins so FKs resolve):
-CREATE TABLE IF NOT EXISTS halloween_items (
-  id         TEXT PRIMARY KEY,          -- 'hat_party', 'eyes_sinister', ...
-  name       TEXT NOT NULL,
-  socket     TEXT NOT NULL,             -- hat | eyes | smile | base
-  rarity     TEXT NOT NULL,             -- regular | common | uncommon | rare
-  sort_order INTEGER DEFAULT 0
-);
-CREATE INDEX IF NOT EXISTS idx_halloween_items_rarity ON halloween_items(rarity);
+Map is splitted into 5 horizontal lines (stripes). Slugs can spawn only on 1 of the line and they slowly crawl horizontally (they do not change direction to pumkin now)
+Player can place pumkins only on the center of these lines: if he clicks on the stripe, pumkin is placed in the center (vertically) on it. There should be 6 horizontal spots for placement and user can select any of them
+Pumkins also can shoot only horizontally (except Gwynevere - it shoots in parabolla shape, but can target only slugs in its line)
 
-CREATE TABLE IF NOT EXISTS halloween_game_results (
-  id               INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id          TEXT NOT NULL,       -- '<DELETED>' placeholder after guest purge; NO users FK
-  completed_rounds INTEGER NOT NULL,
-  score            INTEGER NOT NULL,
-  is_incomplete    BOOLEAN NOT NULL DEFAULT 0,  -- tab close / left call
-  is_cheater       BOOLEAN NOT NULL DEFAULT 0,
-  report_json      TEXT NOT NULL,       -- spawned pumpkins, kills(type+pos+source), used items
-  reward_json      TEXT,                -- ['hat_party','eyes_sinister',...] for admin view
-  created_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_halloween_game_results_user  ON halloween_game_results(user_id);
-CREATE INDEX IF NOT EXISTS idx_halloween_game_results_score ON halloween_game_results(score);
-
-CREATE TABLE IF NOT EXISTS halloween_rewards (        -- owned decorations = ledger; no users FK
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id    TEXT NOT NULL,
-  item_id    TEXT NOT NULL,
-  source     TEXT NOT NULL DEFAULT 'game',            -- game | admin
-  game_id    INTEGER,
-  granted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (user_id, item_id),                          -- per-user no-duplicate pool
-  FOREIGN KEY (item_id) REFERENCES halloween_items(id),
-  FOREIGN KEY (game_id) REFERENCES halloween_game_results(id)
-);
-CREATE INDEX IF NOT EXISTS idx_halloween_rewards_user ON halloween_rewards(user_id);
-
-CREATE TABLE IF NOT EXISTS halloween_pumpkins (       -- one per user, customization state
-  user_id      TEXT PRIMARY KEY,
-  equipped_json TEXT NOT NULL DEFAULT '{}',           -- {"hat":"hat_party","eyes":"eyes_sinister"}
-  updated_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-Migration 21 — seed_halloween_items: inserts the 10 catalog rows (party/frog/beret hats, sinister/scared/smiling/cat eyes, vampire/crooked/pumpkin smiles) with rarities per the doc.
-Guest purge hook: halloween_game_results/halloween_rewards have no users FK on purpose. In AdminHandler.DeleteUser and DeleteAllGuests (adminhandler.go:316, 336): UPDATE halloween_game_results SET user_id='<DELETED>' WHERE user_id=? and DELETE FROM halloween_rewards + halloween_pumpkins for that user (cascade handles pumpkins on users delete).
-Backend logic
-Score validation (halloweenservice.go) — recompute from report:
-- pumpkin kill → slug_points[type] × proximity(x) (proximity: x≥700→1.0, ≥500→0.7, ≥300→0.5, else 0.35)
-- annihilation → round(points × 0.7), holy_grenade → round(points × 0.8), beer → 500, genocide → 10 (position ignored for abilities)
-- round bonus → Σ 1000·n for n=1..completed_rounds
-- pass if |report.score − computed| ≤ 0.1 × computed; else is_cheater=1, no reward.
-Reward grant:
-- tier = score bracket (regular/common/uncommon/rare; none if <1000); count = tablecompleted_rounds (1,1,1,2,2,2,3,3,3,4)
-- for i in 0..count−1: pick random unowned item from catalog where rarity = tier−i (rare→uncommon→common→regular); stop when tiers exhausted or pool empty (return "all rewards earned"). Insert into halloween_rewards.
-- Leaderboard = query over game_results (MAX(score) GROUP BY user_id, excluding cheaters), no table needed.
-API + WS surface
-- GET /api/halloween/state — pumpkin equipped + owned items + catalog (for customization tab)
-- PUT /api/halloween/pumpkin — save equipped JSON
-- GET /api/halloween/game/config — server-authoritative score tables (per-slug points, round bonus, proximity thresholds, ability scores, reward brackets) — fetched at game load
-- POST /api/halloween/game/report — submit; returns granted items
-- GET /api/halloween/leaderboard
-- Admin: GET /api/admin/halloween/games, POST /api/admin/halloween/rewards (issue item)
-- New WS message type halloween_pumpkin_state (user_id + equipped) — broadcast to room on change; on room join each client fetches via REST. Extends the closed enums in frontend/src/types/index.ts and hub.go.
-Frontend
-- frontend/src/halloween/ — balance config (mirrors backend config payload), slug/pumpkin entity logic, projectile/ability systems, round definitions, score calc
-- PumpkinStrip component (above AudioControls in VoiceCallView), Pixi pumpkin renderer with sockets, PumpkinModal (Defend/customization/leaderboard tabs), MiniGame (Pixi canvas, existing world/ as starting point)
-- New SoundEvents appended to SoundEvent in frontend/src/types/audio.ts + sounds.ts (pumpkin_destroyed, slug_destroyed, item_used, shooting, slug_movement)
