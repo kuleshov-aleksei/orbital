@@ -107,8 +107,9 @@
         data-testid="game-bottom-bar">
         <!-- Shop -->
         <div
-          class="flex flex-col items-center gap-2 rounded-xl bg-theme-bg-secondary border border-theme-border p-2"
-          data-testid="game-shop">
+          class="relative flex flex-col items-center gap-2 rounded-xl bg-theme-bg-secondary border border-theme-border p-2"
+          data-testid="game-shop"
+          @pointerleave="onShopPointerLeave">
           <span
             class="flex items-center gap-1 text-xs font-bold text-theme-text-primary"
             data-testid="seeds-counter">
@@ -127,8 +128,11 @@
                   : 'bg-theme-bg-primary border-theme-border/50 cursor-not-allowed opacity-60',
               ]"
               :data-testid="`shop-${item.type}`"
-              :title="shopTooltip(item)"
-              :disabled="!canBuy(item)"
+              :aria-disabled="!canBuy(item)"
+              @pointerenter="(e: PointerEvent) => onShopPointerEnter(e, item.type)"
+              @pointermove="onShopPointerMove"
+              @focus="hoveredShopType = item.type"
+              @blur="hoveredShopType = null"
               @click="buy(item.type)">
               <span class="text-xl leading-none text-orange-400">{{
                 PUMPKIN_ICONS[item.type] ?? "P"
@@ -137,6 +141,38 @@
                 >{{ item.cost }} 🌰</span
               >
             </button>
+          </div>
+          <!-- Custom shop tooltip — same card style as the field pumpkin tooltip,
+               follows the cursor -->
+          <div
+            v-if="shopHoverInfo"
+            class="fixed z-50 w-60 rounded-xl bg-theme-bg-secondary border border-theme-border shadow-2xl p-3 pointer-events-none"
+            :style="shopTooltipStyle"
+            data-testid="shop-tooltip"
+            role="tooltip">
+            <div class="flex items-center justify-between gap-2">
+              <span class="font-bold text-theme-text-primary text-sm">{{
+                shopHoverInfo.name
+              }}</span>
+              <span class="text-[10px] uppercase tracking-wide text-theme-text-muted">{{
+                shopHoverInfo.type
+              }}</span>
+            </div>
+            <p class="text-[11px] text-theme-text-muted mt-1 leading-snug">
+              {{ shopHoverInfo.description }}
+            </p>
+            <div class="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-[11px]">
+              <template v-for="stat in shopHoverInfo.stats" :key="stat.label">
+                <span class="text-theme-text-muted">{{ stat.label }}</span>
+                <span class="text-right text-theme-text-primary font-semibold">{{
+                  stat.value
+                }}</span>
+              </template>
+            </div>
+            <div
+              class="mt-2.5 w-full py-1.5 rounded-lg text-xs font-bold text-center bg-orange-500/15 text-orange-400 border border-orange-500/30">
+              {{ shopHoverInfo.cost }} 🌰
+            </div>
           </div>
         </div>
 
@@ -324,7 +360,24 @@ const submitting = ref(false)
 const speed = ref(1)
 
 const hoveredPumpkin = ref<GamePumpkin | null>(null)
+const hoveredShopType = ref<PumpkinType | null>(null)
+// Cursor position for the pointer-following shop tooltip (viewport coords).
+const shopTooltipPos = ref<{ x: number; y: number } | null>(null)
 const tooltipElement = useTemplateRef<HTMLDivElement>("tooltipElement")
+
+function onShopPointerEnter(e: PointerEvent, type: PumpkinType) {
+  hoveredShopType.value = type
+  shopTooltipPos.value = { x: e.clientX, y: e.clientY }
+}
+
+function onShopPointerMove(e: PointerEvent) {
+  if (hoveredShopType.value) shopTooltipPos.value = { x: e.clientX, y: e.clientY }
+}
+
+function onShopPointerLeave() {
+  hoveredShopType.value = null
+  shopTooltipPos.value = null
+}
 
 interface PumpkinHoverInfo {
   id: number
@@ -501,26 +554,72 @@ function canBuy(item: { type: PumpkinType; cost: number }): boolean {
   return hud.value?.phase === "playing" && (hud.value?.coins ?? 0) >= item.cost
 }
 
-// Hover tooltip: name + cost, description, and the stats that matter —
-// HP, damage, fire interval, and Cramer's coin rate. Non-shooters skip the
-// gun stats instead of showing a wall of zeros.
-function shopTooltip(item: { type: PumpkinType; cost: number }): string {
-  const meta = PUMPKIN_META[item.type]
-  const cfg = halloweenStore.config?.pumpkins[item.type]
-  const lines = [`${meta?.name ?? item.type} — ${item.cost} seeds`, meta?.description ?? ""]
-  if (cfg) {
-    const stats: string[] = [`${cfg.health} HP`]
-    if (cfg.fire_rate > 0) {
-      stats.push(`${cfg.damage_per_shot} dmg/shot`)
-      stats.push(`every ${(1 / cfg.fire_rate).toFixed(cfg.fire_rate >= 1 ? 1 : 2)}s`)
-    }
-    if (cfg.coins_per_tick > 0) {
-      stats.push(`${cfg.coins_per_tick} coin / ${cfg.coin_interval_s}s`)
-    }
-    lines.push(stats.join(" · "))
-  }
-  return lines.join("\n")
+interface ShopHoverInfo {
+  type: PumpkinType
+  name: string
+  description: string
+  stats: { label: string; value: string }[]
+  cost: number
 }
+
+// Custom shop tooltip — same card content/style as the field pumpkin tooltip
+// (name, description, per-type stats, cost), driven by live inflated prices.
+// Replaces the native `title` tooltip which can't render structured stats.
+const shopHoverInfo = computed<ShopHoverInfo | null>(() => {
+  const type = hoveredShopType.value
+  const cfg = type ? halloweenStore.config?.pumpkins[type] : undefined
+  if (!type || !cfg) return null
+  const meta = PUMPKIN_META[type]
+  const prices = hud.value?.shopPrices
+  const stats: { label: string; value: string }[] = [{ label: "Health", value: `${cfg.health}` }]
+  if (type === "cramer") {
+    if (cfg.coins_per_tick > 0) {
+      stats.push({ label: "Seeds", value: `${cfg.coins_per_tick} / ${cfg.coin_interval_s}s` })
+    }
+  } else if (type === "herbert") {
+    stats.push({ label: "Heal / shot", value: `${cfg.damage_per_shot}` })
+    if (cfg.fire_rate > 0) {
+      stats.push({
+        label: "Every",
+        value: `${(1 / cfg.fire_rate).toFixed(cfg.fire_rate >= 1 ? 1 : 2)}s`,
+      })
+    }
+  } else if (type === "chunky") {
+    stats.push({ label: "Role", value: "Tank" })
+  } else if (cfg.fire_rate > 0) {
+    stats.push({ label: "Damage / shot", value: `${cfg.damage_per_shot}` })
+    stats.push({
+      label: "Every",
+      value: `${(1 / cfg.fire_rate).toFixed(cfg.fire_rate >= 1 ? 1 : 2)}s`,
+    })
+  }
+  return {
+    type,
+    name: meta?.name ?? type,
+    description: meta?.description ?? "",
+    stats,
+    cost: prices?.[type] ?? cfg.cost,
+  }
+})
+
+// Pointer-following position for the shop tooltip: floats just above-right
+// of the cursor, clamped to the viewport so it never clips off-screen.
+const shopTooltipStyle = computed(() => {
+  const pos = shopTooltipPos.value
+  if (!pos) return {}
+  const tooltipWidth = 240 // w-60
+  const offsetX = 16
+  const offsetY = 12
+  const padding = 8
+  const maxX = window.innerWidth - tooltipWidth - padding
+  const left = Math.max(padding, Math.min(pos.x + offsetX, maxX))
+  // Shown above the cursor so it doesn't cover the shop button.
+  return {
+    left: `${left}px`,
+    top: `${Math.max(padding, pos.y - offsetY)}px`,
+    transform: "translateY(-100%)",
+  }
+})
 
 function buy(type: PumpkinType) {
   engine?.buyPumpkin(type)
