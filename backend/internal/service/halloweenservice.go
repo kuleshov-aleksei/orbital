@@ -168,8 +168,8 @@ func (s *HalloweenService) Config() *HalloweenGameConfig {
 			"herbert":   {FireRate: 0.5, Health: 10, DamagePerShot: 5, ProjectileSpeed: 150, Cost: 40},
 			"gwynevere": {FireRate: 0.1, Health: 5, DamagePerShot: 10, ProjectileSpeed: 40, Cost: 70},
 			"cramer":    {FireRate: 0, Health: 10, DamagePerShot: 0, ProjectileSpeed: 0, Cost: 75, CoinIntervalS: 5, CoinsPerTick: 1},
-			// Silas: card-exclusive piercing sniper. Not for sale at any price.
-			"silas": {FireRate: 0.25, Health: 5, DamagePerShot: 25, ProjectileSpeed: 200, Cost: 100, DraftOnly: true},
+			// PEARcer: card-exclusive piercing sniper (pear skin, pumpkin mechanics). Not for sale at any price.
+			"pearcer": {FireRate: 0.25, Health: 5, DamagePerShot: 25, ProjectileSpeed: 200, Cost: 100, DraftOnly: true},
 		},
 		Slugs: map[string]HalloweenSlugConfig{
 			HalloweenSlugScout:  {Speed: 50, Health: 10, DamageToPumpkin: 2, RewardPoints: 10, KillReward: 2},

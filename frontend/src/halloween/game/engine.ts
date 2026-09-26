@@ -65,9 +65,9 @@ const GWYN_BLAST_RADIUS = 70
 export const SHOP_PRICE_GROWTH = 1.15
 export const SHOP_PRICE_CAP_MULT = 5
 
-// Silas is a piercing sniper: each seed passes through this many slugs.
+// PEARcer is a piercing sniper: each seed passes through this many slugs.
 // More than enough — if you need more than 8, you're showing off.
-export const SILAS_PIERCE = 8
+export const PEARCER_PIERCE = 8
 
 export function laneForY(y: number): number {
   return Math.max(0, Math.min(LANE_COUNT - 1, Math.floor(y / LANE_HEIGHT)))
@@ -281,7 +281,7 @@ export class HalloweenGameEngine {
   // plus per-type inflation from costFor(); refunds stay at base cost.
   buyPumpkin(type: PumpkinType): boolean {
     if (this.phase !== "playing") return false
-    // Draft-only pumpkins aren't for sale. The shop has standards. So does Silas.
+    // Draft-only pumpkins aren't for sale. The shop has standards. So does PEARcer.
     if (this.config.pumpkins[type]?.draft_only) return false
     const cost = this.costFor(type)
     if (this.coins < cost) return false
@@ -496,7 +496,7 @@ export class HalloweenGameEngine {
   }
 
   // Shields absorb hits, not HP. One hit strips exactly one shield no matter
-  // how much damage the shot deals — Silas's 25-damage tracers are worth
+  // how much damage the shot deals — PEARcer's 25-damage tracers are worth
   // precisely as much as a spitball here. Annihilation bypasses shields
   // entirely (it doesn't deal damage; it just deletes).
   private damageSlug(slug: GameSlug, damage: number, source: KillSource): void {
@@ -837,7 +837,7 @@ export class HalloweenGameEngine {
     }
 
     // Normal pumpkins shoot straight horizontally along their own lane.
-    // Silas's seeds pierce: they pass through up to SILAS_PIERCE slugs,
+    // PEARcer's seeds pierce: they pass through up to PEARCER_PIERCE slugs,
     // hitting each one once. Subtlety is for pumpkins that can't aim.
     const target = this.nearestSlugOnLane(pumpkin)
     if (!target) return
@@ -849,7 +849,7 @@ export class HalloweenGameEngine {
         null,
         cfg.damage_per_shot,
         0,
-        pumpkin.type === "silas" ? SILAS_PIERCE : 0,
+        pumpkin.type === "pearcer" ? PEARCER_PIERCE : 0,
       ),
     )
     this.onEvent?.("shooting")
@@ -995,7 +995,7 @@ export class HalloweenGameEngine {
       this.coast(proj, dt)
 
       // Collision vs any slug — a seed damages the first slug it reaches,
-      // unless it pierces (silas): then it keeps going, one hit per slug.
+      // unless it pierces (pearcer): then it keeps going, one hit per slug.
       // Shielded slugs swallow the hit either way (see damageSlug).
       let hit = false
       for (const slug of this.slugs) {

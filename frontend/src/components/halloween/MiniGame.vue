@@ -23,18 +23,18 @@
             class="flex items-center gap-1 rounded-lg bg-theme-bg-secondary border border-theme-border p-0.5"
             data-testid="speed-controls">
             <button
-              v-for="s in [1, 2, 5]"
-              :key="s"
+              v-for="o in SPEED_OPTIONS"
+              :key="o.label"
               type="button"
               class="px-2.5 py-1 rounded-md text-xs font-bold transition-colors"
               :class="
-                speed === s
+                speedLabel === o.label
                   ? 'bg-orange-500 text-white'
                   : 'text-theme-text-muted hover:text-theme-text-primary'
               "
-              :data-testid="`speed-${s}`"
-              @click="speed = s">
-              {{ s }}x
+              :data-testid="`speed-${o.label}`"
+              @click="speedLabel = o.label">
+              {{ o.label }}x
             </button>
           </div>
           <button
@@ -357,7 +357,15 @@ let last = performance.now()
 const hud = shallowRef<GameSnapshot | null>(null)
 const result = ref<SubmitGameReportResponse | null>(null)
 const submitting = ref(false)
-const speed = ref(1)
+// Visual labels stay 1x/2x/3x; actual multipliers are 2x/4x/6x so the game
+// starts twice as fast as before (label 1x = 2x sim speed).
+const SPEED_OPTIONS = [
+  { label: 1, mult: 2 },
+  { label: 2, mult: 4 },
+  { label: 3, mult: 6 },
+] as const
+const speedLabel = ref<number>(1)
+const speedMult = computed(() => SPEED_OPTIONS.find((o) => o.label === speedLabel.value)?.mult ?? 2)
 
 const hoveredPumpkin = ref<GamePumpkin | null>(null)
 const hoveredShopType = ref<PumpkinType | null>(null)
@@ -507,6 +515,7 @@ const PUMPKIN_ICONS: Record<string, string> = {
   herbert: "H",
   gwynevere: "G",
   cramer: "🌰",
+  pearcer: "P",
 }
 
 const ABILITY_ICONS: Record<string, string> = {
@@ -676,7 +685,7 @@ const tick = (now: number) => {
   const dt = Math.min((now - last) / 1000, 0.05)
   last = now
   if (engine) {
-    engine.update(dt * speed.value)
+    engine.update(dt * speedMult.value)
     renderer?.sync()
     hud.value = engine.snapshot()
     hoveredPumpkin.value = engine.hoveredPumpkin ? { ...engine.hoveredPumpkin } : null

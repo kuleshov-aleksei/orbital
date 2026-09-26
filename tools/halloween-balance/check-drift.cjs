@@ -39,7 +39,7 @@ for (let i = 0; i < Math.max(goRounds.length, tsRounds.length); i++) {
 }
 
 // --- pumpkins: fire_rate, health, damage, speed, cost, draft_only ---
-for (const name of ["ferdinand", "chunky", "herbert", "gwynevere", "cramer", "silas"]) {
+for (const name of ["ferdinand", "chunky", "herbert", "gwynevere", "cramer", "pearcer"]) {
   const go = GO.match(
     new RegExp(
       `"${name}":\\s*\\{FireRate:\\s*([\\d.]+),\\s*Health:\\s*([\\d.]+),\\s*DamagePerShot:\\s*([\\d.]+),\\s*ProjectileSpeed:\\s*([\\d.]+),\\s*Cost:\\s*(\\d+)(?:,\\s*CoinIntervalS:\\s*([\\d.]+),\\s*CoinsPerTick:\\s*(\\d+))?(?:,\\s*DraftOnly:\\s*(true|false))?\\}`,

@@ -35,7 +35,7 @@ When all cards choosen, next round starts immidiatelly
 
 Player have coins for which he can purchase more pumkins. He earns coins for every kill. Coins are shown as pumkin seeds near shop
 
-There is a shop with every purchasable type of pumkin (Silas is card-exclusive and never appears there). Shop should be displayed side-by-side near inventory. Player can spend seeds (coins) in order to purchase a pumkin. Purchased pumkins placed directly into his inventory. Shop prices inflate per purchase: floor(base * 1.15^n), capped at 5x base — only shop buys count, free card pumpkins don't inflate prices.
+There is a shop with every purchasable type of pumkin (PEARcer is card-exclusive and never appears there). Shop should be displayed side-by-side near inventory. Player can spend seeds (coins) in order to purchase a pumkin. Purchased pumkins placed directly into his inventory. Shop prices inflate per purchase: floor(base * 1.15^n), capped at 5x base — only shop buys count, free card pumpkins don't inflate prices.
 
 Player can sell pumpkins for 50% of their cost
 
@@ -50,7 +50,7 @@ There should be 6 types of pumpkins:
 - Herbert - healer pumkin, shoots with glowing seeds at other pumpkins and health them
 - Gwynevere - artillery, shoots with homing missles that does aoe damage (automatically picks shooting point with the most impact)
 - Cramer - pumkin that produces seeds (coins that player can use). Do not shoot
-- Silas - card-exclusive sniper (never in the shop), slow heavy piercing seeds
+- PEARcer - card-exclusive pear-skinned sniper (never in the shop), slow heavy piercing seeds
 
 Pumkins shoot automatically:
 - Ferdinand picks closest target and shoots at the slug. It should predict slug trajectory and seed speed
@@ -68,7 +68,7 @@ User can override automatic targeting and point to any place on the playble area
 | Herbert | 0.5/s | 10 | 5 | 150 units/s |-| 40 |
 | Gwynevere | 1 shot every 10 seconds | 5 | 10 | 40 units/s (elliptic curve) |-| 70 |
 | Cramer | 0/s | 10 | 0 | 0 | Produces 1 coin every 5 seconds (diminishing: nth alive Cramer works at 1/2^(n-1) rate) | 75 |
-| Silas | 1 shot every 4 seconds | 5 | 25 | 200 units/s | Card-exclusive sniper, never sold in the shop. Seeds pierce through up to 8 slugs in his lane, hitting each once | not for sale (sells for 50) |
+| PEARcer | 1 shot every 4 seconds | 5 | 25 | 200 units/s | Card-exclusive pear-skinned sniper, never sold in the shop. Seeds pierce through up to 8 slugs in his lane, hitting each once | not for sale (sells for 50) |
 
 #### Slugs mechanic
 
@@ -138,7 +138,7 @@ After each round a popup appears. Popup contains a choice of 3 random cards:
 - 1 Pumking card - item that spawns a pumkin in a selected place
 - 1 Ability card - item that uses an ability from list above
 - 1 random card - pumkin OR ability
-Card is selected randomly from available ability + pumkin pool (all described above, including card-exclusive Silas) and shown to a player
+Card is selected randomly from available ability + pumkin pool (all described above, including card-exclusive PEARcer) and shown to a player
 
 1 round - 1 popup
 2 round - 2 popups

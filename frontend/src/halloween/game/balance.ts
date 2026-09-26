@@ -91,7 +91,7 @@ const VALID_STARTING_PUMPKINS: PumpkinType[] = [
   "herbert",
   "gwynevere",
   "cramer",
-  // No silas. Draft-only means draft-only. Read the card.
+  // No pearcer. Draft-only means draft-only. Read the card.
 ]
 
 // startingPumpkinsForConfig returns the configured starting inventory,
@@ -113,7 +113,7 @@ export const ALL_PUMPKIN_TYPES: PumpkinType[] = [
   "herbert",
   "gwynevere",
   "cramer",
-  "silas",
+  "pearcer",
 ]
 
 export interface PumpkinMeta {
@@ -143,10 +143,10 @@ export const PUMPKIN_META: Record<PumpkinType, PumpkinMeta> = {
     name: "Cramer",
     description: "Produces seeds (coins) instead of shooting.",
   },
-  silas: {
-    name: "Silas",
+  pearcer: {
+    name: "PEARcer",
     description:
-      "Card-exclusive marksman. Fires slow, heavy seeds that pierce through slugs in his lane. Not for sale — you couldn't afford him anyway.",
+      "Card-exclusive pear-skinned marksman. Fires slow, heavy seeds that pierce through slugs in his lane. Not for sale — you couldn't afford him anyway.",
   },
 }
 

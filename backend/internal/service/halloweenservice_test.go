@@ -143,7 +143,7 @@ func TestHalloweenShopEconomyConfig(t *testing.T) {
 		"herbert":   40,
 		"gwynevere": 70,
 		"cramer":    75,
-		"silas":     100,
+		"pearcer":   100,
 	}
 	if len(cfg.Pumpkins) != len(wantCosts) {
 		t.Fatalf("pumpkins = %d types, want %d", len(cfg.Pumpkins), len(wantCosts))

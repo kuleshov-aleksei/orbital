@@ -83,7 +83,7 @@ export interface HalloweenPumpkinConfig {
   cost: number
   coin_interval_s: number // seconds per coin tick (cramer)
   coins_per_tick: number // seeds produced per tick (cramer)
-  draft_only?: boolean // true: card-exclusive, never sold in the shop (silas)
+  draft_only?: boolean // true: card-exclusive, never sold in the shop (pearcer)
 }
 
 // HalloweenSlugConfig mirrors the slug balance table.

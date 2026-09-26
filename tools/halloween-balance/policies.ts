@@ -349,7 +349,7 @@ export class HeuristicPolicy implements Policy {
           case "cramer":
             score = ctx.cramerCount < 2 ? 2.5 : 0.5
             break
-          case "silas":
+          case "pearcer":
             score = 5 // card-exclusive pierce DPS — take it every time
             break
         }

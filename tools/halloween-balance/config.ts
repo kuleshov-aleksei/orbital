@@ -89,7 +89,7 @@ export function defaultConfig(): HalloweenGameConfig {
         coin_interval_s: 5,
         coins_per_tick: 1,
       },
-      silas: {
+      pearcer: {
         fire_rate: 0.25,
         health: 5,
         damage_per_shot: 25,
