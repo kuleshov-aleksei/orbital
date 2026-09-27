@@ -123,6 +123,7 @@ export class HeuristicPolicy implements Policy {
     this.tick++
     if (this.tick % 15 !== 0) return // act ~2x per sim-second
     this.placeAll(engine);
+    this.levelUp(engine);
     this.buy(engine, config);
     this.abilities(engine, rng);
   }
@@ -216,8 +217,43 @@ export class HeuristicPolicy implements Policy {
     return null
   }
 
-  private buy(engine: HalloweenGameEngine, config: HalloweenGameConfig): void {
-    void config // prices come from engine.costFor (inflated); base config unused
+  // Level-up priority (design decision): pearcer -> ferdinand -> herbert
+  // -> cramer -> chunky -> gwynevere. Within a type, lowest level first,
+  // then the most damaged (the +max-HP delta lands where it is needed).
+  private static readonly LEVEL_ORDER: PumpkinType[] = [
+    "pearcer",
+    "ferdinand",
+    "herbert",
+    "cramer",
+    "chunky",
+    "gwynevere",
+  ]
+
+  private levelUp(engine: HalloweenGameEngine): void {
+    // Level-ups spend XP — independent of the coin shop — and are permanent
+    // at fixed costs, so there is no reason to hoard: spend greedily.
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const xp = engine.snapshot().xp
+      const candidates = engine.pumpkins.filter(
+        (p) => p.health > 0 && engine.levelUpCostFor(p) != null,
+      )
+      if (candidates.length === 0) break
+      const order = HeuristicPolicy.LEVEL_ORDER
+      candidates.sort(
+        (a, b) =>
+          order.indexOf(a.type) - order.indexOf(b.type) ||
+          a.level - b.level ||
+          a.health / a.maxHealth - b.health / b.maxHealth,
+      )
+      const target = candidates[0]
+      const cost = engine.levelUpCostFor(target)
+      if (cost == null || xp < cost) break
+      if (!engine.levelUpPumpkin(target.id)) break
+    }
+  }
+
+  private buy(engine: HalloweenGameEngine, config: HalloweenGameConfig): void {    void config // prices come from engine.costFor (inflated); base config unused
     const snap = engine.snapshot()
     if (snap.inventory.length >= 6) return
     const coins = snap.coins

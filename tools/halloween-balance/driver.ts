@@ -25,6 +25,10 @@ export interface GameResult {
   usedItems: Record<string, number>
   coinsEarned: number
   coinsSpent: number
+  xpEarned: number // lifetime XP pool (report.xp_earned)
+  xpRemaining: number // unspent XP at game end
+  levelUps: number // level-up purchases bought (counted live, incl. pumpkins that later died)
+  pumpkinsByLevel: Record<number, number> // live field split, e.g. {1: n, 2: n, 3: n}
   endPhase: string
   gameOverReason: string | null
 }
@@ -39,6 +43,15 @@ export function runSingleGame(
   const maxSimSeconds = opts.maxSimSeconds ?? 45 * 60
   const rng = mulberry32(seed)
   const engine = new HalloweenGameEngine(config, rng)
+  // Count level-up purchases live: reconstructing from the end-of-game
+  // field would miss pumpkins that later died and undercount lost games.
+  let levelUps = 0
+  const baseLevelUp = engine.levelUpPumpkin.bind(engine)
+  engine.levelUpPumpkin = (id: number): boolean => {
+    const ok = baseLevelUp(id)
+    if (ok) levelUps++
+    return ok
+  }
 
   let ticks = 0
   let reachedRound = 1
@@ -69,6 +82,11 @@ export function runSingleGame(
   const final = engine.snapshot()
   const killsByType: Record<string, number> = {}
   for (const k of report.kills) killsByType[k.type] = (killsByType[k.type] ?? 0) + 1
+  const pumpkinsByLevel: Record<number, number> = {}
+  for (const p of engine.pumpkins) {
+    if (p.health <= 0) continue
+    pumpkinsByLevel[p.level] = (pumpkinsByLevel[p.level] ?? 0) + 1
+  }
 
   return {
     seed,
@@ -85,6 +103,10 @@ export function runSingleGame(
     usedItems: report.used_items,
     coinsEarned: report.coins_earned,
     coinsSpent: report.coins_spent,
+    xpEarned: report.xp_earned,
+    xpRemaining: final.xp,
+    levelUps,
+    pumpkinsByLevel,
     endPhase: final.phase,
     gameOverReason: final.gameOverReason,
   }

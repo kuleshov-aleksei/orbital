@@ -35,6 +35,10 @@ export interface BatchSummary {
   killsMean: number
   coinsEarnedMean: number
   coinsSpentMean: number
+  xpEarnedMean: number
+  xpSpentMean: number // earned - remaining (XP is only spent on level-ups)
+  levelUpsMean: number
+  pumpkinsByLevelMean: Record<number, number> // live field split at game end
   killsByTypeMean: Record<string, number>
   wallMs: number
   simSecondsTotal: number
@@ -83,6 +87,13 @@ export function summarize(
       killsByTypeMean[k] = (killsByTypeMean[k] ?? 0) + v / results.length
     }
   }
+  const pumpkinsByLevelMean: Record<number, number> = {}
+  for (const res of results) {
+    for (const [k, v] of Object.entries(res.pumpkinsByLevel)) {
+      const level = Number(k)
+      pumpkinsByLevelMean[level] = (pumpkinsByLevelMean[level] ?? 0) + v / results.length
+    }
+  }
   return {
     games: results.length,
     policy: results[0]?.policy ?? "?",
@@ -105,6 +116,10 @@ export function summarize(
     killsMean: mean(results.map((r) => r.kills)),
     coinsEarnedMean: mean(results.map((r) => r.coinsEarned)),
     coinsSpentMean: mean(results.map((r) => r.coinsSpent)),
+    xpEarnedMean: mean(results.map((r) => r.xpEarned)),
+    xpSpentMean: mean(results.map((r) => r.xpEarned - r.xpRemaining)),
+    levelUpsMean: mean(results.map((r) => r.levelUps)),
+    pumpkinsByLevelMean,
     killsByTypeMean,
     wallMs,
     simSecondsTotal: results.reduce((a, r) => a + r.simSeconds, 0),
@@ -169,6 +184,10 @@ export function printSummary(s: BatchSummary): void {
   )
   console.log(
     `coins/game: earned ${f1(s.coinsEarnedMean)}  spent ${f1(s.coinsSpentMean)}`,
+  )
+  const field = [1, 2, 3].map((l) => `L${l}=${f1(s.pumpkinsByLevelMean[l] ?? 0)}`).join(" ")
+  console.log(
+    `xp/game: earned ${f1(s.xpEarnedMean)}  spent ${f1(s.xpSpentMean)}  level-ups ${f1(s.levelUpsMean)}  field: ${field}`,
   )
   // Economy snowball guard: heuristic earns >> spends means kill/cramer
   // income outscales shop costs and the build goes infinite.
