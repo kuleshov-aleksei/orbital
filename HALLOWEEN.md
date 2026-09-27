@@ -70,6 +70,49 @@ User can override automatic targeting and point to any place on the playble area
 | Cramer | 0/s | 10 | 0 | 0 | Produces 1 coin every 5 seconds (diminishing: nth alive Cramer works at 1/2^(n-1) rate) | 75 |
 | PEARcer | 1 shot every 4 seconds | 5 | 25 | 200 units/s | Card-exclusive pear-skinned sniper, never sold in the shop. Seeds pierce through up to 8 slugs in his lane, hitting each once | not for sale (sells for 50) |
 
+### Pumkin level up mechanic
+
+Player earn xp per killed slug, each slug have its own reward (see slugs balancing charts below).
+Player can spend xp to level up pumkins. XP pool is global
+
+Pumkins can be leveled up. Pumkins have 3 levels. Level increases stats like HP, fire rate, damage, heal amount, money per second amount. Each pumkin have its own balance table
+
+Design rule: level 2 is ~+35-40% effective power over level 1, level 3 is ~+70-85% over level 1. A level 2 pumkin is never as powerful as 2 pumkins at level 1 (200%). Leveling up is worth it because it saves board space (30 cells). Level-up adds `newMax - oldMax` HP on top of current health (damage taken is kept, no free full heal). Dell-spawned Marvins grant the same XP as regular Marvins
+
+Level-up is done via a "Level up" button in the pumkin hover tooltip (next to Sell), available during the playing phase only. Selling a pumkin refunds 50% of its base coin cost and does not refund spent XP
+
+Cost per level:
+| Starting level | Next level xp cost |
+|-|-|
+| 1 | 40 |
+| 2 | 80 |
+
+Full level-up to 3 costs 120 XP. Total XP earnable from round 1 to round 7 is ~996 (plus Dell-spawned Marvins, ~1100 total), so a player can level about 7-10 pumkins to level 3 by wave 7 at most. Dell-spawned Marvins are capped at 20 per Dell, so even a deliberately kept-alive Dell yields at most 60 XP
+
+#### Pumkin level balance table
+
+| Pumkin | Level | Health | Fire rate | Damage / heal per shot | Projectile speed | Coins | Notes |
+|-|-|-|-|-|-|-|-|
+| Ferdinand | 1 | 10 | 1/s | 5 | 100 units/s | - | ~5 DPS |
+| Ferdinand | 2 | 14 | 1.15/s | 6 | 100 units/s | - | ~6.9 DPS (+38%) |
+| Ferdinand | 3 | 18 | 1.3/s | 7 | 100 units/s | - | ~9.1 DPS (+82%) |
+| Chunky | 1 | 50 | 0/s | 0 | 0 | - | tank, does not shoot |
+| Chunky | 2 | 75 | 0/s | 0 | 0 | - | 1.5x, less than 2x level 1 (100) |
+| Chunky | 3 | 100 | 0/s | 0 | 0 | - | 2x level 1, still costs 120 XP + a slot |
+| Herbert | 1 | 10 | 0.5/s | 5 heal | 150 units/s | - | ~2.5 HPS |
+| Herbert | 2 | 14 | 0.6/s | 5 heal | 150 units/s | - | ~3.0 HPS (+20%, heal flat — nerfed) |
+| Herbert | 3 | 18 | 0.7/s | 5 heal | 150 units/s | - | ~3.5 HPS (+40%, heal flat — nerfed) |
+| Gwynevere | 1 | 5 | 1 shot every 10 seconds | 10 | 40 units/s (elliptic curve) | - | blast radius 70 |
+| Gwynevere | 2 | 7 | ~1 shot every 8.7 seconds | 13 | 40 units/s (elliptic curve) | - | blast radius 80 |
+| Gwynevere | 3 | 9 | ~1 shot every 7.7 seconds | 16 | 40 units/s (elliptic curve) | - | blast radius 90 |
+| Cramer | 1 | 10 | 0/s | 0 | 0 | 1 coin every 5 seconds | diminishing: nth alive Cramer works at 1/2^(n-1) rate |
+| Cramer | 2 | 14 | 0/s | 0 | 0 | 1 coin every 4 seconds (+25%) | diminishing unchanged |
+| Cramer | 3 | 18 | 0/s | 0 | 0 | 1 coin every 3 seconds (+67%, less than 2x) | diminishing unchanged |
+| PEARcer | 1 | 5 | 1 shot every 4 seconds | 25 | 200 units/s | - | card-exclusive, pierces up to 8 slugs |
+| PEARcer | 2 | 7 | ~1 shot every 3.6 seconds | 30 | 200 units/s | - | pierce stays 8 |
+| PEARcer | 3 | 9 | ~1 shot every 3.1 seconds | 35 | 200 units/s | - | ~11.2 DPS (+79%), pierce stays 8 |
+
+
 #### Slugs mechanic
 
 There is 4 types of slugs:
@@ -77,18 +120,18 @@ There is 4 types of slugs:
 - Scout - fast slug
 - Marvin - regular slug
 - Gerald - big, chonky slug
-- Dr. Dell Conagher - engineer slug that does not moves, but spawns Marvins every 5 seconds
+- Dr. Dell Conagher - engineer slug that does not moves, but spawns Marvins every 5 seconds, maximum 20 Marvins per Dell (cap against XP/coin farming)
 
 When slug reaches a pumkin, it deals damage every 3 seconds until slug or pumkin dies. If slug survives, it continues to move towards the next pumkin
 
 #### Slug balance table
 
-| Slug | Speed | Health | Damage to pumkin | Reward points | Kill reward (coins/seeds) |
-|-|-|-|-|-|-|
-| Scout | 50 units/s | 10 | 2 | 10 | 5 |
-| Marvin | 50 units/s | 20 | 5 | 20 | 10 |
-| Gerald | 30 units/s | 100 | 20 | 50 | 30 |
-| Dr. Dell Conagher | 0 units/s | 10 | 0 | 100 | 50 |
+| Slug | Speed | Health | Damage to pumkin | Reward points | Kill reward (coins/seeds) | XP reward |
+|-|-|-|-|-|-|-|
+| Scout | 50 units/s | 10 | 2 | 10 | 5 | 2 |
+| Marvin | 50 units/s | 20 | 5 | 20 | 10 | 3 |
+| Gerald | 30 units/s | 100 | 20 | 50 | 30 | 3 |
+| Dr. Dell Conagher | 0 units/s | 10 | 0 | 100 | 50 | 5 |
 
 Reward per slug also depends on position. Battlefield - 1000 units
 - 700+ units - 100% reward
