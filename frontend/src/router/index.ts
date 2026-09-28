@@ -24,6 +24,17 @@ const router = createRouter({
       alias: "/auth/callback/",
       component: () => import("@/views/AuthCallback.vue"),
     },
+    // Dev-only balance visualizer: live engine + renderer + bot policies.
+    // Never linked in prod UI; the chunk is unreachable outside dev.
+    ...(import.meta.env.DEV
+      ? [
+          {
+            path: "/dev/balance",
+            name: "dev-balance",
+            component: () => import("@/components/halloween/BalanceVisual.vue"),
+          },
+        ]
+      : []),
   ],
 })
 

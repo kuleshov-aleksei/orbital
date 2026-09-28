@@ -1,4 +1,4 @@
-// Drift guard: asserts the sim fixture (tools/halloween-balance/config.ts)
+// Drift guard: asserts the sim fixture (tools/halloween-balance/fixture.ts)
 // matches the server-authoritative values in
 // backend/internal/service/halloweenservice.go Config().
 // Run: node tools/halloween-balance/check-drift.cjs
@@ -11,7 +11,7 @@ const GO = fs.readFileSync(
   path.join(ROOT, "backend", "internal", "service", "halloweenservice.go"),
   "utf8",
 )
-const TS = fs.readFileSync(path.join(__dirname, "config.ts"), "utf8")
+const TS = fs.readFileSync(path.join(__dirname, "fixture.ts"), "utf8")
 
 let failures = 0
 function check(label, goVal, tsVal) {
@@ -130,7 +130,7 @@ const tsHP = (TS.match(/slug_hp_growth:\s*([\d.]+)/) || [])[1]
 check("slug_hp_growth", goHP ?? "<missing>", tsHP ?? "<missing>")
 
 if (failures > 0) {
-  console.error(`\n${failures} drifted value(s). Update tools/halloween-balance/config.ts to match the backend.`)
+  console.error(`\n${failures} drifted value(s). Update tools/halloween-balance/fixture.ts to match the backend.`)
   process.exit(1)
 }
 console.log("drift check OK: fixture matches backend Config()")
