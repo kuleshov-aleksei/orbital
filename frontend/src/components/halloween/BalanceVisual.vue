@@ -14,8 +14,8 @@
         policy
         <select
           v-model="policyName"
-          :disabled="running"
-          class="ml-1 rounded bg-stone-800 px-1.5 py-1 text-stone-200">
+          class="ml-1 rounded bg-stone-800 px-1.5 py-1 text-stone-200"
+          @change="restart">
           <option value="systemone">systemone</option>
           <option value="heuristic">heuristic</option>
         </select>
@@ -26,8 +26,8 @@
         <input
           v-model.number="seed"
           type="number"
-          :disabled="running"
-          class="ml-1 w-20 rounded bg-stone-800 px-1.5 py-1 text-stone-200" />
+          class="ml-1 w-20 rounded bg-stone-800 px-1.5 py-1 text-stone-200"
+          @change="restart" />
       </label>
 
       <label v-if="policyName === 'systemone'" class="text-xs text-stone-400">
@@ -35,7 +35,6 @@
         <input
           v-model="systemoneUrl"
           type="text"
-          :disabled="running"
           class="ml-1 w-64 rounded bg-stone-800 px-1.5 py-1 font-mono text-stone-200" />
       </label>
 
@@ -297,23 +296,42 @@ function scrollFeed(): void {
 }
 
 /** One fixed sim step. Mirrors driver.ts: cards phase resolves popups via
- * the policy, playing phase calls onTick, then engine.update(DT). */
-async function simStep(config: HalloweenGameConfig): Promise<boolean> {
+ * the policy, playing phase calls onTick, then engine.update(DT). The run id
+ * guards against stale async steps: if a restart happened while a decider
+ * fetch was in flight, bail without touching the new run's engine. */
+async function simStep(config: HalloweenGameConfig, id: number): Promise<boolean> {
   if (!engine || !policy) return false
   const snap = engine.snapshot()
   if (snap.phase === "gameover" || snap.phase === "ended") return false
 
   if (snap.phase === "cards" && snap.cards) {
     const pumpkins = engine.pumpkins.filter((p) => p.health > 0)
+    // Full CardContext, mirroring driver.ts — systemone's card doctrine
+    // reads round/inventory/duplicates/answers/field size.
+    const owned = (t: string): number =>
+      snap.inventory.filter((i) => i.kind === "pumpkin" && i.pumpkinType === t).length
     awaiting.value = true
     try {
       const pick = await policy.pickCard(snap.cards.cards, rng, {
         cramerCount: pumpkins.filter((p) => p.type === "cramer").length,
         damagedAny: pumpkins.some((p) => p.health < p.maxHealth),
+        round: snap.round,
+        inventoryFull: snap.inventory.length >= 6,
+        herbertCount: pumpkins.filter((p) => p.type === "herbert").length + owned("herbert"),
+        gwynevereCount: pumpkins.filter((p) => p.type === "gwynevere").length + owned("gwynevere"),
+        answerCount: snap.inventory.filter(
+          (i) =>
+            i.kind === "ability" &&
+            (i.abilityId === "annihilation" ||
+              i.abilityId === "holy_grenade" ||
+              i.abilityId === "freeze"),
+        ).length,
+        fieldCount: pumpkins.length,
       })
       if (policyName.value === "heuristic") {
         feed.value.push({ phase: "cards", question: "card_decision", choice: String(pick) })
       }
+      if (id !== runId) return true // superseded by a restart — drop the pick
       engine.pickCard(pick)
     } finally {
       awaiting.value = false
@@ -325,6 +343,7 @@ async function simStep(config: HalloweenGameConfig): Promise<boolean> {
     } finally {
       awaiting.value = false
     }
+    if (id !== runId) return true // superseded by a restart — skip the update
   }
   engine.update(DT)
   ticks.value++
@@ -361,7 +380,8 @@ async function simLoop(config: HalloweenGameConfig, id: number): Promise<void> {
     for (let i = 0; i < steps; i++) {
       if (id !== runId || paused.value) break
       try {
-        const alive = await simStep(config)
+        const alive = await simStep(config, id)
+        if (id !== runId) return
         if (!alive) {
           finished.value = true
           running.value = false
@@ -430,7 +450,7 @@ async function stepOnce(): Promise<void> {
   if (!halloweenStore.config) await halloweenStore.fetchConfig()
   const config = halloweenStore.config ?? defaultConfig()
   try {
-    const alive = await simStep(config)
+    const alive = await simStep(config, runId)
     if (!alive) finished.value = true
   } catch (e) {
     error.value = (e as Error).message
