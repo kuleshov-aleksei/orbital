@@ -1,0 +1,450 @@
+// System One decider policy: every gameplay decision is made by the
+// remote System One API (localhost:8000/v1/systemone). Fully independent —
+// no imports from ./policies.ts, no heuristic fallback. Any decider failure
+// throws and fails the whole run.
+import {
+  LANE_COUNT,
+  PLACEMENT_COLUMNS,
+  columnForX,
+  columnX,
+  laneCenterY,
+  laneForY,
+  type HalloweenGameEngine,
+} from "../../frontend/src/halloween/game/engine"
+import { ABILITY_META } from "../../frontend/src/halloween/game/balance"
+import type { CardDefinition } from "../../frontend/src/halloween/game/balance"
+import type { AbilityId, PumpkinType } from "../../frontend/src/halloween/game/types"
+import type { HalloweenGameConfig } from "../../frontend/src/halloween/types"
+import {
+  askChoice,
+  buildSystemOneState,
+  type SystemOneClientOptions,
+} from "./systemone"
+import type { CardContext, Policy } from "./policies"
+import type { Rng } from "./rng"
+
+export interface DecisionRecord {
+  phase: string
+  question: string
+  choice: string
+}
+
+export interface SystemOnePolicyOptions extends SystemOneClientOptions {
+  /** Act once per N sim ticks (default 15, ~2x per sim-second). */
+  actEveryNTicks?: number
+}
+
+function parseId(pattern: RegExp, choice: string): number {
+  const m = choice.match(pattern)
+  if (!m) throw new Error(`cannot parse id from choice "${choice}"`)
+  return parseInt(m[1], 10)
+}
+
+/** Free (col, lane) cells from live pumpkins + currently active lanes. */
+function freeCells(engine: HalloweenGameEngine): Array<{ col: number; lane: number }> {
+  const taken = new Set<string>()
+  for (const p of engine.pumpkins) {
+    if (p.health <= 0) continue
+    taken.add(`${columnForX(p.x)}:${laneForY(p.y)}`)
+  }
+  const lanes = new Set(engine.activeLanes())
+  const out: Array<{ col: number; lane: number }> = []
+  for (let col = 0; col < PLACEMENT_COLUMNS; col++) {
+    for (let lane = 0; lane < LANE_COUNT; lane++) {
+      if (!lanes.has(lane)) continue
+      if (!taken.has(`${col}:${lane}`)) out.push({ col, lane })
+    }
+  }
+  return out
+}
+
+/** Point-ability aim candidates derived from live slug clusters. */
+function pointCandidates(
+  engine: HalloweenGameEngine,
+): Array<{ key: string; x: number; y: number; label: string }> {
+  const live = engine.slugs.filter((s) => s.health > 0)
+  const byLane = new Map<number, typeof live>()
+  for (const s of live) {
+    const arr = byLane.get(s.lane) ?? []
+    arr.push(s)
+    byLane.set(s.lane, arr)
+  }
+  return [...byLane.entries()]
+    .sort((a, b) => b[1].length - a[1].length)
+    .slice(0, 8)
+    .map(([lane, slugs]) => {
+      const xs = slugs.map((s) => s.x).sort((a, b) => a - b)
+      const x = Math.round(xs[Math.floor(xs.length / 2)])
+      return {
+        key: `point_l${lane}_x${x}`,
+        x,
+        y: laneCenterY(lane),
+        label: `Lane ${lane} at x=${x}: ${slugs.length} slug(s), nearest x=${Math.round(Math.min(...xs))}` +
+          (slugs.some((s) => s.shields > 0) ? ", shielded present" : ""),
+      }
+    })
+}
+
+export class SystemOnePolicy implements Policy {
+  readonly name = "systemone"
+  readonly decisions: DecisionRecord[] = []
+  private readonly opts: SystemOneClientOptions
+  private readonly actEvery: number
+  private tick = 0
+  /** Last tick an abilityId was asked about (spam guard for held answers). */
+  private readonly lastAsked = new Map<AbilityId, number>()
+  /** Alive-field signature seen at the last buff-ability ask. */
+  private readonly buffSig = new Map<AbilityId, string>()
+  /** Ticks between repeat asks for combat abilities (~10 decision windows). */
+  private static readonly ASK_COOLDOWN_TICKS = 150
+
+  constructor(opts: SystemOnePolicyOptions) {
+    const { actEveryNTicks, ...client } = opts
+    this.opts = client
+    this.actEvery = actEveryNTicks ?? 15
+  }
+
+  private async decide(
+    engine: HalloweenGameEngine,
+    config: HalloweenGameConfig,
+    questionId: string,
+    instructions: string,
+    criteria: Record<string, string | null>,
+  ): Promise<string> {
+    const state = buildSystemOneState(engine, config)
+    const choice = await askChoice(this.opts, state, questionId, {
+      type: "choice",
+      instructions,
+      criteria,
+    })
+    this.decisions.push({
+      phase: `R${engine.snapshot().round}/${engine.snapshot().phase}`,
+      question: questionId,
+      choice,
+    })
+    return choice
+  }
+
+  private playing(engine: HalloweenGameEngine): boolean {
+    return engine.snapshot().phase === "playing"
+  }
+
+  /** Target selection where the candidate set can shrink to one. A single
+   * candidate is not a decision — apply it directly without a decider call
+   * (the API also rejects single-option choice questions). */
+  private async decideTarget(
+    engine: HalloweenGameEngine,
+    config: HalloweenGameConfig,
+    questionId: string,
+    instructions: string,
+    criteria: Record<string, string | null>,
+  ): Promise<string> {
+    const keys = Object.keys(criteria)
+    if (keys.length === 1) {
+      this.decisions.push({
+        phase: `R${engine.snapshot().round}/${engine.snapshot().phase}`,
+        question: `${questionId} (auto: sole candidate)`,
+        choice: keys[0],
+      })
+      return keys[0]
+    }
+    return this.decide(engine, config, questionId, instructions, criteria)
+  }
+
+  async onTick(engine: HalloweenGameEngine, config: HalloweenGameConfig): Promise<void> {
+    this.tick++
+    if (this.tick % this.actEvery !== 0) return
+    // Sequential decider loop — as many calls as needed. Each call sees a
+    // freshly built state, so earlier actions in this same tick are visible.
+    // (Selling is disabled in this harness — every placed pumpkin fights
+    // until it dies, so there is no sell phase.)
+    await this.buyPhase(engine, config)
+    if (!this.playing(engine)) return
+    await this.placePhase(engine, config)
+    if (!this.playing(engine)) return
+    await this.levelPhase(engine, config)
+    if (!this.playing(engine)) return
+    await this.abilityPhase(engine, config)
+  }
+
+  private async buyPhase(
+    engine: HalloweenGameEngine,
+    config: HalloweenGameConfig,
+  ): Promise<void> {
+    const buyable = (Object.keys(config.pumpkins) as PumpkinType[]).filter(
+      (t) => !config.pumpkins[t]?.draft_only,
+    )
+    for (let i = 0; i < 8; i++) {
+      if (!this.playing(engine)) return
+      const snap = engine.snapshot()
+      if (snap.inventory.length >= 6) return
+      const criteria: Record<string, string | null> = {
+        hold: "Buy nothing. Save coins for later.",
+      }
+      for (const t of buyable) {
+        const price = engine.costFor(t)
+        if (snap.coins < price) continue
+        criteria[`buy_${t}_${price}`] = `Buy ${t} for ${price} coins (base ${config.pumpkins[t]?.cost}).`
+      }
+      if (Object.keys(criteria).length <= 1) return // nothing affordable — no query
+      const choice = await this.decide(
+        engine,
+        config,
+        "buy_decision",
+        `You have ${snap.coins} coins. Which pumpkin should be bought into the inventory (max 6 slots, ${snap.inventory.length} used), if any? ` +
+          `Ferdinand is cheap DPS, chunky is a tank that cannot shoot, herbert heals, gwynevere is AoE artillery, cramer produces coins over time.`,
+        criteria,
+      )
+      if (choice === "hold") return
+      const m = choice.match(/^buy_([a-z]+)_\d+$/)
+      if (!m) throw new Error(`cannot parse type from choice "${choice}"`)
+      if (!engine.buyPumpkin(m[1] as PumpkinType)) return // engine rejected — resync next tick
+    }
+  }
+
+  private async placePhase(
+    engine: HalloweenGameEngine,
+    config: HalloweenGameConfig,
+  ): Promise<void> {
+    for (let i = 0; i < 12; i++) {
+      if (!this.playing(engine)) return
+      const snap = engine.snapshot()
+      const held = snap.inventory
+        .map((item, index) => ({ item, index }))
+        .filter((e) => e.item.kind === "pumpkin")
+      if (held.length === 0) return
+      const free = freeCells(engine)
+      if (free.length === 0) return
+
+      const whichCriteria: Record<string, string | null> = {
+        hold: "Place nothing. Keep pumpkins in the inventory.",
+      }
+      for (const { item, index } of held) {
+        if (item.kind !== "pumpkin") continue
+        whichCriteria[`place_inv${index}_${item.pumpkinType}`] =
+          `Place inventory slot ${index} (${item.pumpkinType}).`
+      }
+      const which = await this.decide(
+        engine,
+        config,
+        "place_which",
+        "Which pumpkin from the inventory should be placed onto the battlefield, if any? " +
+          "Tanks belong on the right (high columns, close to incoming slugs); DPS and economy belong on the left (low columns). " +
+          "Every lane with slugs needs a defender.",
+        whichCriteria,
+      )
+      if (which === "hold") return
+      const invIndex = parseId(/^place_inv(\d+)_/, which)
+
+      const whereCriteria: Record<string, string | null> = {}
+      for (const c of free) {
+        const laneSlugs = engine.slugs.filter((s) => s.health > 0 && s.lane === c.lane).length
+        whereCriteria[`cell_c${c.col}_l${c.lane}`] =
+          `Column ${c.col}, lane ${c.lane} (${laneSlugs} slug(s) in this lane).`
+      }
+      const where = await this.decideTarget(
+        engine,
+        config,
+        "place_where",
+        `Where should inventory slot ${invIndex} be placed? Column 0 is leftmost (safest, longest firing time), column 5 is rightmost (closest to slugs).`,
+        whereCriteria,
+      )
+      const cm = where.match(/^cell_c(\d+)_l(\d+)$/)
+      if (!cm) throw new Error(`cannot parse cell from choice "${where}"`)
+      engine.selectInventoryItem(invIndex)
+      if (engine.mode !== "place-pumpkin") return // stale slot — resync next tick
+      engine.onWorldClick(columnX(parseInt(cm[1], 10)), laneCenterY(parseInt(cm[2], 10)))
+      if (engine.mode !== "none") return // placement rejected (occupied) — resync next tick
+    }
+  }
+
+  private async levelPhase(
+    engine: HalloweenGameEngine,
+    config: HalloweenGameConfig,
+  ): Promise<void> {
+    for (let i = 0; i < 12; i++) {
+      if (!this.playing(engine)) return
+      const xp = engine.snapshot().xp
+      const affordable = engine.pumpkins.filter(
+        (p) => p.health > 0 && (engine.levelUpCostFor(p) ?? Infinity) <= xp,
+      )
+      if (affordable.length === 0) return // nothing to decide — no query
+      const criteria: Record<string, string | null> = {
+        hold: "Level up nothing. Save XP for later.",
+      }
+      for (const p of affordable) {
+        const cost = engine.levelUpCostFor(p) ?? 0
+        criteria[`lvl_${p.id}_${p.type}_L${p.level}`] =
+          `Level pumpkin #${p.id} (${p.type}, level ${p.level}, HP ${Math.round(p.health)}/${p.maxHealth}, dmg ${p.damage}) for ${cost} XP.`
+      }
+      const choice = await this.decide(
+        engine,
+        config,
+        "levelup_decision",
+        `You have ${xp} XP. Which pumpkin should be leveled up, if any? Level-ups are permanent and never refunded.`,
+        criteria,
+      )
+      if (choice === "hold") return
+      const id = parseId(/^lvl_(\d+)_/, choice)
+      if (!engine.levelUpPumpkin(id)) return // engine rejected — resync next tick
+    }
+  }
+
+  /** Ability asks are gated on combat triggers — the decider still makes
+   * every use/hold and targeting call, but is only consulted when something
+   * happened that could change the answer. Returns false when there is no
+   * real decision right now (no query is sent). */
+  private abilityTrigger(engine: HalloweenGameEngine, abilityId: AbilityId): boolean {
+    const slugs = engine.slugs.filter((s) => s.health > 0)
+    if (slugs.length === 0) return false
+    const leak = slugs.some((s) => s.x < 450)
+    const boss = slugs.some((s) => s.type === "gerald" || s.type === "dell")
+    switch (abilityId) {
+      case "annihilation": {
+        // Single-target delete: worth considering vs bosses, shielded
+        // heavies, or big mid-game crowds.
+        const round = engine.snapshot().round
+        return boss || (round >= 3 && (slugs.some((s) => s.shields > 0) || slugs.length > 10))
+      }
+      case "freeze":
+      case "distraction":
+        // Crowd control: leaks and pre-contact crowds, not single scouts.
+        return (leak && slugs.length > 4) || slugs.length > 8
+      case "holy_grenade":
+        return slugs.length >= 4
+      case "beer":
+      case "salt_line":
+        return slugs.length >= 3
+      case "do_not_stop_daddy":
+      case "wide_pumpkin": {
+        // Permanent buffs: re-ask only when the candidate set changed
+        // (placements, deaths, level-ups) — the answer can't change else.
+        // (Signature is compared at ask time in abilityPhase.)
+        return this.buffSigOf(engine) !== ""
+      }
+    }
+  }
+
+  private buffSigOf(engine: HalloweenGameEngine): string {
+    return engine.pumpkins
+      .filter((p) => p.health > 0)
+      .map((p) => `${p.id}:${p.type}:L${p.level}`)
+      .sort()
+      .join("|")
+  }
+
+  private async abilityPhase(
+    engine: HalloweenGameEngine,
+    config: HalloweenGameConfig,
+  ): Promise<void> {
+    for (let i = 0; i < 6; i++) {
+      if (!this.playing(engine)) return
+      const snap = engine.snapshot()
+      const held = snap.inventory.find((it) => it.kind === "ability")
+      if (!held || held.kind !== "ability") return // no ability held — no query
+      const abilityId = held.abilityId as AbilityId
+      if (!this.abilityTrigger(engine, abilityId)) return // no trigger — no query
+      if (
+        (abilityId === "do_not_stop_daddy" || abilityId === "wide_pumpkin") &&
+        this.buffSig.get(abilityId) === this.buffSigOf(engine)
+      ) {
+        return // same candidates as last ask — answer can't change
+      }
+      const sinceAsk = this.tick - (this.lastAsked.get(abilityId) ?? -Infinity)
+      if (sinceAsk < SystemOnePolicy.ASK_COOLDOWN_TICKS) return
+      this.lastAsked.set(abilityId, this.tick)
+      this.buffSig.set(abilityId, this.buffSigOf(engine))
+      const meta = ABILITY_META[abilityId]
+
+      const useChoice = await this.decide(
+        engine,
+        config,
+        "ability_use",
+        `You hold ${abilityId} (${meta?.description ?? ""}). Should it be used right now, or saved for later?`,
+        {
+          hold: `Keep ${abilityId} for later.`,
+          [`use_${abilityId}`]: `Use ${abilityId} now.`,
+        },
+      )
+      if (useChoice === "hold") return
+      // Re-resolve the ability slot (indexes may have shifted after buys).
+      const liveIdx = engine
+        .snapshot()
+        .inventory.findIndex(
+          (it) => it.kind === "ability" && (it as { abilityId?: string }).abilityId === abilityId,
+        )
+      if (liveIdx < 0) return
+      engine.selectInventoryItem(liveIdx)
+      if (engine.mode === "none") continue // instant ability applied — check for more
+      if (engine.mode === "ability-pumpkin") {
+        const alive = engine.pumpkins.filter((p) => p.health > 0)
+        if (alive.length === 0) return
+        const criteria: Record<string, string | null> = {}
+        for (const p of alive) {
+          criteria[`tgt_${p.id}_${p.type}_L${p.level}`] =
+            `Pumpkin #${p.id} (${p.type}, level ${p.level}, HP ${Math.round(p.health)}/${p.maxHealth}).`
+        }
+        const target = await this.decideTarget(
+          engine,
+          config,
+          "ability_target",
+          `Which pumpkin should ${abilityId} be applied to?`,
+          criteria,
+        )
+        const id = parseId(/^tgt_(\d+)_/, target)
+        const pumpkin = engine.pumpkins.find((p) => p.id === id)
+        if (!pumpkin) return
+        engine.onWorldClick(pumpkin.x, pumpkin.y)
+      } else if (engine.mode === "ability-point") {
+        const points = pointCandidates(engine)
+        if (points.length === 0) return
+        const criteria: Record<string, string | null> = {}
+        for (const pt of points) criteria[pt.key] = pt.label
+        const target = await this.decideTarget(
+          engine,
+          config,
+          "ability_target",
+          `Where should ${abilityId} be aimed?`,
+          criteria,
+        )
+        const pt = points.find((p) => p.key === target)
+        if (!pt) throw new Error(`unknown point target "${target}"`)
+        engine.onWorldClick(pt.x, pt.y)
+      }
+    }
+  }
+
+  async pickCard(cards: CardDefinition[], _rng: Rng, ctx: CardContext): Promise<number> {
+    // The card offer plus context IS the structured state here.
+    const criteria: Record<string, string | null> = {
+      skip: "Take nothing. Skip this card.",
+    }
+    cards.forEach((card, i) => {
+      criteria[`card_${i}_${card.kind === "pumpkin" ? card.pumpkinType : card.abilityId}`] =
+        card.kind === "pumpkin"
+          ? `Card ${i}: ${card.pumpkinType} pumpkin goes to the inventory.`
+          : `Card ${i}: ${card.abilityId} ability (${ABILITY_META[card.abilityId]?.description ?? ""}).`
+    })
+    const state = {
+      cards: cards.map((c) =>
+        c.kind === "pumpkin"
+          ? { kind: "pumpkin", pumpkin_type: c.pumpkinType }
+          : { kind: "ability", ability_id: c.abilityId },
+      ),
+      context: { cramer_count: ctx.cramerCount, any_damaged: ctx.damagedAny },
+      rules: [
+        "Ferdinand is cheap DPS, chunky is a tank that cannot shoot, herbert heals, gwynevere is AoE artillery, cramer produces coins, pearcer is card-exclusive piercing DPS.",
+        "Annihilation and holy_grenade are the strongest abilities.",
+        "Skipping is allowed and sometimes correct (e.g. nothing useful).",
+      ],
+    }
+    const choice = await askChoice(this.opts, state, "card_decision", {
+      type: "choice",
+      instructions: "Which card should be picked, if any?",
+      criteria,
+    })
+    this.decisions.push({ phase: "cards", question: "card_decision", choice })
+    if (choice === "skip") return -1
+    return parseId(/^card_(\d+)_/, choice)
+  }
+}

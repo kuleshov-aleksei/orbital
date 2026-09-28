@@ -15,10 +15,10 @@ import type { HalloweenGameConfig } from "../../frontend/src/halloween/types"
 import { pick, randInt, type Rng } from "./rng"
 export interface Policy {
   readonly name: string
-  /** Called every sim tick while phase === "playing". */
-  onTick(engine: HalloweenGameEngine, config: HalloweenGameConfig, rng: Rng): void
-  /** Return card index, or -1 to skip. Called once per popup. */
-  pickCard(cards: CardDefinition[], rng: Rng, ctx: CardContext): number
+  /** Called every sim tick while phase === "playing". May be async (System One decider). */
+  onTick(engine: HalloweenGameEngine, config: HalloweenGameConfig, rng: Rng): void | Promise<void>
+  /** Return card index, or -1 to skip. Called once per popup. May be async. */
+  pickCard(cards: CardDefinition[], rng: Rng, ctx: CardContext): number | Promise<number>
 }
 
 /** What the bot knows when a card popup appears. */

@@ -65,19 +65,87 @@ export function runSingleGame(
     if (snap.phase === "cards" && snap.cards) {
       // Sequential popups, like the UI: one pick per tick.
       const pumpkins = engine.pumpkins.filter((p) => p.health > 0)
-      engine.pickCard(
-        policy.pickCard(snap.cards.cards, rng, {
-          cramerCount: pumpkins.filter((p) => p.type === "cramer").length,
-          damagedAny: pumpkins.some((p) => p.health < p.maxHealth),
-        }),
-      )
+      const pick = policy.pickCard(snap.cards.cards, rng, {
+        cramerCount: pumpkins.filter((p) => p.type === "cramer").length,
+        damagedAny: pumpkins.some((p) => p.health < p.maxHealth),
+      })
+      if (pick instanceof Promise) {
+        throw new Error(
+          `policy "${policy.name}" is async — use runSingleGameAsync instead of runSingleGame`,
+        )
+      }
+      engine.pickCard(pick)
     } else if (snap.phase === "playing") {
-      policy.onTick(engine, config, rng)
+      const r = policy.onTick(engine, config, rng)
+      if (r instanceof Promise) {
+        throw new Error(
+          `policy "${policy.name}" is async — use runSingleGameAsync instead of runSingleGame`,
+        )
+      }
     }
     engine.update(dt)
     ticks++
   }
 
+  return finishGame(engine, seed, policy.name, ticks, dt, levelUps, reachedRound)
+}
+
+/** Async variant for decider policies (e.g. systemone) that await remote
+ * calls inside onTick/pickCard. Otherwise identical to runSingleGame. */
+export async function runSingleGameAsync(
+  config: HalloweenGameConfig,
+  policy: Policy,
+  seed: number,
+  opts: DriverOptions = {},
+): Promise<GameResult> {
+  const dt = opts.dt ?? 1 / 30
+  const maxSimSeconds = opts.maxSimSeconds ?? 45 * 60
+  const rng = mulberry32(seed)
+  const engine = new HalloweenGameEngine(config, rng)
+  let levelUps = 0
+  const baseLevelUp = engine.levelUpPumpkin.bind(engine)
+  engine.levelUpPumpkin = (id: number): boolean => {
+    const ok = baseLevelUp(id)
+    if (ok) levelUps++
+    return ok
+  }
+
+  let ticks = 0
+  let reachedRound = 1
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const snap = engine.snapshot()
+    if (snap.phase === "gameover" || snap.phase === "ended") break
+    if (ticks * dt >= maxSimSeconds) break
+    if (snap.round > reachedRound) reachedRound = snap.round
+
+    if (snap.phase === "cards" && snap.cards) {
+      const pumpkins = engine.pumpkins.filter((p) => p.health > 0)
+      engine.pickCard(
+        await policy.pickCard(snap.cards.cards, rng, {
+          cramerCount: pumpkins.filter((p) => p.type === "cramer").length,
+          damagedAny: pumpkins.some((p) => p.health < p.maxHealth),
+        }),
+      )
+    } else if (snap.phase === "playing") {
+      await policy.onTick(engine, config, rng)
+    }
+    engine.update(dt)
+    ticks++
+  }
+
+  return finishGame(engine, seed, policy.name, ticks, dt, levelUps, reachedRound)
+}
+
+function finishGame(
+  engine: HalloweenGameEngine,
+  seed: number,
+  policyName: string,
+  ticks: number,
+  dt: number,
+  levelUps: number,
+  reachedRound: number,
+): GameResult {
   const report = engine.buildReport(false)
   const final = engine.snapshot()
   const killsByType: Record<string, number> = {}
@@ -90,7 +158,7 @@ export function runSingleGame(
 
   return {
     seed,
-    policy: policy.name,
+    policy: policyName,
     completedRounds: report.completed_rounds,
     reachedRound,
     deathRound: final.phase === "gameover" ? reachedRound : null,
