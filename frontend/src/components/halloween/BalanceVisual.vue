@@ -263,16 +263,18 @@ async function simStep(config: HalloweenGameConfig): Promise<boolean> {
   return !done && ticks.value < MAX_TICKS
 }
 
-/** Sim task: advances the game while the render loop paints. Systemone is
- * decider-bound (1 step per iteration); heuristic runs `speed` steps per
- * iteration for ~speed× realtime. Pause is honored between steps. */
+/** Sim task: advances the game while the render loop paints. Each iteration
+ * runs `speed` sequential sim steps, then yields ~33ms so the UI breathes.
+ * Systemone steps are decider-bound (each awaits a fetch), so speed scales
+ * decider throughput; heuristic steps are synchronous. Pause is honored
+ * between steps. */
 async function simLoop(config: HalloweenGameConfig, id: number): Promise<void> {
   while (id === runId) {
     if (paused.value) {
       await sleep(100)
       continue
     }
-    const steps = policyName.value === "systemone" ? 1 : speed.value
+    const steps = speed.value
     for (let i = 0; i < steps; i++) {
       if (id !== runId || paused.value) break
       try {
