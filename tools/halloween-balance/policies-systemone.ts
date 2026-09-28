@@ -115,6 +115,11 @@ export class SystemOnePolicy implements Policy {
    * (~4 decision windows, ~2 sim-seconds: cuts decider spam while staying
    * reactive to leaks). */
   private static readonly PLACE_HOLD_COOLDOWN_TICKS = 60
+  /** Tick of the last `levelup_decision` hold answer (spam guard). */
+  private levelHoldTick = -Infinity
+  /** Ticks to wait before re-asking levelup_decision after a hold answer.
+   * XP only accrues per kill, so the answer changes slowly. */
+  private static readonly LEVEL_HOLD_COOLDOWN_TICKS = 60
 
   constructor(opts: SystemOnePolicyOptions) {
     const { actEveryNTicks, recordDetails, ...client } = opts
@@ -424,6 +429,9 @@ export class SystemOnePolicy implements Policy {
         (p) => p.health > 0 && (engine.levelUpCostFor(p) ?? Infinity) <= xp,
       )
       if (affordable.length === 0) return // nothing to decide — no query
+      if (this.tick - this.levelHoldTick < SystemOnePolicy.LEVEL_HOLD_COOLDOWN_TICKS) {
+        return // recent hold — XP accrues per kill, save a call
+      }
       const criteria: Record<string, string | null> = {
         hold: "Level up nothing. Save XP for later.",
       }
@@ -439,7 +447,10 @@ export class SystemOnePolicy implements Policy {
         `You have ${xp} XP. Which pumpkin should be leveled up, if any? Level-ups are permanent and never refunded.`,
         criteria,
       )
-      if (choice === "hold") return
+      if (choice === "hold") {
+        this.levelHoldTick = this.tick
+        return
+      }
       const id = parseId(/^lvl_(\d+)_/, choice)
       if (!engine.levelUpPumpkin(id)) return // engine rejected — resync next tick
     }
