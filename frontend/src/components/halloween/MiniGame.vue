@@ -634,6 +634,8 @@ const ABILITY_ICONS: Record<string, string> = {
   beer: "🍺",
   salt_line: "🧂",
   tailwind: "💨",
+  seed_rain: "🌱",
+  thorn_patch: "🌵",
 }
 
 function itemIcon(item: GameInventoryItem): string {

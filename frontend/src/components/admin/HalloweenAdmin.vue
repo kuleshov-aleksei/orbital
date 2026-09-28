@@ -422,6 +422,8 @@ const abilityName = (id: string): string => {
     beer: "Beer puddle",
     salt_line: "Salt line",
     tailwind: "Tailwind",
+    seed_rain: "Seed rain",
+    thorn_patch: "Thorn patch",
   }
   return names[id] ?? id
 }

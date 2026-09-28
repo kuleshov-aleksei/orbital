@@ -17,8 +17,11 @@ export type AbilityId =
   | "beer"
   | "salt_line"
   | "tailwind"
+  | "seed_rain"
+  | "thorn_patch"
 
-export type KillSource = "pumpkin" | "annihilation" | "holy_grenade" | "beer" | "salt_line"
+export type KillSource =
+  "pumpkin" | "annihilation" | "holy_grenade" | "beer" | "salt_line" | "thorn_patch"
 
 export type GameInventoryItem =
   | {
@@ -115,6 +118,13 @@ export interface GameBeerCup {
 }
 
 export interface GameSaltLine {
+  id: number
+  x: number
+  duration: number
+  width: number
+}
+
+export interface GameThornPatch {
   id: number
   x: number
   duration: number

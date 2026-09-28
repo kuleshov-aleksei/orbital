@@ -347,7 +347,8 @@ export class HeuristicPolicy implements Policy {
         break
       }
       case "beer":
-      case "salt_line": {
+      case "salt_line":
+      case "thorn_patch": {
         if (slugs.length < 3) break
         const perLane = slugsPerLane(engine)
         const lane = perLane.indexOf(Math.max(...perLane))
@@ -373,6 +374,11 @@ export class HeuristicPolicy implements Policy {
         if (engine.mode === "ability-pumpkin") engine.onWorldClick(tank.x, tank.y)
         break
       }
+      case "seed_rain":
+        // No reason to hoard: coins buy nothing mid-round, so convert to
+        // coins the moment the pocket can't afford the cheapest body.
+        if (engine.snapshot().coins < 20) engine.selectInventoryItem(idx)
+        break
     }
     void rng // targeted policy; rng unused by design
   }
@@ -417,6 +423,10 @@ export class HeuristicPolicy implements Policy {
           case "wide_pumpkin":
           case "tailwind":
             score = 2.5
+            break
+          case "seed_rain":
+          case "thorn_patch":
+            score = 1.5 // economy / salt-tier utility — take only over junk
             break
           default:
             score = 1.5

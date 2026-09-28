@@ -583,6 +583,9 @@ export class SystemOnePolicy implements Policy {
    * happened that could change the answer. Returns false when there is no
    * real decision right now (no query is sent). */
   private abilityTrigger(engine: HalloweenGameEngine, abilityId: AbilityId): boolean {
+    // Seed rain converts pocket lint to coins — answerable with an empty
+    // field, unlike every combat ability below.
+    if (abilityId === "seed_rain") return engine.snapshot().coins < 20
     const slugs = engine.slugs.filter((s) => s.health > 0)
     if (slugs.length === 0) return false
     const leak = slugs.some((s) => s.x < 450)
@@ -604,6 +607,7 @@ export class SystemOnePolicy implements Policy {
         return slugs.length >= 4
       case "beer":
       case "salt_line":
+      case "thorn_patch":
         return slugs.length >= 3
       case "do_not_stop_daddy":
       case "wide_pumpkin": {
@@ -672,7 +676,8 @@ export class SystemOnePolicy implements Policy {
           break
         case "holy_grenade":
         case "beer":
-        case "salt_line": {
+        case "salt_line":
+        case "thorn_patch": {
           const perLane = new Map<number, number>()
           for (const s of liveSlugs) perLane.set(s.lane, (perLane.get(s.lane) ?? 0) + 1)
           const [lane, count] = [...perLane.entries()].sort((a, b) => b[1] - a[1])[0] ?? [-1, 0]

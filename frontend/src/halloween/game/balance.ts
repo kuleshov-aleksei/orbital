@@ -151,6 +151,8 @@ export const ALL_ABILITY_IDS: AbilityId[] = [
   "beer",
   "salt_line",
   "tailwind",
+  "seed_rain",
+  "thorn_patch",
 ]
 
 export interface AbilityMeta {
@@ -207,6 +209,16 @@ export const ABILITY_META: Record<AbilityId, AbilityMeta> = {
     name: "Tailwind",
     description: "All pumpkins shoot 50% faster for 10 seconds.",
     target: "none",
+  },
+  seed_rain: {
+    name: "Seed rain",
+    description: "Instantly gain 100 coins.",
+    target: "none",
+  },
+  thorn_patch: {
+    name: "Thorn patch",
+    description: "A patch of thorns that damages slugs crossing it for 20 seconds.",
+    target: "point",
   },
 }
 

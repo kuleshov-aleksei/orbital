@@ -111,6 +111,8 @@ export function defaultConfig(): HalloweenGameConfig {
       beer: { score: 0, kind: "flat" },
       salt_line: { score: 0, kind: "flat" },
       tailwind: { score: 0, kind: "flat" },
+      seed_rain: { score: 0, kind: "flat" },
+      thorn_patch: { score: 80, kind: "multiplier" },
     },
     proximity: [
       { min_x: 700, factor: 1.0 },

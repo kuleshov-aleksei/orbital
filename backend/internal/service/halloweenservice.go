@@ -131,6 +131,8 @@ const (
 	HalloweenAbilityBeer         = "beer"
 	HalloweenAbilitySaltLine     = "salt_line"
 	HalloweenAbilityTailwind     = "tailwind"
+	HalloweenAbilitySeedRain     = "seed_rain"
+	HalloweenAbilityThornPatch   = "thorn_patch"
 
 	HalloweenRarityRegular  = "regular"
 	HalloweenRarityCommon   = "common"
@@ -246,6 +248,8 @@ func (s *HalloweenService) Config() *HalloweenGameConfig {
 			HalloweenAbilityBeer:         {Score: 0, Kind: "flat"},        // 0 damage — pure utility (slow)
 			HalloweenAbilitySaltLine:     {Score: 0, Kind: "flat"},        // 0 damage — pure utility (slow)
 			HalloweenAbilityTailwind:     {Score: 0, Kind: "flat"},        // 0 damage — pure utility (fire-rate buff)
+			HalloweenAbilitySeedRain:     {Score: 0, Kind: "flat"},        // 0 damage — pure utility (coins)
+			HalloweenAbilityThornPatch:   {Score: 80, Kind: "multiplier"}, // 80% of slug reward, like holy grenade
 		},
 		Proximity: []HalloweenProximityThreshold{
 			{MinX: 700, Factor: 1.0},
@@ -430,6 +434,11 @@ func (s *HalloweenService) ComputeScore(report *models.HalloweenGameReport) int 
 			total += cfg.Abilities[HalloweenAbilitySaltLine].Score
 		case HalloweenAbilityTailwind:
 			total += cfg.Abilities[HalloweenAbilityTailwind].Score
+		case HalloweenAbilitySeedRain:
+			total += cfg.Abilities[HalloweenAbilitySeedRain].Score
+		case HalloweenAbilityThornPatch:
+			mult := float64(cfg.Abilities[HalloweenAbilityThornPatch].Score) / 100.0
+			total += int(math.Round(float64(slugCfg.RewardPoints) * mult))
 		default:
 			// Unknown source — count as a normal pumpkin kill at full reward.
 			total += slugCfg.RewardPoints

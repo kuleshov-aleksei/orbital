@@ -12,6 +12,7 @@ import type {
   GameSnapshot,
   GameSlug,
   GameProjectile,
+  GameThornPatch,
   KillSource,
   PumpkinType,
   SlugType,
@@ -83,6 +84,15 @@ const SALT_SLOW = 0.3 // slow applied while a slug steps on the line
 // Tailwind: global fire-rate buff, reverted when the timer expires.
 const TAILWIND_DURATION = 10
 const TAILWIND_MUL = 1.5
+// Thorn patch: salt's evil twin — same x-footprint as a salt line (all
+// lanes), but damage instead of slow. Tuned so healthy slugs walk through
+// irritated, not dead: a 10-HP scout needs ~1.25s inside to die.
+const THORN_DURATION = 20
+const THORN_WIDTH = 120
+const THORN_DPS = 8
+// Seed rain: a clutch-or-dead card. 100 buys a Ferdinand outright or closes
+// half the gap to a Cramer/Gwynevere — about half a round's income.
+const SEED_RAIN_COINS = 100
 const GWYN_BLAST_RADIUS = 70
 // Shop inflation: each shop purchase of a type raises its future price as
 // floor(base * 1.15^n), capped at 5x base. Counters snowballing (mass
@@ -143,6 +153,7 @@ export class HalloweenGameEngine {
   grenades: GameGrenade[] = []
   beerCups: GameBeerCup[] = []
   saltLines: GameSaltLine[] = []
+  thornPatches: GameThornPatch[] = []
   private tailwindTimer = 0
   private tailwindIds = new Set<number>() // live-boosted pumpkin ids (reverted on expiry)
 
@@ -692,6 +703,9 @@ export class HalloweenGameEngine {
           if (s.speed > 0) s.distractionFor = DISTRACTION_DURATION
         }
         break
+      case "seed_rain":
+        this.addCoins(SEED_RAIN_COINS)
+        break
       default:
         break
     }
@@ -742,6 +756,14 @@ export class HalloweenGameEngine {
         break
       case "salt_line":
         this.saltLines.push({ id: this.nextId++, x, duration: SALT_DURATION, width: SALT_WIDTH })
+        break
+      case "thorn_patch":
+        this.thornPatches.push({
+          id: this.nextId++,
+          x,
+          duration: THORN_DURATION,
+          width: THORN_WIDTH,
+        })
         break
       default:
         break
@@ -803,6 +825,7 @@ export class HalloweenGameEngine {
     this.updateGrenades(dtClamped)
     this.updateBeerCups(dtClamped)
     this.updateSaltLines(dtClamped)
+    this.updateThornPatches(dtClamped)
     this.updateTailwind(dtClamped)
 
     if (this.phase === "playing") this.checkRoundEnd()
@@ -1305,6 +1328,23 @@ export class HalloweenGameEngine {
     this.saltLines = this.saltLines.filter((l) => l.duration > 0)
   }
 
+  private updateThornPatches(dt: number) {
+    for (const patch of this.thornPatches) {
+      patch.duration -= dt
+      if (patch.duration <= 0) continue
+      // Same x-footprint check as salt (all lanes). Snapshot iteration +
+      // health guard: damageSlug → killSlug swaps this.slugs, and overlapping
+      // patches could otherwise double-kill a slug in one tick.
+      for (const slug of [...this.slugs]) {
+        if (slug.health <= 0) continue
+        if (Math.abs(slug.x - patch.x) <= patch.width / 2 + slug.radius) {
+          this.damageSlug(slug, THORN_DPS * dt, "thorn_patch")
+        }
+      }
+    }
+    this.thornPatches = this.thornPatches.filter((p) => p.duration > 0)
+  }
+
   private updateTailwind(dt: number) {
     if (this.tailwindTimer <= 0) return
     this.tailwindTimer -= dt
@@ -1352,6 +1392,8 @@ export class HalloweenGameEngine {
         return abilities.beer?.score ?? 0
       case "salt_line":
         return abilities.salt_line?.score ?? 0
+      case "thorn_patch":
+        return Math.round(points * ((abilities.thorn_patch?.score ?? 80) / 100))
       default:
         return points
     }

@@ -332,6 +332,12 @@ export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRen
       fx.fill({ color: 0xe2e8f0, alpha: 0.35 })
       effectLayer?.addChild(fx)
     }
+    for (const patch of engine.thornPatches) {
+      const fx = new Graphics()
+      fx.rect(patch.x - patch.width / 2, 0, patch.width, FIELD_HEIGHT)
+      fx.fill({ color: 0x4d7c0f, alpha: 0.35 })
+      effectLayer?.addChild(fx)
+    }
 
     // pumpkins
     const alivePumpkins = new Set(engine.pumpkins.map((p) => p.id))
