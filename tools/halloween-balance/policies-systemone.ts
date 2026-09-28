@@ -320,17 +320,21 @@ export class SystemOnePolicy implements Policy {
         .map((lane) => {
           const defenders = engine.pumpkins.filter(
             (p) => p.health > 0 && laneForY(p.y) === lane,
-          ).length
+          )
           const laneSlugs = engine.slugs.filter((s) => s.health > 0 && s.lane === lane)
           const nearestX =
             laneSlugs.length > 0 ? Math.round(Math.min(...laneSlugs.map((s) => s.x))) : null
           const dps =
             Math.round(
-              engine.pumpkins
-                .filter((p) => p.health > 0 && laneForY(p.y) === lane)
-                .reduce((a, p) => a + pumpkinDps(p), 0) * 10,
+              defenders.reduce((a, p) => a + pumpkinDps(p), 0) * 10,
             ) / 10
-          return { lane, defenders, slugs: laneSlugs.length, nearestX, dps }
+          const hpTotal = defenders.reduce((a, p) => a + Math.round(p.health), 0)
+          const frontCol =
+            defenders.length > 0 ? Math.max(...defenders.map((p) => columnForX(p.x))) : null
+          // Fragile garrison: little HP with the front sitting close to the
+          // slug spawn — one hit from collapse despite having a defender.
+          const exposed = defenders.length > 0 && hpTotal < 20 && (frontCol ?? 0) >= 3
+          return { lane, defenders: defenders.length, slugs: laneSlugs.length, nearestX, dps, hpTotal, frontCol, exposed }
         })
         .sort((a, b) => Number(a.defenders > 0) - Number(b.defenders > 0) || a.dps - b.dps)
       const heldEntry = held.find((h) => h.index === invIndex)
@@ -343,10 +347,18 @@ export class SystemOnePolicy implements Policy {
         laneCriteria[`place_lane_${s.lane}`] =
           `Lane ${s.lane}: ${s.defenders} defender(s)` +
           (s.defenders === 0 ? " — UNDEFENDED" : "") +
+          `, ${s.hpTotal} total HP` +
+          (s.exposed ? `, front at col ${s.frontCol} — EXPOSED` : "") +
           `, ${s.slugs} slug(s)` +
           (s.defenders === 0 && s.nearestX != null ? ` already inside (nearest x=${s.nearestX})!` : "") +
           `, ${s.dps} DPS.`
       }
+      // Quiet board: no slugs anywhere, so the next wave can come down any
+      // lane — countermand the reinforce-the-strongest-lane guess.
+      const quietBoard = engine.slugs.every((s) => s.health <= 0)
+      const quietNote = quietBoard
+        ? " No slugs are on the field — the next wave can come down any lane, so balance coverage toward the fewest defenders / lowest total HP instead of reinforcing the strongest lane."
+        : ""
       const laneChoice = await this.decide(
         engine,
         config,
@@ -355,6 +367,7 @@ export class SystemOnePolicy implements Policy {
           `Prefer UNDEFENDED lanes — a lane with no pumpkin leaks as soon as slugs reach it. ` +
           `Otherwise reinforce the weakest defended lane (lowest DPS vs slugs). ` +
           `You may also hold the pumpkin instead of placing it.` +
+          quietNote +
           roundNote,
         laneCriteria,
       )

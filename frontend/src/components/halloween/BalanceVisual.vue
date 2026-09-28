@@ -140,12 +140,21 @@
               <span class="text-stone-200"> → {{ d.choice }}</span>
             </div>
             <div v-if="d.request && expanded === i" class="mt-1 rounded bg-stone-900 p-2">
-              <button
-                type="button"
-                class="mb-1 rounded bg-stone-700 px-1.5 py-0.5 text-[10px] text-stone-200 hover:bg-stone-600"
-                @click="copyDetail(i, d)">
-                {{ copiedIdx === i ? "copied ✓" : "copy" }}
-              </button>
+              <div class="mb-1 flex gap-1.5">
+                <button
+                  type="button"
+                  class="rounded bg-stone-700 px-1.5 py-0.5 text-[10px] text-stone-200 hover:bg-stone-600"
+                  @click="copyText(`full-${i}`, formatDetail(d))">
+                  {{ copiedKey === `full-${i}` ? "copied ✓" : "copy full" }}
+                </button>
+                <button
+                  type="button"
+                  title="Copy the exact POST body sent to the decider (state + this question), for external retry/debugging"
+                  class="rounded bg-stone-700 px-1.5 py-0.5 text-[10px] text-stone-200 hover:bg-stone-600"
+                  @click="copyText(`req-${i}`, requestBody(d))">
+                  {{ copiedKey === `req-${i}` ? "copied ✓" : "copy request" }}
+                </button>
+              </div>
               <pre class="max-h-96 overflow-auto text-[10px] whitespace-pre-wrap text-stone-300">{{
                 formatDetail(d)
               }}</pre>
@@ -203,7 +212,7 @@ const aliveSlugs = ref(0)
 const feed = ref<FeedItem[]>([])
 const endLine = ref("")
 const expanded = ref<number | null>(null)
-const copiedIdx = ref<number | null>(null)
+const copiedKey = ref<string | null>(null)
 
 function formatDetail(d: FeedItem): string {
   return JSON.stringify(
@@ -222,16 +231,27 @@ function choiceProb(d: FeedItem): string | null {
   return p == null ? null : `${(p * 100).toFixed(1)}%`
 }
 
-async function copyDetail(i: number, d: FeedItem): Promise<void> {
+async function copyText(key: string, text: string): Promise<void> {
   try {
-    await navigator.clipboard.writeText(formatDetail(d))
-    copiedIdx.value = i
+    await navigator.clipboard.writeText(text)
+    copiedKey.value = key
     setTimeout(() => {
-      if (copiedIdx.value === i) copiedIdx.value = null
+      if (copiedKey.value === key) copiedKey.value = null
     }, 1500)
   } catch {
-    copiedIdx.value = null
+    copiedKey.value = null
   }
+}
+
+/** The exact POST body sent to the decider for this decision (state +
+ * question under its id) — paste it to the API for an external retry. */
+function requestBody(d: FeedItem): string {
+  if (!d.request) return ""
+  return JSON.stringify(
+    { state: d.request.state, questions: { [d.question]: d.request.question } },
+    null,
+    2,
+  )
 }
 
 let engine: HalloweenGameEngine | null = null
@@ -374,7 +394,7 @@ async function restart(): Promise<void> {
   endLine.value = ""
   feed.value = []
   expanded.value = null
-  copiedIdx.value = null
+  copiedKey.value = null
   ticks.value = 0
   finished.value = false
   paused.value = false

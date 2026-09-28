@@ -276,6 +276,13 @@ export function buildSystemOneState(
       lane,
       defenders: lanePumpkins.length,
       undefended: lanePumpkins.length === 0,
+      /** HP the lane can absorb before collapsing — a "defended" lane
+       * with 5 total HP is one hit from gone. */
+      lane_hp_total: lanePumpkins.reduce((a, p) => a + p.health, 0),
+      /** Rightmost occupied column — high values mean slugs make contact
+       * fast (they enter from the right). Null when the lane is empty. */
+      frontmost_col:
+        lanePumpkins.length > 0 ? Math.max(...lanePumpkins.map((p) => p.col)) : null,
       lane_dps: laneDps,
       lane_slug_hp: laneHp,
       lane_ttk_s: laneDps > 0 && laneHp > 0 ? Math.round((laneHp / laneDps) * 10) / 10 : null,
@@ -420,6 +427,8 @@ export function buildSystemOneState(
       "herbert is the only sustain: no attack, heals the most-damaged ally for 5 HP per shot in any lane, but cannot heal itself or another herbert — the first herbert pays for itself once fighters take hits; a second while the first lives is wasted coins.",
       "Defend every lane: a lane with slug HP and no DPS is undefended and will leak — see battlefield.firepower.lanes (lane_dps, lane_ttk_s) and reinforce the weakest lane first.",
       "battlefield.undefended_lanes lists lanes with no pumpkin on them — a defender placed there before slugs arrive prevents a leak.",
+      "firepower.lanes also reports lane_hp_total (HP the lane can absorb) and frontmost_col (rightmost occupied column — high values mean contact happens fast). A lane with low total HP and a far-right front is one hit from collapse even with a defender on it.",
+      "With no slugs on the field, the next wave can come down any lane — balance coverage toward the fewest defenders / lowest total HP instead of reinforcing the strongest lane.",
     ],
   }
 }
