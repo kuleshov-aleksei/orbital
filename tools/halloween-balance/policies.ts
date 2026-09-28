@@ -326,9 +326,11 @@ export class HeuristicPolicy implements Policy {
         break
       case "freeze":
       case "distraction":
+      case "tailwind":
         // Don't wait for the leak: freezing a crowded field keeps marvins off
         // the col-0 line, which is where ferdinands lose 1v1s. Leak = use it
-        // now; crowd = use it before contact.
+        // now; crowd = use it before contact. Tailwind rides the same trigger —
+        // a global haste wants the densest field, not airmail timing.
         if ((leak && slugs.length > 4) || slugs.length > 8) engine.selectInventoryItem(idx)
         break
       case "holy_grenade": {
@@ -413,6 +415,7 @@ export class HeuristicPolicy implements Policy {
           case "distraction":
           case "do_not_stop_daddy":
           case "wide_pumpkin":
+          case "tailwind":
             score = 2.5
             break
           default:

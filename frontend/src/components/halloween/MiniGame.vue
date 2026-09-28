@@ -633,6 +633,7 @@ const ABILITY_ICONS: Record<string, string> = {
   holy_grenade: "G",
   beer: "🍺",
   salt_line: "🧂",
+  tailwind: "💨",
 }
 
 function itemIcon(item: GameInventoryItem): string {

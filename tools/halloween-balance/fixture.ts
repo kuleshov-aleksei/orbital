@@ -110,6 +110,7 @@ export function defaultConfig(): HalloweenGameConfig {
       holy_grenade: { score: 80, kind: "multiplier" },
       beer: { score: 0, kind: "flat" },
       salt_line: { score: 0, kind: "flat" },
+      tailwind: { score: 0, kind: "flat" },
     },
     proximity: [
       { min_x: 700, factor: 1.0 },

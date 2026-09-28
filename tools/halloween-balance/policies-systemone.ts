@@ -596,7 +596,9 @@ export class SystemOnePolicy implements Policy {
       }
       case "freeze":
       case "distraction":
+      case "tailwind":
         // Crowd control: leaks and pre-contact crowds, not single scouts.
+        // Tailwind rides the same trigger — global haste wants max bodies firing.
         return (leak && slugs.length > 4) || slugs.length > 8
       case "holy_grenade":
         return slugs.length >= 4
@@ -662,6 +664,7 @@ export class SystemOnePolicy implements Policy {
           break
         case "freeze":
         case "distraction":
+        case "tailwind":
           triggerFact =
             `${liveSlugs.length} slugs on field` +
             (inside > 0 ? `, ${inside} already past x=450 (INSIDE)` : "") +
@@ -786,6 +789,7 @@ export class SystemOnePolicy implements Policy {
         case "distraction":
         case "do_not_stop_daddy":
         case "wide_pumpkin":
+        case "tailwind":
           return { label: "situational buff/control", score: fieldFull ? 4 : 2.5 }
         default:
           return { label: "niche ability", score: fieldFull ? 3 : 1.5 }

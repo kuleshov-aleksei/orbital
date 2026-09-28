@@ -16,6 +16,7 @@ export type AbilityId =
   | "holy_grenade"
   | "beer"
   | "salt_line"
+  | "tailwind"
 
 export type KillSource = "pumpkin" | "annihilation" | "holy_grenade" | "beer" | "salt_line"
 
@@ -63,6 +64,7 @@ export interface GameSlug {
   attackingPumpkinId: number | null
   direction: number // -1 = crawling left, +1 = reversed (distraction)
   frozenFor: number
+  stuckFor: number // beer-puddle stick — blocks movement and attacks while > 0
   distractionFor: number
   spawnTimer: number // dell spawns marvins
   spawnedCount: number // dell: marvins spawned so far (capped — no infinite farms)
@@ -108,8 +110,8 @@ export interface GameBeerCup {
   x: number
   y: number
   duration: number
-  radius: number
-  attracted: Set<number>
+  radius: number // sticky puddle radius — slugs inside are dragged and slowed
+  attracted: Set<number> // slugs that already got stuck (one stick per slug)
 }
 
 export interface GameSaltLine {

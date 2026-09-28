@@ -419,8 +419,9 @@ const abilityName = (id: string): string => {
   const names: Record<string, string> = {
     annihilation: "Annihilation",
     holy_grenade: "Holy grenade",
-    beer: "Beer",
+    beer: "Beer puddle",
     salt_line: "Salt line",
+    tailwind: "Tailwind",
   }
   return names[id] ?? id
 }

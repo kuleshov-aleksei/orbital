@@ -1,8 +1,9 @@
 // Balance bands: skill-aware survival targets agreed with the user.
-// Calibrated 2026-09-28 from a 200-game heuristic run (seed sweep):
-//   P(>=1)=100% >=2=100% >=3=89% >=4=70% >=5=61% >=6=53% >=7=40% >=8=26%
-//   >=9=7% >=10=1% >=11=0%. Bands below are those observations with
-//   ~±8pp margin for sampling noise — the current balance IS the target.
+// Calibrated 2026-09-28 from a 200-game heuristic run (seed sweep,
+// pick-1-of-3 random offers: abilities + rare PEARcer):
+//   P(>=1)=100% >=2=100% >=3=87% >=4=65% >=5=54% >=6=47% >=7=42% >=8=34%
+//   >=12=0%. Bands below are those observations with ~±8pp margin for
+//   sampling noise — the current balance IS the target.
 //   Early game near-certain, long decaying tail to R10, R12 ~0 (no snowball).
 //
 // P(complete >= r) = fraction of games with completedRounds >= r.

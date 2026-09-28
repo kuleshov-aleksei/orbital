@@ -65,17 +65,24 @@ const DELL_MAX_SPAWNS = 20
 // him, nothing new spawns — so he walks the lane himself instead.
 const DELL_RETIRED_HP_MUL = 1.5
 const DISTRACTION_DURATION = 5
-const FREEZE_DURATION = 5
+const FREEZE_DURATION = 8
 const GRENADE_FUSE = 3
 const GRENADE_RADIUS = 300
 const GRENADE_DAMAGE = 50
-const BEER_RADIUS = 70
+// Beer puddle: a sticky trap. Slugs inside the puddle radius are dragged
+// toward the cup (both directions) and slowed; reaching the center sticks
+// them briefly. Generous radius so near-lane aim still connects.
 const BEER_DURATION = 30
-const BEER_ATTRACT_RANGE = 200
-const BEER_SLOW = 0.1 // permanent slow applied when a slug reaches the cup
+const BEER_PUDDLE_RADIUS = 130
+const BEER_PUDDLE_SLOW = 0.4 // slow applied while a slug wades through the puddle
+const BEER_STICK_RADIUS = 26 // reaching the center sticks the slug...
+const BEER_STICK_TIME = 2 // ...for this long (once per slug per cup)
 const SALT_DURATION = 30
-const SALT_WIDTH = 60
+const SALT_WIDTH = 120
 const SALT_SLOW = 0.3 // slow applied while a slug steps on the line
+// Tailwind: global fire-rate buff, reverted when the timer expires.
+const TAILWIND_DURATION = 10
+const TAILWIND_MUL = 1.5
 const GWYN_BLAST_RADIUS = 70
 // Shop inflation: each shop purchase of a type raises its future price as
 // floor(base * 1.15^n), capped at 5x base. Counters snowballing (mass
@@ -136,6 +143,8 @@ export class HalloweenGameEngine {
   grenades: GameGrenade[] = []
   beerCups: GameBeerCup[] = []
   saltLines: GameSaltLine[] = []
+  private tailwindTimer = 0
+  private tailwindIds = new Set<number>() // live-boosted pumpkin ids (reverted on expiry)
 
   inventory: GameInventoryItem[] = []
   private kills: GameKill[] = []
@@ -627,6 +636,7 @@ export class HalloweenGameEngine {
       attackingPumpkinId: null,
       direction: -1,
       frozenFor: 0,
+      stuckFor: 0,
       distractionFor: 0,
       spawnTimer: 0,
       spawnedCount: 0,
@@ -663,6 +673,20 @@ export class HalloweenGameEngine {
       case "freeze":
         for (const s of this.slugs) s.frozenFor = FREEZE_DURATION
         break
+      case "tailwind": {
+        // Global haste: boost every live pumpkin not already boosted (recasts
+        // extend the timer without stacking). Placed-mid-effect pumpkins join
+        // on the next cast; level-ups preserve the multiplier via fireRateMul.
+        this.tailwindTimer = TAILWIND_DURATION
+        for (const p of this.pumpkins) {
+          if (p.health <= 0 || this.tailwindIds.has(p.id)) continue
+          p.fireRateMul *= TAILWIND_MUL
+          p.fireInterval /= TAILWIND_MUL
+          p.fireTimer = Math.min(p.fireTimer, p.fireInterval)
+          this.tailwindIds.add(p.id)
+        }
+        break
+      }
       case "distraction":
         for (const s of this.slugs) {
           if (s.speed > 0) s.distractionFor = DISTRACTION_DURATION
@@ -712,7 +736,7 @@ export class HalloweenGameEngine {
           x,
           y,
           duration: BEER_DURATION,
-          radius: BEER_RADIUS,
+          radius: BEER_PUDDLE_RADIUS,
           attracted: new Set(),
         })
         break
@@ -779,6 +803,7 @@ export class HalloweenGameEngine {
     this.updateGrenades(dtClamped)
     this.updateBeerCups(dtClamped)
     this.updateSaltLines(dtClamped)
+    this.updateTailwind(dtClamped)
 
     if (this.phase === "playing") this.checkRoundEnd()
     if (this.phase === "playing") this.checkGameOver()
@@ -808,6 +833,10 @@ export class HalloweenGameEngine {
     for (const slug of this.slugs) {
       if (slug.frozenFor > 0) {
         slug.frozenFor -= dt
+        continue
+      }
+      if (slug.stuckFor > 0) {
+        slug.stuckFor -= dt
         continue
       }
       if (slug.distractionFor > 0) slug.distractionFor -= dt
@@ -853,23 +882,28 @@ export class HalloweenGameEngine {
 
       slug.attackingPumpkinId = null
 
-      // Beer attraction: slugs behind a cup are lured toward it; reaching it
-      // permanently slows the slug by 10%.
+      // Beer puddle: slugs wading through the puddle are dragged toward the
+      // cup in x (both directions — including ones that already walked past)
+      // and slowed. Reaching the center sticks them briefly, once per slug.
       let moveDir = direction
+      let moveMul = 1
       for (const cup of this.beerCups) {
         if (cup.attracted.has(slug.id)) continue
-        if (slug.x > cup.x && Math.abs(slug.x - cup.x) < BEER_ATTRACT_RANGE) {
-          if (Math.hypot(slug.x - cup.x, slug.y - cup.y) <= cup.radius + slug.radius) {
-            slug.speed *= 1 - BEER_SLOW
-            cup.attracted.add(slug.id)
-            continue
-          }
-          moveDir = slug.x > cup.x ? -1 : 1
+        const dx = cup.x - slug.x
+        const dist = Math.hypot(dx, slug.y - cup.y)
+        if (dist > cup.radius + slug.radius) continue
+        if (dist <= BEER_STICK_RADIUS + slug.radius) {
+          slug.stuckFor = BEER_STICK_TIME
+          cup.attracted.add(slug.id)
+          continue
         }
+        moveDir = dx > 0 ? 1 : -1
+        moveMul *= 1 - BEER_PUDDLE_SLOW
       }
+      if (slug.stuckFor > 0) continue // stuck this tick — no attack, no move
 
       // Salt line: slugs stepping on the line move 30% slower.
-      let moveSpeed = slug.speed
+      let moveSpeed = slug.speed * moveMul
       for (const line of this.saltLines) {
         if (Math.abs(slug.x - line.x) <= line.width / 2 + slug.radius) {
           moveSpeed *= 1 - SALT_SLOW
@@ -1269,6 +1303,20 @@ export class HalloweenGameEngine {
   private updateSaltLines(dt: number) {
     for (const line of this.saltLines) line.duration -= dt
     this.saltLines = this.saltLines.filter((l) => l.duration > 0)
+  }
+
+  private updateTailwind(dt: number) {
+    if (this.tailwindTimer <= 0) return
+    this.tailwindTimer -= dt
+    if (this.tailwindTimer > 0) return
+    for (const id of this.tailwindIds) {
+      const p = this.pumpkins.find((pp) => pp.id === id)
+      if (!p || p.health <= 0) continue
+      p.fireRateMul /= TAILWIND_MUL
+      p.fireInterval *= TAILWIND_MUL
+      p.fireTimer = Math.min(p.fireTimer, p.fireInterval)
+    }
+    this.tailwindIds.clear()
   }
 
   // ---- Kills / scoring ---------------------------------------------------

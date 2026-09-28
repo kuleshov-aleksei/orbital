@@ -107,15 +107,6 @@ export function startingPumpkinsForConfig(config?: SpawnConfig): PumpkinType[] {
   return ["ferdinand", "ferdinand"]
 }
 
-export const ALL_PUMPKIN_TYPES: PumpkinType[] = [
-  "ferdinand",
-  "chunky",
-  "herbert",
-  "gwynevere",
-  "cramer",
-  "pearcer",
-]
-
 export interface PumpkinMeta {
   name: string
   description: string
@@ -159,6 +150,7 @@ export const ALL_ABILITY_IDS: AbilityId[] = [
   "holy_grenade",
   "beer",
   "salt_line",
+  "tailwind",
 ]
 
 export interface AbilityMeta {
@@ -176,7 +168,7 @@ export const ABILITY_META: Record<AbilityId, AbilityMeta> = {
   },
   freeze: {
     name: "Freeze",
-    description: "All slugs stop moving for 5 seconds.",
+    description: "All slugs stop moving for 8 seconds.",
     target: "none",
   },
   distraction: {
@@ -200,9 +192,9 @@ export const ABILITY_META: Record<AbilityId, AbilityMeta> = {
     target: "point",
   },
   beer: {
-    name: "Beer",
+    name: "Beer puddle",
     description:
-      "A cup that attracts slugs. Slugs that reach it are permanently slowed by 10%. Lasts 30 seconds.",
+      "A sticky puddle that drags slugs toward the cup and slows them by 40%. Slugs that reach the center get stuck for 2 seconds. Lasts 30 seconds.",
     target: "point",
   },
   salt_line: {
@@ -210,6 +202,11 @@ export const ABILITY_META: Record<AbilityId, AbilityMeta> = {
     description:
       "A vertical line of salt that slows slugs by 30% while they step on it. Lasts 30 seconds.",
     target: "point",
+  },
+  tailwind: {
+    name: "Tailwind",
+    description: "All pumpkins shoot 50% faster for 10 seconds.",
+    target: "none",
   },
 }
 
@@ -227,27 +224,24 @@ export type CardDefinition =
 // Game code defaults to Math.random — behavior is unchanged there.
 export type RandomFn = () => number
 
-// Each post-round popup offers: 1 pumpkin card, 1 ability card, 1 random card.
+// Post-round popups offer CARDS_PER_OFFER random cards — pick 1, as before.
+// Usually an ability, rarely the card-exclusive PEARcer. All other pumpkins
+// are shop-only.
+export const CARDS_PER_OFFER = 3
+export const PEARCER_CARD_PROB = 0.15
 export function buildCardOffer(rng: RandomFn = Math.random): CardDefinition[] {
-  const pumpkin: CardDefinition = {
-    kind: "pumpkin",
-    pumpkinType: ALL_PUMPKIN_TYPES[Math.floor(rng() * ALL_PUMPKIN_TYPES.length)],
+  const cards: CardDefinition[] = []
+  for (let i = 0; i < CARDS_PER_OFFER; i++) {
+    cards.push(
+      rng() < PEARCER_CARD_PROB
+        ? { kind: "pumpkin", pumpkinType: "pearcer" }
+        : {
+            kind: "ability",
+            abilityId: ALL_ABILITY_IDS[Math.floor(rng() * ALL_ABILITY_IDS.length)],
+          },
+    )
   }
-  const ability: CardDefinition = {
-    kind: "ability",
-    abilityId: ALL_ABILITY_IDS[Math.floor(rng() * ALL_ABILITY_IDS.length)],
-  }
-  const random: CardDefinition =
-    rng() < 0.5
-      ? {
-          kind: "pumpkin",
-          pumpkinType: ALL_PUMPKIN_TYPES[Math.floor(rng() * ALL_PUMPKIN_TYPES.length)],
-        }
-      : {
-          kind: "ability",
-          abilityId: ALL_ABILITY_IDS[Math.floor(rng() * ALL_ABILITY_IDS.length)],
-        }
-  return [pumpkin, ability, random].sort(() => rng() - 0.5)
+  return cards
 }
 
 export const INVENTORY_CAPACITY = 6

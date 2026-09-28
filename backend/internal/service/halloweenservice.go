@@ -130,6 +130,7 @@ const (
 	HalloweenAbilityHolyGrenade  = "holy_grenade"
 	HalloweenAbilityBeer         = "beer"
 	HalloweenAbilitySaltLine     = "salt_line"
+	HalloweenAbilityTailwind     = "tailwind"
 
 	HalloweenRarityRegular  = "regular"
 	HalloweenRarityCommon   = "common"
@@ -244,6 +245,7 @@ func (s *HalloweenService) Config() *HalloweenGameConfig {
 			HalloweenAbilityHolyGrenade:  {Score: 80, Kind: "multiplier"}, // 80% of slug reward
 			HalloweenAbilityBeer:         {Score: 0, Kind: "flat"},        // 0 damage — pure utility (slow)
 			HalloweenAbilitySaltLine:     {Score: 0, Kind: "flat"},        // 0 damage — pure utility (slow)
+			HalloweenAbilityTailwind:     {Score: 0, Kind: "flat"},        // 0 damage — pure utility (fire-rate buff)
 		},
 		Proximity: []HalloweenProximityThreshold{
 			{MinX: 700, Factor: 1.0},
@@ -283,8 +285,8 @@ func (s *HalloweenService) Config() *HalloweenGameConfig {
 		// Level 1->2 costs 40 XP, 2->3 costs 80 XP. Full max-out is 120 XP;
 		// ~1000 XP is earnable through round 7, so 7-10 maxed pumpkins max.
 		LevelCosts: []int{40, 80},
-		ShieldMin:    3,
-		ShieldMax:    6,
+		ShieldMin:  3,
+		ShieldMax:  6,
 	}
 }
 
@@ -426,6 +428,8 @@ func (s *HalloweenService) ComputeScore(report *models.HalloweenGameReport) int 
 			total += cfg.Abilities[HalloweenAbilityBeer].Score
 		case HalloweenAbilitySaltLine:
 			total += cfg.Abilities[HalloweenAbilitySaltLine].Score
+		case HalloweenAbilityTailwind:
+			total += cfg.Abilities[HalloweenAbilityTailwind].Score
 		default:
 			// Unknown source — count as a normal pumpkin kill at full reward.
 			total += slugCfg.RewardPoints
