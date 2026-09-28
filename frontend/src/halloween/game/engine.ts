@@ -30,7 +30,12 @@ import {
 import type { RandomFn } from "./balance"
 
 export type GameEvent =
-  "shooting" | "slug_destroyed" | "pumpkin_destroyed" | "item_used" | "shield_break"
+  | "shooting"
+  | "slug_destroyed"
+  | "pumpkin_destroyed"
+  | "item_used"
+  | "shield_break"
+  | "dell_retired"
 
 export const FIELD_HEIGHT = 600
 const PUMPKIN_RADIUS = 28
@@ -51,6 +56,14 @@ const DELL_SPAWN_INTERVAL = 5
 // Dr. Dell Conagher retires after this many Marvins — an immortal Dell would
 // otherwise be an infinite XP/coin farm (each Marvin is 3 XP + kill reward).
 const DELL_MAX_SPAWNS = 20
+// A retired Dell with nothing left to spawn converts into a Gerald with this
+// health multiplier. Punish mechanic, and only for the truly stale case: a
+// capped Dell converts only once the spawn queue is drained AND no live
+// pumpkin shares his lane (lane fire would still kill him, queued slugs
+// still progress the round). A Dell parked in an undefended lane after the
+// queue drains would otherwise stall the round forever — nothing can reach
+// him, nothing new spawns — so he walks the lane himself instead.
+const DELL_RETIRED_HP_MUL = 1.5
 const DISTRACTION_DURATION = 5
 const FREEZE_DURATION = 5
 const GRENADE_FUSE = 3
@@ -802,6 +815,8 @@ export class HalloweenGameEngine {
       const direction = slug.distractionFor > 0 ? 1 : -1
 
       // Dr. Dell Conagher doesn't move; spawns Marvins (capped per Dell).
+      // Once stale (capped, queue drained, nobody engaging him) he converts
+      // to a buffed Gerald and walks the lane — no sitting still, no stalls.
       if (slug.type === "dell" && slug.health > 0) {
         slug.spawnTimer += dt
         if (slug.spawnTimer >= DELL_SPAWN_INTERVAL && slug.spawnedCount < DELL_MAX_SPAWNS) {
@@ -809,7 +824,11 @@ export class HalloweenGameEngine {
           slug.spawnedCount += 1
           this.spawnSlug("marvin", slug.x + 10, slug.y)
         }
-        continue
+        if (slug.spawnedCount >= DELL_MAX_SPAWNS && this.isDellStale(slug)) {
+          this.retireDell(slug)
+        } else {
+          continue
+        }
       }
 
       // Attack the pumpkin we've reached on our lane.
@@ -881,6 +900,40 @@ export class HalloweenGameEngine {
     if (escaped.length > 0) {
       this.slugs = this.slugs.filter((s) => !escaped.includes(s.id))
     }
+  }
+
+  // A capped Dell is stale only when nothing can ever change his state: the
+  // spawn queue is drained, no live pumpkin shares his lane, and the pocket
+  // holds no dell-answer (annihilation, holy grenade). Anything else — lane
+  // fire, queued slugs, a banked answer — still resolves him unconverted.
+  private isDellStale(slug: GameSlug): boolean {
+    if (this.spawnQueue.length > 0) return false
+    if (this.pumpkins.some((p) => p.health > 0 && laneForY(p.y) === slug.lane)) return false
+    return !this.inventory.some(
+      (i) =>
+        i.kind === "ability" && (i.abilityId === "annihilation" || i.abilityId === "holy_grenade"),
+    )
+  }
+
+  // A Dell out of Marvins becomes a buffed Gerald (1.5x round-scaled health,
+  // Gerald speed/damage) at full health and keeps his shields and position.
+  // Distraction is cleared so he walks toward the pumpkins instead of away.
+  private retireDell(slug: GameSlug) {
+    const cfg = this.config.slugs["gerald"]
+    const baseHP = cfg?.health ?? 10
+    const hpMul = Math.pow(this.config.slug_hp_growth ?? 1, Math.max(0, this.round - 1))
+    const health = Math.max(1, Math.round(baseHP * hpMul * DELL_RETIRED_HP_MUL))
+    slug.type = "gerald"
+    slug.health = health
+    slug.maxHealth = health
+    slug.speed = cfg?.speed ?? 0
+    slug.damage = cfg?.damage_to_pumpkin ?? 0
+    slug.rewardPoints = cfg?.reward_points ?? 0
+    slug.radius = SLUG_RADII["gerald"]
+    slug.attackTimer = 0
+    slug.attackingPumpkinId = null
+    slug.distractionFor = 0
+    this.onEvent?.("dell_retired")
   }
 
   private findAttackTarget(slug: GameSlug): GamePumpkin | null {

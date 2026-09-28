@@ -841,6 +841,8 @@ onMounted(async () => {
     else if (event === "pumpkin_destroyed") sounds.playPumpkinDestroyed()
     else if (event === "item_used") sounds.playItemUsed()
     else if (event === "shield_break") sounds.playShieldBreak()
+    // A retired Dell joining the march is bad news — crunch, not pop.
+    else if (event === "dell_retired") sounds.playPumpkinDestroyed()
   }
   hud.value = engine.snapshot()
 
