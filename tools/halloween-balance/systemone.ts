@@ -38,23 +38,39 @@ export interface ChoiceQuestion {
   criteria: Record<string, string | null>
 }
 
+interface SystemOneAnswer {
+  type?: string
+  choice?: string
+  confidence?: number
+  probabilities?: Record<string, number>
+}
+
 interface SystemOneResponse {
-  answers?: Record<string, { type?: string; choice?: string }>
+  answers?: Record<string, SystemOneAnswer>
+}
+
+/** The decider's answer: winning option plus the model's uncertainty
+ * (per-option probabilities when the backend reports them). */
+export interface ChoiceResult {
+  choice: string
+  confidence?: number
+  probabilities?: Record<string, number>
 }
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-/** POST one `choice` question and return the winning option key. Throws on
- * any failure (network, timeout, non-2xx, unknown choice). Retries with
- * backoff only on 429/529, per the System One docs. */
+/** POST one `choice` question and return the decider's answer (winning
+ * option key plus confidence/probabilities). Throws on any failure
+ * (network, timeout, non-2xx, unknown choice). Retries with backoff only
+ * on 429/529, per the System One docs. */
 export async function askChoice(
   opts: SystemOneClientOptions,
   state: unknown,
   questionId: string,
   question: ChoiceQuestion,
-): Promise<string> {
+): Promise<ChoiceResult> {
   const timeoutMs = opts.timeoutMs ?? 20000
   const maxRetries = opts.maxRetries ?? 3
   const body: Record<string, unknown> = {
@@ -116,7 +132,11 @@ export async function askChoice(
           text.slice(0, 500),
         )
       }
-      return answer.choice
+      return {
+        choice: answer.choice,
+        confidence: answer.confidence,
+        probabilities: answer.probabilities,
+      }
     } catch (e) {
       if (e instanceof SystemOneError && e.status !== 429 && e.status !== 529) throw e
       if (e instanceof SystemOneError) {
@@ -247,19 +267,21 @@ export function buildSystemOneState(
   const total = fieldDps(engine)
   const totalSlugHp = Math.round(liveSlugs.reduce((a, s) => a + s.health, 0))
   const lanes = engine.activeLanes().map((lane) => {
-    const laneDps = Math.round(
-      field.filter((p) => p.lane === lane).reduce((a, p) => a + p.dps, 0) * 10,
-    ) / 10
+    const lanePumpkins = field.filter((p) => p.lane === lane)
+    const laneDps = Math.round(lanePumpkins.reduce((a, p) => a + p.dps, 0) * 10) / 10
     const laneHp = Math.round(
       liveSlugs.filter((s) => s.lane === lane).reduce((a, s) => a + s.health, 0),
     )
     return {
       lane,
+      defenders: lanePumpkins.length,
+      undefended: lanePumpkins.length === 0,
       lane_dps: laneDps,
       lane_slug_hp: laneHp,
       lane_ttk_s: laneDps > 0 && laneHp > 0 ? Math.round((laneHp / laneDps) * 10) / 10 : null,
     }
   })
+  const undefendedLanes = lanes.filter((l) => l.undefended).map((l) => l.lane)
 
   const taken = new Set(field.map((p) => `${p.col}:${p.lane}`))
   const activeLanes = engine.activeLanes()
@@ -295,16 +317,29 @@ export function buildSystemOneState(
       shields: s.shields,
     }))
 
+  // Every shop option stays visible (so pricier investments like cramer
+  // can be planned for), but unaffordable entries are compressed to what
+  // matters for planning: price and how many coins are still missing.
   const shop = Object.keys(config.pumpkins).map((t) => {
     const type = t as PumpkinType
     const base = config.pumpkins[type]?.cost ?? 0
+    const price = engine.costFor(type)
+    if (snap.coins >= price) {
+      return {
+        type,
+        price,
+        base_cost: base,
+        affordable: true,
+        draft_only: config.pumpkins[type]?.draft_only ?? false,
+        refund: engine.sellRefundFor(type),
+      }
+    }
     return {
       type,
-      price: engine.costFor(type),
-      base_cost: base,
-      affordable: snap.coins >= engine.costFor(type),
+      price,
+      affordable: false,
+      need: price - snap.coins,
       draft_only: config.pumpkins[type]?.draft_only ?? false,
-      refund: engine.sellRefundFor(type),
     }
   })
 
@@ -351,6 +386,9 @@ export function buildSystemOneState(
       lanes: LANE_COUNT,
       field,
       free_cells: freeCells,
+      /** Active lanes with no pumpkin on them — placing a defender here
+       * before slugs arrive prevents leaks. */
+      undefended_lanes: undefendedLanes,
       firepower: {
         field_dps_total: total,
         total_slug_hp: totalSlugHp,
@@ -375,10 +413,13 @@ export function buildSystemOneState(
       "Coins buy pumpkins from the shop into the inventory (max 6 slots); shop prices inflate per purchase of that type.",
       "XP levels up pumpkins already on the field (max level 3). Level-up costs are fixed.",
       "Pumpkins in the inventory must be placed onto a free cell (col 0-5, active lane) to fight. Unplaced pumpkins do nothing.",
-      "Selling is disabled in this battle — every placed pumpkin fights until it dies.",
       "Slugs crawl left toward your pumpkins; slugs with x < 450 are close to breaking through.",
+      "If slug reaches most-left part of the battlefield, it will deal damage to 4 pumkins and eventually kill them.",
       "dps is damage per second against slugs in the pumpkin's own lane — shooters only hit their own lane ahead of them, so a lane with slug HP but no DPS is undefended. Artillery-aoe and dps-pierce multiply base DPS against grouped slugs. ttk_s_estimate is rough: it ignores overkill, movement and shields.",
       "A damaged pumpkin deals full damage until it dies — HP is only a survival buffer, so a bloodied shooter is still worth healing, buffing and leveling.",
+      "herbert is the only sustain: no attack, heals the most-damaged ally for 5 HP per shot in any lane, but cannot heal itself or another herbert — the first herbert pays for itself once fighters take hits; a second while the first lives is wasted coins.",
+      "Defend every lane: a lane with slug HP and no DPS is undefended and will leak — see battlefield.firepower.lanes (lane_dps, lane_ttk_s) and reinforce the weakest lane first.",
+      "battlefield.undefended_lanes lists lanes with no pumpkin on them — a defender placed there before slugs arrive prevents a leak.",
     ],
   }
 }

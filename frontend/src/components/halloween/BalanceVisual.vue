@@ -10,7 +10,6 @@
     <div class="flex flex-wrap items-center gap-3 border-b border-stone-800 px-4 py-2">
       <span class="font-semibold text-amber-300">balance visual</span>
       <span class="rounded bg-amber-900/60 px-1.5 py-0.5 text-[11px] text-amber-200">dev only</span>
-
       <label class="text-xs text-stone-400">
         policy
         <select
@@ -71,11 +70,18 @@
         step
       </button>
 
-      <span v-if="awaiting" class="animate-pulse text-xs text-sky-300">
-        waiting for decider ({{ decisionTotal }} decisions so far)…
-      </span>
       <span v-if="error" class="text-xs text-red-400">error: {{ error }}</span>
-      <span v-if="finished" class="text-xs text-emerald-300">{{ endLine }}</span>
+      <!-- Fixed-height full-width status row: content swaps inside without
+        changing the header height, so the canvas never jumps. -->
+      <div class="flex h-6 w-full items-center gap-3 overflow-hidden text-xs">
+        <span v-if="awaiting" class="animate-pulse truncate text-sky-300">
+          waiting for decider ({{ decisionTotal }} decisions so far)…
+        </span>
+        <span v-else-if="finished" class="truncate text-emerald-300">{{ endLine }}</span>
+        <span v-else class="truncate text-stone-500">
+          {{ running ? "simulating…" : "idle" }}
+        </span>
+      </div>
     </div>
 
     <div class="flex min-h-0 flex-1">
@@ -115,9 +121,35 @@
           ref="feedEl"
           class="min-h-0 flex-1 overflow-y-auto px-3 py-2 font-mono text-[11px] leading-relaxed">
           <div v-for="(d, i) in feed" :key="i" class="whitespace-pre-wrap">
-            <span class="text-stone-500">{{ d.phase }}</span>
-            <span :class="d.note ? 'text-stone-300' : 'text-sky-300'"> {{ d.question }}</span>
-            <span class="text-stone-200"> → {{ d.choice }}</span>
+            <button
+              v-if="d.request"
+              type="button"
+              class="block w-full cursor-pointer rounded text-left hover:bg-stone-800/60"
+              :title="expanded === i ? 'collapse request/response' : 'expand full request/response'"
+              @click="expanded = expanded === i ? null : i">
+              <span class="text-stone-500">{{ expanded === i ? "▾" : "▸" }}{{ d.phase }}</span>
+              <span :class="d.note ? 'text-stone-300' : 'text-sky-300'"> {{ d.question }}</span>
+              <span class="text-stone-200"> → {{ d.choice }}</span>
+              <span v-if="choiceProb(d) != null" class="text-amber-200/80">
+                ({{ choiceProb(d) }})</span
+              >
+            </button>
+            <div v-else>
+              <span class="text-stone-500">{{ d.phase }}</span>
+              <span :class="d.note ? 'text-stone-300' : 'text-sky-300'"> {{ d.question }}</span>
+              <span class="text-stone-200"> → {{ d.choice }}</span>
+            </div>
+            <div v-if="d.request && expanded === i" class="mt-1 rounded bg-stone-900 p-2">
+              <button
+                type="button"
+                class="mb-1 rounded bg-stone-700 px-1.5 py-0.5 text-[10px] text-stone-200 hover:bg-stone-600"
+                @click="copyDetail(i, d)">
+                {{ copiedIdx === i ? "copied ✓" : "copy" }}
+              </button>
+              <pre class="max-h-96 overflow-auto text-[10px] whitespace-pre-wrap text-stone-300">{{
+                formatDetail(d)
+              }}</pre>
+            </div>
           </div>
         </div>
       </div>
@@ -170,6 +202,37 @@ const alivePumpkins = ref(0)
 const aliveSlugs = ref(0)
 const feed = ref<FeedItem[]>([])
 const endLine = ref("")
+const expanded = ref<number | null>(null)
+const copiedIdx = ref<number | null>(null)
+
+function formatDetail(d: FeedItem): string {
+  return JSON.stringify(
+    {
+      request: d.request,
+      response: { choice: d.choice, confidence: d.confidence, probabilities: d.probabilities },
+    },
+    null,
+    2,
+  )
+}
+
+/** Chosen option's probability as "51.3%", from the decider's distribution. */
+function choiceProb(d: FeedItem): string | null {
+  const p = d.probabilities?.[d.choice] ?? d.confidence
+  return p == null ? null : `${(p * 100).toFixed(1)}%`
+}
+
+async function copyDetail(i: number, d: FeedItem): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(formatDetail(d))
+    copiedIdx.value = i
+    setTimeout(() => {
+      if (copiedIdx.value === i) copiedIdx.value = null
+    }, 1500)
+  } catch {
+    copiedIdx.value = null
+  }
+}
 
 let engine: HalloweenGameEngine | null = null
 let renderer: ReturnType<typeof createMiniGameRenderer> | null = null
@@ -310,6 +373,8 @@ async function restart(): Promise<void> {
   error.value = null
   endLine.value = ""
   feed.value = []
+  expanded.value = null
+  copiedIdx.value = null
   ticks.value = 0
   finished.value = false
   paused.value = false
@@ -324,7 +389,7 @@ async function restart(): Promise<void> {
   engine = new HalloweenGameEngine(config, rng)
   policy =
     policyName.value === "systemone"
-      ? new SystemOnePolicy({ url: systemoneUrl.value, timeoutMs: 20000 })
+      ? new SystemOnePolicy({ url: systemoneUrl.value, timeoutMs: 20000, recordDetails: true })
       : new HeuristicPolicy()
   hud.value = engine.snapshot()
 

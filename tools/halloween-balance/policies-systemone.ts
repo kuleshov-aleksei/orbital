@@ -18,6 +18,8 @@ import type { HalloweenGameConfig } from "../../frontend/src/halloween/types"
 import {
   askChoice,
   buildSystemOneState,
+  pumpkinDps,
+  type ChoiceQuestion,
   type SystemOneClientOptions,
 } from "./systemone"
 import type { CardContext, Policy } from "./policies"
@@ -27,11 +29,20 @@ export interface DecisionRecord {
   phase: string
   question: string
   choice: string
+  /** Full decider request (state + question). Only populated when the
+   * `recordDetails` policy option is on (dev visualizer) — never in
+   * headless runs, to keep decision logs small. */
+  request?: { state: unknown; question: ChoiceQuestion }
+  /** The decider's reported uncertainty for this answer (same gating). */
+  confidence?: number
+  probabilities?: Record<string, number>
 }
 
 export interface SystemOnePolicyOptions extends SystemOneClientOptions {
   /** Act once per N sim ticks (default 15, ~2x per sim-second). */
   actEveryNTicks?: number
+  /** Attach the full request payload to every DecisionRecord. */
+  recordDetails?: boolean
 }
 
 function parseId(pattern: RegExp, choice: string): number {
@@ -90,6 +101,7 @@ export class SystemOnePolicy implements Policy {
   readonly decisions: DecisionRecord[] = []
   private readonly opts: SystemOneClientOptions
   private readonly actEvery: number
+  private readonly recordDetails: boolean
   private tick = 0
   /** Last tick an abilityId was asked about (spam guard for held answers). */
   private readonly lastAsked = new Map<AbilityId, number>()
@@ -97,11 +109,18 @@ export class SystemOnePolicy implements Policy {
   private readonly buffSig = new Map<AbilityId, string>()
   /** Ticks between repeat asks for combat abilities (~10 decision windows). */
   private static readonly ASK_COOLDOWN_TICKS = 150
+  /** Tick of the last `place_which` hold answer (spam guard). */
+  private placeHoldTick = -Infinity
+  /** Ticks to wait before re-asking place_which after a hold answer
+   * (~4 decision windows, ~2 sim-seconds: cuts decider spam while staying
+   * reactive to leaks). */
+  private static readonly PLACE_HOLD_COOLDOWN_TICKS = 60
 
   constructor(opts: SystemOnePolicyOptions) {
-    const { actEveryNTicks, ...client } = opts
+    const { actEveryNTicks, recordDetails, ...client } = opts
     this.opts = client
     this.actEvery = actEveryNTicks ?? 15
+    this.recordDetails = recordDetails ?? false
   }
 
   private async decide(
@@ -112,15 +131,22 @@ export class SystemOnePolicy implements Policy {
     criteria: Record<string, string | null>,
   ): Promise<string> {
     const state = buildSystemOneState(engine, config)
-    const choice = await askChoice(this.opts, state, questionId, {
+    const question: ChoiceQuestion = {
       type: "choice",
       instructions,
       criteria,
-    })
+    }
+    const { choice, confidence, probabilities } = await askChoice(
+      this.opts,
+      state,
+      questionId,
+      question,
+    )
     this.decisions.push({
       phase: `R${engine.snapshot().round}/${engine.snapshot().phase}`,
       question: questionId,
       choice,
+      ...(this.recordDetails ? { request: { state, question }, confidence, probabilities } : {}),
     })
     return choice
   }
@@ -184,7 +210,19 @@ export class SystemOnePolicy implements Policy {
       for (const t of buyable) {
         const price = engine.costFor(t)
         if (snap.coins < price) continue
-        criteria[`buy_${t}_${price}`] = `Buy ${t} for ${price} coins (base ${config.pumpkins[t]?.cost}).`
+        let blurb = `Buy ${t} for ${price} coins (base ${config.pumpkins[t]?.cost}).`
+        if (t === "herbert") {
+          // Data-driven nudge: exactly one healer is enough while it lives
+          // (herberts cannot heal themselves or each other), so a second is
+          // wasted coins. The instructions below carry the same rule.
+          const haveHealer =
+            engine.pumpkins.some((p) => p.health > 0 && p.type === "herbert") ||
+            snap.inventory.some((it) => it.kind === "pumpkin" && it.pumpkinType === "herbert")
+          blurb += haveHealer
+            ? " Healer — but you already own one, and herberts cannot heal each other, so a second is wasted coins."
+            : " Healer (5 HP per shot to the most-damaged ally, any lane): worth it once 3+ fighters are taking hits."
+        }
+        criteria[`buy_${t}_${price}`] = blurb
       }
       if (Object.keys(criteria).length <= 1) return // nothing affordable — no query
       const choice = await this.decide(
@@ -192,7 +230,9 @@ export class SystemOnePolicy implements Policy {
         config,
         "buy_decision",
         `You have ${snap.coins} coins. Which pumpkin should be bought into the inventory (max 6 slots, ${snap.inventory.length} used), if any? ` +
-          `Ferdinand is cheap DPS, chunky is a tank that cannot shoot, herbert heals, gwynevere is AoE artillery, cramer produces coins over time.`,
+          `Ferdinand is cheap DPS, chunky is a tank that cannot shoot, gwynevere is AoE artillery, cramer produces coins over time. ` +
+          `Herbert is your only sustain: no attack, but heals the most-damaged ally for 5 HP per shot in any lane — one herbert keeps a whole front line alive once fighters start taking hits. ` +
+          `Exactly one is enough while it lives (herberts cannot heal themselves or each other), so never stockpile healers.`,
         criteria,
       )
       if (choice === "hold") return
@@ -215,6 +255,21 @@ export class SystemOnePolicy implements Policy {
       if (held.length === 0) return
       const free = freeCells(engine)
       if (free.length === 0) return
+      if (this.tick - this.placeHoldTick < SystemOnePolicy.PLACE_HOLD_COOLDOWN_TICKS) {
+        return // recent hold — the answer can't change this fast, save a call
+      }
+      // Round-1 lookahead: only lanes 1-3 are active now, but next round
+      // opens 2 more lanes (0 and 4) — the decider should keep reserves.
+      const roundNote =
+        snap.round <= 1
+          ? " Note: this is round 1, which uses only lanes 1-3 — next round opens 2 more lanes (0 and 4), so keep some coins and pumpkins in reserve to defend them."
+          : ""
+      // The hold justification is only true in round 1. From round 2 all
+      // lanes are open, so holding must be argued on coverage instead.
+      const laneHold =
+        snap.round <= 1
+          ? "Hold this pumpkin in the inventory — saving defenders for lanes 0 and 4 opening in round 2."
+          : "Hold only if every lane already has a defender. An undefended lane with slugs inside needs a pumpkin now — holding there loses the lane."
 
       const whichCriteria: Record<string, string | null> = {
         hold: "Place nothing. Keep pumpkins in the inventory.",
@@ -224,29 +279,116 @@ export class SystemOnePolicy implements Policy {
         whichCriteria[`place_inv${index}_${item.pumpkinType}`] =
           `Place inventory slot ${index} (${item.pumpkinType}).`
       }
-      const which = await this.decide(
+      // All held pumpkins share one type — which slot is irrelevant, so
+      // skip the question and save a decider call.
+      const heldTypes = new Set(
+        held.map(({ item }) => (item.kind === "pumpkin" ? item.pumpkinType : "?")),
+      )
+      let invIndex: number
+      if (heldTypes.size === 1) {
+        invIndex = held[0].index
+        this.decisions.push({
+          phase: `R${snap.round}/${snap.phase}`,
+          question: "place_which (auto: identical type)",
+          choice: `place_inv${invIndex}_${[...heldTypes][0]}`,
+        })
+      } else {
+        const which = await this.decide(
+          engine,
+          config,
+          "place_which",
+          "Which pumpkin from the inventory should be placed onto the battlefield, if any? " +
+            "Tanks belong on the right (high columns, close to incoming slugs); DPS and economy belong on the left (low columns). " +
+            "Herbert and cramer are fragile support — keep them in safe left columns; herbert heals every lane from anywhere. " +
+            "Every lane with slugs needs a defender." +
+            roundNote,
+          whichCriteria,
+        )
+        if (which === "hold") {
+          this.placeHoldTick = this.tick
+          return
+        }
+        invIndex = parseId(/^place_inv(\d+)_/, which)
+      }
+
+      // Stage 1: pick the lane (≤5 options + hold). One option per lane
+      // replaces the old ~30-cell guess — a choice this small the decider
+      // can actually make. Undefended lanes sort first.
+      const laneStats = engine
+        .activeLanes()
+        .filter((lane) => free.some((c) => c.lane === lane))
+        .map((lane) => {
+          const defenders = engine.pumpkins.filter(
+            (p) => p.health > 0 && laneForY(p.y) === lane,
+          ).length
+          const laneSlugs = engine.slugs.filter((s) => s.health > 0 && s.lane === lane)
+          const nearestX =
+            laneSlugs.length > 0 ? Math.round(Math.min(...laneSlugs.map((s) => s.x))) : null
+          const dps =
+            Math.round(
+              engine.pumpkins
+                .filter((p) => p.health > 0 && laneForY(p.y) === lane)
+                .reduce((a, p) => a + pumpkinDps(p), 0) * 10,
+            ) / 10
+          return { lane, defenders, slugs: laneSlugs.length, nearestX, dps }
+        })
+        .sort((a, b) => Number(a.defenders > 0) - Number(b.defenders > 0) || a.dps - b.dps)
+      const heldEntry = held.find((h) => h.index === invIndex)
+      const heldType =
+        heldEntry && heldEntry.item.kind === "pumpkin" ? heldEntry.item.pumpkinType : "pumpkin"
+      const laneCriteria: Record<string, string | null> = {
+        hold: laneHold,
+      }
+      for (const s of laneStats) {
+        laneCriteria[`place_lane_${s.lane}`] =
+          `Lane ${s.lane}: ${s.defenders} defender(s)` +
+          (s.defenders === 0 ? " — UNDEFENDED" : "") +
+          `, ${s.slugs} slug(s)` +
+          (s.defenders === 0 && s.nearestX != null ? ` already inside (nearest x=${s.nearestX})!` : "") +
+          `, ${s.dps} DPS.`
+      }
+      const laneChoice = await this.decide(
         engine,
         config,
-        "place_which",
-        "Which pumpkin from the inventory should be placed onto the battlefield, if any? " +
-          "Tanks belong on the right (high columns, close to incoming slugs); DPS and economy belong on the left (low columns). " +
-          "Every lane with slugs needs a defender.",
-        whichCriteria,
+        "place_lane",
+        `Which lane should inventory slot ${invIndex} (${heldType}) defend? ` +
+          `Prefer UNDEFENDED lanes — a lane with no pumpkin leaks as soon as slugs reach it. ` +
+          `Otherwise reinforce the weakest defended lane (lowest DPS vs slugs). ` +
+          `You may also hold the pumpkin instead of placing it.` +
+          roundNote,
+        laneCriteria,
       )
-      if (which === "hold") return
-      const invIndex = parseId(/^place_inv(\d+)_/, which)
+      if (laneChoice === "hold") {
+        this.placeHoldTick = this.tick // same spam guard as place_which holds
+        return
+      }
+      const lane = parseId(/^place_lane_(\d+)$/, laneChoice)
 
+      // Stage 2: pick the cell within that lane (≤6 cells + hold).
+      // Stage 2: pick the cell within that lane. Cells only — the hold
+      // decision lives at lane level (stage 1), so a chosen lane always
+      // gets its pumpkin.
+      const laneFree = free.filter((c) => c.lane === lane)
+      if (laneFree.length === 0) return // filled since stage 1 — resync next tick
+      const laneStat = laneStats.find((s) => s.lane === lane)
       const whereCriteria: Record<string, string | null> = {}
-      for (const c of free) {
+      for (const c of laneFree) {
         const laneSlugs = engine.slugs.filter((s) => s.health > 0 && s.lane === c.lane).length
         whereCriteria[`cell_c${c.col}_l${c.lane}`] =
           `Column ${c.col}, lane ${c.lane} (${laneSlugs} slug(s) in this lane).`
       }
+      const laneUrgent =
+        laneStat && laneStat.defenders === 0 && laneStat.nearestX != null
+          ? ` A slug is already inside this undefended lane (nearest x=${laneStat.nearestX}) — it reaches the backline unopposed, so favor a safe left column that shoots the longest.`
+          : ""
       const where = await this.decideTarget(
         engine,
         config,
         "place_where",
-        `Where should inventory slot ${invIndex} be placed? Column 0 is leftmost (safest, longest firing time), column 5 is rightmost (closest to slugs).`,
+        `In which column of lane ${lane} should inventory slot ${invIndex} (${heldType}) be placed? Column 0 is leftmost (safest, longest firing time), column 5 is rightmost (closest to slugs). ` +
+          `Tanks belong on the right (high columns); DPS, economy and support belong on the left (low columns).` +
+          laneUrgent +
+          roundNote,
         whereCriteria,
       )
       const cm = where.match(/^cell_c(\d+)_l(\d+)$/)
@@ -433,17 +575,28 @@ export class SystemOnePolicy implements Policy {
       ),
       context: { cramer_count: ctx.cramerCount, any_damaged: ctx.damagedAny },
       rules: [
-        "Ferdinand is cheap DPS, chunky is a tank that cannot shoot, herbert heals, gwynevere is AoE artillery, cramer produces coins, pearcer is card-exclusive piercing DPS.",
+        "Ferdinand is cheap DPS, chunky is a tank that cannot shoot, herbert is the only healer (5 HP per shot to the most-damaged ally, any lane — take exactly one while none is owned; herberts cannot heal each other), gwynevere is AoE artillery, cramer produces coins, pearcer is card-exclusive piercing DPS.",
         "Annihilation and holy_grenade are the strongest abilities.",
         "Skipping is allowed and sometimes correct (e.g. nothing useful).",
       ],
     }
-    const choice = await askChoice(this.opts, state, "card_decision", {
+    const question: ChoiceQuestion = {
       type: "choice",
       instructions: "Which card should be picked, if any?",
       criteria,
+    }
+    const { choice, confidence, probabilities } = await askChoice(
+      this.opts,
+      state,
+      "card_decision",
+      question,
+    )
+    this.decisions.push({
+      phase: "cards",
+      question: "card_decision",
+      choice,
+      ...(this.recordDetails ? { request: { state, question }, confidence, probabilities } : {}),
     })
-    this.decisions.push({ phase: "cards", question: "card_decision", choice })
     if (choice === "skip") return -1
     return parseId(/^card_(\d+)_/, choice)
   }
