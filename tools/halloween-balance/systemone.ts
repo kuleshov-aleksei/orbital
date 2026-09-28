@@ -170,23 +170,15 @@ export interface FieldPumpkinState {
   level: number
   health: number
   max_health: number
-  hp_pct: number
   col: number
   lane: number
-  damage: number
-  level_cost: number | null
   /** Anti-slug DPS = damage / live fireInterval (buffs included). 0 for
    * tanks, economy and Herbert (pure healer — see role). */
   dps: number
   role: string
   /** Slugs currently chewing on this pumpkin (engine attackingPumpkinId). */
   attackers: number
-  /** incoming slug damage per second (slug damage lands every 3s — engine
-   * SLUG_ATTACK_INTERVAL — divided across victims with falloff). */
-  incoming_dps: number
 }
-
-const SLUG_ATTACK_INTERVAL_S = 3 // mirrors engine.ts SLUG_ATTACK_INTERVAL
 
 const PUMPKIN_ROLES: Record<PumpkinType, string> = {
   ferdinand: "dps",
@@ -240,23 +232,18 @@ export function buildSystemOneState(
   const liveSlugs = engine.slugs.filter((s) => s.health > 0)
 
   const field: FieldPumpkinState[] = alive.map((p) => {
-    const attackers = liveSlugs.filter((s) => s.attackingPumpkinId === p.id)
-    const incoming = attackers.reduce((a, s) => a + s.damage, 0) / SLUG_ATTACK_INTERVAL_S
+    const attackers = liveSlugs.filter((s) => s.attackingPumpkinId === p.id).length
     return {
       id: p.id,
       type: p.type,
       level: p.level,
       health: Math.round(p.health),
       max_health: p.maxHealth,
-      hp_pct: Math.round((p.health / Math.max(1, p.maxHealth)) * 100),
       col: columnForX(p.x),
       lane: laneForY(p.y),
-      damage: p.damage,
-      level_cost: engine.levelUpCostFor(p),
       dps: pumpkinDps(p),
       role: PUMPKIN_ROLES[p.type],
-      attackers: attackers.length,
-      incoming_dps: Math.round(incoming * 10) / 10,
+      attackers,
     }
   })
 
@@ -292,11 +279,15 @@ export function buildSystemOneState(
 
   const taken = new Set(field.map((p) => `${p.col}:${p.lane}`))
   const activeLanes = engine.activeLanes()
-  const freeCells: Array<{ col: number; lane: number }> = []
+  // The decider never picks cells from state (cells arrive as question
+  // options) — per-lane free counts suffice for judging room to reinforce.
+  const freeCellsPerLane: Record<number, number> = {}
   for (let col = 0; col < PLACEMENT_COLUMNS; col++) {
     for (let lane = 0; lane < LANE_COUNT; lane++) {
       if (!activeLanes.includes(lane)) continue
-      if (!taken.has(`${col}:${lane}`)) freeCells.push({ col, lane })
+      if (!taken.has(`${col}:${lane}`)) {
+        freeCellsPerLane[lane] = (freeCellsPerLane[lane] ?? 0) + 1
+      }
     }
   }
 
@@ -312,17 +303,10 @@ export function buildSystemOneState(
       types,
     }
   })
-  // Nearest individual threats for leak assessment (bounded list).
-  const nearest = [...liveSlugs]
-    .sort((a, b) => a.x - b.x)
-    .slice(0, 20)
-    .map((s) => ({
-      type: s.type,
-      x: Math.round(s.x),
-      lane: s.lane,
-      hp: Math.round(s.health),
-      shields: s.shields,
-    }))
+  // Nearest-individual-threat detail is redundant with by_lane (which has
+  // per-lane counts, nearest x, shields and types) — ship only the leak
+  // count and the heaviest slug summary.
+  const leaking = liveSlugs.filter((s) => s.x < 450).length
 
   // Every shop option stays visible (so pricier investments like cramer
   // can be planned for), but unaffordable entries are compressed to what
@@ -338,7 +322,6 @@ export function buildSystemOneState(
         base_cost: base,
         affordable: true,
         draft_only: config.pumpkins[type]?.draft_only ?? false,
-        refund: engine.sellRefundFor(type),
       }
     }
     return {
@@ -352,15 +335,7 @@ export function buildSystemOneState(
 
   const inventory = snap.inventory.map((item, index) => {
     if (item.kind === "pumpkin") {
-      const base = config.pumpkins[item.pumpkinType]
-      return {
-        index,
-        kind: "pumpkin",
-        pumpkin_type: item.pumpkinType,
-        base_health: base?.health ?? null,
-        base_damage: base?.damage_per_shot ?? null,
-        base_fire_rate: base?.fire_rate ?? null,
-      }
+      return { index, kind: "pumpkin", pumpkin_type: item.pumpkinType }
     }
     const meta = ABILITY_META[item.abilityId as AbilityId]
     return {
@@ -392,7 +367,7 @@ export function buildSystemOneState(
       columns: PLACEMENT_COLUMNS,
       lanes: LANE_COUNT,
       field,
-      free_cells: freeCells,
+      free_cells_per_lane: freeCellsPerLane,
       /** Active lanes with no pumpkin on them — placing a defender here
        * before slugs arrive prevents leaks. */
       undefended_lanes: undefendedLanes,
@@ -406,8 +381,7 @@ export function buildSystemOneState(
     slugs: {
       total: liveSlugs.length,
       by_lane: byLane,
-      nearest,
-      leaking: nearest.filter((s) => s.x < 450).length,
+      leaking,
       heaviest: slugSummary(
         liveSlugs.length > 0
           ? [...liveSlugs].sort((a, b) => b.health - a.health)[0]
@@ -415,20 +389,13 @@ export function buildSystemOneState(
       ),
     },
     rules: [
-      "Goal: survive as many rounds as possible. You lose when every pumpkin on the field is dead. Score grows per round survived and per slug killed.",
-      "Round 1 uses only lanes 1-3; round 2+ opens all 5 lanes (0-4).",
-      "Coins buy pumpkins from the shop into the inventory (max 6 slots); shop prices inflate per purchase of that type.",
-      "XP levels up pumpkins already on the field (max level 3). Level-up costs are fixed.",
-      "Pumpkins in the inventory must be placed onto a free cell (col 0-5, active lane) to fight. Unplaced pumpkins do nothing.",
-      "Slugs crawl left toward your pumpkins; slugs with x < 450 are close to breaking through.",
-      "If slug reaches most-left part of the battlefield, it will deal damage to 4 pumkins and eventually kill them.",
-      "dps is damage per second against slugs in the pumpkin's own lane — shooters only hit their own lane ahead of them, so a lane with slug HP but no DPS is undefended. Artillery-aoe and dps-pierce multiply base DPS against grouped slugs. ttk_s_estimate is rough: it ignores overkill, movement and shields.",
-      "A damaged pumpkin deals full damage until it dies — HP is only a survival buffer, so a bloodied shooter is still worth healing, buffing and leveling.",
-      "herbert is the only sustain: no attack, heals the most-damaged ally for 5 HP per shot in any lane, but cannot heal itself or another herbert — the first herbert pays for itself once fighters take hits; a second while the first lives is wasted coins.",
-      "Defend every lane: a lane with slug HP and no DPS is undefended and will leak — see battlefield.firepower.lanes (lane_dps, lane_ttk_s) and reinforce the weakest lane first.",
-      "battlefield.undefended_lanes lists lanes with no pumpkin on them — a defender placed there before slugs arrive prevents a leak.",
-      "firepower.lanes also reports lane_hp_total (HP the lane can absorb) and frontmost_col (rightmost occupied column — high values mean contact happens fast). A lane with low total HP and a far-right front is one hit from collapse even with a defender on it.",
-      "With no slugs on the field, the next wave can come down any lane — balance coverage toward the fewest defenders / lowest total HP instead of reinforcing the strongest lane.",
+      "Survive rounds; you lose when every field pumpkin dies. R1 uses lanes 1-3, R2+ opens 0-4.",
+      "Coins buy shop pumpkins into inventory (max 6, prices inflate); XP auto-levels the field greedily. Your job is buying and placing — never hoard coins while lanes are thin.",
+      "Pocket pumpkins do nothing until placed. Shooters hit only their own lane ahead of them: a lane with slug HP and no DPS leaks.",
+      "Roles: ferdinand cheap DPS; chunky no-attack tank (park on the right, closest to slugs); gwynevere AoE artillery that needs a front line (5 HP alone dies); herbert heals the most-damaged ally 5/shot any lane — exactly one, they can't heal each other; cramer mints coins (mid-game, not R1-3); pearcer pierces (card-only).",
+      "Cover every lane before doubling; slugs at x<450 are about to break through; a leaked slug mauls the back line.",
+      "Damaged pumpkins deal full DPS — HP is only a buffer. lane_hp_total + frontmost_col flag lanes one hit from collapse; with no slugs out, balance toward fewest defenders / lowest HP.",
+      "Dells never move: they park at the right edge and spawn 20 marvins each. Burn them down in-lane fast (massed DPS, pearcer, annihilation) — a dell lane with no defender and no answer stalls the whole round while its marvins multiply.",
     ],
   }
 }

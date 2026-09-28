@@ -25,6 +25,18 @@ export interface Policy {
 export interface CardContext {
   cramerCount: number
   damagedAny: boolean
+  /** Round that just ended (cards are picked between rounds). */
+  round: number
+  /** True when the inventory is at capacity — a pumpkin card would overflow. */
+  inventoryFull: boolean
+  /** Owned copies (field + inventory) for duplicate suppression. */
+  herbertCount: number
+  gwynevereCount: number
+  /** Crowd-answer abilities in the pocket (annihilation/holy_grenade/freeze). */
+  answerCount: number
+  /** Live bodies on the field — near the 30-cell cap, extra bodies have
+   * nowhere to plant and abilities beat them. */
+  fieldCount: number
 }
 
 /** Free (col, lane) cells derived from live pumpkins, restricted to the

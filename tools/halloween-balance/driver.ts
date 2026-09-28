@@ -65,9 +65,23 @@ export function runSingleGame(
     if (snap.phase === "cards" && snap.cards) {
       // Sequential popups, like the UI: one pick per tick.
       const pumpkins = engine.pumpkins.filter((p) => p.health > 0)
+      const owned = (t: string): number =>
+        snap.inventory.filter((i) => i.kind === "pumpkin" && i.pumpkinType === t).length
       const pick = policy.pickCard(snap.cards.cards, rng, {
         cramerCount: pumpkins.filter((p) => p.type === "cramer").length,
         damagedAny: pumpkins.some((p) => p.health < p.maxHealth),
+        round: snap.round,
+        inventoryFull: snap.inventory.length >= 6,
+        herbertCount: pumpkins.filter((p) => p.type === "herbert").length + owned("herbert"),
+        gwynevereCount: pumpkins.filter((p) => p.type === "gwynevere").length + owned("gwynevere"),
+        answerCount: snap.inventory.filter(
+          (i) =>
+            i.kind === "ability" &&
+            (i.abilityId === "annihilation" ||
+              i.abilityId === "holy_grenade" ||
+              i.abilityId === "freeze"),
+        ).length,
+        fieldCount: pumpkins.length,
       })
       if (pick instanceof Promise) {
         throw new Error(
@@ -112,19 +126,70 @@ export async function runSingleGameAsync(
 
   let ticks = 0
   let reachedRound = 1
+  // Live progress: decider games can run 20+ minutes wall-clock, so log
+  // round transitions plus a heartbeat every 60 sim-seconds (unbuffered).
+  const t0 = Date.now()
+  const callsOf = (): string => {
+    const d = (policy as { decisions?: unknown[] }).decisions
+    return d ? String(d.length) : "-"
+  }
+  const beat = (tag: string): void => {
+    const s = engine.snapshot()
+    const alive = engine.pumpkins.filter((p) => p.health > 0).length
+    const wall = ((Date.now() - t0) / 1000).toFixed(0)
+    process.stdout.write(
+      `[live] ${tag} R${s.round}/${s.phase} t=${(ticks * dt).toFixed(0)}s wall=${wall}s ` +
+        `field=${alive} inv=${s.inventory.length} coins=${s.coins} xp=${s.xp} calls=${callsOf()}\n`,
+    )
+  }
+  let lastBeat = 0
+  // Stall breaker: if neither side scores a kill for 120 sim-seconds the
+  // game is a degenerate standoff (seen: 4 pumpkins vs unkillable R3 slugs
+  // for 240+s while the policy burned ~500 no-op calls). Break and report.
+  let lastKillCount = -1
+  let lastKillTick = 0
   // eslint-disable-next-line no-constant-condition
   while (true) {
     const snap = engine.snapshot()
     if (snap.phase === "gameover" || snap.phase === "ended") break
     if (ticks * dt >= maxSimSeconds) break
-    if (snap.round > reachedRound) reachedRound = snap.round
+    const killCount = (engine as unknown as { kills?: unknown[] }).kills?.length ?? -1
+    if (killCount !== lastKillCount) {
+      lastKillCount = killCount
+      lastKillTick = ticks
+    } else if ((ticks - lastKillTick) * dt >= 120 && killCount >= 0) {
+      beat("STALL — no kills for 120s, breaking")
+      break
+    }
+    if (snap.round > reachedRound) {
+      reachedRound = snap.round
+      beat("round-start")
+    }
+    if (ticks * dt - lastBeat >= 60) {
+      lastBeat = ticks * dt
+      beat("beat")
+    }
 
     if (snap.phase === "cards" && snap.cards) {
       const pumpkins = engine.pumpkins.filter((p) => p.health > 0)
+      const owned = (t: string): number =>
+        snap.inventory.filter((i) => i.kind === "pumpkin" && i.pumpkinType === t).length
       engine.pickCard(
         await policy.pickCard(snap.cards.cards, rng, {
           cramerCount: pumpkins.filter((p) => p.type === "cramer").length,
           damagedAny: pumpkins.some((p) => p.health < p.maxHealth),
+          round: snap.round,
+          inventoryFull: snap.inventory.length >= 6,
+          herbertCount: pumpkins.filter((p) => p.type === "herbert").length + owned("herbert"),
+          gwynevereCount: pumpkins.filter((p) => p.type === "gwynevere").length + owned("gwynevere"),
+          answerCount: snap.inventory.filter(
+            (i) =>
+              i.kind === "ability" &&
+              (i.abilityId === "annihilation" ||
+                i.abilityId === "holy_grenade" ||
+                i.abilityId === "freeze"),
+          ).length,
+          fieldCount: pumpkins.length,
         }),
       )
     } else if (snap.phase === "playing") {
