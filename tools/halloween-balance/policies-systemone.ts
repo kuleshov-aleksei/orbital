@@ -254,43 +254,38 @@ export class SystemOnePolicy implements Policy {
       })()
       const mustBuy = pocketEmpty && !lanesCovered
       const criteria: Record<string, string | null> = {}
-      if (!mustBuy) criteria.hold = "Buy nothing. Save coins for later."
+      if (!mustBuy) criteria.hold = "Buy nothing; hold coins and inventory slots."
       for (const t of buyable) {
         const price = engine.costFor(t)
         if (snap.coins < price) continue
-        // Tactical blurb per type — the decider buys what it understands.
-        // Doctrine mirrors the proven heuristic: DPS bodies first, artillery
-        // only behind a front line, tanks from round 3, economy from round 4.
+        // State facts, not doctrine: the model can compare cost, ownership,
+        // HP, firepower, and fragility for itself.
+        const pumpkinCfg = config.pumpkins[t]
+        const hp = pumpkinCfg?.health ?? 0
+        const damage = pumpkinCfg?.damage_per_shot ?? 0
+        const rate = pumpkinCfg?.fire_rate ?? 0
+        const dps =
+          t === "chunky" || t === "herbert" || t === "cramer" || rate <= 0
+            ? 0
+            : Math.round(damage * rate * 10) / 10
+        const blast = pumpkinCfg?.levels?.[0]?.blast_radius ?? 0
         const aliveCount =
           engine.pumpkins.filter((p) => p.health > 0 && p.type === t).length +
           snap.inventory.filter((it) => it.kind === "pumpkin" && it.pumpkinType === t).length
-        let blurb = `Buy ${t} for ${price} coins (base ${config.pumpkins[t]?.cost}, you own ${aliveCount}).`
+        let blurb = `Buy ${t} for ${price} coins (base ${config.pumpkins[t]?.cost}, you own ${aliveCount}, ${hp} HP`
+        blurb += dps > 0 ? `, ${dps} DPS` : `, no attack`
+        if (blast > 0) blurb += `, blast radius ${blast}`
+        blurb += ")."
         if (t === "ferdinand") {
-          blurb += " Cheap DPS body — the default buy in rounds 1-3."
+          blurb += " Single-lane DPS body."
         } else if (t === "gwynevere") {
-          blurb +=
-            aliveCount >= 2
-              ? " AoE artillery — but you already own 2, more is luxury."
-              : " AoE artillery (5 HP!): only behind a LIVE front line in its lane, else a donation to slugs."
+          blurb += " AoE artillery; fragile without a front line in its lane."
         } else if (t === "chunky") {
-          blurb +=
-            snap.round >= 3
-              ? " Tank wall (50+ HP, no attack): parks frontline-right and HOLDS a lane while DPS burns — essential from round 3, keep 2+."
-              : " Tank wall (50+ HP, no attack): rounds 1-2 are won with DPS bodies, tanks can wait."
+          blurb += " Tank that holds contact."
         } else if (t === "cramer") {
-          blurb +=
-            snap.round >= 4
-              ? " Economy: mints coins once the mid-game is survivable."
-              : " Economy: rounds 1-3 are won with bodies, not interest — wait."
+          blurb += " Coin producer."
         } else if (t === "herbert") {
-          // Data-driven nudge: exactly one healer is enough while it lives
-          // (herberts cannot heal themselves or each other).
-          const haveHealer =
-            engine.pumpkins.some((p) => p.health > 0 && p.type === "herbert") ||
-            snap.inventory.some((it) => it.kind === "pumpkin" && it.pumpkinType === "herbert")
-          blurb += haveHealer
-            ? " Healer — but you already own one, and a second can't heal the first, so it's wasted coins."
-            : " Healer (5 HP/shot to most-damaged ally, any lane): worth it once 3+ fighters bleed."
+          blurb += " Heals the most-damaged ally in any lane; two cannot heal each other."
         }
         criteria[`buy_${t}_${price}`] = blurb
       }
@@ -306,13 +301,14 @@ export class SystemOnePolicy implements Policy {
         config,
         "buy_decision",
         mustBuy
-          ? `Lane coverage is BROKEN (an active lane has no defender) and the pocket is empty — you MUST buy a body now; coins in the pocket kill nothing. ` +
+          ? `An active lane has no defender and the pocket is empty — buy a body now. ` +
             `Which pumpkin should be bought into the inventory (max 6 slots, ${snap.inventory.length} used)? ` +
-            `Cheap ferdinand first unless a tank (chunky) or artillery (gwynevere) fits the gap.`
-          : `You have ${snap.coins} coins. Which pumpkin should be bought into the inventory (max 6 slots, ${snap.inventory.length} used), if any? ` +
-            `Bodies win rounds 1-3: ferdinand first, gwynevere only on top of 4+ ferdinands and behind a live front line (max 2). ` +
-            `From round 3 keep 2+ chunky tanks — they hold lanes DPS alone can't. Cramer from round 4. ` +
-            `Exactly one herbert while one lives. `,
+            `Coins in the pocket kill nothing.`
+          : `You have ${snap.coins} coins (${snap.inventory.length}/6 slots used). ` +
+            `Buy one pumpkin into the inventory or hold — coins carry over, and each purchase raises that type's next price.` +
+            (snap.round <= 1
+              ? ` Round 2 opens lanes 0 and 4, so keep enough coins and free slots to defend them.`
+              : ""),
         criteria,
       )
       if (choice === "hold") {
@@ -338,6 +334,18 @@ export class SystemOnePolicy implements Policy {
       if (held.length === 0) return
       const free = freeCells(engine)
       if (free.length === 0) return
+      // Round-1 reserve is mechanical: one body per open lane can handle the
+      // tutorial wave. Once all active lanes are covered, keep the remaining
+      // bodies pocketed for lanes 0 and 4. Replacements still flow because a
+      // dead defender leaves its lane uncovered.
+      const r1Covered =
+        snap.round <= 1 &&
+        engine
+          .activeLanes()
+          .every((lane) =>
+            engine.pumpkins.some((p) => p.health > 0 && laneForY(p.y) === lane),
+          )
+      if (r1Covered) return
       // Indecision breaker: 3 straight which-holds means the decider is
       // paralyzed while pocketed bodies sit at zero DPS — force-place the
       // first pocket body through the normal lane/cell path, bypassing the
@@ -347,18 +355,11 @@ export class SystemOnePolicy implements Policy {
       if (!breaker && this.tick - this.placeHoldTick < SystemOnePolicy.PLACE_HOLD_COOLDOWN_TICKS) {
         return // recent hold — the answer can't change this fast, save a call
       }
-      // Round-1 lookahead: only lanes 1-3 are active now, but next round
-      // opens 2 more lanes (0 and 4) — the decider should keep reserves.
-      const roundNote =
-        snap.round <= 1
-          ? " Note: this is round 1, which uses only lanes 1-3 — next round opens 2 more lanes (0 and 4), so keep some coins and pumpkins in reserve to defend them."
-          : ""
-      // The hold justification is only true in round 1. From round 2 all
-      // lanes are open, so holding must be argued on coverage instead.
+      // The hold justification is coverage, not round timing: from round 2 all
+      // lanes are open, and in round 1 this phase only runs while a lane is
+      // uncovered. The upcoming-lane facts live in state.
       const laneHold =
-        snap.round <= 1
-          ? "Hold this pumpkin in the inventory — saving defenders for lanes 0 and 4 opening in round 2."
-          : "Hold only if every lane already has a defender. An undefended lane with slugs inside needs a pumpkin now — holding there loses the lane."
+        "Hold only if every lane already has a defender. An undefended lane with slugs inside needs a pumpkin now — holding there loses the lane."
 
       const whichCriteria: Record<string, string | null> = {
         hold: "Place nothing. Keep pumpkins in the inventory.",
@@ -393,11 +394,7 @@ export class SystemOnePolicy implements Policy {
           engine,
           config,
           "place_which",
-          "Which pumpkin from the inventory should be placed onto the battlefield, if any? " +
-            "Tanks belong on the right (high columns, close to incoming slugs); DPS and economy belong on the left (low columns). " +
-            "Herbert and cramer are fragile support — keep them in safe left columns; herbert heals every lane from anywhere. " +
-            "Every lane with slugs needs a defender." +
-            roundNote,
+          "Which pocket pumpkin should be placed next? Lane and column are separate choices.",
           whichCriteria,
         )
         if (which === "hold") {
@@ -458,24 +455,21 @@ export class SystemOnePolicy implements Policy {
           `, ${s.dps} DPS.`
       }
       // Quiet board: no slugs anywhere, so the next wave can come down any
-      // lane — countermand the reinforce-the-strongest-lane guess.
+      // lane — prefer balance over reinforcing the strongest position.
       const quietBoard = engine.slugs.every((s) => s.health <= 0)
       const quietNote = quietBoard
-        ? " No slugs are on the field — the next wave can come down any lane, so balance coverage toward the fewest defenders / lowest total HP instead of reinforcing the strongest lane."
+        ? " No slugs are on the field, so prefer the least-defended lane rather than the strongest lane."
         : ""
       const laneChoice = await this.decideTarget(
         engine,
         config,
         "place_lane",
         uncovered.length > 0
-          ? `Lane(s) ${uncovered.map((s) => s.lane).join(", ")} have NO defender — slugs there walk through untouched. ` +
+          ? `Lane(s) ${uncovered.map((s) => s.lane).join(", ")} have no defender. ` +
             `Which uncovered lane should inventory slot ${invIndex} (${heldType}) cover first? ` +
-            `Prefer the lane with slugs already inside it.` +
-            roundNote
-          : `Every lane has a defender. Which lane should inventory slot ${invIndex} (${heldType}) reinforce — the weakest defended lane (lowest DPS vs slugs)? ` +
-            `You may also hold the pumpkin instead of placing it.` +
-            quietNote +
-            roundNote,
+            `Prefer the lane with slugs already inside it.`
+          : `Every lane has a defender. Which lane should inventory slot ${invIndex} (${heldType}) reinforce, or should it stay pocketed?` +
+            quietNote,
         laneCriteria,
       )
       if (laneChoice === "hold") {
@@ -527,8 +521,7 @@ export class SystemOnePolicy implements Policy {
         "place_where",
         `In which column of lane ${lane} should inventory slot ${invIndex} (${heldType}) be placed? Column 0 is leftmost (safest, longest firing time), column 5 is rightmost (closest to slugs).` +
           columnRule +
-          laneUrgent +
-          roundNote,
+          laneUrgent,
         whereCriteria,
       )
       const cm = where.match(/^cell_c(\d+)_l(\d+)$/)

@@ -280,6 +280,9 @@ export function buildSystemOneState(
 
   const taken = new Set(field.map((p) => `${p.col}:${p.lane}`))
   const activeLanes = engine.activeLanes()
+  const lanesOpeningNextRound = Array.from({ length: LANE_COUNT }, (_, lane) => lane).filter(
+    (lane) => !activeLanes.includes(lane),
+  )
   // The decider never picks cells from state (cells arrive as question
   // options) — per-lane free counts suffice for judging room to reinforce.
   const freeCellsPerLane: Record<number, number> = {}
@@ -310,19 +313,32 @@ export function buildSystemOneState(
   const leaking = liveSlugs.filter((s) => s.x < 450).length
 
   // Every shop option stays visible (so pricier investments like cramer
-  // can be planned for), but unaffordable entries are compressed to what
-  // matters for planning: price and how many coins are still missing.
+  // can be planned for). Include the facts needed to compare bodies: cost,
+  // ownership, HP, firepower, and blast radius. Unaffordable entries add how
+  // many coins are still missing.
   const shop = Object.keys(config.pumpkins).map((t) => {
     const type = t as PumpkinType
-    const base = config.pumpkins[type]?.cost ?? 0
+    const pumpkinCfg = config.pumpkins[type]
+    const base = pumpkinCfg?.cost ?? 0
     const price = engine.costFor(type)
+    const hp = pumpkinCfg?.health ?? 0
+    const rate = pumpkinCfg?.fire_rate ?? 0
+    const damage = pumpkinCfg?.damage_per_shot ?? 0
+    const dps =
+      type === "chunky" || type === "herbert" || type === "cramer" || rate <= 0
+        ? 0
+        : Math.round(damage * rate * 10) / 10
+    const blast_radius = pumpkinCfg?.levels?.[0]?.blast_radius ?? 0
     if (snap.coins >= price) {
       return {
         type,
         price,
         base_cost: base,
         affordable: true,
-        draft_only: config.pumpkins[type]?.draft_only ?? false,
+        draft_only: pumpkinCfg?.draft_only ?? false,
+        hp,
+        dps,
+        blast_radius,
       }
     }
     return {
@@ -330,7 +346,10 @@ export function buildSystemOneState(
       price,
       affordable: false,
       need: price - snap.coins,
-      draft_only: config.pumpkins[type]?.draft_only ?? false,
+      draft_only: pumpkinCfg?.draft_only ?? false,
+      hp,
+      dps,
+      blast_radius,
     }
   })
 
@@ -354,6 +373,7 @@ export function buildSystemOneState(
       phase: snap.phase,
       score: snap.score,
       active_lanes: activeLanes,
+      lanes_opening_next_round: lanesOpeningNextRound,
       battlefield_width: engine.getWidth(),
     },
     economy: {
@@ -390,13 +410,13 @@ export function buildSystemOneState(
       ),
     },
     rules: [
-      "Survive rounds; you lose when every field pumpkin dies. R1 uses lanes 1-3, R2+ opens 0-4.",
-      "Coins buy shop pumpkins into inventory (max 6, prices inflate); XP auto-levels the field greedily. Your job is buying and placing — never hoard coins while lanes are thin.",
-      "Pocket pumpkins do nothing until placed. Shooters hit only their own lane ahead of them: a lane with slug HP and no DPS leaks.",
-      "Roles: ferdinand cheap DPS; chunky no-attack tank (park on the right, closest to slugs); gwynevere AoE artillery that needs a front line (5 HP alone dies); herbert heals the most-damaged ally 5/shot any lane — exactly one, they can't heal each other; cramer mints coins (mid-game, not R1-3); pearcer pierces (card-only).",
-      "Cover every lane before doubling; slugs at x<450 are about to break through; a leaked slug mauls the back line.",
-      "Damaged pumpkins deal full DPS — HP is only a buffer. lane_hp_total + frontmost_col flag lanes one hit from collapse; with no slugs out, balance toward fewest defenders / lowest HP.",
-      "Dells never move: they park at the right edge and spawn 20 marvins each. Burn them down in-lane fast (massed DPS, pearcer, annihilation) — a dell lane with no defender and no answer stalls the whole round while its marvins multiply.",
+      "Survive rounds — you lose when every field pumpkin dies.",
+      "Round 1 uses lanes 1-3 only; round 2 opens lanes 0 and 4, and all five stay active afterward.",
+      "Coins buy shop pumpkins into the inventory (max 6 slots; buying a type raises its next price). XP auto-levels the field — you only buy and place.",
+      "Pocket pumpkins do nothing until placed. Shooters hit only slugs in their own lane: a lane with slugs and no DPS leaks them.",
+      "Escaped slugs lash out at your 4 closest pumpkins (100/75/50/25% damage) and pay no reward.",
+      "Roles: ferdinand cheap DPS; chunky no-attack tank (parks frontline-right); gwynevere AoE (5 HP — needs a front line); herbert heals the most-damaged ally, any lane (two cannot heal each other); cramer mints coins; pearcer pierces (card-only).",
+      "Damaged pumpkins deal full DPS — HP is only a buffer. Dells park at the right edge and spawn marvins: burn them down in-lane or they stall the round.",
     ],
   }
 }
