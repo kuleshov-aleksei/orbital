@@ -26,11 +26,14 @@ export class SystemOneError extends Error {
 
 export interface SystemOneClientOptions {
   url: string
-  /** Only sent when set — the local decider injects its own model. */
+  /** Sent explicitly; falls back to DEFAULT_SYSTEMONE_MODEL when unset. */
   model?: string
   timeoutMs?: number
   maxRetries?: number
 }
+
+/** Default decider model — the single source of truth for the fallback. */
+export const DEFAULT_SYSTEMONE_MODEL = "winnow:e4b"
 
 export interface ChoiceQuestion {
   type: "choice"
@@ -75,10 +78,9 @@ export async function askChoice(
   const maxRetries = opts.maxRetries ?? 3
   const body: Record<string, unknown> = {
     state,
-    model: "winnow:e4b",
+    model: opts.model ?? DEFAULT_SYSTEMONE_MODEL,
     questions: { [questionId]: question },
   }
-  if (opts.model) body.model = opts.model
 
   let lastError: unknown = null
   for (let attempt = 0; attempt <= maxRetries; attempt++) {

@@ -56,6 +56,8 @@ export interface HalloweenGameReport {
   coins_spent: number
   xp_earned: number // global level-up pool telemetry; ignored by scoring
   is_incomplete: boolean
+  source?: HalloweenGameSource // who played; backend defaults to "human"
+  model?: string // decider model for systemone runs
 }
 
 // SubmitGameReportResponse is returned by POST /api/halloween/game/report.
@@ -186,6 +188,10 @@ export interface PumpkinDisplay {
   isLocal: boolean
 }
 
+// HalloweenGameSource is who played a game: a human, the heuristic
+// balance policy, or the systemone decider.
+export type HalloweenGameSource = "human" | "heuristic" | "systemone"
+
 // HalloweenRewardGranted is one decoration granted for a specific game.
 export interface HalloweenRewardGranted {
   item_id: string
@@ -218,6 +224,8 @@ export interface HalloweenAdminGame {
   score: number
   is_incomplete: boolean
   is_cheater: boolean
+  source: HalloweenGameSource
+  model: string | null
   coins_earned: number
   coins_spent: number
   kill_income: number

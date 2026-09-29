@@ -558,3 +558,65 @@ func TestHalloweenAdminGameIncomeSplit(t *testing.T) {
 		t.Errorf("expected game source, got %q", rewards[0].Source)
 	}
 }
+
+func TestHalloweenBotSubmissionSkipsRewards(t *testing.T) {
+	s := newHalloweenTestService(t)
+
+	// 2 completed rounds, no kills: score is exactly the round bonus.
+	report := &models.HalloweenGameReport{
+		CompletedRounds: 2,
+		Score:           3000,
+		Source:          models.HalloweenSourceSystemOne,
+		Model:           "winnow:e4b",
+	}
+
+	res, err := s.SubmitGame(models.HalloweenBotUserID, report)
+	if err != nil {
+		t.Fatalf("SubmitGame failed: %v", err)
+	}
+	if len(res.Granted) != 0 || res.Message != "" {
+		t.Errorf("bot submission granted %v with message %q, want no rewards", res.Granted, res.Message)
+	}
+	if res.IsCheater {
+		t.Error("bot submission with exact score flagged as cheater")
+	}
+
+	games, err := s.GetAdminGames()
+	if err != nil {
+		t.Fatalf("GetAdminGames failed: %v", err)
+	}
+	if len(games) != 1 {
+		t.Fatalf("expected 1 game, got %d", len(games))
+	}
+	if games[0].Source != models.HalloweenSourceSystemOne {
+		t.Errorf("source = %q, want systemone", games[0].Source)
+	}
+	if games[0].Model != "winnow:e4b" {
+		t.Errorf("model = %q, want winnow:e4b", games[0].Model)
+	}
+
+	// Bots never appear on the leaderboard or earn rewards.
+	entries, err := s.GetLeaderboard()
+	if err != nil {
+		t.Fatalf("GetLeaderboard failed: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("expected empty leaderboard, got %+v", entries)
+	}
+	rewards, err := s.GetAdminRewards()
+	if err != nil {
+		t.Fatalf("GetAdminRewards failed: %v", err)
+	}
+	if len(rewards) != 0 {
+		t.Errorf("expected no rewards, got %+v", rewards)
+	}
+}
+
+func TestHalloweenSubmitGameRejectsUnknownSource(t *testing.T) {
+	s := newHalloweenTestService(t)
+
+	report := &models.HalloweenGameReport{Source: "alien"}
+	if _, err := s.SubmitGame("user-1", report); err == nil {
+		t.Fatal("expected unknown source to error")
+	}
+}

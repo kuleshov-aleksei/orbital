@@ -9,11 +9,15 @@
 //   --check-gates                               exit 1 when legacy caps fail
 //   --check-bands                               exit 1 when skill-aware bands fail
 //   --json-summary                              print machine-readable summaries (for sweep.ts)
+//   --submit                                        POST each finished game report to the backend
+//                                                   (<submit-url>/api/halloween/game/report/bot —
+//                                                   dev server only; failures warn and continue)
+//   --submit-url http://localhost:8080              backend base URL for --submit (default shown)
 //
 // System One decider policy (every decision via localhost:8000):
 //   jiti ./run.cjs -- --games 5 --seed 1 --policy systemone --concurrency 5
 //   --systemone-url http://localhost:8000/v1/systemone
-//   --model jev-latest                          (optional; local decider injects its own)
+//   --model jev-latest                          decider model, default winnow:e4b
 //   --systemone-timeout 20000                   per-request ms (default 20000)
 //   --decision-log decisions.jsonl              append every decider choice
 // Any decider failure fails the whole run (no fallback).
@@ -24,6 +28,7 @@ import { runSingleGame, runSingleGameAsync, type GameResult } from "./driver"
 import { printSummary, summarize, type BatchSummary } from "./metrics"
 import { HeuristicPolicy, type Policy } from "./policies"
 import { SystemOnePolicy } from "./policies-systemone"
+import { DEFAULT_SYSTEMONE_MODEL } from "./systemone"
 
 function arg(name: string, fallback: string): string {
   const i = process.argv.indexOf(name)
@@ -39,7 +44,7 @@ function has(name: string): boolean {
   return process.argv.includes(name)
 }
 
-export function main(): void | Promise<void> {
+export async function main(): Promise<void> {
   const games = parseInt(arg("--games", "30"), 10)
   const seed0 = parseInt(arg("--seed", "1"), 10)
   const policyName = arg("--policy", "heuristic")
@@ -83,6 +88,7 @@ export function main(): void | Promise<void> {
     const summary = summarize(results, Date.now() - wall0)
     printSummary(summary)
     summaries.push(summary)
+    if (has("--submit")) await submitResults(results, "heuristic")
     if (has("--json")) console.log(JSON.stringify(results, null, 1))
     if (has("--check-gates") && !summary.gatesPass) {
       console.error(`BALANCE GATES FAILED [${policyLabel}] (legacy caps, see above)`)
@@ -99,6 +105,35 @@ export function main(): void | Promise<void> {
   if (failed) process.exit(1)
 }
 
+// submitResults POSTs each finished game to the backend bot endpoint
+// (dev server only). Failures warn and continue — submission is telemetry,
+// never a reason to fail the balance run.
+async function submitResults(
+  results: GameResult[],
+  source: "heuristic" | "systemone",
+  model?: string,
+): Promise<void> {
+  const base = arg("--submit-url", "http://localhost:8080").replace(/\/$/, "")
+  let ok = 0
+  for (const r of results) {
+    const body = { ...r.report, source, ...(model ? { model } : {}) }
+    try {
+      const res = await fetch(`${base}/api/halloween/game/report/bot`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`)
+      ok++
+    } catch (e) {
+      console.error(`submit failed for seed=${r.seed}: ${(e as Error).message}`)
+    }
+  }
+  console.log(
+    `submitted ${ok}/${results.length} [${source}${model ? ` model=${model}` : ""}] to ${base}`,
+  )
+}
+
 async function mainSystemOne(
   config: HalloweenGameConfig,
   games: number,
@@ -106,7 +141,7 @@ async function mainSystemOne(
   dt: number,
 ): Promise<void> {
   const url = arg("--systemone-url", "http://localhost:8000/v1/systemone")
-  const model = argOrNull("--model") ?? undefined
+  const model = arg("--model", DEFAULT_SYSTEMONE_MODEL)
   const timeoutMs = parseInt(arg("--systemone-timeout", "20000"), 10)
   const concurrency = Math.min(Math.max(parseInt(arg("--concurrency", "1"), 10), 1), 10)
   const decisionLog = argOrNull("--decision-log")
@@ -167,6 +202,7 @@ async function mainSystemOne(
     )
     console.log(`wrote ${decisionLog} (${allDecisions.length} decisions)`)
   }
+  if (has("--submit")) await submitResults(results, "systemone", model)
   if (has("--check-gates") && !summary.gatesPass) {
     console.error("BALANCE GATES FAILED [systemone] (legacy caps, see above)")
     process.exit(1)

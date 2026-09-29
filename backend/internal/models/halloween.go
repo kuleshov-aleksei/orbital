@@ -18,6 +18,19 @@ type PumpkinState struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// Game source labels for halloween results: who played the game.
+// "human" is the default for reports without a source (all pre-existing rows).
+const (
+	HalloweenSourceHuman     = "human"
+	HalloweenSourceHeuristic = "heuristic"
+	HalloweenSourceSystemOne = "systemone"
+)
+
+// HalloweenBotUserID is the fixed user_id under which decider-submitted
+// (heuristic/systemone) results are stored. It has no users-table row, so
+// the admin view falls back to the DeletedUserPlaceholder nickname.
+const HalloweenBotUserID = "decider"
+
 // HalloweenSlugKill describes one slug killed during a game.
 type HalloweenSlugKill struct {
 	Type   string  `json:"type"`   // scout | marvin | gerald | dell
@@ -36,6 +49,11 @@ type HalloweenGameReport struct {
 	CoinsSpent      int                 `json:"coins_spent"`
 	XpEarned        int                 `json:"xp_earned"` // global level-up pool telemetry; ignored by scoring
 	IsIncomplete    bool                `json:"is_incomplete"` // tab closed / left the call
+	// Source is who played the game: human (default, also when empty),
+	// heuristic, or systemone. Set by balance-harness submissions.
+	Source string `json:"source"`
+	// Model is the decider model (systemone only), e.g. "winnow:e4b".
+	Model string `json:"model"`
 }
 
 // GameResult is a stored game result row (admin view + leaderboard source).
@@ -47,6 +65,8 @@ type GameResult struct {
 	Score           int       `json:"score"`
 	IsIncomplete    bool      `json:"is_incomplete"`
 	IsCheater       bool      `json:"is_cheater"`
+	Source          string    `json:"source"`
+	Model           string    `json:"model"`
 	ReportJSON      string    `json:"report_json"`
 	RewardJSON      string    `json:"reward_json"`
 	CreatedAt       time.Time `json:"created_at"`
@@ -134,6 +154,8 @@ type HalloweenAdminGame struct {
 	Score           int                       `json:"score"`
 	IsIncomplete    bool                      `json:"is_incomplete"`
 	IsCheater       bool                      `json:"is_cheater"`
+	Source          string                    `json:"source"`
+	Model           string                    `json:"model"`
 	CoinsEarned     int                       `json:"coins_earned"`
 	CoinsSpent      int                       `json:"coins_spent"`
 	KillIncome      int                       `json:"kill_income"`

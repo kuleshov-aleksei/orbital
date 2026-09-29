@@ -235,6 +235,13 @@ CREATE TABLE IF NOT EXISTS halloween_pumpkins (
 			('mouth_crooked', 'Crooked', 'mouth', 'uncommon', 21),
 			('mouth_pumpkin', 'Pumpkin', 'mouth', 'common', 22);`,
 	},
+	{
+		Version: 22,
+		Name:    "add_source_model_to_halloween_game_results",
+		SQL: `ALTER TABLE halloween_game_results ADD COLUMN source TEXT NOT NULL DEFAULT 'human';
+ALTER TABLE halloween_game_results ADD COLUMN model TEXT NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS idx_halloween_game_results_source ON halloween_game_results(source);`,
+	},
 }
 
 func (db *DB) RunMigrations() error {

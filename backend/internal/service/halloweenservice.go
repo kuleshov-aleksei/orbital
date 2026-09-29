@@ -346,7 +346,8 @@ func (s *HalloweenService) UpdatePumpkin(userID string, equippedJSON string) err
 	return s.repo.UpsertPumpkinState(userID, equippedJSON)
 }
 
-// SubmitGame validates a game report, stores the result, and grants rewards.
+// SubmitGame validates a game report, stores the result, and grants rewards
+// (human games only — decider submissions earn nothing).
 // Returns the granted item ids and any informational message.
 func (s *HalloweenService) SubmitGame(userID string, report *models.HalloweenGameReport) (*models.SubmitGameReportResponse, error) {
 	if report.CompletedRounds < 0 {
@@ -354,6 +355,14 @@ func (s *HalloweenService) SubmitGame(userID string, report *models.HalloweenGam
 	}
 	if report.Score < 0 {
 		return nil, errors.New("score cannot be negative")
+	}
+	if report.Source == "" {
+		report.Source = models.HalloweenSourceHuman
+	}
+	switch report.Source {
+	case models.HalloweenSourceHuman, models.HalloweenSourceHeuristic, models.HalloweenSourceSystemOne:
+	default:
+		return nil, errors.New("source must be human, heuristic, or systemone")
 	}
 
 	computed := s.ComputeScore(report)
@@ -365,7 +374,7 @@ func (s *HalloweenService) SubmitGame(userID string, report *models.HalloweenGam
 	granted := []string{}
 	message := ""
 
-	if !cheater {
+	if !cheater && report.Source == models.HalloweenSourceHuman {
 		granted, message = s.pickRewards(userID, report.Score, report.CompletedRounds)
 	}
 
@@ -389,6 +398,8 @@ func (s *HalloweenService) SubmitGame(userID string, report *models.HalloweenGam
 		Score:           report.Score,
 		IsIncomplete:    report.IsIncomplete,
 		IsCheater:       cheater,
+		Source:          report.Source,
+		Model:           report.Model,
 		ReportJSON:      string(reportJSON),
 		RewardJSON:      rewardJSON,
 	}
@@ -627,6 +638,8 @@ func (s *HalloweenService) adminGameFromResult(r *models.GameResult, cfg *Hallow
 		Score:           r.Score,
 		IsIncomplete:    r.IsIncomplete,
 		IsCheater:       r.IsCheater,
+		Source:          r.Source,
+		Model:           r.Model,
 		CoinsEarned:     report.CoinsEarned,
 		CoinsSpent:      report.CoinsSpent,
 		KillIncome:      killIncome,

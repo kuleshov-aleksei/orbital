@@ -143,7 +143,7 @@ Slug max HP compounds every round: HP *= 1.27^(round-1). Round 1 is exactly at b
 
 #### Shielded slugs (elites)
 
-From round 2 on, a configured number of slugs per round arrives shielded (round 1: none). Each shielded slug rolls 3-6 shields. One hit strips exactly one shield and deals no HP damage, regardless of how much damage the shot deals. Slows (beer, salt), freeze, distraction and Herbert heals ignore shields. Annihilation bypasses shields entirely. Shielded slugs render with a cyan ring plus one tick per remaining shield, and the round prompt calls out how many are incoming.
+From round 2 on, a configured number of slugs per round arrives shielded (round 1: none). Each shielded slug rolls 3-6 shields. One hit strips exactly one shield and deals no HP damage, regardless of how much damage the shot deals. Slows (beer puddle, salt), freeze, distraction and Herbert heals ignore shields. Annihilation bypasses shields entirely. Shielded slugs render with a cyan ring plus one tick per remaining shield, and the round prompt calls out how many are incoming.
 
 Every slug moves with slightly different speed (e.g. slug A moves 1% slower than slug B). More in the balance table
 
@@ -155,12 +155,15 @@ All abilities are single use items
 
 - Distraction - all slugs move in an opposite direction (except Dr. Dell Conagher - he does not move at all)
 - Annihilation - instantly kill slug with the most health
-- Freeze - all slugs stops moving for 5 seconds
+- Freeze - all slugs stops moving for 8 seconds
 - "Do not stop, daddy" - Permanently increase shooting speed of a single selected pumkin
 - "Wide pumpkin" - Permanently inreases health pool x2 of a single selected pumpkin
 - "Holy grenade" - player choses a spot to spawn a grenade that will detonate in 3 seconds after landing. It deals damage only to slugs in 300 units radius
-- "Beer" - a cup, placed in the battlefield that attracts slugs. If slug reaches the beer cup, it permanently slows down by 10%. Cup duration is 30 seconds
-- "Salt line" - a salt bottle that creates a vertical line of salt. Any slug that steps on this line slows down by 30%. Line width is 60 units Salt duration is 30 seconds
+- "Beer puddle" - a sticky puddle, placed in the battlefield, that drags slugs toward the cup and slows them by 40% while they wade through it. If a slug reaches the center of the puddle, it gets stuck for 2 seconds (once per slug). Puddle duration is 30 seconds
+- "Salt line" - a salt bottle that creates a vertical line of salt. Any slug that steps on this line slows down by 30%. Line width is 120 units Salt duration is 30 seconds
+- "Tailwind" - all pumpkins shoot 50% faster for 10 seconds
+- "Seed rain" - instantly gain 100 coins
+- "Thorn patch" - a patch of thorns, placed in the battlefield, that damages slugs crossing it (8 damage per second across all lanes at that x). Patch width is 120 units, duration is 20 seconds
 
 #### Ability balance table
 
@@ -168,8 +171,11 @@ All abilities are single use items
 |-|-|
 | Annihilation | Full health | 70% of regular reward for killing current slug type | 
 | Holy grenade | 50 | 80% of regular reward for killing current slug type | 
-| Beer | 0 | 0 |
+| Beer puddle | 0 | 0 |
 | Salt line | 0 | 0 |
+| Tailwind | 0 | 0 |
+| Seed rain | 0 | 0 |
+| Thorn patch | 8 per second | 80% of regular reward for killing current slug type |
 
 Slug position do not impact score for killing slugs using abilities. Score is rewarded only for killing the slug, not for using the item.
 
@@ -177,11 +183,10 @@ Slug position do not impact score for killing slugs using abilities. Score is re
 
 Game is round based. Each round predetermined pool of slug spawns. Deeper the game - more slugs.
 Round end condition: all slugs destroyed - round win. All pumkins destroyed - game over
-After each round a popup appears. Popup contains a choice of 3 random cards:
-- 1 Pumking card - item that spawns a pumkin in a selected place
-- 1 Ability card - item that uses an ability from list above
-- 1 random card - pumkin OR ability
-Card is selected randomly from available ability + pumkin pool (all described above, including card-exclusive PEARcer) and shown to a player
+After each round a popup appears. Popup contains a choice of 3 random cards
+(pick 1, as before): usually an ability, rarely (15%) the card-exclusive
+PEARcer piercing sniper (never sold in the shop). All other pumpkins are
+shop-only and never appear as cards.
 
 1 round - 1 popup
 2 round - 2 popups

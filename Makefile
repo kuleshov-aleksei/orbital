@@ -257,6 +257,10 @@ balance-check: balance-drift
 	@echo "Running heuristic balance gates (200 games)..."
 	./frontend/node_modules/.bin/jiti tools/halloween-balance/run.cjs -- --policy heuristic --games 200 --seed 1 --check-gates
 
+balance-systemone:
+	@echo "Running systemone decider games (10 games, sequential)..."
+	./frontend/node_modules/.bin/jiti tools/halloween-balance/run.cjs -- --policy systemone --games 10 --seed 1 --concurrency 1 --model winnow:e4b --submit
+
 build-electron-all:
 	@echo "Installing electron dependencies..."
 	cd electron && pnpm install

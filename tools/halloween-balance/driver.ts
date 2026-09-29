@@ -1,7 +1,7 @@
 // Headless game driver: fixed-timestep loop, no renderer, no sounds.
 // One tick = dt sim-seconds; the engine clamps dt to 0.25 internally.
 import { HalloweenGameEngine } from "../../frontend/src/halloween/game/engine"
-import type { HalloweenGameConfig } from "../../frontend/src/halloween/types"
+import type { HalloweenGameConfig, HalloweenGameReport } from "../../frontend/src/halloween/types"
 import { mulberry32 } from "./rng"
 import type { Policy } from "./policies"
 
@@ -29,6 +29,7 @@ export interface GameResult {
   xpRemaining: number // unspent XP at game end
   levelUps: number // level-up purchases bought (counted live, incl. pumpkins that later died)
   pumpkinsByLevel: Record<number, number> // live field split, e.g. {1: n, 2: n, 3: n}
+  report: HalloweenGameReport // raw engine report — the backend submission payload
   endPhase: string
   gameOverReason: string | null
 }
@@ -240,6 +241,7 @@ function finishGame(
     xpRemaining: final.xp,
     levelUps,
     pumpkinsByLevel,
+    report,
     endPhase: final.phase,
     gameOverReason: final.gameOverReason,
   }

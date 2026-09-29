@@ -1,10 +1,39 @@
 <template>
   <div class="space-y-6">
+    <!-- Source / model filter — applies to the whole view below -->
+    <div class="flex flex-wrap items-center gap-3">
+      <label class="text-xs font-medium text-gray-400">
+        Source
+        <select
+          v-model="sourceFilter"
+          class="ml-1 bg-gray-900 border border-gray-700 rounded text-sm text-white px-2 py-1.5">
+          <option value="all">All</option>
+          <option value="human">Human</option>
+          <option value="heuristic">Heuristic</option>
+          <option value="systemone">SystemOne</option>
+        </select>
+      </label>
+      <label
+        v-if="sourceFilter === 'all' || sourceFilter === 'systemone'"
+        class="text-xs font-medium text-gray-400">
+        Model
+        <select
+          v-model="modelFilter"
+          class="ml-1 bg-gray-900 border border-gray-700 rounded text-sm text-white px-2 py-1.5">
+          <option value="all">All</option>
+          <option v-for="m in availableModels" :key="m" :value="m">{{ m }}</option>
+        </select>
+      </label>
+      <span class="text-xs text-gray-500">
+        {{ filteredGames.length }} of {{ games.length }} games
+      </span>
+    </div>
+
     <!-- Summary cards -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
       <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
         <div class="text-sm text-gray-400">Total games</div>
-        <div class="text-2xl font-bold text-white mt-1">{{ games.length }}</div>
+        <div class="text-2xl font-bold text-white mt-1">{{ filteredGames.length }}</div>
       </div>
       <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
         <div class="text-sm text-gray-400">Avg score</div>
@@ -78,12 +107,12 @@
         </button>
       </div>
 
-      <div v-if="games.length === 0" class="p-8 text-center text-gray-400">
+      <div v-if="filteredGames.length === 0" class="p-8 text-center text-gray-400">
         No rounds played yet
       </div>
 
       <div v-else class="divide-y divide-gray-700">
-        <div v-for="game in games" :key="game.id" class="p-4">
+        <div v-for="game in filteredGames" :key="game.id" class="p-4">
           <button
             type="button"
             class="w-full flex items-center justify-between gap-3 text-left"
@@ -97,6 +126,12 @@
                 #{{ game.id }}
               </span>
               <span class="font-medium text-white truncate">{{ game.nickname }}</span>
+              <span
+                class="text-[11px] px-2 py-0.5 rounded-full font-semibold"
+                :class="sourceClass(gameSource(game))">
+                {{ gameSource(game) }}
+              </span>
+              <span v-if="game.model" class="text-xs text-gray-400 truncate">{{ game.model }}</span>
               <span v-if="game.is_cheater" class="text-xs text-red-400 font-semibold">Cheater</span>
               <span v-if="game.is_incomplete" class="text-xs text-gray-500">Incomplete</span>
             </div>
@@ -302,12 +337,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue"
+import { ref, computed, onMounted, watch } from "vue"
 import { apiService } from "@/services/api"
 import { useUserStore } from "@/stores"
 import { storeToRefs } from "pinia"
 import type { User } from "@/types"
-import type { HalloweenAdminGame, HalloweenAdminReward, HalloweenItem } from "@/halloween/types"
+import type {
+  HalloweenAdminGame,
+  HalloweenAdminReward,
+  HalloweenGameSource,
+  HalloweenItem,
+} from "@/halloween/types"
 import PieChart from "./PieChart.vue"
 import BarChart from "./BarChart.vue"
 
@@ -324,6 +364,49 @@ const rewards = ref<HalloweenAdminReward[]>([])
 const items = ref<HalloweenItem[]>([])
 const loading = ref(false)
 
+const sourceFilter = ref<"all" | HalloweenGameSource>("all")
+const modelFilter = ref<string>("all")
+
+// Rows visible under the current source/model filter. Every chart and
+// summary on this page reads from here, so the whole view stays consistent.
+const filteredGames = computed(() => {
+  return games.value.filter((g) => {
+    const source = g.source || "human"
+    if (sourceFilter.value !== "all" && source !== sourceFilter.value) return false
+    if (modelFilter.value !== "all" && (g.model ?? "") !== modelFilter.value) return false
+    return true
+  })
+})
+
+// Distinct decider models present in the loaded games (systemone rows only).
+const availableModels = computed(() => {
+  const models = new Set<string>()
+  for (const g of games.value) {
+    if (g.source === "systemone" && g.model) models.add(g.model)
+  }
+  return [...models].sort()
+})
+
+// A model selection only applies to systemone rows — drop it when the
+// source filter moves elsewhere.
+watch(sourceFilter, (source) => {
+  if (source !== "all" && source !== "systemone") modelFilter.value = "all"
+})
+
+const gameSource = (g: HalloweenAdminGame): HalloweenGameSource => g.source || "human"
+
+const sourceClass = (source: HalloweenGameSource): string => {
+  switch (source) {
+    case "systemone":
+      return "bg-emerald-500/15 text-emerald-300"
+    case "heuristic":
+      return "bg-indigo-500/15 text-indigo-300"
+    case "human":
+    default:
+      return "bg-gray-700 text-gray-300"
+  }
+}
+
 const expanded = ref<Set<number>>(new Set())
 
 const grantUserId = ref("")
@@ -332,12 +415,12 @@ const granting = ref(false)
 const grantError = ref("")
 const grantMessage = ref("")
 
-const cheaterCount = computed(() => games.value.filter((g) => g.is_cheater).length)
+const cheaterCount = computed(() => filteredGames.value.filter((g) => g.is_cheater).length)
 
 const avgScore = computed(() => {
-  if (!games.value.length) return "—"
-  const total = games.value.reduce((sum, g) => sum + g.score, 0)
-  return Math.round(total / games.value.length).toString()
+  if (!filteredGames.value.length) return "—"
+  const total = filteredGames.value.reduce((sum, g) => sum + g.score, 0)
+  return Math.round(total / filteredGames.value.length).toString()
 })
 
 const toggle = (id: number) => {
@@ -443,8 +526,8 @@ const rarityClass = (rarity: string): string => {
 }
 
 const incomePie = computed(() => {
-  const kills = games.value.reduce((sum, g) => sum + g.kill_income, 0)
-  const cramer = games.value.reduce((sum, g) => sum + g.cramer_income, 0)
+  const kills = filteredGames.value.reduce((sum, g) => sum + g.kill_income, 0)
+  const cramer = filteredGames.value.reduce((sum, g) => sum + g.cramer_income, 0)
   if (kills === 0 && cramer === 0)
     return { labels: [] as string[], values: [] as number[], colors: [] as string[] }
   return {
@@ -454,7 +537,7 @@ const incomePie = computed(() => {
   }
 })
 
-const lastGames = computed(() => games.value.slice(0, 12).reverse())
+const lastGames = computed(() => filteredGames.value.slice(0, 12).reverse())
 
 const perGameIncome = computed(() => {
   const labels = lastGames.value.map((g) => `#${g.id}`)
@@ -478,7 +561,9 @@ const perGameIncome = computed(() => {
 const killsByTypeData = computed(() => {
   const types = ["scout", "marvin", "gerald", "dell"]
   const labels = types.map(slugName)
-  const data = types.map((t) => games.value.reduce((sum, g) => sum + (g.kills_by_type[t] ?? 0), 0))
+  const data = types.map((t) =>
+    filteredGames.value.reduce((sum, g) => sum + (g.kills_by_type[t] ?? 0), 0),
+  )
   return {
     labels,
     datasets: [{ label: "Kills", data, backgroundColor: "#fbbf24" }],

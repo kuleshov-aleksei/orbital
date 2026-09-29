@@ -145,10 +145,10 @@ func (r *HalloweenRepository) SubmitGameResult(result *models.GameResult, grante
 	var gameID int64
 	err := r.db.Transaction(func(tx *sql.Tx) error {
 		res, err := tx.Exec(
-			`INSERT INTO halloween_game_results (user_id, completed_rounds, score, is_incomplete, is_cheater, report_json, reward_json)
-			 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			`INSERT INTO halloween_game_results (user_id, completed_rounds, score, is_incomplete, is_cheater, source, model, report_json, reward_json)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			result.UserID, result.CompletedRounds, result.Score, result.IsIncomplete, result.IsCheater,
-			result.ReportJSON, result.RewardJSON,
+			result.Source, result.Model, result.ReportJSON, result.RewardJSON,
 		)
 		if err != nil {
 			return err
@@ -184,7 +184,7 @@ func (r *HalloweenRepository) GetLeaderboard(limit int) ([]*models.HalloweenLead
 		`SELECT gr.user_id, COALESCE(u.nickname, ?) AS nickname, MAX(gr.score) AS best_score, MAX(gr.completed_rounds) AS completed_rounds
 		 FROM halloween_game_results gr
 		 LEFT JOIN users u ON u.id = gr.user_id
-		 WHERE gr.is_cheater = 0
+		 WHERE gr.is_cheater = 0 AND gr.source = 'human'
 		 GROUP BY gr.user_id
 		 ORDER BY best_score DESC
 		 LIMIT ?`,
@@ -209,7 +209,7 @@ func (r *HalloweenRepository) GetLeaderboard(limit int) ([]*models.HalloweenLead
 func (r *HalloweenRepository) GetAllGameResults() ([]*models.GameResult, error) {
 	rows, err := r.db.Query(
 		`SELECT gr.id, gr.user_id, COALESCE(u.nickname, ?) AS nickname, gr.completed_rounds, gr.score,
-		        gr.is_incomplete, gr.is_cheater, gr.report_json, gr.reward_json, gr.created_at
+		        gr.is_incomplete, gr.is_cheater, gr.source, gr.model, gr.report_json, gr.reward_json, gr.created_at
 		 FROM halloween_game_results gr
 		 LEFT JOIN users u ON u.id = gr.user_id
 		 ORDER BY gr.created_at DESC`,
@@ -228,7 +228,8 @@ func (r *HalloweenRepository) GetAllGameResults() ([]*models.GameResult, error) 
 
 		if err := rows.Scan(
 			&result.ID, &result.UserID, &result.Nickname, &result.CompletedRounds, &result.Score,
-			&result.IsIncomplete, &result.IsCheater, &result.ReportJSON, &rewardJSON, &createdAt,
+			&result.IsIncomplete, &result.IsCheater, &result.Source, &result.Model,
+			&result.ReportJSON, &rewardJSON, &createdAt,
 		); err != nil {
 			return nil, err
 		}

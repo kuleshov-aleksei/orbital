@@ -97,6 +97,31 @@ func (h *HalloweenHandler) SubmitGame(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+// SubmitBotGame stores a decider-submitted game result (balance harness).
+// Development only, no auth. Only heuristic/systemone sources are accepted;
+// no rewards are granted and the row is attributed to HalloweenBotUserID.
+func (h *HalloweenHandler) SubmitBotGame(w http.ResponseWriter, r *http.Request) {
+	var report models.HalloweenGameReport
+	if err := json.NewDecoder(r.Body).Decode(&report); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if report.Source != models.HalloweenSourceHeuristic &&
+		report.Source != models.HalloweenSourceSystemOne {
+		http.Error(w, "source must be heuristic or systemone", http.StatusBadRequest)
+		return
+	}
+
+	response, err := h.halloweenService.SubmitGame(models.HalloweenBotUserID, &report)
+	if err != nil {
+		http.Error(w, "Failed to submit game: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
 // GetLeaderboard returns the highest scores across all users.
 func (h *HalloweenHandler) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 	entries, err := h.halloweenService.GetLeaderboard()

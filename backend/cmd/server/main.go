@@ -204,6 +204,10 @@ func main() {
 		halloweenRouter.HandleFunc("/game/config", halloweenHandler.GetConfig).Methods("GET")
 		halloweenRouter.HandleFunc("/game/report", halloweenHandler.SubmitGame).Methods("POST")
 		halloweenRouter.HandleFunc("/leaderboard", halloweenHandler.GetLeaderboard).Methods("GET")
+		// Decider submissions from the balance harness (development only, no auth).
+		if cfg.IsDevelopment() {
+			r.HandleFunc("/api/halloween/game/report/bot", halloweenHandler.SubmitBotGame).Methods("POST")
+		}
 	}
 
 	// LiveKit routes (protected)
