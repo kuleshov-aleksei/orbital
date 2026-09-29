@@ -75,6 +75,7 @@ export async function askChoice(
   const maxRetries = opts.maxRetries ?? 3
   const body: Record<string, unknown> = {
     state,
+    model: "winnow:e4b",
     questions: { [questionId]: question },
   }
   if (opts.model) body.model = opts.model
