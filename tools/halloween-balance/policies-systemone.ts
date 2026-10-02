@@ -111,12 +111,12 @@ export class SystemOnePolicy implements Policy {
   private readonly lastAsked = new Map<AbilityId, number>()
   /** Alive-field signature seen at the last buff-ability ask. */
   private readonly buffSig = new Map<AbilityId, string>()
-  /** Ticks between repeat asks for combat abilities (~10 decision windows). */
+  /** Ticks between repeat asks for combat abilities (~2.5 decision windows). */
   private static readonly ASK_COOLDOWN_TICKS = 150
   /** Tick of the last `place_which` hold answer (spam guard). */
   private placeHoldTick = -Infinity
   /** Ticks to wait before re-asking place_which after a hold answer
-   * (~4 decision windows, ~2 sim-seconds: cuts decider spam while staying
+   * (~1 decision window, ~2 sim-seconds: cuts decider spam while staying
    * reactive to leaks). */
   private static readonly PLACE_HOLD_COOLDOWN_TICKS = 60
   /** Tick of the last `buy_decision` hold answer (spam guard). A buy hold
@@ -134,7 +134,11 @@ export class SystemOnePolicy implements Policy {
   constructor(opts: SystemOnePolicyOptions) {
     const { actEveryNTicks, recordDetails, ...client } = opts
     this.opts = client
-    this.actEvery = actEveryNTicks ?? 15
+    // One decision cycle every 2 sim-seconds. The inner phase loops still
+    // act back-to-back within a cycle — only the between-burst frequency
+    // drops, which is ~4x fewer decider calls with no gameplay cost (waves,
+    // kills and income move on a 10-60s scale; slugs take ~10s to cross).
+    this.actEvery = actEveryNTicks ?? 60
     this.recordDetails = recordDetails ?? false
   }
 
