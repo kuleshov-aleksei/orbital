@@ -220,6 +220,17 @@ export function useLiveKitAudio(state: LiveKitState) {
       return
     }
 
+    // The signal connection is down while reconnecting - any mute op would throw
+    // (e.g. SignalRequestError from the metadata update) as an unhandled rejection.
+    // Skip it: the intent is preserved in the call store and re-synced after
+    // reconnect by recoverLocalAudioAfterReconnect().
+    if (state.isReconnecting.value) {
+      debugLog(
+        `[LiveKit][INFO]: Skipping mute apply while reconnecting - will re-sync after reconnect`,
+      )
+      return
+    }
+
     try {
       if (state.localAudioTrack.value) {
         debugLog(`[LiveKit][INFO]: Applying mute: ${muted}, using stored track`)

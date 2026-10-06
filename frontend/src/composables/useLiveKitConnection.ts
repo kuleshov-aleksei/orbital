@@ -1,4 +1,5 @@
 import { Room, Track, AudioPresets } from "livekit-client"
+import type { ReconnectPolicy, ReconnectContext } from "livekit-client"
 import { apiService } from "@/services/api"
 import { usePresenceStore } from "@/stores/presence"
 import { useCallStore } from "@/stores/call"
@@ -11,7 +12,25 @@ export interface UseLiveKitConnectionDependencies {
   publishAudioTrack: () => Promise<void>
 }
 
+// Retry roughly every 1-2s (1000ms + up to 1s jitter) for up to
+// MAX_RECONNECT_ATTEMPTS. Combined with the short signal/PC timeouts passed to
+// connect(), attempts tick over about every 5 seconds - enough to ride through
+// multi-minute network blackouts at the SDK level.
+const MAX_RECONNECT_ATTEMPTS = 100
+
+class OrbitalReconnectPolicy implements ReconnectPolicy {
+  nextRetryDelayInMs(context: ReconnectContext): number | null {
+    if (context.retryCount >= MAX_RECONNECT_ATTEMPTS) return null
+    return 1000 + Math.random() * 1000
+  }
+}
+
 export function useLiveKitConnection(state: LiveKitState, deps: UseLiveKitConnectionDependencies) {
+  // True once the user (or unmount) asked to leave - distinguishes an expected
+  // CLIENT_INITIATED disconnect from an unexpected drop.
+  let manualLeave = false
+
+  const isManualLeave = (): boolean => manualLeave
   const connectToRoom = async (
     token: string,
     url: string,
@@ -30,6 +49,7 @@ export function useLiveKitConnection(state: LiveKitState, deps: UseLiveKitConnec
         adaptiveStream: true,
         dynacast: true,
         disconnectOnPageLeave: false,
+        reconnectPolicy: new OrbitalReconnectPolicy(),
         publishDefaults: {
           simulcast: true,
           screenShareEncoding: {
@@ -44,6 +64,9 @@ export function useLiveKitConnection(state: LiveKitState, deps: UseLiveKitConnec
 
       await lkRoom.connect(url, token, {
         autoSubscribe: false,
+        // Fail hung signal/PC attempts fast so the retry policy ticks over ~every 5s.
+        websocketTimeout: 4000,
+        peerConnectionTimeout: 8000,
       })
 
       debugLog(
@@ -118,6 +141,10 @@ export function useLiveKitConnection(state: LiveKitState, deps: UseLiveKitConnec
     try {
       debugLog(`[LiveKit][INFO]: 'Initializing LiveKit...' (t=0ms)`)
 
+      // Fresh (re)join - clear any failure banner and the manual-leave marker.
+      manualLeave = false
+      state.connectionFailed.value = false
+
       const response = await apiService.getLiveKitToken(roomId)
       const tokenTime = performance.now() - startTime
       debugLog(
@@ -142,6 +169,8 @@ export function useLiveKitConnection(state: LiveKitState, deps: UseLiveKitConnec
   const cleanup = () => {
     debugLog(`[LiveKit][INFO]: 'Cleaning up LiveKit...'`)
 
+    manualLeave = true
+    state.connectionFailed.value = false
     stopReconnectingLoop()
 
     const currentRoom = state.room.value
@@ -168,5 +197,6 @@ export function useLiveKitConnection(state: LiveKitState, deps: UseLiveKitConnec
     connectToRoom,
     initializeLiveKit,
     cleanup,
+    isManualLeave,
   }
 }

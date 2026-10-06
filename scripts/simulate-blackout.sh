@@ -13,8 +13,8 @@
 #
 # Usage:
 #   sudo ./scripts/simulate-blackout.sh [seconds] [--dry-run]
-#   sudo ./scripts/simulate-blackout.sh 15
-#   sudo ./scripts/simulate-blackout.sh 15 --dry-run
+#   sudo ./scripts/simulate-blackout.sh 25
+#   sudo ./scripts/simulate-blackout.sh 25 --dry-run
 #
 # Safety:
 #   - Must run as root (iptables requires it).
@@ -24,7 +24,7 @@
 
 set -u
 
-SECONDS_TO_BLOCK="${1:-15}"
+SECONDS_TO_BLOCK="${1:-25}"
 DRY_RUN=false
 for arg in "$@"; do
   if [ "$arg" = "--dry-run" ] || [ "$arg" = "-n" ]; then
@@ -35,7 +35,7 @@ done
 # Validate seconds (positive integer)
 if ! [[ "$SECONDS_TO_BLOCK" =~ ^[0-9]+$ ]] || [ "$SECONDS_TO_BLOCK" -le 0 ]; then
   echo "Usage: sudo $0 [seconds] [--dry-run]" >&2
-  echo "  seconds must be a positive integer (default: 15)" >&2
+  echo "  seconds must be a positive integer (default: 25)" >&2
   exit 1
 fi
 

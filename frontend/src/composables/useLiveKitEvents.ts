@@ -1,4 +1,5 @@
 import { RoomEvent, Track } from "livekit-client"
+import { DisconnectReason } from "livekit-client"
 import type {
   Room,
   RemoteParticipant,
@@ -15,6 +16,12 @@ import type { LiveKitState } from "./useLiveKitState"
 export interface UseLiveKitEventsDependencies {
   /** Called after the room reconnects, to verify/repair the local audio pipeline */
   onRoomReconnected?: () => Promise<boolean> | boolean | Promise<void> | void
+  /** True when the user asked to leave - an expected disconnect, not a drop */
+  isManualLeave?: () => boolean
+  /** Called when (signal) reconnecting starts - supervisor begins watching */
+  onReconnectStarted?: () => void
+  /** Called when reconnecting ends (recovered, terminal, or user left) */
+  onReconnectSettled?: () => void
 }
 
 export function useLiveKitEvents(state: LiveKitState, deps?: UseLiveKitEventsDependencies) {
@@ -166,6 +173,29 @@ export function useLiveKitEvents(state: LiveKitState, deps?: UseLiveKitEventsDep
         state.cameraVersion.value++
       }
     }
+  }
+
+  // Reconnect diagnostics: SDK retry attempt count + periodic state log so a
+  // stalled retry chain is visible in the console instead of silent.
+  let reconnectDiagTimer: ReturnType<typeof setInterval> | null = null
+  let reconnectCount = 0
+
+  const stopReconnectDiagnostics = () => {
+    if (reconnectDiagTimer) {
+      clearInterval(reconnectDiagTimer)
+      reconnectDiagTimer = null
+    }
+    reconnectCount = 0
+  }
+
+  // The SDK emits RoomEvent.Reconnecting only once per cycle while its engine
+  // keeps retrying internally - read the engine's real attempt count so the
+  // logs don't look stuck. Falls back to our own counter if unreachable.
+  const sdkAttemptCount = (lkRoom: Room): number => {
+    const engineAttempts = (lkRoom as unknown as { engine?: { reconnectAttempts?: number } }).engine
+      ?.reconnectAttempts
+    if (typeof engineAttempts === "number" && engineAttempts >= 0) return engineAttempts + 1
+    return reconnectCount
   }
 
   const setupRoomEventListeners = (lkRoom: Room) => {
@@ -378,23 +408,78 @@ export function useLiveKitEvents(state: LiveKitState, deps?: UseLiveKitEventsDep
 
     lkRoom.on(RoomEvent.Disconnected, async (reason) => {
       debugWarn(`[LiveKit][WARN]: Disconnected from room: ${reason || "unknown reason"}`)
-      stopReconnectingLoop()
+      stopReconnectDiagnostics()
       state.isConnected.value = false
+
+      // User-initiated leave (room switch / unmount / leave button) - full stop.
+      if (reason === DisconnectReason.CLIENT_INITIATED && deps?.isManualLeave?.()) {
+        stopReconnectingLoop()
+        state.isReconnecting.value = false
+        state.connectionFailed.value = false
+        callStore.setReconnecting(false)
+        deps?.onReconnectSettled?.()
+        return
+      }
+
+      // Our own supervisor-forced teardown (CLIENT_INITIATED but not manual):
+      // stay in reconnecting mode, the forced rejoin is already in flight.
+      if (reason === DisconnectReason.CLIENT_INITIATED) {
+        return
+      }
+
+      // Unexpected drop after the SDK exhausted its retries: nothing more will
+      // retry automatically - surface "connection lost" with a manual Retry.
+      debugWarn(`[LiveKit][WARN]: Unexpected disconnect - showing connection lost state`)
+      stopReconnectingLoop()
       state.isReconnecting.value = false
+      state.connectionFailed.value = true
       callStore.setReconnecting(false)
+      deps?.onReconnectSettled?.()
     })
 
     lkRoom.on(RoomEvent.Reconnecting, () => {
-      debugWarn(`[LiveKit][WARN]: 'Reconnecting to room...'`)
+      reconnectCount++
+      debugWarn(
+        `[LiveKit][WARN]: 'Reconnecting to room...' (attempt ${sdkAttemptCount(lkRoom)}, room state: ${lkRoom.state})`,
+      )
       state.isReconnecting.value = true
       callStore.setReconnecting(true)
       startReconnectingLoop()
+      deps?.onReconnectStarted?.()
+      if (!reconnectDiagTimer) {
+        reconnectDiagTimer = setInterval(() => {
+          debugWarn(
+            `[LiveKit][WARN]: Still reconnecting (attempt ${sdkAttemptCount(lkRoom)}, room state: ${lkRoom.state})`,
+          )
+        }, 10_000)
+      }
+    })
+
+    // Signal-only blip: the SDK emits this before escalating to Reconnecting
+    // (only if media fails too). Same treatment so pure-signal drops show state.
+    lkRoom.on(RoomEvent.SignalReconnecting, () => {
+      debugWarn(
+        `[LiveKit][WARN]: 'Signal reconnecting...' (attempt ${sdkAttemptCount(lkRoom)}, room state: ${lkRoom.state})`,
+      )
+      state.isReconnecting.value = true
+      callStore.setReconnecting(true)
+      startReconnectingLoop()
+      deps?.onReconnectStarted?.()
+      if (!reconnectDiagTimer) {
+        reconnectDiagTimer = setInterval(() => {
+          debugWarn(
+            `[LiveKit][WARN]: Still reconnecting (attempt ${sdkAttemptCount(lkRoom)}, room state: ${lkRoom.state})`,
+          )
+        }, 10_000)
+      }
     })
 
     lkRoom.on(RoomEvent.Reconnected, async () => {
       debugLog(`[LiveKit][INFO]: 'Reconnected to room'`)
+      stopReconnectDiagnostics()
       stopReconnectingLoop()
       playReconnected()
+      deps?.onReconnectSettled?.()
 
       // The SDK restarts the local audio track (and its noise suppression
       // processor) during reconnect; if that failed, the mic stays dead while

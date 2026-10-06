@@ -409,6 +409,11 @@ export const usePresenceStore = defineStore("presence", () => {
     watch(
       () => [callStore.isMuted, callStore.isDeafened] as const,
       ([newMuted, newDeafened]) => {
+        // While LiveKit is reconnecting the signal connection is down - any
+        // participant/metadata op would fail as an unhandled rejection. Skip the
+        // LiveKit calls; presence still syncs over the backend WebSocket, and the
+        // track mute state re-syncs after reconnect.
+        if (callStore.isReconnecting) return
         void updateLocalAttributes({
           is_muted: newMuted,
           is_deafened: newDeafened,
