@@ -62,9 +62,9 @@ const soundPacks: Record<string, SoundPack> = {
 
 const spriteUrls: Record<string, string[]> = {
   default: [
-    "/assets/sounds/sprite/snd-lib-sine/audioSprite.ogg",
-    "/assets/sounds/sprite/snd-lib-sine/audioSprite.m4a",
-    "/assets/sounds/sprite/snd-lib-sine/audioSprite.mp3",
+    "/assets/sounds/sprite/default/default.ogg",
+    "/assets/sounds/sprite/default/default.m4a",
+    "/assets/sounds/sprite/default/default.mp3",
   ],
   jd_sherbert: [
     "/assets/sounds/sprite/jd_sherbert/jd_sherbert.ogg",
@@ -357,10 +357,11 @@ function scheduleReconnectTick(): void {
   // picks up the new pack's timing (or stops if the new pack has no sprite).
   const duration = getSoundDuration(getUserSoundPack(), "reconnecting")
   if (!duration) return
+
   reconnectLoopTimer = setTimeout(() => {
     playLocalSound("reconnecting")
     scheduleReconnectTick()
-  }, duration)
+  }, duration + 1000)
 }
 
 /**
