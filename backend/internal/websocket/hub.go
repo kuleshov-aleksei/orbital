@@ -114,22 +114,35 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 		lastPingTime: time.Now(),
 	}
 
-	// Extract and validate JWT token if auth service is available
-	if h.authService != nil {
-		token := r.URL.Query().Get("token")
-		if token != "" {
-			claims, err := h.authService.ValidateJWT(token)
-			if err != nil {
-				log.Printf("WebSocket token validation failed: %v", err)
-				conn.Close()
-				return
-			}
-			client.mu.Lock()
-			client.userID = claims.UserID
-			client.mu.Unlock()
-			log.Printf("WebSocket client authenticated with userID: %s", claims.UserID)
-		}
+	// JWT authentication is mandatory: no token means no connection.
+	// Client-supplied user IDs in messages are never trusted (see handlePing/handleJoinRoom).
+	if h.authService == nil {
+		log.Printf("WebSocket connection rejected (roomID=%q): auth service unavailable", roomID)
+		conn.Close()
+		return
 	}
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		log.Printf("WebSocket connection rejected (roomID=%q): missing token", roomID)
+		conn.Close()
+		return
+	}
+	claims, err := h.authService.ValidateJWT(token)
+	if err != nil {
+		log.Printf("WebSocket connection rejected (roomID=%q): token validation failed: %v", roomID, err)
+		conn.Close()
+		return
+	}
+	if claims.UserID == "" {
+		log.Printf("WebSocket connection rejected (roomID=%q): token has empty userID", roomID)
+		conn.Close()
+		return
+	}
+	client.mu.Lock()
+	client.userID = claims.UserID
+	client.mu.Unlock()
+	userID := claims.UserID
+	log.Printf("WebSocket client authenticated with userID: %s", userID)
 
 	// Add client to the clients map FIRST (before broadcasting)
 	// This ensures the client will receive broadcasts
@@ -142,59 +155,42 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 			h.roomClients[roomID] = make(map[*Client]bool)
 		}
 		h.roomClients[roomID][client] = true
-		client.mu.RLock()
-		userID := client.userID
-		client.mu.RUnlock()
 		log.Printf("WebSocket client connected to room %s (user: %s, total clients: %d)", roomID, userID, len(h.clients))
 	} else {
-		client.mu.RLock()
-		userID := client.userID
-		client.mu.RUnlock()
 		log.Printf("WebSocket client connected for global broadcasts (user: %s, total clients: %d)", userID, len(h.clients))
 	}
 	h.mu.Unlock()
 
 	// Apply any pending admin stats subscriptions for this user
-	client.mu.RLock()
-	uid := client.userID
-	client.mu.RUnlock()
-	if uid != "" {
-		h.applyPendingAdminSubs(client, uid)
-	}
+	h.applyPendingAdminSubs(client, userID)
 
-	// Mark user as online if they have a valid userID
-	client.mu.RLock()
-	userID := client.userID
-	client.mu.RUnlock()
-	if userID != "" {
-		h.UpdateUserPing(userID)
-		log.Printf("[WebSocket] User %s marked as online", userID)
+	// Mark user as online (userID is guaranteed non-empty: unauthenticated
+	// connections are rejected above)
+	h.UpdateUserPing(userID)
+	log.Printf("[WebSocket] User %s marked as online", userID)
 
-		// Broadcast user online status with full user data to all connected clients
-		if h.authService != nil {
-			user, err := h.authService.GetUserByID(userID)
-			if err != nil {
-				log.Printf("[WebSocket] Failed to get user %s for broadcast: %v", userID, err)
-			} else if user == nil {
-				log.Printf("[WebSocket] User %s not found in database", userID)
-			} else {
-				log.Printf("[WebSocket] Broadcasting user_online for %s (%s) to %d clients", userID, user.Nickname, len(h.clients))
-				h.BroadcastToAll(models.WebSocketMessage{
-					Type: "user_online",
-					Data: models.PublicUser{
-						ID:        user.ID,
-						Nickname:  user.Nickname,
-						AvatarURL: user.AvatarURL,
-						Role:      user.Role,
-						IsOnline:  true,
-					},
-				})
-			}
+	// Broadcast user online status with full user data to all connected clients
+	if h.authService != nil {
+		user, err := h.authService.GetUserByID(userID)
+		if err != nil {
+			log.Printf("[WebSocket] Failed to get user %s for broadcast: %v", userID, err)
+		} else if user == nil {
+			log.Printf("[WebSocket] User %s not found in database", userID)
 		} else {
-			log.Printf("[WebSocket] Cannot broadcast user_online: authService is nil")
+			log.Printf("[WebSocket] Broadcasting user_online for %s (%s) to %d clients", userID, user.Nickname, len(h.clients))
+			h.BroadcastToAll(models.WebSocketMessage{
+				Type: "user_online",
+				Data: models.PublicUser{
+					ID:        user.ID,
+					Nickname:  user.Nickname,
+					AvatarURL: user.AvatarURL,
+					Role:      user.Role,
+					IsOnline:  true,
+				},
+			})
 		}
 	} else {
-		log.Printf("[WebSocket] Client connected without userID, waiting for authentication via ping")
+		log.Printf("[WebSocket] Cannot broadcast user_online: authService is nil")
 	}
 
 	// Start goroutines for this client FIRST so they can receive messages
@@ -203,7 +199,7 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 
 	// Send initial online users list to the new client (after writePump starts)
 	log.Printf("[WebSocket] HandleWebSocket: roomID=%q, userID=%q", roomID, userID)
-	if roomID == "" && userID != "" {
+	if roomID == "" {
 		log.Printf("[WebSocket] Sending initial data to user %s (global ws)", userID)
 		onlineUserIDs := h.GetOnlineUsers()
 		log.Printf("[WebSocket] Preparing initial online_users list for %s: %d users online", userID, len(onlineUserIDs))
@@ -623,9 +619,30 @@ func (c *Client) handleJoinRoom(data interface{}) {
 	json.Unmarshal(jsonData, &req)
 
 	c.mu.Lock()
-	c.userID = req.UserID
 	c.lastPingTime = time.Now() // Reset ping time on join to prevent immediate timeout
 	c.mu.Unlock()
+
+	c.mu.RLock()
+	userID := c.userID // Authenticated at connection time; never trust req.UserID
+	c.mu.RUnlock()
+
+	if userID == "" {
+		log.Printf("[WebSocket] Rejecting join_room for room %s: unauthenticated client", c.roomID)
+		return
+	}
+	if req.UserID != "" && req.UserID != userID {
+		log.Printf("[WebSocket] Rejecting join_room: user_id mismatch (authenticated=%s, requested=%s)", userID, req.UserID)
+		return
+	}
+
+	nickname := req.Nickname
+	if nickname == "" {
+		if len(userID) >= 8 {
+			nickname = "User-" + userID[:8]
+		} else {
+			nickname = "User-" + userID
+		}
+	}
 
 	// Create LiveKit room if LiveKit service is available
 	// This is idempotent - safe to call multiple times
@@ -646,14 +663,14 @@ func (c *Client) handleJoinRoom(data interface{}) {
 		}
 	}
 
-	_, previewUser, err := c.hub.roomService.JoinRoom(c.roomID, req.UserID, req.Nickname)
+	_, previewUser, err := c.hub.roomService.JoinRoom(c.roomID, userID, nickname)
 	if err != nil {
 		log.Printf("Error joining room: %v", err)
 		return
 	}
 
 	// Track the call session (1 row per user per call)
-	c.hub.recordSessionStart(req.UserID, c.roomID, req.DeviceInfo)
+	c.hub.recordSessionStart(userID, c.roomID, req.DeviceInfo)
 
 	// Broadcast room_user_joined to all clients (not just room) so they update their rooms list
 	if previewUser != nil {
@@ -915,71 +932,63 @@ func (c *Client) handlePing(data interface{}) {
 	jsonData, _ := json.Marshal(data)
 	json.Unmarshal(jsonData, &pingData)
 
-	// Check if this is a new authentication (userID was empty but ping has one)
+	// Identity comes solely from the JWT validated at connection time.
+	// A user_id in the ping body is never trusted; a mismatch is logged and ignored.
 	c.mu.Lock()
 	c.lastPingTime = time.Now()
 	// Check if this is the first ping from this client
 	shouldSendInitialData := !c.firstPingReceived
 	c.firstPingReceived = true
-	// If client doesn't have a userID yet but ping data has one, use it
-	// This handles the case where user authenticates after connecting
-	isNewAuthentication := false
-	if c.userID == "" && pingData.UserID != "" {
-		c.userID = pingData.UserID
-		isNewAuthentication = true
-		log.Printf("[WebSocket] User authenticated via ping: %s", pingData.UserID)
-	}
 	userID := c.userID
 	roomID := c.roomID
 	c.mu.Unlock()
 
-	// If this is a new authentication (userID was just set), apply pending admin subs
-	if isNewAuthentication {
-		c.hub.applyPendingAdminSubs(c, userID)
+	if pingData.UserID != "" && pingData.UserID != userID {
+		log.Printf("[WebSocket] Ignoring ping user_id mismatch (authenticated=%s, ping=%s)", userID, pingData.UserID)
+	}
+
+	if userID == "" {
+		log.Printf("[WebSocket] Ignoring ping from unauthenticated client")
+		return
 	}
 
 	// Send initial audio states on first ping (client is now fully ready)
-	if shouldSendInitialData && userID != "" {
+	if shouldSendInitialData {
 		log.Printf("[WebSocket] First ping received from %s, sending initial audio states", userID)
 		c.hub.sendAudioStatesToClient(c)
 	}
 
 	// Update ping time in room service (this is what actually matters for timeout detection)
-	if roomID != "" && userID != "" {
+	if roomID != "" {
 		c.hub.roomService.UpdateUserPingTime(roomID, userID)
 		// Refresh the call session last_seen
 		c.hub.updateSessionLastSeen(userID, roomID)
 	}
 
 	// Update global presence (for users connected via global WebSocket)
-	if userID != "" {
-		wasOnline := c.hub.IsUserOnline(userID)
-		c.hub.UpdateUserPing(userID)
-		// Broadcast if either:
-		// 1. User just authenticated via ping (new connection with auth)
-		// 2. User was offline but is now online
-		shouldBroadcast := isNewAuthentication || !wasOnline
-		if shouldBroadcast {
-			if c.hub.authService != nil {
-				user, err := c.hub.authService.GetUserByID(userID)
-				if err == nil && user != nil {
-					log.Printf("[WebSocket] Broadcasting user_online for %s (new_auth=%v, was_online=%v)", userID, isNewAuthentication, wasOnline)
-					c.hub.BroadcastToAll(models.WebSocketMessage{
-						Type: "user_online",
-						Data: models.PublicUser{
-							ID:        user.ID,
-							Nickname:  user.Nickname,
-							AvatarURL: user.AvatarURL,
-							Role:      user.Role,
-							IsOnline:  true,
-						},
-					})
-				} else {
-					log.Printf("[WebSocket] Cannot broadcast user_online for %s: auth error=%v, user=%v", userID, err, user)
-				}
+	wasOnline := c.hub.IsUserOnline(userID)
+	c.hub.UpdateUserPing(userID)
+	// Broadcast only when the user transitions from offline to online
+	if !wasOnline {
+		if c.hub.authService != nil {
+			user, err := c.hub.authService.GetUserByID(userID)
+			if err == nil && user != nil {
+				log.Printf("[WebSocket] Broadcasting user_online for %s (was_online=%v)", userID, wasOnline)
+				c.hub.BroadcastToAll(models.WebSocketMessage{
+					Type: "user_online",
+					Data: models.PublicUser{
+						ID:        user.ID,
+						Nickname:  user.Nickname,
+						AvatarURL: user.AvatarURL,
+						Role:      user.Role,
+						IsOnline:  true,
+					},
+				})
 			} else {
-				log.Printf("[WebSocket] Cannot broadcast user_online for %s: authService is nil", userID)
+				log.Printf("[WebSocket] Cannot broadcast user_online for %s: auth error=%v, user=%v", userID, err, user)
 			}
+		} else {
+			log.Printf("[WebSocket] Cannot broadcast user_online for %s: authService is nil", userID)
 		}
 	}
 

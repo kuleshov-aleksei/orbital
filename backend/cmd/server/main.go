@@ -196,8 +196,9 @@ func main() {
 	r.HandleFunc("/api/rooms", roomHandler.GetRooms).Methods("GET")
 	r.HandleFunc("/api/rooms/{id}", roomHandler.GetRoom).Methods("GET")
 	r.HandleFunc("/api/rooms/{id}/users", roomHandler.GetRoomUsers).Methods("GET")
-	r.HandleFunc("/api/rooms/{id}/join", roomHandler.JoinRoom).Methods("POST")
-	r.HandleFunc("/api/rooms/{id}/leave", roomHandler.LeaveRoom).Methods("POST")
+	// Join/leave mutate membership: authenticated users only (identity from JWT)
+	r.Handle("/api/rooms/{id}/join", authHandler.AuthMiddleware(http.HandlerFunc(roomHandler.JoinRoom))).Methods("POST")
+	r.Handle("/api/rooms/{id}/leave", authHandler.AuthMiddleware(http.HandlerFunc(roomHandler.LeaveRoom))).Methods("POST")
 
 	// Admin-only room routes
 	adminRoomRouter := r.PathPrefix("/api").Subrouter()
