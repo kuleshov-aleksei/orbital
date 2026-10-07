@@ -1,7 +1,7 @@
 import { Howl } from "howler"
 import type { SoundEvent, SoundPack, SoundPackSprite } from "@/types/audio"
 import { minecraftSprites } from "@/services/sprites/minecraft"
-import { jdSherbertSprites } from "@/services/sprites/jd_sherbert"
+import { whooshSprites } from "@/services/sprites/whoosh"
 import { defaultSprites } from "@/services/sprites/default"
 import { crunchySprites } from "@/services/sprites/crunchy"
 import { kawkawSprites } from "@/services/sprites/kawkaw"
@@ -26,7 +26,7 @@ const soundPacks: Record<string, SoundPack> = {
     id: "jd_sherbert",
     name: "Whoosh",
     description: "Whoosh",
-    sprites: jdSherbertSprites,
+    sprites: whooshSprites,
   },
   minecraft: {
     id: "minecraft",
@@ -67,9 +67,9 @@ const spriteUrls: Record<string, string[]> = {
     "/assets/sounds/sprite/default/default.mp3",
   ],
   jd_sherbert: [
-    "/assets/sounds/sprite/jd_sherbert/jd_sherbert.ogg",
-    "/assets/sounds/sprite/jd_sherbert/jd_sherbert.m4a",
-    "/assets/sounds/sprite/jd_sherbert/jd_sherbert.mp3",
+    "/assets/sounds/sprite/whoosh/whoosh.ogg",
+    "/assets/sounds/sprite/whoosh/whoosh.m4a",
+    "/assets/sounds/sprite/whoosh/whoosh.mp3",
   ],
   minecraft: [
     "/assets/sounds/sprite/minecraft/minecraft.ogg",
