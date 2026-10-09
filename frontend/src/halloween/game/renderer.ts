@@ -520,12 +520,17 @@ export function createMiniGameRenderer(
   }
 
   // Engine events drive per-pumpkin animations precisely. Animated types play
-  // fire/hurt/death; placeholder types simply ignore them.
+  // fire/produce/hurt/death; placeholder types simply ignore them.
   const onGameEvent = (event: GameEvent) => {
     switch (event.type) {
       case "fire": {
         const display = pumpkins.get(event.pumpkinId)
         if (display) playPumpkinState(display, "fire")
+        break
+      }
+      case "cramer_produce": {
+        const display = pumpkins.get(event.pumpkinId)
+        if (display) playPumpkinState(display, "produce")
         break
       }
       case "pumpkin_damaged": {
