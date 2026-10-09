@@ -30,13 +30,29 @@ import {
 } from "./balance"
 import type { RandomFn } from "./balance"
 
+// Events the engine emits for presentation (renderer animations + SFX). Each
+// carries the entity it concerns so the renderer can animate exactly that
+// object — no heuristics, no guessing by diffing state.
 export type GameEvent =
-  | "shooting"
-  | "slug_destroyed"
-  | "pumpkin_destroyed"
-  | "item_used"
-  | "shield_break"
-  | "dell_retired"
+  | { type: "pumpkin_placed"; pumpkinId: number; kind: PumpkinType }
+  | { type: "pumpkin_sold"; pumpkinId: number }
+  | { type: "pumpkin_damaged"; pumpkinId: number; amount: number }
+  | { type: "pumpkin_destroyed"; pumpkinId: number }
+  | { type: "pumpkin_leveled"; pumpkinId: number; level: number }
+  | { type: "fire"; pumpkinId: number }
+  | { type: "cramer_produce"; pumpkinId: number; amount: number }
+  | { type: "slug_spawned"; slugId: number; slugType: SlugType }
+  | {
+      type: "slug_destroyed"
+      slugId: number
+      slugType: SlugType
+      x: number
+      y: number
+      source: KillSource
+    }
+  | { type: "shield_break"; slugId: number }
+  | { type: "item_used"; abilityId: AbilityId }
+  | { type: "dell_retired"; slugId: number }
 
 export const FIELD_HEIGHT = 600
 const PUMPKIN_RADIUS = 28
@@ -394,11 +410,21 @@ export class HalloweenGameEngine {
     this.pumpkins.splice(index, 1)
     if (this.hoveredPumpkinId === id) this.hoveredPumpkinId = null
     this.coins += this.sellRefundFor(pumpkin.type)
-    this.onEvent?.("item_used")
+    this.onEvent?.({ type: "pumpkin_sold", pumpkinId: pumpkin.id })
     if (this.alivePumpkinCount() === 0) {
       this.phase = "gameover"
       this.gameOverReason = "All pumpkins were sold"
     }
+    return true
+  }
+
+  // Removes a destroyed pumpkin once its death presentation has finished.
+  // Unlike sellPumpkin this refunds nothing — it is corpse cleanup, not a sale.
+  removePumpkin(id: number): boolean {
+    const index = this.pumpkins.findIndex((p) => p.id === id)
+    if (index < 0) return false
+    this.pumpkins.splice(index, 1)
+    if (this.hoveredPumpkinId === id) this.hoveredPumpkinId = null
     return true
   }
 
@@ -527,8 +553,9 @@ export class HalloweenGameEngine {
     const stats = levelStatsFor(type, 1, this.config)
     const health = stats?.health ?? this.config.pumpkins[type]?.health ?? 10
     const fireRate = stats?.fire_rate ?? this.config.pumpkins[type]?.fire_rate ?? 0
+    const id = this.nextId++
     this.pumpkins.push({
-      id: this.nextId++,
+      id,
       type,
       x,
       y,
@@ -545,6 +572,7 @@ export class HalloweenGameEngine {
       coinTimer: 0,
     })
     this.spawnedPumpkins[type] = (this.spawnedPumpkins[type] ?? 0) + 1
+    this.onEvent?.({ type: "pumpkin_placed", pumpkinId: id, kind: type })
   }
 
   // ---- Level-ups ---------------------------------------------------------
@@ -619,7 +647,7 @@ export class HalloweenGameEngine {
     pumpkin.projectileSpeed = stats.projectile_speed
     if (stats.blast_radius > 0) pumpkin.blastRadius = stats.blast_radius
     pumpkin.fireTimer = Math.min(pumpkin.fireTimer, pumpkin.fireInterval)
-    this.onEvent?.("item_used")
+    this.onEvent?.({ type: "pumpkin_leveled", pumpkinId: pumpkin.id, level: pumpkin.level })
     return true
   }
 
@@ -631,8 +659,9 @@ export class HalloweenGameEngine {
     const baseHP = cfg?.health ?? 10
     const hpMul = Math.pow(this.config.slug_hp_growth ?? 1, Math.max(0, this.round - 1))
     const health = Math.max(1, Math.round(baseHP * hpMul))
+    const id = this.nextId++
     this.slugs.push({
-      id: this.nextId++,
+      id,
       type,
       x,
       y,
@@ -654,6 +683,7 @@ export class HalloweenGameEngine {
       shields,
       maxShields: shields,
     })
+    this.onEvent?.({ type: "slug_spawned", slugId: id, slugType: type })
   }
 
   // Shields absorb hits, not HP. One hit strips exactly one shield no matter
@@ -663,7 +693,7 @@ export class HalloweenGameEngine {
   private damageSlug(slug: GameSlug, damage: number, source: KillSource): void {
     if (slug.shields > 0) {
       slug.shields--
-      this.onEvent?.("shield_break")
+      this.onEvent?.({ type: "shield_break", slugId: slug.id })
       return
     }
     slug.health -= damage
@@ -674,7 +704,7 @@ export class HalloweenGameEngine {
 
   private applyInstantAbility(abilityId: AbilityId) {
     this.trackUse(abilityId)
-    this.onEvent?.("item_used")
+    this.onEvent?.({ type: "item_used", abilityId })
     switch (abilityId) {
       case "annihilation": {
         const target = [...this.slugs].sort((a, b) => b.health - a.health)[0]
@@ -731,7 +761,7 @@ export class HalloweenGameEngine {
     const abilityId = this.pendingAbility?.abilityId
     if (!abilityId) return
     this.trackUse(abilityId)
-    this.onEvent?.("item_used")
+    this.onEvent?.({ type: "item_used", abilityId })
 
     switch (abilityId) {
       case "holy_grenade":
@@ -780,7 +810,7 @@ export class HalloweenGameEngine {
     if (!pumpkin || pumpkin.health <= 0) return
 
     this.trackUse(abilityId)
-    this.onEvent?.("item_used")
+    this.onEvent?.({ type: "item_used", abilityId })
 
     if (abilityId === "do_not_stop_daddy") {
       pumpkin.fireRateMul *= 2
@@ -896,8 +926,13 @@ export class HalloweenGameEngine {
         if (slug.attackTimer >= SLUG_ATTACK_INTERVAL) {
           slug.attackTimer = 0
           attacked.health -= slug.damage
+          this.onEvent?.({
+            type: "pumpkin_damaged",
+            pumpkinId: attacked.id,
+            amount: slug.damage,
+          })
           if (attacked.health <= 0) {
-            this.onEvent?.("pumpkin_destroyed")
+            this.onEvent?.({ type: "pumpkin_destroyed", pumpkinId: attacked.id })
           }
         }
         continue
@@ -947,8 +982,12 @@ export class HalloweenGameEngine {
           )
           .slice(0, falloff.length)
         targets.forEach((p, i) => {
-          p.health -= Math.round(slug.damage * falloff[i])
-          if (p.health <= 0) this.onEvent?.("pumpkin_destroyed")
+          const amount = Math.round(slug.damage * falloff[i])
+          p.health -= amount
+          this.onEvent?.({ type: "pumpkin_damaged", pumpkinId: p.id, amount })
+          if (p.health <= 0) {
+            this.onEvent?.({ type: "pumpkin_destroyed", pumpkinId: p.id })
+          }
         })
         escaped.push(slug.id)
         continue
@@ -990,7 +1029,7 @@ export class HalloweenGameEngine {
     slug.attackTimer = 0
     slug.attackingPumpkinId = null
     slug.distractionFor = 0
-    this.onEvent?.("dell_retired")
+    this.onEvent?.({ type: "dell_retired", slugId: slug.id })
   }
 
   private findAttackTarget(slug: GameSlug): GamePumpkin | null {
@@ -1059,6 +1098,7 @@ export class HalloweenGameEngine {
       while (pumpkin.coinTimer >= interval) {
         pumpkin.coinTimer -= interval
         this.addCoins(amount)
+        this.onEvent?.({ type: "cramer_produce", pumpkinId: pumpkin.id, amount })
       }
     }
   }
@@ -1073,7 +1113,7 @@ export class HalloweenGameEngine {
       this.projectiles.push(
         this.makeProjectile("missile", pumpkin, point, null, pumpkin.damage, pumpkin.blastRadius),
       )
-      this.onEvent?.("shooting")
+      this.onEvent?.({ type: "fire", pumpkinId: pumpkin.id })
       return
     }
 
@@ -1090,7 +1130,7 @@ export class HalloweenGameEngine {
         this.projectiles.push(
           this.makeProjectile("heal", pumpkin, null, lowest.id, pumpkin.damage, 0),
         )
-        this.onEvent?.("shooting")
+        this.onEvent?.({ type: "fire", pumpkinId: pumpkin.id })
       }
       return
     }
@@ -1111,7 +1151,7 @@ export class HalloweenGameEngine {
         pumpkin.type === "pearcer" ? PEARCER_PIERCE : 0,
       ),
     )
-    this.onEvent?.("shooting")
+    this.onEvent?.({ type: "fire", pumpkinId: pumpkin.id })
   }
 
   private makeProjectile(
@@ -1374,7 +1414,14 @@ export class HalloweenGameEngine {
       this.xpEarned += xp
     }
     this.slugs = this.slugs.filter((s) => s.id !== slug.id)
-    this.onEvent?.("slug_destroyed")
+    this.onEvent?.({
+      type: "slug_destroyed",
+      slugId: slug.id,
+      slugType: slug.type,
+      x: slug.x,
+      y: slug.y,
+      source,
+    })
   }
 
   private killScore(slug: GameSlug, source: KillSource): number {

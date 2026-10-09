@@ -1,5 +1,7 @@
-import { Application, Assets, Container, Graphics, Sprite } from "pixi.js"
-import type { HalloweenGameEngine } from "./engine"
+import { AnimatedSprite, Application, Assets, Container, Graphics, Sprite } from "pixi.js"
+import type { GameEvent, HalloweenGameEngine } from "./engine"
+import type { HalloweenAssets } from "./assets"
+import type { LoadedAtlas } from "./atlas"
 import {
   COLUMN_SPACING,
   COLUMN_START_X,
@@ -35,6 +37,16 @@ interface PumpkinDisplay {
   sprite: Sprite | Graphics
   bar: Graphics
   pips: Graphics
+  // Animated pumpkins (atlas-backed) carry their sheet + current state so
+  // engine events can drive idle/fire/hurt without diffing state.
+  animated?: boolean
+  anim?: AnimatedSprite
+  atlas?: LoadedAtlas
+  action?: string
+  // Death lifecycle: once the death one-shot finishes we fade the whole wreck
+  // and hide it, then release the pumpkin back to the engine.
+  fadeStart?: number
+  hidden?: boolean
 }
 
 interface SlugDisplay {
@@ -53,17 +65,31 @@ export interface MiniGameRenderer {
   init(container: HTMLElement): Promise<void>
   destroy(): void
   sync(): void
+  onGameEvent(event: GameEvent): void
   screenToWorld(clientX: number, clientY: number): { x: number; y: number } | null
   worldToScreen(x: number, y: number): { x: number; y: number }
 }
 
-export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRenderer {
+// Animated pumpkin frames are 128px with ~101px of opaque content, so we scale
+// the frame past radius*2 to make the pumpkin itself read at the right size.
+const ANIM_FPS = 30
+const PUMPKIN_ANIM_FIT = 128 / 101
+// How long a finished corpse lingers while it fades out before removal.
+const DEATH_FADE_MS = 350
+
+export function createMiniGameRenderer(
+  engine: HalloweenGameEngine,
+  assets?: HalloweenAssets,
+): MiniGameRenderer {
   let app: Application | null = null
   let world: Container | null = null
   let containerEl: HTMLElement | null = null
   let background: Graphics | null = null
   let cursorLayer: Container | null = null
   let effectLayer: Container | null = null
+
+  const pumpkinAtlasFor = (type: PumpkinType): LoadedAtlas | undefined =>
+    assets?.get(`pumpkin:${type}`)
 
   const pumpkins = new Map<number, PumpkinDisplay>()
   const slugs = new Map<number, SlugDisplay>()
@@ -155,18 +181,74 @@ export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRen
     return sprite
   }
 
+  // Drives an animated pumpkin's state machine. `idle` loops; fire/hurt are
+  // one-shots that return to idle, death is terminal (it holds its last frame).
+  const playPumpkinState = (display: PumpkinDisplay, state: string) => {
+    const anim = display.anim
+    const atlas = display.atlas
+    if (!anim || !atlas) return
+    // Death is terminal — nothing overrides a dying pumpkin.
+    if (display.action === "death") return
+    const frames = atlas.animations[state]
+    if (!frames || frames.length === 0) return
+    if (display.action === state && anim.playing) return
+    display.action = state
+    anim.textures = frames
+    anim.loop = state === "idle"
+    anim.animationSpeed = ANIM_FPS / 60
+    anim.gotoAndPlay(0)
+  }
+
   const addPumpkin = (id: number, type: PumpkinType, radius: number) => {
     const container = new Container()
-    const body: Sprite | Graphics = pumpkinTexture
-      ? spriteFor(pumpkinTexture, radius * 2)
-      : new Graphics().circle(0, 0, radius).fill({ color: PUMPKIN_TINTS[type] })
-    body.tint = PUMPKIN_TINTS[type]
+    const atlas = pumpkinAtlasFor(type)
+    let body: Sprite | Graphics
+    let animated = false
+    let anim: AnimatedSprite | undefined
+    if (atlas && atlas.animations.idle?.length) {
+      // Real art: never tinted — the sprite carries its own colors.
+      animated = true
+      anim = new AnimatedSprite(atlas.animations.idle)
+      anim.anchor.set(0.5)
+      anim.height = radius * 2 * PUMPKIN_ANIM_FIT
+      anim.scale.x = anim.scale.y
+      anim.animationSpeed = ANIM_FPS / 60
+      anim.loop = true
+      anim.play()
+      body = anim
+    } else if (pumpkinTexture) {
+      body = spriteFor(pumpkinTexture, radius * 2)
+      body.tint = PUMPKIN_TINTS[type]
+    } else {
+      // Placeholder fallback for types that have no atlas yet — tinted.
+      body = new Graphics().circle(0, 0, radius).fill({ color: PUMPKIN_TINTS[type] })
+    }
     container.addChild(body)
     const bar = makeHealthBar(container, radius * 2, -radius - 12)
     const pips = new Graphics()
     container.addChild(pips)
     world?.addChild(container)
-    pumpkins.set(id, { container, sprite: body, bar, pips })
+    const display: PumpkinDisplay = {
+      container,
+      sprite: body,
+      bar,
+      pips,
+      animated,
+      anim,
+      atlas,
+      action: animated ? "idle" : undefined,
+    }
+    if (anim)
+      anim.onComplete = () => {
+        // A finished death one-shot holds its last frame and hands off to the
+        // fade-out; every other state returns the pumpkin to idle.
+        if (display.action === "death") {
+          display.fadeStart = performance.now()
+        } else {
+          playPumpkinState(display, "idle")
+        }
+      }
+    pumpkins.set(id, display)
   }
 
   const addSlug = (id: number, type: SlugType, radius: number) => {
@@ -340,6 +422,7 @@ export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRen
     }
 
     // pumpkins
+    const toRelease: number[] = []
     const alivePumpkins = new Set(engine.pumpkins.map((p) => p.id))
     for (const [id, display] of pumpkins) {
       if (!alivePumpkins.has(id)) {
@@ -354,12 +437,34 @@ export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRen
         addPumpkin(p.id, p.type, p.radius)
         display = pumpkins.get(p.id)!
       }
+      if (display.hidden) continue
       display.container.position.set(p.x, p.y)
       updateBar(display.bar, p.radius * 2, p.health, p.maxHealth)
       updatePips(display.pips, p.radius, p.level)
-      display.sprite.alpha = p.health > 0 ? 1 : 0.3
-      if (p.health <= 0) display.sprite.tint = 0x444444
+
+      if (p.health <= 0) {
+        // Animated types play their death one-shot first; everything else
+        // fades immediately. Once faded, the corpse is released to the engine.
+        if (display.animated) playPumpkinState(display, "death")
+        const stillDying = display.action === "death" && display.fadeStart == null
+        if (!stillDying) {
+          if (display.fadeStart == null) display.fadeStart = performance.now()
+          const t = (performance.now() - display.fadeStart) / DEATH_FADE_MS
+          display.container.alpha = Math.max(0, 1 - t)
+          if (t >= 1) {
+            display.container.visible = false
+            display.hidden = true
+            toRelease.push(p.id)
+          }
+        }
+      } else {
+        // Real art is never tinted — only the placeholder fallback keeps a tint.
+        display.sprite.alpha = 1
+        if (!display.animated) display.sprite.tint = PUMPKIN_TINTS[p.type]
+      }
     }
+    // Release corpses only after iterating: removePumpkin mutates the array.
+    for (const id of toRelease) engine.removePumpkin(id)
 
     // slugs
     const aliveSlugs = new Set(engine.slugs.map((s) => s.id))
@@ -414,6 +519,30 @@ export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRen
     }
   }
 
+  // Engine events drive per-pumpkin animations precisely. Animated types play
+  // fire/hurt/death; placeholder types simply ignore them.
+  const onGameEvent = (event: GameEvent) => {
+    switch (event.type) {
+      case "fire": {
+        const display = pumpkins.get(event.pumpkinId)
+        if (display) playPumpkinState(display, "fire")
+        break
+      }
+      case "pumpkin_damaged": {
+        const display = pumpkins.get(event.pumpkinId)
+        if (display) playPumpkinState(display, "hurt")
+        break
+      }
+      case "pumpkin_destroyed": {
+        const display = pumpkins.get(event.pumpkinId)
+        if (display) playPumpkinState(display, "death")
+        break
+      }
+      default:
+        break
+    }
+  }
+
   const destroy = () => {
     window.removeEventListener("resize", recomputeTransform)
     if (app) {
@@ -429,5 +558,5 @@ export function createMiniGameRenderer(engine: HalloweenGameEngine): MiniGameRen
     projectiles.clear()
   }
 
-  return { init, destroy, sync, screenToWorld, worldToScreen }
+  return { init, destroy, sync, onGameEvent, screenToWorld, worldToScreen }
 }

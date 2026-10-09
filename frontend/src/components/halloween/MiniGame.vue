@@ -3,6 +3,26 @@
     <div
       class="fixed inset-0 z-50 flex flex-col bg-theme-backdrop/95 backdrop-blur-md"
       data-testid="mini-game">
+      <!-- Dedicated load placeholder: the game starts only after every atlas
+           has loaded, so there is no half-textured first frame. -->
+      <div
+        v-if="loading"
+        class="absolute inset-0 z-[60] flex items-center justify-center bg-theme-backdrop/85 backdrop-blur-sm"
+        data-testid="game-loading">
+        <div
+          class="w-72 flex flex-col items-center gap-4 rounded-2xl bg-theme-bg-secondary border border-theme-border px-8 py-6 shadow-2xl">
+          <div
+            class="animate-spin rounded-full h-6 w-6 border-b-2 border-t-2 border-orange-500"></div>
+          <div class="w-full flex flex-col gap-2">
+            <div class="relative w-full h-2 bg-theme-bg-tertiary rounded-full overflow-hidden">
+              <div
+                class="absolute inset-y-0 left-0 rounded-full bg-orange-500 transition-[width] duration-300 ease-out"
+                :style="{ width: `${loadProgress}%` }" />
+            </div>
+            <p class="text-xs text-theme-text-muted text-center">{{ loadStage }}</p>
+          </div>
+        </div>
+      </div>
       <!-- Header -->
       <div class="flex items-center justify-between px-5 py-3 border-b border-theme-border">
         <div class="flex items-center gap-4 text-sm">
@@ -367,6 +387,7 @@ import { useHalloweenStore } from "@/stores"
 import type { SubmitGameReportResponse } from "@/halloween/types"
 import { HalloweenGameEngine } from "@/halloween/game/engine"
 import { createMiniGameRenderer } from "@/halloween/game/renderer"
+import { preloadHalloweenAssets, type HalloweenAssets } from "@/halloween/game/assets"
 import {
   ABILITY_META,
   MAX_PUMPKIN_LEVEL,
@@ -396,6 +417,11 @@ let last = performance.now()
 const hud = shallowRef<GameSnapshot | null>(null)
 const result = ref<SubmitGameReportResponse | null>(null)
 const submitting = ref(false)
+// The renderer blocks on every manifest atlas before the game starts, so the
+// overlay is the single load placeholder — no half-textured frames.
+const loading = ref(true)
+const loadProgress = ref(0)
+const loadStage = ref("Preparing assets…")
 // Visual labels stay 1x/2x/3x; actual multipliers are 2x/4x/6x so the game
 // starts twice as fast as before (label 1x = 2x sim speed).
 const SPEED_OPTIONS = [
@@ -834,26 +860,77 @@ onMounted(async () => {
       prompt: null,
       gameOverReason: "Game config unavailable",
     } as GameSnapshot
+    loading.value = false
+    return
+  }
+
+  loading.value = true
+  loadProgress.value = 0
+  loadStage.value = "Preparing assets…"
+  let assetBundle: HalloweenAssets
+  try {
+    assetBundle = await preloadHalloweenAssets((percent, stage) => {
+      loadProgress.value = percent
+      loadStage.value = stage
+    })
+  } catch (error) {
+    loading.value = false
+    hud.value = {
+      phase: "ended",
+      round: 1,
+      completedRounds: 0,
+      score: 0,
+      coins: 0,
+      xp: 0,
+      shopPrices: {},
+      inventory: [],
+      cards: null,
+      popupIndex: 0,
+      popupTotal: 0,
+      mode: "none",
+      pendingAbility: null,
+      selectedInventoryIndex: null,
+      prompt: null,
+      gameOverReason: `Failed to load assets: ${(error as Error).message}`,
+    } as GameSnapshot
     return
   }
 
   engine = new HalloweenGameEngine(config)
   engine.onEvent = (event) => {
-    if (event === "shooting") sounds.playShooting()
-    else if (event === "slug_destroyed") sounds.playSlugDestroyed()
-    else if (event === "pumpkin_destroyed") sounds.playPumpkinDestroyed()
-    else if (event === "item_used") sounds.playItemUsed()
-    else if (event === "shield_break") sounds.playShieldBreak()
-    // A retired Dell joining the march is bad news — crunch, not pop.
-    else if (event === "dell_retired") sounds.playPumpkinDestroyed()
+    switch (event.type) {
+      case "fire":
+        sounds.playShooting()
+        break
+      case "slug_destroyed":
+        sounds.playSlugDestroyed()
+        break
+      case "pumpkin_destroyed":
+        sounds.playPumpkinDestroyed()
+        break
+      case "item_used":
+        sounds.playItemUsed()
+        break
+      case "shield_break":
+        sounds.playShieldBreak()
+        break
+      // A retired Dell joining the march is bad news — crunch, not pop.
+      case "dell_retired":
+        sounds.playPumpkinDestroyed()
+        break
+      default:
+        break
+    }
+    renderer?.onGameEvent(event)
   }
   hud.value = engine.snapshot()
 
-  renderer = createMiniGameRenderer(engine)
+  renderer = createMiniGameRenderer(engine, assetBundle)
   if (canvasEl.value) {
     await renderer.init(canvasEl.value)
   }
 
+  loading.value = false
   last = performance.now()
   raf = requestAnimationFrame(tick)
   window.addEventListener("beforeunload", onBeforeUnload)
