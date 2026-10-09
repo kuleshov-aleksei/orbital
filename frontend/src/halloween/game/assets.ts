@@ -13,6 +13,7 @@ export const HALLOWEEN_ATLASES: AtlasManifestEntry[] = [
   { key: "pumpkin:herbert", url: "/assets/hw26/pumkins/herbert/atlas.json" },
   { key: "pumpkin:gwynevere", url: "/assets/hw26/pumkins/gwynevere/atlas.json" },
   { key: "pumpkin:cramer", url: "/assets/hw26/pumkins/cramer/atlas.json" },
+  { key: "pumpkin:pearcer", url: "/assets/hw26/pumkins/pearcer/atlas.json" },
 ]
 
 export type HalloweenAssets = Map<string, LoadedAtlas>
