@@ -14,6 +14,8 @@ const destinySprites: Record<string, SoundPackSprite> = {
   camera_stop: { name: "camera_stop", start: 16366, duration: 870 },
   viewer_left: { name: "viewer_left", start: 17436, duration: 1509 },
   join_room: { name: "join_room", start: 19145, duration: 2300 },
+  reconnected: { name: "reconnected", start: 21645, duration: 759 },
+  reconnecting: { name: "reconnecting", start: 22604, duration: 659 },
 }
 
 export { destinySprites }

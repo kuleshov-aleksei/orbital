@@ -105,6 +105,22 @@
       <button
         type="button"
         class="px-3 py-2 bg-theme-bg-tertiary hover:bg-theme-bg-secondary text-theme-text-primary text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
+        @click="previewReconnecting">
+        <PhArrowsClockwise class="w-4 h-4" />
+        Reconnecting
+      </button>
+
+      <button
+        type="button"
+        class="px-3 py-2 bg-theme-bg-tertiary hover:bg-theme-bg-secondary text-theme-text-primary text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
+        @click="previewReconnected">
+        <PhWifiHigh class="w-4 h-4" />
+        Reconnected
+      </button>
+
+      <button
+        type="button"
+        class="px-3 py-2 bg-theme-bg-tertiary hover:bg-theme-bg-secondary text-theme-text-primary text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
         @click="previewMessage">
         <PhChatText class="w-4 h-4" />
         Message
@@ -129,6 +145,8 @@ import {
   PhChatText,
   PhEye,
   PhEyeSlash,
+  PhArrowsClockwise,
+  PhWifiHigh,
 } from "@phosphor-icons/vue"
 
 const {
@@ -145,6 +163,8 @@ const {
   playMessage,
   playViewerJoined,
   playViewerLeft,
+  playReconnecting,
+  playReconnected,
 } = useSounds()
 
 function previewJoinRoom() {
@@ -197,5 +217,13 @@ function previewViewerJoined() {
 
 function previewViewerLeft() {
   playViewerLeft()
+}
+
+function previewReconnecting() {
+  playReconnecting()
+}
+
+function previewReconnected() {
+  playReconnected()
 }
 </script>

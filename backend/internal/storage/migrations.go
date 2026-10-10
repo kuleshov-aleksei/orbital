@@ -176,6 +176,15 @@ CREATE INDEX IF NOT EXISTS idx_user_sessions_last_seen ON user_sessions(last_see
 	},
 	{
 		Version: 20,
+		Name:    "add_app_version_to_user_sessions",
+		SQL: `ALTER TABLE user_sessions ADD COLUMN app_version TEXT NOT NULL DEFAULT '';
+UPDATE user_sessions
+   SET app_version = COALESCE(json_extract(device_info, '$.app_version'), '')
+ WHERE json_valid(device_info) AND device_info != '';
+CREATE INDEX IF NOT EXISTS idx_user_sessions_app_version ON user_sessions(app_version);`,
+	},
+	{
+		Version: 21,
 		Name:    "create_halloween_tables",
 		SQL: `CREATE TABLE IF NOT EXISTS halloween_items (
 			id         TEXT PRIMARY KEY,
@@ -221,7 +230,7 @@ CREATE TABLE IF NOT EXISTS halloween_pumpkins (
 		);`,
 	},
 	{
-		Version: 21,
+		Version: 22,
 		Name:    "seed_halloween_items",
 		SQL: `INSERT OR IGNORE INTO halloween_items (id, name, socket, rarity, sort_order) VALUES
 			('hat_party', 'Party hat', 'hat', 'rare', 1),
@@ -236,7 +245,7 @@ CREATE TABLE IF NOT EXISTS halloween_pumpkins (
 			('mouth_pumpkin', 'Pumpkin', 'mouth', 'common', 22);`,
 	},
 	{
-		Version: 22,
+		Version: 23,
 		Name:    "add_source_model_to_halloween_game_results",
 		SQL: `ALTER TABLE halloween_game_results ADD COLUMN source TEXT NOT NULL DEFAULT 'human';
 ALTER TABLE halloween_game_results ADD COLUMN model TEXT NOT NULL DEFAULT '';

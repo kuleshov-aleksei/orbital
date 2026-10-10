@@ -30,6 +30,9 @@ export const useCallStore = defineStore("call", () => {
   const isDeafened = ref(loadFromStorage(DEAFEN_STORAGE_KEY, false))
   const isScreenSharing = ref(false)
   const isCameraEnabled = ref(false)
+  // Transient connection state, mirrors the LiveKit room reconnect cycle.
+  // Not persisted - always starts false.
+  const isReconnecting = ref(false)
   const wasMutedBeforeDeafen = ref(false)
   const watchingUserIds = ref<Set<string>>(new Set())
 
@@ -131,7 +134,12 @@ export const useCallStore = defineStore("call", () => {
     isDeafened.value = false
     isScreenSharing.value = false
     isCameraEnabled.value = false
+    isReconnecting.value = false
     watchingUserIds.value = new Set()
+  }
+
+  function setReconnecting(reconnecting: boolean) {
+    isReconnecting.value = reconnecting
   }
 
   return {
@@ -139,11 +147,13 @@ export const useCallStore = defineStore("call", () => {
     isDeafened,
     isScreenSharing,
     isCameraEnabled,
+    isReconnecting,
     watchingUserIds,
     setMuted,
     setDeafened,
     setScreenSharing,
     setCameraEnabled,
+    setReconnecting,
     setWatchingUsers,
     setUnsubscribeFn,
     registerStopWatchingHandler,

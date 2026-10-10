@@ -363,6 +363,7 @@ type UserSession struct {
 	LastSeen   time.Time `json:"last_seen"`
 	Platform   string    `json:"platform"`    // "web" | "electron" | "unknown"
 	SystemName string    `json:"system_name"` // browser name (web) or OS name (electron)
+	AppVersion string    `json:"app_version"` // app version reported by the client
 	DeviceInfo string    `json:"device_info"` // raw system info JSON for future processing
 }
 
@@ -407,15 +408,26 @@ type PlatformStat struct {
 	LastSeen        time.Time `json:"last_seen"`
 }
 
+// VersionStat aggregates how many users run a given Electron app version,
+// based on each user's most recent Electron session. Users holds the
+// nicknames (capped) of the users counted towards this version.
+type VersionStat struct {
+	Version   string    `json:"version"`
+	UserCount int64     `json:"user_count"`
+	LastUsed  time.Time `json:"last_used"`
+	Users     []string  `json:"users"`
+}
+
 // AnalyticsReport contains pre-calculated usage data for the admin frontend
 type AnalyticsReport struct {
-	GeneratedAt          time.Time          `json:"generated_at"`
-	TotalUsers           int64              `json:"total_users"`
-	TotalSessions        int64              `json:"total_sessions"`
-	TotalDurationSeconds int64              `json:"total_duration_seconds"`
-	BothPlatformsUsers   int64              `json:"both_platforms_users"`
-	UsersSankey          SankeyDistribution `json:"users_sankey"`
-	TimeSankey           SankeyDistribution     `json:"time_sankey"`
-	DailyTimeSankey      DailyTimeDistribution  `json:"daily_time_sankey"`
-	Platforms            []PlatformStat         `json:"platforms"`
+	GeneratedAt          time.Time             `json:"generated_at"`
+	TotalUsers           int64                 `json:"total_users"`
+	TotalSessions        int64                 `json:"total_sessions"`
+	TotalDurationSeconds int64                 `json:"total_duration_seconds"`
+	BothPlatformsUsers   int64                 `json:"both_platforms_users"`
+	UsersSankey          SankeyDistribution    `json:"users_sankey"`
+	TimeSankey           SankeyDistribution    `json:"time_sankey"`
+	DailyTimeSankey      DailyTimeDistribution `json:"daily_time_sankey"`
+	Platforms            []PlatformStat        `json:"platforms"`
+	ElectronVersions     []VersionStat         `json:"electron_versions"`
 }

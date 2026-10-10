@@ -106,6 +106,8 @@ export type SoundEvent =
   | "item_used"
   | "slug_movement"
   | "shield_break"
+  | "reconnecting"
+  | "reconnected"
 
 /** Default audio settings */
 export const defaultAudioSettings: AudioSettings = {

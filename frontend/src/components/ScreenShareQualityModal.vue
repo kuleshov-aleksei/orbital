@@ -230,10 +230,10 @@ import { ref, watch, computed, onUnmounted } from "vue"
 import { PhMonitorPlay, PhSpeakerHigh, PhInfo, PhWarning } from "@phosphor-icons/vue"
 import { useScreenShareSupport } from "@/composables/useScreenShareSupport"
 import { getDesktopSources, getPlatform } from "@/services/electron"
-import { hasVenmic, hasPipeWire } from "@/services/venmic"
+import { hasVenmic, hasPipeWire, getSavedSources, saveSources } from "@/services/venmic"
 import AudioSourcePicker from "./AudioSourcePicker.vue"
 import AudioCaptureError from "./AudioCaptureError.vue"
-import type { DesktopSource, ScreenShareQuality, VenmicNode } from "@/types"
+import type { DesktopSource, ScreenShareQuality, VenmicSource } from "@/types"
 
 interface Props {
   isOpen: boolean
@@ -252,7 +252,7 @@ const emit = defineEmits<{
     quality: ScreenShareQuality,
     sourceId: string,
     audio: boolean,
-    audioSources?: VenmicNode[],
+    audioSources?: VenmicSource[],
   ]
   cancel: []
 }>()
@@ -284,7 +284,7 @@ const isStarting = ref(false)
 
 const venmicAvailable = ref(false)
 const audioCaptureError = ref<string | null>(null)
-const selectedAudioSources = ref<VenmicNode[]>([])
+const selectedAudioSources = ref<VenmicSource[]>([])
 
 const platform = ref<string | null>(null)
 
@@ -318,6 +318,9 @@ watch(
         if (platform.value === "linux") {
           const [venmic, pipewire] = await Promise.all([hasVenmic(), hasPipeWire()])
           venmicAvailable.value = venmic && pipewire
+          if (venmicAvailable.value) {
+            selectedAudioSources.value = await getSavedSources()
+          }
         }
       }
     }
@@ -363,6 +366,9 @@ function handleStartShare() {
     platform.value === "win32" && selectedSourceId.value.startsWith("window:")
       ? false
       : shareAudio.value
+  if (effectiveAudio && venmicAvailable.value && selectedAudioSources.value.length > 0) {
+    void saveSources(selectedAudioSources.value)
+  }
   emit(
     "select-electron-source",
     selectedQuality.value,

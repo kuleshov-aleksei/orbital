@@ -28,6 +28,17 @@ export interface VenmicNode {
   [key: string]: string | number | boolean | undefined
 }
 
+export interface VenmicSource {
+  "application.process.id"?: string
+  "application.name"?: string
+}
+
+export interface VenmicApp {
+  pid?: string
+  name: string
+  hasAudio: boolean
+}
+
 export interface HotkeySetting {
   enabled: boolean
   accelerator: string
@@ -88,7 +99,10 @@ export interface ElectronAPI {
   venmicHasVenmic: () => Promise<boolean>
   venmicHasPipeWire: () => Promise<boolean>
   venmicListSources: () => Promise<VenmicNode[]>
-  venmicStart: (include: VenmicNode[]) => Promise<boolean>
+  venmicListApps: (includeAll?: boolean) => Promise<VenmicApp[]>
+  venmicGetSavedSources: () => Promise<VenmicSource[]>
+  venmicSaveSources: (sources: VenmicSource[]) => Promise<void>
+  venmicStart: (include: VenmicSource[]) => Promise<boolean>
   venmicStop: () => Promise<boolean>
   getCloseToTray: () => Promise<boolean | null>
   setCloseToTray: (value: boolean) => Promise<void>
@@ -191,6 +205,9 @@ const electronAPI: ElectronAPI = {
   venmicHasVenmic: () => ipcRenderer.invoke("venmic:has-venmic"),
   venmicHasPipeWire: () => ipcRenderer.invoke("venmic:has-pipewire"),
   venmicListSources: () => ipcRenderer.invoke("venmic:list-sources"),
+  venmicListApps: (includeAll) => ipcRenderer.invoke("venmic:list-apps", includeAll),
+  venmicGetSavedSources: () => ipcRenderer.invoke("venmic:get-saved-sources"),
+  venmicSaveSources: (sources) => ipcRenderer.invoke("venmic:save-sources", sources),
   venmicStart: (include) => ipcRenderer.invoke("venmic:start", include),
   venmicStop: () => ipcRenderer.invoke("venmic:stop"),
 

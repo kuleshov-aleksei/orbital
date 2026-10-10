@@ -22,6 +22,7 @@
       :room-name="roomStore.activeRoomName"
       :ping="appStore.connectionPing"
       :connection-quality="appStore.connectionQuality"
+      :is-reconnecting="callStore.isReconnecting"
       @start-screen-share="$emit('start-screen-share')"
       @auth-required="$emit('auth-required')"
       @leave-room="$emit('leave-room')" />

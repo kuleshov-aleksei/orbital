@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -175,9 +173,17 @@ func (h *RoomHandler) GetRoomUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 // JoinRoom handles POST /api/rooms/{id}/join
+// Requires authentication (AuthMiddleware): the joined user is always the
+// JWT-authenticated user; a user_id in the body that doesn't match is rejected.
 func (h *RoomHandler) JoinRoom(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	roomID := vars["id"]
+
+	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	if !ok || claims == nil || claims.UserID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 
 	var req models.JoinRoomRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -185,12 +191,19 @@ func (h *RoomHandler) JoinRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate request
-	if req.UserID == "" {
-		req.UserID = generateUserID()
+	// Identity comes from the JWT, never from the request body
+	if req.UserID != "" && req.UserID != claims.UserID {
+		log.Printf("JoinRoom rejected: user_id mismatch (authenticated=%s, requested=%s)", claims.UserID, req.UserID)
+		http.Error(w, "user_id does not match authenticated user", http.StatusForbidden)
+		return
 	}
+	req.UserID = claims.UserID
 	if req.Nickname == "" {
-		req.Nickname = "User-" + req.UserID[:8]
+		if len(req.UserID) >= 8 {
+			req.Nickname = "User-" + req.UserID[:8]
+		} else {
+			req.Nickname = "User-" + req.UserID
+		}
 	}
 
 	user, previewUser, err := h.roomService.JoinRoom(roomID, req.UserID, req.Nickname)
@@ -216,9 +229,16 @@ func (h *RoomHandler) JoinRoom(w http.ResponseWriter, r *http.Request) {
 }
 
 // LeaveRoom handles POST /api/rooms/{id}/leave
+// Requires authentication (AuthMiddleware): users can only remove themselves.
 func (h *RoomHandler) LeaveRoom(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	roomID := vars["id"]
+
+	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	if !ok || claims == nil || claims.UserID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 
 	var req struct {
 		UserID string `json:"user_id"`
@@ -227,6 +247,13 @@ func (h *RoomHandler) LeaveRoom(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
+
+	if req.UserID != "" && req.UserID != claims.UserID {
+		log.Printf("LeaveRoom rejected: user_id mismatch (authenticated=%s, requested=%s)", claims.UserID, req.UserID)
+		http.Error(w, "user_id does not match authenticated user", http.StatusForbidden)
+		return
+	}
+	req.UserID = claims.UserID
 
 	leftUser := h.roomService.LeaveRoom(roomID, req.UserID)
 
@@ -452,11 +479,4 @@ func (h *RoomHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(cfg)
-}
-
-// generateUserID generates a unique user ID
-func generateUserID() string {
-	bytes := make([]byte, 16)
-	rand.Read(bytes)
-	return hex.EncodeToString(bytes)
 }

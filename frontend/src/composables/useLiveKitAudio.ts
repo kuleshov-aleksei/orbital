@@ -1,9 +1,10 @@
 import { ref } from "vue"
 import { useAudioSettingsStore } from "@/stores/audioSettings"
+import { useCallStore } from "@/stores/call"
 import { getLiveKitAudioConstraints } from "@/services/livekit-audio-processors"
 import { getTrackProcessor, isWasmAlgorithm } from "@/services/audio"
 import { createLocalAudioTrack } from "livekit-client"
-import type { LocalAudioTrack } from "livekit-client"
+import type { LocalAudioTrack, LocalTrackPublication } from "livekit-client"
 import { debugLog, debugWarn, debugError } from "@/utils/debug"
 import type { LiveKitState } from "./useLiveKitState"
 
@@ -11,6 +12,13 @@ const RNNOISE_REQUIRED_SAMPLE_RATE = 48000
 
 function getFallbackAlgorithm(): "livekit-native" | "browser-native" {
   return "livekit-native"
+}
+
+function getPublicationSid(publication: LocalTrackPublication | null): string {
+  // Takes the publication as a parameter (rather than reading
+  // state.localAudioPublication.value inline) so TypeScript control-flow
+  // narrowing from earlier assignments in the caller can't reduce it to null.
+  return publication?.trackSid ?? "none"
 }
 
 export function useLiveKitAudio(state: LiveKitState) {
@@ -162,7 +170,13 @@ export function useLiveKitAudio(state: LiveKitState) {
               `[LiveKit][INFO]: ${algorithm} noise suppression processor applied successfully`,
             )
           } catch (processorError) {
-            debugError(`[LiveKit][ERROR]: Failed to apply ${algorithm} processor:`, processorError)
+            // Non-fatal, but must be loud: the mic keeps working with raw audio while
+            // noise suppression is silently off. A later retry (settings change,
+            // reinitialize, reconnect recovery) can restore it.
+            debugError(
+              `[LiveKit][ERROR]: Failed to apply ${algorithm} processor, continuing with raw audio:`,
+              processorError,
+            )
           }
         }
       }
@@ -203,6 +217,17 @@ export function useLiveKitAudio(state: LiveKitState) {
   const applyMuteState = async (muted: boolean): Promise<void> => {
     if (!state.room.value || !state.isConnected.value) {
       debugLog(`[LiveKit][INFO]: Cannot apply mute state - room not ready`)
+      return
+    }
+
+    // The signal connection is down while reconnecting - any mute op would throw
+    // (e.g. SignalRequestError from the metadata update) as an unhandled rejection.
+    // Skip it: the intent is preserved in the call store and re-synced after
+    // reconnect by recoverLocalAudioAfterReconnect().
+    if (state.isReconnecting.value) {
+      debugLog(
+        `[LiveKit][INFO]: Skipping mute apply while reconnecting - will re-sync after reconnect`,
+      )
       return
     }
 
@@ -281,8 +306,84 @@ export function useLiveKitAudio(state: LiveKitState) {
     await publishAudioTrack()
 
     debugLog(
-      `[LiveKit][INFO]: 'Audio stream reinitialized, publication:', ${(state.localAudioPublication.value as any)?.trackSid}`,
+      `[LiveKit][INFO]: 'Audio stream reinitialized, publication:', ${getPublicationSid(state.localAudioPublication.value)}`,
     )
+  }
+
+  /**
+   * Verify and repair the local microphone pipeline after a LiveKit room reconnect.
+   *
+   * During a reconnect the LiveKit SDK restarts the local audio track, which also
+   * restarts the noise suppression processor. If that processor restart throws
+   * (e.g. the RNNoise worklet failed to load while the AudioContext was being
+   * torn down), the SDK's track restart aborts before the track is re-attached
+   * to the sender - leaving the mic dead while the user still appears in the room.
+   * Nothing in the SDK retries this, so we do it here.
+   *
+   * @returns true if the local audio pipeline is (or was made) healthy
+   */
+  const recoverLocalAudioAfterReconnect = async (): Promise<boolean> => {
+    if (!state.room.value || !state.isConnected.value) {
+      debugWarn(`[LiveKit][WARN]: Cannot recover local audio after reconnect - room not ready`)
+      return false
+    }
+
+    try {
+      const localParticipant = state.room.value.localParticipant
+      const publishedAudio = Array.from(localParticipant.audioTrackPublications.values())
+      const track = state.localAudioTrack.value
+
+      if (!track || !track.mediaStreamTrack || track.mediaStreamTrack.readyState !== "live") {
+        debugWarn(
+          `[LiveKit][WARN]: Local audio track missing or ended after reconnect, reinitializing audio stream`,
+        )
+        await reinitializeAudioStream()
+        return !!state.localAudioTrack.value
+      }
+
+      if (publishedAudio.length === 0) {
+        debugWarn(
+          `[LiveKit][WARN]: Local audio track alive but unpublished after reconnect, republishing`,
+        )
+        await publishAudioTrack()
+        return state.localAudioPublication.value !== null
+      }
+
+      // Track is alive and published - rebuild the noise suppression pipeline,
+      // since the SDK's in-reconnect processor restart may have failed.
+      const algorithm = activeWasmAlgorithm.value
+      if (algorithm && isWasmAlgorithm(algorithm)) {
+        try {
+          const processor = getTrackProcessor(algorithm)
+          if (processor) {
+            debugLog(`[LiveKit][INFO]: Re-applying ${algorithm} processor after reconnect`)
+            await track.setProcessor(processor)
+            debugLog(
+              `[LiveKit][INFO]: ${algorithm} processor re-applied successfully after reconnect`,
+            )
+          }
+        } catch (processorError) {
+          debugError(
+            `[LiveKit][ERROR]: Failed to re-apply ${algorithm} processor after reconnect, continuing with raw audio:`,
+            processorError,
+          )
+        }
+      }
+
+      // Sync the SDK mute state with the call store in case it drifted during reconnect
+      const callStore = useCallStore()
+      if (track.isMuted !== callStore.isMuted) {
+        debugWarn(
+          `[LiveKit][WARN]: Local mute state drifted during reconnect, re-applying: ${callStore.isMuted}`,
+        )
+        await applyMuteState(callStore.isMuted)
+      }
+
+      return true
+    } catch (error) {
+      debugError("[LiveKit][ERROR]: Failed to recover local audio after reconnect:", error)
+      return false
+    }
   }
 
   return {
@@ -294,5 +395,6 @@ export function useLiveKitAudio(state: LiveKitState) {
     applyDeafenState,
     handleMuteToggle,
     reinitializeAudioStream,
+    recoverLocalAudioAfterReconnect,
   }
 }

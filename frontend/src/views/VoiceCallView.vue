@@ -56,6 +56,23 @@
         </div>
       </Transition>
 
+      <!-- Connection Lost Notification (watchdog gave up after ~5 min) -->
+      <Transition name="slide-in">
+        <div v-if="connectionFailed" class="absolute top-20 right-4 z-40 pointer-events-auto">
+          <div
+            class="bg-red-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 max-w-xs">
+            <PhWarning class="w-5 h-5 flex-shrink-0" />
+            <span class="text-sm">Connection lost. Automatic reconnection gave up.</span>
+            <button
+              type="button"
+              class="flex-shrink-0 px-3 py-1 bg-white text-red-700 text-sm font-medium rounded hover:bg-red-50 transition-colors"
+              @click="handleRetryConnection">
+              Retry
+            </button>
+          </div>
+        </div>
+      </Transition>
+
       <!-- Screen Share Quality Modal handled by parent -->
 
       <!-- Main Call Area -->
@@ -160,7 +177,7 @@ import {
   useSoundPackStore,
 } from "@/stores"
 import { storeToRefs } from "pinia"
-import type { User, ScreenShareQuality, VenmicNode } from "@/types"
+import type { User, ScreenShareQuality, VenmicSource } from "@/types"
 import { playRemoteMessage } from "@/services/sounds"
 
 const props = withDefaults(defineProps<Props>(), {
@@ -292,6 +309,7 @@ const lk = useLiveKit({
 const {
   localStream,
   isConnected,
+  connectionFailed,
   isScreenSharing,
   isCameraEnabled,
   userScreenShareStates,
@@ -310,6 +328,7 @@ const {
   applyDeafenState,
   reinitializeAudioStream,
   initializeLiveKit,
+  retryConnection,
   subscribeToScreenShare,
   unsubscribeFromScreenShare,
   subscribedScreenShares,
@@ -583,6 +602,22 @@ watch(
   { immediate: true },
 )
 
+// Manual retry from the "connection lost" banner after the watchdog gave up
+const handleRetryConnection = async () => {
+  appStore.setConnecting(true)
+  try {
+    const connected = await retryConnection()
+    if (connected) {
+      startCollecting()
+      startPingInterval()
+    }
+  } catch (error) {
+    console.error("Error retrying LiveKit connection:", error)
+  } finally {
+    appStore.setConnecting(false)
+  }
+}
+
 // Watch for screen sharing state changes from UI and call stopScreenShare when needed
 watch(
   () => isScreenSharing.value,
@@ -695,7 +730,7 @@ const startElectronScreenShareWithQuality = async (
   quality: string,
   audio: boolean,
   sourceId: string,
-  audioSources?: VenmicNode[],
+  audioSources?: VenmicSource[],
 ) => {
   try {
     await startElectronScreenShare(quality as ScreenShareQuality, audio, sourceId, audioSources)

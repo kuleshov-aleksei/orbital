@@ -23,6 +23,13 @@ async function ensureWorkletLoaded(audioContext: AudioContext): Promise<void> {
     debugLog("[Speex][INFO]: Worklet module registered")
   })
 
+  // Evict the cached promise on failure so a later retry can load the module
+  // again. Without this, a single failed load permanently breaks every
+  // subsequent processor init for the rest of the session.
+  promise.catch(() => {
+    workletLoadPromises.delete(audioContext)
+  })
+
   workletLoadPromises.set(audioContext, promise)
   return promise
 }
@@ -44,6 +51,11 @@ async function ensureWasmLoaded(): Promise<ArrayBuffer> {
     wasmBinary = binary
     debugLog(`[Speex][INFO]: WASM module loaded (${binary.byteLength} bytes)`)
     return binary
+  })
+
+  // Same as the worklet cache above: evict on failure so retries are possible.
+  promise.catch(() => {
+    wasmLoadPromises.delete(cacheKey)
   })
 
   wasmLoadPromises.set(cacheKey, promise)

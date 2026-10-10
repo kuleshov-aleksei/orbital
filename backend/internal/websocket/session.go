@@ -15,8 +15,9 @@ const sessionDedupeWindow = 5 * time.Minute
 
 // deviceInfoJSON mirrors the relevant fields of the client's system info payload
 type deviceInfoJSON struct {
-	IsElectron bool `json:"is_electron"`
-	IsMobile   bool `json:"is_mobile"`
+	IsElectron bool   `json:"is_electron"`
+	IsMobile   bool   `json:"is_mobile"`
+	AppVersion string `json:"app_version"`
 	Browser    struct {
 		Name string `json:"name"`
 	} `json:"browser"`
@@ -25,10 +26,11 @@ type deviceInfoJSON struct {
 	} `json:"electron"`
 }
 
-// parseDeviceInfo extracts platform ("web-desktop"/"web-mobile"/"electron")
-// and system_name (browser name for web, OS name for electron) from the
-// client's JSON system info payload. Falls back to "unknown" for missing values.
-func parseDeviceInfo(jsonStr string) (platform, systemName string) {
+// parseDeviceInfo extracts platform ("web-desktop"/"web-mobile"/"electron"),
+// system_name (browser name for web, OS name for electron) and app_version from
+// the client's JSON system info payload. Falls back to "unknown"/"" for missing
+// values.
+func parseDeviceInfo(jsonStr string) (platform, systemName, appVersion string) {
 	platform = "unknown"
 	systemName = "unknown"
 
@@ -41,6 +43,8 @@ func parseDeviceInfo(jsonStr string) (platform, systemName string) {
 		log.Printf("[Session] Failed to parse device info JSON: %v", err)
 		return
 	}
+
+	appVersion = info.AppVersion
 
 	if info.IsElectron {
 		platform = "electron"
@@ -58,7 +62,7 @@ func parseDeviceInfo(jsonStr string) (platform, systemName string) {
 		}
 	}
 
-	return platform, systemName
+	return platform, systemName, appVersion
 }
 
 // recordSessionStart creates or reuses the session row for a user joining a call.
@@ -77,21 +81,23 @@ func (h *Hub) recordSessionStart(userID, roomID, deviceInfo string) {
 
 	if recent != nil {
 		if deviceInfo != "" {
-			platform, systemName := parseDeviceInfo(deviceInfo)
-			if platform != "unknown" && platform != recent.Platform {
-				recent.Platform = platform
-				recent.SystemName = systemName
-				recent.DeviceInfo = deviceInfo
+			platform, systemName, appVersion := parseDeviceInfo(deviceInfo)
+			platformChanged := platform != "unknown" && platform != recent.Platform
+			versionChanged := appVersion != "" && appVersion != recent.AppVersion
+			if platformChanged || versionChanged {
+				if err := h.sessionRepo.UpdateSessionMeta(recent.UserID, recent.RoomID, platform, systemName, appVersion, deviceInfo, now); err != nil {
+					log.Printf("[Session] Failed to update session meta on join for user %s: %v", userID, err)
+				}
+				return
 			}
 		}
-		recent.LastSeen = now
 		if err := h.sessionRepo.UpdateLastSeen(recent.UserID, recent.RoomID, now); err != nil {
 			log.Printf("[Session] Failed to update last_seen on join for user %s: %v", userID, err)
 		}
 		return
 	}
 
-	platform, systemName := parseDeviceInfo(deviceInfo)
+	platform, systemName, appVersion := parseDeviceInfo(deviceInfo)
 	session := &models.UserSession{
 		UserID:     userID,
 		RoomID:     roomID,
@@ -99,6 +105,7 @@ func (h *Hub) recordSessionStart(userID, roomID, deviceInfo string) {
 		LastSeen:   now,
 		Platform:   platform,
 		SystemName: systemName,
+		AppVersion: appVersion,
 		DeviceInfo: deviceInfo,
 	}
 	if err := h.sessionRepo.Create(session); err != nil {

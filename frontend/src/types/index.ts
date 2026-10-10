@@ -351,6 +351,13 @@ export interface PlatformStat {
   last_seen: string
 }
 
+export interface VersionStat {
+  version: string
+  user_count: number
+  last_used: string
+  users: string[]
+}
+
 export interface AnalyticsReport {
   generated_at: string
   total_users: number
@@ -361,6 +368,7 @@ export interface AnalyticsReport {
   time_sankey: SankeyDistribution
   daily_time_sankey: DailyTimeDistribution
   platforms: PlatformStat[]
+  electron_versions: VersionStat[]
 }
 
 // Debugging and monitoring types
@@ -470,6 +478,17 @@ export interface VenmicNode {
   [key: string]: string | number | boolean | undefined
 }
 
+export interface VenmicSource {
+  "application.process.id"?: string
+  "application.name"?: string
+}
+
+export interface VenmicApp {
+  pid?: string
+  name: string
+  hasAudio: boolean
+}
+
 export interface License {
   name: string
   version: string
@@ -537,7 +556,10 @@ export interface ElectronAPI {
   venmicHasVenmic?: () => Promise<boolean>
   venmicHasPipeWire?: () => Promise<boolean>
   venmicListSources?: () => Promise<VenmicNode[]>
-  venmicStart?: (include: VenmicNode[]) => Promise<boolean>
+  venmicListApps?: (includeAll?: boolean) => Promise<VenmicApp[]>
+  venmicGetSavedSources?: () => Promise<VenmicSource[]>
+  venmicSaveSources?: (sources: VenmicSource[]) => Promise<void>
+  venmicStart?: (include: VenmicSource[]) => Promise<boolean>
   venmicStop?: () => Promise<boolean>
 }
 

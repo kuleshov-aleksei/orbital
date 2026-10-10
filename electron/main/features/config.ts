@@ -44,8 +44,17 @@ export function loadConfig(): void {
     const configPath = getConfigPath()
     if (fs.existsSync(configPath)) {
       const data = fs.readFileSync(configPath, "utf-8")
-      config = { ...DEFAULT_CONFIG, ...JSON.parse(data) }
+      const parsed = JSON.parse(data) as Record<string, unknown>
+      // One-time migration: venmic source selections (pids + process names)
+      // are ephemeral and no longer belong in persistent config.
+      const hadLegacyVenmicSources = "venmicSources" in parsed
+      delete parsed.venmicSources
+      config = { ...DEFAULT_CONFIG, ...(parsed as Partial<AppConfig>) }
       log.info("Config loaded from:", configPath)
+      if (hadLegacyVenmicSources) {
+        saveConfig()
+        log.info("Removed legacy venmicSources from persistent config")
+      }
     } else {
       log.info("No config file found, using defaults")
     }

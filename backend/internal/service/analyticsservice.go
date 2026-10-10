@@ -32,6 +32,7 @@ func (s *AnalyticsService) GetReport() (*models.AnalyticsReport, error) {
 		report.UsersSankey = models.SankeyDistribution{Nodes: []models.AnalyticsNode{}, Links: []models.AnalyticsLink{}}
 		report.TimeSankey = models.SankeyDistribution{Nodes: []models.AnalyticsNode{}, Links: []models.AnalyticsLink{}}
 		report.Platforms = []models.PlatformStat{}
+		report.ElectronVersions = []models.VersionStat{}
 		return report, nil
 	}
 
@@ -133,7 +134,51 @@ func (s *AnalyticsService) GetReport() (*models.AnalyticsReport, error) {
 	report.Platforms = stats
 	report.DailyTimeSankey = buildDailyTimeDistribution(sessions)
 
+	versionSessions, err := s.sessionRepo.GetLatestElectronSessions()
+	if err != nil {
+		return nil, err
+	}
+	report.ElectronVersions = buildVersionStats(versionSessions)
+
 	return report, nil
+}
+
+// maxVersionUsers caps how many nicknames are kept per version for the
+// frontend tooltip; the user count still reflects the full total.
+const maxVersionUsers = 10
+
+// buildVersionStats groups each user's latest Electron session by app version,
+// producing per-version user counts, the most recent use time and up to
+// maxVersionUsers nicknames. Sorted by user count desc, then last used desc.
+func buildVersionStats(sessions []repository.ElectronVersionSession) []models.VersionStat {
+	byVersion := make(map[string]*models.VersionStat)
+	for _, s := range sessions {
+		stat := byVersion[s.Version]
+		if stat == nil {
+			stat = &models.VersionStat{Version: s.Version, Users: []string{}}
+			byVersion[s.Version] = stat
+		}
+		stat.UserCount++
+		if s.LastSeen.After(stat.LastUsed) {
+			stat.LastUsed = s.LastSeen
+		}
+		if s.Nickname != "" && len(stat.Users) < maxVersionUsers {
+			stat.Users = append(stat.Users, s.Nickname)
+		}
+	}
+
+	stats := make([]models.VersionStat, 0, len(byVersion))
+	for _, stat := range byVersion {
+		stats = append(stats, *stat)
+	}
+	sort.Slice(stats, func(i, j int) bool {
+		if stats[i].UserCount != stats[j].UserCount {
+			return stats[i].UserCount > stats[j].UserCount
+		}
+		return stats[i].LastUsed.After(stats[j].LastUsed)
+	})
+
+	return stats
 }
 
 // buildUserSankey creates: All users -> platform -> system, values are distinct

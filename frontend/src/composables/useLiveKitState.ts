@@ -21,7 +21,11 @@ export interface LiveKitState {
   room: Ref<Room | null>
   isConnected: Ref<boolean>
   isConnecting: Ref<boolean>
+  isReconnecting: Ref<boolean>
   connectionError: Ref<string | null>
+  // Set when the rejoin watchdog exhausts its budget - UI shows "connection lost" + Retry.
+  // Not persisted - always starts false.
+  connectionFailed: Ref<boolean>
   localParticipant: Ref<LocalParticipant | null>
   localAudioTrack: Ref<LocalAudioTrack | null>
   localAudioPublication: Ref<LocalTrackPublication | null>
@@ -74,7 +78,9 @@ export function useLiveKitState(options: UseLiveKitStateOptions): LiveKitState {
   const room = ref<Room | null>(null)
   const isConnected = ref(false)
   const isConnecting = ref(false)
+  const isReconnecting = ref(false)
   const connectionError = ref<string | null>(null)
+  const connectionFailed = ref(false)
 
   const localParticipant = ref<LocalParticipant | null>(null)
   const localAudioTrack = ref<LocalAudioTrack | null>(null)
@@ -122,7 +128,9 @@ export function useLiveKitState(options: UseLiveKitStateOptions): LiveKitState {
     room: room as Ref<Room | null>,
     isConnected: isConnected as Ref<boolean>,
     isConnecting: isConnecting as Ref<boolean>,
+    isReconnecting: isReconnecting as Ref<boolean>,
     connectionError: connectionError as Ref<string | null>,
+    connectionFailed: connectionFailed as Ref<boolean>,
     localParticipant: localParticipant as Ref<LocalParticipant | null>,
     localAudioTrack: localAudioTrack as Ref<LocalAudioTrack | null>,
     localAudioPublication: localAudioPublication as Ref<LocalTrackPublication | null>,

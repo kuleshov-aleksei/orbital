@@ -136,6 +136,61 @@
       </div>
     </div>
 
+    <!-- Electron app versions -->
+    <div
+      v-if="report && report.electron_versions.length > 0"
+      class="bg-gray-800 rounded-lg border border-gray-700">
+      <div class="p-4 border-b border-gray-700">
+        <h2 class="text-lg font-semibold text-white">Electron app versions</h2>
+
+        <p class="text-xs text-gray-500 mt-0.5">
+          Latest deployment version run by each Electron user
+        </p>
+      </div>
+
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-gray-400 border-b border-gray-700">
+            <th class="px-4 py-2 font-medium">Version</th>
+
+            <th class="px-4 py-2 font-medium text-right">User count</th>
+
+            <th class="px-4 py-2 font-medium text-right">Last used</th>
+          </tr>
+        </thead>
+
+        <tbody class="divide-y divide-gray-700">
+          <tr v-for="v in report.electron_versions" :key="v.version">
+            <td class="px-4 py-2 text-white font-mono">{{ v.version }}</td>
+
+            <td class="px-4 py-2 text-right">
+              <div class="relative inline-block group">
+                <span
+                  class="text-indigo-400 border-b border-dashed border-indigo-500/50 cursor-default">
+                  {{ v.user_count }}
+                </span>
+
+                <div
+                  class="pointer-events-none absolute right-0 bottom-full z-10 mb-2 hidden group-hover:block w-max max-w-xs rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-left text-xs text-gray-200 shadow-lg">
+                  <div v-for="(name, i) in v.users" :key="i" class="whitespace-nowrap">
+                    {{ name }}
+                  </div>
+
+                  <div v-if="v.user_count > v.users.length" class="mt-1 text-gray-500">
+                    and {{ v.user_count - v.users.length }} more
+                  </div>
+                </div>
+              </div>
+            </td>
+
+            <td class="px-4 py-2 text-gray-300 text-right">
+              {{ formatVersionDate(v.last_used) }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
     <!-- Platform breakdown table -->
     <div
       v-if="report && report.platforms.length > 0"
@@ -382,6 +437,14 @@ const formatDuration = (seconds: number): string => {
 const formatUsers = (value: number): string => {
   const count = Math.round(value)
   return `${count} user${count === 1 ? "" : "s"}`
+}
+
+const formatVersionDate = (iso: string): string => {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return "—"
+  const day = String(date.getDate()).padStart(2, "0")
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  return `${day}.${month}.${date.getFullYear()}`
 }
 
 const displayNames: Record<string, string> = {

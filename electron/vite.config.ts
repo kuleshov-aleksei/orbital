@@ -2,6 +2,7 @@ import fs from "node:fs"
 import { defineConfig } from "vite"
 import vue from "@vitejs/plugin-vue"
 import electron from "vite-plugin-electron/simple"
+import coreElectron from "vite-plugin-electron"
 import Icons from "unplugin-icons/vite"
 import compression from "vite-plugin-compression"
 import tailwindcss from "@tailwindcss/vite"
@@ -118,6 +119,31 @@ export default defineConfig(({ command, mode }) => {
         },
         renderer: {
           nodePolyfills: true,
+        },
+      }),
+      // The venmic worker runs in a utilityProcess, which - unlike the main
+      // process - can only load bundles from app.asar through the CJS loader.
+      // Build it as a self-contained CJS bundle (no ESM runtime chunks).
+      coreElectron({
+        entry: resolve(electronPath, "main/venmicWorker.ts"),
+        vite: {
+          build: {
+            sourcemap,
+            minify: isBuild,
+            outDir: resolve(electronPath, "dist-electron/main"),
+            emptyOutDir: false,
+            lib: {
+              formats: ["cjs"],
+              fileName: (format) => (format === "es" ? "venmicWorker.es.js" : "venmicWorker.js"),
+            },
+            rolldownOptions: {
+              platform: "node",
+              output: {
+                format: "cjs",
+                codeSplitting: false,
+              },
+            },
+          },
         },
       }),
     ],

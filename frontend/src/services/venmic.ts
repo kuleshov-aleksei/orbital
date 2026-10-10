@@ -1,9 +1,4 @@
-import type { VenmicNode } from "@/types"
-
-export interface AudioSource {
-  name: string
-  value: VenmicNode
-}
+import type { VenmicApp, VenmicSource } from "@/types"
 
 export async function hasVenmic(): Promise<boolean> {
   if (!window.electronAPI?.venmicHasVenmic) {
@@ -27,18 +22,38 @@ export async function hasPipeWire(): Promise<boolean> {
   return result
 }
 
-export async function listAudioSources(): Promise<VenmicNode[]> {
-  if (!window.electronAPI?.venmicListSources) {
-    console.log("[VenmicService] venmicListSources not available")
+export async function listApps(includeAll = false): Promise<VenmicApp[]> {
+  if (!window.electronAPI?.venmicListApps) {
+    console.log("[VenmicService] venmicListApps not available")
     return []
   }
-  console.log("[VenmicService] Calling venmicListSources")
-  const result = await window.electronAPI.venmicListSources()
-  console.log("[VenmicService] venmicListSources result:", result)
+  console.log("[VenmicService] Calling venmicListApps, includeAll:", includeAll)
+  const result = await window.electronAPI.venmicListApps(includeAll)
+  console.log("[VenmicService] venmicListApps result:", result)
   return result
 }
 
-export async function startAudioCapture(include: VenmicNode[]): Promise<boolean> {
+export async function getSavedSources(): Promise<VenmicSource[]> {
+  if (!window.electronAPI?.venmicGetSavedSources) {
+    console.log("[VenmicService] venmicGetSavedSources not available")
+    return []
+  }
+  console.log("[VenmicService] Calling venmicGetSavedSources")
+  const result = await window.electronAPI.venmicGetSavedSources()
+  console.log("[VenmicService] venmicGetSavedSources result:", result)
+  return result
+}
+
+export async function saveSources(sources: VenmicSource[]): Promise<void> {
+  if (!window.electronAPI?.venmicSaveSources) {
+    console.log("[VenmicService] venmicSaveSources not available")
+    return
+  }
+  console.log("[VenmicService] Calling venmicSaveSources with:", sources)
+  await window.electronAPI.venmicSaveSources(sources)
+}
+
+export async function startAudioCapture(include: VenmicSource[]): Promise<boolean> {
   if (!window.electronAPI?.venmicStart) {
     console.log("[VenmicService] venmicStart not available")
     return false
@@ -92,36 +107,4 @@ export async function getVirtualMicDeviceId(timeoutMs = 8000): Promise<string | 
 
   console.log("[VenmicService] Found virtual mic:", audioDevice.deviceId)
   return audioDevice.deviceId
-}
-
-export function formatAudioSourceName(node: VenmicNode): string {
-  const appName = node["application.name"] as string
-  const pid = node["application.process.id"] as string
-  const nodeName = node["node.name"] as string
-
-  if (appName) {
-    return pid ? `${appName} (${pid})` : appName
-  }
-
-  return nodeName || "Unknown"
-}
-
-export async function listAudioSourcesDeduplicated(): Promise<AudioSource[]> {
-  const nodes = await listAudioSources()
-
-  const seen = new Set<string>()
-  const unique: AudioSource[] = []
-
-  for (const node of nodes) {
-    const pid = node["application.process.id"] as string
-    if (pid && !seen.has(pid)) {
-      seen.add(pid)
-      unique.push({
-        name: formatAudioSourceName(node),
-        value: node,
-      })
-    }
-  }
-
-  return unique
 }

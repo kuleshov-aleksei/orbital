@@ -13,6 +13,7 @@ import { setupAutoUpdater } from "./features/update"
 import { setupScreenShareHandler } from "./features/screenshare"
 import { registerAllHotkeys, closeHotkeyBackend } from "./features/hotkeys"
 import { setupIPC } from "./ipc"
+import { stopAudioCapture } from "./venmic"
 
 log.transports.file.level = "info"
 log.transports.console.level = "debug"
@@ -89,6 +90,10 @@ app.on("window-all-closed", () => {
 app.on("before-quit", () => {
   setIsQuitting(true)
   closeHotkeyBackend()
+  // Best-effort venmic teardown. The utilityProcess and its PipeWire nodes die
+  // with the app anyway, but an explicit unlink avoids leaving loopbacks behind
+  // if shutdown stalls. Never block quit on it.
+  stopAudioCapture().catch((e) => log.warn("[Venmic] Stop on quit failed:", e))
 })
 
 process.on("uncaughtException", (error) => {

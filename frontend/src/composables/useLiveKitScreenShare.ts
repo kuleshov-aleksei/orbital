@@ -15,7 +15,7 @@ import {
   startScreenshare as startElectronScreenShareIPC,
 } from "@/services/electron"
 import { startAudioCapture, stopAudioCapture, getVirtualMicDeviceId } from "@/services/venmic"
-import type { ScreenShareQuality, VenmicNode } from "@/types"
+import type { ScreenShareQuality, VenmicSource } from "@/types"
 import type { LiveKitState } from "./useLiveKitState"
 
 export const SCREEN_VIEWER_EVENT_TYPE = "screen_viewer"
@@ -44,8 +44,27 @@ export function useLiveKitScreenShare(state: LiveKitState) {
     const videoTrackToStop = state.localScreenVideoTrack.value
     const audioTrackToStop = state.localScreenAudioTrack.value
     const videoPublicationToUnpublish = state.localScreenVideoPublication.value
+    const audioPublicationToUnpublish = state.localScreenAudioPublication.value
 
-    if (!videoTrackToStop && !videoPublicationToUnpublish) {
+    if (
+      !videoTrackToStop &&
+      !audioTrackToStop &&
+      !videoPublicationToUnpublish &&
+      !audioPublicationToUnpublish
+    ) {
+      // All track state already cleared (e.g. the shared app closed and LiveKit
+      // auto-unpublished the ended tracks). Venmic audio capture may still be
+      // linked though — tear it down so a relaunched app is not re-linked
+      // while no screen share is active.
+      state.isStoppingScreenShare.value = true
+      try {
+        const stopped = await stopAudioCapture()
+        debugLog(`[LiveKit][INFO]: Venmic audio capture stopped: ${stopped}`)
+      } catch (e) {
+        debugWarn(`[LiveKit][WARN]: Failed to stop venmic: ${(e as Error).message}`)
+      } finally {
+        state.isStoppingScreenShare.value = false
+      }
       return
     }
 
@@ -54,16 +73,11 @@ export function useLiveKitScreenShare(state: LiveKitState) {
     try {
       debugLog(`[LiveKit][INFO]: 'Stopping screen share...'`)
 
-      await state.room.value.localParticipant.setScreenShareEnabled(false)
-
-      if (videoTrackToStop) {
-        const mediaStreamTrack = videoTrackToStop.mediaStreamTrack
-        if (mediaStreamTrack && mediaStreamTrack.readyState === "live") {
-          mediaStreamTrack.stop()
-          debugLog(`[LiveKit][INFO]: Stopped screen share video MediaStreamTrack`)
-        }
-      }
-
+      // Tear down venmic audio capture first. When the shared app closes,
+      // LiveKit auto-unpublishes the ended video track and our video refs are
+      // already cleared — stopping audio first guarantees a LiveKit error
+      // below can never leave venmic linked (dangling loopbacks / re-linking
+      // the app's audio once it restarts).
       if (audioTrackToStop) {
         const mediaStreamTrack = audioTrackToStop.mediaStreamTrack
         if (mediaStreamTrack && mediaStreamTrack.readyState === "live") {
@@ -73,9 +87,20 @@ export function useLiveKitScreenShare(state: LiveKitState) {
       }
 
       try {
-        await stopAudioCapture()
+        const stopped = await stopAudioCapture()
+        debugLog(`[LiveKit][INFO]: Venmic audio capture stopped: ${stopped}`)
       } catch (e) {
         debugWarn(`[LiveKit][WARN]: Failed to stop venmic: ${(e as Error).message}`)
+      }
+
+      await state.room.value.localParticipant.setScreenShareEnabled(false)
+
+      if (videoTrackToStop) {
+        const mediaStreamTrack = videoTrackToStop.mediaStreamTrack
+        if (mediaStreamTrack && mediaStreamTrack.readyState === "live") {
+          mediaStreamTrack.stop()
+          debugLog(`[LiveKit][INFO]: Stopped screen share video MediaStreamTrack`)
+        }
       }
 
       state.localScreenVideoPublication.value = null
@@ -112,7 +137,7 @@ export function useLiveKitScreenShare(state: LiveKitState) {
     quality: ScreenShareQuality,
     audio: boolean,
     sourceId: string,
-    audioSources?: VenmicNode[],
+    audioSources?: VenmicSource[],
   ): Promise<void> => {
     console.log("[ScreenShare] startElectronScreenShare called:", {
       quality,

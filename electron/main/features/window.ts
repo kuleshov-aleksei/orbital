@@ -9,6 +9,7 @@ import { getConfig, setCloseToTray, setHasSelectedCloseBehavior } from "./config
 import { flushPendingLogEntries } from "./logRelay"
 import { replayCachedEvents } from "./update"
 import { consumePendingDeepLink } from "./deeplink"
+import { stopAudioCapture } from "../venmic"
 
 let thumbarIcons: Record<string, nativeImage> = {}
 
@@ -170,6 +171,15 @@ export function createWindow() {
 
   win.on("closed", () => {
     setMainWindow(null)
+    // The renderer is gone, so it can no longer ask us to stop venmic capture.
+    // Tear it down here, otherwise loopbacks keep capturing (and auto-linking
+    // relaunched apps) with no screen share active.
+    stopAudioCapture().catch((e) => log.warn("[Venmic] Stop on window close failed:", e))
+  })
+
+  win.webContents.on("render-process-gone", (_event, details) => {
+    log.warn("[Window] Renderer gone:", details?.reason)
+    stopAudioCapture().catch((e) => log.warn("[Venmic] Stop on renderer crash failed:", e))
   })
 
   if (VITE_DEV_SERVER_URL) {

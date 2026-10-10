@@ -107,6 +107,7 @@ interface Props {
   roomName?: string
   ping?: number
   connectionQuality?: "sub-wave" | "excellent" | "good" | "fair" | "poor"
+  isReconnecting?: boolean
   modelValueMuted?: boolean
   modelValueDeafened?: boolean
   modelValueScreenSharing?: boolean
@@ -116,6 +117,7 @@ const props = withDefaults(defineProps<Props>(), {
   roomName: "",
   ping: 0,
   connectionQuality: "excellent",
+  isReconnecting: false,
   modelValueMuted: false,
   modelValueDeafened: false,
   modelValueScreenSharing: false,
@@ -165,6 +167,7 @@ const statusText = computed(() => {
 
 // Connection status
 const connectionStatusText = computed(() => {
+  if (props.isReconnecting) return "Reconnecting…"
   switch (props.connectionQuality) {
     case "excellent":
       return "Excellent"
@@ -182,6 +185,7 @@ const connectionStatusText = computed(() => {
 })
 
 const connectionStatusColor = computed(() => {
+  if (props.isReconnecting) return "bg-amber-400 animate-pulse"
   switch (props.connectionQuality) {
     case "excellent":
       return "bg-green-400"

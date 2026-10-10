@@ -52,6 +52,11 @@ orbital/
 
 ## Development Guidelines
 
+### External dependencies
+
+Utilize context7 mcp to read documentation of 3rd party libraries, tools, etc.
+Do not try to explore source code or write scripts to test them. Documentation first. If fails, then explore
+
 ### Frontend Development
 - Use Vue 3 Composition API
 - Follow TypeScript best practices
@@ -99,6 +104,12 @@ Types coming FROM backend to frontend should have **snake_case**. Do not follow 
 - Features include: system tray, window controls, auto-updates, deep linking (`orbital://`), desktop capture for screen sharing
 - Frontend interacts with Electron via `window.electronAPI` (see `frontend/src/services/electron.ts`)
 - The desktop app shares the same frontend code as the web version
+
+### ⚠️ Electron Build Traps (venmic worker / utilityProcess)
+
+1. **Main process builds as ESM, utilityProcess cannot load ESM from asar.** `frontend/package.json` has `"type": "module"` and the vite config `root` points at the frontend dir, so `vite-plugin-electron` detects the root package as ESM and builds the main process output as ESM. The Electron main process can load ESM bundles (even from inside `app.asar`), but **`utilityProcess.fork` CANNOT** — ESM relative imports (`import ... from "./chunk.js"`) fail with `ERR_MODULE_NOT_FOUND` when the module lives in an asar. Anything forked via `utilityProcess` (e.g. `electron/main/venmicWorker.ts`) must be built as a **self-contained CJS bundle with no ESM runtime chunks** — see the separate `coreElectron(...)` plugin instance in `electron/vite.config.ts` (`lib.formats: ["cjs"]` + `rolldownOptions.output.format: "cjs"` + `codeSplitting: false`).
+2. **`process.argv` layout inside a utility process** is `[electronBinary, modulePath, ...args]` — NOT Node's `[node, script, ...]`. The first custom arg passed to `utilityProcess.fork(modulePath, args)` lands at `process.argv[2]`, not `argv[1]`.
+3. **venmic addon calls block their caller thread.** The `@vencord/venmic` addon's `list()` blocks the calling thread with no timeout until the PipeWire worker replies; a vanished node mid-bind can wedge that worker forever. Never call it on the Electron main thread — all venmic calls go through the utilityProcess bridge in `electron/main/venmic.ts` (timeouts + kill/respawn recovery), and the watchdog debounces re-links (stability window + min gap) to avoid rebuild storms during node churn.
 
 ## Build Commands
 

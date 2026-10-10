@@ -1,7 +1,7 @@
 import { Howl } from "howler"
 import type { SoundEvent, SoundPack, SoundPackSprite } from "@/types/audio"
 import { minecraftSprites } from "@/services/sprites/minecraft"
-import { jdSherbertSprites } from "@/services/sprites/jd_sherbert"
+import { whooshSprites } from "@/services/sprites/whoosh"
 import { defaultSprites } from "@/services/sprites/default"
 import { crunchySprites } from "@/services/sprites/crunchy"
 import { kawkawSprites } from "@/services/sprites/kawkaw"
@@ -26,7 +26,7 @@ const soundPacks: Record<string, SoundPack> = {
     id: "jd_sherbert",
     name: "Whoosh",
     description: "Whoosh",
-    sprites: jdSherbertSprites,
+    sprites: whooshSprites,
   },
   minecraft: {
     id: "minecraft",
@@ -62,14 +62,14 @@ const soundPacks: Record<string, SoundPack> = {
 
 const spriteUrls: Record<string, string[]> = {
   default: [
-    "/assets/sounds/sprite/snd-lib-sine/audioSprite.ogg",
-    "/assets/sounds/sprite/snd-lib-sine/audioSprite.m4a",
-    "/assets/sounds/sprite/snd-lib-sine/audioSprite.mp3",
+    "/assets/sounds/sprite/default/default.ogg",
+    "/assets/sounds/sprite/default/default.m4a",
+    "/assets/sounds/sprite/default/default.mp3",
   ],
   jd_sherbert: [
-    "/assets/sounds/sprite/jd_sherbert/jd_sherbert.ogg",
-    "/assets/sounds/sprite/jd_sherbert/jd_sherbert.m4a",
-    "/assets/sounds/sprite/jd_sherbert/jd_sherbert.mp3",
+    "/assets/sounds/sprite/whoosh/whoosh.ogg",
+    "/assets/sounds/sprite/whoosh/whoosh.m4a",
+    "/assets/sounds/sprite/whoosh/whoosh.mp3",
   ],
   minecraft: [
     "/assets/sounds/sprite/minecraft/minecraft.ogg",
@@ -207,9 +207,15 @@ function loadSound(packId: string): ReturnType<typeof Howl> {
 }
 
 function playSoundById(packId: string, soundId: string): void {
-  // Packs may not have sprites for every event yet; fall back to a generic one.
-  const sprites = getSprites(packId)
-  const resolved = sprites[soundId] ? soundId : "message"
+  // Events without a sprite entry in the pack stay silent by default
+  // (e.g. "reconnecting"/"reconnected" and seasonal game SFX until a pack
+  // author adds them). Check before loading so we don't even fetch audio for
+  // unknown events.
+  if (!(soundId in getSprites(packId))) {
+    return
+  }
+
+  const resolved = soundId
   const sound = loadSound(packId)
 
   // Debounce: same event re-firing faster than its window is dropped.
@@ -303,6 +309,8 @@ export function useSounds() {
   const playMessage = () => playLocalSound("message")
   const playViewerJoined = () => playLocalSound("viewer_joined")
   const playViewerLeft = () => playLocalSound("viewer_left")
+  const playReconnecting = () => playLocalSound("reconnecting")
+  const playReconnected = () => playLocalSound("reconnected")
 
   const playRemoteMute = (soundPack: string) => playRemoteSound("mute", soundPack)
   const playRemoteUnmute = (soundPack: string) => playRemoteSound("unmute", soundPack)
@@ -340,6 +348,8 @@ export function useSounds() {
     playMessage,
     playViewerJoined,
     playViewerLeft,
+    playReconnecting,
+    playReconnected,
     playRemoteMute,
     playRemoteUnmute,
     playRemoteDeafen,
@@ -420,6 +430,53 @@ export function playRemoteViewerJoined(soundPack: string): void {
 
 export function playRemoteViewerLeft(soundPack: string): void {
   playRemoteSound("viewer_left", soundPack)
+}
+
+export function playReconnecting(): void {
+  playLocalSound("reconnecting")
+}
+
+export function playReconnected(): void {
+  playLocalSound("reconnected")
+}
+
+let reconnectLoopTimer: ReturnType<typeof setTimeout> | null = null
+
+function getSoundDuration(packId: string, soundId: string): number | null {
+  const sprite = getSprites(packId)[soundId]
+  return sprite && sprite.duration > 0 ? sprite.duration : null
+}
+
+function scheduleReconnectTick(): void {
+  // Re-read the duration on every tick so switching sound packs mid-reconnect
+  // picks up the new pack's timing (or stops if the new pack has no sprite).
+  const duration = getSoundDuration(getUserSoundPack(), "reconnecting")
+  if (!duration) return
+
+  reconnectLoopTimer = setTimeout(() => {
+    playLocalSound("reconnecting")
+    scheduleReconnectTick()
+  }, duration + 1000)
+}
+
+/**
+ * Start looping the "reconnecting" chime for as long as reconnection is in
+ * progress. The repeat interval comes from the "reconnecting" sprite duration
+ * in the current sound pack - if the pack has no such sprite, nothing plays
+ * at all. Call stopReconnectingLoop() when reconnecting ends.
+ */
+export function startReconnectingLoop(): void {
+  stopReconnectingLoop()
+  playLocalSound("reconnecting")
+  scheduleReconnectTick()
+}
+
+/** Stop the reconnecting chime loop started by startReconnectingLoop(). */
+export function stopReconnectingLoop(): void {
+  if (reconnectLoopTimer) {
+    clearTimeout(reconnectLoopTimer)
+    reconnectLoopTimer = null
+  }
 }
 
 export { soundPacks, DEFAULT_SOUND_PACK_ID }
