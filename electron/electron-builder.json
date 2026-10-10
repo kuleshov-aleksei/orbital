@@ -89,9 +89,8 @@
     ]
   },
   "publish": {
-    "provider": "github",
-    "owner": "kuleshov-aleksei",
-    "repo": "orbital",
-    "releaseType": "release"
+    "provider": "generic",
+    "url": "${env.UPDATE_URL}",
+    "useMultipleRangeRequest": false
   }
 }

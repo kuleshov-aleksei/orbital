@@ -6,7 +6,13 @@ on:
 jobs:
   build:
     runs-on: [self-hosted, linux, x64]
-    
+
+    env:
+      S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+      S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
+      S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
+      S3_BUCKET: ${{ secrets.S3_BUCKET }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -46,6 +52,7 @@ jobs:
           docker build \
             --build-arg VERSION=${{ env.VERSION }} \
             --build-arg VITE_BACKEND_URL=${{ secrets.VITE_BACKEND_URL }} \
+            --build-arg UPDATE_URL=${{ secrets.UPDATE_URL }} \
             -t orbital-electron-build \
             -f docker/Dockerfile.electron .
 
@@ -54,6 +61,33 @@ jobs:
           docker create --name orbital-extract orbital-electron-build
           docker cp orbital-extract:/app/electron/release ./electron
           docker rm orbital-extract
+
+      - name: Configure S3 (Garage) credentials
+        if: github.ref_type == 'tag'
+        run: |
+          SCHEME="${S3_ENDPOINT%%://*}"
+          HOST="${S3_ENDPOINT#*://}"
+          echo "MC_HOST_garage=${SCHEME}://${S3_ACCESS_KEY}:${S3_SECRET_KEY}@${HOST}" >> "$GITHUB_ENV"
+
+      - name: Upload binaries to S3
+        if: github.ref_type == 'tag'
+        run: |
+          docker run --rm -v "$PWD/electron/release:/data" -e MC_HOST_garage \
+            minio/mc cp \
+              "/data/Orbital-Setup-${VERSION}.exe" \
+              "/data/Orbital-Setup-${VERSION}.exe.blockmap" \
+              "/data/Orbital-${VERSION}.AppImage" \
+              "garage/${S3_BUCKET}/"
+
+      - name: Stage update manifests on S3
+        if: github.ref_type == 'tag'
+        run: |
+          docker run --rm -v "$PWD/electron/release:/data" -e MC_HOST_garage \
+            minio/mc cp /data/latest.yml /data/latest-linux.yml "garage/${S3_BUCKET}/_staging/${VERSION}/"
+
+      - name: Prune old S3 releases (keep 3)
+        if: github.ref_type == 'tag'
+        run: ./scripts/prune-s3-releases.sh "${S3_BUCKET}" 3
 
       - name: Upload Release Assets
         if: github.ref_type == 'tag'

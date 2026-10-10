@@ -32,6 +32,9 @@ install:
 # Get version from git tag + commit
 VERSION := $(shell ./scripts/version.sh 2>/dev/null || echo "dev-unknown")
 
+# Public update feed baked into the desktop app (override with UPDATE_URL env).
+UPDATE_URL ?= https://orbital-updates.encamy.com/
+
 # Build everything
 build:
 	@echo "Building version: $(VERSION)"
@@ -221,9 +224,9 @@ build-electron:
 	@echo "Building electron for Linux..."
 	@if [ -z "$$VITE_BACKEND_URL" ]; then \
 		echo "WARNING: VITE_BACKEND_URL not set, using https://orb.encamy.com"; \
-		cd electron && VITE_BACKEND_URL=https://orb.encamy.com pnpm run build; \
+		cd electron && VITE_BACKEND_URL=https://orb.encamy.com UPDATE_URL=$(UPDATE_URL) pnpm run build; \
 	else \
-		cd electron && VITE_BACKEND_URL=$$VITE_BACKEND_URL pnpm run build; \
+		cd electron && VITE_BACKEND_URL=$$VITE_BACKEND_URL UPDATE_URL=$(UPDATE_URL) pnpm run build; \
 	fi
 
 build-electron-win:
@@ -232,9 +235,9 @@ build-electron-win:
 	@echo "Building electron for Windows..."
 	@if [ -z "$$VITE_BACKEND_URL" ]; then \
 		echo "WARNING: VITE_BACKEND_URL not set, using https://orb.encamy.com"; \
-		cd electron && VITE_BACKEND_URL=https://orb.encamy.com pnpm run build:win; \
+		cd electron && VITE_BACKEND_URL=https://orb.encamy.com UPDATE_URL=$(UPDATE_URL) pnpm run build:win; \
 	else \
-		cd electron && VITE_BACKEND_URL=$$VITE_BACKEND_URL pnpm run build:win; \
+		cd electron && VITE_BACKEND_URL=$$VITE_BACKEND_URL UPDATE_URL=$(UPDATE_URL) pnpm run build:win; \
 	fi
 
 build-electron-linux:
@@ -243,9 +246,9 @@ build-electron-linux:
 	@echo "Building electron for Linux..."
 	@if [ -z "$$VITE_BACKEND_URL" ]; then \
 		echo "WARNING: VITE_BACKEND_URL not set, using https://orb.encamy.com"; \
-		cd electron && VITE_BACKEND_URL=https://orb.encamy.com pnpm run build:linux; \
+		cd electron && VITE_BACKEND_URL=https://orb.encamy.com UPDATE_URL=$(UPDATE_URL) pnpm run build:linux; \
 	else \
-		cd electron && VITE_BACKEND_URL=$$VITE_BACKEND_URL pnpm run build:linux; \
+		cd electron && VITE_BACKEND_URL=$$VITE_BACKEND_URL UPDATE_URL=$(UPDATE_URL) pnpm run build:linux; \
 	fi
 
 build-electron-all:
@@ -254,7 +257,7 @@ build-electron-all:
 	@echo "Building electron for all platforms..."
 	@if [ -z "$$VITE_BACKEND_URL" ]; then \
 		echo "WARNING: VITE_BACKEND_URL not set, using https://orb.encamy.com"; \
-		cd electron && VITE_BACKEND_URL=https://orb.encamy.com pnpm run build:all; \
+		cd electron && VITE_BACKEND_URL=https://orb.encamy.com UPDATE_URL=$(UPDATE_URL) pnpm run build:all; \
 	else \
-		cd electron && VITE_BACKEND_URL=$$VITE_BACKEND_URL pnpm run build:all; \
+		cd electron && VITE_BACKEND_URL=$$VITE_BACKEND_URL UPDATE_URL=$(UPDATE_URL) pnpm run build:all; \
 	fi

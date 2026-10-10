@@ -1,0 +1,51 @@
+name: Publish Electron Release
+
+# Runs when a draft Electron release is published. Scans the installer with
+# VirusTotal (informational) and promotes the staged update manifests on the
+# Garage (S3) bucket root, which makes the update instantly available to clients.
+
+permissions:
+  contents: read
+
+on:
+  release:
+    types:
+      - published
+
+jobs:
+  publish:
+    runs-on: [self-hosted, linux, x64]
+    permissions:
+      # required to write GitHub Release body
+      contents: write
+
+    env:
+      S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+      S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
+      S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
+      S3_BUCKET: ${{ secrets.S3_BUCKET }}
+
+    steps:
+      - name: VirusTotal Scan
+        uses: crazy-max/ghaction-virustotal@v5
+        with:
+          vt_api_key: ${{ secrets.VT_API_KEY }}
+          update_release_body: true
+          files: |
+            .exe$
+
+      - name: Promote update manifests to S3
+        run: |
+          SCHEME="${S3_ENDPOINT%%://*}"
+          HOST="${S3_ENDPOINT#*://}"
+          export MC_HOST_garage="${SCHEME}://${S3_ACCESS_KEY}:${S3_SECRET_KEY}@${HOST}"
+
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"
+
+          docker run --rm -e MC_HOST_garage minio/mc \
+            cp "garage/${S3_BUCKET}/_staging/${VERSION}/latest.yml" "garage/${S3_BUCKET}/latest.yml"
+          docker run --rm -e MC_HOST_garage minio/mc \
+            cp "garage/${S3_BUCKET}/_staging/${VERSION}/latest-linux.yml" "garage/${S3_BUCKET}/latest-linux.yml"
+
+          echo "Promoted ${VERSION} manifests to garage/${S3_BUCKET}/ (update is live)"
