@@ -52,6 +52,11 @@ orbital/
 
 ## Development Guidelines
 
+### External dependencies
+
+Utilize context7 mcp to read documentation of 3rd party libraries, tools, etc.
+Do not try to explore source code or write scripts to test them. Documentation first. If fails, then explore
+
 ### Frontend Development
 - Use Vue 3 Composition API
 - Follow TypeScript best practices

@@ -6,8 +6,9 @@
 # older. Manifests, staging manifests and any non-versioned objects are left
 # untouched.
 #
-# Requires `MC_HOST_garage` to be set (credentials + endpoint) and Docker, since
-# mc runs via the minio/mc image.
+# Requires the AWS_* env vars (credentials + endpoint) to be set and Docker,
+# since the AWS CLI runs via the amazon/aws-cli image. Parsing stays on the host
+# so the container only needs the `aws` binary.
 #
 # Usage: prune-s3-releases.sh <bucket> [keep=3]
 
@@ -15,29 +16,32 @@ set -euo pipefail
 
 BUCKET="${1:?usage: prune-s3-releases.sh <bucket> [keep]}"
 KEEP="${2:-3}"
-MC_IMAGE="${MC_IMAGE:-minio/mc}"
-MC_ALIAS="${MC_ALIAS:-garage}"
+AWS_IMAGE="${AWS_IMAGE:-amazon/aws-cli}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-if [ -z "${MC_HOST_garage:-}" ]; then
-  echo "ERROR: MC_HOST_garage is not set" >&2
+if [ -z "${AWS_ENDPOINT_URL:-}" ]; then
+  echo "ERROR: AWS_ENDPOINT_URL is not set" >&2
   exit 1
 fi
 
-mc() {
-  docker run --rm -e MC_HOST_garage "${MC_IMAGE}" "$@"
+aws() {
+  docker run --rm \
+    -v "${SCRIPT_DIR}/aws-cli-config:/aws/config:ro" -e AWS_CONFIG_FILE=/aws/config \
+    -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_DEFAULT_REGION -e AWS_ENDPOINT_URL \
+    "${AWS_IMAGE}" "$@"
 }
 
-REMOTE="${MC_ALIAS}/${BUCKET}"
+REMOTE="s3://${BUCKET}"
 
 # Version currently served to clients (never prune it).
-LIVE_VERSION="$(mc cat "${REMOTE}/latest.yml" 2>/dev/null \
+LIVE_VERSION="$(aws s3 cp "${REMOTE}/latest.yml" - 2>/dev/null \
   | awk '/^version:/{print $2; exit}' \
   | tr -d "'\"" || true)"
 echo "Live version: ${LIVE_VERSION:-<none>}"
 
 # Every version that has at least one artifact in the bucket root.
 mapfile -t VERSIONS < <(
-  mc ls "${REMOTE}/" 2>/dev/null \
+  aws s3 ls "${REMOTE}/" 2>/dev/null \
     | awk '{print $NF}' \
     | grep -oE 'Orbital(-Setup)?-[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?' \
     | sed -E 's/^Orbital(-Setup)?-//' \
@@ -71,7 +75,7 @@ for v in "${VERSIONS[@]}"; do
     "Orbital-Setup-${v}.exe" \
     "Orbital-Setup-${v}.exe.blockmap" \
     "Orbital-${v}.AppImage"; do
-    mc rm --force "${REMOTE}/${name}" >/dev/null 2>&1 || true
+    aws s3 rm "${REMOTE}/${name}" >/dev/null 2>&1 || true
   done
 done
 

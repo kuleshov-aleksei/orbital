@@ -8,9 +8,10 @@ jobs:
     runs-on: [self-hosted, linux, x64]
 
     env:
-      S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
-      S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
-      S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_KEY }}
+      AWS_DEFAULT_REGION: ${{ secrets.S3_REGION }}
+      AWS_ENDPOINT_URL: ${{ secrets.S3_ENDPOINT }}
       S3_BUCKET: ${{ secrets.S3_BUCKET }}
 
     steps:
@@ -62,28 +63,23 @@ jobs:
           docker cp orbital-extract:/app/electron/release ./electron
           docker rm orbital-extract
 
-      - name: Configure S3 (Garage) credentials
-        if: github.ref_type == 'tag'
-        run: |
-          SCHEME="${S3_ENDPOINT%%://*}"
-          HOST="${S3_ENDPOINT#*://}"
-          echo "MC_HOST_garage=${SCHEME}://${S3_ACCESS_KEY}:${S3_SECRET_KEY}@${HOST}" >> "$GITHUB_ENV"
-
       - name: Upload binaries to S3
         if: github.ref_type == 'tag'
         run: |
-          docker run --rm -v "$PWD/electron/release:/data" -e MC_HOST_garage \
-            minio/mc cp \
-              "/data/Orbital-Setup-${VERSION}.exe" \
-              "/data/Orbital-Setup-${VERSION}.exe.blockmap" \
-              "/data/Orbital-${VERSION}.AppImage" \
-              "garage/${S3_BUCKET}/"
+          docker run --rm -v "$PWD/electron/release:/data" \
+            -v "$PWD/scripts/aws-cli-config:/aws/config:ro" -e AWS_CONFIG_FILE=/aws/config \
+            -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_DEFAULT_REGION -e AWS_ENDPOINT_URL \
+            amazon/aws-cli s3 cp /data "s3://${S3_BUCKET}/" --recursive \
+              --exclude "*" --include "*.exe" --include "*.exe.blockmap" --include "*.AppImage"
 
       - name: Stage update manifests on S3
         if: github.ref_type == 'tag'
         run: |
-          docker run --rm -v "$PWD/electron/release:/data" -e MC_HOST_garage \
-            minio/mc cp /data/latest.yml /data/latest-linux.yml "garage/${S3_BUCKET}/_staging/${VERSION}/"
+          docker run --rm -v "$PWD/electron/release:/data" \
+            -v "$PWD/scripts/aws-cli-config:/aws/config:ro" -e AWS_CONFIG_FILE=/aws/config \
+            -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_DEFAULT_REGION -e AWS_ENDPOINT_URL \
+            amazon/aws-cli s3 cp /data "s3://${S3_BUCKET}/_staging/${VERSION}/" --recursive \
+              --exclude "*" --include "latest.yml" --include "latest-linux.yml"
 
       - name: Prune old S3 releases (keep 3)
         if: github.ref_type == 'tag'

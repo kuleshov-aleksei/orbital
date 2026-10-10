@@ -70,23 +70,31 @@ runtime `autoUpdater.setFeedURL` override).
 
 ### Secrets (GitHub repo secrets)
 
-`UPDATE_URL`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY` (Garage access key id),
-`S3_SECRET_KEY` (Garage secret), plus the existing `VT_API_KEY`,
-`VITE_BACKEND_URL`, `UAT_TOKEN`.
+`UPDATE_URL`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_REGION` (Garage region, `garage`),
+`S3_ACCESS_KEY` (Garage access key id), `S3_SECRET_KEY` (Garage secret), plus the
+existing `VT_API_KEY`, `VITE_BACKEND_URL`, `UAT_TOKEN`.
+
+CI maps the S3 secrets to the AWS CLI environment
+(`S3_ACCESS_KEY → AWS_ACCESS_KEY_ID`, `S3_SECRET_KEY → AWS_SECRET_ACCESS_KEY`,
+`S3_REGION → AWS_DEFAULT_REGION`, `S3_ENDPOINT → AWS_ENDPOINT_URL`) and runs the
+AWS CLI via the `amazon/aws-cli` image. Addressing style is pinned to **path**
+via `scripts/aws-cli-config` (mounted as `AWS_CONFIG_FILE`), because the `auto`
+default would try virtual-host style (`bucket.nas`) for the DNS-compatible bucket
+against the hostname endpoint.
 
 ### Phase 1 flow
 
 ```
 manual workflow_dispatch (on tag) — .github/workflows/build-electron.yml
   ├─ docker build --build-arg UPDATE_URL=...        # bakes app-update.yml → S3
-  ├─ mc cp binaries → S3 root                        # inert (no latest.yml yet)
-  ├─ mc cp manifests → S3 _staging/<version>/        # staged
+  ├─ aws s3 cp binaries → S3 root                    # inert (no latest.yml yet)
+  ├─ aws s3 cp manifests → S3 _staging/<version>/    # staged
   ├─ scripts/prune-s3-releases.sh <bucket> 3         # keep newest 3 + live
   └─ ncipollo draft GitHub release with ALL assets   # old clients' channel
 
 release: published — .github/workflows/publish-electron.yml
   ├─ VirusTotal scan of the release .exe (informational, appends link)
-  └─ mc cp _staging/<version>/{latest.yml,latest-linux.yml} → S3 root   # GO LIVE
+  └─ aws s3 cp _staging/<version>/{latest.yml,latest-linux.yml} → S3 root   # GO LIVE
 ```
 
 The gate is the GitHub draft release: S3 binaries exist at build time but the
@@ -122,23 +130,21 @@ are negligible.
      Loses the GitHub notes/VT gate UI.
 3. **VirusTotal step.** Once the release has no `.exe` asset, the
    `ghaction-virustotal` step has nothing to scan. Download the installer from S3
-   first (`mc cp garage/<bucket>/Orbital-Setup-<version>.exe` into the workspace)
-   and point `files:` at it.
+   first (`aws s3 cp s3://<bucket>/Orbital-Setup-<version>.exe` into the
+   workspace) and point `files:` at it.
 4. **Optional:** once GitHub releases carry no artifacts, consider whether to
    keep creating them at all. Keeping the bridge (Phase 1) release available
    forever is required for any client still on a pre-bridge build.
 
 ## Troubleshooting
 
-- **`mc` signature/region errors against Garage.** SigV4 uses the region from the
-  request's credential scope, so `mc`'s default region normally works. If Garage
-  rejects it, either pin the alias region to `garage`, or fall back to the
-  `amazon/aws-cli` container with `AWS_ENDPOINT_URL=$S3_ENDPOINT`,
-  `AWS_DEFAULT_REGION=garage` and `aws s3 cp` (this mirrors the known-good backup
-  script).
-- **`_staging/<version>/` accumulates.** Harmless; add an `mc rm --recursive` for
-  the promoted version in `publish-electron.yml` if we want to keep the bucket
-  tidy.
+- **AWS CLI addressing/region against Garage.** We pin `addressing_style = path`
+  in `scripts/aws-cli-config` (there is no `AWS_S3_ADDRESSING_STYLE` env var; the
+  setting is config-file only). If Garage still rejects requests, check that
+  `AWS_DEFAULT_REGION` (`S3_REGION`) matches Garage's configured region.
+- **`_staging/<version>/` accumulates.** Harmless; add an
+  `aws s3 rm --recursive s3://<bucket>/_staging/<version>/` for the promoted
+  version in `publish-electron.yml` if we want to keep the bucket tidy.
 - **Empty `UPDATE_URL`.** If the secret is missing, CI passes
   `--build-arg UPDATE_URL=` (empty), overriding the Dockerfile default and
   producing a broken feed. Ensure the secret exists.
