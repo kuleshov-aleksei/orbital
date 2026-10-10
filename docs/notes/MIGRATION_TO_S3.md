@@ -77,7 +77,9 @@ existing `VT_API_KEY`, `VITE_BACKEND_URL`, `UAT_TOKEN`.
 CI maps the S3 secrets to the AWS CLI environment
 (`S3_ACCESS_KEY → AWS_ACCESS_KEY_ID`, `S3_SECRET_KEY → AWS_SECRET_ACCESS_KEY`,
 `S3_REGION → AWS_DEFAULT_REGION`, `S3_ENDPOINT → AWS_ENDPOINT_URL`) and runs the
-AWS CLI via the `amazon/aws-cli` image. Addressing style is pinned to **path**
+AWS CLI via the `amazon/aws-cli:${AWS_CLI_VERSION}` image, where `AWS_CLI_VERSION`
+is a GitHub **variable** (`vars.AWS_CLI_VERSION`, currently `2.37.11`) so the
+version is pinned in one place. Addressing style is pinned to **path**
 via `scripts/aws-cli-config` (mounted as `AWS_CONFIG_FILE`), because the `auto`
 default would try virtual-host style (`bucket.nas`) for the DNS-compatible bucket
 against the hostname endpoint.

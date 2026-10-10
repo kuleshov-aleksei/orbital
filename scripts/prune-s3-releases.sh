@@ -16,13 +16,19 @@ set -euo pipefail
 
 BUCKET="${1:?usage: prune-s3-releases.sh <bucket> [keep]}"
 KEEP="${2:-3}"
-AWS_IMAGE="${AWS_IMAGE:-amazon/aws-cli}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if [ -z "${AWS_ENDPOINT_URL:-}" ]; then
   echo "ERROR: AWS_ENDPOINT_URL is not set" >&2
   exit 1
 fi
+
+if [ -z "${AWS_CLI_VERSION:-}" ]; then
+  echo "ERROR: AWS_CLI_VERSION is not set" >&2
+  exit 1
+fi
+
+AWS_IMAGE="${AWS_IMAGE:-amazon/aws-cli:${AWS_CLI_VERSION}}"
 
 aws() {
   docker run --rm \
