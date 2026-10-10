@@ -66,20 +66,25 @@ jobs:
       - name: Upload binaries to S3
         if: github.ref_type == 'tag'
         run: |
-          docker run --rm -v "$PWD/electron/release:/data" \
-            -v "$PWD/scripts/aws-cli-config:/aws/config:ro" -e AWS_CONFIG_FILE=/aws/config \
-            -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_DEFAULT_REGION -e AWS_ENDPOINT_URL \
-            amazon/aws-cli s3 cp /data "s3://${S3_BUCKET}/" --recursive \
-              --exclude "*" --include "*.exe" --include "*.exe.blockmap" --include "*.AppImage"
+          for f in \
+            "Orbital-Setup-${VERSION}.exe" \
+            "Orbital-Setup-${VERSION}.exe.blockmap" \
+            "Orbital-${VERSION}.AppImage"; do
+            docker run --rm -v "$PWD/electron/release:/data" \
+              -v "$PWD/scripts/aws-cli-config:/aws/config:ro" -e AWS_CONFIG_FILE=/aws/config \
+              -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_DEFAULT_REGION -e AWS_ENDPOINT_URL \
+              amazon/aws-cli s3 cp "/data/$f" "s3://${S3_BUCKET}/"
+          done
 
       - name: Stage update manifests on S3
         if: github.ref_type == 'tag'
         run: |
-          docker run --rm -v "$PWD/electron/release:/data" \
-            -v "$PWD/scripts/aws-cli-config:/aws/config:ro" -e AWS_CONFIG_FILE=/aws/config \
-            -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_DEFAULT_REGION -e AWS_ENDPOINT_URL \
-            amazon/aws-cli s3 cp /data "s3://${S3_BUCKET}/_staging/${VERSION}/" --recursive \
-              --exclude "*" --include "latest.yml" --include "latest-linux.yml"
+          for f in latest.yml latest-linux.yml; do
+            docker run --rm -v "$PWD/electron/release:/data" \
+              -v "$PWD/scripts/aws-cli-config:/aws/config:ro" -e AWS_CONFIG_FILE=/aws/config \
+              -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_DEFAULT_REGION -e AWS_ENDPOINT_URL \
+              amazon/aws-cli s3 cp "/data/$f" "s3://${S3_BUCKET}/_staging/${VERSION}/$f"
+          done
 
       - name: Prune old S3 releases (keep 3)
         if: github.ref_type == 'tag'
