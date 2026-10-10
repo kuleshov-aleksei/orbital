@@ -350,6 +350,13 @@ export interface PlatformStat {
   last_seen: string
 }
 
+export interface VersionStat {
+  version: string
+  user_count: number
+  last_used: string
+  users: string[]
+}
+
 export interface AnalyticsReport {
   generated_at: string
   total_users: number
@@ -360,6 +367,7 @@ export interface AnalyticsReport {
   time_sankey: SankeyDistribution
   daily_time_sankey: DailyTimeDistribution
   platforms: PlatformStat[]
+  electron_versions: VersionStat[]
 }
 
 // Debugging and monitoring types

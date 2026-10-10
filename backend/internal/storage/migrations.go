@@ -174,6 +174,15 @@ CREATE INDEX IF NOT EXISTS idx_audio_files_is_system ON audio_files(is_system);`
 CREATE INDEX IF NOT EXISTS idx_user_sessions_user_room ON user_sessions(user_id, room_id, last_seen);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_last_seen ON user_sessions(last_seen);`,
 	},
+	{
+		Version: 20,
+		Name:    "add_app_version_to_user_sessions",
+		SQL: `ALTER TABLE user_sessions ADD COLUMN app_version TEXT NOT NULL DEFAULT '';
+UPDATE user_sessions
+   SET app_version = COALESCE(json_extract(device_info, '$.app_version'), '')
+ WHERE json_valid(device_info) AND device_info != '';
+CREATE INDEX IF NOT EXISTS idx_user_sessions_app_version ON user_sessions(app_version);`,
+	},
 }
 
 func (db *DB) RunMigrations() error {
