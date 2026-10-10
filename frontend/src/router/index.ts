@@ -13,6 +13,11 @@ const router = createRouter({
       component: () => import("@/components/AppLayout.vue"),
     },
     {
+      path: "/download",
+      name: "download",
+      component: () => import("@/views/DownloadView.vue"),
+    },
+    {
       path: "/admin",
       name: "admin",
       component: () => import("@/views/AdminPanel.vue"),

@@ -3,9 +3,9 @@
     <div class="max-w-md lg:max-w-5xl w-full mx-4">
       <div class="lg:flex lg:items-center lg:justify-center lg:gap-16">
         <!-- Logo/Title -->
-        <div class="text-center lg:text-left mb-8 lg:mb-0 lg:flex-shrink-0">
+        <div class="text-center mb-8 lg:mb-0 lg:flex-shrink-0">
           <div
-            class="w-20 h-20 lg:w-28 lg:h-28 bg-theme-accent rounded-2xl flex items-center justify-center mx-auto lg:mx-0 mb-4">
+            class="w-20 h-20 lg:w-28 lg:h-28 bg-theme-accent rounded-2xl flex items-center justify-center mx-auto mb-4">
             <img
               src="/orbital-logo.png"
               alt="Orbital Logo"
@@ -17,6 +17,27 @@
           </h1>
 
           <p class="text-theme-text-muted text-lg">Voice chat for my dudes</p>
+
+          <!-- Landing actions: GitHub + Download (web only) -->
+          <div v-if="!isElectron()" class="mt-6 flex items-center justify-center gap-3">
+            <a
+              href="https://github.com/kuleshov-aleksei/orbital"
+              target="_blank"
+              rel="noopener"
+              data-testid="landing-github-button"
+              class="flex items-center gap-2 px-4 py-2.5 bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-primary rounded-lg transition-colors duration-200 font-medium text-sm">
+              <PhGithubLogo class="w-5 h-5" />
+              <span>GitHub</span>
+            </a>
+
+            <router-link
+              to="/download"
+              data-testid="landing-download-button"
+              class="flex items-center gap-2 px-4 py-2.5 bg-theme-accent hover:bg-theme-accent-hover text-theme-text-on-accent rounded-lg transition-colors duration-200 font-medium text-sm">
+              <PhDownloadSimple class="w-5 h-5" />
+              <span>Download</span>
+            </router-link>
+          </div>
         </div>
 
         <!-- Auth Card -->
@@ -304,7 +325,15 @@
 <script setup lang="ts">
 import { ref, computed } from "vue"
 import { useUserStore } from "@/stores"
-import { PhUser, PhEye, PhEyeSlash, PhInfo } from "@phosphor-icons/vue"
+import {
+  PhUser,
+  PhEye,
+  PhEyeSlash,
+  PhInfo,
+  PhGithubLogo,
+  PhDownloadSimple,
+} from "@phosphor-icons/vue"
+import { isElectron } from "@/services/electron"
 import DiscordIcon from "~icons/simple-icons/discord"
 import GoogleIcon from "~icons/logos/google-icon"
 
