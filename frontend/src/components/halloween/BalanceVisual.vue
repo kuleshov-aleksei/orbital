@@ -50,7 +50,8 @@
 
       <button
         type="button"
-        class="rounded bg-amber-700 px-2.5 py-1 text-sm text-white hover:bg-amber-600"
+        :disabled="loadingAssets"
+        class="rounded bg-amber-700 px-2.5 py-1 text-sm text-white hover:bg-amber-600 disabled:opacity-40"
         @click="restart">
         {{ started ? "restart" : "start" }}
       </button>
@@ -73,7 +74,10 @@
       <!-- Fixed-height full-width status row: content swaps inside without
         changing the header height, so the canvas never jumps. -->
       <div class="flex h-6 w-full items-center gap-3 overflow-hidden text-xs">
-        <span v-if="awaiting" class="animate-pulse truncate text-sky-300">
+        <span v-if="loadingAssets" class="animate-pulse truncate text-amber-300">
+          loading assets… {{ loadStage }}
+        </span>
+        <span v-else-if="awaiting" class="animate-pulse truncate text-sky-300">
           waiting for decider ({{ decisionTotal }} decisions so far)…
         </span>
         <span v-else-if="finished" class="truncate text-emerald-300">{{ endLine }}</span>
@@ -169,6 +173,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef } from "vue"
 import { HalloweenGameEngine } from "@/halloween/game/engine"
 import { createMiniGameRenderer } from "@/halloween/game/renderer"
+import { preloadHalloweenAssets, type HalloweenAssets } from "@/halloween/game/assets"
 import { useHalloweenStore } from "@/stores"
 import type { GameSnapshot } from "@/halloween/game/types"
 import type { HalloweenGameConfig } from "@/halloween/types"
@@ -204,6 +209,8 @@ const paused = ref(false)
 const finished = ref(false)
 const awaiting = ref(false) // blocked inside a policy await (decider fetch)
 const error = ref<string | null>(null)
+const loadingAssets = ref(false)
+const loadStage = ref("")
 const hud = ref<GameSnapshot | null>(null)
 const ticks = ref(0)
 const alivePumpkins = ref(0)
@@ -422,9 +429,33 @@ async function restart(): Promise<void> {
 
   renderer?.destroy()
   renderer = null
+  engine = null
 
   if (!halloweenStore.config) await halloweenStore.fetchConfig()
   const config = halloweenStore.config ?? defaultConfig()
+
+  // Hard block like MiniGame.vue: no assets → no sim. The renderer falls back
+  // to tinted placeholders without a bundle, so starting anyway would show a
+  // misleading visual.
+  loadingAssets.value = true
+  loadStage.value = "Preparing assets…"
+  let assetBundle: HalloweenAssets
+  try {
+    assetBundle = await preloadHalloweenAssets((percent, stage) => {
+      loadStage.value = `${percent}% — ${stage}`
+    })
+  } catch (e) {
+    if (id !== runId) return // superseded by a newer restart — drop the error
+    error.value = `Failed to load assets: ${(e as Error).message}`
+    loadingAssets.value = false
+    loadStage.value = ""
+    running.value = false
+    return
+  }
+  if (id !== runId) return // superseded while assets were loading
+  loadingAssets.value = false
+  loadStage.value = ""
+
   rng = mulberry32(seed.value)
   engine = new HalloweenGameEngine(config, rng)
   policy =
@@ -433,9 +464,12 @@ async function restart(): Promise<void> {
       : new HeuristicPolicy()
   hud.value = engine.snapshot()
 
-  // No sounds in the visualizer — engine.onEvent stays unwired.
-  renderer = createMiniGameRenderer(engine)
+  renderer = createMiniGameRenderer(engine, assetBundle)
   if (canvasEl.value) await renderer.init(canvasEl.value)
+  if (id !== runId) return // superseded while the renderer was initializing
+  // Animation-only wiring (no sounds in the visualizer): engine events drive
+  // the renderer's fire/hurt/death one-shots, mirroring MiniGame.vue.
+  engine.onEvent = (event) => renderer?.onGameEvent(event)
 
   started.value = true
   running.value = true
