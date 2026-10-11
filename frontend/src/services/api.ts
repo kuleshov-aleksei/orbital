@@ -59,6 +59,61 @@ export function getAuthToken(): string | null {
 export function clearAuthToken() {
   currentToken = null
   localStorage.removeItem("orbital_auth_token")
+  localStorage.removeItem("orbital_token_expires_at")
+}
+
+// Token expiry is persisted alongside the token so the app can proactively
+// refresh before the JWT lapses instead of silently failing mid-session.
+export function setTokenExpiry(expiresAt: string | null) {
+  if (expiresAt) {
+    localStorage.setItem("orbital_token_expires_at", expiresAt)
+  } else {
+    localStorage.removeItem("orbital_token_expires_at")
+  }
+}
+
+export function getTokenExpiry(): number | null {
+  const raw = localStorage.getItem("orbital_token_expires_at")
+  if (!raw) return null
+  const ms = Date.parse(raw)
+  return Number.isNaN(ms) ? null : ms
+}
+
+// Treat the token as expired this long before its real expiry so a request
+// never races the clock.
+const EXPIRY_SKEW_MS = 60 * 1000
+
+// Refresh once the token is within this window of expiring. With a 60-day TTL
+// this fires on app start / tab focus for sessions older than ~53 days.
+const REFRESH_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+
+// Unknown expiry (legacy token) is treated as valid; the server's 401 is the
+// source of truth in that case.
+export function isTokenExpired(): boolean {
+  const exp = getTokenExpiry()
+  if (exp === null) return false
+  return Date.now() >= exp - EXPIRY_SKEW_MS
+}
+
+export function tokenNeedsRefresh(): boolean {
+  const exp = getTokenExpiry()
+  if (exp === null) return false
+  return Date.now() >= exp - REFRESH_WINDOW_MS
+}
+
+// Called when the session is definitively gone (401 with no refresh possible).
+// The user store registers a handler to clear state and show the auth view.
+type SessionExpiredHandler = () => void
+let sessionExpiredHandler: SessionExpiredHandler | null = null
+
+export function setOnSessionExpired(handler: SessionExpiredHandler | null) {
+  sessionExpiredHandler = handler
+}
+
+function notifySessionExpired() {
+  setAuthToken(null)
+  setTokenExpiry(null)
+  sessionExpiredHandler?.()
 }
 
 // TURN server configuration types
@@ -122,8 +177,64 @@ export interface LiveKitTokenResponse {
   room_url: string
 }
 
+// API error carrying the HTTP status so callers can distinguish an expired
+// session (401) from a transient failure (network / 5xx).
+export interface ApiError extends Error {
+  status?: number
+}
+
+function apiError(message: string, status: number): ApiError {
+  const error = new Error(message) as ApiError
+  error.status = status
+  return error
+}
+
+// Endpoints whose 401 means "bad credentials" rather than "session expired" -
+// they must never trigger a refresh attempt or the session-expired flow.
+const AUTH_ENDPOINTS_NO_RETRY = ["/auth/login", "/auth/register", "/auth/guest", "/auth/refresh"]
+
+function isCredentialEndpoint(endpoint: string): boolean {
+  return AUTH_ENDPOINTS_NO_RETRY.some((path) => endpoint.startsWith(path))
+}
+
+// Single-flight refresh: concurrent 401s share one /auth/refresh call.
+let refreshPromise: Promise<boolean> | null = null
+
+export async function refreshAuthToken(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise
+
+  refreshPromise = (async () => {
+    try {
+      const token = getAuthToken()
+      const response = await fetch(`${API_BASE}/auth/refresh`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      })
+      if (!response.ok) return false
+
+      const data = (await response.json()) as AuthResponse
+      setAuthToken(data.token)
+      setTokenExpiry(data.expires_at)
+      return true
+    } catch {
+      return false
+    } finally {
+      refreshPromise = null
+    }
+  })()
+
+  return refreshPromise
+}
+
 // Generic API wrapper with error handling
-export async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+export async function apiRequest<T>(
+  endpoint: string,
+  options: RequestInit = {},
+  allowRetry = true,
+): Promise<T> {
   try {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -141,12 +252,25 @@ export async function apiRequest<T>(endpoint: string, options: RequestInit = {})
       ...options,
     })
 
+    // Expired/invalid session: try one silent refresh, then retry the request.
+    if (response.status === 401 && allowRetry && !isCredentialEndpoint(endpoint)) {
+      const refreshed = !isTokenExpired() && (await refreshAuthToken())
+      if (refreshed) {
+        return apiRequest<T>(endpoint, options, false)
+      }
+    }
+
     if (!response.ok) {
+      // Any unrecovered 401 on a protected endpoint means the session is gone.
+      if (response.status === 401 && !isCredentialEndpoint(endpoint)) {
+        notifySessionExpired()
+        throw apiError("Session expired", 401)
+      }
       if (response.status === 413) {
         throw new Error("File too large. Maximum size is 30MB.")
       }
       const errorText = await response.text()
-      throw new Error(errorText || `Upload failed (${response.status})`)
+      throw apiError(errorText || `Upload failed (${response.status})`, response.status)
     }
 
     return (await response.json()) as T
@@ -316,6 +440,7 @@ export const apiService = {
     })
     // Store token
     setAuthToken(response.token)
+    setTokenExpiry(response.expires_at)
     return response
   },
 
@@ -332,6 +457,7 @@ export const apiService = {
     })
     // Store token
     setAuthToken(response.token)
+    setTokenExpiry(response.expires_at)
     return response
   },
 
@@ -347,6 +473,18 @@ export const apiService = {
     })
     // Store token
     setAuthToken(response.token)
+    setTokenExpiry(response.expires_at)
+    return response
+  },
+
+  // Slide the current session forward with a fresh token (see RefreshToken
+  // backend handler). Callers should ensure the current token is not expired.
+  async refreshToken(): Promise<AuthResponse> {
+    const response = await apiRequest<AuthResponse>("/auth/refresh", {
+      method: "POST",
+    })
+    setAuthToken(response.token)
+    setTokenExpiry(response.expires_at)
     return response
   },
 
@@ -423,6 +561,7 @@ export const apiService = {
     })
 
     if (!response.ok) {
+      if (response.status === 401) notifySessionExpired()
       const errorText = await response.text()
       throw new Error(`API Error: ${response.status} - ${errorText}`)
     }
@@ -443,6 +582,7 @@ export const apiService = {
     })
 
     if (!response.ok) {
+      if (response.status === 401) notifySessionExpired()
       const errorText = await response.text()
       throw new Error(`API Error: ${response.status} - ${errorText}`)
     }
@@ -518,6 +658,7 @@ export const apiService = {
       if (response.status === 413) {
         throw new Error("File too large. Maximum size is 30MB.")
       }
+      if (response.status === 401) notifySessionExpired()
       const errorText = await response.text()
       throw new Error(errorText || `Upload failed (${response.status})`)
     }

@@ -498,12 +498,17 @@ export function useWebSocketHandlers() {
     }
   })
 
-  // Watch for auth completion and connect when ready
+  // Watch auth state: connect when the user signs in, and tear the socket down
+  // when the session is lost (expiry/logout) so a later sign-in reconnects.
   watch(
     () => userStore.hasCompletedAuth,
     (hasCompleted) => {
       if (hasCompleted) {
         connectIfAuthenticated()
+      } else {
+        stopGlobalPing()
+        wsService.disconnectGlobal()
+        hasConnected.value = false
       }
     },
   )

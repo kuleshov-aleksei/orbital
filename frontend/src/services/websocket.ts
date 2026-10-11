@@ -1,5 +1,5 @@
 import { WebSocketMessage } from "@/types"
-import { getAuthToken } from "./api"
+import { getAuthToken, isTokenExpired } from "./api"
 
 declare const __BACKEND_WS_URL__: string | undefined
 
@@ -25,6 +25,9 @@ export class WebSocketService {
   private roomId: string = ""
   private userId: string = ""
   private globalConnectionPromise: Promise<void> | null = null
+  // Set while closing the global socket on purpose so onclose does not kick off
+  // a reconnect loop (e.g. on session expiry / logout).
+  private globalManualClose = false
 
   constructor() {
     this.setupEventHandlers()
@@ -81,6 +84,9 @@ export class WebSocketService {
 
   // Connect to global WebSocket for broadcasts
   async connectGlobal(): Promise<void> {
+    // Any explicit connect clears a pending manual-close marker.
+    this.globalManualClose = false
+
     // If already connecting, return the existing promise
     if (this.globalConnectionPromise) {
       console.log("Global WebSocket connection already in progress, waiting...")
@@ -122,6 +128,10 @@ export class WebSocketService {
           console.log("Global WebSocket closed:", event)
           this.globalConnectionPromise = null
           this.notifyGlobalDisconnectionCallbacks(event)
+          if (this.globalManualClose) {
+            this.globalManualClose = false
+            return
+          }
           this.attemptGlobalReconnect()
         }
       } catch (error) {
@@ -154,6 +164,8 @@ export class WebSocketService {
     }
 
     if (this.globalWs) {
+      // Mark as a deliberate close so onclose does not schedule a reconnect.
+      this.globalManualClose = true
       // Wait for the close event before resolving
       await new Promise<void>((resolve) => {
         if (!this.globalWs || this.globalWs.readyState === WebSocket.CLOSED) {
@@ -445,6 +457,13 @@ export class WebSocketService {
   }
 
   private attemptReconnect(): void {
+    // Without a valid session the server rejects the handshake; the auth
+    // lifecycle reconnects after a successful sign-in instead.
+    if (!getAuthToken() || isTokenExpired()) {
+      console.log("No valid auth token, skipping room WebSocket reconnection")
+      return
+    }
+
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.log("Max reconnection attempts reached")
       return
@@ -472,6 +491,13 @@ export class WebSocketService {
   }
 
   private attemptGlobalReconnect(): void {
+    // Without a valid session the server rejects the handshake; the auth
+    // lifecycle reconnects after a successful sign-in instead.
+    if (!getAuthToken() || isTokenExpired()) {
+      console.log("No valid auth token, skipping global WebSocket reconnection")
+      return
+    }
+
     if (this.globalReconnectAttempts >= this.maxGlobalReconnectAttempts) {
       console.log("Max global WebSocket reconnection attempts reached")
       return
@@ -516,6 +542,9 @@ export class WebSocketService {
   private setupEventHandlers(): void {
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) {
+        // Never reconnect with a stale token: the server rejects it and we'd
+        // just retry forever. The session lifecycle handles re-auth instead.
+        if (isTokenExpired()) return
         if (!this.isConnected() && this.roomId) {
           this.attemptReconnect()
         }

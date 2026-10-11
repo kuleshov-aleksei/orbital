@@ -42,6 +42,14 @@
 
         <!-- Auth Card -->
         <div class="bg-theme-bg-secondary rounded-xl p-8 shadow-xl lg:w-[420px]">
+          <!-- Session expired notice -->
+          <div
+            v-if="userStore.sessionExpired"
+            data-testid="session-expired-notice"
+            class="mb-4 p-3 bg-amber-500/20 border border-amber-500 rounded-lg text-amber-200 text-sm">
+            Your session expired. Please sign in again.
+          </div>
+
           <!-- Tabs -->
           <div class="flex border-b border-theme-border mb-6">
             <button

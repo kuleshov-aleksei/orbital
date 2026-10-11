@@ -141,7 +141,11 @@ export async function loginViaUi(page: Page, login: string, password: string) {
   await expect(page.getByTestId("welcome-view")).toBeVisible()
 }
 
-export function injectSession(context: BrowserContext, user: TestUser) {
+export function injectSession(
+  context: BrowserContext,
+  user: TestUser,
+  opts: { tokenExpiresAt?: string } = {},
+) {
   return setUserIdentity(context, {
     id: user.id,
     nickname: user.nickname,
@@ -149,6 +153,7 @@ export function injectSession(context: BrowserContext, user: TestUser) {
     authProvider: user.authProvider,
     isGuest: user.isGuest,
     role: user.role,
+    tokenExpiresAt: opts.tokenExpiresAt,
   })
 }
 
@@ -254,17 +259,24 @@ export async function setUserIdentity(
     authProvider?: string
     isGuest?: boolean
     role?: string
+    tokenExpiresAt?: string
   },
 ) {
-  await context.addInitScript(({ id, nickname, token, authProvider, isGuest, role }) => {
-    localStorage.setItem("orbital_user_id", id)
-    localStorage.setItem("orbital_user_nickname", nickname)
-    localStorage.setItem("orbital_has_completed_auth", "true")
-    if (token) {
-      localStorage.setItem("orbital_auth_token", token)
-      localStorage.setItem("orbital_user_auth_provider", authProvider || "guest")
-      localStorage.setItem("orbital_user_is_guest", isGuest ? "true" : "false")
-      localStorage.setItem("orbital_user_role", role || "user")
-    }
-  }, user)
+  await context.addInitScript(
+    ({ id, nickname, token, authProvider, isGuest, role, tokenExpiresAt }) => {
+      localStorage.setItem("orbital_user_id", id)
+      localStorage.setItem("orbital_user_nickname", nickname)
+      localStorage.setItem("orbital_has_completed_auth", "true")
+      if (token) {
+        localStorage.setItem("orbital_auth_token", token)
+        localStorage.setItem("orbital_user_auth_provider", authProvider || "guest")
+        localStorage.setItem("orbital_user_is_guest", isGuest ? "true" : "false")
+        localStorage.setItem("orbital_user_role", role || "user")
+      }
+      if (tokenExpiresAt) {
+        localStorage.setItem("orbital_token_expires_at", tokenExpiresAt)
+      }
+    },
+    user,
+  )
 }
