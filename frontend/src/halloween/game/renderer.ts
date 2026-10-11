@@ -1,6 +1,15 @@
-import { AnimatedSprite, Application, Assets, Container, Graphics, Sprite } from "pixi.js"
+import {
+  AnimatedSprite,
+  Application,
+  Assets,
+  Container,
+  Graphics,
+  Sprite,
+  type Texture,
+} from "pixi.js"
 import type { GameEvent, HalloweenGameEngine } from "./engine"
 import type { HalloweenAssets } from "./assets"
+import { HALLOWEEN_BACKGROUND_URL } from "./assets"
 import type { LoadedAtlas } from "./atlas"
 import {
   COLUMN_SPACING,
@@ -80,6 +89,7 @@ export interface MiniGameRenderer {
   onGameEvent(event: GameEvent): void
   screenToWorld(clientX: number, clientY: number): { x: number; y: number } | null
   worldToScreen(x: number, y: number): { x: number; y: number }
+  toggleGrid(): void
 }
 
 // Animated pumpkin frames are 128px with ~101px of opaque content, so we scale
@@ -91,6 +101,8 @@ const DEATH_FADE_MS = 350
 // Slug frames are authored at a proper 128x128 — drawn 1:1 at a uniform size
 // for every type, no per-type radius scaling.
 const SLUG_SPRITE_SIZE = 86
+// Placement-grid overlay opacity over the background art.
+const GRID_OVERLAY_ALPHA = 0.3
 // Minimum breathing room after a finished hurt one-shot before hurt may
 // trigger again. Hits landing mid-hurt or inside this gap are swallowed —
 // without it, rapid damage (thorn ticks every frame, focused fire) chains
@@ -105,6 +117,10 @@ export function createMiniGameRenderer(
   let world: Container | null = null
   let containerEl: HTMLElement | null = null
   let background: Graphics | null = null
+  let gridOverlay: Graphics | null = null
+  let bgSprite: Sprite | null = null
+  // Placement grid starts visible; hotkey O toggles it.
+  let showGrid = true
   let cursorLayer: Container | null = null
   let effectLayer: Container | null = null
 
@@ -155,9 +171,18 @@ export function createMiniGameRenderer(
 
   const drawBackground = () => {
     if (!background) return
+    // Opaque base fill: backdrop behind the art (also covers the letterbox
+    // bars when the art is shorter than the field).
     background.clear()
     background.rect(0, 0, width(), FIELD_HEIGHT)
     background.fill({ color: 0x1a1f16 })
+    drawGrid()
+  }
+
+  const drawGrid = () => {
+    if (!gridOverlay) return
+    gridOverlay.clear()
+    if (!showGrid) return
     // Only the placable grid positions are drawn: the 5×6 placement cells.
     // On round 1 only the 3 center lanes are active — locked lanes render dim.
     const gridX0 = COLUMN_START_X
@@ -168,14 +193,35 @@ export function createMiniGameRenderer(
       for (let col = 0; col < PLACEMENT_COLUMNS; col++) {
         const x = gridX0 + col * COLUMN_SPACING
         const y = lane * LANE_HEIGHT
-        background.rect(x, y, COLUMN_SPACING, LANE_HEIGHT)
-        background.fill({ color: 0x22301c, alpha: open ? 0.35 : 0.07 })
-        background.rect(x, y, COLUMN_SPACING, LANE_HEIGHT)
-        background.stroke({ width: 1, color: 0x3b4a2f, alpha: open ? 0.7 : 0.2 })
+        gridOverlay.rect(x, y, COLUMN_SPACING, LANE_HEIGHT)
+        gridOverlay.fill({ color: 0x22301c, alpha: open ? 0.35 : 0.07 })
+        gridOverlay.rect(x, y, COLUMN_SPACING, LANE_HEIGHT)
+        gridOverlay.stroke({ width: 1, color: 0x3b4a2f, alpha: open ? 0.7 : 0.2 })
       }
     }
-    background.rect(gridX0, 0, gridW, FIELD_HEIGHT)
-    background.stroke({ width: 1, color: 0x3b4a2f, alpha: 0.9 })
+    gridOverlay.rect(gridX0, 0, gridW, FIELD_HEIGHT)
+    gridOverlay.stroke({ width: 1, color: 0x3b4a2f, alpha: 0.9 })
+  }
+
+  const toggleGrid = () => {
+    showGrid = !showGrid
+    if (gridOverlay) gridOverlay.visible = showGrid
+    drawGrid()
+  }
+
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key !== "o" && e.key !== "O") return
+    if (e.ctrlKey || e.metaKey || e.altKey) return
+    const target = e.target as HTMLElement | null
+    if (
+      target &&
+      (target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.tagName === "SELECT" ||
+        target.isContentEditable)
+    )
+      return
+    toggleGrid()
   }
 
   const makeHealthBar = (container: Container, w: number, y: number): Graphics => {
@@ -434,6 +480,25 @@ export function createMiniGameRenderer(
 
     background = new Graphics()
     world.addChild(background)
+
+    // Battlefield backdrop above the opaque base fill, below the grid.
+    // Fit-width, centered vertically. Optional art — a failed load keeps
+    // the flat fill so the game stays playable.
+    try {
+      const bgTexture = await Assets.load<Texture>(HALLOWEEN_BACKGROUND_URL)
+      bgSprite = new Sprite(bgTexture)
+      const fit = width() / bgTexture.width
+      bgSprite.scale.set(fit)
+      bgSprite.position.set(0, (FIELD_HEIGHT - bgTexture.height * fit) / 2)
+      world.addChild(bgSprite)
+    } catch {
+      bgSprite = null
+    }
+
+    gridOverlay = new Graphics()
+    gridOverlay.alpha = GRID_OVERLAY_ALPHA
+    gridOverlay.visible = showGrid
+    world.addChild(gridOverlay)
     drawBackground()
 
     effectLayer = new Container()
@@ -465,6 +530,7 @@ export function createMiniGameRenderer(
     })
 
     window.addEventListener("resize", recomputeTransform)
+    window.addEventListener("keydown", onKeyDown)
   }
 
   const eventToWorld = (e: { clientX: number; clientY: number }) => {
@@ -727,12 +793,16 @@ export function createMiniGameRenderer(
 
   const destroy = () => {
     window.removeEventListener("resize", recomputeTransform)
+    window.removeEventListener("keydown", onKeyDown)
     if (app) {
       app.destroy(true, { children: true })
       app = null
     }
     world = null
     containerEl = null
+    background = null
+    gridOverlay = null
+    bgSprite = null
     pumpkinTexture = null
     slugTexture = null
     pumpkins.clear()
@@ -740,5 +810,5 @@ export function createMiniGameRenderer(
     projectiles.clear()
   }
 
-  return { init, destroy, sync, onGameEvent, screenToWorld, worldToScreen }
+  return { init, destroy, sync, onGameEvent, screenToWorld, worldToScreen, toggleGrid }
 }

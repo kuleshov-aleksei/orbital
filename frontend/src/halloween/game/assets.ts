@@ -1,3 +1,4 @@
+import { Assets, type Texture } from "pixi.js"
 import { loadTizoAtlas, type LoadedAtlas } from "./atlas"
 
 export interface AtlasManifestEntry {
@@ -22,6 +23,10 @@ export const HALLOWEEN_ATLASES: AtlasManifestEntry[] = [
 
 export type HalloweenAssets = Map<string, LoadedAtlas>
 
+// Battlefield backdrop. Plain PNG (not an atlas) — preloaded into Pixi's
+// global Assets cache so the renderer can pick it up without type changes.
+export const HALLOWEEN_BACKGROUND_URL = "/assets/hw26/backgrounds/background_b.png"
+
 export type PreloadProgress = (percent: number, stage: string) => void
 
 // preloadHalloweenAssets loads every manifest atlas, reporting 0–100 progress
@@ -38,6 +43,14 @@ export async function preloadHalloweenAssets(
     const atlas = await loadTizoAtlas(entry.url, entry.key)
     assets.set(entry.key, atlas)
     onProgress?.(Math.round(((i + 1) / total) * 100), `Loaded ${prettyLabel(entry.key)}`)
+  }
+  // The backdrop is optional art, not a hard dependency: if it fails to load
+  // the renderer falls back to the flat fill, so never fail the preload here.
+  try {
+    onProgress?.(100, "Loading Background…")
+    await Assets.load<Texture>(HALLOWEEN_BACKGROUND_URL)
+  } catch (error) {
+    console.warn(`[halloween] background failed to preload: ${(error as Error).message}`)
   }
   onProgress?.(100, "Ready")
   return assets
