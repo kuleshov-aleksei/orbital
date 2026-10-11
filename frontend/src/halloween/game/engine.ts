@@ -51,6 +51,8 @@ export type GameEvent =
       source: KillSource
     }
   | { type: "shield_break"; slugId: number }
+  | { type: "slug_damaged"; slugId: number }
+  | { type: "slug_attacked"; slugId: number }
   | { type: "item_used"; abilityId: AbilityId }
   | { type: "dell_retired"; slugId: number }
 
@@ -697,7 +699,11 @@ export class HalloweenGameEngine {
       return
     }
     slug.health -= damage
-    if (slug.health <= 0) this.killSlug(slug, source)
+    if (slug.health <= 0) {
+      this.killSlug(slug, source)
+    } else {
+      this.onEvent?.({ type: "slug_damaged", slugId: slug.id })
+    }
   }
 
   // ---- Abilities ---------------------------------------------------------
@@ -921,11 +927,13 @@ export class HalloweenGameEngine {
         if (justEngaged) {
           // First bite lands immediately; subsequent bites every interval.
           slug.attackTimer = SLUG_ATTACK_INTERVAL
+          this.onEvent?.({ type: "slug_attacked", slugId: slug.id })
         }
         slug.attackTimer += dt
         if (slug.attackTimer >= SLUG_ATTACK_INTERVAL) {
           slug.attackTimer = 0
           attacked.health -= slug.damage
+          this.onEvent?.({ type: "slug_attacked", slugId: slug.id })
           this.onEvent?.({
             type: "pumpkin_damaged",
             pumpkinId: attacked.id,

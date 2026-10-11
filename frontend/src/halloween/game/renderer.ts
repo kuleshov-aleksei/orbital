@@ -54,6 +54,18 @@ interface SlugDisplay {
   sprite: Sprite | Graphics
   bar: Graphics
   shield: Graphics
+  // Animated slugs (atlas-backed) mirror the pumpkin state machine, except
+  // the locomotion loop is per-type: crawlers loop `crawl`, Dell loops `idle`
+  // (he doesn't move — `motion` is ignored). One-shots return to `base`.
+  kind: SlugType
+  animated?: boolean
+  anim?: AnimatedSprite
+  atlas?: LoadedAtlas
+  action?: string
+  base?: string
+  // Throttle for the hurt one-shot (see HURT_GAP_MS): hits landing inside
+  // this window are swallowed so rapid damage can't chain hurt back-to-back.
+  hurtUntil?: number
 }
 
 interface ProjDisplay {
@@ -76,6 +88,14 @@ const ANIM_FPS = 30
 const PUMPKIN_ANIM_FIT = 128 / 101
 // How long a finished corpse lingers while it fades out before removal.
 const DEATH_FADE_MS = 350
+// Slug frames are authored at a proper 128x128 — drawn 1:1 at a uniform size
+// for every type, no per-type radius scaling.
+const SLUG_SPRITE_SIZE = 86
+// Minimum breathing room after a finished hurt one-shot before hurt may
+// trigger again. Hits landing mid-hurt or inside this gap are swallowed —
+// without it, rapid damage (thorn ticks every frame, focused fire) chains
+// hurt back-to-back and the locomotion loop never reads.
+const HURT_GAP_MS = 600
 
 export function createMiniGameRenderer(
   engine: HalloweenGameEngine,
@@ -90,6 +110,22 @@ export function createMiniGameRenderer(
 
   const pumpkinAtlasFor = (type: PumpkinType): LoadedAtlas | undefined =>
     assets?.get(`pumpkin:${type}`)
+
+  const slugAtlasFor = (type: SlugType): LoadedAtlas | undefined => assets?.get(`slug:${type}`)
+
+  // Locomotion loop per slug type. Crawlers loop `crawl`; Dell doesn't move
+  // so he loops `idle` (`motion` is ignored). Missing states simply yield no
+  // animation — e.g. Dell's death/hurt arrive in a later asset drop.
+  const baseLoopFor = (type: SlugType, atlas: LoadedAtlas): string | undefined => {
+    if (type === "dell") {
+      if (atlas.animations.idle?.length) return "idle"
+      if (atlas.animations.crawl?.length) return "crawl"
+      return undefined
+    }
+    if (atlas.animations.crawl?.length) return "crawl"
+    if (atlas.animations.idle?.length) return "idle"
+    return undefined
+  }
 
   const pumpkins = new Map<number, PumpkinDisplay>()
   const slugs = new Map<number, SlugDisplay>()
@@ -199,6 +235,50 @@ export function createMiniGameRenderer(
     anim.gotoAndPlay(0)
   }
 
+  // Slug counterpart of playPumpkinState. One-shots (attack/hurt/create)
+  // return to the type's locomotion loop (`base`); death never plays on the
+  // entity — kills spawn a detached effect via spawnSlugDeath instead.
+  const playSlugState = (display: SlugDisplay, state: string) => {
+    const anim = display.anim
+    const atlas = display.atlas
+    if (!anim || !atlas) return
+    const frames = atlas.animations[state]
+    if (!frames || frames.length === 0) return
+    if (display.action === state && anim.playing) return
+    // One-shots (attack/hurt/create) never interrupt each other — a running
+    // one-shot always plays to completion. Only the return to the base loop
+    // (driven by onComplete) may replace a finished one-shot.
+    if (state !== display.base && display.action !== display.base && anim.playing) return
+    display.action = state
+    anim.textures = frames
+    anim.loop = state === display.base
+    anim.animationSpeed = ANIM_FPS / 60
+    anim.gotoAndPlay(0)
+  }
+
+  // Detached death one-shot at the kill position. The engine removes slugs
+  // immediately on death (unlike pumpkins, which linger as corpses), so the
+  // effect lives on `world` directly — NOT effectLayer, which sync() clears
+  // every frame — and destroys itself when finished.
+  const spawnSlugDeath = (type: SlugType, x: number, y: number) => {
+    const atlas = slugAtlasFor(type)
+    const frames = atlas?.animations.death
+    if (!world || !frames || frames.length === 0) return
+    const anim = new AnimatedSprite(frames)
+    anim.anchor.set(0.5)
+    anim.position.set(x, y)
+    anim.height = SLUG_SPRITE_SIZE
+    anim.scale.x = anim.scale.y
+    anim.animationSpeed = ANIM_FPS / 60
+    anim.loop = false
+    anim.onComplete = () => {
+      world?.removeChild(anim)
+      anim.destroy()
+    }
+    world.addChild(anim)
+    anim.play()
+  }
+
   const addPumpkin = (id: number, type: PumpkinType, radius: number) => {
     const container = new Container()
     const atlas = pumpkinAtlasFor(type)
@@ -253,16 +333,66 @@ export function createMiniGameRenderer(
 
   const addSlug = (id: number, type: SlugType, radius: number) => {
     const container = new Container()
-    const body: Sprite | Graphics = slugTexture
-      ? spriteFor(slugTexture, radius * 2)
-      : new Graphics().circle(0, 0, radius).fill({ color: SLUG_TINTS[type] })
-    body.tint = SLUG_TINTS[type]
+    const atlas = slugAtlasFor(type)
+    const base = atlas ? baseLoopFor(type, atlas) : undefined
+    let body: Sprite | Graphics
+    let animated = false
+    let anim: AnimatedSprite | undefined
+    let opener: string | undefined
+    if (atlas && base && atlas.animations[base]?.length) {
+      // Real art: never tinted — the sprite carries its own colors.
+      // Dell materializes with a `create` one-shot before settling into idle;
+      // crawlers start in their loop from birth. (The slug_spawned event fires
+      // before sync() creates the display, so the opener lives here.)
+      opener = type === "dell" && atlas.animations.create?.length ? "create" : base
+      animated = true
+      anim = new AnimatedSprite(atlas.animations[opener])
+      anim.anchor.set(0.5)
+      anim.height = SLUG_SPRITE_SIZE
+      anim.scale.x = anim.scale.y
+      anim.animationSpeed = ANIM_FPS / 60
+      anim.loop = opener === base
+      anim.play()
+      body = anim
+    } else if (slugTexture) {
+      body = spriteFor(slugTexture, radius * 2)
+      body.tint = SLUG_TINTS[type]
+    } else {
+      // Placeholder fallback for types that have no atlas yet — tinted.
+      body = new Graphics().circle(0, 0, radius).fill({ color: SLUG_TINTS[type] })
+    }
     container.addChild(body)
-    const bar = makeHealthBar(container, radius * 2, -radius - 10)
+    // HUD tracks the visual body: uniform sprite size for animated slugs,
+    // engine radius for the placeholder fallback.
+    const hudW = animated ? SLUG_SPRITE_SIZE : radius * 2
+    const hudY = animated ? -SLUG_SPRITE_SIZE / 2 - 12 : -radius - 10
+    const bar = makeHealthBar(container, hudW, hudY)
     const shield = new Graphics()
     container.addChild(shield)
     world?.addChild(container)
-    slugs.set(id, { container, sprite: body, bar, shield })
+    const display: SlugDisplay = {
+      container,
+      sprite: body,
+      bar,
+      shield,
+      kind: type,
+      animated,
+      anim,
+      atlas,
+      action: animated ? (opener ?? base) : undefined,
+      base,
+    }
+    if (anim)
+      anim.onComplete = () => {
+        // Every one-shot returns to the locomotion loop. A finished hurt
+        // opens a short gap before hurt may trigger again (see HURT_GAP_MS).
+        if (display.action !== display.base) {
+          const wasHurt = display.action === "hurt"
+          playSlugState(display, display.base ?? "")
+          if (wasHurt) display.hurtUntil = performance.now() + HURT_GAP_MS
+        }
+      }
+    slugs.set(id, display)
   }
 
   const addProjectile = (id: number, kind: string) => {
@@ -480,19 +610,34 @@ export function createMiniGameRenderer(
       if (!display) {
         addSlug(s.id, s.type, s.radius)
         display = slugs.get(s.id)!
+      } else if (display.kind !== s.type) {
+        // A retired Dell converts to Gerald in place (same id, new type and
+        // radius) — rebuild the display so the new type's atlas takes over.
+        world.removeChild(display.container)
+        display.container.destroy({ children: true })
+        slugs.delete(s.id)
+        addSlug(s.id, s.type, s.radius)
+        display = slugs.get(s.id)!
       }
       display.container.position.set(s.x, s.y)
-      updateBar(display.bar, s.radius * 2, s.health, s.maxHealth)
+      // Slug art faces left; direction is -1 (crawling left) or +1 (reversed).
+      display.container.scale.x = -s.direction
+      // Animated slugs render at the uniform sprite size; the placeholder
+      // fallback renders at engine radius — HUD follows whichever applies.
+      const visualR = display.animated ? SLUG_SPRITE_SIZE / 2 : s.radius
+      updateBar(display.bar, visualR * 2, s.health, s.maxHealth)
+      // Real art is never tinted — only the placeholder fallback keeps a tint.
+      if (!display.animated) display.sprite.tint = SLUG_TINTS[s.type]
       // Shield ring: cyan circle plus one tick per remaining shield.
       // No shields, no ring. Minimalism even Gilfoyle respects.
       display.shield.clear()
       if (s.shields > 0) {
-        display.shield.circle(0, 0, s.radius + 5)
+        display.shield.circle(0, 0, visualR + 5)
         display.shield.stroke({ width: 2.5, color: 0x67e8f9, alpha: 0.9 })
         for (let i = 0; i < s.shields; i++) {
           const a = (i / Math.max(1, s.maxShields)) * Math.PI * 2 - Math.PI / 2
-          const r1 = s.radius + 8
-          const r2 = s.radius + 12
+          const r1 = visualR + 8
+          const r2 = visualR + 12
           display.shield.moveTo(Math.cos(a) * r1, Math.sin(a) * r1)
           display.shield.lineTo(Math.cos(a) * r2, Math.sin(a) * r2)
         }
@@ -541,6 +686,38 @@ export function createMiniGameRenderer(
       case "pumpkin_destroyed": {
         const display = pumpkins.get(event.pumpkinId)
         if (display) playPumpkinState(display, "death")
+        break
+      }
+      case "slug_spawned": {
+        // Dell materializes with a `create` one-shot, then settles into idle.
+        // Crawlers start in their loop from birth — nothing to do.
+        if (event.slugType === "dell") {
+          const display = slugs.get(event.slugId)
+          if (display) playSlugState(display, "create")
+        }
+        break
+      }
+      case "slug_attacked": {
+        const display = slugs.get(event.slugId)
+        if (display) playSlugState(display, "attack")
+        break
+      }
+      case "shield_break":
+      case "slug_damaged": {
+        const display = slugs.get(event.slugId)
+        if (!display?.anim) break
+        // Never restart hurt mid-play, and respect the post-hurt gap — a hit
+        // landing here is swallowed, not queued.
+        if (display.action === "hurt" && display.anim.playing) break
+        if ((display.hurtUntil ?? 0) > performance.now()) break
+        playSlugState(display, "hurt")
+        break
+      }
+      case "slug_destroyed": {
+        // Slugs are removed immediately — play death as a detached effect at
+        // the kill position. Missing frames (Dell, until the next asset drop)
+        // are a silent no-op.
+        spawnSlugDeath(event.slugType, event.x, event.y)
         break
       }
       default:
