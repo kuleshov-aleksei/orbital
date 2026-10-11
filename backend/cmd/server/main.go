@@ -171,6 +171,7 @@ func main() {
 	r.HandleFunc("/api/auth/guest", authHandler.GuestLogin).Methods("POST")
 	r.HandleFunc("/api/auth/logout", authHandler.Logout).Methods("POST")
 	r.Handle("/api/auth/me", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.GetCurrentUser))).Methods("GET")
+	r.Handle("/api/auth/refresh", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.RefreshToken))).Methods("POST")
 	r.HandleFunc("/api/auth/status", authHandler.GetAuthStatus).Methods("GET")
 	r.HandleFunc("/api/auth/register", authHandler.Register).Methods("POST")
 	r.HandleFunc("/api/auth/login", authHandler.LoginPassword).Methods("POST")

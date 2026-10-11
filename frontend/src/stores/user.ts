@@ -1,6 +1,12 @@
 import { defineStore } from "pinia"
 import { ref, computed } from "vue"
-import { apiService, setAuthToken, clearAuthToken } from "@/services/api"
+import {
+  apiService,
+  setAuthToken,
+  clearAuthToken,
+  setTokenExpiry,
+  type ApiError,
+} from "@/services/api"
 import { setUserSoundPack } from "@/services/sounds"
 
 export type AuthProvider = "guest" | "discord" | "google" | "password"
@@ -19,6 +25,7 @@ export const useUserStore = defineStore("user", () => {
   const currentUser = ref<UserSession | null>(null)
   const hasCompletedAuth = ref(false)
   const token = ref<string | null>(null)
+  const sessionExpired = ref(false)
   const nicknameUpdateStatus = ref<"idle" | "pending" | "success" | "error">("idle")
   const nicknameUpdateError = ref<string | null>(null)
   const avatarUpdateStatus = ref<"idle" | "pending" | "success" | "error">("idle")
@@ -53,7 +60,7 @@ export const useUserStore = defineStore("user", () => {
     )
   })
 
-  function setUser(user: UserSession, authToken?: string) {
+  function setUser(user: UserSession, authToken?: string, expiresAt?: string) {
     // Validate user object
     if (!user.id || !user.nickname || !user.authProvider || typeof user.isGuest !== "boolean") {
       console.error("Invalid user object provided:", user)
@@ -72,6 +79,9 @@ export const useUserStore = defineStore("user", () => {
     if (authToken) {
       token.value = authToken
       setAuthToken(authToken)
+    }
+    if (expiresAt) {
+      setTokenExpiry(expiresAt)
     }
     localStorage.setItem("orbital_user_id", user.id)
     localStorage.setItem("orbital_user_nickname", user.nickname)
@@ -222,11 +232,25 @@ export const useUserStore = defineStore("user", () => {
         }
 
         currentUser.value = { ...user }
-      } catch {
-        // Token might be expired, clear everything
-        console.warn("Token validation failed, clearing auth state")
-        clearUser()
-        return null
+      } catch (error) {
+        const status = (error as ApiError).status
+        if (status === 401) {
+          // The API interceptor already cleared state and flagged the session
+          // as expired - just report failure to the caller.
+          console.warn("Token validation failed (session expired)")
+          return null
+        }
+        if (status === 403 || status === 404) {
+          // Token is valid but the user is gone / forbidden.
+          console.warn("Token validation failed, clearing auth state")
+          clearUser()
+          return null
+        }
+        // Transient failure (network error / 5xx): keep the stored session so a
+        // brief backend hiccup doesn't log the user out. A real expiry is still
+        // caught by the 401 interceptor on the next authenticated request.
+        console.warn("Token validation unavailable, keeping stored session:", error)
+        return user
       }
 
       return user
@@ -238,6 +262,7 @@ export const useUserStore = defineStore("user", () => {
     currentUser.value = null
     hasCompletedAuth.value = false
     token.value = null
+    sessionExpired.value = false
     clearAuthToken()
     localStorage.removeItem("orbital_user_id")
     localStorage.removeItem("orbital_user_nickname")
@@ -247,6 +272,15 @@ export const useUserStore = defineStore("user", () => {
     localStorage.removeItem("orbital_has_completed_auth")
     localStorage.removeItem("orbital_user_is_guest")
     localStorage.removeItem("orbital_user_role")
+  }
+
+  // Called by the API layer when a request is rejected with 401 and the token
+  // could not be refreshed: drop all local auth state and surface the reason so
+  // the AuthView can explain why the user landed back on the login screen.
+  function handleSessionExpired() {
+    console.warn("Session expired, returning to authentication")
+    clearUser()
+    sessionExpired.value = true
   }
 
   function loginWithProvider(provider: "discord" | "google") {
@@ -270,7 +304,8 @@ export const useUserStore = defineStore("user", () => {
         email: response.user.email,
         avatarUrl: response.user.avatar_url,
       }
-      setUser(user, response.token)
+      sessionExpired.value = false
+      setUser(user, response.token, response.expires_at)
       hasCompletedAuth.value = true
       localStorage.setItem("orbital_has_completed_auth", "true")
     } catch (error) {
@@ -291,7 +326,8 @@ export const useUserStore = defineStore("user", () => {
         email: response.user.email,
         avatarUrl: response.user.avatar_url,
       }
-      setUser(user, response.token)
+      sessionExpired.value = false
+      setUser(user, response.token, response.expires_at)
       hasCompletedAuth.value = true
       localStorage.setItem("orbital_has_completed_auth", "true")
     } catch (error) {
@@ -312,7 +348,8 @@ export const useUserStore = defineStore("user", () => {
         email: response.user.email,
         avatarUrl: response.user.avatar_url,
       }
-      setUser(user, response.token)
+      sessionExpired.value = false
+      setUser(user, response.token, response.expires_at)
       hasCompletedAuth.value = true
       localStorage.setItem("orbital_has_completed_auth", "true")
     } catch (error) {
@@ -331,8 +368,9 @@ export const useUserStore = defineStore("user", () => {
   }
 
   // Handle OAuth callback
-  function handleOAuthCallback(tokenStr: string, userData: UserSession) {
-    setUser(userData, tokenStr)
+  function handleOAuthCallback(tokenStr: string, userData: UserSession, expiresAt?: string) {
+    sessionExpired.value = false
+    setUser(userData, tokenStr, expiresAt)
     hasCompletedAuth.value = true
     localStorage.setItem("orbital_has_completed_auth", "true")
   }
@@ -352,6 +390,7 @@ export const useUserStore = defineStore("user", () => {
     isAdmin,
     isSuperAdmin,
     hasCompletedAuth,
+    sessionExpired,
     nicknameUpdateStatus,
     nicknameUpdateError,
     avatarUpdateStatus,
@@ -366,6 +405,7 @@ export const useUserStore = defineStore("user", () => {
     updateAvatar,
     loadUserFromStorage,
     clearUser,
+    handleSessionExpired,
     loginWithProvider,
     continueAsGuest,
     loginWithPassword,

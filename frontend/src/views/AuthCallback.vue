@@ -24,7 +24,7 @@ import { onMounted, ref } from "vue"
 import { useRouter } from "vue-router"
 import { useUserStore, type AuthProvider } from "@/stores/user"
 import { PhPlanet } from "@phosphor-icons/vue"
-import { apiService, setAuthToken } from "@/services/api"
+import { apiService, setAuthToken, clearAuthToken } from "@/services/api"
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -86,7 +86,7 @@ onMounted(async () => {
       avatarUrl: user.avatar_url,
     }
 
-    userStore.handleOAuthCallback(token, userSession)
+    userStore.handleOAuthCallback(token, userSession, expires ?? undefined)
 
     statusMessage.value = "Welcome!"
     setTimeout(() => {
@@ -96,7 +96,7 @@ onMounted(async () => {
     error.value = err instanceof Error ? err.message : "An unexpected error occurred"
     statusMessage.value = "Authentication failed"
 
-    setAuthToken(null)
+    clearAuthToken()
 
     setTimeout(() => {
       void router.push("/")

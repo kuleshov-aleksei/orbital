@@ -363,6 +363,38 @@ func (h *AuthHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(user)
 }
 
+// RefreshToken slides an authenticated session forward by issuing a new JWT
+// with a fresh expiry. The current token must still be valid (AuthMiddleware
+// rejects expired tokens), so clients must refresh before expiry.
+func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
+	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	if !ok || claims == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Re-fetch fresh user data so role/nickname/avatar changes are reflected
+	// in the new token instead of being carried over from stale claims.
+	user, err := h.authService.GetUserByID(claims.UserID)
+	if err != nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	token, expiry, err := h.authService.GenerateJWT(user)
+	if err != nil {
+		http.Error(w, "Failed to generate token: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(models.AuthResponse{
+		Token:     token,
+		User:      *user,
+		ExpiresAt: expiry,
+	})
+}
+
 // Logout handles logout (client should also delete token)
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	// In a stateless JWT system, logout is handled client-side
