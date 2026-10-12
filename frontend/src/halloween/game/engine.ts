@@ -64,12 +64,39 @@ const SLUG_RADII: Record<SlugType, number> = {
   gerald: 26,
   dell: 16,
 }
-// Battleground grid: 5 horizontal stripes, 6 placement columns on the left.
-export const LANE_COUNT = 5
-export const LANE_HEIGHT = FIELD_HEIGHT / LANE_COUNT
-export const PLACEMENT_COLUMNS = 6
-export const COLUMN_START_X = 80
-export const COLUMN_SPACING = 80
+// Battleground layout: single tweakable block so the placement grid and slug
+// lanes can be aligned with the background art. All gameplay (placement,
+// targeting, spawning) and rendering go through lane/column helpers below,
+// so editing these numbers moves logic + visuals together.
+// - laneYOffset: shifts all rows down (positive) / up (negative).
+// - laneHeight: row height; laneCount * laneHeight may be < FIELD_HEIGHT to
+//   leave letterbox room for art borders (rows render centered via offset).
+// - gridX0: left edge of the pumpkin block (column 0 center).
+// - colSpacing: horizontal distance between pumpkin columns.
+// - spawnMargin: slug spawn x = battlefield_length + margin (negative spawns
+//   on-screen, e.g. to sit at a painted gate instead of off-canvas).
+// - bgOffsetX/bgOffsetY: extra nudge for the stretched backdrop, in field
+//   units. Normally 0,0 — only needed if the art's play area isn't full-bleed.
+export const FIELD_LAYOUT = {
+  height: FIELD_HEIGHT,
+  laneCount: 5,
+  laneYOffset: 150,
+  laneHeight: 80,
+  gridX0: 80,
+  colSpacing: 80,
+  placementCols: 6,
+  spawnMargin: 20,
+  bgOffsetX: 0,
+  bgOffsetY: 0,
+}
+// Back-compat aliases — prefer FIELD_LAYOUT for new code.
+export const LANE_COUNT = FIELD_LAYOUT.laneCount
+export const LANE_HEIGHT = FIELD_LAYOUT.laneHeight
+export const LANE_Y_OFFSET = FIELD_LAYOUT.laneYOffset
+export const PLACEMENT_COLUMNS = FIELD_LAYOUT.placementCols
+export const COLUMN_START_X = FIELD_LAYOUT.gridX0
+export const COLUMN_SPACING = FIELD_LAYOUT.colSpacing
+export const SPAWN_MARGIN = FIELD_LAYOUT.spawnMargin
 const SLUG_ATTACK_INTERVAL = 3
 const DELL_SPAWN_INTERVAL = 5
 // Dr. Dell Conagher retires after this many Marvins — an immortal Dell would
@@ -124,22 +151,22 @@ export const SHOP_PRICE_CAP_MULT = 5
 export const PEARCER_PIERCE = 8
 
 export function laneForY(y: number): number {
-  return Math.max(0, Math.min(LANE_COUNT - 1, Math.floor(y / LANE_HEIGHT)))
+  const { laneCount, laneYOffset, laneHeight } = FIELD_LAYOUT
+  return Math.max(0, Math.min(laneCount - 1, Math.floor((y - laneYOffset) / laneHeight)))
 }
 
 export function laneCenterY(lane: number): number {
-  return LANE_HEIGHT * (lane + 0.5)
+  const { laneYOffset, laneHeight } = FIELD_LAYOUT
+  return laneYOffset + laneHeight * (lane + 0.5)
 }
 
 export function columnForX(x: number): number {
-  return Math.max(
-    0,
-    Math.min(PLACEMENT_COLUMNS - 1, Math.round((x - COLUMN_START_X) / COLUMN_SPACING)),
-  )
+  const { placementCols, gridX0, colSpacing } = FIELD_LAYOUT
+  return Math.max(0, Math.min(placementCols - 1, Math.round((x - gridX0) / colSpacing)))
 }
 
 export function columnX(col: number): number {
-  return COLUMN_START_X + col * COLUMN_SPACING
+  return FIELD_LAYOUT.gridX0 + col * FIELD_LAYOUT.colSpacing
 }
 
 interface PendingAbility {
@@ -266,7 +293,7 @@ export class HalloweenGameEngine {
   // opens all 5 lanes. Applies to both pumpkin placement and slug spawns.
   activeLanes(): number[] {
     if (this.round <= 1) return [1, 2, 3]
-    return Array.from({ length: LANE_COUNT }, (_, i) => i)
+    return Array.from({ length: FIELD_LAYOUT.laneCount }, (_, i) => i)
   }
 
   // ---- Rounds ------------------------------------------------------------
@@ -882,7 +909,13 @@ export class HalloweenGameEngine {
       const min = this.config.shield_min ?? 0
       const max = this.config.shield_max ?? 0
       const shields = shielded && max > 0 ? min + Math.floor(this.rng() * (max - min + 1)) : 0
-      this.spawnSlug(type, this.width + 20, laneCenterY(lane), speedMul, shields)
+      this.spawnSlug(
+        type,
+        this.width + FIELD_LAYOUT.spawnMargin,
+        laneCenterY(lane),
+        speedMul,
+        shields,
+      )
       this.spawnTimer = resolveSpawnTable(this.round, this.config).interval
     }
   }

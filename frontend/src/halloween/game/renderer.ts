@@ -12,12 +12,8 @@ import type { HalloweenAssets } from "./assets"
 import { HALLOWEEN_BACKGROUND_URL } from "./assets"
 import type { LoadedAtlas } from "./atlas"
 import {
-  COLUMN_SPACING,
-  COLUMN_START_X,
   FIELD_HEIGHT,
-  LANE_COUNT,
-  LANE_HEIGHT,
-  PLACEMENT_COLUMNS,
+  FIELD_LAYOUT,
   columnForX,
   columnX,
   laneCenterY,
@@ -183,23 +179,26 @@ export function createMiniGameRenderer(
     if (!gridOverlay) return
     gridOverlay.clear()
     if (!showGrid) return
-    // Only the placable grid positions are drawn: the 5×6 placement cells.
+    // Only the placable grid positions are drawn: the placement cells.
     // On round 1 only the 3 center lanes are active — locked lanes render dim.
-    const gridX0 = COLUMN_START_X
-    const gridW = PLACEMENT_COLUMNS * COLUMN_SPACING
+    // Grid geometry comes from FIELD_LAYOUT so it stays in sync with the art.
+    const { gridX0, colSpacing, placementCols, laneCount, laneYOffset, laneHeight } =
+      FIELD_LAYOUT
+    const gridW = placementCols * colSpacing
+    const gridH = laneCount * laneHeight
     const active = new Set(engine.activeLanes())
-    for (let lane = 0; lane < LANE_COUNT; lane++) {
+    for (let lane = 0; lane < laneCount; lane++) {
       const open = active.has(lane)
-      for (let col = 0; col < PLACEMENT_COLUMNS; col++) {
-        const x = gridX0 + col * COLUMN_SPACING
-        const y = lane * LANE_HEIGHT
-        gridOverlay.rect(x, y, COLUMN_SPACING, LANE_HEIGHT)
+      for (let col = 0; col < placementCols; col++) {
+        const x = gridX0 + col * colSpacing
+        const y = laneYOffset + lane * laneHeight
+        gridOverlay.rect(x, y, colSpacing, laneHeight)
         gridOverlay.fill({ color: 0x22301c, alpha: open ? 0.35 : 0.07 })
-        gridOverlay.rect(x, y, COLUMN_SPACING, LANE_HEIGHT)
+        gridOverlay.rect(x, y, colSpacing, laneHeight)
         gridOverlay.stroke({ width: 1, color: 0x3b4a2f, alpha: open ? 0.7 : 0.2 })
       }
     }
-    gridOverlay.rect(gridX0, 0, gridW, FIELD_HEIGHT)
+    gridOverlay.rect(gridX0, laneYOffset, gridW, gridH)
     gridOverlay.stroke({ width: 1, color: 0x3b4a2f, alpha: 0.9 })
   }
 
