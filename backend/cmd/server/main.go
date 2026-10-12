@@ -136,6 +136,7 @@ func main() {
 	usersHandler := handlers.NewUsersHandler(userRepo, wsHub)
 	livekitHandler := handlers.NewLiveKitHandler(livekitService)
 	avatarHandler := handlers.NewAvatarHandler(avatarService, userRepo)
+	releaseHandler := handlers.NewReleaseHandler(cfg.GetReleasesURL())
 
 	var audioHandler *handlers.AudioHandler
 	if audioService != nil {
@@ -210,6 +211,9 @@ func main() {
 			r.HandleFunc("/api/halloween/game/report/bot", halloweenHandler.SubmitBotGame).Methods("POST")
 		}
 	}
+
+	// Latest desktop release (public, resolved from the update feed)
+	r.HandleFunc("/api/releases/latest", releaseHandler.GetLatest).Methods("GET")
 
 	// LiveKit routes (protected)
 	r.Handle("/api/livekit/token", authHandler.AuthMiddleware(http.HandlerFunc(livekitHandler.GenerateToken))).Methods("POST")
