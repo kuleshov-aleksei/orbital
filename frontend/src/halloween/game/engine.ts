@@ -69,11 +69,19 @@ const SLUG_RADII: Record<SlugType, number> = {
 // targeting, spawning) and rendering go through lane/column helpers below,
 // so editing these numbers moves logic + visuals together.
 // - laneYOffset: shifts all rows down (positive) / up (negative).
-// - laneHeight: row height; laneCount * laneHeight may be < FIELD_HEIGHT to
-//   leave letterbox room for art borders (rows render centered via offset).
+// - laneHeight: row (cell) height. Rows stack as cell, gap, cell, gap…:
+//   lane pitch = laneHeight + rowGap, block height = laneCount * laneHeight
+//   + (laneCount - 1) * rowGap. Keep the block inside FIELD_HEIGHT via offset.
+// - rowGap: dead-strip spacing between rows, in field units. Clicks landing
+//   in a gap snap to the nearest lane; gameplay centers follow the pitch.
 // - gridX0: x of the column-0 pumpkin (cell center, not block edge — the
 //   block's left edge is gridX0 - colSpacing / 2).
-// - colSpacing: horizontal distance between pumpkin columns.
+// - colSpacing: column (cell) width. Columns stack as cell, gap, cell…:
+//   column pitch = colSpacing + colGap, block width = placementCols *
+//   colSpacing + (placementCols - 1) * colGap.
+// - colGap: dead-strip spacing between columns, in field units. Clicks
+//   landing in a gap snap to the nearest column; pumpkin centers follow
+//   the pitch.
 // - spawnMargin: slug spawn x = battlefield_length + margin (negative spawns
 //   on-screen, e.g. to sit at a painted gate instead of off-canvas).
 // - bgOffsetX/bgOffsetY: extra nudge for the stretched backdrop, in field
@@ -81,10 +89,12 @@ const SLUG_RADII: Record<SlugType, number> = {
 export const FIELD_LAYOUT = {
   height: FIELD_HEIGHT,
   laneCount: 5,
-  laneYOffset: 150,
-  laneHeight: 80,
+  laneYOffset: 155,
+  laneHeight: 70,
   gridX0: 80,
   colSpacing: 80,
+  colGap: 2,
+  rowGap: 6,
   placementCols: 6,
   spawnMargin: 20,
   bgOffsetX: 0,
@@ -97,6 +107,8 @@ export const LANE_Y_OFFSET = FIELD_LAYOUT.laneYOffset
 export const PLACEMENT_COLUMNS = FIELD_LAYOUT.placementCols
 export const COLUMN_START_X = FIELD_LAYOUT.gridX0
 export const COLUMN_SPACING = FIELD_LAYOUT.colSpacing
+export const COL_GAP = FIELD_LAYOUT.colGap
+export const ROW_GAP = FIELD_LAYOUT.rowGap
 export const SPAWN_MARGIN = FIELD_LAYOUT.spawnMargin
 const SLUG_ATTACK_INTERVAL = 3
 const DELL_SPAWN_INTERVAL = 5
@@ -151,23 +163,59 @@ export const SHOP_PRICE_CAP_MULT = 5
 // More than enough — if you need more than 8, you're showing off.
 export const PEARCER_PIERCE = 8
 
+export function lanePitch(): number {
+  return FIELD_LAYOUT.laneHeight + FIELD_LAYOUT.rowGap
+}
+
 export function laneForY(y: number): number {
   const { laneCount, laneYOffset, laneHeight } = FIELD_LAYOUT
-  return Math.max(0, Math.min(laneCount - 1, Math.floor((y - laneYOffset) / laneHeight)))
+  const pitch = laneHeight + FIELD_LAYOUT.rowGap
+  const rel = y - laneYOffset
+  if (rel <= 0) return 0
+  let lane = Math.floor(rel / pitch)
+  if (lane >= laneCount) return laneCount - 1
+  // Inside a row gap (dead strip) — snap to whichever lane center is nearer.
+  // The midpoint between two adjacent centers sits half a pitch past the
+  // current center.
+  const frac = rel - lane * pitch
+  if (frac > laneHeight) {
+    const midpoint = laneHeight / 2 + pitch / 2
+    if (rel >= lane * pitch + midpoint) lane += 1
+  }
+  return Math.max(0, Math.min(laneCount - 1, lane))
 }
 
 export function laneCenterY(lane: number): number {
   const { laneYOffset, laneHeight } = FIELD_LAYOUT
-  return laneYOffset + laneHeight * (lane + 0.5)
+  const pitch = laneHeight + FIELD_LAYOUT.rowGap
+  return laneYOffset + lane * pitch + laneHeight / 2
+}
+
+export function columnPitch(): number {
+  return FIELD_LAYOUT.colSpacing + FIELD_LAYOUT.colGap
+}
+
+export function columnX(col: number): number {
+  return FIELD_LAYOUT.gridX0 + col * columnPitch()
 }
 
 export function columnForX(x: number): number {
   const { placementCols, gridX0, colSpacing } = FIELD_LAYOUT
-  return Math.max(0, Math.min(placementCols - 1, Math.round((x - gridX0) / colSpacing)))
-}
-
-export function columnX(col: number): number {
-  return FIELD_LAYOUT.gridX0 + col * FIELD_LAYOUT.colSpacing
+  const pitch = colSpacing + FIELD_LAYOUT.colGap
+  // Cells are centered on columnX: the block's left edge sits half a cell
+  // width before the column-0 center.
+  const rel = x - (gridX0 - colSpacing / 2)
+  if (rel <= 0) return 0
+  let col = Math.floor(rel / pitch)
+  if (col >= placementCols) return placementCols - 1
+  // Inside a column gap (dead strip) — snap to whichever column center is
+  // nearer, mirroring laneForY.
+  const frac = rel - col * pitch
+  if (frac > colSpacing) {
+    const midpoint = colSpacing / 2 + pitch / 2
+    if (rel >= col * pitch + midpoint) col += 1
+  }
+  return Math.max(0, Math.min(placementCols - 1, col))
 }
 
 interface PendingAbility {

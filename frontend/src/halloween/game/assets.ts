@@ -25,7 +25,7 @@ export type HalloweenAssets = Map<string, LoadedAtlas>
 
 // Battlefield backdrop. Plain PNG (not an atlas) — preloaded into Pixi's
 // global Assets cache so the renderer can pick it up without type changes.
-export const HALLOWEEN_BACKGROUND_URL = "/assets/hw26/backgrounds/background_c_v2.png"
+export const HALLOWEEN_BACKGROUND_URL = "/assets/hw26/backgrounds/background_c_v4.png"
 
 export type PreloadProgress = (percent: number, stage: string) => void
 

@@ -91,7 +91,7 @@ const DEATH_FADE_MS = 350
 // for every type, no per-type radius scaling.
 const SLUG_SPRITE_SIZE = 86
 // Placement-grid overlay opacity over the background art.
-const GRID_OVERLAY_ALPHA = 0.3
+const GRID_OVERLAY_ALPHA = 1.0
 // Minimum breathing room after a finished hurt one-shot before hurt may
 // trigger again. Hits landing mid-hurt or inside this gap are swallowed —
 // without it, rapid damage (thorn ticks every frame, focused fire) chains
@@ -175,18 +175,31 @@ export function createMiniGameRenderer(
     // Only the placable grid positions are drawn: the placement cells.
     // On round 1 only the 3 center lanes are active — locked lanes render dim.
     // Grid geometry comes from FIELD_LAYOUT so it stays in sync with the art.
-    const { gridX0, colSpacing, placementCols, laneCount, laneYOffset, laneHeight } = FIELD_LAYOUT
-    const gridW = placementCols * colSpacing
-    const gridH = laneCount * laneHeight
+    const {
+      gridX0,
+      colSpacing,
+      colGap,
+      placementCols,
+      laneCount,
+      laneYOffset,
+      laneHeight,
+      rowGap,
+    } = FIELD_LAYOUT
+    // Columns and rows both stack as cell, gap, cell… — pitches include
+    // their dead-strip gaps.
+    const colPitch = colSpacing + colGap
+    const rowPitch = laneHeight + rowGap
+    const gridW = placementCols * colSpacing + (placementCols - 1) * colGap
+    const gridH = laneCount * laneHeight + (laneCount - 1) * rowGap
     // Cells are centered on pumpkin positions: columnX(col) = gridX0 + col *
-    // colSpacing is the cell center, so the left edge is half a spacing back.
+    // colPitch is the cell center, so the left edge is half a cell back.
     const blockX0 = gridX0 - colSpacing / 2
     const active = new Set(engine.activeLanes())
     for (let lane = 0; lane < laneCount; lane++) {
       const open = active.has(lane)
       for (let col = 0; col < placementCols; col++) {
-        const x = blockX0 + col * colSpacing
-        const y = laneYOffset + lane * laneHeight
+        const x = blockX0 + col * colPitch
+        const y = laneYOffset + lane * rowPitch
         gridOverlay.rect(x, y, colSpacing, laneHeight)
         gridOverlay.fill({ color: 0x22301c, alpha: open ? 0.35 : 0.07 })
         gridOverlay.rect(x, y, colSpacing, laneHeight)
@@ -558,7 +571,8 @@ export function createMiniGameRenderer(
       const cx = columnX(col)
       const cy = laneCenterY(lane)
       const tint = engine.activeLanes().includes(lane) ? 0xffffff : 0xef4444
-      const cellY = FIELD_LAYOUT.laneYOffset + lane * FIELD_LAYOUT.laneHeight
+      const cellY =
+        FIELD_LAYOUT.laneYOffset + lane * (FIELD_LAYOUT.laneHeight + FIELD_LAYOUT.rowGap)
       g.rect(
         cx - FIELD_LAYOUT.colSpacing / 2,
         cellY,
