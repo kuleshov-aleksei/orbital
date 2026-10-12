@@ -31,6 +31,12 @@
 
         <p class="mt-3 text-sm text-theme-text-muted">
           Version <span class="font-mono text-theme-text-secondary">{{ version }}</span>
+          <span v-if="isLoadingRelease" class="inline-flex items-center gap-1.5 ml-2" role="status">
+            <span
+              class="inline-block w-3 h-3 rounded-full border-2 border-theme-border border-t-theme-accent animate-spin"
+              aria-hidden="true" />
+            <span>Getting release info</span>
+          </span>
         </p>
       </div>
 
@@ -72,13 +78,17 @@
           <p class="text-sm text-theme-text-muted mb-6 flex-1">{{ platform.description }}</p>
 
           <a
-            :href="platform.url"
+            :href="isLoadingRelease ? undefined : platform.url"
+            :aria-disabled="isLoadingRelease"
+            :tabindex="isLoadingRelease ? -1 : 0"
             class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-colors duration-200"
-            :class="
+            :class="[
               platform.key === detectedOS
                 ? 'bg-theme-accent hover:bg-theme-accent-hover text-theme-text-on-accent'
-                : 'bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-primary'
-            ">
+                : 'bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-primary',
+              isLoadingRelease ? 'pointer-events-none opacity-60' : 'cursor-pointer',
+            ]"
+            @click="isLoadingRelease && $event.preventDefault()">
             <PhDownloadSimple class="w-5 h-5" />
             <span>{{ platform.buttonLabel }}</span>
           </a>
@@ -100,8 +110,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, type Component } from "vue"
+import { computed, onMounted, ref, type Component } from "vue"
 import { PhArrowLeft, PhDownloadSimple, PhWindowsLogo, PhLinuxLogo } from "@phosphor-icons/vue"
+import { apiService, type LatestRelease } from "@/services/api"
 
 declare const __APP_VERSION__: string
 
@@ -109,7 +120,29 @@ const DOWNLOAD_BASE_URL = "https://orbital-updates.encamy.com"
 
 type OS = "windows" | "linux" | "unknown"
 
-const version = __APP_VERSION__.replace(/-[0-9a-f]{8}$/, "")
+// Fallback when the backend cannot resolve the latest desktop release
+// (e.g. no network). The frontend build version can be ahead of the newest
+// desktop artifact, so the resolved release is preferred whenever available.
+const fallbackVersion = __APP_VERSION__.replace(/-[0-9a-f]{8}$/, "")
+
+const latest = ref<LatestRelease | null>(null)
+const isLoadingRelease = ref(true)
+
+onMounted(() => {
+  apiService
+    .getLatestRelease()
+    .then((release) => {
+      latest.value = release
+    })
+    .catch(() => {
+      latest.value = null
+    })
+    .finally(() => {
+      isLoadingRelease.value = false
+    })
+})
+
+const version = computed(() => latest.value?.version || fallbackVersion)
 
 const detectedOS = computed<OS>(() => {
   const ua = navigator.userAgent
@@ -136,7 +169,7 @@ const platforms = computed<Platform[]>(() => {
       detail: "Installer · Windows 10/11 · x64",
       description: "Download and run the installer to set up Orbital on your PC.",
       buttonLabel: "Download for Windows",
-      url: `${DOWNLOAD_BASE_URL}/Orbital-Setup-${version}.exe`,
+      url: latest.value?.windows_url || `${DOWNLOAD_BASE_URL}/Orbital-Setup-${version.value}.exe`,
       icon: PhWindowsLogo,
     },
     {
@@ -145,7 +178,7 @@ const platforms = computed<Platform[]>(() => {
       detail: "AppImage · x64",
       description: "Download the AppImage, make it executable, and run it anywhere.",
       buttonLabel: "Download for Linux",
-      url: `${DOWNLOAD_BASE_URL}/Orbital-${version}.AppImage`,
+      url: latest.value?.linux_url || `${DOWNLOAD_BASE_URL}/Orbital-${version.value}.AppImage`,
       icon: PhLinuxLogo,
     },
   ]

@@ -55,6 +55,10 @@ type ServerConfig struct {
 	CORSOrigins         []string `yaml:"cors_origins"`
 	ExternalURL         string   `yaml:"external_url"`
 	ElectronRedirectURL string   `yaml:"electron_redirect_url"`
+	// ReleasesURL is the public update feed (Garage S3) root that serves the
+	// Electron artifacts and latest.yml. Used to resolve the newest desktop
+	// release for the download page.
+	ReleasesURL string `yaml:"releases_url"`
 }
 
 // RoomSettings holds room-related configuration
@@ -79,6 +83,7 @@ func DefaultConfig() *Config {
 			CORSOrigins:         []string{"*"},
 			ExternalURL:         "http://localhost:5173",
 			ElectronRedirectURL: "orbital://auth/callback",
+			ReleasesURL:         "https://orbital-updates.encamy.com",
 		},
 		Room: RoomSettings{
 			MinUsers:        2,
@@ -167,6 +172,9 @@ func (c *Config) loadFromEnv() {
 	}
 	if v := os.Getenv("ELECTRON_REDIRECT_URL"); v != "" {
 		c.Server.ElectronRedirectURL = v
+	}
+	if v := os.Getenv("RELEASES_URL"); v != "" {
+		c.Server.ReleasesURL = v
 	}
 
 	// Room config
@@ -338,6 +346,14 @@ func (c *Config) GetCORSOrigins() []string {
 		return []string{"*"}
 	}
 	return c.Server.CORSOrigins
+}
+
+// GetReleasesURL returns the public desktop-release feed root
+func (c *Config) GetReleasesURL() string {
+	if strings.TrimSpace(c.Server.ReleasesURL) == "" {
+		return "https://orbital-updates.encamy.com"
+	}
+	return strings.TrimRight(strings.TrimSpace(c.Server.ReleasesURL), "/")
 }
 
 // ShouldLogRequests returns true if request logging is enabled

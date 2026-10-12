@@ -8,6 +8,7 @@ server:
   mode: "development"  # Options: development, production
   external_url: "http://localhost:5173"  # Frontend URL to redirect after OAuth
   electron_redirect_url: "orbital://auth/callback"  # Deep link URL for Electron OAuth callback
+  releases_url: "https://orbital-updates.encamy.com"  # Public update feed root for desktop releases
   cors_origins:
     - "*"
 

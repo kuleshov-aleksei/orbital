@@ -171,6 +171,14 @@ export interface AppConfig {
   room: RoomConfig
 }
 
+// Latest desktop release, resolved by the backend from the update feed
+// (latest.yml). Artifact URLs are absolute links to the update host.
+export interface LatestRelease {
+  version: string
+  windows_url: string
+  linux_url: string
+}
+
 // LiveKit token response types
 export interface LiveKitTokenResponse {
   token: string
@@ -364,6 +372,13 @@ export const apiService = {
   // Get general application configuration
   async getConfig(): Promise<AppConfig> {
     return apiRequest<AppConfig>("/config")
+  },
+
+  // Get the latest desktop release (version + artifact URLs), resolved by
+  // the backend from the update feed. Throws when unavailable; callers
+  // should fall back to the bundled app version.
+  async getLatestRelease(): Promise<LatestRelease> {
+    return apiRequest<LatestRelease>("/releases/latest")
   },
 
   // Category management
