@@ -71,7 +71,8 @@ const SLUG_RADII: Record<SlugType, number> = {
 // - laneYOffset: shifts all rows down (positive) / up (negative).
 // - laneHeight: row height; laneCount * laneHeight may be < FIELD_HEIGHT to
 //   leave letterbox room for art borders (rows render centered via offset).
-// - gridX0: left edge of the pumpkin block (column 0 center).
+// - gridX0: x of the column-0 pumpkin (cell center, not block edge — the
+//   block's left edge is gridX0 - colSpacing / 2).
 // - colSpacing: horizontal distance between pumpkin columns.
 // - spawnMargin: slug spawn x = battlefield_length + margin (negative spawns
 //   on-screen, e.g. to sit at a painted gate instead of off-canvas).

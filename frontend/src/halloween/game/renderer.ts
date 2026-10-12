@@ -11,14 +11,7 @@ import type { GameEvent, HalloweenGameEngine } from "./engine"
 import type { HalloweenAssets } from "./assets"
 import { HALLOWEEN_BACKGROUND_URL } from "./assets"
 import type { LoadedAtlas } from "./atlas"
-import {
-  FIELD_HEIGHT,
-  FIELD_LAYOUT,
-  columnForX,
-  columnX,
-  laneCenterY,
-  laneForY,
-} from "./engine"
+import { FIELD_HEIGHT, FIELD_LAYOUT, columnForX, columnX, laneCenterY, laneForY } from "./engine"
 import type { PumpkinType, SlugType } from "./types"
 
 const PUMPKIN_TINTS: Record<PumpkinType, number> = {
@@ -182,15 +175,17 @@ export function createMiniGameRenderer(
     // Only the placable grid positions are drawn: the placement cells.
     // On round 1 only the 3 center lanes are active — locked lanes render dim.
     // Grid geometry comes from FIELD_LAYOUT so it stays in sync with the art.
-    const { gridX0, colSpacing, placementCols, laneCount, laneYOffset, laneHeight } =
-      FIELD_LAYOUT
+    const { gridX0, colSpacing, placementCols, laneCount, laneYOffset, laneHeight } = FIELD_LAYOUT
     const gridW = placementCols * colSpacing
     const gridH = laneCount * laneHeight
+    // Cells are centered on pumpkin positions: columnX(col) = gridX0 + col *
+    // colSpacing is the cell center, so the left edge is half a spacing back.
+    const blockX0 = gridX0 - colSpacing / 2
     const active = new Set(engine.activeLanes())
     for (let lane = 0; lane < laneCount; lane++) {
       const open = active.has(lane)
       for (let col = 0; col < placementCols; col++) {
-        const x = gridX0 + col * colSpacing
+        const x = blockX0 + col * colSpacing
         const y = laneYOffset + lane * laneHeight
         gridOverlay.rect(x, y, colSpacing, laneHeight)
         gridOverlay.fill({ color: 0x22301c, alpha: open ? 0.35 : 0.07 })
@@ -198,7 +193,7 @@ export function createMiniGameRenderer(
         gridOverlay.stroke({ width: 1, color: 0x3b4a2f, alpha: open ? 0.7 : 0.2 })
       }
     }
-    gridOverlay.rect(gridX0, laneYOffset, gridW, gridH)
+    gridOverlay.rect(blockX0, laneYOffset, gridW, gridH)
     gridOverlay.stroke({ width: 1, color: 0x3b4a2f, alpha: 0.9 })
   }
 
@@ -563,9 +558,20 @@ export function createMiniGameRenderer(
       const cx = columnX(col)
       const cy = laneCenterY(lane)
       const tint = engine.activeLanes().includes(lane) ? 0xffffff : 0xef4444
-      g.rect(cx - COLUMN_SPACING / 2, lane * LANE_HEIGHT, COLUMN_SPACING, LANE_HEIGHT)
+      const cellY = FIELD_LAYOUT.laneYOffset + lane * FIELD_LAYOUT.laneHeight
+      g.rect(
+        cx - FIELD_LAYOUT.colSpacing / 2,
+        cellY,
+        FIELD_LAYOUT.colSpacing,
+        FIELD_LAYOUT.laneHeight,
+      )
       g.fill({ color: 0xffffff, alpha: 0.12 })
-      g.rect(cx - COLUMN_SPACING / 2, lane * LANE_HEIGHT, COLUMN_SPACING, LANE_HEIGHT)
+      g.rect(
+        cx - FIELD_LAYOUT.colSpacing / 2,
+        cellY,
+        FIELD_LAYOUT.colSpacing,
+        FIELD_LAYOUT.laneHeight,
+      )
       g.stroke({ width: 2, color: tint, alpha: 0.5 })
       g.circle(cx, cy, 28)
       g.stroke({ width: 2, color: tint, alpha: 0.6 })
