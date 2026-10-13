@@ -5,14 +5,15 @@ import {
   Container,
   Graphics,
   Sprite,
+  TilingSprite,
   type Texture,
 } from "pixi.js"
 import type { GameEvent, HalloweenGameEngine } from "./engine"
 import type { HalloweenAssets } from "./assets"
-import { HALLOWEEN_BACKGROUND_URL } from "./assets"
+import { HALLOWEEN_BACKGROUND_URL, ITEM_ART, PROJECTILE_ART } from "./assets"
 import type { LoadedAtlas } from "./atlas"
 import { FIELD_HEIGHT, FIELD_LAYOUT, columnForX, columnX, laneCenterY, laneForY } from "./engine"
-import type { PumpkinType, SlugType } from "./types"
+import type { ProjectileKind, PumpkinType, SlugType } from "./types"
 
 const PUMPKIN_TINTS: Record<PumpkinType, number> = {
   ferdinand: 0xf97316,
@@ -68,8 +69,18 @@ interface SlugDisplay {
 
 interface ProjDisplay {
   container: Container
-  body: Graphics
+  body: Graphics | Sprite
 }
+
+// Item art is 256x256 — these are the on-field draw heights (field units).
+// Projectiles read as bullets, not icons: small and fast.
+const PROJECTILE_SPRITE_HEIGHT: Record<ProjectileKind, number> = {
+  seed: 20,
+  heal: 20,
+  missile: 30,
+}
+const GRENADE_SPRITE_SIZE = 40
+const BEER_CUP_SPRITE_SIZE = 44
 
 export interface MiniGameRenderer {
   init(container: HTMLElement): Promise<void>
@@ -140,8 +151,8 @@ export function createMiniGameRenderer(
   let offsetX = 0
   let offsetY = 0
   let mouseWorld: { x: number; y: number } | null = null
-  let pumpkinTexture: ReturnType<typeof Assets.get> | null = null
-  let slugTexture: ReturnType<typeof Assets.get> | null = null
+  let pumpkinTexture: Texture | null = null
+  let slugTexture: Texture | null = null
 
   const width = () => engine.getWidth()
 
@@ -262,12 +273,42 @@ export function createMiniGameRenderer(
     }
   }
 
-  const spriteFor = (texture: ReturnType<typeof Assets.get>, height: number): Sprite => {
+  const spriteFor = (texture: Texture, height: number): Sprite => {
     const sprite = new Sprite(texture)
     sprite.anchor.set(0.5)
     sprite.height = height
     sprite.scale.x = sprite.scale.y
     return sprite
+  }
+
+  // Sprite from a preloaded item/projectile URL. The preloader warms Pixi's
+  // global cache, so Assets.get hits synchronously — null when the load
+  // failed and the caller must fall back to vector graphics.
+  const itemSpriteFor = (url: string, height: number): Sprite | null => {
+    try {
+      const texture = Assets.get<Texture>(url)
+      if (!texture) return null
+      return spriteFor(texture, height)
+    } catch {
+      return null
+    }
+  }
+
+  // Vertical ground strip (salt lines, thorn patches) tiled from the item
+  // art. Square tiles keep the 256px source undistorted; a thin vector edge
+  // underneath preserves the gameplay read.
+  const stripSpriteFor = (url: string, width: number, alpha: number): TilingSprite | null => {
+    try {
+      const texture = Assets.get<Texture>(url)
+      if (!texture) return null
+      const tile = new TilingSprite({ texture, width, height: FIELD_HEIGHT })
+      tile.position.set(-width / 2, 0)
+      tile.tileScale.set(width / 256)
+      tile.alpha = alpha
+      return tile
+    } catch {
+      return null
+    }
   }
 
   // Drives an animated pumpkin's state machine. `idle` loops; fire/hurt are
@@ -450,10 +491,18 @@ export function createMiniGameRenderer(
 
   const addProjectile = (id: number, kind: string) => {
     const container = new Container()
-    const body = new Graphics()
-    const color = kind === "heal" ? 0xbbf7d0 : kind === "missile" ? 0xc4b5fd : 0xfde68a
-    body.circle(0, 0, kind === "missile" ? 6 : 4)
-    body.fill({ color })
+    const artKind = (kind === "heal" || kind === "missile" ? kind : "seed") as ProjectileKind
+    const sprite = itemSpriteFor(PROJECTILE_ART[artKind], PROJECTILE_SPRITE_HEIGHT[artKind] ?? 20)
+    let body: Graphics | Sprite
+    if (sprite) {
+      body = sprite
+    } else {
+      // Placeholder fallback — tinted dot when the art failed to preload.
+      body = new Graphics()
+      const color = kind === "heal" ? 0xbbf7d0 : kind === "missile" ? 0xc4b5fd : 0xfde68a
+      body.circle(0, 0, kind === "missile" ? 6 : 4)
+      body.fill({ color })
+    }
     container.addChild(body)
     world?.addChild(container)
     projectiles.set(id, { container, body })
@@ -472,12 +521,12 @@ export function createMiniGameRenderer(
     container.appendChild(app.canvas as HTMLCanvasElement)
 
     try {
-      pumpkinTexture = await Assets.load("/assets/hw26/pumkins/pumkin_A.png")
+      pumpkinTexture = await Assets.load<Texture>("/assets/hw26/pumkins/pumkin_A.png")
     } catch {
       pumpkinTexture = null
     }
     try {
-      slugTexture = await Assets.load("/assets/hw26/slugs/slug_A.png")
+      slugTexture = await Assets.load<Texture>("/assets/hw26/slugs/slug_A.png")
     } catch {
       slugTexture = null
     }
@@ -611,29 +660,59 @@ export function createMiniGameRenderer(
       const pulse = 0.6 + 0.4 * Math.sin(g.fuse * 4)
       fx.circle(g.x, g.y, g.blastRadius)
       fx.fill({ color: 0xfca5a5, alpha: 0.12 * pulse })
-      fx.circle(g.x, g.y, 9)
-      fx.fill({ color: 0xef4444 })
       effectLayer?.addChild(fx)
+      const bomb = itemSpriteFor(ITEM_ART.holy_grenade, GRENADE_SPRITE_SIZE)
+      if (bomb) {
+        bomb.position.set(g.x, g.y)
+        effectLayer?.addChild(bomb)
+      } else {
+        const dot = new Graphics()
+        dot.circle(g.x, g.y, 9)
+        dot.fill({ color: 0xef4444 })
+        effectLayer?.addChild(dot)
+      }
     }
     for (const cup of engine.beerCups) {
       const fx = new Graphics()
       fx.circle(cup.x, cup.y, cup.radius)
       fx.fill({ color: 0xfbbf24, alpha: 0.12 })
-      fx.circle(cup.x, cup.y, 10)
-      fx.fill({ color: 0xf59e0b })
       effectLayer?.addChild(fx)
+      const mug = itemSpriteFor(ITEM_ART.beer, BEER_CUP_SPRITE_SIZE)
+      if (mug) {
+        mug.position.set(cup.x, cup.y)
+        effectLayer?.addChild(mug)
+      } else {
+        const dot = new Graphics()
+        dot.circle(cup.x, cup.y, 10)
+        dot.fill({ color: 0xf59e0b })
+        effectLayer?.addChild(dot)
+      }
     }
     for (const line of engine.saltLines) {
       const fx = new Graphics()
       fx.rect(line.x - line.width / 2, 0, line.width, FIELD_HEIGHT)
-      fx.fill({ color: 0xe2e8f0, alpha: 0.35 })
+      fx.fill({ color: 0xe2e8f0, alpha: 0.18 })
       effectLayer?.addChild(fx)
+      const strip = stripSpriteFor(ITEM_ART.salt_line, line.width, 0.85)
+      if (strip) {
+        const holder = new Container()
+        holder.position.set(line.x, 0)
+        holder.addChild(strip)
+        effectLayer?.addChild(holder)
+      }
     }
     for (const patch of engine.thornPatches) {
       const fx = new Graphics()
       fx.rect(patch.x - patch.width / 2, 0, patch.width, FIELD_HEIGHT)
-      fx.fill({ color: 0x4d7c0f, alpha: 0.35 })
+      fx.fill({ color: 0x4d7c0f, alpha: 0.18 })
       effectLayer?.addChild(fx)
+      const strip = stripSpriteFor(ITEM_ART.thorn_patch, patch.width, 0.9)
+      if (strip) {
+        const holder = new Container()
+        holder.position.set(patch.x, 0)
+        holder.addChild(strip)
+        effectLayer?.addChild(holder)
+      }
     }
 
     // pumpkins

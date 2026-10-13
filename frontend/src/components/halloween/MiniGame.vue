@@ -253,11 +253,11 @@
             :disabled="!item"
             @click="item && selectItem(index)">
             <template v-if="item">
-              <span
-                class="text-xl leading-none"
-                :class="item.kind === 'ability' ? '' : 'text-orange-400'">
-                {{ itemIcon(item) }}
-              </span>
+              <img
+                :src="itemArtFor(item)"
+                class="w-9 h-9 object-contain"
+                alt=""
+                draggable="false" />
               <span class="text-[10px] mt-1 text-theme-text-muted font-semibold">{{
                 itemLabel(item)
               }}</span>
@@ -270,65 +270,41 @@
       <!-- Card popup -->
       <div
         v-if="hud?.phase === 'cards' && hud.cards"
-        class="absolute inset-0 flex items-center justify-center bg-black/60 p-6"
+        class="absolute inset-0 flex items-center justify-center bg-black/60 px-6 py-[100px]"
         data-testid="card-popup">
         <div
-          class="modal-panel w-full max-w-2xl bg-theme-bg-primary border border-theme-border rounded-2xl shadow-2xl p-6">
-          <h3 class="text-lg font-bold text-theme-text-primary text-center">
+          class="modal-panel w-full max-w-4xl max-h-full flex flex-col bg-theme-bg-primary border border-theme-border rounded-2xl shadow-2xl px-8 overflow-y-auto">
+          <h3 class="text-lg font-bold text-theme-text-primary text-center shrink-0">
             Round {{ hud.completedRounds }} complete!
           </h3>
-          <p class="text-sm text-theme-text-muted text-center mt-1">
+          <p class="text-sm text-theme-text-muted text-center mt-1 shrink-0">
             Choose a reward ({{ hud.popupIndex + 1 }} / {{ hud.popupTotal }})
           </p>
-          <div class="grid grid-cols-3 gap-4 mt-5">
+          <div
+            class="grid grid-cols-3 auto-rows-fr gap-6 mt-8 flex-1 min-h-0"
+            style="perspective: 900px">
             <button
               v-for="(card, i) in hud.cards.cards"
               :key="i"
               type="button"
-              class="relative overflow-hidden rounded-xl border-2 transition-transform hover:scale-105"
-              :class="
-                card.kind === 'pumpkin'
-                  ? 'border-orange-500/70 hover:border-orange-400'
-                  : 'border-purple-500/70 hover:border-purple-400'
-              "
+              class="card-tilt relative overflow-hidden rounded-xl border-0 bg-transparent w-full max-h-full aspect-[424/600] min-h-fit justify-self-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/80"
+              :class="[tiltActive[i] ? '' : 'card-tilt-idle']"
+              :style="tiltStyle(i)"
               :data-testid="`card-${i}`"
+              :aria-label="card.kind === 'pumpkin' ? card.pumpkinType : cardLabel(card.abilityId)"
+              @pointermove="(e: PointerEvent) => onCardTilt(e, i)"
+              @pointerleave="() => clearCardTilt(i)"
               @click="engine?.pickCard(i)">
               <img
-                src="/assets/hw26/cards/card_A.png"
-                alt="card"
-                class="w-full h-40 object-cover" />
-              <div
-                class="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-black/35">
-                <img
-                  :src="
-                    card.kind === 'pumpkin'
-                      ? '/assets/hw26/pumkins/pumkin_A.png'
-                      : '/assets/hw26/items/item_A.png'
-                  "
-                  :class="
-                    card.kind === 'pumpkin'
-                      ? 'w-16 h-16 object-contain'
-                      : 'w-12 h-12 object-contain'
-                  "
-                  alt="reward" />
-                <div class="font-bold text-sm text-white drop-shadow">
-                  {{ card.kind === "pumpkin" ? card.pumpkinType : cardLabel(card.abilityId) }}
-                </div>
-                <div
-                  class="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
-                  :class="
-                    card.kind === 'pumpkin'
-                      ? 'bg-orange-500/80 text-white'
-                      : 'bg-purple-500/80 text-white'
-                  ">
-                  {{ card.kind === "pumpkin" ? "Pumpkin" : "Ability" }}
-                </div>
-              </div>
+                :src="cardArtFor(card)"
+                alt=""
+                class="absolute inset-0 w-full h-full object-cover"
+                draggable="false" />
             </button>
           </div>
           <button
             type="button"
-            class="mt-5 w-full py-2 rounded-lg text-sm text-theme-text-muted hover:text-theme-text-primary hover:bg-theme-bg-secondary transition-colors"
+            class="mt-8 w-full shrink-0 py-2 rounded-lg text-sm text-theme-text-muted hover:text-theme-text-primary hover:bg-theme-bg-secondary transition-colors"
             data-testid="skip-cards"
             @click="engine?.pickCard(-1)">
             Skip
@@ -388,6 +364,7 @@ import type { SubmitGameReportResponse } from "@/halloween/types"
 import { HalloweenGameEngine } from "@/halloween/game/engine"
 import { createMiniGameRenderer } from "@/halloween/game/renderer"
 import { preloadHalloweenAssets, type HalloweenAssets } from "@/halloween/game/assets"
+import { cardArtFor, itemArtFor } from "@/halloween/game/assets"
 import {
   ABILITY_META,
   MAX_PUMPKIN_LEVEL,
@@ -650,25 +627,6 @@ const PUMPKIN_ICONS: Record<string, string> = {
   pearcer: "P",
 }
 
-const ABILITY_ICONS: Record<string, string> = {
-  annihilation: "A",
-  freeze: "❄",
-  distraction: "↺",
-  do_not_stop_daddy: "D",
-  wide_pumpkin: "W",
-  holy_grenade: "G",
-  beer: "🍺",
-  salt_line: "🧂",
-  tailwind: "💨",
-  seed_rain: "🌱",
-  thorn_patch: "🌵",
-}
-
-function itemIcon(item: GameInventoryItem): string {
-  if (item.kind === "pumpkin") return PUMPKIN_ICONS[item.pumpkinType] ?? "P"
-  return ABILITY_ICONS[item.abilityId] ?? "?"
-}
-
 function itemLabel(item: GameInventoryItem): string {
   if (item.kind === "pumpkin") return item.pumpkinType
   return cardLabel(item.abilityId)
@@ -676,6 +634,32 @@ function itemLabel(item: GameInventoryItem): string {
 
 function cardLabel(abilityId: string): string {
   return ABILITY_META[abilityId as keyof typeof ABILITY_META]?.name ?? abilityId
+}
+
+// Horizontal card parallax (CodePen andymerskin/XNMWvQ, rotateY only).
+// Pointer X across the card maps to -0.5..0.5; the transform + sheen read
+// from it. On leave the value resets and the idle class eases it back flat.
+const MAX_TILT_DEG = 24
+const tiltX = ref<Record<number, number>>({})
+const tiltActive = ref<Record<number, boolean>>({})
+
+function onCardTilt(e: PointerEvent, index: number) {
+  const el = e.currentTarget as HTMLElement | null
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  if (rect.width === 0) return
+  tiltX.value[index] = (e.clientX - rect.left) / rect.width - 0.5
+  tiltActive.value[index] = true
+}
+
+function clearCardTilt(index: number) {
+  tiltX.value[index] = 0
+  tiltActive.value[index] = false
+}
+
+function tiltStyle(index: number): Record<string, string> {
+  const x = tiltX.value[index] ?? 0
+  return { transform: `rotateY(${(x * MAX_TILT_DEG).toFixed(2)}deg) scale(1.03)` }
 }
 
 function selectItem(index: number) {
@@ -960,3 +944,16 @@ onUnmounted(() => {
   engine = null
 })
 </script>
+
+<style scoped>
+/* Horizontal-only card parallax. While hovered the inline transform tracks
+   the pointer with no transition (1:1 feel); on leave the idle class eases
+   the card back to flat. Perspective comes from the grid parent. */
+.card-tilt {
+  cursor: pointer;
+  will-change: transform;
+}
+.card-tilt-idle {
+  transition: transform 0.5s ease;
+}
+</style>
