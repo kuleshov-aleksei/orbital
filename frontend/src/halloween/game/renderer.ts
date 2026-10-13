@@ -70,6 +70,11 @@ interface SlugDisplay {
 interface ProjDisplay {
   container: Container
   body: Graphics | Sprite
+  kind: ProjectileKind
+  // Last seen position — rotation is derived from frame-to-frame displacement
+  // (not vx/vy: arc projectiles keep vy at 0 while visibly climbing/diving).
+  lx: number | null
+  ly: number | null
 }
 
 // Item art is 256x256 — these are the on-field draw heights (field units).
@@ -505,7 +510,7 @@ export function createMiniGameRenderer(
     }
     container.addChild(body)
     world?.addChild(container)
-    projectiles.set(id, { container, body })
+    projectiles.set(id, { container, body, kind: artKind, lx: null, ly: null })
   }
 
   const init = async (container: HTMLElement) => {
@@ -825,6 +830,20 @@ export function createMiniGameRenderer(
         display = projectiles.get(p.id)!
       }
       display.container.position.set(p.x, p.y)
+      // Gwyn's missile art flies nose-first: rotate the sprite onto its
+      // actual frame-to-frame travel direction (homing missiles curve and
+      // arc missiles dive while vy stays 0 — displacement never lies).
+      // The art points +x natively, so atan2 maps directly. First frame has
+      // no displacement yet and keeps rotation 0. Seeds/heals stay unrotated.
+      if (display.kind === "missile" && display.body instanceof Sprite) {
+        if (display.lx != null && display.ly != null) {
+          const dx = p.x - display.lx
+          const dy = p.y - display.ly
+          if (dx !== 0 || dy !== 0) display.body.rotation = Math.atan2(dy, dx)
+        }
+        display.lx = p.x
+        display.ly = p.y
+      }
     }
   }
 
