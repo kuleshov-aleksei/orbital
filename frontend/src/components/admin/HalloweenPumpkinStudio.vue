@@ -45,6 +45,7 @@
           @keydown="onStageKey">
           <!-- base -->
           <img
+            ref="baseImg"
             :src="resolveUrl(baseItem.asset_path || PUMPKIN_SOCKET_PLACEHOLDER.base)"
             alt="pumpkin base"
             draggable="false"
@@ -68,9 +69,8 @@
               :src="previewArt(socket)"
               :alt="socket"
               draggable="false"
-              class="block cursor-grab active:cursor-grabbing"
-              :style="{ width: overlayWidth(socket) + 'px' }"
-              @load="onOverlayLoad(socket)" />
+              class="block w-full h-full cursor-grab active:cursor-grabbing"
+              @load="onOverlayLoad($event, socket)" />
             <div
               v-else
               class="cursor-grab active:cursor-grabbing border-2 border-dashed border-gray-500 rounded text-gray-400 text-xs flex items-center justify-center"
@@ -365,7 +365,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue"
+import { computed, nextTick, onMounted, reactive, ref, useTemplateRef, watch } from "vue"
 import { apiService, resolveUrl } from "@/services/api"
 import { useHalloweenStore } from "@/stores/halloween"
 import { PUMPKIN_SOCKET_PLACEHOLDER, PUMPKIN_SOCKET_DEFAULT_Z } from "@/halloween/assets"
@@ -413,8 +413,17 @@ const previewItemId = reactive<Record<PumpkinOverlaySocket, string>>({
 
 // Measured display geometry (px).
 const baseDisplay = reactive({ w: 0, h: BASE_H })
-const baseNatural = reactive({ w: 1, h: 1 })
+// Zero means "not measured yet" — readers must not scale off it.
+const baseNatural = reactive({ w: 0, h: 0 })
 const overlayNatural = reactive<Record<string, { w: number; h: number }>>({})
+// Frozen overlay display sizes, keyed by item + base art. Computed once both
+// sides are measured, then never recomputed for that combination — moving an
+// accessory must never resize it. Both the wrapper and the img get definite
+// sizes: an auto-width absolutely-positioned wrapper shrink-wraps against the
+// remaining stage space, so dragging right/down would otherwise shrink it
+// (and the img's max-width:100% with it).
+const overlaySize = reactive<Record<string, { w: number; h: number }>>({})
+const measuredBaseArt = ref("")
 
 const newItem = reactive({
   id: "",
@@ -469,11 +478,20 @@ const baseStyle = computed(() => ({
   zIndex: 10,
 }))
 
-const overlayWidth = (socket: PumpkinOverlaySocket): number => {
+const overlaySizeKey = (socket: PumpkinOverlaySocket): string => {
   const item = previewItemOf(socket)
-  const nat = item ? overlayNatural[item.id] : undefined
-  if (!nat || !baseNatural.h) return 64
-  return Math.round((nat.w * baseDisplay.h) / baseNatural.h)
+  const b = baseItem.value
+  if (!item || !b) return ""
+  return `${item.id}|${resolveUrl(b.asset_path || PUMPKIN_SOCKET_PLACEHOLDER.base)}`
+}
+
+const overlayWidth = (socket: PumpkinOverlaySocket): number => {
+  // Frozen at measure time (see ensureOverlaySize): moves never resize.
+  return overlaySize[overlaySizeKey(socket)]?.w ?? 64
+}
+
+const overlayHeight = (socket: PumpkinOverlaySocket): number => {
+  return overlaySize[overlaySizeKey(socket)]?.h ?? 64
 }
 
 const overlayStyle = (socket: PumpkinOverlaySocket) => {
@@ -481,37 +499,80 @@ const overlayStyle = (socket: PumpkinOverlaySocket) => {
   const item = previewItemOf(socket)
   // CSS boxes can't be negative z-index above the stage background, so shift up.
   const z = (item?.z_index ?? PUMPKIN_SOCKET_DEFAULT_Z[socket]) + 10
+  // Fall back to a square-base assumption when the base hasn't been measured
+  // yet — x positioning must degrade, never freeze.
+  const w = baseDisplay.w || BASE_H
+  // Definite wrapper size: never shrink-to-fit, so position can't affect size.
+  const ow = overlayWidth(socket)
+  const oh = overlayHeight(socket)
   return {
-    left: `${STAGE / 2 + o.offset_x * baseDisplay.w}px`,
+    left: `${STAGE / 2 + o.offset_x * w}px`,
     top: `${STAGE / 2 + o.offset_y * baseDisplay.h}px`,
+    width: `${ow}px`,
+    height: `${oh}px`,
     transform: "translate(-50%, -50%)",
     zIndex: z,
     touchAction: "none",
   }
 }
 
-const onBaseLoad = (e: Event) => {
-  const img = e.target as HTMLImageElement
-  if (img.naturalWidth && img.naturalHeight) {
+// Measure the base from the rendered <img> element. Unlike the load event,
+// this also works when the image was already cached or its src didn't change
+// (no load event fires then) — the natural size stays readable.
+const baseImgEl = useTemplateRef<HTMLImageElement>("baseImg")
+
+const ensureBaseMeasured = () => {
+  const img = baseImgEl.value
+  if (img && img.naturalWidth && img.naturalHeight) {
     baseNatural.w = img.naturalWidth
     baseNatural.h = img.naturalHeight
     baseDisplay.h = BASE_H
     baseDisplay.w = Math.round((img.naturalWidth * BASE_H) / img.naturalHeight)
+    measuredBaseArt.value = resolveUrl(
+      baseItem.value?.asset_path || PUMPKIN_SOCKET_PLACEHOLDER.base,
+    )
+    for (const s of OVERLAY_SOCKETS) ensureOverlaySize(s)
   }
 }
 
-const onOverlayLoad = (socket: PumpkinOverlaySocket) => {
+const onBaseLoad = () => {
+  ensureBaseMeasured()
+}
+
+const onOverlayLoad = (e: Event, socket: PumpkinOverlaySocket) => {
+  // Read the size straight off the displayed image — no second fetch, so the
+  // width is known the moment the art appears instead of jumping later.
+  const img = e.target as HTMLImageElement
   const item = previewItemOf(socket)
-  if (!item) return
-  const loader = new Image()
-  loader.onload = () => {
-    overlayNatural[item.id] = { w: loader.naturalWidth, h: loader.naturalHeight }
+  if (!item || !img.naturalWidth || !img.naturalHeight) return
+  const prev = overlayNatural[item.id]
+  if (!prev || prev.w !== img.naturalWidth || prev.h !== img.naturalHeight) {
+    overlayNatural[item.id] = { w: img.naturalWidth, h: img.naturalHeight }
+    // Same item, new art dimensions: drop frozen widths so they re-freeze.
+    for (const k of Object.keys(overlaySize)) {
+      if (k.startsWith(item.id + "|")) delete overlaySize[k]
+    }
   }
-  loader.src = previewArt(socket)
+  ensureOverlaySize(socket)
 }
 
 // --- drag handling (pointer events, px deltas → normalized offsets) ---
 const dragState = ref<{ socket: PumpkinOverlaySocket; startX: number; startY: number } | null>(null)
+
+// Freeze an accessory's display width once both its own art and the current
+// base art are measured. Deferred while a drag is active, so a late-arriving
+// measurement can never resize the accessory being moved.
+const ensureOverlaySize = (socket: PumpkinOverlaySocket) => {
+  if (dragState.value) return
+  const key = overlaySizeKey(socket)
+  if (!key || overlaySize[key]) return
+  const item = previewItemOf(socket)
+  const nat = item ? overlayNatural[item.id] : undefined
+  const baseArt = resolveUrl(baseItem.value?.asset_path || PUMPKIN_SOCKET_PLACEHOLDER.base)
+  if (!nat || !baseNatural.w || !baseNatural.h || measuredBaseArt.value !== baseArt) return
+  const w = Math.round((nat.w * BASE_H) / baseNatural.h)
+  overlaySize[key] = { w, h: Math.round((w * nat.h) / nat.w) }
+}
 
 const startDrag = (e: PointerEvent, socket: PumpkinOverlaySocket) => {
   // Pointer interaction never changes the selection: overlays overlap, so
@@ -522,9 +583,7 @@ const startDrag = (e: PointerEvent, socket: PumpkinOverlaySocket) => {
     const st = dragState.value
     if (!st || st.socket !== socket) return
     const o = offsets[socket]
-    if (baseDisplay.w > 0) {
-      o.offset_x = clamp1(o.offset_x + (ev.clientX - st.startX) / baseDisplay.w)
-    }
+    o.offset_x = clamp1(o.offset_x + (ev.clientX - st.startX) / (baseDisplay.w || BASE_H))
     if (baseDisplay.h > 0) {
       o.offset_y = clamp1(o.offset_y + (ev.clientY - st.startY) / baseDisplay.h)
     }
@@ -534,6 +593,8 @@ const startDrag = (e: PointerEvent, socket: PumpkinOverlaySocket) => {
   }
   const up = () => {
     dragState.value = null
+    // A measurement deferred mid-drag settles now that the move is over.
+    ensureOverlaySize(socket)
     window.removeEventListener("pointermove", move)
     window.removeEventListener("pointerup", up)
   }
@@ -596,6 +657,11 @@ const reload = async () => {
       }
     }
     await loadLayouts()
+    // The base <img> may have kept an identical src (no load event), so
+    // re-measure from the DOM after render (this also freezes overlay sizes).
+    await nextTick()
+    ensureBaseMeasured()
+    for (const s of OVERLAY_SOCKETS) ensureOverlaySize(s)
   } catch (error) {
     catalogError.value = error instanceof Error ? error.message : "Failed to load catalog"
   } finally {
@@ -625,10 +691,22 @@ watch(selectedBaseId, () => {
   void loadLayouts()
 })
 
-watch(baseItem, (b) => {
+watch(baseItem, (b, prev) => {
+  // Catalog reloads replace every row object, so this watcher fires on each
+  // save/upload — but the base art usually didn't change and its <img> won't
+  // reload (no load event for an identical src). Resetting the measurement
+  // unconditionally would freeze x positioning (it scales by baseDisplay.w),
+  // so only reset when the art itself changed.
+  const artOf = (it: HalloweenItem | undefined) =>
+    it ? resolveUrl(it.asset_path || PUMPKIN_SOCKET_PLACEHOLDER.base) : ""
+  if (b && artOf(b) === artOf(prev)) {
+    ensureBaseMeasured()
+    return
+  }
   // Reset measured geometry so the new base art re-measures on load.
   baseDisplay.w = 0
   baseDisplay.h = BASE_H
+  void nextTick(() => ensureBaseMeasured())
   if (b && !items.value.some((i) => i.id === selectedBaseId.value)) {
     selectedBaseId.value = b.id
   }
