@@ -219,7 +219,6 @@
               <th class="pb-2 pr-3">Name</th>
               <th class="pb-2 pr-3">Socket</th>
               <th class="pb-2 pr-3">Rarity</th>
-              <th class="pb-2 pr-3">Order</th>
               <th class="pb-2 pr-3">z-index</th>
               <th class="pb-2">Actions</th>
             </tr>
@@ -265,13 +264,6 @@
                   <option value="uncommon">uncommon</option>
                   <option value="rare">rare</option>
                 </select>
-              </td>
-              <td class="py-2 pr-3">
-                <input
-                  v-model.number="item.sort_order"
-                  type="number"
-                  :disabled="item.is_deleted"
-                  class="w-16 bg-gray-900 border border-gray-700 rounded text-sm text-white px-2 py-1" />
               </td>
               <td class="py-2 pr-3">
                 <input
@@ -354,11 +346,6 @@
             <option value="rare">rare</option>
           </select>
           <input
-            v-model.number="newItem.sort_order"
-            type="number"
-            placeholder="order"
-            class="bg-gray-900 border border-gray-700 rounded text-sm text-white px-2 py-1.5" />
-          <input
             v-model.number="newItem.z_index"
             type="number"
             placeholder="z-index"
@@ -434,7 +421,6 @@ const newItem = reactive({
   name: "",
   socket: "hat" as PumpkinSocket,
   rarity: "regular" as HalloweenRarity,
-  sort_order: 100,
   z_index: 20,
 })
 
@@ -688,7 +674,6 @@ const saveItem = async (item: HalloweenItem) => {
       name: item.name,
       socket: item.socket,
       rarity: item.rarity,
-      sort_order: Number(item.sort_order) || 0,
       z_index: Number(item.z_index) || 0,
     })
     await refreshAfterCatalogChange()
@@ -742,7 +727,6 @@ const createItem = async () => {
       name: newItem.name.trim(),
       socket: newItem.socket,
       rarity: newItem.rarity,
-      sort_order: Number(newItem.sort_order) || 0,
       z_index: Number(newItem.z_index) || 0,
     })
     newItem.id = ""

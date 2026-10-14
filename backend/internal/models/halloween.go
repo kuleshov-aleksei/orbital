@@ -6,9 +6,8 @@ import "time"
 type HalloweenItem struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
-	Socket    string `json:"socket"` // base | hat | eyes | mouth | feet
-	Rarity    string `json:"rarity"` // regular | common | uncommon | rare
-	SortOrder int    `json:"sort_order"`
+	Socket    string `json:"socket"`     // base | hat | eyes | mouth | feet
+	Rarity    string `json:"rarity"`     // regular | common | uncommon | rare
 	AssetPath string `json:"asset_path"` // backend-owned art URL (served PNG) or legacy public path
 	ZIndex    int    `json:"z_index"`    // render layer; base is 0, negative draws behind
 	IsDeleted bool   `json:"is_deleted"` // soft-delete flag; live clients never see these
@@ -123,18 +122,16 @@ type CreateHalloweenItemRequest struct {
 	Name      string `json:"name"`
 	Socket    string `json:"socket"` // base | hat | eyes | mouth | feet
 	Rarity    string `json:"rarity"`
-	SortOrder int    `json:"sort_order"`
 	ZIndex    int    `json:"z_index"`
 	AssetPath string `json:"asset_path"`
 }
 
 // UpdateHalloweenItemRequest is the body of PATCH /api/admin/halloween/items/{id}.
 type UpdateHalloweenItemRequest struct {
-	Name      string `json:"name"`
-	Socket    string `json:"socket"`
-	Rarity    string `json:"rarity"`
-	SortOrder int    `json:"sort_order"`
-	ZIndex    int    `json:"z_index"`
+	Name   string `json:"name"`
+	Socket string `json:"socket"`
+	Rarity string `json:"rarity"`
+	ZIndex int    `json:"z_index"`
 }
 
 // UpsertBaseSocketsRequest is the body of PUT /api/admin/halloween/layouts.

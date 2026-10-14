@@ -672,7 +672,7 @@ func TestHalloweenItemCRUDSoftDelete(t *testing.T) {
 
 	created, err := s.CreateItem(&models.CreateHalloweenItemRequest{
 		ID: "hat_test", Name: "Test Hat", Socket: "hat",
-		Rarity: "common", SortOrder: 99, ZIndex: 21,
+		Rarity: "common", ZIndex: 21,
 	})
 	if err != nil {
 		t.Fatalf("CreateItem failed: %v", err)
@@ -683,7 +683,7 @@ func TestHalloweenItemCRUDSoftDelete(t *testing.T) {
 
 	if _, err := s.UpdateItem("hat_test", &models.UpdateHalloweenItemRequest{
 		Name: "Test Hat v2", Socket: "hat",
-		Rarity: "rare", SortOrder: 98, ZIndex: -2,
+		Rarity: "rare", ZIndex: -2,
 	}); err != nil {
 		t.Fatalf("UpdateItem failed: %v", err)
 	}
@@ -766,6 +766,64 @@ func TestHalloweenUpsertBaseSockets(t *testing.T) {
 	}
 	if len(rows) != 2 {
 		t.Fatalf("expected 2 anchors (replace semantics), got %d", len(rows))
+	}
+}
+
+func TestHalloweenCatalogAutoSort(t *testing.T) {
+	s := newHalloweenTestService(t)
+
+	seed := []models.CreateHalloweenItemRequest{
+		{ID: "eyes_zed", Name: "zed", Socket: "eyes", Rarity: "regular", ZIndex: 10},
+		{ID: "hat_alpha", Name: "alpha", Socket: "hat", Rarity: "common", ZIndex: 20},
+		{ID: "hat_beta", Name: "Beta", Socket: "hat", Rarity: "rare", ZIndex: 20},
+		{ID: "mouth_mid", Name: "mid", Socket: "mouth", Rarity: "uncommon", ZIndex: 11},
+		{ID: "eyes_amber", Name: "Amber", Socket: "eyes", Rarity: "rare", ZIndex: 10},
+		{ID: "base_zulu", Name: "Zulu", Socket: "base", Rarity: "rare", ZIndex: 0},
+	}
+	for _, req := range seed {
+		req := req
+		if _, err := s.CreateItem(&req); err != nil {
+			t.Fatalf("CreateItem %s failed: %v", req.ID, err)
+		}
+	}
+
+	state, err := s.GetState("user-1")
+	if err != nil {
+		t.Fatalf("GetState failed: %v", err)
+	}
+	var got []string
+	for _, c := range state.Catalog {
+		switch c.ID {
+		case "eyes_zed", "hat_alpha", "hat_beta", "mouth_mid", "eyes_amber", "base_zulu":
+			got = append(got, c.ID)
+		}
+	}
+	// socket (base, hat, eyes, mouth) → rarity (rare first) → name.
+	want := []string{"base_zulu", "hat_beta", "hat_alpha", "eyes_amber", "eyes_zed", "mouth_mid"}
+	if len(got) != len(want) {
+		t.Fatalf("sorted ids = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("sorted ids = %v, want %v", got, want)
+		}
+	}
+
+	admin, err := s.GetAdminCatalog()
+	if err != nil {
+		t.Fatalf("GetAdminCatalog failed: %v", err)
+	}
+	var adminGot []string
+	for _, c := range admin {
+		switch c.ID {
+		case "eyes_zed", "hat_alpha", "hat_beta", "mouth_mid", "eyes_amber", "base_zulu":
+			adminGot = append(adminGot, c.ID)
+		}
+	}
+	for i := range want {
+		if adminGot[i] != want[i] {
+			t.Fatalf("admin sorted ids = %v, want %v", adminGot, want)
+		}
 	}
 }
 

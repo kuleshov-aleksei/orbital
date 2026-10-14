@@ -301,6 +301,11 @@ INSERT OR IGNORE INTO halloween_base_sockets (base_id, socket, offset_x, offset_
 			('base_a', 'mouth', 0, 0.2),
 			('base_a', 'feet', 0, 0.48);`,
 	},
+	{
+		Version: 26,
+		Name:    "drop_sort_order_from_halloween_items",
+		SQL:     `ALTER TABLE halloween_items DROP COLUMN sort_order;`,
+	},
 }
 
 func (db *DB) RunMigrations() error {

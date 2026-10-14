@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/kuleshov-aleksei/orbital/internal/config"
@@ -333,6 +335,7 @@ func (s *HalloweenService) GetState(userID string) (*models.HalloweenStateRespon
 	for _, c := range catalog {
 		catalogItems = append(catalogItems, *c)
 	}
+	sortCatalogItems(catalogItems)
 	baseLayouts := map[string]map[string]models.HalloweenBaseSocket{}
 	for _, l := range layouts {
 		if _, ok := baseLayouts[l.BaseID]; !ok {
@@ -689,7 +692,43 @@ func (s *HalloweenService) GetAdminCatalog() ([]*models.HalloweenItem, error) {
 	if items == nil {
 		items = []*models.HalloweenItem{}
 	}
+	sortCatalogPtrs(items)
 	return items, nil
+}
+
+// Catalog display order: socket (canonical UI order) → rarity (rarest
+// first) → display name → id. This replaces the old manual sort_order
+// column; every list surface inherits it.
+var halloweenSocketRank = map[string]int{
+	"base": 0, "hat": 1, "eyes": 2, "mouth": 3, "feet": 4,
+}
+
+var halloweenRarityRank = map[string]int{
+	HalloweenRarityRare:     0,
+	HalloweenRarityUncommon: 1,
+	HalloweenRarityCommon:   2,
+	HalloweenRarityRegular:  3,
+}
+
+func catalogLess(a, b models.HalloweenItem) bool {
+	if halloweenSocketRank[a.Socket] != halloweenSocketRank[b.Socket] {
+		return halloweenSocketRank[a.Socket] < halloweenSocketRank[b.Socket]
+	}
+	if halloweenRarityRank[a.Rarity] != halloweenRarityRank[b.Rarity] {
+		return halloweenRarityRank[a.Rarity] < halloweenRarityRank[b.Rarity]
+	}
+	if na, nb := strings.ToLower(a.Name), strings.ToLower(b.Name); na != nb {
+		return na < nb
+	}
+	return a.ID < b.ID
+}
+
+func sortCatalogItems(items []models.HalloweenItem) {
+	sort.SliceStable(items, func(i, j int) bool { return catalogLess(items[i], items[j]) })
+}
+
+func sortCatalogPtrs(items []*models.HalloweenItem) {
+	sort.SliceStable(items, func(i, j int) bool { return catalogLess(*items[i], *items[j]) })
 }
 
 // validPumpkinSockets is the full socket set (base + overlays incl. feet).
@@ -730,7 +769,7 @@ func (s *HalloweenService) CreateItem(req *models.CreateHalloweenItemRequest) (*
 
 	item := &models.HalloweenItem{
 		ID: req.ID, Name: req.Name, Socket: req.Socket,
-		Rarity: req.Rarity, SortOrder: req.SortOrder, ZIndex: req.ZIndex,
+		Rarity: req.Rarity, ZIndex: req.ZIndex,
 		AssetPath: req.AssetPath,
 	}
 	if err := s.repo.CreateItem(item); err != nil {
@@ -762,7 +801,6 @@ func (s *HalloweenService) UpdateItem(id string, req *models.UpdateHalloweenItem
 	existing.Name = req.Name
 	existing.Socket = req.Socket
 	existing.Rarity = req.Rarity
-	existing.SortOrder = req.SortOrder
 	existing.ZIndex = req.ZIndex
 	if err := s.repo.UpdateItem(existing); err != nil {
 		return nil, err
