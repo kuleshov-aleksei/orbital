@@ -93,10 +93,21 @@ export function itemArtForPumpkin(pumpkinType: PumpkinType | string): string {
   return ITEM_ART[pumpkinType] ?? `${HW26_ITEM_BASE}/${pumpkinType}.png`
 }
 
+// Slug shield + charge sparks (hw26 effects drop). Translucent PNGs drawn over
+// slugs — one shield bubble per shielded slug, one spark per shield charge.
+export const HW26_EFFECT_BASE = "/assets/hw26/effects"
+export const SHIELD_URL = `${HW26_EFFECT_BASE}/shield.png`
+export const SHIELD_SPARK_URL = `${HW26_EFFECT_BASE}/shield-spark.png`
+export const HALLOWEEN_EFFECT_SPRITES: string[] = [SHIELD_URL, SHIELD_SPARK_URL]
+
 // Every item/projectile texture the field renderer draws as a Pixi sprite.
 // Small (~1.5MB total) — preloaded blocking before the game starts.
 export const HALLOWEEN_FIELD_SPRITES: string[] = [
-  ...new Set([...Object.values(ITEM_ART), ...Object.values(PROJECTILE_ART)]),
+  ...new Set([
+    ...Object.values(ITEM_ART),
+    ...Object.values(PROJECTILE_ART),
+    ...HALLOWEEN_EFFECT_SPRITES,
+  ]),
 ]
 
 // Full-bleed card faces (~4.8MB total at 424x632). Prefetched non-blocking

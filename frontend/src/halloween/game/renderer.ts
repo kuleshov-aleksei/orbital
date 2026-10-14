@@ -10,7 +10,13 @@ import {
 } from "pixi.js"
 import type { GameEvent, HalloweenGameEngine } from "./engine"
 import type { HalloweenAssets } from "./assets"
-import { HALLOWEEN_BACKGROUND_URL, ITEM_ART, PROJECTILE_ART } from "./assets"
+import {
+  HALLOWEEN_BACKGROUND_URL,
+  ITEM_ART,
+  PROJECTILE_ART,
+  SHIELD_SPARK_URL,
+  SHIELD_URL,
+} from "./assets"
 import type { LoadedAtlas } from "./atlas"
 import { FIELD_HEIGHT, FIELD_LAYOUT, columnForX, columnX, laneCenterY, laneForY } from "./engine"
 import type { ProjectileKind, PumpkinType, SlugType } from "./types"
@@ -52,7 +58,11 @@ interface SlugDisplay {
   container: Container
   sprite: Sprite | Graphics
   bar: Graphics
-  shield: Graphics
+  // Shield bubble + charge sparks (hw26 effects art), drawn over the slug.
+  // Rebuilt only when the charge count or visual size changes — see sync().
+  shield: Container
+  shieldCount?: number
+  shieldDiameter?: number
   // Animated slugs (atlas-backed) mirror the pumpkin state machine, except
   // the locomotion loop is per-type: crawlers loop `crawl`, Dell loops `idle`
   // (he doesn't move — `motion` is ignored). One-shots return to `base`.
@@ -86,6 +96,12 @@ const PROJECTILE_SPRITE_HEIGHT: Record<ProjectileKind, number> = {
 }
 const GRENADE_SPRITE_SIZE = 40
 const BEER_CUP_SPRITE_SIZE = 44
+// Shield bubble diameter = (visualR + SHIELD_PAD) * 2; sparks sit on the rim.
+// Renderer caps spark sprites at 6 — game logic never exceeds it either.
+const SHIELD_PAD = 5
+const SHIELD_SPARK_SIZE = 18
+const SHIELD_SPARK_RIM_GAP = 8
+const MAX_RENDERED_SHIELDS = 6
 
 export interface MiniGameRenderer {
   init(container: HTMLElement): Promise<void>
@@ -466,7 +482,8 @@ export function createMiniGameRenderer(
     const hudW = animated ? SLUG_SPRITE_SIZE : radius * 2
     const hudY = animated ? -SLUG_SPRITE_SIZE / 2 - 12 : -radius - 10
     const bar = makeHealthBar(container, hudW, hudY)
-    const shield = new Graphics()
+    // Shield art draws over the slug body (translucent bubble + rim sparks).
+    const shield = new Container()
     container.addChild(shield)
     world?.addChild(container)
     const display: SlugDisplay = {
@@ -797,20 +814,38 @@ export function createMiniGameRenderer(
       updateBar(display.bar, visualR * 2, s.health, s.maxHealth)
       // Real art is never tinted — only the placeholder fallback keeps a tint.
       if (!display.animated) display.sprite.tint = SLUG_TINTS[s.type]
-      // Shield ring: cyan circle plus one tick per remaining shield.
-      // No shields, no ring. Minimalism even Gilfoyle respects.
-      display.shield.clear()
-      if (s.shields > 0) {
-        display.shield.circle(0, 0, visualR + 5)
-        display.shield.stroke({ width: 2.5, color: 0x67e8f9, alpha: 0.9 })
-        for (let i = 0; i < s.shields; i++) {
-          const a = (i / Math.max(1, s.maxShields)) * Math.PI * 2 - Math.PI / 2
-          const r1 = visualR + 8
-          const r2 = visualR + 12
-          display.shield.moveTo(Math.cos(a) * r1, Math.sin(a) * r1)
-          display.shield.lineTo(Math.cos(a) * r2, Math.sin(a) * r2)
+      // Shield bubble (translucent art over the slug) plus one spark sprite
+      // per remaining charge, placed on the rim like the old tick marks.
+      // No shields, no art. Rebuilt only when count/size changes — the
+      // textures are shared so rebuilds stay cheap.
+      const wantShields = s.shields > 0 ? Math.min(s.shields, MAX_RENDERED_SHIELDS) : 0
+      const shieldDiameter = (visualR + SHIELD_PAD) * 2
+      if (wantShields <= 0) {
+        display.shield.visible = false
+        display.shieldCount = 0
+        display.shieldDiameter = shieldDiameter
+      } else if (
+        !display.shield.visible ||
+        display.shieldCount !== wantShields ||
+        display.shieldDiameter !== shieldDiameter
+      ) {
+        display.shield.removeChildren()
+        const bubble = itemSpriteFor(SHIELD_URL, shieldDiameter)
+        if (bubble) display.shield.addChild(bubble)
+        const denom = Math.max(1, Math.min(s.maxShields, MAX_RENDERED_SHIELDS))
+        for (let i = 0; i < wantShields; i++) {
+          const spark = itemSpriteFor(SHIELD_SPARK_URL, SHIELD_SPARK_SIZE)
+          if (!spark) continue
+          const a = (i / denom) * Math.PI * 2 - Math.PI / 2
+          spark.position.set(
+            Math.cos(a) * (visualR + SHIELD_SPARK_RIM_GAP),
+            Math.sin(a) * (visualR + SHIELD_SPARK_RIM_GAP),
+          )
+          display.shield.addChild(spark)
         }
-        display.shield.stroke({ width: 2, color: 0x67e8f9, alpha: 0.9 })
+        display.shield.visible = true
+        display.shieldCount = wantShields
+        display.shieldDiameter = shieldDiameter
       }
     }
 
