@@ -307,6 +307,8 @@ func main() {
 		superAdminRouter.HandleFunc("/halloween/layouts", halloweenHandler.AdminUpsertLayouts).Methods("PUT")
 		superAdminRouter.HandleFunc("/halloween/rewards", halloweenHandler.AdminGetRewards).Methods("GET")
 		superAdminRouter.HandleFunc("/halloween/rewards", halloweenHandler.AdminIssueReward).Methods("POST")
+		superAdminRouter.HandleFunc("/halloween/config/export", halloweenHandler.AdminExportConfig).Methods("GET")
+		superAdminRouter.HandleFunc("/halloween/config/import", halloweenHandler.AdminImportConfig).Methods("POST")
 	}
 
 	// Debug log upload route (authenticated users)

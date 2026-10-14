@@ -346,6 +346,14 @@ If user receive more than 1 reward, he receive them in the following algorithm:
 - 1 lower tier
 - 1 even lower
 
+Each reward slot scans downward from its tier step and takes the first tier
+that still has unearned items, so exhausted top pools don't shrink the
+reward — the full count comes from lower tiers. Rewards never move up a
+tier: a mid-tier score can only yield its own tier and below. When nothing
+is left at or below the earned tier, the game reports "all rewards have
+been earned" if everything is owned, or "no more rewards at this score -
+reach a higher score for rarer rewards" if rarer pools still hold items.
+
 e.g: if user reaches 9617 points on level 7 he is rewarded with:
 1 epic item, 1 rare item, 1 uncommon item
 

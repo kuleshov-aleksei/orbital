@@ -265,13 +265,13 @@ func (s *HalloweenService) Config() *HalloweenGameConfig {
 			{MinX: 0, Factor: 0.35},
 		},
 		RoundBonus: 1000,
-	RewardBrackets: []HalloweenRewardBracket{
-		{MinScore: 12000, Tier: HalloweenRarityLegendary},
-		{MinScore: 8000, Tier: HalloweenRarityEpic},
-		{MinScore: 5000, Tier: HalloweenRarityRare},
-		{MinScore: 2000, Tier: HalloweenRarityUncommon},
-		{MinScore: 1000, Tier: HalloweenRarityCommon},
-	},
+		RewardBrackets: []HalloweenRewardBracket{
+			{MinScore: 12000, Tier: HalloweenRarityLegendary},
+			{MinScore: 8000, Tier: HalloweenRarityEpic},
+			{MinScore: 5000, Tier: HalloweenRarityRare},
+			{MinScore: 2000, Tier: HalloweenRarityUncommon},
+			{MinScore: 1000, Tier: HalloweenRarityCommon},
+		},
 		RewardsPerRound: map[int]int{
 			1: 1, 2: 1, 3: 1, 4: 2, 5: 2, 6: 2, 7: 3, 8: 3, 9: 3, 10: 4,
 		},
@@ -555,9 +555,13 @@ func (s *HalloweenService) rewardCount(cfg *HalloweenGameConfig, rounds int) int
 	return 4 // cap for endless rounds
 }
 
-// pickRewards selects up to rewardCount unique, unowned items ordered
-// top-tier → lower tiers. Returns granted item ids and a message when the
-// pool is exhausted.
+// pickRewards selects up to rewardCount unique, unowned items for a score.
+// Each of the count slots scans downward from its tier step (earned tier +
+// slot) and takes the first non-empty tier, so exhausted top pools don't
+// shrink the reward: the player keeps their full count from lower tiers.
+// The scan never moves up — a mid-tier score can never yield a higher-tier
+// item. Returns granted item ids and a message when the reachable pool is
+// exhausted.
 func (s *HalloweenService) pickRewards(userID string, score int, rounds int) ([]string, string) {
 	cfg := s.Config()
 	count := s.rewardCount(cfg, rounds)
@@ -577,48 +581,76 @@ func (s *HalloweenService) pickRewards(userID string, score int, rounds int) ([]
 			break
 		}
 	}
+	if tierIdx < 0 {
+		return nil, ""
+	}
 
 	var granted []string
+	grantedSet := map[string]bool{}
+
+	for slot := 0; slot < count && len(granted) < count; slot++ {
+		for poolTier := tierIdx + slot; poolTier < len(halloweenTierOrder); poolTier++ {
+			items, err := s.repo.GetItemsByRarity(halloweenTierOrder[poolTier])
+			if err != nil {
+				break
+			}
+
+			// Filter to items unowned and not already granted this game.
+			var available []*models.HalloweenItem
+			for _, item := range items {
+				if grantedSet[item.ID] {
+					continue
+				}
+				owned, err := s.repo.OwnsItem(userID, item.ID)
+				if err != nil {
+					continue
+				}
+				if !owned {
+					available = append(available, item)
+				}
+			}
+
+			if len(available) == 0 {
+				continue
+			}
+
+			pick := available[rand.Intn(len(available))]
+			granted = append(granted, pick.ID)
+			grantedSet[pick.ID] = true
+			break // slot filled — the next slot steps one tier down
+		}
+	}
+
 	message := ""
-
-	for i := 0; i < count; i++ {
-		poolTier := tierIdx + i
-		if poolTier >= len(halloweenTierOrder) {
-			message = "all rewards have been earned"
-			break
+	if len(granted) < count {
+		message = "all rewards have been earned"
+		if s.hasUnownedAbove(userID, tierIdx) {
+			message = "no more rewards at this score - reach a higher score for rarer rewards"
 		}
+	}
 
-		items, err := s.repo.GetItemsByRarity(halloweenTierOrder[poolTier])
+	return granted, message
+}
+
+// hasUnownedAbove reports whether any item in tiers rarer than the earned
+// tier is still unearned by the user.
+func (s *HalloweenService) hasUnownedAbove(userID string, tierIdx int) bool {
+	for i := 0; i < tierIdx && i < len(halloweenTierOrder); i++ {
+		items, err := s.repo.GetItemsByRarity(halloweenTierOrder[i])
 		if err != nil {
-			break
+			continue
 		}
-
-		// Filter to unowned items.
-		var available []*models.HalloweenItem
 		for _, item := range items {
 			owned, err := s.repo.OwnsItem(userID, item.ID)
 			if err != nil {
 				continue
 			}
 			if !owned {
-				available = append(available, item)
+				return true
 			}
 		}
-
-		if len(available) == 0 {
-			message = "all rewards have been earned"
-			break
-		}
-
-		pick := available[rand.Intn(len(available))]
-		granted = append(granted, pick.ID)
 	}
-
-	if len(granted) == 0 {
-		message = "all rewards have been earned"
-	}
-
-	return granted, message
+	return false
 }
 
 // GetLeaderboard returns the top scores.
@@ -944,6 +976,136 @@ func (s *HalloweenService) UpsertBaseSockets(baseID string, sockets []models.Hal
 		})
 	}
 	return s.repo.UpsertBaseSockets(baseID, rows)
+}
+
+// ExportConfig snapshots the live catalog plus every per-base socket layout.
+// Art bytes are excluded: files relink by stable item id on re-upload.
+func (s *HalloweenService) ExportConfig() (*models.HalloweenConfigExport, error) {
+	catalog, err := s.repo.GetAllItems()
+	if err != nil {
+		return nil, err
+	}
+	layouts, err := s.repo.GetAllBaseSockets()
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]models.HalloweenConfigItem, 0, len(catalog))
+	for _, c := range catalog {
+		items = append(items, models.HalloweenConfigItem{
+			ID: c.ID, Name: c.Name, Socket: c.Socket,
+			Rarity: c.Rarity, ZIndex: c.ZIndex, Scale: c.Scale,
+		})
+	}
+	sortCatalogConfigItems(items)
+
+	baseLayouts := map[string]map[string]models.HalloweenBaseSocket{}
+	for _, l := range layouts {
+		if _, ok := baseLayouts[l.BaseID]; !ok {
+			baseLayouts[l.BaseID] = map[string]models.HalloweenBaseSocket{}
+		}
+		baseLayouts[l.BaseID][l.Socket] = *l
+	}
+
+	return &models.HalloweenConfigExport{
+		Version:     models.HalloweenConfigVersion,
+		ExportedAt:  time.Now().UTC(),
+		Items:       items,
+		BaseLayouts: baseLayouts,
+	}, nil
+}
+
+func sortCatalogConfigItems(items []models.HalloweenConfigItem) {
+	sort.SliceStable(items, func(i, j int) bool {
+		if halloweenSocketRank[items[i].Socket] != halloweenSocketRank[items[j].Socket] {
+			return halloweenSocketRank[items[i].Socket] < halloweenSocketRank[items[j].Socket]
+		}
+		if halloweenRarityRank[items[i].Rarity] != halloweenRarityRank[items[j].Rarity] {
+			return halloweenRarityRank[items[i].Rarity] < halloweenRarityRank[items[j].Rarity]
+		}
+		if ni, nj := strings.ToLower(items[i].Name), strings.ToLower(items[j].Name); ni != nj {
+			return ni < nj
+		}
+		return items[i].ID < items[j].ID
+	})
+}
+
+// ImportConfig replaces the whole catalog + layouts with a config file.
+// Everything is validated before anything is written: any error aborts with
+// the database untouched.
+func (s *HalloweenService) ImportConfig(req *models.HalloweenConfigImport) error {
+	if req == nil {
+		return errors.New("config is required")
+	}
+	if req.Version != models.HalloweenConfigVersion {
+		return errors.New("unsupported config version")
+	}
+
+	seen := map[string]bool{}
+	for _, item := range req.Items {
+		if item.ID == "" || item.Name == "" {
+			return errors.New("id and name are required")
+		}
+		if seen[item.ID] {
+			return errors.New("duplicate item id: " + item.ID)
+		}
+		seen[item.ID] = true
+		if !validPumpkinSocket(item.Socket) {
+			return errors.New("socket must be base, hat, eyes, mouth, or feet")
+		}
+		if !validHalloweenRarity(item.Rarity) {
+			return errors.New("invalid rarity")
+		}
+		scale := item.Scale
+		if scale == 0 {
+			scale = 1
+		}
+		if scale < 0.25 || scale > 2 {
+			return errors.New("scale must be within 0.25..2")
+		}
+	}
+
+	// Normalize scales in place (0 → 1) via index loop over the request slice.
+	for i := range req.Items {
+		if req.Items[i].Scale == 0 {
+			req.Items[i].Scale = 1
+		}
+	}
+
+	byID := map[string]models.HalloweenConfigItem{}
+	for _, item := range req.Items {
+		byID[item.ID] = item
+	}
+	cleanLayouts := map[string]map[string]models.HalloweenBaseSocket{}
+	if req.BaseLayouts != nil {
+		for baseID, sockets := range req.BaseLayouts {
+			base, ok := byID[baseID]
+			if !ok {
+				return errors.New("unknown base id in layouts: " + baseID)
+			}
+			if base.Socket != "base" {
+				return errors.New("base_id must reference a base item: " + baseID)
+			}
+			clean := map[string]models.HalloweenBaseSocket{}
+			for socket, anchor := range sockets {
+				if !validPumpkinSocket(socket) || socket == "base" {
+					return errors.New("socket must be hat, eyes, mouth, or feet")
+				}
+				if _, dup := clean[socket]; dup {
+					return errors.New("duplicate socket: " + socket)
+				}
+				if anchor.OffsetX < -1 || anchor.OffsetX > 1 || anchor.OffsetY < -1 || anchor.OffsetY > 1 {
+					return errors.New("offsets must be within -1..1")
+				}
+				clean[socket] = models.HalloweenBaseSocket{
+					BaseID: baseID, Socket: socket, OffsetX: anchor.OffsetX, OffsetY: anchor.OffsetY,
+				}
+			}
+			cleanLayouts[baseID] = clean
+		}
+	}
+
+	return s.repo.ReplaceCatalog(req.Items, cleanLayouts)
 }
 
 // IssueReward grants a specific item to a user (admin action).

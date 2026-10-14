@@ -143,6 +143,37 @@ type UpsertBaseSocketsRequest struct {
 	Sockets []HalloweenBaseSocket `json:"sockets"`
 }
 
+// HalloweenConfigVersion is the only config file version the import accepts.
+const HalloweenConfigVersion = 1
+
+// HalloweenConfigItem is one catalog row in a config export/import file.
+// Asset art is deliberately excluded: files are relinked by stable item id
+// when PNGs are re-uploaded via the assets admin tab.
+type HalloweenConfigItem struct {
+	ID     string  `json:"id"`
+	Name   string  `json:"name"`
+	Socket string  `json:"socket"` // base | hat | eyes | mouth | feet
+	Rarity string  `json:"rarity"` // common | uncommon | rare | epic | legendary
+	ZIndex int     `json:"z_index"`
+	Scale  float64 `json:"scale"`
+}
+
+// HalloweenConfigExport is the full pumpkin configuration snapshot:
+// the live catalog plus every per-base socket layout.
+type HalloweenConfigExport struct {
+	Version     int                                       `json:"version"`
+	ExportedAt  time.Time                                 `json:"exported_at"`
+	Items       []HalloweenConfigItem                     `json:"items"`
+	BaseLayouts map[string]map[string]HalloweenBaseSocket `json:"base_layouts"`
+}
+
+// HalloweenConfigImport is the body of POST /api/admin/halloween/config/import.
+type HalloweenConfigImport struct {
+	Version     int                                       `json:"version"`
+	Items       []HalloweenConfigItem                     `json:"items"`
+	BaseLayouts map[string]map[string]HalloweenBaseSocket `json:"base_layouts"`
+}
+
 // UpdatePumpkinRequest is the body of PUT /api/halloween/pumpkin.
 type UpdatePumpkinRequest struct {
 	EquippedJSON string `json:"equipped_json"`

@@ -422,3 +422,37 @@ func (h *HalloweenHandler) AdminIssueReward(w http.ResponseWriter, r *http.Reque
 		"granted": granted,
 	})
 }
+
+// AdminExportConfig snapshots the live catalog + base layouts as a JSON
+// config file (super_admin only). Art bytes are excluded; PNGs relink by
+// stable item id on re-upload.
+func (h *HalloweenHandler) AdminExportConfig(w http.ResponseWriter, r *http.Request) {
+	cfg, err := h.halloweenService.ExportConfig()
+	if err != nil {
+		http.Error(w, "Failed to export config: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Disposition", `attachment; filename="halloween-pumpkin-config.json"`)
+	json.NewEncoder(w).Encode(cfg)
+}
+
+// AdminImportConfig replaces the whole catalog + layouts from a config file
+// (super_admin only). Validation failures leave the database untouched.
+func (h *HalloweenHandler) AdminImportConfig(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 2<<20)
+	var req models.HalloweenConfigImport
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.halloweenService.ImportConfig(&req); err != nil {
+		http.Error(w, "Failed to import config: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "imported"})
+}

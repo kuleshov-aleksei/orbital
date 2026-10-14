@@ -26,6 +26,8 @@ import type {
   CreateHalloweenItemRequest,
   UpdateHalloweenItemRequest,
   UpsertBaseSocketsRequest,
+  HalloweenConfigExport,
+  HalloweenConfigImport,
 } from "@/halloween/types"
 import { isElectron, openExternal, oauthAuthenticate } from "./electron"
 
@@ -539,6 +541,18 @@ export const apiService = {
   async saveHalloweenBaseLayouts(payload: UpsertBaseSocketsRequest): Promise<{ status: string }> {
     return apiRequest<{ status: string }>("/admin/halloween/layouts", {
       method: "PUT",
+      body: JSON.stringify(payload),
+    })
+  },
+
+  // Halloween config export/import (super_admin only, snake_case).
+  async exportHalloweenConfig(): Promise<HalloweenConfigExport> {
+    return apiRequest<HalloweenConfigExport>("/admin/halloween/config/export")
+  },
+
+  async importHalloweenConfig(payload: HalloweenConfigImport): Promise<{ status: string }> {
+    return apiRequest<{ status: string }>("/admin/halloween/config/import", {
+      method: "POST",
       body: JSON.stringify(payload),
     })
   },

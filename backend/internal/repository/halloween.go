@@ -181,6 +181,68 @@ func (r *HalloweenRepository) RestoreItem(id string) error {
 	return err
 }
 
+// ReplaceCatalog makes the catalog exactly match the given items in one
+// transaction: upsert every file row (clearing is_deleted), soft-delete every
+// stored id absent from the file, and rewrite the given per-base layouts.
+// Validation happens in the service layer; this method assumes clean input.
+func (r *HalloweenRepository) ReplaceCatalog(items []models.HalloweenConfigItem, layouts map[string]map[string]models.HalloweenBaseSocket) error {
+	return r.db.Transaction(func(tx *sql.Tx) error {
+		keep := make(map[string]bool, len(items))
+		for _, item := range items {
+			keep[item.ID] = true
+			if _, err := tx.Exec(
+				`INSERT INTO halloween_items (id, name, socket, rarity, z_index, scale, is_deleted)
+				 VALUES (?, ?, ?, ?, ?, ?, 0)
+				 ON CONFLICT(id) DO UPDATE SET name = excluded.name, socket = excluded.socket,
+				 rarity = excluded.rarity, z_index = excluded.z_index, scale = excluded.scale, is_deleted = 0`,
+				item.ID, item.Name, item.Socket, item.Rarity, item.ZIndex, item.Scale,
+			); err != nil {
+				return err
+			}
+		}
+
+		rows, err := tx.Query(`SELECT id FROM halloween_items`)
+		if err != nil {
+			return err
+		}
+		var stored []string
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				rows.Close()
+				return err
+			}
+			stored = append(stored, id)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		for _, id := range stored {
+			if !keep[id] {
+				if _, err := tx.Exec(`UPDATE halloween_items SET is_deleted = 1 WHERE id = ?`, id); err != nil {
+					return err
+				}
+			}
+		}
+
+		if _, err := tx.Exec(`DELETE FROM halloween_base_sockets`); err != nil {
+			return err
+		}
+		for baseID, sockets := range layouts {
+			for socket, anchor := range sockets {
+				if _, err := tx.Exec(
+					`INSERT INTO halloween_base_sockets (base_id, socket, offset_x, offset_y) VALUES (?, ?, ?, ?)`,
+					baseID, socket, anchor.OffsetX, anchor.OffsetY,
+				); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+}
+
 // GetBaseSockets returns the socket anchors for one base (empty when unmapped).
 func (r *HalloweenRepository) GetBaseSockets(baseID string) ([]*models.HalloweenBaseSocket, error) {
 	rows, err := r.db.Query(

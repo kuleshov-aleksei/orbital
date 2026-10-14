@@ -460,7 +460,7 @@ func TestHalloweenSubmitGameAllRewardsEarned(t *testing.T) {
 	// tiers can never serve commons).
 	report := &models.HalloweenGameReport{
 		Kills:           []models.HalloweenSlugKill{{Type: HalloweenSlugScout, X: 800, Source: "pumpkin"}}, // 10
-		CompletedRounds: 1, // 1000 * (1*2)/2 = 1000
+		CompletedRounds: 1,                                                                                 // 1000 * (1*2)/2 = 1000
 		Score:           1010,
 	}
 
@@ -989,6 +989,439 @@ func TestHalloweenMigrationFlattensRarity(t *testing.T) {
 		if c.Rarity != "common" {
 			t.Errorf("item %s rarity = %q, want common after migration 28", c.ID, c.Rarity)
 		}
+	}
+}
+
+func catalogSnapshot(t *testing.T, s *HalloweenService) (items map[string]models.HalloweenItem, layouts map[string]map[string]models.HalloweenBaseSocket) {
+	t.Helper()
+	admin, err := s.GetAdminCatalog()
+	if err != nil {
+		t.Fatalf("GetAdminCatalog failed: %v", err)
+	}
+	items = map[string]models.HalloweenItem{}
+	for _, c := range admin {
+		items[c.ID] = *c
+	}
+	state, err := s.GetState("user-1")
+	if err != nil {
+		t.Fatalf("GetState failed: %v", err)
+	}
+	layouts = state.BaseLayouts
+	return items, layouts
+}
+
+func TestHalloweenConfigExport(t *testing.T) {
+	s := newHalloweenTestService(t)
+
+	// Soft-deleted rows must not leak into the export (live only).
+	if _, err := s.CreateItem(&models.CreateHalloweenItemRequest{
+		ID: "hat_gone", Name: "Gone", Socket: "hat",
+		Rarity: "common", ZIndex: 20, Scale: 1,
+	}); err != nil {
+		t.Fatalf("CreateItem failed: %v", err)
+	}
+	if err := s.SoftDeleteItem("hat_gone"); err != nil {
+		t.Fatalf("SoftDeleteItem failed: %v", err)
+	}
+
+	cfg, err := s.ExportConfig()
+	if err != nil {
+		t.Fatalf("ExportConfig failed: %v", err)
+	}
+	if cfg.Version != models.HalloweenConfigVersion {
+		t.Errorf("version = %d, want %d", cfg.Version, models.HalloweenConfigVersion)
+	}
+	if cfg.ExportedAt.IsZero() {
+		t.Error("exported_at must be stamped")
+	}
+	for _, item := range cfg.Items {
+		if item.ID == "hat_gone" {
+			t.Error("soft-deleted item must not be exported")
+		}
+		if item.ID == "" || item.Name == "" {
+			t.Errorf("exported item missing id/name: %+v", item)
+		}
+	}
+	if _, ok := cfg.BaseLayouts["base_a"]; !ok {
+		t.Error("expected base_a layouts in export")
+	}
+	// Export order follows the catalog sort (socket → rarity → name).
+	toItem := func(c models.HalloweenConfigItem) models.HalloweenItem {
+		return models.HalloweenItem{ID: c.ID, Name: c.Name, Socket: c.Socket, Rarity: c.Rarity}
+	}
+	for i := 1; i < len(cfg.Items); i++ {
+		if catalogLess(toItem(cfg.Items[i]), toItem(cfg.Items[i-1])) {
+			t.Fatalf("export items not sorted at index %d (%s before %s)", i, cfg.Items[i].ID, cfg.Items[i-1].ID)
+		}
+	}
+}
+
+func TestHalloweenConfigImportReplace(t *testing.T) {
+	s := newHalloweenTestService(t)
+
+	before, _ := catalogSnapshot(t, s)
+	keepID := "base_a"
+	dropID := "feet_boots"
+	if _, ok := before[dropID]; !ok {
+		t.Fatalf("expected seeded %s", dropID)
+	}
+	keep := before[keepID]
+
+	err := s.ImportConfig(&models.HalloweenConfigImport{
+		Version: models.HalloweenConfigVersion,
+		Items: []models.HalloweenConfigItem{
+			{ID: keepID, Name: "Classic Renamed", Socket: "base", Rarity: "legendary", ZIndex: 0, Scale: 1},
+			{ID: "hat_new", Name: "New Hat", Socket: "hat", Rarity: "epic", ZIndex: 20, Scale: 1.5},
+		},
+		BaseLayouts: map[string]map[string]models.HalloweenBaseSocket{
+			keepID: {
+				"hat": {BaseID: keepID, Socket: "hat", OffsetX: 0.1, OffsetY: -0.4},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ImportConfig failed: %v", err)
+	}
+
+	after, layouts := catalogSnapshot(t, s)
+	if len(after) != len(before)+1 { // +1 new, drop stays as soft-deleted row
+		t.Fatalf("expected %d admin rows, got %d", len(before)+1, len(after))
+	}
+	renamed := after[keepID]
+	if renamed.Name != "Classic Renamed" || renamed.Rarity != "legendary" {
+		t.Errorf("base_a not updated: %+v", renamed)
+	}
+	if renamed.AssetPath != keep.AssetPath {
+		t.Errorf("import must preserve art: asset_path %q, want %q", renamed.AssetPath, keep.AssetPath)
+	}
+	if renamed.IsDeleted {
+		t.Error("imported rows must be live")
+	}
+	if after[dropID].IsDeleted != true {
+		t.Errorf("missing ids must be soft-deleted: %+v", after[dropID])
+	}
+	if after["hat_new"].Rarity != "epic" || after["hat_new"].Scale != 1.5 {
+		t.Errorf("new item not created: %+v", after["hat_new"])
+	}
+	// Layouts are rewritten, not merged.
+	if len(layouts) != 1 {
+		t.Fatalf("expected layouts for 1 base, got %d", len(layouts))
+	}
+	hat, ok := layouts[keepID]["hat"]
+	if !ok || hat.OffsetX != 0.1 || hat.OffsetY != -0.4 {
+		t.Errorf("unexpected hat anchor: %+v", layouts[keepID])
+	}
+
+	// Live clients see exactly the file's rows.
+	state, err := s.GetState("user-1")
+	if err != nil {
+		t.Fatalf("GetState failed: %v", err)
+	}
+	if len(state.Catalog) != 2 {
+		t.Fatalf("expected 2 live items, got %d", len(state.Catalog))
+	}
+}
+
+func TestHalloweenConfigImportRejects(t *testing.T) {
+	validItem := models.HalloweenConfigItem{ID: "base_a", Name: "Classic", Socket: "base", Rarity: "common", ZIndex: 0, Scale: 1}
+	validLayouts := map[string]map[string]models.HalloweenBaseSocket{
+		"base_a": {"hat": {BaseID: "base_a", Socket: "hat", OffsetX: 0, OffsetY: -0.45}},
+	}
+	cases := map[string]models.HalloweenConfigImport{
+		"bad version":    {Version: 999, Items: []models.HalloweenConfigItem{validItem}, BaseLayouts: validLayouts},
+		"missing id":     {Version: 1, Items: []models.HalloweenConfigItem{{Name: "x", Socket: "hat", Rarity: "common", Scale: 1}}, BaseLayouts: validLayouts},
+		"missing name":   {Version: 1, Items: []models.HalloweenConfigItem{{ID: "x", Socket: "hat", Rarity: "common", Scale: 1}}, BaseLayouts: validLayouts},
+		"duplicate id":   {Version: 1, Items: []models.HalloweenConfigItem{validItem, validItem}, BaseLayouts: validLayouts},
+		"bad socket":     {Version: 1, Items: []models.HalloweenConfigItem{{ID: "x", Name: "x", Socket: "cape", Rarity: "common", Scale: 1}}, BaseLayouts: validLayouts},
+		"bad rarity":     {Version: 1, Items: []models.HalloweenConfigItem{{ID: "x", Name: "x", Socket: "hat", Rarity: "mythic", Scale: 1}}, BaseLayouts: validLayouts},
+		"retired rarity": {Version: 1, Items: []models.HalloweenConfigItem{{ID: "x", Name: "x", Socket: "hat", Rarity: "regular", Scale: 1}}, BaseLayouts: validLayouts},
+		"bad scale":      {Version: 1, Items: []models.HalloweenConfigItem{{ID: "x", Name: "x", Socket: "hat", Rarity: "common", Scale: 5}}, BaseLayouts: validLayouts},
+		"unknown layout base": {Version: 1, Items: []models.HalloweenConfigItem{validItem}, BaseLayouts: map[string]map[string]models.HalloweenBaseSocket{
+			"nope": {"hat": {BaseID: "nope", Socket: "hat"}},
+		}},
+		"non-base layout base": {Version: 1, Items: []models.HalloweenConfigItem{
+			validItem, {ID: "hat_x", Name: "x", Socket: "hat", Rarity: "common", Scale: 1},
+		}, BaseLayouts: map[string]map[string]models.HalloweenBaseSocket{
+			"base_a": validLayouts["base_a"],
+			"hat_x":  {"eyes": {BaseID: "hat_x", Socket: "eyes"}},
+		}},
+		"bad layout socket": {Version: 1, Items: []models.HalloweenConfigItem{validItem}, BaseLayouts: map[string]map[string]models.HalloweenBaseSocket{
+			"base_a": {"base": {BaseID: "base_a", Socket: "base"}},
+		}},
+		"offset out of range": {Version: 1, Items: []models.HalloweenConfigItem{validItem}, BaseLayouts: map[string]map[string]models.HalloweenBaseSocket{
+			"base_a": {"hat": {BaseID: "base_a", Socket: "hat", OffsetX: 2}},
+		}},
+	}
+
+	for name, req := range cases {
+		s := newHalloweenTestService(t)
+		before, _ := catalogSnapshot(t, s)
+		if err := s.ImportConfig(&req); err == nil {
+			t.Errorf("%s: expected import to be rejected", name)
+			continue
+		}
+		after, _ := catalogSnapshot(t, s)
+		if len(after) != len(before) {
+			t.Errorf("%s: rejected import changed the catalog (%d → %d rows)", name, len(before), len(after))
+		}
+		for id, item := range before {
+			if got, ok := after[id]; !ok || got != item {
+				t.Errorf("%s: rejected import mutated row %s", name, id)
+				break
+			}
+		}
+	}
+
+	// Nil request is rejected too.
+	s := newHalloweenTestService(t)
+	if err := s.ImportConfig(nil); err == nil {
+		t.Error("expected nil import to be rejected")
+	}
+}
+
+func TestHalloweenConfigImportExportRoundTrip(t *testing.T) {
+	s := newHalloweenTestService(t)
+
+	cfg, err := s.ExportConfig()
+	if err != nil {
+		t.Fatalf("ExportConfig failed: %v", err)
+	}
+	names := map[string]string{}
+	for _, item := range cfg.Items {
+		names[item.ID] = item.Name
+	}
+
+	// Wipe everything via an empty (but versioned) import, then restore.
+	if err := s.ImportConfig(&models.HalloweenConfigImport{Version: 1}); err != nil {
+		t.Fatalf("empty import failed: %v", err)
+	}
+	state, err := s.GetState("user-1")
+	if err != nil {
+		t.Fatalf("GetState failed: %v", err)
+	}
+	if len(state.Catalog) != 0 {
+		t.Fatalf("expected empty live catalog after wipe, got %d", len(state.Catalog))
+	}
+
+	payload := &models.HalloweenConfigImport{
+		Version:     cfg.Version,
+		Items:       cfg.Items,
+		BaseLayouts: cfg.BaseLayouts,
+	}
+	if err := s.ImportConfig(payload); err != nil {
+		t.Fatalf("restore import failed: %v", err)
+	}
+
+	restored, err := s.GetState("user-1")
+	if err != nil {
+		t.Fatalf("GetState failed: %v", err)
+	}
+	if len(restored.Catalog) != len(cfg.Items) {
+		t.Fatalf("expected %d restored items, got %d", len(cfg.Items), len(restored.Catalog))
+	}
+	for _, c := range restored.Catalog {
+		if names[c.ID] != c.Name {
+			t.Errorf("item %s name = %q, want %q", c.ID, c.Name, names[c.ID])
+		}
+	}
+}
+
+func TestHalloweenRewardsSkipEmptyTopTiers(t *testing.T) {
+	s := newHalloweenTestService(t)
+
+	// Legendary score, but the legendary pool is empty (seed catalog is all
+	// common after migration 28): the grant must skip down to common.
+	kills := make([]models.HalloweenSlugKill, 0, 280)
+	for i := 0; i < 280; i++ {
+		kills = append(kills, models.HalloweenSlugKill{Type: HalloweenSlugGerald, X: 800, Source: "pumpkin"}) // 50 each
+	}
+	report := &models.HalloweenGameReport{
+		Kills:           kills, // 14000
+		CompletedRounds: 1,     // +1000 = 15000
+		Score:           15000,
+	}
+	resp, err := s.SubmitGame("user-skip", report)
+	if err != nil {
+		t.Fatalf("SubmitGame failed: %v", err)
+	}
+	if resp.IsCheater {
+		t.Fatal("expected no cheater flag")
+	}
+	if len(resp.Granted) != 1 {
+		t.Fatalf("expected 1 skipped-down grant, got %v (message %q)", resp.Granted, resp.Message)
+	}
+	if resp.Message != "" {
+		t.Fatalf("expected no exhaustion message, got %q", resp.Message)
+	}
+	rewards, err := s.GetAdminRewards()
+	if err != nil {
+		t.Fatalf("GetAdminRewards failed: %v", err)
+	}
+	if len(rewards) != 1 || rewards[0].Rarity != HalloweenRarityCommon {
+		t.Fatalf("expected one common grant, got %+v", rewards)
+	}
+}
+
+func TestHalloweenRewardsNeverGrantUp(t *testing.T) {
+	s := newHalloweenTestService(t)
+
+	for _, req := range []models.CreateHalloweenItemRequest{
+		{ID: "hat_mid", Name: "Mid", Socket: "hat", Rarity: "uncommon", ZIndex: 20, Scale: 1},
+		{ID: "hat_top", Name: "Top", Socket: "hat", Rarity: "epic", ZIndex: 20, Scale: 1},
+	} {
+		req := req
+		if _, err := s.CreateItem(&req); err != nil {
+			t.Fatalf("CreateItem %s failed: %v", req.ID, err)
+		}
+	}
+
+	// 2500 points → uncommon tier: must grant the uncommon item, never epic.
+	kills := make([]models.HalloweenSlugKill, 0, 30)
+	for i := 0; i < 30; i++ {
+		kills = append(kills, models.HalloweenSlugKill{Type: HalloweenSlugGerald, X: 800, Source: "pumpkin"}) // 50 each
+	}
+	report := &models.HalloweenGameReport{
+		Kills:           kills, // 1500
+		CompletedRounds: 1,     // +1000 = 2500
+		Score:           2500,
+	}
+	resp, err := s.SubmitGame("user-mid", report)
+	if err != nil {
+		t.Fatalf("SubmitGame failed: %v", err)
+	}
+	if len(resp.Granted) != 1 || resp.Granted[0] != "hat_mid" {
+		t.Fatalf("expected exactly the uncommon grant, got %v (message %q)", resp.Granted, resp.Message)
+	}
+}
+
+func TestHalloweenRewardsCountPreservedAcrossSkips(t *testing.T) {
+	s := newHalloweenTestService(t)
+
+	// 15000 points, round 5 → 2 grants; top pools empty → both from common.
+	report := &models.HalloweenGameReport{
+		CompletedRounds: 5, // 1000 * (5*6)/2 = 15000
+		Score:           15000,
+	}
+	resp, err := s.SubmitGame("user-count", report)
+	if err != nil {
+		t.Fatalf("SubmitGame failed: %v", err)
+	}
+	if len(resp.Granted) != 2 {
+		t.Fatalf("expected full count of 2 lower-tier grants, got %v (message %q)", resp.Granted, resp.Message)
+	}
+	if resp.Message != "" {
+		t.Fatalf("expected no exhaustion message, got %q", resp.Message)
+	}
+}
+
+func ownAllCatalog(t *testing.T, s *HalloweenService, userID string) {
+	t.Helper()
+	state, err := s.GetState(userID)
+	if err != nil {
+		t.Fatalf("GetState failed: %v", err)
+	}
+	for _, c := range state.Catalog {
+		granted, err := s.IssueReward(userID, c.ID)
+		if err != nil || !granted {
+			t.Fatalf("IssueReward %s failed: granted=%v err=%v", c.ID, granted, err)
+		}
+	}
+}
+
+func TestHalloweenRewardsExhaustionMessages(t *testing.T) {
+	midKills := func() []models.HalloweenSlugKill {
+		kills := make([]models.HalloweenSlugKill, 0, 30)
+		for i := 0; i < 30; i++ {
+			kills = append(kills, models.HalloweenSlugKill{Type: HalloweenSlugGerald, X: 800, Source: "pumpkin"})
+		}
+		return kills
+	}
+
+	// Lower pools exhausted but a rarer item is still unearned → the player
+	// is told to reach a higher score.
+	s := newHalloweenTestService(t)
+	if _, err := s.CreateItem(&models.CreateHalloweenItemRequest{
+		ID: "hat_rare_left", Name: "Left", Socket: "hat", Rarity: "rare", ZIndex: 20, Scale: 1,
+	}); err != nil {
+		t.Fatalf("CreateItem failed: %v", err)
+	}
+	state, err := s.GetState("user-low")
+	if err != nil {
+		t.Fatalf("GetState failed: %v", err)
+	}
+	for _, c := range state.Catalog {
+		if c.ID == "hat_rare_left" {
+			continue // stays unearned: the higher-score bait
+		}
+		if granted, err := s.IssueReward("user-low", c.ID); err != nil || !granted {
+			t.Fatalf("IssueReward %s failed: granted=%v err=%v", c.ID, granted, err)
+		}
+	}
+	resp, err := s.SubmitGame("user-low", &models.HalloweenGameReport{
+		Kills:           midKills(), // 1500
+		CompletedRounds: 1,          // +1000 = 2500 (uncommon tier)
+		Score:           2500,
+	})
+	if err != nil {
+		t.Fatalf("SubmitGame failed: %v", err)
+	}
+	if len(resp.Granted) != 0 {
+		t.Fatalf("expected no grants, got %v", resp.Granted)
+	}
+	want := "no more rewards at this score - reach a higher score for rarer rewards"
+	if resp.Message != want {
+		t.Fatalf("message = %q, want %q", resp.Message, want)
+	}
+
+	// Everything owned → truly done.
+	s2 := newHalloweenTestService(t)
+	ownAllCatalog(t, s2, "user-done")
+	resp, err = s2.SubmitGame("user-done", &models.HalloweenGameReport{
+		CompletedRounds: 5, // 15000 (legendary tier)
+		Score:           15000,
+	})
+	if err != nil {
+		t.Fatalf("SubmitGame failed: %v", err)
+	}
+	if len(resp.Granted) != 0 {
+		t.Fatalf("expected no grants, got %v", resp.Granted)
+	}
+	if resp.Message != "all rewards have been earned" {
+		t.Fatalf("message = %q, want the final exhaustion message", resp.Message)
+	}
+}
+
+func TestHalloweenRewardsNoSameGameDuplicates(t *testing.T) {
+	s := newHalloweenTestService(t)
+
+	// Leave exactly one item unearned in the whole catalog.
+	state, err := s.GetState("user-dup")
+	if err != nil {
+		t.Fatalf("GetState failed: %v", err)
+	}
+	if len(state.Catalog) < 2 {
+		t.Fatalf("expected a seeded catalog, got %d rows", len(state.Catalog))
+	}
+	lastID := state.Catalog[len(state.Catalog)-1].ID
+	for _, c := range state.Catalog[:len(state.Catalog)-1] {
+		if granted, err := s.IssueReward("user-dup", c.ID); err != nil || !granted {
+			t.Fatalf("IssueReward %s failed: granted=%v err=%v", c.ID, granted, err)
+		}
+	}
+
+	// 2-grant legendary game, one reachable item: must grant it once, not twice.
+	resp, err := s.SubmitGame("user-dup", &models.HalloweenGameReport{
+		CompletedRounds: 5, // 15000 (legendary tier)
+		Score:           15000,
+	})
+	if err != nil {
+		t.Fatalf("SubmitGame failed: %v", err)
+	}
+	if len(resp.Granted) != 1 || resp.Granted[0] != lastID {
+		t.Fatalf("expected exactly [%s], got %v (message %q)", lastID, resp.Granted, resp.Message)
+	}
+	if resp.Message != "all rewards have been earned" {
+		t.Fatalf("message = %q, want the final exhaustion message", resp.Message)
 	}
 }
 
