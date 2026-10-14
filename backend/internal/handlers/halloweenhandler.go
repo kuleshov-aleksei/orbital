@@ -205,7 +205,11 @@ func (h *HalloweenHandler) GetAsset(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "image/png")
-	w.Header().Set("Cache-Control", "public, max-age=31536000")
+	// Art changes on upload under a stable path, so clients must revalidate
+	// every time (ServeFile answers 304s via ETag/Last-Modified — cheap).
+	// Fresh uploads additionally get a ?v= version stamp, which busts the
+	// browser cache and Pixi's in-memory texture cache outright.
+	w.Header().Set("Cache-Control", "no-cache")
 	http.ServeFile(w, r, filePath)
 }
 

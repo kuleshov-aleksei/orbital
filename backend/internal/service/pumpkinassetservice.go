@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/kuleshov-aleksei/orbital/internal/models"
 )
@@ -52,7 +53,11 @@ func (s *PumpkinAssetService) SaveAsset(itemID string, fileData []byte) (string,
 		return "", fmt.Errorf("failed to save pumpkin asset: %w", err)
 	}
 
-	return fmt.Sprintf("/api/halloween/assets/%s", itemID), nil
+	// Version the URL: the asset endpoint serves the same path before and
+	// after an upload, and both the browser HTTP cache and Pixi's in-memory
+	// texture cache key on the URL. A fresh ?v= per upload forces every
+	// surface to fetch the new bytes on the next catalog/state load.
+	return fmt.Sprintf("/api/halloween/assets/%s?v=%d", itemID, time.Now().UnixNano()), nil
 }
 
 func (s *PumpkinAssetService) AssetPath(itemID string) (string, error) {

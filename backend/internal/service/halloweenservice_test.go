@@ -820,3 +820,32 @@ func TestPumpkinAssetSeedPlaceholders(t *testing.T) {
 		t.Error("re-seed overwrote an existing file")
 	}
 }
+
+func TestPumpkinAssetSaveVersionsURL(t *testing.T) {
+	dataDir := t.TempDir()
+	svc := NewPumpkinAssetService(dataDir, t.TempDir())
+
+	fakePNG := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, []byte("art")...)
+
+	first, err := svc.SaveAsset("base_a", fakePNG)
+	if err != nil {
+		t.Fatalf("SaveAsset failed: %v", err)
+	}
+	prefix := "/api/halloween/assets/base_a?v="
+	if len(first) <= len(prefix) || first[:len(prefix)] != prefix {
+		t.Fatalf("SaveAsset URL = %q, want prefix %q", first, prefix)
+	}
+
+	second, err := svc.SaveAsset("base_a", fakePNG)
+	if err != nil {
+		t.Fatalf("second SaveAsset failed: %v", err)
+	}
+	if second == first {
+		t.Error("re-upload must bump the ?v= stamp so caches fetch fresh bytes")
+	}
+
+	// The version query is URL-only: the file on disk keeps the plain name.
+	if _, err := svc.AssetPath("base_a"); err != nil {
+		t.Errorf("AssetPath failed after save: %v", err)
+	}
+}
