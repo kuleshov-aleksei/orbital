@@ -6,7 +6,8 @@
     data-testid="pumpkin-modal"
     @click.self="$emit('close')">
     <div
-      class="modal-panel w-full max-w-lg bg-theme-bg-primary border border-theme-border rounded-2xl shadow-2xl overflow-hidden">
+      class="modal-panel w-full bg-theme-bg-primary border border-theme-border rounded-2xl shadow-2xl overflow-hidden"
+      :class="activeTab === 'customization' ? 'max-w-2xl' : 'max-w-lg'">
       <!-- Header -->
       <div class="flex items-center justify-between px-5 py-4 border-b border-theme-border">
         <div class="flex items-center gap-2">

@@ -1,53 +1,56 @@
 <template>
-  <div class="flex flex-col gap-5">
-    <!-- Preview -->
-    <div class="flex justify-center py-2">
-      <PumpkinSprite :equipped="halloweenStore.equipped" :size="120" />
+  <div class="flex flex-col gap-5 sm:flex-row">
+    <!-- Preview — pinned while the socket groups scroll -->
+    <div class="shrink-0 self-start sm:sticky sm:top-0 flex justify-center py-2 sm:w-44">
+      <PumpkinSprite :equipped="halloweenStore.equipped" :size="160" />
     </div>
 
-    <div v-for="group in socketGroups" :key="group.socket" class="flex flex-col gap-2">
-      <div class="flex items-center justify-between">
-        <span class="text-sm font-semibold text-theme-text-primary capitalize">
-          {{ group.label }}
-        </span>
-        <button
-          v-if="group.socket !== 'base' && halloweenStore.equipped[group.socket]"
-          type="button"
-          class="text-xs text-theme-text-muted hover:text-red-400 transition-colors"
-          @click="unequip(group.socket)">
-          Remove
-        </button>
-      </div>
-
-      <div class="flex flex-wrap gap-2">
-        <button
-          v-for="item in group.items"
-          :key="item.id"
-          type="button"
-          :disabled="item.locked"
-          class="relative overflow-hidden px-3 py-1.5 rounded-lg text-sm font-medium border-2 transition-colors"
-          :class="[
-            rarityBorder(item.rarity),
-            isSelected(group.socket, item.id)
-              ? 'bg-orange-500/10 text-orange-300'
-              : 'text-theme-text-secondary hover:text-theme-text-primary',
-            item.locked ? 'cursor-not-allowed opacity-80' : '',
-          ]"
-          :title="item.locked ? `${item.name} — earn it in the Halloween minigame` : item.name"
-          :data-testid="`item-${item.id}`"
-          @click="selectItem(group.socket, item.id)">
-          <span v-if="isSelected(group.socket, item.id)" aria-hidden="true">✓ </span>{{ item.name }}
-          <span
-            v-if="item.locked"
-            class="absolute inset-0 flex items-center justify-center bg-black/35 text-sm"
-            aria-hidden="true">
-            🔒
+    <div class="flex min-w-0 flex-1 flex-col gap-5">
+      <div v-for="group in socketGroups" :key="group.socket" class="flex flex-col gap-2">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-semibold text-theme-text-primary capitalize">
+            {{ group.label }}
           </span>
-        </button>
+          <button
+            v-if="group.socket !== 'base' && halloweenStore.equipped[group.socket]"
+            type="button"
+            class="text-xs text-theme-text-muted hover:text-red-400 transition-colors"
+            @click="unequip(group.socket)">
+            Remove
+          </button>
+        </div>
 
-        <span v-if="group.items.length === 0" class="text-xs text-theme-text-muted py-1.5">
-          No items yet
-        </span>
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-for="item in group.items"
+            :key="item.id"
+            type="button"
+            :disabled="item.locked"
+            class="relative overflow-hidden px-3 py-1.5 rounded-lg text-sm font-medium border-2 transition-colors"
+            :class="[
+              rarityBorder(item.rarity),
+              isSelected(group.socket, item.id)
+                ? 'bg-orange-500/10 text-orange-300'
+                : 'text-theme-text-secondary hover:text-theme-text-primary',
+              item.locked ? 'cursor-not-allowed opacity-80' : '',
+            ]"
+            :title="item.locked ? `${item.name} — earn it in the Halloween minigame` : item.name"
+            :data-testid="`item-${item.id}`"
+            @click="selectItem(group.socket, item.id)">
+            <span v-if="isSelected(group.socket, item.id)" aria-hidden="true">✓ </span
+            >{{ item.name }}
+            <span
+              v-if="item.locked"
+              class="absolute inset-0 flex items-center justify-center bg-black/35 text-sm"
+              aria-hidden="true">
+              🔒
+            </span>
+          </button>
+
+          <span v-if="group.items.length === 0" class="text-xs text-theme-text-muted py-1.5">
+            No items yet
+          </span>
+        </div>
       </div>
     </div>
   </div>
