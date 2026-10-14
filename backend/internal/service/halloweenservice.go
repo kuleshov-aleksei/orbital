@@ -96,7 +96,7 @@ type HalloweenProximityThreshold struct {
 
 type HalloweenRewardBracket struct {
 	MinScore int    `json:"min_score"`
-	Tier     string `json:"tier"` // regular | common | uncommon | rare
+	Tier     string `json:"tier"` // common | uncommon | rare | epic | legendary
 }
 
 // HalloweenSpawnRoundConfig is one explicit per-round slug spawn table.
@@ -136,18 +136,23 @@ const (
 	HalloweenAbilitySeedRain     = "seed_rain"
 	HalloweenAbilityThornPatch   = "thorn_patch"
 
-	HalloweenRarityRegular  = "regular"
-	HalloweenRarityCommon   = "common"
-	HalloweenRarityUncommon = "uncommon"
-	HalloweenRarityRare     = "rare"
+	HalloweenRarityCommon    = "common"
+	HalloweenRarityUncommon  = "uncommon"
+	HalloweenRarityRare      = "rare"
+	HalloweenRarityEpic      = "epic"
+	HalloweenRarityLegendary = "legendary"
 )
 
 var halloweenTierOrder = []string{
+	HalloweenRarityLegendary,
+	HalloweenRarityEpic,
 	HalloweenRarityRare,
 	HalloweenRarityUncommon,
 	HalloweenRarityCommon,
-	HalloweenRarityRegular,
 }
+
+// HalloweenFreeBaseID is the one base every user may equip without earning it.
+const HalloweenFreeBaseID = "base_a"
 
 type HalloweenService struct {
 	repo     *repository.HalloweenRepository
@@ -260,12 +265,13 @@ func (s *HalloweenService) Config() *HalloweenGameConfig {
 			{MinX: 0, Factor: 0.35},
 		},
 		RoundBonus: 1000,
-		RewardBrackets: []HalloweenRewardBracket{
-			{MinScore: 8000, Tier: HalloweenRarityRare},
-			{MinScore: 5000, Tier: HalloweenRarityUncommon},
-			{MinScore: 2000, Tier: HalloweenRarityCommon},
-			{MinScore: 1000, Tier: HalloweenRarityRegular},
-		},
+	RewardBrackets: []HalloweenRewardBracket{
+		{MinScore: 12000, Tier: HalloweenRarityLegendary},
+		{MinScore: 8000, Tier: HalloweenRarityEpic},
+		{MinScore: 5000, Tier: HalloweenRarityRare},
+		{MinScore: 2000, Tier: HalloweenRarityUncommon},
+		{MinScore: 1000, Tier: HalloweenRarityCommon},
+	},
 		RewardsPerRound: map[int]int{
 			1: 1, 2: 1, 3: 1, 4: 2, 5: 2, 6: 2, 7: 3, 8: 3, 9: 3, 10: 4,
 		},
@@ -352,13 +358,47 @@ func (s *HalloweenService) GetState(userID string) (*models.HalloweenStateRespon
 	}, nil
 }
 
-// UpdatePumpkin saves a user's equipped customization JSON.
+// UpdatePumpkin saves a user's equipped customization JSON. Every equipped
+// item must exist, match its socket slot, and be earned by the user — except
+// the free starter base, which anyone may equip.
 func (s *HalloweenService) UpdatePumpkin(userID string, equippedJSON string) error {
 	if equippedJSON == "" {
 		equippedJSON = "{}"
 	}
 	if !json.Valid([]byte(equippedJSON)) {
 		return errors.New("equipped_json must be valid JSON")
+	}
+	var equipped map[string]string
+	if err := json.Unmarshal([]byte(equippedJSON), &equipped); err != nil {
+		return errors.New("equipped_json must be an object of socket to item id")
+	}
+	locked := []string{}
+	for socket, itemID := range equipped {
+		if itemID == "" {
+			continue
+		}
+		item, err := s.repo.GetItem(itemID)
+		if err != nil {
+			return err
+		}
+		if item == nil || item.Socket != socket {
+			locked = append(locked, itemID)
+			continue
+		}
+		if itemID == HalloweenFreeBaseID && socket == "base" {
+			continue
+		}
+		owned, err := s.repo.OwnsItem(userID, itemID)
+		if err != nil {
+			return err
+		}
+		if !owned {
+			locked = append(locked, itemID)
+		}
+	}
+	if len(locked) > 0 {
+		sort.Strings(locked)
+		return errors.New("locked items cannot be equipped: " + strings.Join(locked, ", "))
 	}
 	return s.repo.UpsertPumpkinState(userID, equippedJSON)
 }
@@ -704,10 +744,11 @@ var halloweenSocketRank = map[string]int{
 }
 
 var halloweenRarityRank = map[string]int{
-	HalloweenRarityRare:     0,
-	HalloweenRarityUncommon: 1,
-	HalloweenRarityCommon:   2,
-	HalloweenRarityRegular:  3,
+	HalloweenRarityLegendary: 0,
+	HalloweenRarityEpic:      1,
+	HalloweenRarityRare:      2,
+	HalloweenRarityUncommon:  3,
+	HalloweenRarityCommon:    4,
 }
 
 func catalogLess(a, b models.HalloweenItem) bool {
@@ -743,7 +784,7 @@ func validPumpkinSocket(socket string) bool {
 
 func validHalloweenRarity(rarity string) bool {
 	switch rarity {
-	case HalloweenRarityRegular, HalloweenRarityCommon, HalloweenRarityUncommon, HalloweenRarityRare:
+	case HalloweenRarityCommon, HalloweenRarityUncommon, HalloweenRarityRare, HalloweenRarityEpic, HalloweenRarityLegendary:
 		return true
 	default:
 		return false

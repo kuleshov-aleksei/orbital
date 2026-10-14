@@ -7,7 +7,7 @@ type HalloweenItem struct {
 	ID        string  `json:"id"`
 	Name      string  `json:"name"`
 	Socket    string  `json:"socket"`     // base | hat | eyes | mouth | feet
-	Rarity    string  `json:"rarity"`     // regular | common | uncommon | rare
+	Rarity    string  `json:"rarity"`     // common | uncommon | rare | epic | legendary
 	AssetPath string  `json:"asset_path"` // backend-owned art URL (served PNG) or legacy public path
 	ZIndex    int     `json:"z_index"`    // render layer; base is 0, negative draws behind
 	Scale     float64 `json:"scale"`      // accessory size multiplier; 1 = natural size

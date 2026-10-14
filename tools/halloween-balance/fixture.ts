@@ -122,10 +122,11 @@ export function defaultConfig(): HalloweenGameConfig {
     ],
     round_bonus: 1000,
     reward_brackets: [
-      { min_score: 8000, tier: "rare" },
-      { min_score: 5000, tier: "uncommon" },
-      { min_score: 2000, tier: "common" },
-      { min_score: 1000, tier: "regular" },
+      { min_score: 12000, tier: "legendary" },
+      { min_score: 8000, tier: "epic" },
+      { min_score: 5000, tier: "rare" },
+      { min_score: 2000, tier: "uncommon" },
+      { min_score: 1000, tier: "common" },
     ],
     rewards_per_round: { 1: 1, 2: 1, 3: 1, 4: 2, 5: 2, 6: 2, 7: 3, 8: 3, 9: 3, 10: 4 },
     spawn_rounds: [

@@ -2,6 +2,7 @@ import { defineStore } from "pinia"
 import { computed, ref } from "vue"
 import { apiService } from "@/services/api"
 import { useUserStore } from "@/stores/user"
+import { HALLOWEEN_FREE_BASE_ID } from "@/halloween/assets"
 import type {
   BaseLayouts,
   EquippedCustomization,
@@ -38,6 +39,25 @@ export const useHalloweenStore = defineStore("halloween", () => {
     catalog.value.filter((item) => ownedItemIds.value.includes(item.id)),
   )
 
+  // Only the free starter base is equippable without earning it; everything
+  // else must be in the rewards ledger (mirrors backend UpdatePumpkin).
+  function isUnlocked(item: Pick<HalloweenItem, "id">): boolean {
+    return item.id === HALLOWEEN_FREE_BASE_ID || ownedItemIds.value.includes(item.id)
+  }
+
+  // Drop locked or unknown ids from an equipped map (one-time self-heal for
+  // customizations saved while an item was still free). Local only — the
+  // server receives the clean set on the next save.
+  function sanitizeEquipped(next: EquippedCustomization): EquippedCustomization {
+    const clean: EquippedCustomization = {}
+    for (const [socket, itemId] of Object.entries(next)) {
+      if (!itemId) continue
+      const item = catalog.value.find((i) => i.id === itemId)
+      if (item && item.socket === socket && isUnlocked(item)) clean[socket] = itemId
+    }
+    return clean
+  }
+
   // Actions
   async function fetchConfig() {
     try {
@@ -50,10 +70,10 @@ export const useHalloweenStore = defineStore("halloween", () => {
   async function fetchState() {
     try {
       const state = await apiService.getHalloweenState()
-      equipped.value = parseEquipped(state.equipped_json)
       ownedItemIds.value = state.owned_items.map((o) => o.item_id)
       catalog.value = state.catalog
       baseLayouts.value = state.base_layouts ?? {}
+      equipped.value = sanitizeEquipped(parseEquipped(state.equipped_json))
       loaded.value = true
     } catch (error) {
       console.warn("Failed to load halloween state:", error)
@@ -61,9 +81,13 @@ export const useHalloweenStore = defineStore("halloween", () => {
   }
 
   async function updatePumpkin(next: EquippedCustomization) {
-    equipped.value = next
+    // Never send locked ids (the server rejects them): strip against the
+    // loaded catalog, but pass through untouched when the catalog isn't
+    // loaded yet to avoid wiping a valid customization.
+    const clean = catalog.value.length ? sanitizeEquipped(next) : next
+    equipped.value = clean
     try {
-      await apiService.updatePumpkin(JSON.stringify(next))
+      await apiService.updatePumpkin(JSON.stringify(clean))
     } catch (error) {
       console.warn("Failed to save pumpkin customization:", error)
     }
@@ -110,6 +134,7 @@ export const useHalloweenStore = defineStore("halloween", () => {
     loaded,
     enabled,
     ownedItems,
+    isUnlocked,
     fetchConfig,
     fetchState,
     updatePumpkin,

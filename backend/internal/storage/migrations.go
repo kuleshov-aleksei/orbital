@@ -311,6 +311,11 @@ INSERT OR IGNORE INTO halloween_base_sockets (base_id, socket, offset_x, offset_
 		Name:    "add_scale_to_halloween_items",
 		SQL:     `ALTER TABLE halloween_items ADD COLUMN scale REAL NOT NULL DEFAULT 1;`,
 	},
+	{
+		Version: 28,
+		Name:    "flatten_halloween_rarity_to_common",
+		SQL:     `UPDATE halloween_items SET rarity = 'common';`,
+	},
 }
 
 func (db *DB) RunMigrations() error {

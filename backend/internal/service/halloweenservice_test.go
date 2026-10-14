@@ -314,7 +314,19 @@ func TestHalloweenSpawnTablesConfig(t *testing.T) {
 func TestHalloweenSubmitGameGrantsRewards(t *testing.T) {
 	s := newHalloweenTestService(t)
 
-	// 9617 points, round 7 -> 3 rewards: rare, uncommon, common.
+	// Seed one item per top tier so the cascade has something to grant.
+	for _, req := range []models.CreateHalloweenItemRequest{
+		{ID: "hat_legend", Name: "Legend", Socket: "hat", Rarity: "legendary", ZIndex: 20, Scale: 1},
+		{ID: "hat_epic", Name: "Epic", Socket: "hat", Rarity: "epic", ZIndex: 20, Scale: 1},
+		{ID: "hat_rare", Name: "Rare", Socket: "hat", Rarity: "rare", ZIndex: 20, Scale: 1},
+	} {
+		req := req
+		if _, err := s.CreateItem(&req); err != nil {
+			t.Fatalf("CreateItem %s failed: %v", req.ID, err)
+		}
+	}
+
+	// 28050 points, round 7 -> 3 rewards: legendary, epic, rare in order.
 	report := &models.HalloweenGameReport{
 		Kills: []models.HalloweenSlugKill{
 			{Type: HalloweenSlugGerald, X: 800, Source: "pumpkin"}, // 50 * 1.0 = 50
@@ -334,7 +346,10 @@ func TestHalloweenSubmitGameGrantsRewards(t *testing.T) {
 		t.Fatalf("expected 3 granted rewards, got %d: %v", len(resp.Granted), resp.Granted)
 	}
 
-	// Verify tiers: rare, uncommon, common in order.
+	// Verify tiers: legendary, epic, rare in order.
+	if resp.Granted[0] != "hat_legend" || resp.Granted[1] != "hat_epic" || resp.Granted[2] != "hat_rare" {
+		t.Fatalf("expected legendary→epic→rare cascade, got %v", resp.Granted)
+	}
 	state, err := s.GetState("user-1")
 	if err != nil {
 		t.Fatalf("GetState failed: %v", err)
@@ -347,7 +362,18 @@ func TestHalloweenSubmitGameGrantsRewards(t *testing.T) {
 func TestHalloweenSubmitGameRarityTiers(t *testing.T) {
 	s := newHalloweenTestService(t)
 
-	// 6712 points, round 5 -> 2 rewards: uncommon, common.
+	// Seed one item per top tier so the cascade has something to grant.
+	for _, req := range []models.CreateHalloweenItemRequest{
+		{ID: "hat_legend", Name: "Legend", Socket: "hat", Rarity: "legendary", ZIndex: 20, Scale: 1},
+		{ID: "hat_epic", Name: "Epic", Socket: "hat", Rarity: "epic", ZIndex: 20, Scale: 1},
+	} {
+		req := req
+		if _, err := s.CreateItem(&req); err != nil {
+			t.Fatalf("CreateItem %s failed: %v", req.ID, err)
+		}
+	}
+
+	// 15000 points, round 5 -> 2 rewards: legendary first, then epic.
 	report := &models.HalloweenGameReport{
 		CompletedRounds: 5, // 1000 * (5*6)/2 = 15000
 		Score:           15000,
@@ -358,6 +384,9 @@ func TestHalloweenSubmitGameRarityTiers(t *testing.T) {
 	}
 	if len(resp.Granted) != 2 {
 		t.Fatalf("expected 2 granted rewards, got %d: %v", len(resp.Granted), resp.Granted)
+	}
+	if resp.Granted[0] != "hat_legend" || resp.Granted[1] != "hat_epic" {
+		t.Fatalf("expected legendary→epic cascade, got %v", resp.Granted)
 	}
 }
 
@@ -426,12 +455,27 @@ func TestHalloweenSubmitGameDetectsCheater(t *testing.T) {
 func TestHalloweenSubmitGameAllRewardsEarned(t *testing.T) {
 	s := newHalloweenTestService(t)
 
+	// Drain the common pool one reward per game (round 1, score 1010 lands in
+	// the common bracket; the cascade breaks at the first empty tier, so top
+	// tiers can never serve commons).
 	report := &models.HalloweenGameReport{
-		CompletedRounds: 10, // 1000 * (10*11)/2 = 55000
-		Score:           55000,
+		Kills:           []models.HalloweenSlugKill{{Type: HalloweenSlugScout, X: 800, Source: "pumpkin"}}, // 10
+		CompletedRounds: 1, // 1000 * (1*2)/2 = 1000
+		Score:           1010,
 	}
 
-	// Repeated submissions drain the pool (10 catalog items total, 4 max per game).
+	state, err := s.GetState("user-5")
+	if err != nil {
+		t.Fatalf("GetState failed: %v", err)
+	}
+	poolSize := 0
+	for _, c := range state.Catalog {
+		if c.Rarity == "common" {
+			poolSize++
+		}
+	}
+
+	// Repeated submissions drain the pool (1 reward per round-1 game).
 	var totalGranted int
 	var lastMessage string
 	for {
@@ -444,12 +488,12 @@ func TestHalloweenSubmitGameAllRewardsEarned(t *testing.T) {
 		if len(resp.Granted) == 0 {
 			break
 		}
-		if totalGranted > 20 {
+		if totalGranted > poolSize+5 {
 			t.Fatal("loop did not terminate, pool never exhausted")
 		}
 	}
-	if totalGranted < 10 {
-		t.Fatalf("expected all 10 catalog items to be granted, got %d", totalGranted)
+	if totalGranted != poolSize {
+		t.Fatalf("expected all %d common catalog items to be granted, got %d", poolSize, totalGranted)
 	}
 	if lastMessage == "" {
 		t.Fatal("expected an 'all rewards earned' style message")
@@ -459,18 +503,30 @@ func TestHalloweenSubmitGameAllRewardsEarned(t *testing.T) {
 func TestHalloweenUpdatePumpkinState(t *testing.T) {
 	s := newHalloweenTestService(t)
 
-	if err := s.UpdatePumpkin("user-6", `{"hat":"hat_party"}`); err != nil {
-		t.Fatalf("UpdatePumpkin failed: %v", err)
+	// Unearned items are locked: the free base equips, a locked hat does not.
+	if err := s.UpdatePumpkin("user-6", `{"base":"base_a"}`); err != nil {
+		t.Fatalf("UpdatePumpkin free base failed: %v", err)
+	}
+	if err := s.UpdatePumpkin("user-6", `{"hat":"hat_party"}`); err == nil {
+		t.Fatal("expected locked hat to be rejected")
 	}
 	if err := s.UpdatePumpkin("user-6", "not-json"); err == nil {
 		t.Fatal("expected invalid JSON to be rejected")
+	}
+
+	// After an admin grant the hat equips fine.
+	if _, err := s.IssueReward("user-6", "hat_party"); err != nil {
+		t.Fatalf("IssueReward failed: %v", err)
+	}
+	if err := s.UpdatePumpkin("user-6", `{"base":"base_a","hat":"hat_party"}`); err != nil {
+		t.Fatalf("UpdatePumpkin failed: %v", err)
 	}
 
 	state, err := s.GetState("user-6")
 	if err != nil {
 		t.Fatalf("GetState failed: %v", err)
 	}
-	if state.EquippedJSON != `{"hat":"hat_party"}` {
+	if state.EquippedJSON != `{"base":"base_a","hat":"hat_party"}` {
 		t.Fatalf("unexpected equipped json: %s", state.EquippedJSON)
 	}
 }
@@ -554,7 +610,7 @@ func TestHalloweenAdminGameIncomeSplit(t *testing.T) {
 	if len(rewards) != 1 {
 		t.Fatalf("expected 1 reward for score 1027, got %d", len(rewards))
 	}
-	if rewards[0].UserID != "user-1" || rewards[0].Rarity != HalloweenRarityRegular {
+	if rewards[0].UserID != "user-1" || rewards[0].Rarity != HalloweenRarityCommon {
 		t.Errorf("unexpected reward row: %+v", rewards[0])
 	}
 	if rewards[0].Source != "game" {
@@ -796,10 +852,10 @@ func TestHalloweenCatalogAutoSort(t *testing.T) {
 	s := newHalloweenTestService(t)
 
 	seed := []models.CreateHalloweenItemRequest{
-		{ID: "eyes_zed", Name: "zed", Socket: "eyes", Rarity: "regular", ZIndex: 10, Scale: 1},
+		{ID: "eyes_zed", Name: "zed", Socket: "eyes", Rarity: "legendary", ZIndex: 10, Scale: 1},
 		{ID: "hat_alpha", Name: "alpha", Socket: "hat", Rarity: "common", ZIndex: 20, Scale: 1},
 		{ID: "hat_beta", Name: "Beta", Socket: "hat", Rarity: "rare", ZIndex: 20, Scale: 1},
-		{ID: "mouth_mid", Name: "mid", Socket: "mouth", Rarity: "uncommon", ZIndex: 11, Scale: 1},
+		{ID: "mouth_mid", Name: "mid", Socket: "mouth", Rarity: "epic", ZIndex: 11, Scale: 1},
 		{ID: "eyes_amber", Name: "Amber", Socket: "eyes", Rarity: "rare", ZIndex: 10, Scale: 1},
 		{ID: "base_zulu", Name: "Zulu", Socket: "base", Rarity: "rare", ZIndex: 0, Scale: 1},
 	}
@@ -821,8 +877,8 @@ func TestHalloweenCatalogAutoSort(t *testing.T) {
 			got = append(got, c.ID)
 		}
 	}
-	// socket (base, hat, eyes, mouth) → rarity (rare first) → name.
-	want := []string{"base_zulu", "hat_beta", "hat_alpha", "eyes_amber", "eyes_zed", "mouth_mid"}
+	// socket (base, hat, eyes, mouth) → rarity (legendary first) → name.
+	want := []string{"base_zulu", "hat_beta", "hat_alpha", "eyes_zed", "eyes_amber", "mouth_mid"}
 	if len(got) != len(want) {
 		t.Fatalf("sorted ids = %v, want %v", got, want)
 	}
@@ -846,6 +902,92 @@ func TestHalloweenCatalogAutoSort(t *testing.T) {
 	for i := range want {
 		if adminGot[i] != want[i] {
 			t.Fatalf("admin sorted ids = %v, want %v", adminGot, want)
+		}
+	}
+}
+
+func TestHalloweenRarityValidation(t *testing.T) {
+	s := newHalloweenTestService(t)
+
+	// Epic and legendary are valid catalog tiers now.
+	for _, rarity := range []string{"common", "uncommon", "rare", "epic", "legendary"} {
+		if _, err := s.CreateItem(&models.CreateHalloweenItemRequest{
+			ID: "hat_" + rarity, Name: rarity, Socket: "hat",
+			Rarity: rarity, ZIndex: 20, Scale: 1,
+		}); err != nil {
+			t.Fatalf("CreateItem rarity %q failed: %v", rarity, err)
+		}
+	}
+
+	// The retired regular tier and unknown strings are rejected.
+	for _, rarity := range []string{"regular", "mythic", ""} {
+		if _, err := s.CreateItem(&models.CreateHalloweenItemRequest{
+			ID: "hat_bad_" + rarity, Name: "bad", Socket: "hat",
+			Rarity: rarity, ZIndex: 20, Scale: 1,
+		}); err == nil {
+			t.Fatalf("expected rarity %q to be rejected", rarity)
+		}
+	}
+	if _, err := s.UpdateItem("hat_common", &models.UpdateHalloweenItemRequest{
+		Name: "x", Socket: "hat", Rarity: "regular", ZIndex: 20, Scale: 1,
+	}); err == nil {
+		t.Fatal("expected regular rarity update to be rejected")
+	}
+}
+
+func TestHalloweenUpdatePumpkinGate(t *testing.T) {
+	s := newHalloweenTestService(t)
+
+	if _, err := s.CreateItem(&models.CreateHalloweenItemRequest{
+		ID: "hat_gate", Name: "Gate", Socket: "hat",
+		Rarity: "common", ZIndex: 20, Scale: 1,
+	}); err != nil {
+		t.Fatalf("CreateItem failed: %v", err)
+	}
+
+	// The free starter base is equippable with nothing earned.
+	if err := s.UpdatePumpkin("user-gate", `{"base":"base_a"}`); err != nil {
+		t.Fatalf("free base must be equippable: %v", err)
+	}
+	// Unequipping everything stays legal.
+	if err := s.UpdatePumpkin("user-gate", `{}`); err != nil {
+		t.Fatalf("empty customization must be legal: %v", err)
+	}
+	// Unknown ids, wrong-socket slots, and unowned items are rejected.
+	for _, bad := range []string{
+		`{"hat":"nope"}`,
+		`{"base":"hat_gate"}`,
+		`{"hat":"hat_gate"}`,
+	} {
+		if err := s.UpdatePumpkin("user-gate", bad); err == nil {
+			t.Fatalf("expected %s to be rejected", bad)
+		}
+	}
+
+	// After an admin grant the item equips fine.
+	granted, err := s.IssueReward("user-gate", "hat_gate")
+	if err != nil || !granted {
+		t.Fatalf("IssueReward failed: granted=%v err=%v", granted, err)
+	}
+	if err := s.UpdatePumpkin("user-gate", `{"base":"base_a","hat":"hat_gate"}`); err != nil {
+		t.Fatalf("owned item must be equippable: %v", err)
+	}
+}
+
+func TestHalloweenMigrationFlattensRarity(t *testing.T) {
+	s := newHalloweenTestService(t)
+
+	// Migration 28 flattened every seeded row to common (admins re-tier after).
+	state, err := s.GetState("user-1")
+	if err != nil {
+		t.Fatalf("GetState failed: %v", err)
+	}
+	if len(state.Catalog) == 0 {
+		t.Fatal("expected seeded catalog")
+	}
+	for _, c := range state.Catalog {
+		if c.Rarity != "common" {
+			t.Errorf("item %s rarity = %q, want common after migration 28", c.ID, c.Rarity)
 		}
 	}
 }

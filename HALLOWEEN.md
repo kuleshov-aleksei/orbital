@@ -347,23 +347,28 @@ If user receive more than 1 reward, he receive them in the following algorithm:
 - 1 even lower
 
 e.g: if user reaches 9617 points on level 7 he is rewarded with:
-1 Rare item, 1 uncommon item, 1 common item
+1 epic item, 1 rare item, 1 uncommon item
 
 If user reaches 6712 points on level 5 he is rewarded with:
-1 uncommon item, 1 common item
+1 rare item, 1 uncommon item
 
-There are 4 pools of rewards:
+There are 5 pools of rewards:
 0 - 999 - no reward
-1000 - 1999 - regular item
-2000 - 4999 - common item
-5000 - 7999 - uncommon item
-8000+ - rare item
+1000 - 1999 - common item
+2000 - 4999 - uncommon item
+5000 - 7999 - rare item
+8000 - 11999 - epic item
+12000+ - legendary item
 
-All items are pumpkin decorations, like different hats, different eyes, different smiles, etc.
+Reward tiers and outline colors: common gray, uncommon green, rare blue, epic purple, legendary orange.
+
+Bases are earned like accessories: every base except the free starter `base_a` (Classic) must be won in the minigame (at its assigned rarity tier) or granted by an admin. Locked items are shown in customization with a lock overlay and cannot be equipped (the backend rejects them).
+
+All items are pumpkin decorations: bases plus hats, eyes, smiles, feet, etc.
 Hats
 - Party hat (rare)
 - Frog hat (rare)
-- Beret (regular)
+- Beret (common)
 
 Eyes:
 - Sinister (rare)

@@ -281,10 +281,11 @@
                   v-model="item.rarity"
                   :disabled="item.is_deleted"
                   class="bg-gray-900 border border-gray-700 rounded text-sm text-white px-2 py-1">
-                  <option value="regular">regular</option>
                   <option value="common">common</option>
                   <option value="uncommon">uncommon</option>
                   <option value="rare">rare</option>
+                  <option value="epic">epic</option>
+                  <option value="legendary">legendary</option>
                 </select>
               </td>
               <td class="py-2 pr-3">
@@ -373,10 +374,11 @@
           <select
             v-model="newItem.rarity"
             class="bg-gray-900 border border-gray-700 rounded text-sm text-white px-2 py-1.5">
-            <option value="regular">regular</option>
             <option value="common">common</option>
             <option value="uncommon">uncommon</option>
             <option value="rare">rare</option>
+            <option value="epic">epic</option>
+            <option value="legendary">legendary</option>
           </select>
           <input
             v-model.number="newItem.z_index"
@@ -471,7 +473,7 @@ const newItem = reactive({
   id: "",
   name: "",
   socket: "hat" as PumpkinSocket,
-  rarity: "regular" as HalloweenRarity,
+  rarity: "common" as HalloweenRarity,
   z_index: 20,
   scale: 1,
 })

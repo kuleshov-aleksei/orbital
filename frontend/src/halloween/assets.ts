@@ -3,7 +3,7 @@
 // uploaded PNGs when present, bundled per-socket placeholders otherwise.
 // Nothing pumpkin-related lives in the frontend public dir.
 import { resolveUrl } from "@/services/api"
-import type { HalloweenItem, PumpkinSocket } from "./types"
+import type { HalloweenItem, HalloweenRarity, PumpkinSocket } from "./types"
 
 // Canonical catalog item per socket, used as the placeholder source.
 // The backend resolves these to the per-socket placeholder art.
@@ -61,6 +61,19 @@ export function pumpkinScaleForItem(
 
 // The draw order for sockets (creation order; final stacking uses z_index).
 export const PUMPKIN_SOCKET_ORDER: PumpkinSocket[] = ["base", "feet", "eyes", "mouth", "hat"]
+
+// Rarity outline colors for customization buttons and badges:
+// common gray, uncommon green, rare blue, epic purple, legendary orange.
+export const HALLOWEEN_RARITY_BORDER: Record<HalloweenRarity, string> = {
+  common: "border-gray-500",
+  uncommon: "border-green-500",
+  rare: "border-blue-500",
+  epic: "border-purple-500",
+  legendary: "border-orange-500",
+}
+
+// The id of the one base every user may equip without earning it.
+export const HALLOWEEN_FREE_BASE_ID = "base_a"
 
 // Default z per socket when the catalog has no entry for the item.
 export const PUMPKIN_SOCKET_DEFAULT_Z: Record<PumpkinSocket, number> = {

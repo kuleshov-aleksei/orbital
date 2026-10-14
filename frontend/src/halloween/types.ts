@@ -6,7 +6,7 @@ export type PumpkinSocket = "hat" | "eyes" | "mouth" | "base" | "feet"
 // Overlay sockets positioned per base (base itself is the anchor reference).
 export type PumpkinOverlaySocket = "hat" | "eyes" | "mouth" | "feet"
 
-export type HalloweenRarity = "regular" | "common" | "uncommon" | "rare"
+export type HalloweenRarity = "common" | "uncommon" | "rare" | "epic" | "legendary"
 
 // HalloweenItem is a single catalog entry for pumpkin decorations.
 // asset_path is the backend-owned art URL (or legacy public path);
