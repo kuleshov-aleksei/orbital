@@ -306,6 +306,11 @@ INSERT OR IGNORE INTO halloween_base_sockets (base_id, socket, offset_x, offset_
 		Name:    "drop_sort_order_from_halloween_items",
 		SQL:     `ALTER TABLE halloween_items DROP COLUMN sort_order;`,
 	},
+	{
+		Version: 27,
+		Name:    "add_scale_to_halloween_items",
+		SQL:     `ALTER TABLE halloween_items ADD COLUMN scale REAL NOT NULL DEFAULT 1;`,
+	},
 }
 
 func (db *DB) RunMigrations() error {

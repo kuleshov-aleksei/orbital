@@ -761,6 +761,12 @@ func (s *HalloweenService) CreateItem(req *models.CreateHalloweenItemRequest) (*
 	if !validHalloweenRarity(req.Rarity) {
 		return nil, errors.New("invalid rarity")
 	}
+	if req.Scale == 0 {
+		req.Scale = 1
+	}
+	if req.Scale < 0.25 || req.Scale > 2 {
+		return nil, errors.New("scale must be within 0.25..2")
+	}
 	if existing, err := s.repo.GetItemAdmin(req.ID); err != nil {
 		return nil, err
 	} else if existing != nil {
@@ -769,7 +775,7 @@ func (s *HalloweenService) CreateItem(req *models.CreateHalloweenItemRequest) (*
 
 	item := &models.HalloweenItem{
 		ID: req.ID, Name: req.Name, Socket: req.Socket,
-		Rarity: req.Rarity, ZIndex: req.ZIndex,
+		Rarity: req.Rarity, ZIndex: req.ZIndex, Scale: req.Scale,
 		AssetPath: req.AssetPath,
 	}
 	if err := s.repo.CreateItem(item); err != nil {
@@ -797,11 +803,18 @@ func (s *HalloweenService) UpdateItem(id string, req *models.UpdateHalloweenItem
 	if !validHalloweenRarity(req.Rarity) {
 		return nil, errors.New("invalid rarity")
 	}
+	if req.Scale == 0 {
+		req.Scale = 1
+	}
+	if req.Scale < 0.25 || req.Scale > 2 {
+		return nil, errors.New("scale must be within 0.25..2")
+	}
 
 	existing.Name = req.Name
 	existing.Socket = req.Socket
 	existing.Rarity = req.Rarity
 	existing.ZIndex = req.ZIndex
+	existing.Scale = req.Scale
 	if err := s.repo.UpdateItem(existing); err != nil {
 		return nil, err
 	}

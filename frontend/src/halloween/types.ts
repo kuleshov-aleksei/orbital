@@ -10,7 +10,8 @@ export type HalloweenRarity = "regular" | "common" | "uncommon" | "rare"
 
 // HalloweenItem is a single catalog entry for pumpkin decorations.
 // asset_path is the backend-owned art URL (or legacy public path);
-// z_index is the render layer (base = 0, negative draws behind the base).
+// z_index is the render layer (base = 0, negative draws behind the base);
+// scale is the accessory size multiplier (1 = natural size).
 // Catalog display order is backend-owned (socket → rarity → name); there is
 // no manual order field.
 export interface HalloweenItem {
@@ -20,6 +21,7 @@ export interface HalloweenItem {
   rarity: HalloweenRarity
   asset_path: string
   z_index: number
+  scale: number
   is_deleted: boolean
 }
 
@@ -62,6 +64,7 @@ export interface CreateHalloweenItemRequest {
   socket: PumpkinSocket
   rarity: HalloweenRarity
   z_index: number
+  scale: number
   asset_path?: string
 }
 
@@ -70,6 +73,7 @@ export interface UpdateHalloweenItemRequest {
   socket: PumpkinSocket
   rarity: HalloweenRarity
   z_index: number
+  scale: number
 }
 
 export interface UpsertBaseSocketsRequest {

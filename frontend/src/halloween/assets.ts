@@ -44,6 +44,21 @@ export function pumpkinZIndexForItem(
   return fallback
 }
 
+// Accessory size multiplier for an item id (1 = natural size). Never returns
+// a non-positive or non-finite value: a zero/NaN sprite scale would make the
+// accessory (or its anchor math) silently disappear.
+export function pumpkinScaleForItem(
+  itemId: string | undefined,
+  catalog?: Pick<HalloweenItem, "id" | "scale">[],
+  fallback: number = 1,
+): number {
+  if (itemId && catalog) {
+    const found = catalog.find((c) => c.id === itemId)
+    if (found && Number.isFinite(found.scale) && found.scale > 0) return found.scale
+  }
+  return fallback
+}
+
 // The draw order for sockets (creation order; final stacking uses z_index).
 export const PUMPKIN_SOCKET_ORDER: PumpkinSocket[] = ["base", "feet", "eyes", "mouth", "hat"]
 

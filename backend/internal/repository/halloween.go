@@ -24,10 +24,15 @@ func (r *HalloweenRepository) scanItem(rows *sql.Rows) (*models.HalloweenItem, e
 	item := &models.HalloweenItem{}
 	var assetPath sql.NullString
 	var isDeleted sql.NullBool
-	if err := rows.Scan(&item.ID, &item.Name, &item.Socket, &item.Rarity, &assetPath, &item.ZIndex, &isDeleted); err != nil {
+	var scale sql.NullFloat64
+	if err := rows.Scan(&item.ID, &item.Name, &item.Socket, &item.Rarity, &assetPath, &item.ZIndex, &scale, &isDeleted); err != nil {
 		return nil, err
 	}
 	item.AssetPath = assetPath.String
+	item.Scale = 1
+	if scale.Valid && scale.Float64 != 0 {
+		item.Scale = scale.Float64
+	}
 	item.IsDeleted = isDeleted.Valid && isDeleted.Bool
 	return item, nil
 }
@@ -35,7 +40,7 @@ func (r *HalloweenRepository) scanItem(rows *sql.Rows) (*models.HalloweenItem, e
 // GetAllItems returns live (non-soft-deleted) catalog items for clients.
 func (r *HalloweenRepository) GetAllItems() ([]*models.HalloweenItem, error) {
 	rows, err := r.db.Query(
-		`SELECT id, name, socket, rarity, asset_path, z_index, is_deleted FROM halloween_items WHERE is_deleted = 0`,
+		`SELECT id, name, socket, rarity, asset_path, z_index, scale, is_deleted FROM halloween_items WHERE is_deleted = 0`,
 	)
 	if err != nil {
 		return nil, err
@@ -56,7 +61,7 @@ func (r *HalloweenRepository) GetAllItems() ([]*models.HalloweenItem, error) {
 // GetAllItemsAdmin returns every catalog row including soft-deleted ones.
 func (r *HalloweenRepository) GetAllItemsAdmin() ([]*models.HalloweenItem, error) {
 	rows, err := r.db.Query(
-		`SELECT id, name, socket, rarity, asset_path, z_index, is_deleted FROM halloween_items`,
+		`SELECT id, name, socket, rarity, asset_path, z_index, scale, is_deleted FROM halloween_items`,
 	)
 	if err != nil {
 		return nil, err
@@ -76,7 +81,7 @@ func (r *HalloweenRepository) GetAllItemsAdmin() ([]*models.HalloweenItem, error
 
 func (r *HalloweenRepository) GetItemsByRarity(rarity string) ([]*models.HalloweenItem, error) {
 	rows, err := r.db.Query(
-		`SELECT id, name, socket, rarity, asset_path, z_index, is_deleted FROM halloween_items WHERE rarity = ? AND is_deleted = 0`,
+		`SELECT id, name, socket, rarity, asset_path, z_index, scale, is_deleted FROM halloween_items WHERE rarity = ? AND is_deleted = 0`,
 		rarity,
 	)
 	if err != nil {
@@ -99,10 +104,11 @@ func (r *HalloweenRepository) GetItem(id string) (*models.HalloweenItem, error) 
 	item := &models.HalloweenItem{}
 	var assetPath sql.NullString
 	var isDeleted sql.NullBool
+	var scale sql.NullFloat64
 	err := r.db.QueryRow(
-		`SELECT id, name, socket, rarity, asset_path, z_index, is_deleted FROM halloween_items WHERE id = ? AND is_deleted = 0`,
+		`SELECT id, name, socket, rarity, asset_path, z_index, scale, is_deleted FROM halloween_items WHERE id = ? AND is_deleted = 0`,
 		id,
-	).Scan(&item.ID, &item.Name, &item.Socket, &item.Rarity, &assetPath, &item.ZIndex, &isDeleted)
+	).Scan(&item.ID, &item.Name, &item.Socket, &item.Rarity, &assetPath, &item.ZIndex, &scale, &isDeleted)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -110,6 +116,10 @@ func (r *HalloweenRepository) GetItem(id string) (*models.HalloweenItem, error) 
 		return nil, err
 	}
 	item.AssetPath = assetPath.String
+	item.Scale = 1
+	if scale.Valid && scale.Float64 != 0 {
+		item.Scale = scale.Float64
+	}
 	item.IsDeleted = isDeleted.Valid && isDeleted.Bool
 	return item, nil
 }
@@ -119,10 +129,11 @@ func (r *HalloweenRepository) GetItemAdmin(id string) (*models.HalloweenItem, er
 	item := &models.HalloweenItem{}
 	var assetPath sql.NullString
 	var isDeleted sql.NullBool
+	var scale sql.NullFloat64
 	err := r.db.QueryRow(
-		`SELECT id, name, socket, rarity, asset_path, z_index, is_deleted FROM halloween_items WHERE id = ?`,
+		`SELECT id, name, socket, rarity, asset_path, z_index, scale, is_deleted FROM halloween_items WHERE id = ?`,
 		id,
-	).Scan(&item.ID, &item.Name, &item.Socket, &item.Rarity, &assetPath, &item.ZIndex, &isDeleted)
+	).Scan(&item.ID, &item.Name, &item.Socket, &item.Rarity, &assetPath, &item.ZIndex, &scale, &isDeleted)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -130,22 +141,26 @@ func (r *HalloweenRepository) GetItemAdmin(id string) (*models.HalloweenItem, er
 		return nil, err
 	}
 	item.AssetPath = assetPath.String
+	item.Scale = 1
+	if scale.Valid && scale.Float64 != 0 {
+		item.Scale = scale.Float64
+	}
 	item.IsDeleted = isDeleted.Valid && isDeleted.Bool
 	return item, nil
 }
 
 func (r *HalloweenRepository) CreateItem(item *models.HalloweenItem) error {
 	_, err := r.db.Exec(
-		`INSERT INTO halloween_items (id, name, socket, rarity, asset_path, z_index, is_deleted) VALUES (?, ?, ?, ?, ?, ?, 0)`,
-		item.ID, item.Name, item.Socket, item.Rarity, item.AssetPath, item.ZIndex,
+		`INSERT INTO halloween_items (id, name, socket, rarity, asset_path, z_index, scale, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
+		item.ID, item.Name, item.Socket, item.Rarity, item.AssetPath, item.ZIndex, item.Scale,
 	)
 	return err
 }
 
 func (r *HalloweenRepository) UpdateItem(item *models.HalloweenItem) error {
 	_, err := r.db.Exec(
-		`UPDATE halloween_items SET name = ?, socket = ?, rarity = ?, z_index = ? WHERE id = ?`,
-		item.Name, item.Socket, item.Rarity, item.ZIndex, item.ID,
+		`UPDATE halloween_items SET name = ?, socket = ?, rarity = ?, z_index = ?, scale = ? WHERE id = ?`,
+		item.Name, item.Socket, item.Rarity, item.ZIndex, item.Scale, item.ID,
 	)
 	return err
 }

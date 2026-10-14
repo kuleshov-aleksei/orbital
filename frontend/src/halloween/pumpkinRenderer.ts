@@ -1,9 +1,10 @@
-import { Assets, Container, Sprite } from "pixi.js"
+import { Assets, Container, Sprite, type Texture } from "pixi.js"
 import type { BaseLayouts, EquippedCustomization, HalloweenItem, PumpkinSocket } from "./types"
 import {
   PUMPKIN_SOCKET_DEFAULT_Z,
   PUMPKIN_SOCKET_ORDER,
   pumpkinAssetForItem,
+  pumpkinScaleForItem,
   pumpkinZIndexForItem,
 } from "./assets"
 
@@ -20,6 +21,23 @@ export interface PumpkinSpriteDisplay {
 const PUMPKIN_FIT_HEIGHT = 96
 
 const DEFAULT_BASE_ID = "base_a"
+
+// Backend-owned pumpkin art URLs are extensionless (/api/halloween/assets/<id>,
+// optionally with ?v=), so Pixi's extension-sniffing parser picker finds no
+// match and Assets.load resolves null. Pin the texture parser explicitly.
+async function loadPumpkinTexture(path: string): Promise<Texture | null> {
+  try {
+    const texture = await Assets.load<Texture>({
+      alias: path,
+      src: path,
+      parser: "texture",
+    })
+    return texture ?? null
+  } catch (error) {
+    console.warn(`[pumpkin] failed to load texture ${path}:`, error)
+    return null
+  }
+}
 
 function layoutFor(
   layouts: BaseLayouts | undefined,
@@ -64,8 +82,13 @@ export async function createPumpkinSprite(
     let baseH = size
     if (baseSprite) {
       const path = pumpkinAssetForItem("base", baseId, catalog)
-      const texture = await Assets.load(path)
+      const texture = await loadPumpkinTexture(path)
       if (gen !== generation) return
+      if (!texture) {
+        console.warn(`[pumpkin] base texture missing for ${path}; hiding composition`)
+        baseSprite.visible = false
+        return
+      }
       baseSprite.texture = texture
       scale = size / (texture.height || size)
       baseSprite.scale.set(scale)
@@ -88,10 +111,19 @@ export async function createPumpkinSprite(
           return
         }
         const path = pumpkinAssetForItem(socket, itemId, catalog)
-        const texture = await Assets.load(path)
+        const texture = await loadPumpkinTexture(path)
         if (gen !== generation) return
+        if (!texture) {
+          console.warn(`[pumpkin] overlay texture missing for ${path}; hiding ${socket}`)
+          if (gen === generation) sprite.visible = false
+          return
+        }
         sprite.texture = texture
-        sprite.scale.set(scale)
+        // Guarded: a non-finite combined scale must fall back to the base fit
+        // instead of collapsing the sprite to nothing.
+        const itemScale = pumpkinScaleForItem(itemId, catalog)
+        const overlayScale = Number.isFinite(scale * itemScale) ? scale * itemScale : scale
+        sprite.scale.set(overlayScale > 0 ? overlayScale : scale)
         const { offset_x, offset_y } = layoutFor(layouts, baseId, socket)
         sprite.position.set(offset_x * baseW, offset_y * baseH)
         sprite.zIndex = pumpkinZIndexForItem(itemId, catalog, PUMPKIN_SOCKET_DEFAULT_Z[socket])

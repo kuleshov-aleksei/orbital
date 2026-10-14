@@ -4,13 +4,14 @@ import "time"
 
 // HalloweenItem is a single catalog entry for pumpkin decorations.
 type HalloweenItem struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Socket    string `json:"socket"`     // base | hat | eyes | mouth | feet
-	Rarity    string `json:"rarity"`     // regular | common | uncommon | rare
-	AssetPath string `json:"asset_path"` // backend-owned art URL (served PNG) or legacy public path
-	ZIndex    int    `json:"z_index"`    // render layer; base is 0, negative draws behind
-	IsDeleted bool   `json:"is_deleted"` // soft-delete flag; live clients never see these
+	ID        string  `json:"id"`
+	Name      string  `json:"name"`
+	Socket    string  `json:"socket"`     // base | hat | eyes | mouth | feet
+	Rarity    string  `json:"rarity"`     // regular | common | uncommon | rare
+	AssetPath string  `json:"asset_path"` // backend-owned art URL (served PNG) or legacy public path
+	ZIndex    int     `json:"z_index"`    // render layer; base is 0, negative draws behind
+	Scale     float64 `json:"scale"`      // accessory size multiplier; 1 = natural size
+	IsDeleted bool    `json:"is_deleted"` // soft-delete flag; live clients never see these
 }
 
 // HalloweenBaseSocket is the per-base anchor for one overlay socket, in units
@@ -118,20 +119,22 @@ type HalloweenStateResponse struct {
 // CreateHalloweenItemRequest is the body of POST /api/admin/halloween/items.
 // Clients send snake_case (see frontend/src/services/api.ts).
 type CreateHalloweenItemRequest struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Socket    string `json:"socket"` // base | hat | eyes | mouth | feet
-	Rarity    string `json:"rarity"`
-	ZIndex    int    `json:"z_index"`
-	AssetPath string `json:"asset_path"`
+	ID        string  `json:"id"`
+	Name      string  `json:"name"`
+	Socket    string  `json:"socket"` // base | hat | eyes | mouth | feet
+	Rarity    string  `json:"rarity"`
+	ZIndex    int     `json:"z_index"`
+	Scale     float64 `json:"scale"`
+	AssetPath string  `json:"asset_path"`
 }
 
 // UpdateHalloweenItemRequest is the body of PATCH /api/admin/halloween/items/{id}.
 type UpdateHalloweenItemRequest struct {
-	Name   string `json:"name"`
-	Socket string `json:"socket"`
-	Rarity string `json:"rarity"`
-	ZIndex int    `json:"z_index"`
+	Name   string  `json:"name"`
+	Socket string  `json:"socket"`
+	Rarity string  `json:"rarity"`
+	ZIndex int     `json:"z_index"`
+	Scale  float64 `json:"scale"`
 }
 
 // UpsertBaseSocketsRequest is the body of PUT /api/admin/halloween/layouts.

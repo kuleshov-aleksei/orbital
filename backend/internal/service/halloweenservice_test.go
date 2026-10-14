@@ -672,7 +672,7 @@ func TestHalloweenItemCRUDSoftDelete(t *testing.T) {
 
 	created, err := s.CreateItem(&models.CreateHalloweenItemRequest{
 		ID: "hat_test", Name: "Test Hat", Socket: "hat",
-		Rarity: "common", ZIndex: 21,
+		Rarity: "common", ZIndex: 21, Scale: 1.5,
 	})
 	if err != nil {
 		t.Fatalf("CreateItem failed: %v", err)
@@ -680,12 +680,35 @@ func TestHalloweenItemCRUDSoftDelete(t *testing.T) {
 	if created.ZIndex != 21 {
 		t.Errorf("z_index = %d, want 21", created.ZIndex)
 	}
+	if created.Scale != 1.5 {
+		t.Errorf("scale = %v, want 1.5", created.Scale)
+	}
 
-	if _, err := s.UpdateItem("hat_test", &models.UpdateHalloweenItemRequest{
+	updated, err := s.UpdateItem("hat_test", &models.UpdateHalloweenItemRequest{
 		Name: "Test Hat v2", Socket: "hat",
-		Rarity: "rare", ZIndex: -2,
-	}); err != nil {
+		Rarity: "rare", ZIndex: -2, Scale: 0.5,
+	})
+	if err != nil {
 		t.Fatalf("UpdateItem failed: %v", err)
+	}
+	if updated.Scale != 0.5 {
+		t.Fatalf("updated scale = %v, want 0.5", updated.Scale)
+	}
+
+	// Out-of-range scales are rejected.
+	for _, bad := range []float64{0.1, 2.5} {
+		if _, err := s.UpdateItem("hat_test", &models.UpdateHalloweenItemRequest{
+			Name: "Test Hat v2", Socket: "hat",
+			Rarity: "rare", ZIndex: -2, Scale: bad,
+		}); err == nil {
+			t.Fatalf("expected scale %v to be rejected", bad)
+		}
+	}
+	if _, err := s.CreateItem(&models.CreateHalloweenItemRequest{
+		ID: "hat_bad", Name: "Bad", Socket: "hat",
+		Rarity: "common", ZIndex: 20, Scale: 5,
+	}); err == nil {
+		t.Fatal("expected out-of-range create scale to be rejected")
 	}
 
 	if err := s.SoftDeleteItem("hat_test"); err != nil {
@@ -773,12 +796,12 @@ func TestHalloweenCatalogAutoSort(t *testing.T) {
 	s := newHalloweenTestService(t)
 
 	seed := []models.CreateHalloweenItemRequest{
-		{ID: "eyes_zed", Name: "zed", Socket: "eyes", Rarity: "regular", ZIndex: 10},
-		{ID: "hat_alpha", Name: "alpha", Socket: "hat", Rarity: "common", ZIndex: 20},
-		{ID: "hat_beta", Name: "Beta", Socket: "hat", Rarity: "rare", ZIndex: 20},
-		{ID: "mouth_mid", Name: "mid", Socket: "mouth", Rarity: "uncommon", ZIndex: 11},
-		{ID: "eyes_amber", Name: "Amber", Socket: "eyes", Rarity: "rare", ZIndex: 10},
-		{ID: "base_zulu", Name: "Zulu", Socket: "base", Rarity: "rare", ZIndex: 0},
+		{ID: "eyes_zed", Name: "zed", Socket: "eyes", Rarity: "regular", ZIndex: 10, Scale: 1},
+		{ID: "hat_alpha", Name: "alpha", Socket: "hat", Rarity: "common", ZIndex: 20, Scale: 1},
+		{ID: "hat_beta", Name: "Beta", Socket: "hat", Rarity: "rare", ZIndex: 20, Scale: 1},
+		{ID: "mouth_mid", Name: "mid", Socket: "mouth", Rarity: "uncommon", ZIndex: 11, Scale: 1},
+		{ID: "eyes_amber", Name: "Amber", Socket: "eyes", Rarity: "rare", ZIndex: 10, Scale: 1},
+		{ID: "base_zulu", Name: "Zulu", Socket: "base", Rarity: "rare", ZIndex: 0, Scale: 1},
 	}
 	for _, req := range seed {
 		req := req

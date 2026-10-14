@@ -163,13 +163,34 @@
                 type="number"
                 class="flex-1 bg-gray-900 border border-gray-700 rounded text-sm text-white px-3 py-2"
                 @input="syncPreviewZ" />
+            </div>
+            <label class="block text-xs font-medium text-gray-400 mb-1 mt-3">
+              scale for {{ activePreviewItem.name }} (accessory size, 1 = natural)
+            </label>
+            <div class="flex gap-2 items-center">
+              <input
+                v-model.number="activePreviewItem.scale"
+                type="range"
+                min="0.25"
+                max="2"
+                step="0.05"
+                class="flex-1 accent-indigo-500"
+                @input="syncPreviewScale" />
+              <input
+                v-model.number="activePreviewItem.scale"
+                type="number"
+                min="0.25"
+                max="2"
+                step="0.05"
+                class="w-20 bg-gray-900 border border-gray-700 rounded text-sm text-white px-3 py-2"
+                @input="syncPreviewScale" />
               <button
                 type="button"
                 class="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors disabled:opacity-50"
                 :disabled="savingItem === activePreviewItem.id"
                 @click="saveItem(activePreviewItem)">
                 <span v-if="savingItem === activePreviewItem.id">Saving...</span>
-                <span v-else>Save z-index</span>
+                <span v-else>Save item</span>
               </button>
             </div>
           </div>
@@ -220,6 +241,7 @@
               <th class="pb-2 pr-3">Socket</th>
               <th class="pb-2 pr-3">Rarity</th>
               <th class="pb-2 pr-3">z-index</th>
+              <th class="pb-2 pr-3">Scale</th>
               <th class="pb-2">Actions</th>
             </tr>
           </thead>
@@ -271,6 +293,17 @@
                   type="number"
                   :disabled="item.is_deleted"
                   title="Render layer: negative draws behind the base"
+                  class="w-16 bg-gray-900 border border-gray-700 rounded text-sm text-white px-2 py-1" />
+              </td>
+              <td class="py-2 pr-3">
+                <input
+                  v-model.number="item.scale"
+                  type="number"
+                  min="0.25"
+                  max="2"
+                  step="0.05"
+                  :disabled="item.is_deleted"
+                  title="Accessory size multiplier (1 = natural size)"
                   class="w-16 bg-gray-900 border border-gray-700 rounded text-sm text-white px-2 py-1" />
               </td>
               <td class="py-2">
@@ -349,6 +382,15 @@
             v-model.number="newItem.z_index"
             type="number"
             placeholder="z-index"
+            class="bg-gray-900 border border-gray-700 rounded text-sm text-white px-2 py-1.5" />
+          <input
+            v-model.number="newItem.scale"
+            type="number"
+            min="0.25"
+            max="2"
+            step="0.05"
+            placeholder="scale (1)"
+            title="Accessory size multiplier (1 = natural size)"
             class="bg-gray-900 border border-gray-700 rounded text-sm text-white px-2 py-1.5" />
         </div>
         <button
@@ -431,6 +473,7 @@ const newItem = reactive({
   socket: "hat" as PumpkinSocket,
   rarity: "regular" as HalloweenRarity,
   z_index: 20,
+  scale: 1,
 })
 
 const bases = computed(() => items.value.filter((i) => i.socket === "base" && !i.is_deleted))
@@ -457,6 +500,19 @@ const syncPreviewZ = () => {
   if (!live) return
   const row = editedItems.value.find((i) => i.id === live.id)
   if (row) row.z_index = Number(live.z_index) || 0
+}
+
+// Same for scale, plus the stage preview must re-freeze its size: the frozen
+// entry is keyed by item + base art (scale isn't part of the key), so purge it
+// and re-measure immediately for live feedback.
+const syncPreviewScale = () => {
+  const live = activePreviewItem.value
+  if (!live) return
+  const scale = Number(live.scale) || 1
+  const row = editedItems.value.find((i) => i.id === live.id)
+  if (row) row.scale = scale
+  delete overlaySize[overlaySizeKey(activeSocket.value)]
+  ensureOverlaySize(activeSocket.value)
 }
 
 const previewArt = (socket: PumpkinOverlaySocket): string => {
@@ -570,7 +626,7 @@ const ensureOverlaySize = (socket: PumpkinOverlaySocket) => {
   const nat = item ? overlayNatural[item.id] : undefined
   const baseArt = resolveUrl(baseItem.value?.asset_path || PUMPKIN_SOCKET_PLACEHOLDER.base)
   if (!nat || !baseNatural.w || !baseNatural.h || measuredBaseArt.value !== baseArt) return
-  const w = Math.round((nat.w * BASE_H) / baseNatural.h)
+  const w = Math.round(((nat.w * BASE_H) / baseNatural.h) * (item?.scale || 1))
   overlaySize[key] = { w, h: Math.round((w * nat.h) / nat.w) }
 }
 
@@ -753,6 +809,7 @@ const saveItem = async (item: HalloweenItem) => {
       socket: item.socket,
       rarity: item.rarity,
       z_index: Number(item.z_index) || 0,
+      scale: Number(item.scale) || 1,
     })
     await refreshAfterCatalogChange()
   } catch (error) {
@@ -806,6 +863,7 @@ const createItem = async () => {
       socket: newItem.socket,
       rarity: newItem.rarity,
       z_index: Number(newItem.z_index) || 0,
+      scale: Number(newItem.scale) || 1,
     })
     newItem.id = ""
     newItem.name = ""
