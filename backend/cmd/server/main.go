@@ -55,6 +55,7 @@ func main() {
 	var sessionRepo *repository.SessionRepository
 	var analyticsService *service.AnalyticsService
 	var halloweenService *service.HalloweenService
+	var pumpkinAssetService *service.PumpkinAssetService
 
 	if cfg.Database.Path != "" {
 		db, err := storage.NewDB(cfg.Database.Path)
@@ -83,6 +84,7 @@ func main() {
 		audioService = service.NewAudioService(repository.NewAudioRepository(db), "data")
 		analyticsService = service.NewAnalyticsService(sessionRepo)
 		halloweenService = service.NewHalloweenService(repository.NewHalloweenRepository(db), cfg.GetSeasonalConfig())
+		pumpkinAssetService = service.NewPumpkinAssetService("data", "assets")
 
 		// Load data from database
 		if err := categoryService.LoadFromDB(); err != nil {
@@ -90,6 +92,15 @@ func main() {
 		}
 		if err := roomService.LoadFromDB(); err != nil {
 			log.Fatalf("Failed to load rooms from database: %v", err)
+		}
+
+		// Seed pumpkin art into the data dir (never overwrites uploads).
+		if catalog, err := halloweenService.GetAdminCatalog(); err != nil {
+			log.Printf("Warning: Failed to load halloween catalog for art seeding: %v", err)
+		} else if seeded, err := pumpkinAssetService.SeedPlaceholders(catalog); err != nil {
+			log.Printf("Warning: Failed to seed pumpkin art: %v", err)
+		} else if seeded > 0 {
+			log.Printf("Seeded %d pumpkin art files", seeded)
 		}
 	} else {
 		// Initialize services without database (memory-only mode)
@@ -145,7 +156,7 @@ func main() {
 
 	var halloweenHandler *handlers.HalloweenHandler
 	if halloweenService != nil {
-		halloweenHandler = handlers.NewHalloweenHandler(halloweenService, wsHub)
+		halloweenHandler = handlers.NewHalloweenHandlerWithAssets(halloweenService, pumpkinAssetService, wsHub)
 	}
 
 	// Setup router
@@ -206,6 +217,9 @@ func main() {
 		halloweenRouter.HandleFunc("/game/config", halloweenHandler.GetConfig).Methods("GET")
 		halloweenRouter.HandleFunc("/game/report", halloweenHandler.SubmitGame).Methods("POST")
 		halloweenRouter.HandleFunc("/leaderboard", halloweenHandler.GetLeaderboard).Methods("GET")
+		// Pumpkin art is public (like audio/avatars): <img> and Pixi loaders
+		// cannot send Authorization headers.
+		r.HandleFunc("/api/halloween/assets/{id}", halloweenHandler.GetAsset).Methods("GET")
 		// Decider submissions from the balance harness (development only, no auth).
 		if cfg.IsDevelopment() {
 			r.HandleFunc("/api/halloween/game/report/bot", halloweenHandler.SubmitBotGame).Methods("POST")
@@ -284,6 +298,13 @@ func main() {
 	if halloweenHandler != nil {
 		superAdminRouter.HandleFunc("/halloween/games", halloweenHandler.AdminGetGames).Methods("GET")
 		superAdminRouter.HandleFunc("/halloween/items", halloweenHandler.AdminGetItems).Methods("GET")
+		superAdminRouter.HandleFunc("/halloween/items", halloweenHandler.AdminCreateItem).Methods("POST")
+		superAdminRouter.HandleFunc("/halloween/items/{id}", halloweenHandler.AdminUpdateItem).Methods("PATCH")
+		superAdminRouter.HandleFunc("/halloween/items/{id}", halloweenHandler.AdminDeleteItem).Methods("DELETE")
+		superAdminRouter.HandleFunc("/halloween/items/{id}/restore", halloweenHandler.AdminRestoreItem).Methods("POST")
+		superAdminRouter.HandleFunc("/halloween/items/{id}/asset", halloweenHandler.AdminUploadAsset).Methods("POST")
+		superAdminRouter.HandleFunc("/halloween/layouts", halloweenHandler.AdminGetLayouts).Methods("GET")
+		superAdminRouter.HandleFunc("/halloween/layouts", halloweenHandler.AdminUpsertLayouts).Methods("PUT")
 		superAdminRouter.HandleFunc("/halloween/rewards", halloweenHandler.AdminGetRewards).Methods("GET")
 		superAdminRouter.HandleFunc("/halloween/rewards", halloweenHandler.AdminIssueReward).Methods("POST")
 	}

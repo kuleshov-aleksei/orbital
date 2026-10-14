@@ -1,44 +1,57 @@
-// Maps pumpkin socket item ids to placeholder asset paths under
-// frontend/public/assets/hw26/user-pumpkins/. Once real art is added, only this
-// manifest needs updating — the renderer stays socket-agnostic.
-import type { PumpkinSocket } from "./types"
+// Pumpkin socket asset resolution. The backend owns all pumpkin art
+// (see backend/assets/user-pumpkins + GET /api/halloween/assets/{id}):
+// uploaded PNGs when present, bundled per-socket placeholders otherwise.
+// Nothing pumpkin-related lives in the frontend public dir.
+import { resolveUrl } from "@/services/api"
+import type { HalloweenItem, PumpkinSocket } from "./types"
 
-export const PUMPKIN_BASE_PATH = "/assets/hw26/user-pumpkins"
-
-// Per-socket placeholder asset (used when a specific item has no art yet).
+// Canonical catalog item per socket, used as the placeholder source.
+// The backend resolves these to the per-socket placeholder art.
 export const PUMPKIN_SOCKET_PLACEHOLDER: Record<PumpkinSocket, string> = {
-  base: `${PUMPKIN_BASE_PATH}/bases/base_a.png`,
-  hat: `${PUMPKIN_BASE_PATH}/hats/hat_A.png`,
-  eyes: `${PUMPKIN_BASE_PATH}/eyes/eye_A.png`,
-  mouth: `${PUMPKIN_BASE_PATH}/mouths/mouth_A.png`,
+  base: "/api/halloween/assets/base_a",
+  hat: "/api/halloween/assets/hat_beret",
+  eyes: "/api/halloween/assets/eyes_scared",
+  mouth: "/api/halloween/assets/mouth_pumpkin",
+  feet: "/api/halloween/assets/feet_boots",
 }
 
-// Item id → asset path. All placeholders currently point at the per-socket art.
-export const PUMPKIN_ITEM_ASSETS: Record<string, string> = {
-  base_a: PUMPKIN_SOCKET_PLACEHOLDER.base,
-  // Hats
-  hat_party: PUMPKIN_SOCKET_PLACEHOLDER.hat,
-  hat_frog: PUMPKIN_SOCKET_PLACEHOLDER.hat,
-  hat_beret: PUMPKIN_SOCKET_PLACEHOLDER.hat,
-  // Eyes
-  eyes_sinister: PUMPKIN_SOCKET_PLACEHOLDER.eyes,
-  eyes_scared: PUMPKIN_SOCKET_PLACEHOLDER.eyes,
-  eyes_smiling: PUMPKIN_SOCKET_PLACEHOLDER.eyes,
-  eyes_cat: PUMPKIN_SOCKET_PLACEHOLDER.eyes,
-  // Mouths / smiles
-  mouth_vampire: PUMPKIN_SOCKET_PLACEHOLDER.mouth,
-  mouth_crooked: PUMPKIN_SOCKET_PLACEHOLDER.mouth,
-  mouth_pumpkin: PUMPKIN_SOCKET_PLACEHOLDER.mouth,
-}
-
-// Resolve the texture path for an item id, falling back to the socket's
-// placeholder when the item is unknown or has no art.
-export function pumpkinAssetForItem(socket: PumpkinSocket, itemId?: string): string {
-  if (itemId && PUMPKIN_ITEM_ASSETS[itemId]) {
-    return PUMPKIN_ITEM_ASSETS[itemId]
+// Resolve the texture URL for an item id: backend catalog asset_path first,
+// then the per-item backend URL (placeholder fallback there), then the
+// socket placeholder. All URLs are backend-absolute for Pixi/electron loads.
+export function pumpkinAssetForItem(
+  socket: PumpkinSocket,
+  itemId?: string,
+  catalog?: Pick<HalloweenItem, "id" | "asset_path">[],
+): string {
+  if (itemId && catalog) {
+    const found = catalog.find((c) => c.id === itemId)
+    if (found?.asset_path) return resolveUrl(found.asset_path)
   }
-  return PUMPKIN_SOCKET_PLACEHOLDER[socket]
+  if (itemId) return resolveUrl(`/api/halloween/assets/${itemId}`)
+  return resolveUrl(PUMPKIN_SOCKET_PLACEHOLDER[socket])
 }
 
-// The draw order for sockets (base first, then overlays top-to-bottom).
-export const PUMPKIN_SOCKET_ORDER: PumpkinSocket[] = ["base", "eyes", "mouth", "hat"]
+// Render layer for an item id (base = 0 default; negative draws behind).
+export function pumpkinZIndexForItem(
+  itemId: string | undefined,
+  catalog?: Pick<HalloweenItem, "id" | "z_index">[],
+  fallback: number = 0,
+): number {
+  if (itemId && catalog) {
+    const found = catalog.find((c) => c.id === itemId)
+    if (found) return found.z_index
+  }
+  return fallback
+}
+
+// The draw order for sockets (creation order; final stacking uses z_index).
+export const PUMPKIN_SOCKET_ORDER: PumpkinSocket[] = ["base", "feet", "eyes", "mouth", "hat"]
+
+// Default z per socket when the catalog has no entry for the item.
+export const PUMPKIN_SOCKET_DEFAULT_Z: Record<PumpkinSocket, number> = {
+  base: 0,
+  feet: -1,
+  eyes: 10,
+  mouth: 11,
+  hat: 20,
+}

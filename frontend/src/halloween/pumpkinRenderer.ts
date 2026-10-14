@@ -1,15 +1,34 @@
 import { Assets, Container, Sprite } from "pixi.js"
-import type { EquippedCustomization, PumpkinSocket } from "./types"
-import { PUMPKIN_SOCKET_ORDER, pumpkinAssetForItem } from "./assets"
+import type { BaseLayouts, EquippedCustomization, HalloweenItem, PumpkinSocket } from "./types"
+import {
+  PUMPKIN_SOCKET_DEFAULT_Z,
+  PUMPKIN_SOCKET_ORDER,
+  pumpkinAssetForItem,
+  pumpkinZIndexForItem,
+} from "./assets"
 
 export interface PumpkinSpriteDisplay {
   container: Container
-  setEquipped(equipped: EquippedCustomization): void
+  setEquipped(
+    equipped: EquippedCustomization,
+    opts?: { layouts?: BaseLayouts; catalog?: HalloweenItem[] },
+  ): void
   destroy(): void
 }
 
 // Height (in scene units) the base pumpkin sprite is scaled to fit.
 const PUMPKIN_FIT_HEIGHT = 96
+
+const DEFAULT_BASE_ID = "base_a"
+
+function layoutFor(
+  layouts: BaseLayouts | undefined,
+  baseId: string,
+  socket: PumpkinSocket,
+): { offset_x: number; offset_y: number } {
+  const entry = layouts?.[baseId]?.[socket as keyof BaseLayouts[string]]
+  return { offset_x: entry?.offset_x ?? 0, offset_y: entry?.offset_y ?? 0 }
+}
 
 export async function createPumpkinSprite(
   size = PUMPKIN_FIT_HEIGHT,
@@ -26,43 +45,70 @@ export async function createPumpkinSprite(
     sprites.set(socket, sprite)
   }
 
-  let baseTexture: { width: number; height: number } | null = null
+  // Guards overlapping setEquipped calls (texture loads race each other).
+  let generation = 0
 
-  const applySocket = async (socket: PumpkinSocket, itemId?: string) => {
-    const sprite = sprites.get(socket)
-    if (!sprite) return
+  const applyAll = async (
+    equipped: EquippedCustomization,
+    opts?: { layouts?: BaseLayouts; catalog?: HalloweenItem[] },
+  ) => {
+    const gen = ++generation
+    const layouts = opts?.layouts
+    const catalog = opts?.catalog
+    const baseId = equipped.base ?? DEFAULT_BASE_ID
 
-    const path = pumpkinAssetForItem(socket, itemId)
-    const texture = await Assets.load(path)
-    sprite.texture = texture
-
-    // Base dictates the fit scale; overlays inherit it so they stack cleanly.
-    if (!baseTexture) {
-      baseTexture = { width: texture.width, height: texture.height }
-      const scale = size / (baseTexture.height || size)
-      for (const s of sprites.values()) {
-        s.scale.set(scale)
-      }
+    // Base first: it dictates the fit scale for the whole composition.
+    const baseSprite = sprites.get("base")
+    let scale = 1
+    let baseW = size
+    let baseH = size
+    if (baseSprite) {
+      const path = pumpkinAssetForItem("base", baseId, catalog)
+      const texture = await Assets.load(path)
+      if (gen !== generation) return
+      baseSprite.texture = texture
+      scale = size / (texture.height || size)
+      baseSprite.scale.set(scale)
+      baseSprite.position.set(0, 0)
+      baseSprite.zIndex = pumpkinZIndexForItem(baseId, catalog, PUMPKIN_SOCKET_DEFAULT_Z.base)
+      baseSprite.visible = true
+      baseW = texture.width * scale
+      baseH = texture.height * scale
     }
 
-    sprite.visible = true
+    // Overlays inherit the base scale and sit on the per-base socket anchor:
+    // position = anchor (base center) + normalized offset * base display size.
+    await Promise.all(
+      PUMPKIN_SOCKET_ORDER.filter((s) => s !== "base").map(async (socket) => {
+        const sprite = sprites.get(socket)
+        if (!sprite) return
+        const itemId = equipped[socket]
+        if (!itemId) {
+          if (gen === generation) sprite.visible = false
+          return
+        }
+        const path = pumpkinAssetForItem(socket, itemId, catalog)
+        const texture = await Assets.load(path)
+        if (gen !== generation) return
+        sprite.texture = texture
+        sprite.scale.set(scale)
+        const { offset_x, offset_y } = layoutFor(layouts, baseId, socket)
+        sprite.position.set(offset_x * baseW, offset_y * baseH)
+        sprite.zIndex = pumpkinZIndexForItem(itemId, catalog, PUMPKIN_SOCKET_DEFAULT_Z[socket])
+        sprite.visible = true
+      }),
+    )
   }
 
-  const setEquipped = (equipped: EquippedCustomization) => {
-    void applySocket("base", "base_a")
-    for (const socket of PUMPKIN_SOCKET_ORDER) {
-      if (socket === "base") continue
-      const itemId = equipped[socket]
-      if (itemId) {
-        void applySocket(socket, itemId)
-      } else {
-        const sprite = sprites.get(socket)
-        if (sprite) sprite.visible = false
-      }
-    }
+  const setEquipped = (
+    equipped: EquippedCustomization,
+    opts?: { layouts?: BaseLayouts; catalog?: HalloweenItem[] },
+  ) => {
+    void applyAll(equipped, opts)
   }
 
   const destroy = () => {
+    generation++
     container.destroy({ children: true })
   }
 

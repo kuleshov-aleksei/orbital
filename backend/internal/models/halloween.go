@@ -6,9 +6,21 @@ import "time"
 type HalloweenItem struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
-	Socket    string `json:"socket"` // hat | eyes | mouth | base
+	Socket    string `json:"socket"` // base | hat | eyes | mouth | feet
 	Rarity    string `json:"rarity"` // regular | common | uncommon | rare
 	SortOrder int    `json:"sort_order"`
+	AssetPath string `json:"asset_path"` // backend-owned art URL (served PNG) or legacy public path
+	ZIndex    int    `json:"z_index"`    // render layer; base is 0, negative draws behind
+	IsDeleted bool   `json:"is_deleted"` // soft-delete flag; live clients never see these
+}
+
+// HalloweenBaseSocket is the per-base anchor for one overlay socket, in units
+// of base size relative to the base center (0,0 = centered, -0.5..+0.5).
+type HalloweenBaseSocket struct {
+	BaseID  string  `json:"base_id"`
+	Socket  string  `json:"socket"` // hat | eyes | mouth | feet
+	OffsetX float64 `json:"offset_x"`
+	OffsetY float64 `json:"offset_y"`
 }
 
 // PumpkinState holds a user's equipped pumpkin customization.
@@ -47,7 +59,7 @@ type HalloweenGameReport struct {
 	Score           int                 `json:"score"`
 	CoinsEarned     int                 `json:"coins_earned"`
 	CoinsSpent      int                 `json:"coins_spent"`
-	XpEarned        int                 `json:"xp_earned"` // global level-up pool telemetry; ignored by scoring
+	XpEarned        int                 `json:"xp_earned"`     // global level-up pool telemetry; ignored by scoring
 	IsIncomplete    bool                `json:"is_incomplete"` // tab closed / left the call
 	// Source is who played the game: human (default, also when empty),
 	// heuristic, or systemone. Set by balance-harness submissions.
@@ -100,6 +112,35 @@ type HalloweenStateResponse struct {
 	EquippedJSON string               `json:"equipped_json"`
 	OwnedItems   []HalloweenOwnedItem `json:"owned_items"`
 	Catalog      []HalloweenItem      `json:"catalog"`
+	// BaseLayouts maps base item id -> socket -> anchor offset.
+	BaseLayouts map[string]map[string]HalloweenBaseSocket `json:"base_layouts"`
+}
+
+// CreateHalloweenItemRequest is the body of POST /api/admin/halloween/items.
+// Clients send snake_case (see frontend/src/services/api.ts).
+type CreateHalloweenItemRequest struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Socket    string `json:"socket"` // base | hat | eyes | mouth | feet
+	Rarity    string `json:"rarity"`
+	SortOrder int    `json:"sort_order"`
+	ZIndex    int    `json:"z_index"`
+	AssetPath string `json:"asset_path"`
+}
+
+// UpdateHalloweenItemRequest is the body of PATCH /api/admin/halloween/items/{id}.
+type UpdateHalloweenItemRequest struct {
+	Name      string `json:"name"`
+	Socket    string `json:"socket"`
+	Rarity    string `json:"rarity"`
+	SortOrder int    `json:"sort_order"`
+	ZIndex    int    `json:"z_index"`
+}
+
+// UpsertBaseSocketsRequest is the body of PUT /api/admin/halloween/layouts.
+type UpsertBaseSocketsRequest struct {
+	BaseID  string                `json:"base_id"`
+	Sockets []HalloweenBaseSocket `json:"sockets"`
 }
 
 // UpdatePumpkinRequest is the body of PUT /api/halloween/pumpkin.
@@ -147,23 +188,23 @@ type HalloweenAdminReward struct {
 // HalloweenAdminGame is the admin view of one stored game result: the parsed
 // report, computed stats (income split, kills per slug type), and rewards.
 type HalloweenAdminGame struct {
-	ID              int64                     `json:"id"`
-	UserID          string                    `json:"user_id"`
-	Nickname        string                    `json:"nickname"`
-	CompletedRounds int                       `json:"completed_rounds"`
-	Score           int                       `json:"score"`
-	IsIncomplete    bool                      `json:"is_incomplete"`
-	IsCheater       bool                      `json:"is_cheater"`
-	Source          string                    `json:"source"`
-	Model           string                    `json:"model"`
-	CoinsEarned     int                       `json:"coins_earned"`
-	CoinsSpent      int                       `json:"coins_spent"`
-	KillIncome      int                       `json:"kill_income"`
-	CramerIncome    int                       `json:"cramer_income"`
-	SpawnedPumpkins map[string]int            `json:"spawned_pumpkins"`
-	Kills           []HalloweenSlugKill       `json:"kills"`
-	KillsByType     map[string]int            `json:"kills_by_type"`
-	UsedItems       map[string]int            `json:"used_items"`
-	Rewards         []HalloweenRewardGranted  `json:"rewards"`
-	CreatedAt       time.Time                 `json:"created_at"`
+	ID              int64                    `json:"id"`
+	UserID          string                   `json:"user_id"`
+	Nickname        string                   `json:"nickname"`
+	CompletedRounds int                      `json:"completed_rounds"`
+	Score           int                      `json:"score"`
+	IsIncomplete    bool                     `json:"is_incomplete"`
+	IsCheater       bool                     `json:"is_cheater"`
+	Source          string                   `json:"source"`
+	Model           string                   `json:"model"`
+	CoinsEarned     int                      `json:"coins_earned"`
+	CoinsSpent      int                      `json:"coins_spent"`
+	KillIncome      int                      `json:"kill_income"`
+	CramerIncome    int                      `json:"cramer_income"`
+	SpawnedPumpkins map[string]int           `json:"spawned_pumpkins"`
+	Kills           []HalloweenSlugKill      `json:"kills"`
+	KillsByType     map[string]int           `json:"kills_by_type"`
+	UsedItems       map[string]int           `json:"used_items"`
+	Rewards         []HalloweenRewardGranted `json:"rewards"`
+	CreatedAt       time.Time                `json:"created_at"`
 }

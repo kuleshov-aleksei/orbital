@@ -294,7 +294,8 @@ func (s *HalloweenService) Config() *HalloweenGameConfig {
 	}
 }
 
-// GetState returns a user's equipped customization, owned items, and the catalog.
+// GetState returns a user's equipped customization, owned items, the live
+// catalog (soft-deleted rows excluded), and every base socket layout.
 func (s *HalloweenService) GetState(userID string) (*models.HalloweenStateResponse, error) {
 	state, err := s.repo.GetPumpkinState(userID)
 	if err != nil {
@@ -319,6 +320,11 @@ func (s *HalloweenService) GetState(userID string) (*models.HalloweenStateRespon
 		return nil, err
 	}
 
+	layouts, err := s.repo.GetAllBaseSockets()
+	if err != nil {
+		return nil, err
+	}
+
 	ownedItems := make([]models.HalloweenOwnedItem, 0, len(owned))
 	for _, o := range owned {
 		ownedItems = append(ownedItems, *o)
@@ -327,11 +333,19 @@ func (s *HalloweenService) GetState(userID string) (*models.HalloweenStateRespon
 	for _, c := range catalog {
 		catalogItems = append(catalogItems, *c)
 	}
+	baseLayouts := map[string]map[string]models.HalloweenBaseSocket{}
+	for _, l := range layouts {
+		if _, ok := baseLayouts[l.BaseID]; !ok {
+			baseLayouts[l.BaseID] = map[string]models.HalloweenBaseSocket{}
+		}
+		baseLayouts[l.BaseID][l.Socket] = *l
+	}
 
 	return &models.HalloweenStateResponse{
 		EquippedJSON: equipped,
 		OwnedItems:   ownedItems,
 		Catalog:      catalogItems,
+		BaseLayouts:  baseLayouts,
 	}, nil
 }
 
@@ -665,9 +679,10 @@ func (s *HalloweenService) GetAdminRewards() ([]*models.HalloweenAdminReward, er
 	return rewards, nil
 }
 
-// GetAdminCatalog returns the full decoration catalog (admin view).
+// GetAdminCatalog returns the full decoration catalog (admin view,
+// including soft-deleted rows).
 func (s *HalloweenService) GetAdminCatalog() ([]*models.HalloweenItem, error) {
-	items, err := s.repo.GetAllItems()
+	items, err := s.repo.GetAllItemsAdmin()
 	if err != nil {
 		return nil, err
 	}
@@ -675,6 +690,168 @@ func (s *HalloweenService) GetAdminCatalog() ([]*models.HalloweenItem, error) {
 		items = []*models.HalloweenItem{}
 	}
 	return items, nil
+}
+
+// validPumpkinSockets is the full socket set (base + overlays incl. feet).
+func validPumpkinSocket(socket string) bool {
+	switch socket {
+	case "base", "hat", "eyes", "mouth", "feet":
+		return true
+	default:
+		return false
+	}
+}
+
+func validHalloweenRarity(rarity string) bool {
+	switch rarity {
+	case HalloweenRarityRegular, HalloweenRarityCommon, HalloweenRarityUncommon, HalloweenRarityRare:
+		return true
+	default:
+		return false
+	}
+}
+
+// CreateItem validates and inserts a new catalog entry (super_admin only).
+func (s *HalloweenService) CreateItem(req *models.CreateHalloweenItemRequest) (*models.HalloweenItem, error) {
+	if req.ID == "" || req.Name == "" {
+		return nil, errors.New("id and name are required")
+	}
+	if !validPumpkinSocket(req.Socket) {
+		return nil, errors.New("socket must be base, hat, eyes, mouth, or feet")
+	}
+	if !validHalloweenRarity(req.Rarity) {
+		return nil, errors.New("invalid rarity")
+	}
+	if existing, err := s.repo.GetItemAdmin(req.ID); err != nil {
+		return nil, err
+	} else if existing != nil {
+		return nil, errors.New("item id already exists")
+	}
+
+	item := &models.HalloweenItem{
+		ID: req.ID, Name: req.Name, Socket: req.Socket,
+		Rarity: req.Rarity, SortOrder: req.SortOrder, ZIndex: req.ZIndex,
+		AssetPath: req.AssetPath,
+	}
+	if err := s.repo.CreateItem(item); err != nil {
+		return nil, err
+	}
+	return s.repo.GetItemAdmin(req.ID)
+}
+
+// UpdateItem validates and updates a catalog entry (super_admin only).
+// AssetPath is managed exclusively via the asset upload endpoint.
+func (s *HalloweenService) UpdateItem(id string, req *models.UpdateHalloweenItemRequest) (*models.HalloweenItem, error) {
+	existing, err := s.repo.GetItemAdmin(id)
+	if err != nil {
+		return nil, err
+	}
+	if existing == nil {
+		return nil, errors.New("item not found")
+	}
+	if req.Name == "" {
+		return nil, errors.New("name is required")
+	}
+	if !validPumpkinSocket(req.Socket) {
+		return nil, errors.New("socket must be base, hat, eyes, mouth, or feet")
+	}
+	if !validHalloweenRarity(req.Rarity) {
+		return nil, errors.New("invalid rarity")
+	}
+
+	existing.Name = req.Name
+	existing.Socket = req.Socket
+	existing.Rarity = req.Rarity
+	existing.SortOrder = req.SortOrder
+	existing.ZIndex = req.ZIndex
+	if err := s.repo.UpdateItem(existing); err != nil {
+		return nil, err
+	}
+	return s.repo.GetItemAdmin(id)
+}
+
+// SoftDeleteItem marks an item as deleted (super_admin only). Live clients
+// never see it again; ledger history is preserved.
+func (s *HalloweenService) SoftDeleteItem(id string) error {
+	existing, err := s.repo.GetItemAdmin(id)
+	if err != nil {
+		return err
+	}
+	if existing == nil {
+		return errors.New("item not found")
+	}
+	return s.repo.SoftDeleteItem(id)
+}
+
+func (s *HalloweenService) RestoreItem(id string) error {
+	existing, err := s.repo.GetItemAdmin(id)
+	if err != nil {
+		return err
+	}
+	if existing == nil {
+		return errors.New("item not found")
+	}
+	return s.repo.RestoreItem(id)
+}
+
+// SetItemAssetPath records an uploaded art URL on the catalog row.
+func (s *HalloweenService) SetItemAssetPath(id string, assetPath string) (*models.HalloweenItem, error) {
+	existing, err := s.repo.GetItemAdmin(id)
+	if err != nil {
+		return nil, err
+	}
+	if existing == nil {
+		return nil, errors.New("item not found")
+	}
+	if err := s.repo.SetItemAssetPath(id, assetPath); err != nil {
+		return nil, err
+	}
+	return s.repo.GetItemAdmin(id)
+}
+
+// GetBaseSockets returns the stored anchors for one base (may be empty).
+func (s *HalloweenService) GetBaseSockets(baseID string) ([]*models.HalloweenBaseSocket, error) {
+	sockets, err := s.repo.GetBaseSockets(baseID)
+	if err != nil {
+		return nil, err
+	}
+	if sockets == nil {
+		sockets = []*models.HalloweenBaseSocket{}
+	}
+	return sockets, nil
+}
+
+// UpsertBaseSockets replaces the socket anchors for a base (super_admin only).
+func (s *HalloweenService) UpsertBaseSockets(baseID string, sockets []models.HalloweenBaseSocket) error {
+	base, err := s.repo.GetItemAdmin(baseID)
+	if err != nil {
+		return err
+	}
+	if base == nil {
+		return errors.New("base item not found")
+	}
+	if base.Socket != "base" {
+		return errors.New("base_id must reference a base item")
+	}
+
+	seen := map[string]bool{}
+	rows := make([]*models.HalloweenBaseSocket, 0, len(sockets))
+	for _, sock := range sockets {
+		if !validPumpkinSocket(sock.Socket) || sock.Socket == "base" {
+			return errors.New("socket must be hat, eyes, mouth, or feet")
+		}
+		if seen[sock.Socket] {
+			return errors.New("duplicate socket: " + sock.Socket)
+		}
+		seen[sock.Socket] = true
+		if sock.OffsetX < -1 || sock.OffsetX > 1 || sock.OffsetY < -1 || sock.OffsetY > 1 {
+			return errors.New("offsets must be within -1..1")
+		}
+		rows = append(rows, &models.HalloweenBaseSocket{
+			BaseID: baseID, Socket: sock.Socket, OffsetX: sock.OffsetX, OffsetY: sock.OffsetY,
+		})
+	}
+	return s.repo.UpsertBaseSockets(baseID, rows)
 }
 
 // IssueReward grants a specific item to a user (admin action).

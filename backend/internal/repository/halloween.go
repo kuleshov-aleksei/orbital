@@ -20,9 +20,22 @@ func NewHalloweenRepository(db *storage.DB) *HalloweenRepository {
 	return &HalloweenRepository{db: db}
 }
 
+func (r *HalloweenRepository) scanItem(rows *sql.Rows) (*models.HalloweenItem, error) {
+	item := &models.HalloweenItem{}
+	var assetPath sql.NullString
+	var isDeleted sql.NullBool
+	if err := rows.Scan(&item.ID, &item.Name, &item.Socket, &item.Rarity, &item.SortOrder, &assetPath, &item.ZIndex, &isDeleted); err != nil {
+		return nil, err
+	}
+	item.AssetPath = assetPath.String
+	item.IsDeleted = isDeleted.Valid && isDeleted.Bool
+	return item, nil
+}
+
+// GetAllItems returns live (non-soft-deleted) catalog items for clients.
 func (r *HalloweenRepository) GetAllItems() ([]*models.HalloweenItem, error) {
 	rows, err := r.db.Query(
-		`SELECT id, name, socket, rarity, sort_order FROM halloween_items ORDER BY sort_order, id`,
+		`SELECT id, name, socket, rarity, sort_order, asset_path, z_index, is_deleted FROM halloween_items WHERE is_deleted = 0 ORDER BY sort_order, id`,
 	)
 	if err != nil {
 		return nil, err
@@ -31,8 +44,29 @@ func (r *HalloweenRepository) GetAllItems() ([]*models.HalloweenItem, error) {
 
 	var items []*models.HalloweenItem
 	for rows.Next() {
-		item := &models.HalloweenItem{}
-		if err := rows.Scan(&item.ID, &item.Name, &item.Socket, &item.Rarity, &item.SortOrder); err != nil {
+		item, err := r.scanItem(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+// GetAllItemsAdmin returns every catalog row including soft-deleted ones.
+func (r *HalloweenRepository) GetAllItemsAdmin() ([]*models.HalloweenItem, error) {
+	rows, err := r.db.Query(
+		`SELECT id, name, socket, rarity, sort_order, asset_path, z_index, is_deleted FROM halloween_items ORDER BY sort_order, id`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []*models.HalloweenItem
+	for rows.Next() {
+		item, err := r.scanItem(rows)
+		if err != nil {
 			return nil, err
 		}
 		items = append(items, item)
@@ -42,7 +76,7 @@ func (r *HalloweenRepository) GetAllItems() ([]*models.HalloweenItem, error) {
 
 func (r *HalloweenRepository) GetItemsByRarity(rarity string) ([]*models.HalloweenItem, error) {
 	rows, err := r.db.Query(
-		`SELECT id, name, socket, rarity, sort_order FROM halloween_items WHERE rarity = ? ORDER BY sort_order, id`,
+		`SELECT id, name, socket, rarity, sort_order, asset_path, z_index, is_deleted FROM halloween_items WHERE rarity = ? AND is_deleted = 0 ORDER BY sort_order, id`,
 		rarity,
 	)
 	if err != nil {
@@ -52,8 +86,8 @@ func (r *HalloweenRepository) GetItemsByRarity(rarity string) ([]*models.Hallowe
 
 	var items []*models.HalloweenItem
 	for rows.Next() {
-		item := &models.HalloweenItem{}
-		if err := rows.Scan(&item.ID, &item.Name, &item.Socket, &item.Rarity, &item.SortOrder); err != nil {
+		item, err := r.scanItem(rows)
+		if err != nil {
 			return nil, err
 		}
 		items = append(items, item)
@@ -63,17 +97,131 @@ func (r *HalloweenRepository) GetItemsByRarity(rarity string) ([]*models.Hallowe
 
 func (r *HalloweenRepository) GetItem(id string) (*models.HalloweenItem, error) {
 	item := &models.HalloweenItem{}
+	var assetPath sql.NullString
+	var isDeleted sql.NullBool
 	err := r.db.QueryRow(
-		`SELECT id, name, socket, rarity, sort_order FROM halloween_items WHERE id = ?`,
+		`SELECT id, name, socket, rarity, sort_order, asset_path, z_index, is_deleted FROM halloween_items WHERE id = ? AND is_deleted = 0`,
 		id,
-	).Scan(&item.ID, &item.Name, &item.Socket, &item.Rarity, &item.SortOrder)
+	).Scan(&item.ID, &item.Name, &item.Socket, &item.Rarity, &item.SortOrder, &assetPath, &item.ZIndex, &isDeleted)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
+	item.AssetPath = assetPath.String
+	item.IsDeleted = isDeleted.Valid && isDeleted.Bool
 	return item, nil
+}
+
+// GetItemAdmin fetches a row regardless of soft-delete state.
+func (r *HalloweenRepository) GetItemAdmin(id string) (*models.HalloweenItem, error) {
+	item := &models.HalloweenItem{}
+	var assetPath sql.NullString
+	var isDeleted sql.NullBool
+	err := r.db.QueryRow(
+		`SELECT id, name, socket, rarity, sort_order, asset_path, z_index, is_deleted FROM halloween_items WHERE id = ?`,
+		id,
+	).Scan(&item.ID, &item.Name, &item.Socket, &item.Rarity, &item.SortOrder, &assetPath, &item.ZIndex, &isDeleted)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	item.AssetPath = assetPath.String
+	item.IsDeleted = isDeleted.Valid && isDeleted.Bool
+	return item, nil
+}
+
+func (r *HalloweenRepository) CreateItem(item *models.HalloweenItem) error {
+	_, err := r.db.Exec(
+		`INSERT INTO halloween_items (id, name, socket, rarity, sort_order, asset_path, z_index, is_deleted) VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
+		item.ID, item.Name, item.Socket, item.Rarity, item.SortOrder, item.AssetPath, item.ZIndex,
+	)
+	return err
+}
+
+func (r *HalloweenRepository) UpdateItem(item *models.HalloweenItem) error {
+	_, err := r.db.Exec(
+		`UPDATE halloween_items SET name = ?, socket = ?, rarity = ?, sort_order = ?, z_index = ? WHERE id = ?`,
+		item.Name, item.Socket, item.Rarity, item.SortOrder, item.ZIndex, item.ID,
+	)
+	return err
+}
+
+func (r *HalloweenRepository) SetItemAssetPath(id string, assetPath string) error {
+	_, err := r.db.Exec(`UPDATE halloween_items SET asset_path = ? WHERE id = ?`, assetPath, id)
+	return err
+}
+
+// SoftDeleteItem marks an item as deleted; live queries exclude it.
+func (r *HalloweenRepository) SoftDeleteItem(id string) error {
+	_, err := r.db.Exec(`UPDATE halloween_items SET is_deleted = 1 WHERE id = ?`, id)
+	return err
+}
+
+func (r *HalloweenRepository) RestoreItem(id string) error {
+	_, err := r.db.Exec(`UPDATE halloween_items SET is_deleted = 0 WHERE id = ?`, id)
+	return err
+}
+
+// GetBaseSockets returns the socket anchors for one base (empty when unmapped).
+func (r *HalloweenRepository) GetBaseSockets(baseID string) ([]*models.HalloweenBaseSocket, error) {
+	rows, err := r.db.Query(
+		`SELECT base_id, socket, offset_x, offset_y FROM halloween_base_sockets WHERE base_id = ?`,
+		baseID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []*models.HalloweenBaseSocket
+	for rows.Next() {
+		s := &models.HalloweenBaseSocket{}
+		if err := rows.Scan(&s.BaseID, &s.Socket, &s.OffsetX, &s.OffsetY); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// GetAllBaseSockets returns every base layout row (client state payload).
+func (r *HalloweenRepository) GetAllBaseSockets() ([]*models.HalloweenBaseSocket, error) {
+	rows, err := r.db.Query(`SELECT base_id, socket, offset_x, offset_y FROM halloween_base_sockets`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []*models.HalloweenBaseSocket
+	for rows.Next() {
+		s := &models.HalloweenBaseSocket{}
+		if err := rows.Scan(&s.BaseID, &s.Socket, &s.OffsetX, &s.OffsetY); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+func (r *HalloweenRepository) UpsertBaseSockets(baseID string, sockets []*models.HalloweenBaseSocket) error {
+	return r.db.Transaction(func(tx *sql.Tx) error {
+		if _, err := tx.Exec(`DELETE FROM halloween_base_sockets WHERE base_id = ?`, baseID); err != nil {
+			return err
+		}
+		for _, s := range sockets {
+			if _, err := tx.Exec(
+				`INSERT INTO halloween_base_sockets (base_id, socket, offset_x, offset_y) VALUES (?, ?, ?, ?)`,
+				baseID, s.Socket, s.OffsetX, s.OffsetY,
+			); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (r *HalloweenRepository) GetPumpkinState(userID string) (*models.PumpkinState, error) {

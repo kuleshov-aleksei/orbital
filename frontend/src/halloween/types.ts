@@ -1,18 +1,38 @@
 // Halloween feature types — mirror the Go backend snake_case payloads
 // (see backend/internal/models/halloween.go and halloweenservice.go).
 
-export type PumpkinSocket = "hat" | "eyes" | "mouth" | "base"
+export type PumpkinSocket = "hat" | "eyes" | "mouth" | "base" | "feet"
+
+// Overlay sockets positioned per base (base itself is the anchor reference).
+export type PumpkinOverlaySocket = "hat" | "eyes" | "mouth" | "feet"
 
 export type HalloweenRarity = "regular" | "common" | "uncommon" | "rare"
 
 // HalloweenItem is a single catalog entry for pumpkin decorations.
+// asset_path is the backend-owned art URL (or legacy public path);
+// z_index is the render layer (base = 0, negative draws behind the base).
 export interface HalloweenItem {
   id: string
   name: string
   socket: PumpkinSocket
   rarity: HalloweenRarity
   sort_order: number
+  asset_path: string
+  z_index: number
+  is_deleted: boolean
 }
+
+// HalloweenBaseSocket is the per-base anchor for one overlay socket, in units
+// of base size relative to the base center (0,0 = centered).
+export interface HalloweenBaseSocket {
+  base_id: string
+  socket: PumpkinOverlaySocket
+  offset_x: number
+  offset_y: number
+}
+
+// BaseLayouts maps base item id -> socket -> anchor offset.
+export type BaseLayouts = Record<string, Partial<Record<PumpkinOverlaySocket, HalloweenBaseSocket>>>
 
 // PumpkinState holds a user's equipped pumpkin customization.
 export interface PumpkinState {
@@ -31,6 +51,31 @@ export interface HalloweenStateResponse {
   equipped_json: string
   owned_items: HalloweenOwnedItem[]
   catalog: HalloweenItem[]
+  base_layouts: BaseLayouts
+}
+
+// Payloads for the super_admin catalog/layout endpoints (snake_case).
+export interface CreateHalloweenItemRequest {
+  id: string
+  name: string
+  socket: PumpkinSocket
+  rarity: HalloweenRarity
+  sort_order: number
+  z_index: number
+  asset_path?: string
+}
+
+export interface UpdateHalloweenItemRequest {
+  name: string
+  socket: PumpkinSocket
+  rarity: HalloweenRarity
+  sort_order: number
+  z_index: number
+}
+
+export interface UpsertBaseSocketsRequest {
+  base_id: string
+  sockets: HalloweenBaseSocket[]
 }
 
 // EquippedCustomization is the parsed form of equipped_json.

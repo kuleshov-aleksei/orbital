@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 
+	"github.com/gorilla/mux"
 	"github.com/kuleshov-aleksei/orbital/internal/models"
 	"github.com/kuleshov-aleksei/orbital/internal/service"
 	"github.com/kuleshov-aleksei/orbital/internal/websocket"
@@ -11,12 +13,21 @@ import (
 
 type HalloweenHandler struct {
 	halloweenService *service.HalloweenService
+	pumpkinAssets    *service.PumpkinAssetService
 	wsHub            *websocket.Hub
 }
 
 func NewHalloweenHandler(halloweenService *service.HalloweenService, wsHub *websocket.Hub) *HalloweenHandler {
 	return &HalloweenHandler{
 		halloweenService: halloweenService,
+		wsHub:            wsHub,
+	}
+}
+
+func NewHalloweenHandlerWithAssets(halloweenService *service.HalloweenService, pumpkinAssets *service.PumpkinAssetService, wsHub *websocket.Hub) *HalloweenHandler {
+	return &HalloweenHandler{
+		halloweenService: halloweenService,
+		pumpkinAssets:    pumpkinAssets,
 		wsHub:            wsHub,
 	}
 }
@@ -159,7 +170,8 @@ func (h *HalloweenHandler) AdminGetRewards(w http.ResponseWriter, r *http.Reques
 	json.NewEncoder(w).Encode(rewards)
 }
 
-// AdminGetItems returns the decoration catalog (super_admin only).
+// AdminGetItems returns the decoration catalog (super_admin only,
+// including soft-deleted rows).
 func (h *HalloweenHandler) AdminGetItems(w http.ResponseWriter, r *http.Request) {
 	items, err := h.halloweenService.GetAdminCatalog()
 	if err != nil {
@@ -169,6 +181,211 @@ func (h *HalloweenHandler) AdminGetItems(w http.ResponseWriter, r *http.Request)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(items)
+}
+
+// GetAsset serves backend-owned pumpkin decoration art from the data dir.
+// Initial art is seeded there from the bundled placeholders on server start;
+// uploads overwrite per-item files.
+func (h *HalloweenHandler) GetAsset(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+	if id == "" {
+		http.Error(w, "Invalid asset id", http.StatusBadRequest)
+		return
+	}
+	if h.pumpkinAssets == nil {
+		http.Error(w, "Asset storage not configured", http.StatusNotFound)
+		return
+	}
+
+	filePath, err := h.pumpkinAssets.AssetPath(id)
+	if err != nil {
+		http.Error(w, "Asset not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "public, max-age=31536000")
+	http.ServeFile(w, r, filePath)
+}
+
+// AdminCreateItem creates a catalog entry (super_admin only).
+func (h *HalloweenHandler) AdminCreateItem(w http.ResponseWriter, r *http.Request) {
+	var req models.CreateHalloweenItemRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	item, err := h.halloweenService.CreateItem(&req)
+	if err != nil {
+		http.Error(w, "Failed to create item: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(item)
+}
+
+// AdminUpdateItem updates a catalog entry (super_admin only).
+func (h *HalloweenHandler) AdminUpdateItem(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+	if id == "" {
+		http.Error(w, "Invalid item id", http.StatusBadRequest)
+		return
+	}
+
+	var req models.UpdateHalloweenItemRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	item, err := h.halloweenService.UpdateItem(id, &req)
+	if err != nil {
+		http.Error(w, "Failed to update item: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(item)
+}
+
+// AdminDeleteItem soft-deletes a catalog entry (super_admin only).
+func (h *HalloweenHandler) AdminDeleteItem(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+	if id == "" {
+		http.Error(w, "Invalid item id", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.halloweenService.SoftDeleteItem(id); err != nil {
+		http.Error(w, "Failed to delete item: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
+}
+
+// AdminRestoreItem clears the soft-delete flag (super_admin only).
+func (h *HalloweenHandler) AdminRestoreItem(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+	if id == "" {
+		http.Error(w, "Invalid item id", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.halloweenService.RestoreItem(id); err != nil {
+		http.Error(w, "Failed to restore item: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "restored"})
+}
+
+// AdminUploadAsset stores PNG art for a catalog entry (super_admin only).
+func (h *HalloweenHandler) AdminUploadAsset(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+	if id == "" {
+		http.Error(w, "Invalid item id", http.StatusBadRequest)
+		return
+	}
+	if h.pumpkinAssets == nil {
+		http.Error(w, "Asset storage not configured", http.StatusInternalServerError)
+		return
+	}
+
+	if r.ContentLength > service.MaxPumpkinAssetSize {
+		http.Error(w, "File size exceeds 2MB limit", http.StatusRequestEntityTooLarge)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, service.MaxPumpkinAssetSize)
+
+	if err := r.ParseMultipartForm(service.MaxPumpkinAssetSize); err != nil {
+		http.Error(w, "Failed to parse multipart form", http.StatusBadRequest)
+		return
+	}
+
+	file, _, err := r.FormFile("asset")
+	if err != nil {
+		http.Error(w, "No asset file provided", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	fileData, err := io.ReadAll(file)
+	if err != nil {
+		http.Error(w, "Failed to read file", http.StatusInternalServerError)
+		return
+	}
+
+	assetURL, err := h.pumpkinAssets.SaveAsset(id, fileData)
+	if err != nil {
+		switch err {
+		case service.ErrPumpkinAssetTooLarge:
+			http.Error(w, err.Error(), http.StatusRequestEntityTooLarge)
+		case service.ErrPumpkinAssetInvalidType:
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		default:
+			http.Error(w, "Failed to process asset file", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	item, err := h.halloweenService.SetItemAssetPath(id, assetURL)
+	if err != nil {
+		http.Error(w, "Asset saved but catalog update failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(item)
+}
+
+// AdminGetLayouts returns the socket anchors for one base (super_admin only).
+func (h *HalloweenHandler) AdminGetLayouts(w http.ResponseWriter, r *http.Request) {
+	baseID := r.URL.Query().Get("base_id")
+	if baseID == "" {
+		http.Error(w, "base_id is required", http.StatusBadRequest)
+		return
+	}
+
+	sockets, err := h.halloweenService.GetBaseSockets(baseID)
+	if err != nil {
+		http.Error(w, "Failed to load layouts: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(sockets)
+}
+
+// AdminUpsertLayouts replaces the socket anchors for a base (super_admin only).
+func (h *HalloweenHandler) AdminUpsertLayouts(w http.ResponseWriter, r *http.Request) {
+	var req models.UpsertBaseSocketsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.BaseID == "" {
+		http.Error(w, "base_id is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.halloweenService.UpsertBaseSockets(req.BaseID, req.Sockets); err != nil {
+		http.Error(w, "Failed to save layouts: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "saved"})
 }
 
 // AdminIssueReward grants a specific item to a user (super_admin only).

@@ -251,6 +251,56 @@ CREATE TABLE IF NOT EXISTS halloween_pumpkins (
 ALTER TABLE halloween_game_results ADD COLUMN model TEXT NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS idx_halloween_game_results_source ON halloween_game_results(source);`,
 	},
+	{
+		Version: 24,
+		Name:    "halloween_socket_system",
+		SQL: `ALTER TABLE halloween_items ADD COLUMN asset_path TEXT NOT NULL DEFAULT '';
+ALTER TABLE halloween_items ADD COLUMN z_index INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE halloween_items ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS idx_halloween_items_deleted ON halloween_items(is_deleted);
+
+CREATE TABLE IF NOT EXISTS halloween_base_sockets (
+			base_id  TEXT NOT NULL REFERENCES halloween_items(id) ON DELETE CASCADE,
+			socket   TEXT NOT NULL,
+			offset_x REAL NOT NULL DEFAULT 0,
+			offset_y REAL NOT NULL DEFAULT 0,
+			PRIMARY KEY (base_id, socket)
+);
+
+INSERT OR IGNORE INTO halloween_items (id, name, socket, rarity, sort_order, asset_path, z_index, is_deleted) VALUES
+			('base_a', 'Classic', 'base', 'regular', 0, '/assets/hw26/user-pumpkins/bases/base_a.png', 0, 0),
+			('feet_boots', 'Boots', 'feet', 'common', 30, '/assets/hw26/user-pumpkins/feet/feet_A.png', -1, 0),
+			('feet_roots', 'Roots', 'feet', 'uncommon', 31, '/assets/hw26/user-pumpkins/feet/feet_A.png', -1, 0),
+			('feet_sneakers', 'Sneakers', 'feet', 'rare', 32, '/assets/hw26/user-pumpkins/feet/feet_A.png', -1, 0);
+
+UPDATE halloween_items SET asset_path = '/assets/hw26/user-pumpkins/hats/hat_A.png', z_index = 20 WHERE socket = 'hat' AND asset_path = '';
+UPDATE halloween_items SET asset_path = '/assets/hw26/user-pumpkins/eyes/eye_A.png', z_index = 10 WHERE socket = 'eyes' AND asset_path = '';
+UPDATE halloween_items SET asset_path = '/assets/hw26/user-pumpkins/mouths/mouth_A.png', z_index = 11 WHERE socket = 'mouth' AND asset_path = '';
+
+INSERT OR IGNORE INTO halloween_base_sockets (base_id, socket, offset_x, offset_y) VALUES
+			('base_a', 'hat', 0, -0.45),
+			('base_a', 'eyes', 0, -0.05),
+			('base_a', 'mouth', 0, 0.2),
+			('base_a', 'feet', 0, 0.48);`,
+	},
+	{
+		Version: 25,
+		Name:    "halloween_backend_owned_assets",
+		SQL: `UPDATE halloween_items SET asset_path = '/api/halloween/assets/' || id WHERE socket != 'base' AND (asset_path = '' OR asset_path LIKE '/assets/hw26/user-pumpkins/%');
+UPDATE halloween_items SET asset_path = '/api/halloween/assets/' || id WHERE socket = 'base' AND (asset_path = '' OR asset_path LIKE '/assets/hw26/user-pumpkins/%');
+
+INSERT OR IGNORE INTO halloween_items (id, name, socket, rarity, sort_order, asset_path, z_index, is_deleted) VALUES
+			('base_a', 'Classic', 'base', 'regular', 0, '/api/halloween/assets/base_a', 0, 0),
+			('feet_boots', 'Boots', 'feet', 'common', 30, '/api/halloween/assets/feet_boots', -1, 0),
+			('feet_roots', 'Roots', 'feet', 'uncommon', 31, '/api/halloween/assets/feet_roots', -1, 0),
+			('feet_sneakers', 'Sneakers', 'feet', 'rare', 32, '/api/halloween/assets/feet_sneakers', -1, 0);
+
+INSERT OR IGNORE INTO halloween_base_sockets (base_id, socket, offset_x, offset_y) VALUES
+			('base_a', 'hat', 0, -0.45),
+			('base_a', 'eyes', 0, -0.05),
+			('base_a', 'mouth', 0, 0.2),
+			('base_a', 'feet', 0, 0.48);`,
+	},
 }
 
 func (db *DB) RunMigrations() error {

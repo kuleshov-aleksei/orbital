@@ -11,7 +11,7 @@
           {{ group.label }}
         </span>
         <button
-          v-if="halloweenStore.equipped[group.socket]"
+          v-if="group.socket !== 'base' && halloweenStore.equipped[group.socket]"
           type="button"
           class="text-xs text-theme-text-muted hover:text-red-400 transition-colors"
           @click="unequip(group.socket)">
@@ -52,20 +52,29 @@ import type { HalloweenItem, PumpkinSocket } from "@/halloween/types"
 const halloweenStore = useHalloweenStore()
 
 const socketLabels: Record<string, string> = {
+  base: "Pumpkin base",
   hat: "Hat",
   eyes: "Eyes",
   mouth: "Smile",
+  feet: "Feet",
 }
 
 const socketGroups = computed(() => {
   const groups = [
+    { socket: "base" as PumpkinSocket, label: socketLabels.base, items: [] as HalloweenItem[] },
     { socket: "hat" as PumpkinSocket, label: socketLabels.hat, items: [] as HalloweenItem[] },
     { socket: "eyes" as PumpkinSocket, label: socketLabels.eyes, items: [] as HalloweenItem[] },
     { socket: "mouth" as PumpkinSocket, label: socketLabels.mouth, items: [] as HalloweenItem[] },
+    { socket: "feet" as PumpkinSocket, label: socketLabels.feet, items: [] as HalloweenItem[] },
   ]
+  // Bases are always available (the pumpkin body, not an earned reward).
+  const baseGroup = groups.find((g) => g.socket === "base")
+  if (baseGroup) {
+    baseGroup.items = halloweenStore.catalog.filter((item) => item.socket === "base")
+  }
   for (const item of halloweenStore.ownedItems) {
     const group = groups.find((g) => g.socket === item.socket)
-    if (group) group.items.push(item)
+    if (group && group.socket !== "base") group.items.push(item)
   }
   return groups
 })

@@ -1,6 +1,9 @@
 package service
 
 import (
+	"bytes"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -165,10 +168,10 @@ func TestHalloweenShopEconomyConfig(t *testing.T) {
 	}
 
 	wantKillRewards := map[string]int{
-		HalloweenSlugScout:  5,
-		HalloweenSlugMarvin: 10,
-		HalloweenSlugGerald: 30,
-		HalloweenSlugDell:   50,
+		HalloweenSlugScout:  2,
+		HalloweenSlugMarvin: 5,
+		HalloweenSlugGerald: 15,
+		HalloweenSlugDell:   25,
 	}
 	for name, reward := range wantKillRewards {
 		slug, ok := cfg.Slugs[name]
@@ -500,7 +503,7 @@ func TestHalloweenAdminIssueReward(t *testing.T) {
 func TestHalloweenAdminGameIncomeSplit(t *testing.T) {
 	s := newHalloweenTestService(t)
 
-	// 2 scouts (kill_reward 5) + 1 marvin (kill_reward 10) killed; coins_earned
+	// 2 scouts (kill_reward 2) + 1 marvin (kill_reward 5) killed; coins_earned
 	// includes +40 seeds produced by cramer.
 	report := &models.HalloweenGameReport{
 		SpawnedPumpkins: map[string]int{"ferdinand": 2, "cramer": 1},
@@ -511,7 +514,7 @@ func TestHalloweenAdminGameIncomeSplit(t *testing.T) {
 		},
 		CompletedRounds: 1,
 		Score:           10 + 7 + 10 + 1000, // scouts + marvin + round bonus
-		CoinsEarned:     5 + 5 + 10 + 40,
+		CoinsEarned:     2 + 2 + 5 + 40,
 		CoinsSpent:      40,
 	}
 
@@ -528,8 +531,8 @@ func TestHalloweenAdminGameIncomeSplit(t *testing.T) {
 	}
 
 	g := games[0]
-	if g.KillIncome != 20 {
-		t.Errorf("kill_income = %d, want 20", g.KillIncome)
+	if g.KillIncome != 9 {
+		t.Errorf("kill_income = %d, want 9", g.KillIncome)
 	}
 	if g.CramerIncome != 40 {
 		t.Errorf("cramer_income = %d, want 40", g.CramerIncome)
@@ -540,8 +543,8 @@ func TestHalloweenAdminGameIncomeSplit(t *testing.T) {
 	if g.KillsByType[HalloweenSlugScout] != 2 || g.KillsByType[HalloweenSlugMarvin] != 1 {
 		t.Errorf("kills_by_type = %v, want scout x2 marvin x1", g.KillsByType)
 	}
-	if g.CoinsEarned != 60 || g.CoinsSpent != 40 {
-		t.Errorf("coins earned/spent = %d/%d, want 60/40", g.CoinsEarned, g.CoinsSpent)
+	if g.CoinsEarned != 49 || g.CoinsSpent != 40 {
+		t.Errorf("coins earned/spent = %d/%d, want 49/40", g.CoinsEarned, g.CoinsSpent)
 	}
 
 	rewards, err := s.GetAdminRewards()
@@ -618,5 +621,202 @@ func TestHalloweenSubmitGameRejectsUnknownSource(t *testing.T) {
 	report := &models.HalloweenGameReport{Source: "alien"}
 	if _, err := s.SubmitGame("user-1", report); err == nil {
 		t.Fatal("expected unknown source to error")
+	}
+}
+
+func TestHalloweenSocketSystemSeed(t *testing.T) {
+	s := newHalloweenTestService(t)
+
+	state, err := s.GetState("user-1")
+	if err != nil {
+		t.Fatalf("GetState failed: %v", err)
+	}
+
+	// Seeded base + feet items are live in the client catalog.
+	byID := map[string]models.HalloweenItem{}
+	for _, c := range state.Catalog {
+		byID[c.ID] = c
+	}
+	base, ok := byID["base_a"]
+	if !ok {
+		t.Fatal("expected seeded base_a in catalog")
+	}
+	if base.Socket != "base" {
+		t.Errorf("base_a socket = %q, want base", base.Socket)
+	}
+	// All art is backend-owned: every catalog row points at the asset endpoint.
+	for _, c := range state.Catalog {
+		want := "/api/halloween/assets/" + c.ID
+		if c.AssetPath != want {
+			t.Errorf("item %s asset_path = %q, want %q", c.ID, c.AssetPath, want)
+		}
+	}
+	if _, ok := byID["feet_boots"]; !ok {
+		t.Fatal("expected seeded feet_boots in catalog")
+	}
+
+	// Seeded per-base anchors are served with state.
+	layout, ok := state.BaseLayouts["base_a"]
+	if !ok {
+		t.Fatal("expected base_layouts for base_a")
+	}
+	for _, socket := range []string{"hat", "eyes", "mouth", "feet"} {
+		if _, ok := layout[socket]; !ok {
+			t.Errorf("expected anchor for socket %q", socket)
+		}
+	}
+}
+
+func TestHalloweenItemCRUDSoftDelete(t *testing.T) {
+	s := newHalloweenTestService(t)
+
+	created, err := s.CreateItem(&models.CreateHalloweenItemRequest{
+		ID: "hat_test", Name: "Test Hat", Socket: "hat",
+		Rarity: "common", SortOrder: 99, ZIndex: 21,
+	})
+	if err != nil {
+		t.Fatalf("CreateItem failed: %v", err)
+	}
+	if created.ZIndex != 21 {
+		t.Errorf("z_index = %d, want 21", created.ZIndex)
+	}
+
+	if _, err := s.UpdateItem("hat_test", &models.UpdateHalloweenItemRequest{
+		Name: "Test Hat v2", Socket: "hat",
+		Rarity: "rare", SortOrder: 98, ZIndex: -2,
+	}); err != nil {
+		t.Fatalf("UpdateItem failed: %v", err)
+	}
+
+	if err := s.SoftDeleteItem("hat_test"); err != nil {
+		t.Fatalf("SoftDeleteItem failed: %v", err)
+	}
+	state, err := s.GetState("user-1")
+	if err != nil {
+		t.Fatalf("GetState failed: %v", err)
+	}
+	for _, c := range state.Catalog {
+		if c.ID == "hat_test" {
+			t.Fatal("soft-deleted item must not reach clients")
+		}
+	}
+	admin, err := s.GetAdminCatalog()
+	if err != nil {
+		t.Fatalf("GetAdminCatalog failed: %v", err)
+	}
+	found := false
+	for _, c := range admin {
+		if c.ID == "hat_test" {
+			found = true
+			if !c.IsDeleted {
+				t.Error("admin row should carry is_deleted")
+			}
+		}
+	}
+	if !found {
+		t.Fatal("admin catalog must still list soft-deleted rows")
+	}
+
+	if err := s.RestoreItem("hat_test"); err != nil {
+		t.Fatalf("RestoreItem failed: %v", err)
+	}
+	state, err = s.GetState("user-1")
+	if err != nil {
+		t.Fatalf("GetState failed: %v", err)
+	}
+	restored := false
+	for _, c := range state.Catalog {
+		if c.ID == "hat_test" {
+			restored = true
+		}
+	}
+	if !restored {
+		t.Fatal("restored item must be visible to clients again")
+	}
+}
+
+func TestHalloweenUpsertBaseSockets(t *testing.T) {
+	s := newHalloweenTestService(t)
+
+	// Unknown base errors.
+	if err := s.UpsertBaseSockets("nope", nil); err == nil {
+		t.Fatal("expected unknown base to error")
+	}
+	// Non-base item errors.
+	if err := s.UpsertBaseSockets("hat_party", nil); err == nil {
+		t.Fatal("expected non-base item to error")
+	}
+	// Out-of-range offsets error.
+	if err := s.UpsertBaseSockets("base_a", []models.HalloweenBaseSocket{
+		{BaseID: "base_a", Socket: "hat", OffsetX: 2, OffsetY: 0},
+	}); err == nil {
+		t.Fatal("expected out-of-range offset to error")
+	}
+
+	err := s.UpsertBaseSockets("base_a", []models.HalloweenBaseSocket{
+		{BaseID: "base_a", Socket: "hat", OffsetX: 0.1, OffsetY: -0.4},
+		{BaseID: "base_a", Socket: "feet", OffsetX: 0, OffsetY: 0.5},
+	})
+	if err != nil {
+		t.Fatalf("UpsertBaseSockets failed: %v", err)
+	}
+	rows, err := s.GetBaseSockets("base_a")
+	if err != nil {
+		t.Fatalf("GetBaseSockets failed: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 anchors (replace semantics), got %d", len(rows))
+	}
+}
+
+func TestPumpkinAssetSeedPlaceholders(t *testing.T) {
+	dataDir := t.TempDir()
+	seedDir := t.TempDir()
+
+	fakePNG := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, []byte("seed")...)
+	if err := os.MkdirAll(filepath.Join(seedDir, "user-pumpkins"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	for _, socket := range []string{"base", "hat", "eyes", "mouth", "feet"} {
+		if err := os.WriteFile(filepath.Join(seedDir, "user-pumpkins", socket+".png"), fakePNG, 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	svc := NewPumpkinAssetService(dataDir, seedDir)
+	catalog := []*models.HalloweenItem{
+		{ID: "base_a", Socket: "base"},
+		{ID: "hat_party", Socket: "hat"},
+		{ID: "weird", Socket: "not-a-socket"},
+	}
+
+	seeded, err := svc.SeedPlaceholders(catalog)
+	if err != nil {
+		t.Fatalf("SeedPlaceholders failed: %v", err)
+	}
+	if seeded != 2 {
+		t.Errorf("seeded = %d, want 2 (unknown sockets skipped)", seeded)
+	}
+	for _, id := range []string{"base_a", "hat_party"} {
+		if _, err := svc.AssetPath(id); err != nil {
+			t.Errorf("expected seeded file for %s: %v", id, err)
+		}
+	}
+
+	// Uploads win: an existing file must never be overwritten.
+	custom := append(fakePNG, []byte("custom")...)
+	if err := os.WriteFile(filepath.Join(dataDir, "halloween", "hat_party.png"), custom, 0644); err != nil {
+		t.Fatal(err)
+	}
+	seeded, err = svc.SeedPlaceholders(catalog)
+	if err != nil {
+		t.Fatalf("re-seed failed: %v", err)
+	}
+	if seeded != 0 {
+		t.Errorf("re-seed = %d, want 0", seeded)
+	}
+	kept, _ := os.ReadFile(filepath.Join(dataDir, "halloween", "hat_party.png"))
+	if !bytes.Equal(kept, custom) {
+		t.Error("re-seed overwrote an existing file")
 	}
 }

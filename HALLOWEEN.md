@@ -128,10 +128,10 @@ When slug reaches a pumkin, it deals damage every 3 seconds until slug or pumkin
 
 | Slug | Speed | Health | Damage to pumkin | Reward points | Kill reward (coins/seeds) | XP reward |
 |-|-|-|-|-|-|-|
-| Scout | 50 units/s | 10 | 2 | 10 | 5 | 2 |
-| Marvin | 50 units/s | 20 | 5 | 20 | 10 | 3 |
-| Gerald | 30 units/s | 100 | 20 | 50 | 30 | 3 |
-| Dr. Dell Conagher | 0 units/s | 10 | 0 | 100 | 50 | 5 |
+| Scout | 50 units/s | 10 | 2 | 10 | 2 | 2 |
+| Marvin | 50 units/s | 20 | 5 | 20 | 5 | 3 |
+| Gerald | 30 units/s | 100 | 20 | 50 | 15 | 3 |
+| Dr. Dell Conagher | 0 units/s | 10 | 0 | 100 | 25 | 5 |
 
 Reward per slug also depends on position. Battlefield - 1000 units
 - 700+ units - 100% reward
@@ -412,7 +412,7 @@ We already have pixi js integrated into our app. And there is some stuff to rend
 
 ## Assets
 
-Currently, there are not assets - no sfx, no background images, no pumkins or slugs. Use placeholders from frontend/public/assets/hw26
+Currently, there are not assets - no sfx, no background images, no pumkins or slugs. Use placeholders from frontend/public/assets/hw26. Player pumpkin decorations (bases, hats, eyes, smiles, feet) are backend-owned: bundled placeholders live in backend/assets/user-pumpkins, uploads in &lt;dataDir&gt;/halloween, all served via GET /api/halloween/assets/{id} and composed per base in the Halloween assets admin tab.
 
 Pretty much all events should have sound effects such as:
 - pumkin destruction

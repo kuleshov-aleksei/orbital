@@ -10,6 +10,7 @@ import { onMounted, onUnmounted, watch, useTemplateRef } from "vue"
 import { Application, Container } from "pixi.js"
 import type { EquippedCustomization } from "@/halloween/types"
 import { createPumpkinSprite } from "@/halloween/pumpkinRenderer"
+import { useHalloweenStore } from "@/stores"
 
 const props = withDefaults(
   defineProps<{
@@ -22,10 +23,19 @@ const props = withDefaults(
   },
 )
 
+const halloweenStore = useHalloweenStore()
+
 const containerEl = useTemplateRef<HTMLElement>("containerEl")
 let app: Application | null = null
 let pumpkin: Awaited<ReturnType<typeof createPumpkinSprite>> | null = null
 let layer: Container | null = null
+
+// Composition inputs come from the backend catalog: per-base socket anchors
+// plus per-item art URLs and z-order.
+const renderOpts = () => ({
+  layouts: halloweenStore.baseLayouts,
+  catalog: halloweenStore.catalog,
+})
 
 const init = async () => {
   if (!containerEl.value || app) return
@@ -47,16 +57,16 @@ const init = async () => {
   pumpkin = await createPumpkinSprite(props.size)
   pumpkin.container.position.set(props.size / 2, props.size / 2)
   layer.addChild(pumpkin.container)
-  pumpkin.setEquipped(props.equipped)
+  pumpkin.setEquipped(props.equipped, renderOpts())
 }
 
-watch(
-  () => props.equipped,
-  (equipped) => {
-    pumpkin?.setEquipped(equipped)
-  },
-  { deep: true },
-)
+const refresh = () => {
+  pumpkin?.setEquipped(props.equipped, renderOpts())
+}
+
+watch(() => props.equipped, refresh, { deep: true })
+watch(() => halloweenStore.baseLayouts, refresh, { deep: true })
+watch(() => halloweenStore.catalog, refresh, { deep: true })
 
 onMounted(init)
 

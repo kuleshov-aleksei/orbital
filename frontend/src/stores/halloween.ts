@@ -3,6 +3,7 @@ import { computed, ref } from "vue"
 import { apiService } from "@/services/api"
 import { useUserStore } from "@/stores/user"
 import type {
+  BaseLayouts,
   EquippedCustomization,
   HalloweenGameConfig,
   HalloweenItem,
@@ -24,6 +25,7 @@ export const useHalloweenStore = defineStore("halloween", () => {
   // State
   const config = ref<HalloweenGameConfig | null>(null)
   const catalog = ref<HalloweenItem[]>([])
+  const baseLayouts = ref<BaseLayouts>({})
   const ownedItemIds = ref<string[]>([])
   const equipped = ref<EquippedCustomization>({})
   const others = ref<Record<string, EquippedCustomization>>({})
@@ -51,6 +53,7 @@ export const useHalloweenStore = defineStore("halloween", () => {
       equipped.value = parseEquipped(state.equipped_json)
       ownedItemIds.value = state.owned_items.map((o) => o.item_id)
       catalog.value = state.catalog
+      baseLayouts.value = state.base_layouts ?? {}
       loaded.value = true
     } catch (error) {
       console.warn("Failed to load halloween state:", error)
@@ -88,6 +91,7 @@ export const useHalloweenStore = defineStore("halloween", () => {
   function reset() {
     config.value = null
     catalog.value = []
+    baseLayouts.value = {}
     ownedItemIds.value = []
     equipped.value = {}
     others.value = {}
@@ -98,6 +102,7 @@ export const useHalloweenStore = defineStore("halloween", () => {
   return {
     config,
     catalog,
+    baseLayouts,
     ownedItemIds,
     equipped,
     others,

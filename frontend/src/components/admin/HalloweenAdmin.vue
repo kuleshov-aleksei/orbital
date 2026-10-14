@@ -313,7 +313,7 @@
               v-model="grantItemId"
               class="w-full bg-gray-900 border border-gray-700 rounded text-sm text-white px-3 py-2">
               <option value="" disabled>Select item...</option>
-              <option v-for="item in items" :key="item.id" :value="item.id">
+              <option v-for="item in grantableItems" :key="item.id" :value="item.id">
                 {{ item.name }} ({{ item.rarity }} · {{ item.socket }})
               </option>
             </select>
@@ -363,6 +363,9 @@ const games = ref<HalloweenAdminGame[]>([])
 const rewards = ref<HalloweenAdminReward[]>([])
 const items = ref<HalloweenItem[]>([])
 const loading = ref(false)
+
+// Soft-deleted catalog rows stay visible in the studio but can never be granted.
+const grantableItems = computed(() => items.value.filter((i) => !i.is_deleted))
 
 const sourceFilter = ref<"all" | HalloweenGameSource>("all")
 const modelFilter = ref<string>("all")

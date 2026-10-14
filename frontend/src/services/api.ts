@@ -22,6 +22,10 @@ import type {
   HalloweenAdminGame,
   HalloweenAdminReward,
   HalloweenItem,
+  HalloweenBaseSocket,
+  CreateHalloweenItemRequest,
+  UpdateHalloweenItemRequest,
+  UpsertBaseSocketsRequest,
 } from "@/halloween/types"
 import { isElectron, openExternal, oauthAuthenticate } from "./electron"
 
@@ -254,8 +258,10 @@ export async function apiRequest<T>(
   allowRetry = true,
 ): Promise<T> {
   try {
+    // Multipart uploads set their own Content-Type (with boundary).
+    const isMultipart = typeof FormData !== "undefined" && options.body instanceof FormData
     const headers: Record<string, string> = {
-      "Content-Type": "application/json",
+      ...(isMultipart ? {} : { "Content-Type": "application/json" }),
       ...(options.headers as Record<string, string>),
     }
 
@@ -482,6 +488,59 @@ export const apiService = {
         body: JSON.stringify({ user_id: userId, item_id: itemId }),
       },
     )
+  },
+
+  // Halloween catalog + socket-layout admin (super_admin only, snake_case).
+  async createHalloweenItem(payload: CreateHalloweenItemRequest): Promise<HalloweenItem> {
+    return apiRequest<HalloweenItem>("/admin/halloween/items", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    })
+  },
+
+  async updateHalloweenItem(
+    id: string,
+    payload: UpdateHalloweenItemRequest,
+  ): Promise<HalloweenItem> {
+    return apiRequest<HalloweenItem>(`/admin/halloween/items/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    })
+  },
+
+  async deleteHalloweenItem(id: string): Promise<{ status: string }> {
+    return apiRequest<{ status: string }>(`/admin/halloween/items/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    })
+  },
+
+  async restoreHalloweenItem(id: string): Promise<{ status: string }> {
+    return apiRequest<{ status: string }>(
+      `/admin/halloween/items/${encodeURIComponent(id)}/restore`,
+      { method: "POST" },
+    )
+  },
+
+  async uploadHalloweenItemAsset(id: string, file: File): Promise<HalloweenItem> {
+    const form = new FormData()
+    form.append("asset", file)
+    return apiRequest<HalloweenItem>(`/admin/halloween/items/${encodeURIComponent(id)}/asset`, {
+      method: "POST",
+      body: form,
+    })
+  },
+
+  async getHalloweenBaseLayouts(baseId: string): Promise<HalloweenBaseSocket[]> {
+    return apiRequest<HalloweenBaseSocket[]>(
+      `/admin/halloween/layouts?base_id=${encodeURIComponent(baseId)}`,
+    )
+  },
+
+  async saveHalloweenBaseLayouts(payload: UpsertBaseSocketsRequest): Promise<{ status: string }> {
+    return apiRequest<{ status: string }>("/admin/halloween/layouts", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    })
   },
 
   // Auth API calls
