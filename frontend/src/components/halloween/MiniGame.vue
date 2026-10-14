@@ -188,10 +188,12 @@
               @focus="hoveredShopType = item.type"
               @blur="hoveredShopType = null"
               @click="buy(item.type)">
-              <span class="text-xl leading-none text-orange-400">{{
-                PUMPKIN_ICONS[item.type] ?? "P"
-              }}</span>
-              <span class="text-[10px] mt-1 text-theme-text-muted font-semibold"
+              <img
+                :src="ITEM_ART[item.type] ?? `/assets/hw26/items/${item.type}.png`"
+                :alt="item.type"
+                class="w-9 h-9 object-contain"
+                draggable="false" />
+              <span class="text-[10px] mt-0.5 text-theme-text-muted font-semibold"
                 >{{ item.cost }} 🌰</span
               >
             </button>
@@ -231,7 +233,10 @@
         </div>
 
         <!-- Inventory -->
-        <div class="flex items-center gap-2" data-testid="game-inventory">
+        <div
+          class="flex items-center gap-2"
+          data-testid="game-inventory"
+          @pointerleave="onInventoryPointerLeave">
           <button
             v-for="(item, index) in inventorySlots"
             :key="index"
@@ -251,19 +256,34 @@
             :data-testid="`inventory-slot-${index}`"
             :title="item ? itemLabel(item) : 'Empty slot'"
             :disabled="!item"
-            @click="item && selectItem(index)">
+            @click="item && selectItem(index)"
+            @pointerenter="(e: PointerEvent) => item && onInventoryPointerEnter(e, index)"
+            @pointermove="onInventoryPointerMove"
+            @focus="item && (hoveredInventoryIndex = index)"
+            @blur="hoveredInventoryIndex = null">
             <template v-if="item">
               <img
                 :src="itemArtFor(item)"
                 class="w-9 h-9 object-contain"
                 alt=""
                 draggable="false" />
-              <span class="text-[10px] mt-1 text-theme-text-muted font-semibold">{{
-                itemLabel(item)
-              }}</span>
             </template>
             <span v-else class="text-theme-text-muted/40">—</span>
           </button>
+          <!-- Inventory hover card — full-bleed card face for the hovered
+               slot (abilities and pumpkins alike), follows the cursor -->
+          <div
+            v-if="inventoryHover"
+            class="fixed z-50 w-64 rounded-xl overflow-hidden shadow-2xl pointer-events-none"
+            :style="inventoryTooltipStyle"
+            data-testid="inventory-tooltip"
+            role="tooltip">
+            <img
+              :src="inventoryHover.art"
+              :alt="inventoryHover.label"
+              class="w-full aspect-[424/632] object-cover"
+              draggable="false" />
+          </div>
         </div>
       </div>
 
@@ -382,7 +402,7 @@ import type { HalloweenRarity, SubmitGameReportResponse } from "@/halloween/type
 import { HalloweenGameEngine } from "@/halloween/game/engine"
 import { createMiniGameRenderer } from "@/halloween/game/renderer"
 import { preloadHalloweenAssets, type HalloweenAssets } from "@/halloween/game/assets"
-import { cardArtFor, itemArtFor } from "@/halloween/game/assets"
+import { cardArtFor, itemArtFor, CARD_ART, HW26_CARD_BASE, ITEM_ART } from "@/halloween/game/assets"
 import {
   ABILITY_META,
   MAX_PUMPKIN_LEVEL,
@@ -655,15 +675,6 @@ const inventorySlots = computed<Array<GameInventoryItem | null>>(() => {
   return Array.from({ length: INVENTORY_SLOTS }, (_, i) => items[i] ?? null)
 })
 
-const PUMPKIN_ICONS: Record<string, string> = {
-  ferdinand: "F",
-  chunky: "C",
-  herbert: "H",
-  gwynevere: "G",
-  cramer: "🌰",
-  pearcer: "P",
-}
-
 function itemLabel(item: GameInventoryItem): string {
   if (item.kind === "pumpkin") return item.pumpkinType
   return cardLabel(item.abilityId)
@@ -700,8 +711,58 @@ function tiltStyle(index: number): Record<string, string> {
 }
 
 function selectItem(index: number) {
+  hoveredInventoryIndex.value = null
+  inventoryTooltipPos.value = null
   engine?.selectInventoryItem(index)
 }
+
+// Inventory hover card — icon-only slots reveal the full-bleed card face
+// (abilities and pumpkins alike) on hover. Same pointer-following pattern
+// as the shop tooltip.
+const hoveredInventoryIndex = ref<number | null>(null)
+const inventoryTooltipPos = ref<{ x: number; y: number } | null>(null)
+
+function onInventoryPointerEnter(e: PointerEvent, index: number) {
+  hoveredInventoryIndex.value = index
+  inventoryTooltipPos.value = { x: e.clientX, y: e.clientY }
+}
+
+function onInventoryPointerMove(e: PointerEvent) {
+  if (hoveredInventoryIndex.value !== null)
+    inventoryTooltipPos.value = { x: e.clientX, y: e.clientY }
+}
+
+function onInventoryPointerLeave() {
+  hoveredInventoryIndex.value = null
+  inventoryTooltipPos.value = null
+}
+
+const inventoryHover = computed<{ label: string; art: string } | null>(() => {
+  const index = hoveredInventoryIndex.value
+  const item = index === null ? null : (inventorySlots.value[index] ?? null)
+  if (!item) return null
+  const key = item.kind === "pumpkin" ? item.pumpkinType : item.abilityId
+  return { label: itemLabel(item), art: CARD_ART[key] ?? `${HW26_CARD_BASE}/${key}.png` }
+})
+
+// Pointer-following position for the inventory card: floats just above-right
+// of the cursor, clamped to the viewport so it never clips off-screen.
+const inventoryTooltipStyle = computed(() => {
+  const pos = inventoryTooltipPos.value
+  if (!pos) return {}
+  const tooltipWidth = 256 // w-64
+  const offsetX = 16
+  const offsetY = 12
+  const padding = 8
+  const maxX = window.innerWidth - tooltipWidth - padding
+  const left = Math.max(padding, Math.min(pos.x + offsetX, maxX))
+  // Shown above the cursor so it doesn't cover the inventory slot.
+  return {
+    left: `${left}px`,
+    top: `${Math.max(padding, pos.y - offsetY)}px`,
+    transform: "translateY(-100%)",
+  }
+})
 
 const shopItems = computed(() => {
   const cfg = halloweenStore.config

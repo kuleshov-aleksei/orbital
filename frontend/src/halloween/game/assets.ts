@@ -25,9 +25,10 @@ export const HALLOWEEN_ATLASES: AtlasManifestEntry[] = [
 ]
 
 // Card + item art (hw26 drop). Files are canonical snake_case ids:
-// cards/<abilityId|pearcer>.png (424x632, downsized from 848x1264 for preload
-// weight) and items/<abilityId|pearcer|seed|healing_seed|missile>.png (256x256).
-// Shop pumpkin portraits arrive in a later drop — the shop keeps its letters.
+// cards/<abilityId|pumpkinType>.png (424x632 full-bleed faces; pumpkins are
+// ~1.5MB so they prefetch non-blocking) and items/<abilityId|pumpkinType|
+// seed|healing_seed|missile>.png (256x256 icons; pumpkin portraits are the
+// first idle frame cropped from each atlas spritesheet).
 export const HW26_CARD_BASE = "/assets/hw26/cards"
 export const HW26_ITEM_BASE = "/assets/hw26/items"
 
@@ -44,6 +45,11 @@ export const CARD_ART: Record<string, string> = {
   seed_rain: `${HW26_CARD_BASE}/seed_rain.png`,
   thorn_patch: `${HW26_CARD_BASE}/thorn_patch.png`,
   pearcer: `${HW26_CARD_BASE}/pearcer.png`,
+  ferdinand: `${HW26_CARD_BASE}/ferdinand.png`,
+  chunky: `${HW26_CARD_BASE}/chunky.png`,
+  herbert: `${HW26_CARD_BASE}/herbert.png`,
+  gwynevere: `${HW26_CARD_BASE}/gwynevere.png`,
+  cramer: `${HW26_CARD_BASE}/cramer.png`,
 }
 
 export const ITEM_ART: Record<string, string> = {
@@ -59,6 +65,12 @@ export const ITEM_ART: Record<string, string> = {
   seed_rain: `${HW26_ITEM_BASE}/seed_rain.png`,
   thorn_patch: `${HW26_ITEM_BASE}/thorn_patch.png`,
   pearcer: `${HW26_ITEM_BASE}/pearcer.png`,
+  // Pumpkin portraits: first idle frame cropped from each atlas spritesheet.
+  ferdinand: `${HW26_ITEM_BASE}/ferdinand.png`,
+  chunky: `${HW26_ITEM_BASE}/chunky.png`,
+  herbert: `${HW26_ITEM_BASE}/herbert.png`,
+  gwynevere: `${HW26_ITEM_BASE}/gwynevere.png`,
+  cramer: `${HW26_ITEM_BASE}/cramer.png`,
 }
 
 export const PROJECTILE_ART: Record<ProjectileKind, string> = {
