@@ -335,8 +335,25 @@
           </div>
           <div class="mt-4 text-sm text-theme-text-secondary">
             <template v-if="result">
-              <template v-if="(result.granted ?? []).length > 0">
-                Earned: {{ (result.granted ?? []).join(", ") }}
+              <template v-if="grantedItems.length > 0">
+                <div class="text-xs text-theme-text-muted mb-2">Earned:</div>
+                <div class="flex flex-wrap justify-center gap-3">
+                  <div
+                    v-for="item in grantedItems"
+                    :key="item.id"
+                    class="flex w-20 flex-col items-center gap-1"
+                    :title="item.name">
+                    <img
+                      :src="item.art"
+                      :alt="item.name"
+                      class="h-14 w-14 rounded-lg border-2 object-contain bg-black/30"
+                      :class="item.border"
+                      @error="hideBrokenRewardArt" />
+                    <span class="text-xs leading-tight text-theme-text-primary">{{
+                      item.name
+                    }}</span>
+                  </div>
+                </div>
               </template>
               <template v-else>{{ result.message }}</template>
             </template>
@@ -357,10 +374,11 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, shallowRef, useTemplateRef, watch } from "vue"
-import { apiService, getAuthToken, BACKEND_BASE } from "@/services/api"
+import { apiService, getAuthToken, BACKEND_BASE, resolveUrl } from "@/services/api"
 import { useSounds } from "@/services/sounds"
 import { useHalloweenStore } from "@/stores"
-import type { SubmitGameReportResponse } from "@/halloween/types"
+import { HALLOWEEN_RARITY_BORDER } from "@/halloween/assets"
+import type { HalloweenRarity, SubmitGameReportResponse } from "@/halloween/types"
 import { HalloweenGameEngine } from "@/halloween/game/engine"
 import { createMiniGameRenderer } from "@/halloween/game/renderer"
 import { preloadHalloweenAssets, type HalloweenAssets } from "@/halloween/game/assets"
@@ -612,6 +630,25 @@ function onFieldPointerLeave() {
 const isEnded = computed(() => hud.value?.phase === "gameover" || hud.value?.phase === "ended")
 const resultTitle = computed(() => (hud.value?.phase === "gameover" ? "Game Over" : "Battle Ended"))
 
+// Rewarded items resolved against the catalog for the result preview:
+// display name, art URL (per-id backend URL fallback), and rarity outline.
+const grantedItems = computed(() =>
+  (result.value?.granted ?? []).map((id) => {
+    const found = halloweenStore.catalog.find((i) => i.id === id)
+    return {
+      id,
+      name: found?.name ?? id,
+      art: resolveUrl(found?.asset_path || `/api/halloween/assets/${id}`),
+      border: found
+        ? (HALLOWEEN_RARITY_BORDER[found.rarity as HalloweenRarity] ?? "border-theme-border")
+        : "border-theme-border",
+    }
+  }),
+)
+
+const hideBrokenRewardArt = (e: Event) => {
+  ;(e.target as HTMLImageElement).style.display = "none"
+}
 const INVENTORY_SLOTS = 6
 const inventorySlots = computed<Array<GameInventoryItem | null>>(() => {
   const items = hud.value?.inventory ?? []
@@ -773,6 +810,8 @@ async function submitReport(isIncomplete: boolean) {
   const report = engine.buildReport(isIncomplete)
   try {
     result.value = await apiService.submitHalloweenGame(report)
+    // New unlocks must show as owned in the customization tab right away.
+    void halloweenStore.fetchState()
   } catch (error) {
     result.value = {
       game_id: 0,
