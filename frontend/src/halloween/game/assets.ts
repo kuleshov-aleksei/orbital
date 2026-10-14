@@ -110,7 +110,18 @@ export function itemArtForPumpkin(pumpkinType: PumpkinType | string): string {
 export const HW26_EFFECT_BASE = "/assets/hw26/effects"
 export const SHIELD_URL = `${HW26_EFFECT_BASE}/shield.png`
 export const SHIELD_SPARK_URL = `${HW26_EFFECT_BASE}/shield-spark.png`
-export const HALLOWEEN_EFFECT_SPRITES: string[] = [SHIELD_URL, SHIELD_SPARK_URL]
+// Field ability art (hw26 effects drop): ground decals drawn under engine
+// zones. Salt stays procedural (white noise) — no asset.
+export const BEER_PUDDLE_URL = `${HW26_EFFECT_BASE}/beer_puddle.png`
+export const THORN_PATCH_URL = `${HW26_EFFECT_BASE}/thorn_patch.png`
+export const DISTRACTION_SWIRL_URL = `${HW26_EFFECT_BASE}/distraction_swirl.png`
+export const HALLOWEEN_EFFECT_SPRITES: string[] = [
+  SHIELD_URL,
+  SHIELD_SPARK_URL,
+  BEER_PUDDLE_URL,
+  THORN_PATCH_URL,
+  DISTRACTION_SWIRL_URL,
+]
 
 // Every item/projectile texture the field renderer draws as a Pixi sprite.
 // Small (~1.5MB total) — preloaded blocking before the game starts.

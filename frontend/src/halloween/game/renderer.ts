@@ -11,11 +11,14 @@ import {
 import type { GameEvent, HalloweenGameEngine } from "./engine"
 import type { HalloweenAssets } from "./assets"
 import {
+  BEER_PUDDLE_URL,
+  DISTRACTION_SWIRL_URL,
   HALLOWEEN_BACKGROUND_URL,
   ITEM_ART,
   PROJECTILE_ART,
   SHIELD_SPARK_URL,
   SHIELD_URL,
+  THORN_PATCH_URL,
 } from "./assets"
 import type { LoadedAtlas } from "./atlas"
 import { FIELD_HEIGHT, FIELD_LAYOUT, columnForX, columnX, laneCenterY, laneForY } from "./engine"
@@ -63,6 +66,10 @@ interface SlugDisplay {
   shield: Container
   shieldCount?: number
   shieldDiameter?: number
+  // Distraction swirl (hw26 effects art) over hypnotized slugs. The sprite is
+  // cached on first show; rotation advances every frame while visible.
+  distraction: Container
+  swirl?: Sprite | null
   // Animated slugs (atlas-backed) mirror the pumpkin state machine, except
   // the locomotion loop is per-type: crawlers loop `crawl`, Dell loops `idle`
   // (he doesn't move — `motion` is ignored). One-shots return to `base`.
@@ -95,7 +102,10 @@ const PROJECTILE_SPRITE_HEIGHT: Record<ProjectileKind, number> = {
   missile: 30,
 }
 const GRENADE_SPRITE_SIZE = 40
-const BEER_CUP_SPRITE_SIZE = 44
+// Distraction swirl over a hypnotized slug reads slightly larger than the body.
+const DISTRACTION_SWIRL_SCALE = 1.6
+// Salt specks per line — deterministic white noise (see drawSaltNoise).
+const SALT_SPECKS = 180
 // Shield bubble diameter = (visualR + SHIELD_PAD) * 2; sparks sit on the rim.
 // Renderer caps spark sprites at 6 — game logic never exceeds it either.
 const SHIELD_PAD = 5
@@ -315,9 +325,9 @@ export function createMiniGameRenderer(
     }
   }
 
-  // Vertical ground strip (salt lines, thorn patches) tiled from the item
-  // art. Square tiles keep the 256px source undistorted; a thin vector edge
-  // underneath preserves the gameplay read.
+  // Vertical ground strip (thorn patches) tiled from the effect art. Square
+  // tiles keep the 256px source undistorted; a thin vector edge underneath
+  // preserves the gameplay read.
   const stripSpriteFor = (url: string, width: number, alpha: number): TilingSprite | null => {
     try {
       const texture = Assets.get<Texture>(url)
@@ -329,6 +339,29 @@ export function createMiniGameRenderer(
       return tile
     } catch {
       return null
+    }
+  }
+
+  // Deterministic 0..1 hash — stable per (seed, index) so the salt noise
+  // doesn't flicker between frames (sync() rebuilds the layer every frame).
+  const hash01 = (n: number): number => {
+    const h = Math.sin(n) * 43758.5453
+    return h - Math.floor(h)
+  }
+
+  // Salt has no asset: a faint base strip plus deterministic white-noise
+  // specks scattered across the band. Seeded by line id — stable while the
+  // line lives, varied between lines.
+  const drawSaltNoise = (fx: Graphics, x: number, width: number, seed: number) => {
+    fx.rect(x - width / 2, 0, width, FIELD_HEIGHT)
+    fx.fill({ color: 0xe2e8f0, alpha: 0.1 })
+    for (let i = 0; i < SALT_SPECKS; i++) {
+      const px = x - width / 2 + hash01(seed * 7919 + i * 2) * width
+      const py = hash01(seed * 104729 + i * 2 + 1) * FIELD_HEIGHT
+      const r = 0.8 + hash01(seed * 31 + i) * 1.4
+      const alpha = 0.3 + hash01(seed * 57 + i * 3) * 0.55
+      fx.circle(px, py, r)
+      fx.fill({ color: 0xffffff, alpha })
     }
   }
 
@@ -485,12 +518,18 @@ export function createMiniGameRenderer(
     // Shield art draws over the slug body (translucent bubble + rim sparks).
     const shield = new Container()
     container.addChild(shield)
+    // Distraction swirl over hypnotized slugs — hidden unless distractionFor > 0.
+    const distraction = new Container()
+    distraction.visible = false
+    container.addChild(distraction)
     world?.addChild(container)
     const display: SlugDisplay = {
       container,
       sprite: body,
       bar,
       shield,
+      distraction,
+      swirl: null,
       kind: type,
       animated,
       anim,
@@ -697,12 +736,13 @@ export function createMiniGameRenderer(
     for (const cup of engine.beerCups) {
       const fx = new Graphics()
       fx.circle(cup.x, cup.y, cup.radius)
-      fx.fill({ color: 0xfbbf24, alpha: 0.12 })
+      fx.fill({ color: 0xfbbf24, alpha: 0.1 })
       effectLayer?.addChild(fx)
-      const mug = itemSpriteFor(ITEM_ART.beer, BEER_CUP_SPRITE_SIZE)
-      if (mug) {
-        mug.position.set(cup.x, cup.y)
-        effectLayer?.addChild(mug)
+      const puddle = itemSpriteFor(BEER_PUDDLE_URL, cup.radius * 2)
+      if (puddle) {
+        puddle.position.set(cup.x, cup.y)
+        puddle.alpha = 0.95
+        effectLayer?.addChild(puddle)
       } else {
         const dot = new Graphics()
         dot.circle(cup.x, cup.y, 10)
@@ -712,23 +752,15 @@ export function createMiniGameRenderer(
     }
     for (const line of engine.saltLines) {
       const fx = new Graphics()
-      fx.rect(line.x - line.width / 2, 0, line.width, FIELD_HEIGHT)
-      fx.fill({ color: 0xe2e8f0, alpha: 0.18 })
+      drawSaltNoise(fx, line.x, line.width, line.id)
       effectLayer?.addChild(fx)
-      const strip = stripSpriteFor(ITEM_ART.salt_line, line.width, 0.85)
-      if (strip) {
-        const holder = new Container()
-        holder.position.set(line.x, 0)
-        holder.addChild(strip)
-        effectLayer?.addChild(holder)
-      }
     }
     for (const patch of engine.thornPatches) {
       const fx = new Graphics()
       fx.rect(patch.x - patch.width / 2, 0, patch.width, FIELD_HEIGHT)
       fx.fill({ color: 0x4d7c0f, alpha: 0.18 })
       effectLayer?.addChild(fx)
-      const strip = stripSpriteFor(ITEM_ART.thorn_patch, patch.width, 0.9)
+      const strip = stripSpriteFor(THORN_PATCH_URL, patch.width, 0.9)
       if (strip) {
         const holder = new Container()
         holder.position.set(patch.x, 0)
@@ -846,6 +878,22 @@ export function createMiniGameRenderer(
         display.shield.visible = true
         display.shieldCount = wantShields
         display.shieldDiameter = shieldDiameter
+      }
+      // Distraction swirl (hw26 effects art) while the slug crawls backwards.
+      // Sprite cached on first show; spins every frame while hypnotized.
+      if (s.distractionFor > 0) {
+        if (!display.swirl) {
+          const swirl = itemSpriteFor(DISTRACTION_SWIRL_URL, visualR * 2 * DISTRACTION_SWIRL_SCALE)
+          if (swirl) {
+            swirl.alpha = 0.85
+            display.distraction.addChild(swirl)
+            display.swirl = swirl
+          }
+        }
+        display.distraction.visible = !!display.swirl
+        if (display.swirl) display.swirl.rotation = (performance.now() / 600) % (Math.PI * 2)
+      } else {
+        display.distraction.visible = false
       }
     }
 
