@@ -140,6 +140,9 @@ export const OVERRIDE_INCOMING_WITH_DEFAULT_KEY = "orbital_override_incoming_wit
 /** Local storage key for sound volume */
 export const SOUND_VOLUME_KEY = "orbital_sound_volume"
 
+/** Local storage key for halloween minigame SFX volume (independent from UI sounds) */
+export const HALLOWEEN_GAME_VOLUME_KEY = "orbital_halloween_game_volume"
+
 /** List of available algorithms with metadata */
 export const availableAlgorithms: AudioAlgorithmInfo[] = [
   {

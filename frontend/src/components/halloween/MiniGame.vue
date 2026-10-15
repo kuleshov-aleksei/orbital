@@ -26,13 +26,9 @@
       <!-- Header -->
       <div class="flex items-center justify-between px-5 py-3 border-b border-theme-border">
         <div class="flex items-center gap-4 text-sm">
-          <span class="font-bold text-theme-text-primary">Mini Game</span>
+          <span class="font-bold text-theme-text-primary">Pumpkination</span>
           <span class="text-theme-text-secondary">Round {{ hud?.round ?? 1 }}</span>
           <span class="text-theme-text-secondary">Score: {{ hud?.score ?? 0 }}</span>
-          <span class="text-theme-text-secondary"
-            >Pumpkins: {{ engine?.alivePumpkinCount() ?? 0 }}</span
-          >
-          <span class="text-theme-text-secondary">Slugs: {{ engine?.aliveSlugCount() ?? 0 }}</span>
           <span class="flex items-center gap-1 text-theme-text-secondary">
             <span aria-hidden="true">🌰</span>
             {{ hud?.coins ?? 0 }}
@@ -45,6 +41,24 @@
           </span>
         </div>
         <div class="flex items-center gap-2">
+          <!-- Game SFX volume (independent from UI/voice volume) -->
+          <div
+            class="flex items-center gap-1.5 rounded-lg bg-theme-bg-secondary border border-theme-border px-2 h-8"
+            data-testid="game-volume-controls"
+            title="Game sound volume">
+            <component :is="gameVolumeIcon" class="w-4 h-4 text-theme-text-secondary shrink-0" />
+            <input
+              v-model.number="gameVolume"
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              class="w-20 accent-orange-500 cursor-pointer"
+              data-testid="game-volume"
+              aria-label="Game sound volume" />
+          </div>
+          <MicMuteButton v-model="callStore.isMuted" size="sm" />
+          <AudioDeafenButton v-model="callStore.isDeafened" size="sm" />
           <div
             class="flex items-center gap-1 rounded-lg bg-theme-bg-secondary border border-theme-border p-0.5"
             data-testid="speed-controls">
@@ -394,9 +408,17 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, shallowRef, useTemplateRef, watch } from "vue"
+import { PhSpeakerHigh, PhSpeakerLow, PhSpeakerX } from "@phosphor-icons/vue"
 import { apiService, getAuthToken, BACKEND_BASE, resolveUrl } from "@/services/api"
-import { preloadHalloweenGameSounds, useHalloweenGameSounds } from "@/services/halloweenGameSounds"
-import { useHalloweenStore } from "@/stores"
+import {
+  getHalloweenGameVolume,
+  preloadHalloweenGameSounds,
+  setHalloweenGameVolume,
+  useHalloweenGameSounds,
+} from "@/services/halloweenGameSounds"
+import { useCallStore, useHalloweenStore } from "@/stores"
+import MicMuteButton from "@/components/MicMuteButton.vue"
+import AudioDeafenButton from "@/components/AudioDeafenButton.vue"
 import { HALLOWEEN_RARITY_BORDER } from "@/halloween/assets"
 import type { HalloweenRarity, SubmitGameReportResponse } from "@/halloween/types"
 import { HalloweenGameEngine } from "@/halloween/game/engine"
@@ -421,7 +443,17 @@ defineEmits<{
 }>()
 
 const halloweenStore = useHalloweenStore()
+const callStore = useCallStore()
 const gameSounds = useHalloweenGameSounds()
+
+// Independent game SFX volume (persisted in halloweenGameSounds service).
+const gameVolume = ref(getHalloweenGameVolume())
+const gameVolumeIcon = computed(() => {
+  if (gameVolume.value <= 0) return PhSpeakerX
+  if (gameVolume.value < 0.5) return PhSpeakerLow
+  return PhSpeakerHigh
+})
+watch(gameVolume, (volume) => setHalloweenGameVolume(volume))
 
 const canvasEl = useTemplateRef<HTMLElement>("canvasEl")
 let engine: HalloweenGameEngine | null = null
@@ -932,6 +964,9 @@ const onBeforeUnload = () => submitIncompleteBeacon()
 
 onMounted(async () => {
   preloadHalloweenGameSounds()
+  // Re-apply the stored slider value in case the Howl was created earlier
+  // in the session (e.g. a previous game) with a stale volume.
+  setHalloweenGameVolume(gameVolume.value)
   const config = halloweenStore.config
   if (!config) {
     hud.value = {

@@ -1,5 +1,6 @@
 import { Howl } from "howler"
 import type { SoundPackSprite } from "@/types/audio"
+import { HALLOWEEN_GAME_VOLUME_KEY } from "@/types/audio"
 import { halloweenGameSprites } from "@/services/sprites/halloween_game"
 import { resolveUrl } from "@/services/api"
 import { isElectron } from "@/services/electron"
@@ -34,7 +35,23 @@ let gameHowl: ReturnType<typeof Howl> | null = null
 const gameVoices = new Set<number>()
 const lastPlayAt = new Map<string, number>()
 const pendingLoadPlays = new Set<string>()
-let gameVolume = 0.7
+
+const DEFAULT_GAME_VOLUME = 0.7
+
+function loadStoredGameVolume(): number {
+  try {
+    const stored = localStorage.getItem(HALLOWEEN_GAME_VOLUME_KEY)
+    if (stored != null) {
+      const parsed = parseFloat(stored)
+      if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) return parsed
+    }
+  } catch {
+    // Private mode etc. — fall through to the default.
+  }
+  return DEFAULT_GAME_VOLUME
+}
+
+let gameVolume = loadStoredGameVolume()
 
 function getGameSpriteUrls(): string[] {
   const appendVersion = (url: string) => {
@@ -124,6 +141,15 @@ export function playHalloweenGameSound(event: HalloweenGameSoundEvent): void {
 export function setHalloweenGameVolume(volume: number): void {
   gameVolume = volume
   gameHowl?.volume(volume)
+  try {
+    localStorage.setItem(HALLOWEEN_GAME_VOLUME_KEY, volume.toString())
+  } catch {
+    // Private mode etc. — volume still applies to the live Howl.
+  }
+}
+
+export function getHalloweenGameVolume(): number {
+  return gameVolume
 }
 
 export function preloadHalloweenGameSounds(): void {
