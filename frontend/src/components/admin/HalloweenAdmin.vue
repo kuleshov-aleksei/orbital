@@ -112,7 +112,7 @@
       </div>
 
       <div v-else class="divide-y divide-gray-700">
-        <div v-for="game in filteredGames" :key="game.id" class="p-4">
+        <div v-for="game in pagedGames" :key="game.id" class="p-4">
           <button
             type="button"
             class="w-full flex items-center justify-between gap-3 text-left"
@@ -233,6 +233,27 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Round-history pager — 20 games per page -->
+      <div
+        v-if="gamesPageCount > 1"
+        class="flex items-center justify-center gap-3 px-4 py-3 text-sm text-gray-400">
+        <button
+          type="button"
+          class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 disabled:cursor-default text-white rounded transition-colors"
+          :disabled="gamesPage <= 1"
+          @click="gamesPage--">
+          Prev
+        </button>
+        <span>Page {{ gamesPage }} of {{ gamesPageCount }}</span>
+        <button
+          type="button"
+          class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 disabled:cursor-default text-white rounded transition-colors"
+          :disabled="gamesPage >= gamesPageCount"
+          @click="gamesPage++">
+          Next
+        </button>
       </div>
     </div>
 
@@ -381,6 +402,19 @@ const filteredGames = computed(() => {
   })
 })
 
+// Round-history pager: 20 games per page. Charts and summary cards above
+// keep reading the full filtered list — only the row list is paginated.
+const GAMES_PAGE_SIZE = 20
+const gamesPage = ref(1)
+const gamesPageCount = computed(() =>
+  Math.max(1, Math.ceil(filteredGames.value.length / GAMES_PAGE_SIZE)),
+)
+const pagedGames = computed(() => {
+  const page = Math.min(gamesPage.value, gamesPageCount.value)
+  const start = (page - 1) * GAMES_PAGE_SIZE
+  return filteredGames.value.slice(start, start + GAMES_PAGE_SIZE)
+})
+
 // Distinct decider models present in the loaded games (systemone rows only).
 const availableModels = computed(() => {
   const models = new Set<string>()
@@ -391,9 +425,13 @@ const availableModels = computed(() => {
 })
 
 // A model selection only applies to systemone rows — drop it when the
-// source filter moves elsewhere.
+// source filter moves elsewhere. Any filter change resets to page 1.
 watch(sourceFilter, (source) => {
   if (source !== "all" && source !== "systemone") modelFilter.value = "all"
+  gamesPage.value = 1
+})
+watch(modelFilter, () => {
+  gamesPage.value = 1
 })
 
 const gameSource = (g: HalloweenAdminGame): HalloweenGameSource => g.source || "human"
@@ -447,6 +485,7 @@ const loadAll = async () => {
     games.value = g
     rewards.value = r
     items.value = i
+    gamesPage.value = 1
   } catch (error) {
     console.error("Failed to load halloween admin data:", error)
   } finally {
