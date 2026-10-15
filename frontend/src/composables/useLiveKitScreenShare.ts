@@ -167,6 +167,15 @@ export function useLiveKitScreenShare(state: LiveKitState) {
         maxFrameRate = 60
       }
 
+      // Degradation strategy per quality: adaptive holds fps (stable motion),
+      // text holds resolution (crisp documents/code), fullhd60 keeps SDK default.
+      const degradationPreference =
+        quality === "text"
+          ? ("maintain-resolution" as const)
+          : quality === "adaptive"
+            ? ("maintain-framerate" as const)
+            : undefined
+
       const platform = await getPlatform()
       const isLinux = platform === "linux"
 
@@ -270,6 +279,8 @@ export function useLiveKitScreenShare(state: LiveKitState) {
             maxBitrate: quality === "text" ? 3 * 1000 * 1000 : 20 * 1000 * 1000,
             maxFramerate: maxFrameRate,
           },
+          // Only set for adaptive/text — fullhd60 keeps previous behavior.
+          ...(degradationPreference ? { degradationPreference } : {}),
         },
       )
 
@@ -577,21 +588,27 @@ export function useLiveKitScreenShare(state: LiveKitState) {
 
         debugLog(`[LiveKit][INFO]: 'Screen sharing started (adaptive mode)'`)
       } else if (quality === "text") {
-        await state.room.value.localParticipant.setScreenShareEnabled(true, {
-          audio: {
-            sampleRate: { ideal: 48000 },
-            echoCancellation: false,
-            noiseSuppression: false,
+        await state.room.value.localParticipant.setScreenShareEnabled(
+          true,
+          {
+            audio: {
+              sampleRate: { ideal: 48000 },
+              echoCancellation: false,
+              noiseSuppression: false,
+            },
+            resolution: {
+              width: 1920,
+              height: 1080,
+              frameRate: 5,
+            },
+            contentHint: "text",
+            selfBrowserSurface: "exclude",
+            systemAudio: "include",
           },
-          resolution: {
-            width: 1920,
-            height: 1080,
-            frameRate: 5,
+          {
+            degradationPreference: "maintain-resolution",
           },
-          contentHint: "text",
-          selfBrowserSurface: "exclude",
-          systemAudio: "include",
-        })
+        )
 
         state.userScreenShareStates.value.set(state.getCurrentUserId(), {
           isSharing: true,
