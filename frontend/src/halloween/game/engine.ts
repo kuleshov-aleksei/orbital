@@ -952,7 +952,18 @@ export class HalloweenGameEngine {
       const variation = speedVariationForRound(this.round, this.config)
       const speedMul = 1 + (this.rng() * 2 - 1) * variation
       const lanes = this.activeLanes()
-      const lane = lanes[Math.floor(this.rng() * lanes.length)]
+      // Dells each open a marvin stream on their lane — two on one lane is
+      // unwinnable, so a new dell avoids lanes with a live dell. Falls back
+      // to any lane when all are occupied.
+      let pool = lanes
+      if (type === "dell") {
+        const occupied = new Set(
+          this.slugs.filter((s) => s.type === "dell" && s.health > 0).map((s) => s.lane),
+        )
+        const free = lanes.filter((l) => !occupied.has(l))
+        if (free.length > 0) pool = free
+      }
+      const lane = pool[Math.floor(this.rng() * pool.length)]
       // Shielded slugs roll 3-6 shields (config shield_min/max). Dell's
       // mid-round marvins arrive unshielded — even elites have standards.
       const min = this.config.shield_min ?? 0
