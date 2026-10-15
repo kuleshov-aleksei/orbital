@@ -126,6 +126,9 @@ export default defineConfig(({ command, mode }) => {
       // Build it as a self-contained CJS bundle (no ESM runtime chunks).
       coreElectron({
         entry: resolve(electronPath, "main/venmicWorker.ts"),
+        onstart() {
+          // no-op: only builds the venmic worker bundle; Electron is started by the main entry's onstart
+        },
         vite: {
           build: {
             sourcemap,

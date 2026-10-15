@@ -14,6 +14,7 @@ import { setupScreenShareHandler } from "./features/screenshare"
 import { registerAllHotkeys, closeHotkeyBackend } from "./features/hotkeys"
 import { setupIPC } from "./ipc"
 import { stopAudioCapture } from "./venmic"
+import { VITE_DEV_SERVER_URL } from "./paths"
 
 log.transports.file.level = "info"
 log.transports.console.level = "debug"
@@ -34,26 +35,28 @@ protocol.registerSchemesAsPrivileged([
 
 log.info("Orbital desktop starting...")
 
-const gotTheLock = app.requestSingleInstanceLock()
+if (!VITE_DEV_SERVER_URL) {
+  const gotTheLock = app.requestSingleInstanceLock()
 
-if (!gotTheLock) {
-  log.info("Another instance is running, quitting...")
-  app.quit()
-} else {
-  app.on("second-instance", (event, commandLine, workingDirectory) => {
-    log.info("Second instance detected, focusing main window")
-    const mainWindow = getMainWindow()
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore()
-      mainWindow.show()
-      mainWindow.focus()
-    }
-    const deepLink = commandLine.find((arg) => arg.startsWith("orbital://"))
-    if (deepLink) {
-      log.info("Deep link from second instance:", deepLink)
-      getMainWindow()?.webContents.send("deep-link", deepLink)
-    }
-  })
+  if (!gotTheLock) {
+    log.info("Another instance is running, quitting...")
+    app.quit()
+  } else {
+    app.on("second-instance", (event, commandLine, workingDirectory) => {
+      log.info("Second instance detected, focusing main window")
+      const mainWindow = getMainWindow()
+      if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore()
+        mainWindow.show()
+        mainWindow.focus()
+      }
+      const deepLink = commandLine.find((arg) => arg.startsWith("orbital://"))
+      if (deepLink) {
+        log.info("Deep link from second instance:", deepLink)
+        getMainWindow()?.webContents.send("deep-link", deepLink)
+      }
+    })
+  }
 }
 
 app.whenReady().then(() => {
