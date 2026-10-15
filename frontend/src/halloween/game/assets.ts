@@ -105,6 +105,14 @@ export function itemArtForPumpkin(pumpkinType: PumpkinType | string): string {
   return ITEM_ART[pumpkinType] ?? `${HW26_ITEM_BASE}/${pumpkinType}.png`
 }
 
+// Minigame UI chrome (hw26 items drop): coin + XP orb currency icons and the
+// transparent-center frame behind inventory slots. DOM <img> icons, not Pixi
+// textures — so they prefetch via plain Image, not the field-sprite loader.
+export const COIN_URL = `${HW26_ITEM_BASE}/coin.png`
+export const XP_ORB_URL = `${HW26_ITEM_BASE}/xp.png`
+export const INVENTORY_SLOT_URL = `${HW26_ITEM_BASE}/inventory_slot.png`
+export const HALLOWEEN_UI_URLS: string[] = [COIN_URL, XP_ORB_URL, INVENTORY_SLOT_URL]
+
 // Slug shield + charge sparks (hw26 effects drop). Translucent PNGs drawn over
 // slugs — one shield bubble per shielded slug, one spark per shield charge.
 export const HW26_EFFECT_BASE = "/assets/hw26/effects"
@@ -176,9 +184,9 @@ export async function preloadHalloweenAssets(
   } catch (error) {
     console.warn(`[halloween] field sprites failed to preload: ${(error as Error).message}`)
   }
-  // Card faces prefetch in the background (non-blocking — the game starts
-  // immediately; the popup reads from a warm cache when it opens).
-  for (const url of HALLOWEEN_CARD_URLS) {
+  // Card faces + UI chrome prefetch in the background (non-blocking — the
+  // game starts immediately; the popup reads from a warm cache when it opens).
+  for (const url of [...HALLOWEEN_CARD_URLS, ...HALLOWEEN_UI_URLS]) {
     const img = new Image()
     img.src = url
   }

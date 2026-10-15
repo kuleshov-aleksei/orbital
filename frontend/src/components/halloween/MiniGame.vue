@@ -30,13 +30,13 @@
           <span class="text-theme-text-secondary">Round {{ hud?.round ?? 1 }}</span>
           <span class="text-theme-text-secondary">Score: {{ hud?.score ?? 0 }}</span>
           <span class="flex items-center gap-1 text-theme-text-secondary">
-            <span aria-hidden="true">🌰</span>
+            <img :src="COIN_URL" class="w-4 h-4" alt="" aria-hidden="true" draggable="false" />
             {{ hud?.coins ?? 0 }}
           </span>
           <span
             class="flex items-center gap-1 text-theme-text-secondary"
             title="XP for leveling up pumpkins">
-            <span aria-hidden="true">✨</span>
+            <img :src="XP_ORB_URL" class="w-4 h-4" alt="" aria-hidden="true" draggable="false" />
             {{ hud?.xp ?? 0 }}
           </span>
         </div>
@@ -146,7 +146,13 @@
             :disabled="!hoverInfo.canLevelUp"
             data-testid="levelup-pumpkin"
             @click="levelUpPumpkin(hoverInfo.id)">
-            Level up ({{ hoverInfo.levelCost }} ✨)
+            Level up ({{ hoverInfo.levelCost }}
+            <img
+              :src="XP_ORB_URL"
+              class="inline-block w-3.5 h-3.5 align-[-2px]"
+              alt=""
+              aria-hidden="true"
+              draggable="false" />)
           </button>
           <div
             v-else-if="hud?.phase === 'playing'"
@@ -159,7 +165,13 @@
             class="mt-2.5 w-full py-1.5 rounded-lg text-xs font-bold bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-500/25 transition-colors"
             data-testid="sell-pumpkin"
             @click="sellPumpkin(hoverInfo.id)">
-            Sell for {{ hoverInfo.refund }} 🌰
+            Sell for {{ hoverInfo.refund }}
+            <img
+              :src="COIN_URL"
+              class="inline-block w-3.5 h-3.5 align-[-2px]"
+              alt=""
+              aria-hidden="true"
+              draggable="false" />
           </button>
         </div>
       </div>
@@ -181,7 +193,7 @@
           <span
             class="flex items-center gap-1 text-xs font-bold text-theme-text-primary"
             data-testid="seeds-counter">
-            <span aria-hidden="true">🌰</span>
+            <img :src="COIN_URL" class="w-4 h-4" alt="" aria-hidden="true" draggable="false" />
             {{ hud?.coins ?? 0 }} seeds
           </span>
           <div class="flex items-center gap-1.5">
@@ -208,8 +220,14 @@
                 class="w-9 h-9 object-contain"
                 draggable="false" />
               <span class="text-[10px] mt-0.5 text-theme-text-muted font-semibold"
-                >{{ item.cost }} 🌰</span
-              >
+                >{{ item.cost }}
+                <img
+                  :src="COIN_URL"
+                  class="inline-block w-3.5 h-3.5 align-[-2px]"
+                  alt=""
+                  aria-hidden="true"
+                  draggable="false"
+              /></span>
             </button>
           </div>
           <!-- Custom shop tooltip — same card style as the field pumpkin tooltip,
@@ -241,7 +259,13 @@
             </div>
             <div
               class="mt-2.5 w-full py-1.5 rounded-lg text-xs font-bold text-center bg-orange-500/15 text-orange-400 border border-orange-500/30">
-              {{ shopHoverInfo.cost }} 🌰
+              {{ shopHoverInfo.cost }}
+              <img
+                :src="COIN_URL"
+                class="inline-block w-3.5 h-3.5 align-[-2px]"
+                alt=""
+                aria-hidden="true"
+                draggable="false" />
             </div>
           </div>
         </div>
@@ -255,11 +279,9 @@
             v-for="(item, index) in inventorySlots"
             :key="index"
             type="button"
-            class="w-14 h-14 rounded-xl border flex flex-col items-center justify-center transition-colors"
+            class="relative w-14 h-14 rounded-xl flex items-center justify-center transition-all"
             :class="[
-              item
-                ? 'bg-theme-bg-secondary border-theme-border hover:bg-theme-bg-tertiary cursor-pointer'
-                : 'bg-theme-bg-primary border-theme-border/50 cursor-default',
+              item ? 'cursor-pointer hover:brightness-110' : 'cursor-default',
               hud?.mode === 'place-pumpkin' && hud?.selectedInventoryIndex === index
                 ? 'ring-2 ring-orange-500'
                 : '',
@@ -275,14 +297,19 @@
             @pointermove="onInventoryPointerMove"
             @focus="item && (hoveredInventoryIndex = index)"
             @blur="hoveredInventoryIndex = null">
+            <img
+              :src="INVENTORY_SLOT_URL"
+              class="absolute inset-0 h-full w-full object-contain pointer-events-none"
+              alt=""
+              aria-hidden="true"
+              draggable="false" />
             <template v-if="item">
               <img
                 :src="itemArtFor(item)"
-                class="w-9 h-9 object-contain"
+                class="relative w-8 h-8 object-contain"
                 alt=""
                 draggable="false" />
             </template>
-            <span v-else class="text-theme-text-muted/40">—</span>
           </button>
           <!-- Inventory hover card — full-bleed card face for the hovered
                slot (abilities and pumpkins alike), follows the cursor -->
@@ -425,6 +452,7 @@ import { HalloweenGameEngine } from "@/halloween/game/engine"
 import { createMiniGameRenderer } from "@/halloween/game/renderer"
 import { preloadHalloweenAssets, type HalloweenAssets } from "@/halloween/game/assets"
 import { cardArtFor, itemArtFor, CARD_ART, HW26_CARD_BASE, ITEM_ART } from "@/halloween/game/assets"
+import { COIN_URL, XP_ORB_URL, INVENTORY_SLOT_URL } from "@/halloween/game/assets"
 import {
   ABILITY_META,
   MAX_PUMPKIN_LEVEL,
