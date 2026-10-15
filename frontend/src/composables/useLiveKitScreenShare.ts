@@ -347,6 +347,7 @@ export function useLiveKitScreenShare(state: LiveKitState) {
               {
                 name: "screen-share-audio",
                 source: Track.Source.ScreenShareAudio,
+                audioPreset: AudioPresets.musicHighQualityStereo,
               },
             )
             state.localScreenAudioPublication.value = audioPublication
@@ -378,6 +379,7 @@ export function useLiveKitScreenShare(state: LiveKitState) {
             {
               name: "screen-share-audio",
               source: Track.Source.ScreenShareAudio,
+              audioPreset: AudioPresets.musicHighQualityStereo,
             },
           )
           state.localScreenAudioPublication.value = audioPublication
