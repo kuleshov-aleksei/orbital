@@ -269,6 +269,10 @@ export class HalloweenGameEngine {
 
   private spawnQueue: Array<{ type: SlugType; shielded: boolean }> = []
   private spawnTimer = 0
+  // Round 1 slugs only start spawning after the first pumpkin is placed —
+  // otherwise an idle player watches slugs silently escape and auto-advances
+  // rounds while checkGameOver (which needs a pumpkin on the field) never fires.
+  private spawningStarted = false
 
   private nextId = 1
   private reportSubmitted = false
@@ -287,7 +291,10 @@ export class HalloweenGameEngine {
     for (const pumpkinType of startingPumpkinsForConfig(config)) {
       this.inventory.push({ kind: "pumpkin", pumpkinType })
     }
-    this.startRound(1)
+    // No startRound(1) here: the spawn queue stays empty until the first
+    // pumpkin hits the field (see tryPlacePumpkinFromInventory). Field
+    // initializers already give the waiting state (round 1, empty queue,
+    // no prompt), and checkRoundEnd is gated on spawningStarted.
   }
 
   snapshot(): GameSnapshot {
@@ -593,6 +600,12 @@ export class HalloweenGameEngine {
     this.spawnPumpkin(item.pumpkinType, columnX(col), laneCenterY(lane))
     this.consumeInventoryItem(index)
     this.clearInteraction()
+    // First blood: only successful placements start the clock. Failed ones
+    // (occupied/locked cell) return above and leave the game waiting.
+    if (!this.spawningStarted) {
+      this.spawningStarted = true
+      this.startRound(1)
+    }
   }
 
   private pumpkinAtCell(col: number, lane: number): boolean {
@@ -1561,6 +1574,9 @@ export class HalloweenGameEngine {
   // ---- End conditions ----------------------------------------------------
 
   private checkRoundEnd() {
+    // Before the first placement the queue is legitimately empty — without
+    // this guard round 1 would instantly "complete" into the card phase.
+    if (!this.spawningStarted) return
     if (this.spawnQueue.length === 0 && this.slugs.length === 0) {
       this.completeRound()
     }
