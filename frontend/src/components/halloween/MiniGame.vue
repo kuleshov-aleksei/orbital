@@ -314,7 +314,7 @@
               :aria-label="card.kind === 'pumpkin' ? card.pumpkinType : cardLabel(card.abilityId)"
               @pointermove="(e: PointerEvent) => onCardTilt(e, i)"
               @pointerleave="() => clearCardTilt(i)"
-              @click="engine?.pickCard(i)">
+              @click="pickCard(i)">
               <img
                 :src="cardArtFor(card)"
                 alt=""
@@ -326,7 +326,7 @@
             type="button"
             class="mt-8 w-full shrink-0 py-2 rounded-lg text-sm text-theme-text-muted hover:text-theme-text-primary hover:bg-theme-bg-secondary transition-colors"
             data-testid="skip-cards"
-            @click="engine?.pickCard(-1)">
+            @click="pickCard(-1)">
             Skip
           </button>
         </div>
@@ -395,7 +395,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, shallowRef, useTemplateRef, watch } from "vue"
 import { apiService, getAuthToken, BACKEND_BASE, resolveUrl } from "@/services/api"
-import { useSounds } from "@/services/sounds"
+import { preloadHalloweenGameSounds, useHalloweenGameSounds } from "@/services/halloweenGameSounds"
 import { useHalloweenStore } from "@/stores"
 import { HALLOWEEN_RARITY_BORDER } from "@/halloween/assets"
 import type { HalloweenRarity, SubmitGameReportResponse } from "@/halloween/types"
@@ -421,7 +421,7 @@ defineEmits<{
 }>()
 
 const halloweenStore = useHalloweenStore()
-const sounds = useSounds()
+const gameSounds = useHalloweenGameSounds()
 
 const canvasEl = useTemplateRef<HTMLElement>("canvasEl")
 let engine: HalloweenGameEngine | null = null
@@ -848,15 +848,22 @@ const shopTooltipStyle = computed(() => {
 })
 
 function buy(type: PumpkinType) {
-  engine?.buyPumpkin(type)
+  if (engine?.buyPumpkin(type)) gameSounds.playPurchase()
 }
 
 function sellPumpkin(id: number) {
-  engine?.sellPumpkin(id)
+  if (engine?.sellPumpkin(id)) gameSounds.playSell()
 }
 
 function levelUpPumpkin(id: number) {
-  engine?.levelUpPumpkin(id)
+  if (engine?.levelUpPumpkin(id)) gameSounds.playPumpkinLeveled()
+}
+
+function pickCard(index: number) {
+  // pickCard is fire-and-forget in the engine; the overlay only shows during
+  // the cards phase, so any click here is a real pick/skip.
+  gameSounds.playCardPick()
+  engine?.pickCard(index)
 }
 
 // levelPips renders the level as filled/empty diamonds (◆◆◇).
@@ -924,6 +931,7 @@ const tick = (now: number) => {
 const onBeforeUnload = () => submitIncompleteBeacon()
 
 onMounted(async () => {
+  preloadHalloweenGameSounds()
   const config = halloweenStore.config
   if (!config) {
     hud.value = {
@@ -984,23 +992,33 @@ onMounted(async () => {
   engine.onEvent = (event) => {
     switch (event.type) {
       case "fire":
-        sounds.playShooting()
+        gameSounds.playShooting()
         break
       case "slug_destroyed":
-        sounds.playSlugDestroyed()
+        gameSounds.playSlugDestroyed()
         break
       case "pumpkin_destroyed":
-        sounds.playPumpkinDestroyed()
+        gameSounds.playPumpkinDestroyed()
         break
       case "item_used":
-        sounds.playItemUsed()
+        // Abilities with their own SFX get them; the rest share item_used.
+        if (event.abilityId === "freeze") gameSounds.playFreeze()
+        else if (event.abilityId === "seed_rain") gameSounds.playSeedRain()
+        else if (event.abilityId === "holy_grenade") gameSounds.playHolyGrenade()
+        else gameSounds.playItemUsed()
         break
       case "shield_break":
-        sounds.playShieldBreak()
+        gameSounds.playShieldBreak()
+        break
+      case "pumpkin_leveled":
+        gameSounds.playPumpkinLeveled()
+        break
+      case "pumpkin_placed":
+        gameSounds.playPumpkinPlaced()
         break
       // A retired Dell joining the march is bad news — crunch, not pop.
       case "dell_retired":
-        sounds.playPumpkinDestroyed()
+        gameSounds.playPumpkinDestroyed()
         break
       default:
         break

@@ -275,6 +275,9 @@ export function setGlobalVolume(volume: number): void {
   loadedSounds.forEach((sound) => {
     sound.volume(volume)
   })
+  // Game SFX run on a separate Howl (WITH the UI pack, not instead of it) —
+  // keep them on the same volume slider.
+  void import("./halloweenGameSounds").then((m) => m.setHalloweenGameVolume(volume))
 }
 
 export function getGlobalVolume(): number {
