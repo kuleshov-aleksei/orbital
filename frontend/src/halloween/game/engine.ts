@@ -590,7 +590,7 @@ export class HalloweenGameEngine {
     const lane = laneForY(y)
     const col = columnForX(x)
     if (!this.activeLanes().includes(lane)) {
-      this.prompt = "That lane opens in round 2 — pick a glowing lane"
+      this.prompt = "That lane opens in round 2"
       return
     }
     if (this.pumpkinAtCell(col, lane)) {

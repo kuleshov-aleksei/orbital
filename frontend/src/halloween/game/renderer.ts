@@ -120,7 +120,6 @@ export interface MiniGameRenderer {
   onGameEvent(event: GameEvent): void
   screenToWorld(clientX: number, clientY: number): { x: number; y: number } | null
   worldToScreen(x: number, y: number): { x: number; y: number }
-  toggleGrid(): void
 }
 
 // Animated pumpkin frames are 128px with ~101px of opaque content, so we scale
@@ -132,8 +131,6 @@ const DEATH_FADE_MS = 350
 // Slug frames are authored at a proper 128x128 — drawn 1:1 at a uniform size
 // for every type, no per-type radius scaling.
 const SLUG_SPRITE_SIZE = 86
-// Placement-grid overlay opacity over the background art.
-const GRID_OVERLAY_ALPHA = 1.0
 // Minimum breathing room after a finished hurt one-shot before hurt may
 // trigger again. Hits landing mid-hurt or inside this gap are swallowed —
 // without it, rapid damage (thorn ticks every frame, focused fire) chains
@@ -148,10 +145,7 @@ export function createMiniGameRenderer(
   let world: Container | null = null
   let containerEl: HTMLElement | null = null
   let background: Graphics | null = null
-  let gridOverlay: Graphics | null = null
   let bgSprite: Sprite | null = null
-  // Placement grid starts visible; hotkey O toggles it.
-  let showGrid = true
   let cursorLayer: Container | null = null
   let effectLayer: Container | null = null
 
@@ -207,70 +201,6 @@ export function createMiniGameRenderer(
     background.clear()
     background.rect(0, 0, width(), FIELD_HEIGHT)
     background.fill({ color: 0x1a1f16 })
-    drawGrid()
-  }
-
-  const drawGrid = () => {
-    if (!gridOverlay) return
-    gridOverlay.clear()
-    if (!showGrid) return
-    // Only the placable grid positions are drawn: the placement cells.
-    // On round 1 only the 3 center lanes are active — locked lanes render dim.
-    // Grid geometry comes from FIELD_LAYOUT so it stays in sync with the art.
-    const {
-      gridX0,
-      colSpacing,
-      colGap,
-      placementCols,
-      laneCount,
-      laneYOffset,
-      laneHeight,
-      rowGap,
-    } = FIELD_LAYOUT
-    // Columns and rows both stack as cell, gap, cell… — pitches include
-    // their dead-strip gaps.
-    const colPitch = colSpacing + colGap
-    const rowPitch = laneHeight + rowGap
-    const gridW = placementCols * colSpacing + (placementCols - 1) * colGap
-    const gridH = laneCount * laneHeight + (laneCount - 1) * rowGap
-    // Cells are centered on pumpkin positions: columnX(col) = gridX0 + col *
-    // colPitch is the cell center, so the left edge is half a cell back.
-    const blockX0 = gridX0 - colSpacing / 2
-    const active = new Set(engine.activeLanes())
-    for (let lane = 0; lane < laneCount; lane++) {
-      const open = active.has(lane)
-      for (let col = 0; col < placementCols; col++) {
-        const x = blockX0 + col * colPitch
-        const y = laneYOffset + lane * rowPitch
-        gridOverlay.rect(x, y, colSpacing, laneHeight)
-        gridOverlay.fill({ color: 0x22301c, alpha: open ? 0.35 : 0.07 })
-        gridOverlay.rect(x, y, colSpacing, laneHeight)
-        gridOverlay.stroke({ width: 1, color: 0x3b4a2f, alpha: open ? 0.7 : 0.2 })
-      }
-    }
-    gridOverlay.rect(blockX0, laneYOffset, gridW, gridH)
-    gridOverlay.stroke({ width: 1, color: 0x3b4a2f, alpha: 0.9 })
-  }
-
-  const toggleGrid = () => {
-    showGrid = !showGrid
-    if (gridOverlay) gridOverlay.visible = showGrid
-    drawGrid()
-  }
-
-  const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key !== "o" && e.key !== "O") return
-    if (e.ctrlKey || e.metaKey || e.altKey) return
-    const target = e.target as HTMLElement | null
-    if (
-      target &&
-      (target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.tagName === "SELECT" ||
-        target.isContentEditable)
-    )
-      return
-    toggleGrid()
   }
 
   const makeHealthBar = (container: Container, w: number, y: number): Graphics => {
@@ -612,10 +542,6 @@ export function createMiniGameRenderer(
       bgSprite = null
     }
 
-    gridOverlay = new Graphics()
-    gridOverlay.alpha = GRID_OVERLAY_ALPHA
-    gridOverlay.visible = showGrid
-    world.addChild(gridOverlay)
     drawBackground()
 
     effectLayer = new Container()
@@ -647,7 +573,6 @@ export function createMiniGameRenderer(
     })
 
     window.addEventListener("resize", recomputeTransform)
-    window.addEventListener("keydown", onKeyDown)
   }
 
   const eventToWorld = (e: { clientX: number; clientY: number }) => {
@@ -993,7 +918,6 @@ export function createMiniGameRenderer(
 
   const destroy = () => {
     window.removeEventListener("resize", recomputeTransform)
-    window.removeEventListener("keydown", onKeyDown)
     if (app) {
       app.destroy(true, { children: true })
       app = null
@@ -1001,7 +925,6 @@ export function createMiniGameRenderer(
     world = null
     containerEl = null
     background = null
-    gridOverlay = null
     bgSprite = null
     pumpkinTexture = null
     slugTexture = null
@@ -1010,5 +933,5 @@ export function createMiniGameRenderer(
     projectiles.clear()
   }
 
-  return { init, destroy, sync, onGameEvent, screenToWorld, worldToScreen, toggleGrid }
+  return { init, destroy, sync, onGameEvent, screenToWorld, worldToScreen }
 }
