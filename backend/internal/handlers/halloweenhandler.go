@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/kuleshov-aleksei/orbital/internal/models"
@@ -423,36 +425,62 @@ func (h *HalloweenHandler) AdminIssueReward(w http.ResponseWriter, r *http.Reque
 	})
 }
 
-// AdminExportConfig snapshots the live catalog + base layouts as a JSON
-// config file (super_admin only). Art bytes are excluded; PNGs relink by
-// stable item id on re-upload.
+// AdminExportConfig snapshots the live catalog + base layouts + art PNGs as
+// an uncompressed .tar package (super_admin only). Only real uploads travel
+// in the package; items without art import artless (placeholders seeded).
 func (h *HalloweenHandler) AdminExportConfig(w http.ResponseWriter, r *http.Request) {
-	cfg, err := h.halloweenService.ExportConfig()
+	if h.pumpkinAssets == nil {
+		http.Error(w, "Asset storage not configured", http.StatusInternalServerError)
+		return
+	}
+	pkg := service.NewHalloweenPackageService(h.halloweenService, h.pumpkinAssets)
+	data, err := pkg.ExportPackage()
 	if err != nil {
 		http.Error(w, "Failed to export config: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Content-Disposition", `attachment; filename="halloween-pumpkin-config.json"`)
-	json.NewEncoder(w).Encode(cfg)
+	filename := fmt.Sprintf("halloween-pumpkin-package-%s.tar", time.Now().UTC().Format("2006-01-02"))
+	w.Header().Set("Content-Type", "application/x-tar")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+	w.Write(data)
 }
 
-// AdminImportConfig replaces the whole catalog + layouts from a config file
-// (super_admin only). Validation failures leave the database untouched.
+// AdminImportConfig replaces the whole catalog + layouts + art from a config
+// package upload (super_admin only, multipart field "package"). Everything is
+// validated before anything is written: failures leave the database untouched.
 func (h *HalloweenHandler) AdminImportConfig(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, 2<<20)
-	var req models.HalloweenConfigImport
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	if h.pumpkinAssets == nil {
+		http.Error(w, "Asset storage not configured", http.StatusInternalServerError)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, service.MaxHalloweenPackageSize+1<<20)
+
+	if err := r.ParseMultipartForm(service.MaxHalloweenPackageSize); err != nil {
+		http.Error(w, "Failed to parse package upload", http.StatusBadRequest)
 		return
 	}
 
-	if err := h.halloweenService.ImportConfig(&req); err != nil {
+	file, _, err := r.FormFile("package")
+	if err != nil {
+		http.Error(w, "No package file provided", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	data, err := io.ReadAll(file)
+	if err != nil {
+		http.Error(w, "Failed to read package", http.StatusInternalServerError)
+		return
+	}
+
+	pkg := service.NewHalloweenPackageService(h.halloweenService, h.pumpkinAssets)
+	res, err := pkg.ImportPackage(data)
+	if err != nil {
 		http.Error(w, "Failed to import config: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "imported"})
+	json.NewEncoder(w).Encode(res)
 }

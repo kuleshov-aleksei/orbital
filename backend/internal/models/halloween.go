@@ -147,8 +147,8 @@ type UpsertBaseSocketsRequest struct {
 const HalloweenConfigVersion = 1
 
 // HalloweenConfigItem is one catalog row in a config export/import file.
-// Asset art is deliberately excluded: files are relinked by stable item id
-// when PNGs are re-uploaded via the assets admin tab.
+// Inside a .tar package, art travels alongside as assets/<id>.png;
+// config.json itself carries definitions only.
 type HalloweenConfigItem struct {
 	ID     string  `json:"id"`
 	Name   string  `json:"name"`
@@ -172,6 +172,16 @@ type HalloweenConfigImport struct {
 	Version     int                                       `json:"version"`
 	Items       []HalloweenConfigItem                     `json:"items"`
 	BaseLayouts map[string]map[string]HalloweenBaseSocket `json:"base_layouts"`
+}
+
+// HalloweenPackageImportResult summarizes an applied config package (.tar):
+// the definitions from config.json plus the bundled PNG art.
+type HalloweenPackageImportResult struct {
+	Status         string   `json:"status"`
+	Items          int      `json:"items"`
+	AssetsIncluded int      `json:"assets_included"`
+	AssetsMissing  []string `json:"assets_missing"`
+	RemovedIDs     []string `json:"removed_ids"`
 }
 
 // UpdatePumpkinRequest is the body of PUT /api/halloween/pumpkin.

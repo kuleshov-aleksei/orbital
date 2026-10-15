@@ -81,29 +81,16 @@ export interface UpsertBaseSocketsRequest {
   sockets: HalloweenBaseSocket[]
 }
 
-// One catalog row in a config export/import file (art excluded — PNGs relink
-// by stable item id on re-upload).
-export interface HalloweenConfigItem {
-  id: string
-  name: string
-  socket: PumpkinSocket
-  rarity: HalloweenRarity
-  z_index: number
-  scale: number
-}
-
-// Full pumpkin configuration snapshot: live catalog + per-base layouts.
-export interface HalloweenConfigExport {
-  version: number
-  exported_at: string
-  items: HalloweenConfigItem[]
-  base_layouts: Record<string, Partial<Record<PumpkinOverlaySocket, HalloweenBaseSocket>>>
-}
-
-export interface HalloweenConfigImport {
-  version: number
-  items: HalloweenConfigItem[]
-  base_layouts: Record<string, Partial<Record<PumpkinOverlaySocket, HalloweenBaseSocket>>>
+// Result of applying a config package (.tar): definitions from config.json
+// plus the bundled PNG art. assets_missing lists imported ids without art
+// (placeholders seeded for them); removed_ids lists soft-deleted rows whose
+// orphan art files were cleaned up.
+export interface HalloweenPackageResult {
+  status: string
+  items: number
+  assets_included: number
+  assets_missing: string[]
+  removed_ids: string[]
 }
 
 // EquippedCustomization is the parsed form of equipped_json.

@@ -1,7 +1,10 @@
 package service
 
 import (
+	"archive/tar"
 	"bytes"
+	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -1503,5 +1506,362 @@ func TestPumpkinAssetSaveVersionsURL(t *testing.T) {
 	// The version query is URL-only: the file on disk keeps the plain name.
 	if _, err := svc.AssetPath("base_a"); err != nil {
 		t.Errorf("AssetPath failed after save: %v", err)
+	}
+}
+
+// packageTestPNG builds minimal valid PNG bytes (magic + marker payload).
+func packageTestPNG(marker string) []byte {
+	return append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, []byte(marker)...)
+}
+
+// newHalloweenPackageTestSetup returns a service triple wired to temp dirs,
+// with per-socket placeholder seeds so artless imports can be backfilled.
+func newHalloweenPackageTestSetup(t *testing.T) (*HalloweenService, *PumpkinAssetService, *HalloweenPackageService) {
+	t.Helper()
+	s := newHalloweenTestService(t)
+	dataDir := t.TempDir()
+	seedDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(seedDir, "user-pumpkins"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	for _, socket := range []string{"base", "hat", "eyes", "mouth", "feet"} {
+		if err := os.WriteFile(filepath.Join(seedDir, "user-pumpkins", socket+".png"), packageTestPNG("seed-"+socket), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	assets := NewPumpkinAssetService(dataDir, seedDir)
+	return s, assets, NewHalloweenPackageService(s, assets)
+}
+
+// packageTestConfig marshals a config.json payload for a package tar.
+func packageTestConfig(t *testing.T, items []models.HalloweenConfigItem) []byte {
+	t.Helper()
+	raw, err := json.Marshal(models.HalloweenConfigImport{
+		Version:     models.HalloweenConfigVersion,
+		Items:       items,
+		BaseLayouts: map[string]map[string]models.HalloweenBaseSocket{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
+}
+
+// buildTestTar packs entries in name order for deterministic tests. The tar
+// writer does not validate names, so hostile entries can be built too.
+func buildTestTar(t *testing.T, files map[string][]byte) []byte {
+	t.Helper()
+	names := make([]string, 0, len(files))
+	for name := range files {
+		names = append(names, name)
+	}
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	for _, name := range names {
+		if err := tw.WriteHeader(&tar.Header{Name: name, Mode: 0o644, Size: int64(len(files[name]))}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tw.Write(files[name]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+// readTestTar returns entry name -> bytes for a package tar.
+func readTestTar(t *testing.T, data []byte) map[string][]byte {
+	t.Helper()
+	out := map[string][]byte{}
+	tr := tar.NewReader(bytes.NewReader(data))
+	for {
+		hdr, err := tr.Next()
+		if err != nil {
+			break
+		}
+		raw, err := io.ReadAll(tr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out[hdr.Name] = raw
+	}
+	return out
+}
+
+func packageTestBaseItem(id string) models.HalloweenConfigItem {
+	return models.HalloweenConfigItem{ID: id, Name: id, Socket: "base", Rarity: "common", ZIndex: 0, Scale: 1}
+}
+
+func TestHalloweenPackageRoundTrip(t *testing.T) {
+	s, assets, pkg := newHalloweenPackageTestSetup(t)
+
+	for _, item := range []models.HalloweenConfigItem{
+		{ID: "pkg_base", Name: "Pkg Base", Socket: "base", Rarity: "common", ZIndex: 0, Scale: 1},
+		{ID: "pkg_hat", Name: "Pkg Hat", Socket: "hat", Rarity: "epic", ZIndex: 20, Scale: 1.5},
+	} {
+		req := models.CreateHalloweenItemRequest{
+			ID: item.ID, Name: item.Name, Socket: item.Socket,
+			Rarity: item.Rarity, ZIndex: item.ZIndex, Scale: item.Scale,
+		}
+		if _, err := s.CreateItem(&req); err != nil {
+			t.Fatalf("CreateItem %s failed: %v", item.ID, err)
+		}
+	}
+	if err := s.UpsertBaseSockets("pkg_base", []models.HalloweenBaseSocket{
+		{BaseID: "pkg_base", Socket: "hat", OffsetX: 0.1, OffsetY: -0.4},
+	}); err != nil {
+		t.Fatalf("UpsertBaseSockets failed: %v", err)
+	}
+
+	artBase, artHat := packageTestPNG("pkg-base-art"), packageTestPNG("pkg-hat-art")
+	for id, art := range map[string][]byte{"pkg_base": artBase, "pkg_hat": artHat} {
+		url, err := assets.SaveAsset(id, art)
+		if err != nil {
+			t.Fatalf("SaveAsset %s failed: %v", id, err)
+		}
+		if _, err := s.SetItemAssetPath(id, url); err != nil {
+			t.Fatalf("SetItemAssetPath %s failed: %v", id, err)
+		}
+	}
+
+	tarBytes, err := pkg.ExportPackage()
+	if err != nil {
+		t.Fatalf("ExportPackage failed: %v", err)
+	}
+	entries := readTestTar(t, tarBytes)
+	if _, ok := entries["config.json"]; !ok {
+		t.Fatal("package is missing config.json")
+	}
+	if !bytes.Equal(entries["assets/pkg_base.png"], artBase) {
+		t.Error("base art bytes changed in export")
+	}
+	if !bytes.Equal(entries["assets/pkg_hat.png"], artHat) {
+		t.Error("hat art bytes changed in export")
+	}
+	var exported models.HalloweenConfigExport
+	if err := json.Unmarshal(entries["config.json"], &exported); err != nil {
+		t.Fatalf("config.json is not valid JSON: %v", err)
+	}
+	if exported.Version != models.HalloweenConfigVersion {
+		t.Errorf("version = %d, want %d", exported.Version, models.HalloweenConfigVersion)
+	}
+
+	// Import into a fresh database + data dir: definitions, layouts, art and
+	// asset paths must all arrive with no per-item uploads. The export holds
+	// the whole live catalog (created rows + migration seeds).
+	s2, assets2, pkg2 := newHalloweenPackageTestSetup(t)
+	res, err := pkg2.ImportPackage(tarBytes)
+	if err != nil {
+		t.Fatalf("ImportPackage failed: %v", err)
+	}
+	if res.Items != len(exported.Items) || res.AssetsIncluded != 2 {
+		t.Errorf("result = %+v, want %d items and 2 assets", res, len(exported.Items))
+	}
+	if len(res.AssetsMissing) != len(exported.Items)-2 {
+		t.Errorf("assets_missing = %v, want every id except the two bundled", res.AssetsMissing)
+	}
+
+	state, err := s2.GetState("user-1")
+	if err != nil {
+		t.Fatalf("GetState failed: %v", err)
+	}
+	if len(state.Catalog) != len(exported.Items) {
+		t.Fatalf("expected %d live items, got %d", len(exported.Items), len(state.Catalog))
+	}
+	byID := map[string]models.HalloweenItem{}
+	for _, c := range state.Catalog {
+		byID[c.ID] = c
+	}
+	hat := byID["pkg_hat"]
+	if hat.Rarity != "epic" || hat.Scale != 1.5 || hat.ZIndex != 20 {
+		t.Errorf("hat row wrong after import: %+v", hat)
+	}
+	for id, want := range map[string][]byte{"pkg_base": artBase, "pkg_hat": artHat} {
+		got, err := assets2.ReadAsset(id)
+		if err != nil {
+			t.Fatalf("ReadAsset %s failed: %v", id, err)
+		}
+		if !bytes.Equal(got, want) {
+			t.Errorf("art bytes for %s changed in import", id)
+		}
+		if path := byID[id].AssetPath; len(path) <= len("/api/halloween/assets/"+id+"?v=") ||
+			path[:len("/api/halloween/assets/"+id)] != "/api/halloween/assets/"+id {
+			t.Errorf("asset_path for %s = %q, want versioned backend URL", id, path)
+		}
+	}
+	sockets, err := s2.GetBaseSockets("pkg_base")
+	if err != nil {
+		t.Fatalf("GetBaseSockets failed: %v", err)
+	}
+	if len(sockets) != 1 || sockets[0].OffsetX != 0.1 || sockets[0].OffsetY != -0.4 {
+		t.Errorf("base layouts lost in round-trip: %+v", sockets)
+	}
+}
+
+func TestHalloweenPackageExportSkipsNonBackendArt(t *testing.T) {
+	s, assets, pkg := newHalloweenPackageTestSetup(t)
+
+	if _, err := s.CreateItem(&models.CreateHalloweenItemRequest{
+		ID: "legacy_hat", Name: "Legacy", Socket: "hat", Rarity: "common", ZIndex: 20, Scale: 1,
+		AssetPath: "/legacy/hat.png",
+	}); err != nil {
+		t.Fatalf("CreateItem failed: %v", err)
+	}
+	// A file exists on disk, but the row is not backend-owned: it must not
+	// be bundled.
+	if _, err := assets.SaveAsset("legacy_hat", packageTestPNG("legacy")); err != nil {
+		t.Fatalf("SaveAsset failed: %v", err)
+	}
+
+	tarBytes, err := pkg.ExportPackage()
+	if err != nil {
+		t.Fatalf("ExportPackage failed: %v", err)
+	}
+	for name := range readTestTar(t, tarBytes) {
+		if name == "assets/legacy_hat.png" {
+			t.Error("non-backend art must not be bundled")
+		}
+	}
+}
+
+func TestHalloweenPackageImportArtlessSeedsPlaceholder(t *testing.T) {
+	s, assets, pkg2 := newHalloweenPackageTestSetup(t)
+
+	tarBytes := buildTestTar(t, map[string][]byte{
+		"config.json": packageTestConfig(t, []models.HalloweenConfigItem{
+			packageTestBaseItem("solo_base"),
+			{ID: "solo_hat", Name: "Solo Hat", Socket: "hat", Rarity: "rare", ZIndex: 20, Scale: 1},
+		}),
+	})
+	res, err := pkg2.ImportPackage(tarBytes)
+	if err != nil {
+		t.Fatalf("ImportPackage failed: %v", err)
+	}
+	if res.Items != 2 || res.AssetsIncluded != 0 {
+		t.Errorf("result = %+v, want 2 items and 0 assets", res)
+	}
+	if len(res.AssetsMissing) != 2 {
+		t.Errorf("assets_missing = %v, want both ids", res.AssetsMissing)
+	}
+
+	// Artless rows get an empty asset path, but the seeded placeholder file
+	// must exist so clients render immediately (no restart needed).
+	admin, err := s.GetAdminCatalog()
+	if err != nil {
+		t.Fatalf("GetAdminCatalog failed: %v", err)
+	}
+	for _, c := range admin {
+		if c.ID != "solo_base" && c.ID != "solo_hat" {
+			continue
+		}
+		if c.AssetPath != "" {
+			t.Errorf("artless %s asset_path = %q, want empty", c.ID, c.AssetPath)
+		}
+		if _, err := assets.AssetPath(c.ID); err != nil {
+			t.Errorf("expected seeded art file for %s: %v", c.ID, err)
+		}
+	}
+}
+
+func TestHalloweenPackageImportRemovesOrphans(t *testing.T) {
+	s, assets, pkg := newHalloweenPackageTestSetup(t)
+
+	if _, err := s.CreateItem(&models.CreateHalloweenItemRequest{
+		ID: "doomed_hat", Name: "Doomed", Socket: "hat", Rarity: "common", ZIndex: 20, Scale: 1,
+	}); err != nil {
+		t.Fatalf("CreateItem failed: %v", err)
+	}
+	if _, err := assets.SaveAsset("doomed_hat", packageTestPNG("doomed")); err != nil {
+		t.Fatalf("SaveAsset failed: %v", err)
+	}
+
+	tarBytes := buildTestTar(t, map[string][]byte{
+		"config.json": packageTestConfig(t, []models.HalloweenConfigItem{
+			packageTestBaseItem("base_a"),
+		}),
+	})
+	res, err := pkg.ImportPackage(tarBytes)
+	if err != nil {
+		t.Fatalf("ImportPackage failed: %v", err)
+	}
+	found := false
+	for _, id := range res.RemovedIDs {
+		if id == "doomed_hat" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("removed_ids = %v, want doomed_hat", res.RemovedIDs)
+	}
+
+	admin, err := s.GetAdminCatalog()
+	if err != nil {
+		t.Fatalf("GetAdminCatalog failed: %v", err)
+	}
+	rows := map[string]models.HalloweenItem{}
+	for _, c := range admin {
+		rows[c.ID] = *c
+	}
+	if !rows["doomed_hat"].IsDeleted {
+		t.Error("dropped item must be soft-deleted")
+	}
+	if _, err := assets.AssetPath("doomed_hat"); err == nil {
+		t.Error("orphan art file must be deleted")
+	}
+}
+
+func TestHalloweenPackageImportRejects(t *testing.T) {
+	_, _, pkg := newHalloweenPackageTestSetup(t)
+	goodItems := []models.HalloweenConfigItem{
+		packageTestBaseItem("base_a"),
+		{ID: "pkg_hat", Name: "Pkg Hat", Socket: "hat", Rarity: "common", ZIndex: 20, Scale: 1},
+	}
+
+	badVersion, _ := json.Marshal(models.HalloweenConfigImport{Version: 999, Items: goodItems})
+	var dupBuf bytes.Buffer
+	dupTw := tar.NewWriter(&dupBuf)
+	dupCfg := packageTestConfig(t, goodItems)
+	for range 2 {
+		if err := dupTw.WriteHeader(&tar.Header{Name: "config.json", Mode: 0o644, Size: int64(len(dupCfg))}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := dupTw.Write(dupCfg); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := dupTw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	cases := map[string][]byte{
+		"empty":               {},
+		"missing config":      buildTestTar(t, map[string][]byte{"assets/base_a.png": packageTestPNG("x")}),
+		"invalid json":        buildTestTar(t, map[string][]byte{"config.json": []byte("{nope")}),
+		"bad version":         buildTestTar(t, map[string][]byte{"config.json": badVersion}),
+		"unexpected entry":    buildTestTar(t, map[string][]byte{"config.json": packageTestConfig(t, goodItems), "notes.txt": []byte("hi")}),
+		"absolute entry":      buildTestTar(t, map[string][]byte{"config.json": packageTestConfig(t, goodItems), "/config.json": []byte("{}")}),
+		"traversal entry":     buildTestTar(t, map[string][]byte{"config.json": packageTestConfig(t, goodItems), "assets/../../evil.png": packageTestPNG("x")}),
+		"duplicate entry":     dupBuf.Bytes(),
+		"not a png":           buildTestTar(t, map[string][]byte{"config.json": packageTestConfig(t, goodItems), "assets/pkg_hat.png": []byte("definitely not png")}),
+		"asset for unknown":   buildTestTar(t, map[string][]byte{"config.json": packageTestConfig(t, goodItems), "assets/ghost.png": packageTestPNG("x")}),
+		"not a tar":           []byte("this is not a tar archive at all...."),
+	}
+	for name, raw := range cases {
+		if _, err := pkg.ImportPackage(raw); err == nil {
+			t.Errorf("%s: expected error, got success", name)
+		}
+	}
+
+	// Failures must leave the database untouched.
+	before, _ := catalogSnapshot(t, pkg.halloween)
+	bad := buildTestTar(t, map[string][]byte{"config.json": packageTestConfig(t, goodItems), "assets/pkg_hat.png": []byte("nope")})
+	if _, err := pkg.ImportPackage(bad); err == nil {
+		t.Fatal("expected error for bad png")
+	}
+	after, _ := catalogSnapshot(t, pkg.halloween)
+	if len(before) != len(after) {
+		t.Error("failed import changed the catalog")
 	}
 }

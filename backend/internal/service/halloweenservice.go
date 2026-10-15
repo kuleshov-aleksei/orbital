@@ -1034,34 +1034,46 @@ func sortCatalogConfigItems(items []models.HalloweenConfigItem) {
 // Everything is validated before anything is written: any error aborts with
 // the database untouched.
 func (s *HalloweenService) ImportConfig(req *models.HalloweenConfigImport) error {
+	cleanLayouts, err := validateHalloweenConfigImport(req)
+	if err != nil {
+		return err
+	}
+
+	return s.repo.ReplaceCatalog(req.Items, cleanLayouts)
+}
+
+// validateHalloweenConfigImport checks a config payload without writing
+// anything: it normalizes zero scales in place and returns the cleaned
+// per-base layouts for ReplaceCatalog. Shared by the package (.tar) import.
+func validateHalloweenConfigImport(req *models.HalloweenConfigImport) (map[string]map[string]models.HalloweenBaseSocket, error) {
 	if req == nil {
-		return errors.New("config is required")
+		return nil, errors.New("config is required")
 	}
 	if req.Version != models.HalloweenConfigVersion {
-		return errors.New("unsupported config version")
+		return nil, errors.New("unsupported config version")
 	}
 
 	seen := map[string]bool{}
 	for _, item := range req.Items {
 		if item.ID == "" || item.Name == "" {
-			return errors.New("id and name are required")
+			return nil, errors.New("id and name are required")
 		}
 		if seen[item.ID] {
-			return errors.New("duplicate item id: " + item.ID)
+			return nil, errors.New("duplicate item id: " + item.ID)
 		}
 		seen[item.ID] = true
 		if !validPumpkinSocket(item.Socket) {
-			return errors.New("socket must be base, hat, eyes, mouth, or feet")
+			return nil, errors.New("socket must be base, hat, eyes, mouth, or feet")
 		}
 		if !validHalloweenRarity(item.Rarity) {
-			return errors.New("invalid rarity")
+			return nil, errors.New("invalid rarity")
 		}
 		scale := item.Scale
 		if scale == 0 {
 			scale = 1
 		}
 		if scale < 0.25 || scale > 2 {
-			return errors.New("scale must be within 0.25..2")
+			return nil, errors.New("scale must be within 0.25..2")
 		}
 	}
 
@@ -1081,21 +1093,21 @@ func (s *HalloweenService) ImportConfig(req *models.HalloweenConfigImport) error
 		for baseID, sockets := range req.BaseLayouts {
 			base, ok := byID[baseID]
 			if !ok {
-				return errors.New("unknown base id in layouts: " + baseID)
+				return nil, errors.New("unknown base id in layouts: " + baseID)
 			}
 			if base.Socket != "base" {
-				return errors.New("base_id must reference a base item: " + baseID)
+				return nil, errors.New("base_id must reference a base item: " + baseID)
 			}
 			clean := map[string]models.HalloweenBaseSocket{}
 			for socket, anchor := range sockets {
 				if !validPumpkinSocket(socket) || socket == "base" {
-					return errors.New("socket must be hat, eyes, mouth, or feet")
+					return nil, errors.New("socket must be hat, eyes, mouth, or feet")
 				}
 				if _, dup := clean[socket]; dup {
-					return errors.New("duplicate socket: " + socket)
+					return nil, errors.New("duplicate socket: " + socket)
 				}
 				if anchor.OffsetX < -1 || anchor.OffsetX > 1 || anchor.OffsetY < -1 || anchor.OffsetY > 1 {
-					return errors.New("offsets must be within -1..1")
+					return nil, errors.New("offsets must be within -1..1")
 				}
 				clean[socket] = models.HalloweenBaseSocket{
 					BaseID: baseID, Socket: socket, OffsetX: anchor.OffsetX, OffsetY: anchor.OffsetY,
@@ -1105,7 +1117,7 @@ func (s *HalloweenService) ImportConfig(req *models.HalloweenConfigImport) error
 		}
 	}
 
-	return s.repo.ReplaceCatalog(req.Items, cleanLayouts)
+	return cleanLayouts, nil
 }
 
 // IssueReward grants a specific item to a user (admin action).

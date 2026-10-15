@@ -236,62 +236,25 @@
           :disabled="exporting"
           @click="exportConfig">
           <span v-if="exporting">Exporting...</span>
-          <span v-else>Export config (JSON)</span>
+          <span v-else>Export package (.tar)</span>
         </button>
         <button
           type="button"
-          class="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
+          class="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors disabled:opacity-50"
+          :disabled="importing"
           @click="importFileEl?.click()">
-          Import config (JSON)
+          <span v-if="importing">Importing...</span>
+          <span v-else>Import package (.tar)</span>
         </button>
         <input
           ref="importFileEl"
           type="file"
-          accept="application/json,.json"
+          accept=".tar,application/x-tar"
           class="hidden"
           @change="onImportFile" />
         <span class="text-xs text-gray-500"
-          >Art is not included — PNGs relink by item id on re-upload.</span
+          >Package holds definitions + PNG art; import replaces the whole catalog.</span
         >
-      </div>
-
-      <div
-        v-if="importPreview"
-        class="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-        <p class="text-amber-200 font-semibold mb-1">
-          Restore this configuration? (replaces the whole catalog)
-        </p>
-        <ul class="text-gray-300 text-xs space-y-0.5 mb-3">
-          <li>
-            {{ importPreview.payload.items.length }} items, layouts for
-            {{ importPreview.layoutBases }} base(s).
-          </li>
-          <li v-if="importPreview.removedIds.length">
-            {{ importPreview.removedIds.length }} current item(s) will be removed:
-            {{ importPreview.removedIds.join(", ") }}
-          </li>
-          <li v-else>No current items will be removed.</li>
-          <li v-if="importPreview.missingBaseA" class="text-amber-300">
-            Warning: the free starter base (base_a) is not in this file and will be removed.
-          </li>
-        </ul>
-        <div class="flex gap-2">
-          <button
-            type="button"
-            class="px-3 py-1.5 text-sm bg-amber-600 hover:bg-amber-500 text-white rounded transition-colors disabled:opacity-50"
-            :disabled="importing"
-            @click="confirmImport">
-            <span v-if="importing">Importing...</span>
-            <span v-else>Confirm restore</span>
-          </button>
-          <button
-            type="button"
-            class="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
-            :disabled="importing"
-            @click="cancelImport">
-            Cancel
-          </button>
-        </div>
       </div>
 
       <div v-if="catalogError" class="text-xs text-red-400 mb-3">{{ catalogError }}</div>
@@ -480,7 +443,6 @@ import { apiService, resolveUrl } from "@/services/api"
 import { useHalloweenStore } from "@/stores/halloween"
 import { PUMPKIN_SOCKET_PLACEHOLDER, PUMPKIN_SOCKET_DEFAULT_Z } from "@/halloween/assets"
 import type {
-  HalloweenConfigImport,
   HalloweenItem,
   HalloweenRarity,
   PumpkinOverlaySocket,
@@ -505,13 +467,6 @@ const creating = ref(false)
 const exporting = ref(false)
 const importing = ref(false)
 
-// Parsed import file awaiting confirmation, with derived restore stats.
-const importPreview = ref<{
-  payload: HalloweenConfigImport
-  layoutBases: number
-  removedIds: string[]
-  missingBaseA: boolean
-} | null>(null)
 const importFileEl = useTemplateRef<HTMLInputElement>("importFileEl")
 
 const items = ref<HalloweenItem[]>([])
@@ -876,86 +831,46 @@ const saveLayouts = async () => {
   }
 }
 
-// --- config export/import ---
+// --- config package export/import (.tar: definitions + PNG art) ---
 const exportConfig = async () => {
   exporting.value = true
   catalogError.value = ""
   catalogMessage.value = ""
   try {
-    const cfg = await apiService.exportHalloweenConfig()
-    const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: "application/json" })
+    const blob = await apiService.exportHalloweenPackage()
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `halloween-pumpkin-config-${new Date().toISOString().slice(0, 10)}.json`
+    a.download = `halloween-pumpkin-package-${new Date().toISOString().slice(0, 10)}.tar`
     document.body.appendChild(a)
     a.click()
     a.remove()
     URL.revokeObjectURL(url)
-    catalogMessage.value = `Exported ${cfg.items.length} items.`
+    catalogMessage.value = "Package exported (definitions + art)."
   } catch (error) {
-    catalogError.value = error instanceof Error ? error.message : "Failed to export config"
+    catalogError.value = error instanceof Error ? error.message : "Failed to export package"
   } finally {
     exporting.value = false
   }
 }
 
-const onImportFile = (e: Event) => {
+const onImportFile = async (e: Event) => {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = ""
   if (!file) return
-  catalogError.value = ""
-  catalogMessage.value = ""
-  const reader = new FileReader()
-  reader.onload = () => {
-    try {
-      const parsed = JSON.parse(String(reader.result)) as HalloweenConfigImport
-      if (
-        typeof parsed !== "object" ||
-        parsed === null ||
-        typeof parsed.version !== "number" ||
-        !Array.isArray(parsed.items)
-      ) {
-        throw new Error("not a halloween pumpkin config file (need version + items)")
-      }
-      const fileIds = new Set(parsed.items.map((i) => i?.id).filter(Boolean))
-      const removedIds = items.value
-        .filter((i) => !i.is_deleted && !fileIds.has(i.id))
-        .map((i) => i.id)
-      importPreview.value = {
-        payload: parsed,
-        layoutBases: parsed.base_layouts ? Object.keys(parsed.base_layouts).length : 0,
-        removedIds,
-        missingBaseA: !fileIds.has("base_a"),
-      }
-    } catch (error) {
-      importPreview.value = null
-      catalogError.value = error instanceof Error ? error.message : "Failed to read config file"
-    }
-  }
-  reader.onerror = () => {
-    catalogError.value = "Failed to read config file"
-  }
-  reader.readAsText(file)
-}
-
-const cancelImport = () => {
-  importPreview.value = null
-}
-
-const confirmImport = async () => {
-  if (!importPreview.value) return
   importing.value = true
   catalogError.value = ""
   catalogMessage.value = ""
   try {
-    await apiService.importHalloweenConfig(importPreview.value.payload)
-    importPreview.value = null
+    const res = await apiService.importHalloweenPackage(file)
     await refreshAfterCatalogChange()
-    catalogMessage.value = "Configuration restored."
+    const parts = [`Imported ${res.items} items, ${res.assets_included} art files`]
+    if (res.assets_missing.length) parts.push(`${res.assets_missing.length} without art`)
+    if (res.removed_ids.length) parts.push(`removed: ${res.removed_ids.join(", ")}`)
+    catalogMessage.value = parts.join("; ") + "."
   } catch (error) {
-    catalogError.value = error instanceof Error ? error.message : "Failed to import config"
+    catalogError.value = error instanceof Error ? error.message : "Failed to import package"
   } finally {
     importing.value = false
   }

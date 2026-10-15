@@ -13,6 +13,10 @@ import (
 
 const MaxPumpkinAssetSize = 2 * 1024 * 1024
 
+// PumpkinAssetURLPrefix marks asset_path values owned by this service.
+// Anything else (empty, legacy public paths) is not a real upload.
+const PumpkinAssetURLPrefix = "/api/halloween/assets/"
+
 var (
 	ErrPumpkinAssetTooLarge    = errors.New("file size exceeds 2MB limit")
 	ErrPumpkinAssetInvalidType = errors.New("invalid file type, only PNG files are allowed")
@@ -67,6 +71,33 @@ func (s *PumpkinAssetService) AssetPath(itemID string) (string, error) {
 	}
 
 	return filePath, nil
+}
+
+// ReadAsset returns the raw PNG bytes for an item, or ErrPumpkinAssetNotFound
+// when the item has no art file yet.
+func (s *PumpkinAssetService) ReadAsset(itemID string) ([]byte, error) {
+	filePath, err := s.AssetPath(itemID)
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, ErrPumpkinAssetNotFound
+		}
+		return nil, err
+	}
+	return data, nil
+}
+
+// DeleteAsset removes the art file for an item. A missing file is not an
+// error (used to clean up orphans of removed catalog rows).
+func (s *PumpkinAssetService) DeleteAsset(itemID string) error {
+	filePath := filepath.Join(s.dataDir, "halloween", itemID+".png")
+	if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 // SeedPlaceholders copies the bundled per-socket placeholder art into the data

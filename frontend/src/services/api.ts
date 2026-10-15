@@ -26,8 +26,7 @@ import type {
   CreateHalloweenItemRequest,
   UpdateHalloweenItemRequest,
   UpsertBaseSocketsRequest,
-  HalloweenConfigExport,
-  HalloweenConfigImport,
+  HalloweenPackageResult,
 } from "@/halloween/types"
 import { isElectron, openExternal, oauthAuthenticate } from "./electron"
 
@@ -545,15 +544,28 @@ export const apiService = {
     })
   },
 
-  // Halloween config export/import (super_admin only, snake_case).
-  async exportHalloweenConfig(): Promise<HalloweenConfigExport> {
-    return apiRequest<HalloweenConfigExport>("/admin/halloween/config/export")
+  // Halloween config package export/import (super_admin only, snake_case).
+  // The package is an uncompressed .tar: config.json (definitions + layouts)
+  // plus assets/<id>.png art. apiRequest only handles JSON, so export uses a
+  // raw authenticated fetch returning a Blob.
+  async exportHalloweenPackage(): Promise<Blob> {
+    const token = getAuthToken()
+    const response = await fetch(`${API_BASE}/admin/halloween/config/export`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw apiError(errorText || `Export failed (${response.status})`, response.status)
+    }
+    return await response.blob()
   },
 
-  async importHalloweenConfig(payload: HalloweenConfigImport): Promise<{ status: string }> {
-    return apiRequest<{ status: string }>("/admin/halloween/config/import", {
+  async importHalloweenPackage(file: File): Promise<HalloweenPackageResult> {
+    const form = new FormData()
+    form.append("package", file)
+    return apiRequest<HalloweenPackageResult>("/admin/halloween/config/import", {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: form,
     })
   },
 
