@@ -266,10 +266,10 @@ func (s *HalloweenService) Config() *HalloweenGameConfig {
 		},
 		RoundBonus: 1000,
 		RewardBrackets: []HalloweenRewardBracket{
-			{MinScore: 12000, Tier: HalloweenRarityLegendary},
-			{MinScore: 8000, Tier: HalloweenRarityEpic},
-			{MinScore: 5000, Tier: HalloweenRarityRare},
-			{MinScore: 2000, Tier: HalloweenRarityUncommon},
+			{MinScore: 40000, Tier: HalloweenRarityLegendary},
+			{MinScore: 30000, Tier: HalloweenRarityEpic},
+			{MinScore: 20000, Tier: HalloweenRarityRare},
+			{MinScore: 5000, Tier: HalloweenRarityUncommon},
 			{MinScore: 1000, Tier: HalloweenRarityCommon},
 		},
 		RewardsPerRound: map[int]int{
