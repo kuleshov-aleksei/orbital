@@ -26,7 +26,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue"
+import { computed, onMounted, ref, watch } from "vue"
 import { PhCaretDown } from "@phosphor-icons/vue"
 import PumpkinSprite from "./PumpkinSprite.vue"
 import PumpkinModal from "./PumpkinModal.vue"
@@ -58,4 +58,14 @@ onMounted(() => {
   void halloweenStore.fetchConfig()
   void halloweenStore.fetchState()
 })
+
+// Sync other members' pumpkins whenever the call roster changes: joining users
+// fetch everyone else's state, and existing users fetch a new joiner's state.
+watch(
+  () => props.users,
+  (users) => {
+    void halloweenStore.fetchOthersStates(users.map((user) => user.id))
+  },
+  { immediate: true },
+)
 </script>

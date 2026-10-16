@@ -494,6 +494,55 @@ func TestHalloweenUpdatePumpkinState(t *testing.T) {
 	}
 }
 
+func TestHalloweenGetPumpkinStates(t *testing.T) {
+	s := newHalloweenTestService(t)
+
+	if err := s.UpdatePumpkin("user-a", `{"base":"base_a"}`); err != nil {
+		t.Fatalf("UpdatePumpkin user-a failed: %v", err)
+	}
+	if _, err := s.IssueReward("user-b", "hat_party"); err != nil {
+		t.Fatalf("IssueReward user-b failed: %v", err)
+	}
+	if err := s.UpdatePumpkin("user-b", `{"base":"base_a","hat":"hat_party"}`); err != nil {
+		t.Fatalf("UpdatePumpkin user-b failed: %v", err)
+	}
+
+	states, err := s.GetPumpkinStates([]string{"user-a", "user-b", "user-none"})
+	if err != nil {
+		t.Fatalf("GetPumpkinStates failed: %v", err)
+	}
+	if len(states) != 2 {
+		t.Fatalf("expected 2 states, got %d: %v", len(states), states)
+	}
+	if states["user-a"] != `{"base":"base_a"}` {
+		t.Fatalf("unexpected user-a state: %q", states["user-a"])
+	}
+	if states["user-b"] != `{"base":"base_a","hat":"hat_party"}` {
+		t.Fatalf("unexpected user-b state: %q", states["user-b"])
+	}
+	if _, ok := states["user-none"]; ok {
+		t.Fatal("expected users without a saved state to be omitted")
+	}
+
+	// Duplicates and blanks must not error or add rows.
+	states, err = s.GetPumpkinStates([]string{"user-a", "user-a", "", "  "})
+	if err != nil {
+		t.Fatalf("GetPumpkinStates with dupes failed: %v", err)
+	}
+	if len(states) != 1 {
+		t.Fatalf("expected 1 deduped state, got %d", len(states))
+	}
+
+	// Empty input is a no-op.
+	states, err = s.GetPumpkinStates(nil)
+	if err != nil {
+		t.Fatalf("GetPumpkinStates(nil) failed: %v", err)
+	}
+	if len(states) != 0 {
+		t.Fatalf("expected no states, got %d", len(states))
+	}
+}
+
 func TestHalloweenAdminIssueReward(t *testing.T) {
 	s := newHalloweenTestService(t)
 

@@ -79,6 +79,24 @@ export const useHalloweenStore = defineStore("halloween", () => {
     }
   }
 
+  // Fetch other users' equipped customizations (e.g. everyone in the current
+  // call). Never sanitized: sanitizeEquipped filters against the LOCAL user's
+  // owned items and would strip other users' gear.
+  async function fetchOthersStates(userIds: string[]) {
+    const ids = [...new Set(userIds)].filter((id) => id && id !== userStore.userId)
+    if (ids.length === 0) return
+    try {
+      const { states } = await apiService.getHalloweenPumpkinStates(ids)
+      const merged = { ...others.value }
+      for (const [userId, json] of Object.entries(states)) {
+        merged[userId] = parseEquipped(json)
+      }
+      others.value = merged
+    } catch (error) {
+      console.warn("Failed to load pumpkin states:", error)
+    }
+  }
+
   async function updatePumpkin(next: EquippedCustomization) {
     // Never send locked ids (the server rejects them): strip against the
     // loaded catalog, but pass through untouched when the catalog isn't
@@ -135,6 +153,7 @@ export const useHalloweenStore = defineStore("halloween", () => {
     isUnlocked,
     fetchConfig,
     fetchState,
+    fetchOthersStates,
     updatePumpkin,
     fetchLeaderboard,
     handlePumpkinState,

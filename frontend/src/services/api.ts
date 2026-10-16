@@ -16,6 +16,7 @@ import {
 import type {
   HalloweenGameConfig,
   HalloweenStateResponse,
+  PumpkinStatesResponse,
   HalloweenGameReport,
   SubmitGameReportResponse,
   HalloweenLeaderboardEntry,
@@ -472,6 +473,11 @@ export const apiService = {
 
   async getHalloweenState(): Promise<HalloweenStateResponse> {
     return apiRequest<HalloweenStateResponse>("/halloween/state")
+  },
+
+  async getHalloweenPumpkinStates(userIds: string[]): Promise<PumpkinStatesResponse> {
+    const ids = encodeURIComponent(userIds.join(","))
+    return apiRequest<PumpkinStatesResponse>(`/halloween/pumpkin-states?user_ids=${ids}`)
   },
 
   async updatePumpkin(equippedJson: string): Promise<{ status: string }> {

@@ -232,6 +232,7 @@ func main() {
 		halloweenRouter := r.PathPrefix("/api/halloween").Subrouter()
 		halloweenRouter.Use(authHandler.AuthMiddleware)
 		halloweenRouter.HandleFunc("/state", halloweenHandler.GetState).Methods("GET")
+		halloweenRouter.HandleFunc("/pumpkin-states", halloweenHandler.GetPumpkinStates).Methods("GET")
 		halloweenRouter.HandleFunc("/pumpkin", halloweenHandler.UpdatePumpkin).Methods("PUT")
 		halloweenRouter.HandleFunc("/game/config", halloweenHandler.GetConfig).Methods("GET")
 		halloweenRouter.HandleFunc("/game/report", halloweenHandler.SubmitGame).Methods("POST")

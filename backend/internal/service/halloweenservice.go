@@ -328,6 +328,38 @@ func (s *HalloweenService) GetState(userID string) (*models.HalloweenStateRespon
 	}, nil
 }
 
+// GetPumpkinStates returns the equipped customization JSON for each requested
+// user, keyed by user id. Users without a saved state are omitted. Used by
+// clients to sync the pumpkins of other call participants on join.
+func (s *HalloweenService) GetPumpkinStates(userIDs []string) (map[string]string, error) {
+	if len(userIDs) == 0 {
+		return map[string]string{}, nil
+	}
+
+	// Dedupe and cap to keep the IN clause bounded.
+	seen := make(map[string]struct{}, len(userIDs))
+	unique := make([]string, 0, len(userIDs))
+	for _, id := range userIDs {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+		if len(unique) >= maxPumpkinStatesLookup {
+			break
+		}
+	}
+
+	return s.repo.GetPumpkinStates(unique)
+}
+
+// maxPumpkinStatesLookup caps how many users one state lookup may request.
+const maxPumpkinStatesLookup = 50
+
 // UpdatePumpkin saves a user's equipped customization JSON. Every equipped
 // item must exist, match its socket slot, and be earned by the user — except
 // the free starter base, which anyone may equip.

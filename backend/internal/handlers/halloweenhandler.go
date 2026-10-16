@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -78,6 +79,34 @@ func (h *HalloweenHandler) UpdatePumpkin(w http.ResponseWriter, r *http.Request)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "saved"})
+}
+
+// GetPumpkinStates returns the equipped customization of the requested users
+// (comma-separated `user_ids`). Clients use it to sync other call members'
+// pumpkins on join, which are otherwise only pushed on change.
+func (h *HalloweenHandler) GetPumpkinStates(w http.ResponseWriter, r *http.Request) {
+	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	if !ok || claims == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	raw := r.URL.Query().Get("user_ids")
+	if raw == "" {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(models.PumpkinStatesResponse{States: map[string]string{}})
+		return
+	}
+
+	userIDs := strings.Split(raw, ",")
+	states, err := h.halloweenService.GetPumpkinStates(userIDs)
+	if err != nil {
+		http.Error(w, "Failed to load pumpkin states: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(models.PumpkinStatesResponse{States: states})
 }
 
 // GetConfig returns the server-authoritative game configuration.

@@ -116,6 +116,12 @@ type HalloweenStateResponse struct {
 	BaseLayouts map[string]map[string]HalloweenBaseSocket `json:"base_layouts"`
 }
 
+// PumpkinStatesResponse is returned by GET /api/halloween/pumpkin-states.
+// States maps user id -> equipped_json for the requested users.
+type PumpkinStatesResponse struct {
+	States map[string]string `json:"states"`
+}
+
 // CreateHalloweenItemRequest is the body of POST /api/admin/halloween/items.
 // Clients send snake_case (see frontend/src/services/api.ts).
 type CreateHalloweenItemRequest struct {

@@ -57,6 +57,12 @@ export interface HalloweenStateResponse {
   base_layouts: BaseLayouts
 }
 
+// PumpkinStatesResponse is returned by GET /api/halloween/pumpkin-states.
+// states maps user id -> equipped_json for the requested users.
+export interface PumpkinStatesResponse {
+  states: Record<string, string>
+}
+
 // Payloads for the super_admin catalog/layout endpoints (snake_case).
 export interface CreateHalloweenItemRequest {
   id: string

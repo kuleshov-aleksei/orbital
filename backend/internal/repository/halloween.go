@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"strings"
 	"time"
 
 	"github.com/kuleshov-aleksei/orbital/internal/models"
@@ -319,6 +320,40 @@ func (r *HalloweenRepository) GetPumpkinState(userID string) (*models.PumpkinSta
 
 	state.UpdatedAt = updatedAt
 	return state, nil
+}
+
+// GetPumpkinStates returns the equipped customization JSON for each requested
+// user. Users without a saved state are omitted from the result.
+func (r *HalloweenRepository) GetPumpkinStates(userIDs []string) (map[string]string, error) {
+	states := make(map[string]string, len(userIDs))
+	if len(userIDs) == 0 {
+		return states, nil
+	}
+
+	placeholders := make([]string, len(userIDs))
+	args := make([]interface{}, len(userIDs))
+	for i, id := range userIDs {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	rows, err := r.db.Query(
+		`SELECT user_id, equipped_json FROM halloween_pumpkins WHERE user_id IN (`+strings.Join(placeholders, ", ")+`)`,
+		args...,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var userID, equipped string
+		if err := rows.Scan(&userID, &equipped); err != nil {
+			return nil, err
+		}
+		states[userID] = equipped
+	}
+	return states, rows.Err()
 }
 
 func (r *HalloweenRepository) UpsertPumpkinState(userID string, equippedJSON string) error {
