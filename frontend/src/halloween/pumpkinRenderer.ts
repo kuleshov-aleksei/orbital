@@ -1,4 +1,5 @@
 import { Assets, Container, Sprite, type Texture } from "pixi.js"
+import { debugWarn } from "@/utils/debug"
 import type { BaseLayouts, EquippedCustomization, HalloweenItem, PumpkinSocket } from "./types"
 import {
   PUMPKIN_SOCKET_DEFAULT_Z,
@@ -34,7 +35,7 @@ async function loadPumpkinTexture(path: string): Promise<Texture | null> {
     })
     return texture ?? null
   } catch (error) {
-    console.warn(`[pumpkin] failed to load texture ${path}:`, error)
+    debugWarn(`[pumpkin] failed to load texture`, { url: path }, error)
     return null
   }
 }

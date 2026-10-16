@@ -21,6 +21,8 @@ import {
   THORN_PATCH_URL,
 } from "./assets"
 import type { LoadedAtlas } from "./atlas"
+import { assetPath } from "@/utils/assetPath"
+import { debugWarn } from "@/utils/debug"
 import { FIELD_HEIGHT, FIELD_LAYOUT, columnForX, columnX, laneCenterY, laneForY } from "./engine"
 import type { ProjectileKind, PumpkinType, SlugType } from "./types"
 
@@ -511,14 +513,32 @@ export function createMiniGameRenderer(
     })
     container.appendChild(app.canvas as HTMLCanvasElement)
 
+    // Legacy fallback pumpkins/slugs (pre-atlas art). The URL must go
+    // through assetPath(): Pixi mangles root-absolute URLs under orbital://.
     try {
-      pumpkinTexture = await Assets.load<Texture>("/assets/hw26/pumkins/pumkin_A.png")
-    } catch {
+      const pumpkinFallbackUrl = assetPath("/assets/hw26/pumkins/pumkin_A.png")
+      pumpkinTexture = await Assets.load<Texture>(pumpkinFallbackUrl)
+    } catch (error) {
+      debugWarn(
+        `[halloween] fallback pumpkin art failed to load`,
+        {
+          url: "/assets/hw26/pumkins/pumkin_A.png",
+        },
+        error,
+      )
       pumpkinTexture = null
     }
     try {
-      slugTexture = await Assets.load<Texture>("/assets/hw26/slugs/slug_A.png")
-    } catch {
+      const slugFallbackUrl = assetPath("/assets/hw26/slugs/slug_A.png")
+      slugTexture = await Assets.load<Texture>(slugFallbackUrl)
+    } catch (error) {
+      debugWarn(
+        `[halloween] fallback slug art failed to load`,
+        {
+          url: "/assets/hw26/slugs/slug_A.png",
+        },
+        error,
+      )
       slugTexture = null
     }
 
@@ -538,7 +558,12 @@ export function createMiniGameRenderer(
       bgSprite.scale.set(fit)
       bgSprite.position.set(0, (FIELD_HEIGHT - bgTexture.height * fit) / 2)
       world.addChild(bgSprite)
-    } catch {
+    } catch (error) {
+      debugWarn(
+        `[halloween] background art failed to load`,
+        { url: HALLOWEEN_BACKGROUND_URL },
+        error,
+      )
       bgSprite = null
     }
 

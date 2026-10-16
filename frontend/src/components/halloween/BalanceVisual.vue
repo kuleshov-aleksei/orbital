@@ -174,6 +174,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef } from 
 import { HalloweenGameEngine } from "@/halloween/game/engine"
 import { createMiniGameRenderer } from "@/halloween/game/renderer"
 import { preloadHalloweenAssets, type HalloweenAssets } from "@/halloween/game/assets"
+import { debugError } from "@/utils/debug"
 import { useHalloweenStore } from "@/stores"
 import type { GameSnapshot } from "@/halloween/game/types"
 import type { HalloweenGameConfig } from "@/halloween/types"
@@ -446,6 +447,7 @@ async function restart(): Promise<void> {
     })
   } catch (e) {
     if (id !== runId) return // superseded by a newer restart — drop the error
+    debugError("[halloween] balance visual asset preload failed", e)
     error.value = `Failed to load assets: ${(e as Error).message}`
     loadingAssets.value = false
     loadStage.value = ""

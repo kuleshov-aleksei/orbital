@@ -1,5 +1,6 @@
 import { Assets, Spritesheet, Texture } from "pixi.js"
 import type { SpritesheetData, SpritesheetFrameData } from "pixi.js"
+import { debugError } from "@/utils/debug"
 
 // The asset generator ("tizo8") exports atlases in a custom shape: the frames
 // and image live under textures[0], animation keys are descriptive labels, and
@@ -47,11 +48,20 @@ export function loadTizoAtlas(jsonUrl: string, cachePrefix = jsonUrl): Promise<L
 
 async function doLoad(jsonUrl: string, cachePrefix: string): Promise<LoadedAtlas> {
   const response = await fetch(jsonUrl)
-  if (!response.ok) throw new Error(`Failed to load atlas ${jsonUrl}: ${response.status}`)
+  if (!response.ok) {
+    debugError(`[halloween] failed to fetch atlas ${jsonUrl}: ${response.status}`, {
+      url: jsonUrl,
+      status: response.status,
+    })
+    throw new Error(`Failed to load atlas ${jsonUrl}: ${response.status}`)
+  }
   const raw = (await response.json()) as TizoAtlasJson
 
   const tex = raw.textures?.[0]
-  if (!tex) throw new Error(`Atlas ${jsonUrl} has no textures`)
+  if (!tex) {
+    debugError(`[halloween] atlas ${jsonUrl} has no textures`, { url: jsonUrl })
+    throw new Error(`Atlas ${jsonUrl} has no textures`)
+  }
 
   const base = jsonUrl.slice(0, jsonUrl.lastIndexOf("/") + 1)
   const texture = await Assets.load<Texture>(base + tex.image)

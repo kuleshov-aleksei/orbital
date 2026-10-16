@@ -215,7 +215,7 @@
               @blur="hoveredShopType = null"
               @click="buy(item.type)">
               <img
-                :src="ITEM_ART[item.type] ?? `/assets/hw26/items/${item.type}.png`"
+                :src="ITEM_ART[item.type] ?? itemArtForAbility(item.type)"
                 :alt="item.type"
                 class="w-9 h-9 object-contain"
                 draggable="false" />
@@ -451,8 +451,17 @@ import type { HalloweenRarity, SubmitGameReportResponse } from "@/halloween/type
 import { HalloweenGameEngine } from "@/halloween/game/engine"
 import { createMiniGameRenderer } from "@/halloween/game/renderer"
 import { preloadHalloweenAssets, type HalloweenAssets } from "@/halloween/game/assets"
-import { cardArtFor, itemArtFor, CARD_ART, HW26_CARD_BASE, ITEM_ART } from "@/halloween/game/assets"
+import {
+  cardArtFor,
+  itemArtFor,
+  itemArtForAbility,
+  CARD_ART,
+  HW26_CARD_BASE,
+  ITEM_ART,
+} from "@/halloween/game/assets"
 import { COIN_URL, XP_ORB_URL, INVENTORY_SLOT_URL } from "@/halloween/game/assets"
+import { assetPath } from "@/utils/assetPath"
+import { debugError } from "@/utils/debug"
 import {
   ABILITY_META,
   MAX_PUMPKIN_LEVEL,
@@ -802,7 +811,7 @@ const inventoryHover = computed<{ label: string; art: string } | null>(() => {
   const item = index === null ? null : (inventorySlots.value[index] ?? null)
   if (!item) return null
   const key = item.kind === "pumpkin" ? item.pumpkinType : item.abilityId
-  return { label: itemLabel(item), art: CARD_ART[key] ?? `${HW26_CARD_BASE}/${key}.png` }
+  return { label: itemLabel(item), art: CARD_ART[key] ?? assetPath(`${HW26_CARD_BASE}/${key}.png`) }
 })
 
 // Pointer-following position for the inventory card: floats just above-right
@@ -1030,6 +1039,7 @@ onMounted(async () => {
     })
   } catch (error) {
     loading.value = false
+    debugError("[halloween] mini game asset preload failed", error)
     hud.value = {
       phase: "ended",
       round: 1,

@@ -1,5 +1,7 @@
 import { Assets, type Texture } from "pixi.js"
 import { loadTizoAtlas, type LoadedAtlas } from "./atlas"
+import { assetPath } from "@/utils/assetPath"
+import { debugError, debugWarn } from "@/utils/debug"
 import type { AbilityId, ProjectileKind, PumpkinType } from "./types"
 import type { GameInventoryItem } from "./types"
 import type { CardDefinition } from "./balance"
@@ -9,19 +11,27 @@ export interface AtlasManifestEntry {
   url: string
 }
 
+// Pixi's Assets resolver only recognizes http(s) URLs, so in the Electron
+// build (served from orbital://app/) a root-absolute "/assets/..." is mangled
+// into "orbital://assets/..." and the protocol handler 404s. assetPath()
+// emits a "./" relative URL in Electron so Pixi joins it correctly.
+// assetPath() must be applied to full file URLs only — never to the raw
+// base constants (the "?v=" version query would land mid-path).
+const hw26 = (file: string): string => assetPath(`/assets/hw26/${file}`)
+
 // Every animated object the mini game renders. The preloader blocks the game
 // until all of these resolve — add new exports here as they arrive.
 export const HALLOWEEN_ATLASES: AtlasManifestEntry[] = [
-  { key: "pumpkin:ferdinand", url: "/assets/hw26/pumkins/ferdinand/atlas.json" },
-  { key: "pumpkin:chunky", url: "/assets/hw26/pumkins/chunky/atlas.json" },
-  { key: "pumpkin:herbert", url: "/assets/hw26/pumkins/herbert/atlas.json" },
-  { key: "pumpkin:gwynevere", url: "/assets/hw26/pumkins/gwynevere/atlas.json" },
-  { key: "pumpkin:cramer", url: "/assets/hw26/pumkins/cramer/atlas.json" },
-  { key: "pumpkin:pearcer", url: "/assets/hw26/pumkins/pearcer/atlas.json" },
-  { key: "slug:scout", url: "/assets/hw26/slugs/scout/atlas.json" },
-  { key: "slug:marvin", url: "/assets/hw26/slugs/marvin/atlas.json" },
-  { key: "slug:gerald", url: "/assets/hw26/slugs/gerald/atlas.json" },
-  { key: "slug:dell", url: "/assets/hw26/slugs/dell/atlas.json" },
+  { key: "pumpkin:ferdinand", url: hw26("pumkins/ferdinand/atlas.json") },
+  { key: "pumpkin:chunky", url: hw26("pumkins/chunky/atlas.json") },
+  { key: "pumpkin:herbert", url: hw26("pumkins/herbert/atlas.json") },
+  { key: "pumpkin:gwynevere", url: hw26("pumkins/gwynevere/atlas.json") },
+  { key: "pumpkin:cramer", url: hw26("pumkins/cramer/atlas.json") },
+  { key: "pumpkin:pearcer", url: hw26("pumkins/pearcer/atlas.json") },
+  { key: "slug:scout", url: hw26("slugs/scout/atlas.json") },
+  { key: "slug:marvin", url: hw26("slugs/marvin/atlas.json") },
+  { key: "slug:gerald", url: hw26("slugs/gerald/atlas.json") },
+  { key: "slug:dell", url: hw26("slugs/dell/atlas.json") },
 ]
 
 // Card + item art (hw26 drop). Files are canonical snake_case ids:
@@ -33,63 +43,63 @@ export const HW26_CARD_BASE = "/assets/hw26/cards"
 export const HW26_ITEM_BASE = "/assets/hw26/items"
 
 export const CARD_ART: Record<string, string> = {
-  annihilation: `${HW26_CARD_BASE}/annihilation.png`,
-  freeze: `${HW26_CARD_BASE}/freeze.png`,
-  distraction: `${HW26_CARD_BASE}/distraction.png`,
-  do_not_stop_daddy: `${HW26_CARD_BASE}/do_not_stop_daddy.png`,
-  wide_pumpkin: `${HW26_CARD_BASE}/wide_pumpkin.png`,
-  holy_grenade: `${HW26_CARD_BASE}/holy_grenade.png`,
-  beer: `${HW26_CARD_BASE}/beer.png`,
-  salt_line: `${HW26_CARD_BASE}/salt_line.png`,
-  tailwind: `${HW26_CARD_BASE}/tailwind.png`,
-  seed_rain: `${HW26_CARD_BASE}/seed_rain.png`,
-  thorn_patch: `${HW26_CARD_BASE}/thorn_patch.png`,
-  pearcer: `${HW26_CARD_BASE}/pearcer.png`,
-  ferdinand: `${HW26_CARD_BASE}/ferdinand.png`,
-  chunky: `${HW26_CARD_BASE}/chunky.png`,
-  herbert: `${HW26_CARD_BASE}/herbert.png`,
-  gwynevere: `${HW26_CARD_BASE}/gwynevere.png`,
-  cramer: `${HW26_CARD_BASE}/cramer.png`,
+  annihilation: hw26("cards/annihilation.png"),
+  freeze: hw26("cards/freeze.png"),
+  distraction: hw26("cards/distraction.png"),
+  do_not_stop_daddy: hw26("cards/do_not_stop_daddy.png"),
+  wide_pumpkin: hw26("cards/wide_pumpkin.png"),
+  holy_grenade: hw26("cards/holy_grenade.png"),
+  beer: hw26("cards/beer.png"),
+  salt_line: hw26("cards/salt_line.png"),
+  tailwind: hw26("cards/tailwind.png"),
+  seed_rain: hw26("cards/seed_rain.png"),
+  thorn_patch: hw26("cards/thorn_patch.png"),
+  pearcer: hw26("cards/pearcer.png"),
+  ferdinand: hw26("cards/ferdinand.png"),
+  chunky: hw26("cards/chunky.png"),
+  herbert: hw26("cards/herbert.png"),
+  gwynevere: hw26("cards/gwynevere.png"),
+  cramer: hw26("cards/cramer.png"),
 }
 
 export const ITEM_ART: Record<string, string> = {
-  annihilation: `${HW26_ITEM_BASE}/annihilation.png`,
-  freeze: `${HW26_ITEM_BASE}/freeze.png`,
-  distraction: `${HW26_ITEM_BASE}/distraction.png`,
-  do_not_stop_daddy: `${HW26_ITEM_BASE}/do_not_stop_daddy.png`,
-  wide_pumpkin: `${HW26_ITEM_BASE}/wide_pumpkin.png`,
-  holy_grenade: `${HW26_ITEM_BASE}/holy_grenade.png`,
-  beer: `${HW26_ITEM_BASE}/beer.png`,
-  salt_line: `${HW26_ITEM_BASE}/salt_line.png`,
-  tailwind: `${HW26_ITEM_BASE}/tailwind.png`,
-  seed_rain: `${HW26_ITEM_BASE}/seed_rain.png`,
-  thorn_patch: `${HW26_ITEM_BASE}/thorn_patch.png`,
-  pearcer: `${HW26_ITEM_BASE}/pearcer.png`,
+  annihilation: hw26("items/annihilation.png"),
+  freeze: hw26("items/freeze.png"),
+  distraction: hw26("items/distraction.png"),
+  do_not_stop_daddy: hw26("items/do_not_stop_daddy.png"),
+  wide_pumpkin: hw26("items/wide_pumpkin.png"),
+  holy_grenade: hw26("items/holy_grenade.png"),
+  beer: hw26("items/beer.png"),
+  salt_line: hw26("items/salt_line.png"),
+  tailwind: hw26("items/tailwind.png"),
+  seed_rain: hw26("items/seed_rain.png"),
+  thorn_patch: hw26("items/thorn_patch.png"),
+  pearcer: hw26("items/pearcer.png"),
   // Pumpkin portraits: first idle frame cropped from each atlas spritesheet.
-  ferdinand: `${HW26_ITEM_BASE}/ferdinand.png`,
-  chunky: `${HW26_ITEM_BASE}/chunky.png`,
-  herbert: `${HW26_ITEM_BASE}/herbert.png`,
-  gwynevere: `${HW26_ITEM_BASE}/gwynevere.png`,
-  cramer: `${HW26_ITEM_BASE}/cramer.png`,
+  ferdinand: hw26("items/ferdinand.png"),
+  chunky: hw26("items/chunky.png"),
+  herbert: hw26("items/herbert.png"),
+  gwynevere: hw26("items/gwynevere.png"),
+  cramer: hw26("items/cramer.png"),
 }
 
 export const PROJECTILE_ART: Record<ProjectileKind, string> = {
-  seed: `${HW26_ITEM_BASE}/seed.png`,
-  heal: `${HW26_ITEM_BASE}/healing_seed.png`,
-  missile: `${HW26_ITEM_BASE}/missile.png`,
+  seed: hw26("items/seed.png"),
+  heal: hw26("items/healing_seed.png"),
+  missile: hw26("items/missile.png"),
 }
 
 // cardArtFor resolves the full-bleed popup art for a card offer entry.
 export function cardArtFor(card: CardDefinition): string {
   const key = card.kind === "pumpkin" ? card.pumpkinType : card.abilityId
-  return CARD_ART[key] ?? `${HW26_CARD_BASE}/${key}.png`
+  return CARD_ART[key] ?? hw26(`cards/${key}.png`)
 }
 
 // itemArtFor resolves the 256px inventory icon for an inventory entry.
 // Only pearcer can ever be a pumpkin inventory item.
 export function itemArtFor(item: GameInventoryItem): string {
   const key = item.kind === "pumpkin" ? item.pumpkinType : item.abilityId
-  return ITEM_ART[key] ?? `${HW26_ITEM_BASE}/${key}.png`
+  return ITEM_ART[key] ?? hw26(`items/${key}.png`)
 }
 
 export function projectileArtFor(kind: ProjectileKind): string {
@@ -98,31 +108,31 @@ export function projectileArtFor(kind: ProjectileKind): string {
 
 // AbilityId → item icon, for code that only has the id (tooltips, feed).
 export function itemArtForAbility(abilityId: AbilityId | string): string {
-  return ITEM_ART[abilityId] ?? `${HW26_ITEM_BASE}/${abilityId}.png`
+  return ITEM_ART[abilityId] ?? hw26(`items/${abilityId}.png`)
 }
 
 export function itemArtForPumpkin(pumpkinType: PumpkinType | string): string {
-  return ITEM_ART[pumpkinType] ?? `${HW26_ITEM_BASE}/${pumpkinType}.png`
+  return ITEM_ART[pumpkinType] ?? hw26(`items/${pumpkinType}.png`)
 }
 
 // Minigame UI chrome (hw26 items drop): coin + XP orb currency icons and the
 // transparent-center frame behind inventory slots. DOM <img> icons, not Pixi
 // textures — so they prefetch via plain Image, not the field-sprite loader.
-export const COIN_URL = `${HW26_ITEM_BASE}/coin.png`
-export const XP_ORB_URL = `${HW26_ITEM_BASE}/xp.png`
-export const INVENTORY_SLOT_URL = `${HW26_ITEM_BASE}/inventory_slot.png`
+export const COIN_URL = hw26("items/coin.png")
+export const XP_ORB_URL = hw26("items/xp.png")
+export const INVENTORY_SLOT_URL = hw26("items/inventory_slot.png")
 export const HALLOWEEN_UI_URLS: string[] = [COIN_URL, XP_ORB_URL, INVENTORY_SLOT_URL]
 
 // Slug shield + charge sparks (hw26 effects drop). Translucent PNGs drawn over
 // slugs — one shield bubble per shielded slug, one spark per shield charge.
 export const HW26_EFFECT_BASE = "/assets/hw26/effects"
-export const SHIELD_URL = `${HW26_EFFECT_BASE}/shield.png`
-export const SHIELD_SPARK_URL = `${HW26_EFFECT_BASE}/shield-spark.png`
+export const SHIELD_URL = hw26("effects/shield.png")
+export const SHIELD_SPARK_URL = hw26("effects/shield-spark.png")
 // Field ability art (hw26 effects drop): ground decals drawn under engine
 // zones. Salt stays procedural (white noise) — no asset.
-export const BEER_PUDDLE_URL = `${HW26_EFFECT_BASE}/beer_puddle.png`
-export const THORN_PATCH_URL = `${HW26_EFFECT_BASE}/thorn_patch.png`
-export const DISTRACTION_SWIRL_URL = `${HW26_EFFECT_BASE}/distraction_swirl.png`
+export const BEER_PUDDLE_URL = hw26("effects/beer_puddle.png")
+export const THORN_PATCH_URL = hw26("effects/thorn_patch.png")
+export const DISTRACTION_SWIRL_URL = hw26("effects/distraction_swirl.png")
 export const HALLOWEEN_EFFECT_SPRITES: string[] = [
   SHIELD_URL,
   SHIELD_SPARK_URL,
@@ -149,7 +159,7 @@ export type HalloweenAssets = Map<string, LoadedAtlas>
 
 // Battlefield backdrop. Plain PNG (not an atlas) — preloaded into Pixi's
 // global Assets cache so the renderer can pick it up without type changes.
-export const HALLOWEEN_BACKGROUND_URL = "/assets/hw26/backgrounds/background_c_v4.png"
+export const HALLOWEEN_BACKGROUND_URL = hw26("backgrounds/background_c_v4.png")
 
 export type PreloadProgress = (percent: number, stage: string) => void
 
@@ -164,8 +174,13 @@ export async function preloadHalloweenAssets(
   for (let i = 0; i < total; i++) {
     const entry = HALLOWEEN_ATLASES[i]
     onProgress?.(Math.round((i / total) * 100), `Loading ${prettyLabel(entry.key)}…`)
-    const atlas = await loadTizoAtlas(entry.url, entry.key)
-    assets.set(entry.key, atlas)
+    try {
+      const atlas = await loadTizoAtlas(entry.url, entry.key)
+      assets.set(entry.key, atlas)
+    } catch (error) {
+      debugError(`[halloween] atlas failed to preload: ${entry.key}`, { url: entry.url }, error)
+      throw error
+    }
     onProgress?.(Math.round(((i + 1) / total) * 100), `Loaded ${prettyLabel(entry.key)}`)
   }
   // The backdrop is optional art, not a hard dependency: if it fails to load
@@ -174,20 +189,37 @@ export async function preloadHalloweenAssets(
     onProgress?.(100, "Loading Background…")
     await Assets.load<Texture>(HALLOWEEN_BACKGROUND_URL)
   } catch (error) {
-    console.warn(`[halloween] background failed to preload: ${(error as Error).message}`)
+    debugWarn(`[halloween] background failed to preload`, { url: HALLOWEEN_BACKGROUND_URL }, error)
   }
   // Field sprites (items + projectiles) are hard dependencies of the
   // renderer — a failed load falls back to vector dots, so never fail here.
+  // allSettled (not Promise.all) so every failing URL lands in the remote
+  // log instead of just the first rejection.
   try {
     onProgress?.(100, "Loading Items…")
-    await Promise.all(HALLOWEEN_FIELD_SPRITES.map((url) => Assets.load<Texture>(url)))
+    const results = await Promise.allSettled(
+      HALLOWEEN_FIELD_SPRITES.map((url) => Assets.load<Texture>(url)),
+    )
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i]
+      if (result.status === "rejected") {
+        debugError(
+          `[halloween] field sprite failed to preload`,
+          { url: HALLOWEEN_FIELD_SPRITES[i] },
+          result.reason,
+        )
+      }
+    }
   } catch (error) {
-    console.warn(`[halloween] field sprites failed to preload: ${(error as Error).message}`)
+    debugWarn(`[halloween] field sprites failed to preload: ${(error as Error).message}`)
   }
   // Card faces + UI chrome prefetch in the background (non-blocking — the
   // game starts immediately; the popup reads from a warm cache when it opens).
   for (const url of [...HALLOWEEN_CARD_URLS, ...HALLOWEEN_UI_URLS]) {
     const img = new Image()
+    img.onerror = () => {
+      debugWarn(`[halloween] card/UI art failed to prefetch: ${url}`)
+    }
     img.src = url
   }
   onProgress?.(100, "Ready")
