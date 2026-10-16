@@ -134,6 +134,9 @@ func (h *QRLoginHandler) ClaimChallenge(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		if errors.Is(err, service.ErrQRChallengePending) {
 			w.Header().Set("Content-Type", "application/json")
+			// Poll responses must never be cached: a cached 202 would mask the
+			// later 200 that carries the sealed payload.
+			w.Header().Set("Cache-Control", "no-store")
 			w.WriteHeader(http.StatusAccepted)
 			json.NewEncoder(w).Encode(models.ClaimQRChallengeResponse{
 				Status: models.QRLoginChallengePending,

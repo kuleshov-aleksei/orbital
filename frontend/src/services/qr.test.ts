@@ -106,6 +106,41 @@ describe("sealed pairing payload", () => {
       ),
     ).rejects.toThrow()
   })
+
+  it("rejects a tampered sealed payload", async () => {
+    const kp = await generateLoginKeypair()
+    await sodium.ready
+    const pub = sodium.from_base64(kp.publicKeyB64, sodium.base64_variants.ORIGINAL)
+    const sealed = sodium.crypto_box_seal(sodium.from_string("payload"), pub)
+    const tampered = Uint8Array.from(sealed)
+    tampered[tampered.length - 1] ^= 0xff
+    await expect(
+      openSealedAuthResponse(
+        sodium.to_base64(tampered, sodium.base64_variants.ORIGINAL),
+        kp.publicKeyB64,
+        kp.privateKey,
+      ),
+    ).rejects.toThrow()
+  })
+
+  it("rejects a sealed guest session (defense in depth)", async () => {
+    const kp = await generateLoginKeypair()
+    await sodium.ready
+    const pub = sodium.from_base64(kp.publicKeyB64, sodium.base64_variants.ORIGINAL)
+    const payload = JSON.stringify({
+      token: "tok",
+      user: { id: "g1", nickname: "Guest", is_guest: true },
+      expires_at: "2026-10-16T16:00:00Z",
+    })
+    const sealed = sodium.crypto_box_seal(sodium.from_string(payload), pub)
+    await expect(
+      openSealedAuthResponse(
+        sodium.to_base64(sealed, sodium.base64_variants.ORIGINAL),
+        kp.publicKeyB64,
+        kp.privateKey,
+      ),
+    ).rejects.toThrow("guest sessions cannot be linked")
+  })
 })
 
 describe("device naming", () => {
