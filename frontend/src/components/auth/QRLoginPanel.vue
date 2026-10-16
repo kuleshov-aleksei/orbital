@@ -223,6 +223,8 @@ async function start() {
     if (!stopped) {
       debugError("[QRLogin] Failed to start device linking:", error)
       fail("Could not start device linking. Check your connection and try again.")
+    } else {
+      debugError("[QRLogin] Unhandled exception during device linking:", error)
     }
   }
 }
