@@ -31,6 +31,12 @@ test.describe("QR device linking", () => {
     expect(box?.height ?? 0).toBeGreaterThan(150)
     await expect(page.getByText(/Code expires in/)).toBeVisible()
 
+    // Regeneration is gated: a fresh code (2 min TTL) cannot be replaced until
+    // its final 30 seconds, so the button stays disabled and a hint is shown.
+    const regen = page.getByRole("button", { name: "Generate a new code" })
+    await expect(regen).toBeDisabled()
+    await expect(page.getByText(/You can generate a new code in/)).toBeVisible()
+
     // Existing device approves over the API (headless cameras cannot scan;
     // the scanning UI itself is covered by the Security-tab test below).
     const approver = await ensureUser(request, {

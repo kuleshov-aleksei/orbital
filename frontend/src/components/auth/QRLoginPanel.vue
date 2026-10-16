@@ -31,9 +31,16 @@
         Code expires in
         <span class="font-semibold text-theme-text-primary tabular-nums">{{ countdown }}</span>
       </div>
-      <button type="button" class="mt-3 text-theme-accent hover:underline text-sm" @click="restart">
+      <button
+        type="button"
+        class="mt-3 text-theme-accent hover:underline text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
+        :disabled="!canRegenerate"
+        @click="restart">
         Generate a new code
       </button>
+      <p v-if="!canRegenerate" class="mt-2 text-theme-text-muted text-xs">
+        You can generate a new code in {{ countdown }}
+      </p>
     </div>
 
     <!-- Expired -->
@@ -74,6 +81,10 @@ type Phase = "starting" | "waiting" | "expired" | "error" | "done"
 
 const POLL_INTERVAL_MS = 1500
 
+// Regeneration is only unlocked in the final seconds of a code's life so the
+// user cannot mint a flood of challenges (and orphaned pending rows).
+const REGEN_UNLOCK_SECONDS = 30
+
 const userStore = useUserStore()
 const phase = ref<Phase>("starting")
 const errorMessage = ref("")
@@ -88,8 +99,14 @@ let pollTimer: ReturnType<typeof setInterval> | null = null
 let clockTimer: ReturnType<typeof setInterval> | null = null
 let stopped = false
 
+const remainingSeconds = computed(() =>
+  Math.max(0, Math.ceil((expiresAtMs.value - nowMs.value) / 1000)),
+)
+
+const canRegenerate = computed(() => remainingSeconds.value <= REGEN_UNLOCK_SECONDS)
+
 const countdown = computed(() => {
-  const remaining = Math.max(0, Math.ceil((expiresAtMs.value - nowMs.value) / 1000))
+  const remaining = remainingSeconds.value
   const mm = Math.floor(remaining / 60)
   const ss = remaining % 60
   return `${mm}:${ss.toString().padStart(2, "0")}`
