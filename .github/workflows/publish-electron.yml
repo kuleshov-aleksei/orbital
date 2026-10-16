@@ -1,8 +1,8 @@
 name: Publish Electron Release
 
-# Runs when a draft Electron release is published. Scans the installer with
-# VirusTotal (informational) and promotes the staged update manifests on the
-# Garage (S3) bucket root, which makes the update instantly available to clients.
+# Runs when a draft Electron release is published. Promotes the staged update
+# manifests on the Garage (S3) bucket root, which makes the update instantly
+# available to clients, then scans the installer with VirusTotal (informational).
 
 permissions:
   contents: read
@@ -31,14 +31,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: VirusTotal Scan
-        uses: crazy-max/ghaction-virustotal@v5
-        with:
-          vt_api_key: ${{ secrets.VT_API_KEY }}
-          update_release_body: true
-          files: |
-            .exe$
-
       - name: Promote update manifests to S3
         run: |
           VERSION="${{ github.event.release.tag_name }}"
@@ -54,3 +46,11 @@ jobs:
             amazon/aws-cli:${AWS_CLI_VERSION} s3 cp "s3://${S3_BUCKET}/_staging/${VERSION}/latest-linux.yml" "s3://${S3_BUCKET}/latest-linux.yml"
 
           echo "Promoted ${VERSION} manifests to s3://${S3_BUCKET}/ (update is live)"
+
+      - name: VirusTotal Scan
+        uses: crazy-max/ghaction-virustotal@v5
+        with:
+          vt_api_key: ${{ secrets.VT_API_KEY }}
+          update_release_body: true
+          files: |
+            .exe$
