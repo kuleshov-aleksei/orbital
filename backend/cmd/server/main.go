@@ -53,6 +53,7 @@ func main() {
 	var debugLogService *service.DebugLogService
 	var audioService *service.AudioService
 	var sessionRepo *repository.SessionRepository
+	var qrLoginRepo *repository.QRLoginRepository
 	var analyticsService *service.AnalyticsService
 	var halloweenService *service.HalloweenService
 	var pumpkinAssetService *service.PumpkinAssetService
@@ -75,6 +76,7 @@ func main() {
 		userRepo = repository.NewUserRepository(db)
 		debugLogRepo := repository.NewDebugLogRepository(db)
 		sessionRepo = repository.NewSessionRepository(db)
+		qrLoginRepo = repository.NewQRLoginRepository(db)
 		userRepo = repository.NewUserRepository(db)
 
 		// Initialize services with repositories
@@ -119,6 +121,14 @@ func main() {
 	// Initialize auth service and role service
 	authService := service.NewAuthService(cfg.GetAuthConfig(), userRepo)
 	roleService := service.NewRoleService(userRepo)
+
+	// QR device linking needs the database; it stays disabled in memory-only mode
+	var qrLoginService *service.QRLoginService
+	var qrLoginHandler *handlers.QRLoginHandler
+	if qrLoginRepo != nil {
+		qrLoginService = service.NewQRLoginService(qrLoginRepo, authService)
+		qrLoginHandler = handlers.NewQRLoginHandler(qrLoginService)
+	}
 
 	// Initialize LiveKit service
 	var livekitService *service.LiveKitService
@@ -187,6 +197,15 @@ func main() {
 	r.HandleFunc("/api/auth/status", authHandler.GetAuthStatus).Methods("GET")
 	r.HandleFunc("/api/auth/register", authHandler.Register).Methods("POST")
 	r.HandleFunc("/api/auth/login", authHandler.LoginPassword).Methods("POST")
+
+	// QR device linking (single-use pairing; disabled without a database)
+	if qrLoginHandler != nil {
+		r.HandleFunc("/api/auth/qr/challenge", qrLoginHandler.CreateChallenge).Methods("POST")
+		r.Handle("/api/auth/qr/challenge/{id}", authHandler.AuthMiddleware(http.HandlerFunc(qrLoginHandler.GetChallenge))).Methods("GET")
+		r.Handle("/api/auth/qr/approve", authHandler.AuthMiddleware(http.HandlerFunc(qrLoginHandler.ApproveChallenge))).Methods("POST")
+		r.HandleFunc("/api/auth/qr/claim", qrLoginHandler.ClaimChallenge).Methods("POST")
+		go qrLoginService.StartCleanupLoop(time.Minute)
+	}
 
 	// Users route (public)
 	r.HandleFunc("/api/users", usersHandler.GetAllUsers).Methods("GET")

@@ -36,6 +36,20 @@
             type="button"
             class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
             :class="
+              currentTab === 'security'
+                ? 'bg-theme-accent text-theme-text-on-accent'
+                : 'text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary'
+            "
+            @click="currentTab = 'security'">
+            <PhShieldCheck class="w-5 h-5" />
+
+            <span class="font-medium">Security</span>
+          </button>
+
+          <button
+            type="button"
+            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors duration-200"
+            :class="
               currentTab === 'audio'
                 ? 'bg-theme-accent text-theme-text-on-accent'
                 : 'text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary'
@@ -151,6 +165,9 @@
           <!-- Account Settings Tab -->
           <AccountSettings v-if="currentTab === 'account'" @logout="close" />
 
+          <!-- Security Settings Tab -->
+          <SecuritySettings v-else-if="currentTab === 'security'" />
+
           <!-- Application Settings Tab -->
           <ApplicationSettings v-else-if="isElectronApp && currentTab === 'application'" />
 
@@ -186,6 +203,7 @@ import VideoSettings from "./VideoSettings.vue"
 import SoundPackSettings from "./SoundPackSettings.vue"
 import AppearanceSettings from "./AppearanceSettings.vue"
 import AccountSettings from "./AccountSettings.vue"
+import SecuritySettings from "./SecuritySettings.vue"
 import DebugSettings from "./DebugSettings.vue"
 import ApplicationSettings from "./ApplicationSettings.vue"
 import AboutSettings from "./AboutSettings.vue"
@@ -195,6 +213,7 @@ import {
   PhMusicNotes,
   PhPalette,
   PhUser,
+  PhShieldCheck,
   PhBug,
   PhX,
   PhInfo,
@@ -205,7 +224,15 @@ import {
 const modalStore = useModalStore()
 const isElectronApp = isElectron()
 const currentTab = ref<
-  "application" | "audio" | "video" | "sounds" | "appearance" | "account" | "debug" | "about"
+  | "application"
+  | "audio"
+  | "video"
+  | "sounds"
+  | "appearance"
+  | "account"
+  | "security"
+  | "debug"
+  | "about"
 >("account")
 
 const isOpen = computed(() => modalStore.isUserSettingsModal)

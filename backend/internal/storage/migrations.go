@@ -316,6 +316,24 @@ INSERT OR IGNORE INTO halloween_base_sockets (base_id, socket, offset_x, offset_
 		Name:    "flatten_halloween_rarity_to_common",
 		SQL:     `UPDATE halloween_items SET rarity = 'common';`,
 	},
+	{
+		Version: 29,
+		Name:    "create_qr_login_challenges_table",
+		SQL: `CREATE TABLE IF NOT EXISTS qr_login_challenges (
+			id TEXT PRIMARY KEY,
+			public_key TEXT NOT NULL,
+			device_name TEXT NOT NULL DEFAULT '',
+			device_info TEXT NOT NULL DEFAULT '',
+			status TEXT NOT NULL DEFAULT 'pending',
+			approved_by_user_id TEXT,
+			sealed_payload TEXT,
+			created_at DATETIME NOT NULL,
+			expires_at DATETIME NOT NULL,
+			consumed_at DATETIME
+		);
+CREATE INDEX IF NOT EXISTS idx_qr_login_challenges_expires ON qr_login_challenges(expires_at);
+CREATE INDEX IF NOT EXISTS idx_qr_login_challenges_status ON qr_login_challenges(status);`,
+	},
 }
 
 func (db *DB) RunMigrations() error {

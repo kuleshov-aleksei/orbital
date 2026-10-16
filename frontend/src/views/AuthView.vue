@@ -76,6 +76,18 @@
               @click="activeTab = 'password'">
               {{ isRegisterMode ? "Register" : "Login" }}
             </button>
+            <button
+              type="button"
+              data-testid="auth-tab-qr"
+              class="flex-1 py-2 text-center font-medium transition-colors"
+              :class="
+                activeTab === 'qr'
+                  ? 'text-theme-text-primary border-b-2 border-theme-accent'
+                  : 'text-theme-text-muted hover:text-theme-text-primary'
+              "
+              @click="activeTab = 'qr'">
+              QR code
+            </button>
           </div>
 
           <!-- OAuth Providers Tab -->
@@ -324,6 +336,11 @@
               </span>
             </div>
           </div>
+
+          <!-- QR code Tab -->
+          <div v-show="activeTab === 'qr'">
+            <QRLoginPanel v-if="activeTab === 'qr'" />
+          </div>
         </div>
       </div>
     </div>
@@ -344,10 +361,11 @@ import {
 import { isElectron } from "@/services/electron"
 import DiscordIcon from "~icons/simple-icons/discord"
 import GoogleIcon from "~icons/logos/google-icon"
+import QRLoginPanel from "@/components/auth/QRLoginPanel.vue"
 
 const userStore = useUserStore()
 
-const activeTab = ref<"oauth" | "password">("oauth")
+const activeTab = ref<"oauth" | "password" | "qr">("oauth")
 
 const isRegisterMode = ref(false)
 const isLoading = ref(false)

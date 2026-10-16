@@ -174,6 +174,33 @@ interface RegisterRequest {
   password: string
 }
 
+// QR device linking types (snake_case for backend)
+export interface QRChallengeCreateRequest {
+  public_key: string
+  device_name: string
+  device_info: string
+}
+
+export interface QRChallengeCreated {
+  challenge_id: string
+  expires_at: string
+}
+
+export interface QRChallengeView {
+  challenge_id: string
+  public_key: string
+  device_name: string
+  device_info: string
+  status: string
+  expires_at: string
+}
+
+export interface QRClaimResult {
+  status: string
+  sealed_payload?: string
+  expires_at?: string
+}
+
 // Room configuration types
 export interface RoomConfig {
   min_users: number
@@ -658,6 +685,50 @@ export const apiService = {
     // Clear token
     clearAuthToken()
     return response
+  },
+
+  // QR device linking. The new device has no session yet, so challenge
+  // creation and claiming bypass the authenticated apiRequest wrapper: no
+  // Authorization header, no refresh attempts, no session-expired flow.
+  async createQRChallenge(req: QRChallengeCreateRequest): Promise<QRChallengeCreated> {
+    const response = await fetch(`${API_BASE}/auth/qr/challenge`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+      body: JSON.stringify(req),
+    })
+    if (!response.ok) {
+      throw apiError((await response.text()) || "Could not start device linking", response.status)
+    }
+    return (await response.json()) as QRChallengeCreated
+  },
+
+  // Polls a challenge: 202 means "not approved yet", 200 carries the sealed
+  // payload exactly once, 404/410 end the wait.
+  async claimQRChallenge(challengeId: string): Promise<QRClaimResult> {
+    const response = await fetch(`${API_BASE}/auth/qr/claim`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+      body: JSON.stringify({ challenge_id: challengeId }),
+    })
+    if (response.status === 202) {
+      return { status: "pending" }
+    }
+    if (!response.ok) {
+      throw apiError((await response.text()) || "Device linking failed", response.status)
+    }
+    return (await response.json()) as QRClaimResult
+  },
+
+  async getQRChallenge(challengeId: string): Promise<QRChallengeView> {
+    return apiRequest<QRChallengeView>(`/auth/qr/challenge/${encodeURIComponent(challengeId)}`)
+  },
+
+  async approveQRChallenge(challengeId: string, publicKey: string): Promise<{ status: string }> {
+    // Backend expects snake_case (per AGENTS.md convention)
+    return apiRequest<{ status: string }>("/auth/qr/approve", {
+      method: "POST",
+      body: JSON.stringify({ challenge_id: challengeId, public_key: publicKey }),
+    })
   },
 
   async getCurrentUser(): Promise<User> {
