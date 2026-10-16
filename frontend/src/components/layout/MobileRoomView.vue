@@ -24,12 +24,16 @@
       @move-room="$emit('move-room', $event)"
       @edit-room="$emit('edit-room', $event)"
       @delete-room="$emit('delete-room', $event)" />
+
+    <!-- Compact User Control Panel (bottom bar) -->
+    <MobileUserControlPanel />
   </div>
 </template>
 
 <script setup lang="ts">
 import { useAppStore } from "@/stores"
 import RoomSidebar from "@/components/RoomSidebar.vue"
+import MobileUserControlPanel from "@/components/MobileUserControlPanel.vue"
 import { PhCaretDoubleLeft } from "@phosphor-icons/vue"
 
 defineProps<{

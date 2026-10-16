@@ -3,7 +3,7 @@
     class="room-sidebar"
     :class="{
       'w-72 bg-theme-bg-secondary flex flex-col min-h-0': !isMobileView,
-      'flex-1 flex flex-col bg-theme-bg-primary': isMobileView,
+      'flex-1 flex flex-col min-h-0 bg-theme-bg-primary': isMobileView,
       'fixed lg:relative inset-y-0 left-0 z-40 transform -translate-x-full lg:translate-x-0 transition-transform duration-300':
         !isMobileView,
       'translate-x-0': !isHidden && !isMobileView,
