@@ -16,17 +16,6 @@ type WebSocketConfig struct {
 	PingCheckInterval time.Duration `yaml:"ping_check_interval"`
 }
 
-// HalloweenConfig holds configuration for the halloween seasonal event.
-type HalloweenConfig struct {
-	Enabled  bool   `yaml:"enabled"`   // Master switch; gates the feature entirely
-	StartsAt string `yaml:"starts_at"` // "2006-01-02"; feature is visible from this date (UTC)
-}
-
-// SeasonalConfig holds configuration for time-gated seasonal events.
-type SeasonalConfig struct {
-	Halloween HalloweenConfig `yaml:"halloween"`
-}
-
 // Config holds all application configuration
 type Config struct {
 	Server    ServerConfig    `yaml:"server"`
@@ -36,7 +25,6 @@ type Config struct {
 	Auth      AuthConfig      `yaml:"auth"`
 	WebSocket WebSocketConfig `yaml:"websocket"`
 	LiveKit   LiveKitConfig   `yaml:"livekit"`
-	Seasonal  SeasonalConfig  `yaml:"seasonal"`
 }
 
 // AuthConfig holds OAuth and JWT configuration
@@ -129,12 +117,6 @@ func DefaultConfig() *Config {
 			PingCheckInterval: 10 * time.Second,
 		},
 		LiveKit: DefaultLiveKitConfig(),
-		Seasonal: SeasonalConfig{
-			Halloween: HalloweenConfig{
-				Enabled:  false,
-				StartsAt: "2026-10-17",
-			},
-		},
 	}
 }
 
@@ -274,16 +256,6 @@ func (c *Config) loadFromEnv() {
 
 	// LiveKit config
 	c.LiveKit.LoadFromEnv()
-
-	// Seasonal config
-	if v := os.Getenv("SEASONAL_HALLOWEEN_ENABLED"); v != "" {
-		if enabled, err := strconv.ParseBool(v); err == nil {
-			c.Seasonal.Halloween.Enabled = enabled
-		}
-	}
-	if v := os.Getenv("SEASONAL_HALLOWEEN_STARTS_AT"); v != "" {
-		c.Seasonal.Halloween.StartsAt = v
-	}
 }
 
 // splitEnvList splits a comma-separated environment variable into a slice
@@ -407,9 +379,4 @@ func (c *Config) GetDatabaseConfig() *DatabaseConfig {
 // GetAuthConfig returns the auth configuration section
 func (c *Config) GetAuthConfig() *AuthConfig {
 	return &c.Auth
-}
-
-// GetSeasonalConfig returns the seasonal events configuration section
-func (c *Config) GetSeasonalConfig() *SeasonalConfig {
-	return &c.Seasonal
 }

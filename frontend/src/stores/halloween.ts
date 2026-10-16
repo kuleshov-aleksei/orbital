@@ -34,7 +34,6 @@ export const useHalloweenStore = defineStore("halloween", () => {
   const loaded = ref(false)
 
   // Getters
-  const enabled = computed(() => config.value?.enabled ?? false)
   const ownedItems = computed(() =>
     catalog.value.filter((item) => ownedItemIds.value.includes(item.id)),
   )
@@ -132,7 +131,6 @@ export const useHalloweenStore = defineStore("halloween", () => {
     others,
     leaderboard,
     loaded,
-    enabled,
     ownedItems,
     isUnlocked,
     fetchConfig,

@@ -216,8 +216,6 @@ export interface HalloweenSpawnScalingConfig {
 
 // HalloweenGameConfig is the server-authoritative balance payload.
 export interface HalloweenGameConfig {
-  enabled: boolean
-  starts_at: string
   battlefield_length: number
   starting_coins: number
   starting_pumpkins?: string[]

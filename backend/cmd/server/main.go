@@ -85,7 +85,7 @@ func main() {
 		debugLogService = service.NewDebugLogService(debugLogRepo, "data")
 		audioService = service.NewAudioService(repository.NewAudioRepository(db), "data")
 		analyticsService = service.NewAnalyticsService(sessionRepo)
-		halloweenService = service.NewHalloweenService(repository.NewHalloweenRepository(db), cfg.GetSeasonalConfig())
+		halloweenService = service.NewHalloweenService(repository.NewHalloweenRepository(db))
 		pumpkinAssetService = service.NewPumpkinAssetService("data", "assets")
 
 		// Load data from database

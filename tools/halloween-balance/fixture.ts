@@ -7,8 +7,6 @@ import type { HalloweenGameConfig } from "../../frontend/src/halloween/types"
 
 export function defaultConfig(): HalloweenGameConfig {
   return {
-    enabled: true,
-    starts_at: "2026-10-17",
     battlefield_length: 1000,
     starting_coins: 20,
     starting_pumpkins: ["ferdinand", "ferdinand"],

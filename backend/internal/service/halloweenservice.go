@@ -10,19 +10,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kuleshov-aleksei/orbital/internal/config"
 	"github.com/kuleshov-aleksei/orbital/internal/models"
 	"github.com/kuleshov-aleksei/orbital/internal/repository"
 )
 
-// HalloweenStartsAt is the date the feature becomes visible (17.10.2026, UTC).
-const HalloweenStartsAt = "2026-10-17"
-
 // HalloweenGameConfig is the server-authoritative balance payload served to
 // clients at game load. All values mirror the balance tables in HALLOWEEN.md.
 type HalloweenGameConfig struct {
-	Enabled           bool                              `json:"enabled"`
-	StartsAt          string                            `json:"starts_at"`
 	BattlefieldLength int                               `json:"battlefield_length"`
 	StartingCoins     int                               `json:"starting_coins"`
 	StartingPumpkins  []string                          `json:"starting_pumpkins"`
@@ -155,40 +149,16 @@ var halloweenTierOrder = []string{
 const HalloweenFreeBaseID = "base_a"
 
 type HalloweenService struct {
-	repo     *repository.HalloweenRepository
-	seasonal *config.SeasonalConfig
+	repo *repository.HalloweenRepository
 }
 
-func NewHalloweenService(repo *repository.HalloweenRepository, seasonal *config.SeasonalConfig) *HalloweenService {
-	return &HalloweenService{repo: repo, seasonal: seasonal}
-}
-
-// IsEnabled reports whether the halloween event is currently visible.
-func (s *HalloweenService) IsEnabled() bool {
-	if s.seasonal == nil || !s.seasonal.Halloween.Enabled {
-		return false
-	}
-	startsAt := s.seasonal.Halloween.StartsAt
-	if startsAt == "" {
-		return true
-	}
-	start, err := time.Parse("2006-01-02", startsAt)
-	if err != nil {
-		return false
-	}
-	return !time.Now().UTC().Before(start)
+func NewHalloweenService(repo *repository.HalloweenRepository) *HalloweenService {
+	return &HalloweenService{repo: repo}
 }
 
 // Config returns the server-authoritative balance payload.
 func (s *HalloweenService) Config() *HalloweenGameConfig {
-	startsAt := HalloweenStartsAt
-	if s.seasonal != nil && s.seasonal.Halloween.StartsAt != "" {
-		startsAt = s.seasonal.Halloween.StartsAt
-	}
-
 	return &HalloweenGameConfig{
-		Enabled:           s.IsEnabled(),
-		StartsAt:          startsAt,
 		BattlefieldLength: 1000,
 		StartingCoins:     20,
 		StartingPumpkins:  []string{"ferdinand", "ferdinand"},

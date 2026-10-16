@@ -8,9 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
-	"github.com/kuleshov-aleksei/orbital/internal/config"
 	"github.com/kuleshov-aleksei/orbital/internal/models"
 	"github.com/kuleshov-aleksei/orbital/internal/repository"
 	"github.com/kuleshov-aleksei/orbital/internal/storage"
@@ -29,60 +27,15 @@ func newHalloweenTestService(t *testing.T) *HalloweenService {
 	}
 
 	repo := repository.NewHalloweenRepository(db)
-	seasonal := &config.SeasonalConfig{
-		Halloween: config.HalloweenConfig{
-			Enabled:  true,
-			StartsAt: HalloweenStartsAt,
-		},
-	}
-	return NewHalloweenService(repo, seasonal)
+	return NewHalloweenService(repo)
 }
 
-func TestHalloweenConfigEnabledGate(t *testing.T) {
+func TestHalloweenConfigBattlefieldLength(t *testing.T) {
 	s := newHalloweenTestService(t)
 	cfg := s.Config()
 
-	start, err := time.Parse("2006-01-02", cfg.StartsAt)
-	if err != nil {
-		t.Fatalf("invalid starts_at %q: %v", cfg.StartsAt, err)
-	}
-	wantEnabled := !time.Now().UTC().Before(start)
-	if cfg.Enabled != wantEnabled {
-		t.Fatalf("enabled = %v, want %v (starts %s)", cfg.Enabled, wantEnabled, cfg.StartsAt)
-	}
 	if cfg.BattlefieldLength != 1000 {
 		t.Fatalf("unexpected battlefield length: %d", cfg.BattlefieldLength)
-	}
-}
-
-func TestHalloweenIsEnabledMasterSwitch(t *testing.T) {
-	s := newHalloweenTestService(t)
-
-	// Master switch off → always disabled regardless of date.
-	disabled := &config.SeasonalConfig{
-		Halloween: config.HalloweenConfig{Enabled: false, StartsAt: "2000-01-01"},
-	}
-	s.seasonal = disabled
-	if s.IsEnabled() {
-		t.Fatal("expected feature to be disabled when master switch is off")
-	}
-
-	// Master switch on, empty starts_at → always enabled.
-	alwaysOn := &config.SeasonalConfig{
-		Halloween: config.HalloweenConfig{Enabled: true, StartsAt: ""},
-	}
-	s.seasonal = alwaysOn
-	if !s.IsEnabled() {
-		t.Fatal("expected feature to be enabled with no starts_at")
-	}
-
-	// Future starts_at → disabled.
-	future := &config.SeasonalConfig{
-		Halloween: config.HalloweenConfig{Enabled: true, StartsAt: "2999-12-31"},
-	}
-	s.seasonal = future
-	if s.IsEnabled() {
-		t.Fatal("expected feature to be disabled before starts_at")
 	}
 }
 
@@ -329,13 +282,15 @@ func TestHalloweenSubmitGameGrantsRewards(t *testing.T) {
 		}
 	}
 
-	// 28050 points, round 7 -> 3 rewards: legendary, epic, rare in order.
+	// 40000 points, round 7 -> 3 rewards: legendary, epic, rare in order.
+	kills := make([]models.HalloweenSlugKill, 0, 240)
+	for i := 0; i < 240; i++ {
+		kills = append(kills, models.HalloweenSlugKill{Type: HalloweenSlugGerald, X: 800, Source: "pumpkin"}) // 50 each
+	}
 	report := &models.HalloweenGameReport{
-		Kills: []models.HalloweenSlugKill{
-			{Type: HalloweenSlugGerald, X: 800, Source: "pumpkin"}, // 50 * 1.0 = 50
-		},
-		CompletedRounds: 7, // 1000 * (7*8)/2 = 28000
-		Score:           50 + 28000,
+		Kills:           kills, // 12000
+		CompletedRounds: 7,     // 1000 * (7*8)/2 = 28000
+		Score:           12000 + 28000,
 	}
 
 	resp, err := s.SubmitGame("user-1", report)
@@ -376,10 +331,15 @@ func TestHalloweenSubmitGameRarityTiers(t *testing.T) {
 		}
 	}
 
-	// 15000 points, round 5 -> 2 rewards: legendary first, then epic.
+	// 40000 points, round 5 -> 2 rewards: legendary first, then epic.
+	kills := make([]models.HalloweenSlugKill, 0, 500)
+	for i := 0; i < 500; i++ {
+		kills = append(kills, models.HalloweenSlugKill{Type: HalloweenSlugGerald, X: 800, Source: "pumpkin"}) // 50 each
+	}
 	report := &models.HalloweenGameReport{
-		CompletedRounds: 5, // 1000 * (5*6)/2 = 15000
-		Score:           15000,
+		Kills:           kills, // 25000
+		CompletedRounds: 5,     // 1000 * (5*6)/2 = 15000
+		Score:           25000 + 15000,
 	}
 	resp, err := s.SubmitGame("user-2", report)
 	if err != nil {
@@ -1278,15 +1238,15 @@ func TestHalloweenRewardsNeverGrantUp(t *testing.T) {
 		}
 	}
 
-	// 2500 points → uncommon tier: must grant the uncommon item, never epic.
-	kills := make([]models.HalloweenSlugKill, 0, 30)
-	for i := 0; i < 30; i++ {
+	// 5000 points → uncommon tier: must grant the uncommon item, never epic.
+	kills := make([]models.HalloweenSlugKill, 0, 80)
+	for i := 0; i < 80; i++ {
 		kills = append(kills, models.HalloweenSlugKill{Type: HalloweenSlugGerald, X: 800, Source: "pumpkin"}) // 50 each
 	}
 	report := &models.HalloweenGameReport{
-		Kills:           kills, // 1500
-		CompletedRounds: 1,     // +1000 = 2500
-		Score:           2500,
+		Kills:           kills, // 4000
+		CompletedRounds: 1,     // +1000 = 5000
+		Score:           5000,
 	}
 	resp, err := s.SubmitGame("user-mid", report)
 	if err != nil {
