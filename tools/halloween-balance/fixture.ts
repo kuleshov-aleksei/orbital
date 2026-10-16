@@ -1,0 +1,156 @@
+// Pure default balance fixture (browser-safe: no node imports).
+// Mirrors the server-authoritative values in
+// backend/internal/service/halloweenservice.go Config() so sims run against
+// the same numbers as the live game. check-drift.cjs guards against
+// fixture/backend skew.
+import type { HalloweenGameConfig } from "../../frontend/src/halloween/types"
+
+export function defaultConfig(): HalloweenGameConfig {
+  return {
+    battlefield_length: 1000,
+    starting_coins: 20,
+    starting_pumpkins: ["ferdinand", "ferdinand"],
+    pumpkins: {
+      ferdinand: {
+        fire_rate: 1,
+        health: 10,
+        damage_per_shot: 5,
+        projectile_speed: 100,
+        cost: 20,
+        coin_interval_s: 0,
+        coins_per_tick: 0,
+        levels: [
+          { health: 10, fire_rate: 1, damage_per_shot: 5, projectile_speed: 100, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 0 },
+          { health: 14, fire_rate: 1.15, damage_per_shot: 6, projectile_speed: 100, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 0 },
+          { health: 18, fire_rate: 1.3, damage_per_shot: 7, projectile_speed: 100, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 0 },
+        ],
+      },
+      chunky: {
+        fire_rate: 0,
+        health: 50,
+        damage_per_shot: 0,
+        projectile_speed: 0,
+        cost: 40,
+        coin_interval_s: 0,
+        coins_per_tick: 0,
+        levels: [
+          { health: 50, fire_rate: 0, damage_per_shot: 0, projectile_speed: 0, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 0 },
+          { health: 75, fire_rate: 0, damage_per_shot: 0, projectile_speed: 0, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 0 },
+          { health: 100, fire_rate: 0, damage_per_shot: 0, projectile_speed: 0, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 0 },
+        ],
+      },
+      herbert: {
+        fire_rate: 0.5,
+        health: 10,
+        damage_per_shot: 5,
+        projectile_speed: 150,
+        cost: 40,
+        coin_interval_s: 0,
+        coins_per_tick: 0,
+        levels: [
+          { health: 10, fire_rate: 0.5, damage_per_shot: 5, projectile_speed: 150, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 0 },
+          { health: 14, fire_rate: 0.6, damage_per_shot: 5, projectile_speed: 150, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 0 },
+          { health: 18, fire_rate: 0.7, damage_per_shot: 5, projectile_speed: 150, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 0 },
+        ],
+      },
+      gwynevere: {
+        fire_rate: 0.1,
+        health: 5,
+        damage_per_shot: 10,
+        projectile_speed: 40,
+        cost: 70,
+        coin_interval_s: 0,
+        coins_per_tick: 0,
+        levels: [
+          { health: 5, fire_rate: 0.1, damage_per_shot: 10, projectile_speed: 40, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 70 },
+          { health: 7, fire_rate: 0.115, damage_per_shot: 13, projectile_speed: 40, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 80 },
+          { health: 9, fire_rate: 0.13, damage_per_shot: 16, projectile_speed: 40, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 90 },
+        ],
+      },
+      cramer: {
+        fire_rate: 0,
+        health: 10,
+        damage_per_shot: 0,
+        projectile_speed: 0,
+        cost: 75,
+        coin_interval_s: 5,
+        coins_per_tick: 1,
+        levels: [
+          { health: 10, fire_rate: 0, damage_per_shot: 0, projectile_speed: 0, coin_interval_s: 5, coins_per_tick: 1, blast_radius: 0 },
+          { health: 14, fire_rate: 0, damage_per_shot: 0, projectile_speed: 0, coin_interval_s: 4, coins_per_tick: 1, blast_radius: 0 },
+          { health: 18, fire_rate: 0, damage_per_shot: 0, projectile_speed: 0, coin_interval_s: 3, coins_per_tick: 1, blast_radius: 0 },
+        ],
+      },
+      pearcer: {
+        fire_rate: 0.25,
+        health: 5,
+        damage_per_shot: 25,
+        projectile_speed: 200,
+        cost: 100,
+        coin_interval_s: 0,
+        coins_per_tick: 0,
+        draft_only: true,
+        levels: [
+          { health: 5, fire_rate: 0.25, damage_per_shot: 25, projectile_speed: 200, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 0 },
+          { health: 7, fire_rate: 0.278, damage_per_shot: 30, projectile_speed: 200, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 0 },
+          { health: 9, fire_rate: 0.323, damage_per_shot: 35, projectile_speed: 200, coin_interval_s: 0, coins_per_tick: 0, blast_radius: 0 },
+        ],
+      },
+    },
+    slugs: {
+      scout: { speed: 50, health: 10, damage_to_pumpkin: 2, reward_points: 10, kill_reward: 2, xp_reward: 2 },
+      marvin: { speed: 50, health: 20, damage_to_pumpkin: 5, reward_points: 20, kill_reward: 5, xp_reward: 3 },
+      gerald: { speed: 30, health: 100, damage_to_pumpkin: 20, reward_points: 50, kill_reward: 15, xp_reward: 3 },
+      dell: { speed: 0, health: 10, damage_to_pumpkin: 0, reward_points: 100, kill_reward: 25, xp_reward: 5 },
+    },
+    abilities: {
+      annihilation: { score: 70, kind: "multiplier" },
+      holy_grenade: { score: 80, kind: "multiplier" },
+      beer: { score: 0, kind: "flat" },
+      salt_line: { score: 0, kind: "flat" },
+      tailwind: { score: 0, kind: "flat" },
+      seed_rain: { score: 0, kind: "flat" },
+      thorn_patch: { score: 80, kind: "multiplier" },
+    },
+    proximity: [
+      { min_x: 700, factor: 1.0 },
+      { min_x: 500, factor: 0.7 },
+      { min_x: 300, factor: 0.5 },
+      { min_x: 0, factor: 0.35 },
+    ],
+    round_bonus: 1000,
+    reward_brackets: [
+      { min_score: 12000, tier: "legendary" },
+      { min_score: 8000, tier: "epic" },
+      { min_score: 5000, tier: "rare" },
+      { min_score: 2000, tier: "uncommon" },
+      { min_score: 1000, tier: "common" },
+    ],
+    rewards_per_round: { 1: 1, 2: 1, 3: 1, 4: 2, 5: 2, 6: 2, 7: 3, 8: 3, 9: 3, 10: 4 },
+    spawn_rounds: [
+      { round: 1, interval: 7, pool: { scout: 20, marvin: 4, gerald: 0, dell: 0 }, speed_variation: 0.01, shielded: 0 },
+      { round: 2, interval: 6, pool: { scout: 16, marvin: 8, gerald: 0, dell: 0 }, speed_variation: 0.02, shielded: 2 },
+      { round: 3, interval: 5, pool: { scout: 20, marvin: 10, gerald: 2, dell: 1 }, speed_variation: 0.04, shielded: 4 },
+      { round: 4, interval: 3, pool: { scout: 40, marvin: 16, gerald: 5, dell: 3 }, speed_variation: 0.04, shielded: 6 },
+      { round: 5, interval: 3, pool: { scout: 48, marvin: 18, gerald: 6, dell: 4 }, speed_variation: 0.04, shielded: 8 },
+      { round: 6, interval: 2.5, pool: { scout: 56, marvin: 20, gerald: 7, dell: 5 }, speed_variation: 0.04, shielded: 10 },
+      { round: 7, interval: 2.5, pool: { scout: 64, marvin: 22, gerald: 8, dell: 5 }, speed_variation: 0.04, shielded: 14 },
+      { round: 8, interval: 3, pool: { scout: 64, marvin: 20, gerald: 6, dell: 5 }, speed_variation: 0.04, shielded: 14 },
+      { round: 9, interval: 3, pool: { scout: 72, marvin: 22, gerald: 7, dell: 5 }, speed_variation: 0.04, shielded: 16 },
+      { round: 10, interval: 3, pool: { scout: 80, marvin: 24, gerald: 7, dell: 6 }, speed_variation: 0.04, shielded: 18 },
+    ],
+    spawn_scaling: {
+      interval: 3,
+      scout_per_round: 8,
+      marvin_per_round: 2.5,
+      gerald_sqrt: 1.2,
+      dell_sqrt: 1.2,
+      speed_variation: 0.04,
+      shield_per_round: 2,
+    },
+    slug_hp_growth: 1.27,
+    level_costs: [40, 80],
+    shield_min: 3,
+    shield_max: 6,
+  }
+}

@@ -20,6 +20,9 @@
           <h2 class="text-lg font-semibold text-theme-text-primary flex items-center gap-2">
             <PhGearSix v-if="!currentTab" class="w-5 h-5 text-theme-accent" />
             <PhUser v-else-if="currentTab === 'account'" class="w-5 h-5 text-theme-accent" />
+            <PhShieldCheck
+              v-else-if="currentTab === 'security'"
+              class="w-5 h-5 text-theme-accent" />
             <PhSpeakerHigh v-else-if="currentTab === 'audio'" class="w-5 h-5 text-theme-accent" />
             <PhCamera v-else-if="currentTab === 'video'" class="w-5 h-5 text-theme-accent" />
             <PhPalette v-else-if="currentTab === 'appearance'" class="w-5 h-5 text-theme-accent" />
@@ -48,6 +51,17 @@
             <div class="flex items-center gap-3">
               <PhUser class="w-5 h-5" />
               <span class="font-medium">Account</span>
+            </div>
+            <PhCaretRight class="w-5 h-5" />
+          </button>
+
+          <button
+            type="button"
+            class="w-full flex items-center justify-between px-3 py-3 rounded-lg text-left transition-colors duration-200 text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary"
+            @click="currentTab = 'security'">
+            <div class="flex items-center gap-3">
+              <PhShieldCheck class="w-5 h-5" />
+              <span class="font-medium">Security</span>
             </div>
             <PhCaretRight class="w-5 h-5" />
           </button>
@@ -124,6 +138,9 @@
           <!-- Account Settings Tab -->
           <AccountSettings v-if="currentTab === 'account'" :hide-header="true" @logout="close" />
 
+          <!-- Security Settings Tab -->
+          <SecuritySettings v-else-if="currentTab === 'security'" :hide-header="true" />
+
           <!-- Audio Settings Tab -->
           <AudioSettings v-else-if="currentTab === 'audio'" :hide-header="true" />
 
@@ -155,6 +172,7 @@ import VideoSettings from "./VideoSettings.vue"
 import SoundPackSettings from "./SoundPackSettings.vue"
 import AppearanceSettings from "./AppearanceSettings.vue"
 import AccountSettings from "./AccountSettings.vue"
+import SecuritySettings from "./SecuritySettings.vue"
 import DebugSettings from "./DebugSettings.vue"
 import AboutSettings from "./AboutSettings.vue"
 import {
@@ -163,6 +181,7 @@ import {
   PhMusicNotes,
   PhPalette,
   PhUser,
+  PhShieldCheck,
   PhBug,
   PhX,
   PhInfo,
@@ -173,11 +192,20 @@ import {
 
 const modalStore = useModalStore()
 const currentTab = ref<
-  "audio" | "video" | "sounds" | "appearance" | "account" | "debug" | "about" | undefined
+  | "audio"
+  | "video"
+  | "sounds"
+  | "appearance"
+  | "account"
+  | "security"
+  | "debug"
+  | "about"
+  | undefined
 >(undefined)
 
 const tabLabels: Record<string, string> = {
   account: "Account",
+  security: "Security",
   audio: "Audio",
   video: "Video",
   appearance: "Appearance",

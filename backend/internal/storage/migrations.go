@@ -183,6 +183,157 @@ UPDATE user_sessions
  WHERE json_valid(device_info) AND device_info != '';
 CREATE INDEX IF NOT EXISTS idx_user_sessions_app_version ON user_sessions(app_version);`,
 	},
+	{
+		Version: 21,
+		Name:    "create_halloween_tables",
+		SQL: `CREATE TABLE IF NOT EXISTS halloween_items (
+			id         TEXT PRIMARY KEY,
+			name       TEXT NOT NULL,
+			socket     TEXT NOT NULL,
+			rarity     TEXT NOT NULL,
+			sort_order INTEGER DEFAULT 0
+		);
+CREATE INDEX IF NOT EXISTS idx_halloween_items_rarity ON halloween_items(rarity);
+
+CREATE TABLE IF NOT EXISTS halloween_game_results (
+			id               INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id          TEXT NOT NULL,
+			completed_rounds INTEGER NOT NULL,
+			score            INTEGER NOT NULL,
+			is_incomplete    BOOLEAN NOT NULL DEFAULT 0,
+			is_cheater       BOOLEAN NOT NULL DEFAULT 0,
+			report_json      TEXT NOT NULL,
+			reward_json      TEXT,
+			created_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);
+CREATE INDEX IF NOT EXISTS idx_halloween_game_results_user  ON halloween_game_results(user_id);
+CREATE INDEX IF NOT EXISTS idx_halloween_game_results_score ON halloween_game_results(score);
+
+CREATE TABLE IF NOT EXISTS halloween_rewards (
+			id         INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id    TEXT NOT NULL,
+			item_id    TEXT NOT NULL,
+			source     TEXT NOT NULL DEFAULT 'game',
+			game_id    INTEGER,
+			granted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE (user_id, item_id),
+			FOREIGN KEY (item_id) REFERENCES halloween_items(id),
+			FOREIGN KEY (game_id) REFERENCES halloween_game_results(id)
+		);
+CREATE INDEX IF NOT EXISTS idx_halloween_rewards_user ON halloween_rewards(user_id);
+
+CREATE TABLE IF NOT EXISTS halloween_pumpkins (
+			user_id      TEXT PRIMARY KEY,
+			equipped_json TEXT NOT NULL DEFAULT '{}',
+			updated_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+		);`,
+	},
+	{
+		Version: 22,
+		Name:    "seed_halloween_items",
+		SQL: `INSERT OR IGNORE INTO halloween_items (id, name, socket, rarity, sort_order) VALUES
+			('hat_party', 'Party hat', 'hat', 'rare', 1),
+			('hat_frog', 'Frog hat', 'hat', 'rare', 2),
+			('hat_beret', 'Beret', 'hat', 'regular', 3),
+			('eyes_sinister', 'Sinister', 'eyes', 'rare', 10),
+			('eyes_scared', 'Scared', 'eyes', 'common', 11),
+			('eyes_smiling', 'Smiling', 'eyes', 'uncommon', 12),
+			('eyes_cat', 'Cat eyes', 'eyes', 'uncommon', 13),
+			('mouth_vampire', 'Vampire', 'mouth', 'rare', 20),
+			('mouth_crooked', 'Crooked', 'mouth', 'uncommon', 21),
+			('mouth_pumpkin', 'Pumpkin', 'mouth', 'common', 22);`,
+	},
+	{
+		Version: 23,
+		Name:    "add_source_model_to_halloween_game_results",
+		SQL: `ALTER TABLE halloween_game_results ADD COLUMN source TEXT NOT NULL DEFAULT 'human';
+ALTER TABLE halloween_game_results ADD COLUMN model TEXT NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS idx_halloween_game_results_source ON halloween_game_results(source);`,
+	},
+	{
+		Version: 24,
+		Name:    "halloween_socket_system",
+		SQL: `ALTER TABLE halloween_items ADD COLUMN asset_path TEXT NOT NULL DEFAULT '';
+ALTER TABLE halloween_items ADD COLUMN z_index INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE halloween_items ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS idx_halloween_items_deleted ON halloween_items(is_deleted);
+
+CREATE TABLE IF NOT EXISTS halloween_base_sockets (
+			base_id  TEXT NOT NULL REFERENCES halloween_items(id) ON DELETE CASCADE,
+			socket   TEXT NOT NULL,
+			offset_x REAL NOT NULL DEFAULT 0,
+			offset_y REAL NOT NULL DEFAULT 0,
+			PRIMARY KEY (base_id, socket)
+);
+
+INSERT OR IGNORE INTO halloween_items (id, name, socket, rarity, sort_order, asset_path, z_index, is_deleted) VALUES
+			('base_a', 'Classic', 'base', 'regular', 0, '/assets/hw26/user-pumpkins/bases/base_a.png', 0, 0),
+			('feet_boots', 'Boots', 'feet', 'common', 30, '/assets/hw26/user-pumpkins/feet/feet_A.png', -1, 0),
+			('feet_roots', 'Roots', 'feet', 'uncommon', 31, '/assets/hw26/user-pumpkins/feet/feet_A.png', -1, 0),
+			('feet_sneakers', 'Sneakers', 'feet', 'rare', 32, '/assets/hw26/user-pumpkins/feet/feet_A.png', -1, 0);
+
+UPDATE halloween_items SET asset_path = '/assets/hw26/user-pumpkins/hats/hat_A.png', z_index = 20 WHERE socket = 'hat' AND asset_path = '';
+UPDATE halloween_items SET asset_path = '/assets/hw26/user-pumpkins/eyes/eye_A.png', z_index = 10 WHERE socket = 'eyes' AND asset_path = '';
+UPDATE halloween_items SET asset_path = '/assets/hw26/user-pumpkins/mouths/mouth_A.png', z_index = 11 WHERE socket = 'mouth' AND asset_path = '';
+
+INSERT OR IGNORE INTO halloween_base_sockets (base_id, socket, offset_x, offset_y) VALUES
+			('base_a', 'hat', 0, -0.45),
+			('base_a', 'eyes', 0, -0.05),
+			('base_a', 'mouth', 0, 0.2),
+			('base_a', 'feet', 0, 0.48);`,
+	},
+	{
+		Version: 25,
+		Name:    "halloween_backend_owned_assets",
+		SQL: `UPDATE halloween_items SET asset_path = '/api/halloween/assets/' || id WHERE socket != 'base' AND (asset_path = '' OR asset_path LIKE '/assets/hw26/user-pumpkins/%');
+UPDATE halloween_items SET asset_path = '/api/halloween/assets/' || id WHERE socket = 'base' AND (asset_path = '' OR asset_path LIKE '/assets/hw26/user-pumpkins/%');
+
+INSERT OR IGNORE INTO halloween_items (id, name, socket, rarity, sort_order, asset_path, z_index, is_deleted) VALUES
+			('base_a', 'Classic', 'base', 'regular', 0, '/api/halloween/assets/base_a', 0, 0),
+			('feet_boots', 'Boots', 'feet', 'common', 30, '/api/halloween/assets/feet_boots', -1, 0),
+			('feet_roots', 'Roots', 'feet', 'uncommon', 31, '/api/halloween/assets/feet_roots', -1, 0),
+			('feet_sneakers', 'Sneakers', 'feet', 'rare', 32, '/api/halloween/assets/feet_sneakers', -1, 0);
+
+INSERT OR IGNORE INTO halloween_base_sockets (base_id, socket, offset_x, offset_y) VALUES
+			('base_a', 'hat', 0, -0.45),
+			('base_a', 'eyes', 0, -0.05),
+			('base_a', 'mouth', 0, 0.2),
+			('base_a', 'feet', 0, 0.48);`,
+	},
+	{
+		Version: 26,
+		Name:    "drop_sort_order_from_halloween_items",
+		SQL:     `ALTER TABLE halloween_items DROP COLUMN sort_order;`,
+	},
+	{
+		Version: 27,
+		Name:    "add_scale_to_halloween_items",
+		SQL:     `ALTER TABLE halloween_items ADD COLUMN scale REAL NOT NULL DEFAULT 1;`,
+	},
+	{
+		Version: 28,
+		Name:    "flatten_halloween_rarity_to_common",
+		SQL:     `UPDATE halloween_items SET rarity = 'common';`,
+	},
+	{
+		Version: 29,
+		Name:    "create_qr_login_challenges_table",
+		SQL: `CREATE TABLE IF NOT EXISTS qr_login_challenges (
+			id TEXT PRIMARY KEY,
+			public_key TEXT NOT NULL,
+			device_name TEXT NOT NULL DEFAULT '',
+			device_info TEXT NOT NULL DEFAULT '',
+			status TEXT NOT NULL DEFAULT 'pending',
+			approved_by_user_id TEXT,
+			sealed_payload TEXT,
+			created_at DATETIME NOT NULL,
+			expires_at DATETIME NOT NULL,
+			consumed_at DATETIME
+		);
+CREATE INDEX IF NOT EXISTS idx_qr_login_challenges_expires ON qr_login_challenges(expires_at);
+CREATE INDEX IF NOT EXISTS idx_qr_login_challenges_status ON qr_login_challenges(status);`,
+	},
 }
 
 func (db *DB) RunMigrations() error {

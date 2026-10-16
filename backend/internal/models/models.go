@@ -264,6 +264,63 @@ type LoginResponse struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
+// QR login challenge statuses
+const (
+	QRLoginChallengePending  = "pending"
+	QRLoginChallengeApproved = "approved"
+	QRLoginChallengeConsumed = "consumed"
+	QRLoginChallengeExpired  = "expired"
+)
+
+// QRLoginChallenge is a single-use device-linking handshake. The new device
+// holds an ephemeral keypair whose public half is stored here; the approving
+// device seals the fresh session token to that key so the server only ever
+// relays ciphertext.
+type QRLoginChallenge struct {
+	ID               string     `json:"id"`
+	PublicKey        string     `json:"public_key"`
+	DeviceName       string     `json:"device_name"`
+	DeviceInfo       string     `json:"device_info,omitempty"`
+	Status           string     `json:"status"`
+	ApprovedByUserID string     `json:"approved_by_user_id,omitempty"`
+	SealedPayload    string     `json:"sealed_payload,omitempty"`
+	CreatedAt        time.Time  `json:"created_at"`
+	ExpiresAt        time.Time  `json:"expires_at"`
+	ConsumedAt       *time.Time `json:"consumed_at,omitempty"`
+}
+
+// CreateQRChallengeRequest is sent by the new (unauthenticated) device
+type CreateQRChallengeRequest struct {
+	PublicKey  string `json:"public_key"`
+	DeviceName string `json:"device_name"`
+	DeviceInfo string `json:"device_info"`
+}
+
+// CreateQRChallengeResponse returns the public challenge id for the QR code
+type CreateQRChallengeResponse struct {
+	ChallengeID string    `json:"challenge_id"`
+	ExpiresAt   time.Time `json:"expires_at"`
+}
+
+// ApproveQRChallengeRequest is sent by the logged-in device that scanned the QR
+type ApproveQRChallengeRequest struct {
+	ChallengeID string `json:"challenge_id"`
+	PublicKey   string `json:"public_key"`
+}
+
+// ClaimQRChallengeRequest is sent by the new device while polling for approval
+type ClaimQRChallengeRequest struct {
+	ChallengeID string `json:"challenge_id"`
+}
+
+// ClaimQRChallengeResponse carries the poll outcome; the sealed payload is
+// only present once the challenge was approved
+type ClaimQRChallengeResponse struct {
+	Status        string    `json:"status"`
+	SealedPayload string    `json:"sealed_payload,omitempty"`
+	ExpiresAt     time.Time `json:"expires_at"`
+}
+
 // DebugLog represents a debug log entry
 type DebugLog struct {
 	ID          int64     `json:"id"`

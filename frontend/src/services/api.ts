@@ -13,6 +13,22 @@ import {
   StatsStatus,
   AnalyticsReport,
 } from "@/types"
+import type {
+  HalloweenGameConfig,
+  HalloweenStateResponse,
+  PumpkinStatesResponse,
+  HalloweenGameReport,
+  SubmitGameReportResponse,
+  HalloweenLeaderboardEntry,
+  HalloweenAdminGame,
+  HalloweenAdminReward,
+  HalloweenItem,
+  HalloweenBaseSocket,
+  CreateHalloweenItemRequest,
+  UpdateHalloweenItemRequest,
+  UpsertBaseSocketsRequest,
+  HalloweenPackageResult,
+} from "@/halloween/types"
 import { isElectron, openExternal, oauthAuthenticate } from "./electron"
 
 const API_BASE = typeof __BACKEND_URL__ !== "undefined" ? `${__BACKEND_URL__}/api` : "/api"
@@ -159,6 +175,33 @@ interface RegisterRequest {
   password: string
 }
 
+// QR device linking types (snake_case for backend)
+export interface QRChallengeCreateRequest {
+  public_key: string
+  device_name: string
+  device_info: string
+}
+
+export interface QRChallengeCreated {
+  challenge_id: string
+  expires_at: string
+}
+
+export interface QRChallengeView {
+  challenge_id: string
+  public_key: string
+  device_name: string
+  device_info: string
+  status: string
+  expires_at: string
+}
+
+export interface QRClaimResult {
+  status: string
+  sealed_payload?: string
+  expires_at?: string
+}
+
 // Room configuration types
 export interface RoomConfig {
   min_users: number
@@ -244,8 +287,10 @@ export async function apiRequest<T>(
   allowRetry = true,
 ): Promise<T> {
   try {
+    // Multipart uploads set their own Content-Type (with boundary).
+    const isMultipart = typeof FormData !== "undefined" && options.body instanceof FormData
     const headers: Record<string, string> = {
-      "Content-Type": "application/json",
+      ...(isMultipart ? {} : { "Content-Type": "application/json" }),
       ...(options.headers as Record<string, string>),
     }
 
@@ -421,6 +466,142 @@ export const apiService = {
     return apiRequest<TURNConfigResponse>(endpoint)
   },
 
+  // Halloween API calls
+  async getHalloweenConfig(): Promise<HalloweenGameConfig> {
+    return apiRequest<HalloweenGameConfig>("/halloween/game/config")
+  },
+
+  async getHalloweenState(): Promise<HalloweenStateResponse> {
+    return apiRequest<HalloweenStateResponse>("/halloween/state")
+  },
+
+  async getHalloweenPumpkinStates(userIds: string[]): Promise<PumpkinStatesResponse> {
+    const ids = encodeURIComponent(userIds.join(","))
+    return apiRequest<PumpkinStatesResponse>(`/halloween/pumpkin-states?user_ids=${ids}`)
+  },
+
+  async updatePumpkin(equippedJson: string): Promise<{ status: string }> {
+    return apiRequest<{ status: string }>("/halloween/pumpkin", {
+      method: "PUT",
+      body: JSON.stringify({ equipped_json: equippedJson }),
+    })
+  },
+
+  async submitHalloweenGame(report: HalloweenGameReport): Promise<SubmitGameReportResponse> {
+    return apiRequest<SubmitGameReportResponse>("/halloween/game/report", {
+      method: "POST",
+      body: JSON.stringify(report),
+    })
+  },
+
+  async getHalloweenLeaderboard(): Promise<HalloweenLeaderboardEntry[]> {
+    return apiRequest<HalloweenLeaderboardEntry[]>("/halloween/leaderboard")
+  },
+
+  // Halloween admin calls (super_admin only)
+  async getHalloweenAdminGames(): Promise<HalloweenAdminGame[]> {
+    return apiRequest<HalloweenAdminGame[]>("/admin/halloween/games")
+  },
+
+  async getHalloweenAdminItems(): Promise<HalloweenItem[]> {
+    return apiRequest<HalloweenItem[]>("/admin/halloween/items")
+  },
+
+  async getHalloweenAdminRewards(): Promise<HalloweenAdminReward[]> {
+    return apiRequest<HalloweenAdminReward[]>("/admin/halloween/rewards")
+  },
+
+  async issueHalloweenReward(
+    userId: string,
+    itemId: string,
+  ): Promise<{ status: string; message: string; granted: boolean }> {
+    return apiRequest<{ status: string; message: string; granted: boolean }>(
+      "/admin/halloween/rewards",
+      {
+        method: "POST",
+        body: JSON.stringify({ user_id: userId, item_id: itemId }),
+      },
+    )
+  },
+
+  // Halloween catalog + socket-layout admin (super_admin only, snake_case).
+  async createHalloweenItem(payload: CreateHalloweenItemRequest): Promise<HalloweenItem> {
+    return apiRequest<HalloweenItem>("/admin/halloween/items", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    })
+  },
+
+  async updateHalloweenItem(
+    id: string,
+    payload: UpdateHalloweenItemRequest,
+  ): Promise<HalloweenItem> {
+    return apiRequest<HalloweenItem>(`/admin/halloween/items/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    })
+  },
+
+  async deleteHalloweenItem(id: string): Promise<{ status: string }> {
+    return apiRequest<{ status: string }>(`/admin/halloween/items/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    })
+  },
+
+  async restoreHalloweenItem(id: string): Promise<{ status: string }> {
+    return apiRequest<{ status: string }>(
+      `/admin/halloween/items/${encodeURIComponent(id)}/restore`,
+      { method: "POST" },
+    )
+  },
+
+  async uploadHalloweenItemAsset(id: string, file: File): Promise<HalloweenItem> {
+    const form = new FormData()
+    form.append("asset", file)
+    return apiRequest<HalloweenItem>(`/admin/halloween/items/${encodeURIComponent(id)}/asset`, {
+      method: "POST",
+      body: form,
+    })
+  },
+
+  async getHalloweenBaseLayouts(baseId: string): Promise<HalloweenBaseSocket[]> {
+    return apiRequest<HalloweenBaseSocket[]>(
+      `/admin/halloween/layouts?base_id=${encodeURIComponent(baseId)}`,
+    )
+  },
+
+  async saveHalloweenBaseLayouts(payload: UpsertBaseSocketsRequest): Promise<{ status: string }> {
+    return apiRequest<{ status: string }>("/admin/halloween/layouts", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    })
+  },
+
+  // Halloween config package export/import (super_admin only, snake_case).
+  // The package is an uncompressed .tar: config.json (definitions + layouts)
+  // plus assets/<id>.png art. apiRequest only handles JSON, so export uses a
+  // raw authenticated fetch returning a Blob.
+  async exportHalloweenPackage(): Promise<Blob> {
+    const token = getAuthToken()
+    const response = await fetch(`${API_BASE}/admin/halloween/config/export`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw apiError(errorText || `Export failed (${response.status})`, response.status)
+    }
+    return await response.blob()
+  },
+
+  async importHalloweenPackage(file: File): Promise<HalloweenPackageResult> {
+    const form = new FormData()
+    form.append("package", file)
+    return apiRequest<HalloweenPackageResult>("/admin/halloween/config/import", {
+      method: "POST",
+      body: form,
+    })
+  },
+
   // Auth API calls
   async getOAuthUrl(
     provider: "discord" | "google",
@@ -510,6 +691,50 @@ export const apiService = {
     // Clear token
     clearAuthToken()
     return response
+  },
+
+  // QR device linking. The new device has no session yet, so challenge
+  // creation and claiming bypass the authenticated apiRequest wrapper: no
+  // Authorization header, no refresh attempts, no session-expired flow.
+  async createQRChallenge(req: QRChallengeCreateRequest): Promise<QRChallengeCreated> {
+    const response = await fetch(`${API_BASE}/auth/qr/challenge`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+      body: JSON.stringify(req),
+    })
+    if (!response.ok) {
+      throw apiError((await response.text()) || "Could not start device linking", response.status)
+    }
+    return (await response.json()) as QRChallengeCreated
+  },
+
+  // Polls a challenge: 202 means "not approved yet", 200 carries the sealed
+  // payload exactly once, 404/410 end the wait.
+  async claimQRChallenge(challengeId: string): Promise<QRClaimResult> {
+    const response = await fetch(`${API_BASE}/auth/qr/claim`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+      body: JSON.stringify({ challenge_id: challengeId }),
+    })
+    if (response.status === 202) {
+      return { status: "pending" }
+    }
+    if (!response.ok) {
+      throw apiError((await response.text()) || "Device linking failed", response.status)
+    }
+    return (await response.json()) as QRClaimResult
+  },
+
+  async getQRChallenge(challengeId: string): Promise<QRChallengeView> {
+    return apiRequest<QRChallengeView>(`/auth/qr/challenge/${encodeURIComponent(challengeId)}`)
+  },
+
+  async approveQRChallenge(challengeId: string, publicKey: string): Promise<{ status: string }> {
+    // Backend expects snake_case (per AGENTS.md convention)
+    return apiRequest<{ status: string }>("/auth/qr/approve", {
+      method: "POST",
+      body: JSON.stringify({ challenge_id: challengeId, public_key: publicKey }),
+    })
   },
 
   async getCurrentUser(): Promise<User> {

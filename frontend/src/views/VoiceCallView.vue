@@ -123,6 +123,12 @@
           :current-user-camera-enabled="isCameraEnabled"
           :get-participant-stats="getParticipantStats" />
 
+        <!-- Halloween Pumpkin Strip (web only, above the audio controls) -->
+        <PumpkinStrip
+          v-if="!isMobile"
+          :users="users"
+          class="absolute bottom-24 left-1/2 -translate-x-1/2 z-20" />
+
         <!-- Floating Audio Controls - positioned at bottom center of main content -->
         <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 lg:z-40">
           <AudioControls
@@ -152,6 +158,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, ref, useTemplateRef, watch } from "vue"
 import AudioControls from "@/components/AudioControls.vue"
+import PumpkinStrip from "@/components/halloween/PumpkinStrip.vue"
 import RoomHeader from "@/components/RoomHeader.vue"
 import ChatWidget from "@/components/ChatWidget.vue"
 import ChatToggleButton from "@/components/ChatToggleButton.vue"

@@ -1,0 +1,507 @@
+<!--
+  DEV-ONLY balance visualizer (mounted at /dev/balance, never linked in prod).
+  Runs one headless-style sim game live in the browser using the SAME
+  HalloweenGameEngine + Pixi renderer as the real game (MiniGame.vue), driven
+  by the SAME bot policies as tools/halloween-balance (heuristic / systemone).
+  Purpose: watch policy behaviour (buys, placements, ability holds) unfold.
+-->
+<template>
+  <div class="flex h-screen flex-col bg-stone-950 text-stone-200">
+    <div class="flex flex-wrap items-center gap-3 border-b border-stone-800 px-4 py-2">
+      <span class="font-semibold text-amber-300">balance visual</span>
+      <span class="rounded bg-amber-900/60 px-1.5 py-0.5 text-[11px] text-amber-200">dev only</span>
+      <label class="text-xs text-stone-400">
+        policy
+        <select
+          v-model="policyName"
+          class="ml-1 rounded bg-stone-800 px-1.5 py-1 text-stone-200"
+          @change="restart">
+          <option value="systemone">systemone</option>
+          <option value="heuristic">heuristic</option>
+        </select>
+      </label>
+
+      <label class="text-xs text-stone-400">
+        seed
+        <input
+          v-model.number="seed"
+          type="number"
+          class="ml-1 w-20 rounded bg-stone-800 px-1.5 py-1 text-stone-200"
+          @change="restart" />
+      </label>
+
+      <label v-if="policyName === 'systemone'" class="text-xs text-stone-400">
+        decider
+        <input
+          v-model="systemoneUrl"
+          type="text"
+          class="ml-1 w-64 rounded bg-stone-800 px-1.5 py-1 font-mono text-stone-200" />
+      </label>
+
+      <label class="text-xs text-stone-400">
+        speed
+        <select v-model.number="speed" class="ml-1 rounded bg-stone-800 px-1.5 py-1 text-stone-200">
+          <option :value="1">1x</option>
+          <option :value="2">2x</option>
+          <option :value="4">4x</option>
+          <option :value="8">8x</option>
+        </select>
+      </label>
+
+      <button
+        type="button"
+        :disabled="loadingAssets"
+        class="rounded bg-amber-700 px-2.5 py-1 text-sm text-white hover:bg-amber-600 disabled:opacity-40"
+        @click="restart">
+        {{ started ? "restart" : "start" }}
+      </button>
+      <button
+        type="button"
+        :disabled="!started || finished"
+        class="rounded bg-stone-700 px-2.5 py-1 text-sm hover:bg-stone-600 disabled:opacity-40"
+        @click="paused = !paused">
+        {{ paused ? "resume" : "pause" }}
+      </button>
+      <button
+        type="button"
+        :disabled="!started || !paused || finished"
+        class="rounded bg-stone-700 px-2.5 py-1 text-sm hover:bg-stone-600 disabled:opacity-40"
+        @click="stepOnce">
+        step
+      </button>
+
+      <span v-if="error" class="text-xs text-red-400">error: {{ error }}</span>
+      <!-- Fixed-height full-width status row: content swaps inside without
+        changing the header height, so the canvas never jumps. -->
+      <div class="flex h-6 w-full items-center gap-3 overflow-hidden text-xs">
+        <span v-if="loadingAssets" class="animate-pulse truncate text-amber-300">
+          loading assets… {{ loadStage }}
+        </span>
+        <span v-else-if="awaiting" class="animate-pulse truncate text-sky-300">
+          waiting for decider ({{ decisionTotal }} decisions so far)…
+        </span>
+        <span v-else-if="finished" class="truncate text-emerald-300">{{ endLine }}</span>
+        <span v-else class="truncate text-stone-500">
+          {{ running ? "simulating…" : "idle" }}
+        </span>
+      </div>
+    </div>
+
+    <div class="flex min-h-0 flex-1">
+      <div ref="canvasEl" class="min-w-0 flex-1"></div>
+
+      <div class="flex w-96 flex-col border-l border-stone-800">
+        <div class="grid grid-cols-4 gap-1 border-b border-stone-800 px-3 py-2 font-mono text-xs">
+          <div>
+            round <span class="text-amber-200">{{ hud?.round ?? "–" }}</span>
+          </div>
+          <div>
+            score <span class="text-amber-200">{{ hud?.score ?? "–" }}</span>
+          </div>
+          <div>
+            coins <span class="text-amber-200">{{ hud?.coins ?? "–" }}</span>
+          </div>
+          <div>
+            xp <span class="text-amber-200">{{ hud?.xp ?? "–" }}</span>
+          </div>
+          <div>
+            pumpkins <span class="text-amber-200">{{ alivePumpkins }}</span>
+          </div>
+          <div>
+            slugs <span class="text-amber-200">{{ aliveSlugs }}</span>
+          </div>
+          <div>
+            ticks <span class="text-amber-200">{{ ticks }}</span>
+          </div>
+          <div>
+            phase <span class="text-amber-200">{{ hud?.phase ?? "–" }}</span>
+          </div>
+        </div>
+        <div class="border-b border-stone-800 px-3 py-1.5 font-mono text-[11px] text-stone-400">
+          inv: {{ inventoryLine }}
+        </div>
+        <div
+          ref="feedEl"
+          class="min-h-0 flex-1 overflow-y-auto px-3 py-2 font-mono text-[11px] leading-relaxed">
+          <div v-for="(d, i) in feed" :key="i" class="whitespace-pre-wrap">
+            <button
+              v-if="d.request"
+              type="button"
+              class="block w-full cursor-pointer rounded text-left hover:bg-stone-800/60"
+              :title="expanded === i ? 'collapse request/response' : 'expand full request/response'"
+              @click="expanded = expanded === i ? null : i">
+              <span class="text-stone-500">{{ expanded === i ? "▾" : "▸" }}{{ d.phase }}</span>
+              <span :class="d.note ? 'text-stone-300' : 'text-sky-300'"> {{ d.question }}</span>
+              <span class="text-stone-200"> → {{ d.choice }}</span>
+              <span v-if="choiceProb(d) != null" class="text-amber-200/80">
+                ({{ choiceProb(d) }})</span
+              >
+            </button>
+            <div v-else>
+              <span class="text-stone-500">{{ d.phase }}</span>
+              <span :class="d.note ? 'text-stone-300' : 'text-sky-300'"> {{ d.question }}</span>
+              <span class="text-stone-200"> → {{ d.choice }}</span>
+            </div>
+            <div v-if="d.request && expanded === i" class="mt-1 rounded bg-stone-900 p-2">
+              <div class="mb-1 flex gap-1.5">
+                <button
+                  type="button"
+                  class="rounded bg-stone-700 px-1.5 py-0.5 text-[10px] text-stone-200 hover:bg-stone-600"
+                  @click="copyText(`full-${i}`, formatDetail(d))">
+                  {{ copiedKey === `full-${i}` ? "copied ✓" : "copy full" }}
+                </button>
+                <button
+                  type="button"
+                  title="Copy the exact POST body sent to the decider (state + this question), for external retry/debugging"
+                  class="rounded bg-stone-700 px-1.5 py-0.5 text-[10px] text-stone-200 hover:bg-stone-600"
+                  @click="copyText(`req-${i}`, requestBody(d))">
+                  {{ copiedKey === `req-${i}` ? "copied ✓" : "copy request" }}
+                </button>
+              </div>
+              <pre class="max-h-96 overflow-auto text-[10px] whitespace-pre-wrap text-stone-300">{{
+                formatDetail(d)
+              }}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef } from "vue"
+import { HalloweenGameEngine } from "@/halloween/game/engine"
+import { createMiniGameRenderer } from "@/halloween/game/renderer"
+import { preloadHalloweenAssets, type HalloweenAssets } from "@/halloween/game/assets"
+import { useHalloweenStore } from "@/stores"
+import type { GameSnapshot } from "@/halloween/game/types"
+import type { HalloweenGameConfig } from "@/halloween/types"
+// Single source of truth with the headless harness (vite fs.allow covers
+// ../../../../tools). Browser-safe: pure TS + fetch, no node imports.
+import { HeuristicPolicy, type Policy } from "../../../../tools/halloween-balance/policies"
+import {
+  SystemOnePolicy,
+  type DecisionRecord,
+} from "../../../../tools/halloween-balance/policies-systemone"
+import { defaultConfig } from "../../../../tools/halloween-balance/fixture"
+import { mulberry32, type Rng } from "../../../../tools/halloween-balance/rng"
+
+const DT = 1 / 30 // sim-seconds per tick — same fixed step as driver.ts
+const MAX_TICKS = 45 * 60 * 30 // safety cap, mirrors maxSimSeconds 45 min
+
+interface FeedItem extends DecisionRecord {
+  note?: boolean
+}
+
+const halloweenStore = useHalloweenStore()
+const canvasEl = useTemplateRef<HTMLElement>("canvasEl")
+const feedEl = useTemplateRef<HTMLElement>("feedEl")
+
+const policyName = ref<"systemone" | "heuristic">("systemone")
+const seed = ref(5)
+const systemoneUrl = ref("http://localhost:8000/v1/systemone")
+const speed = ref(2)
+
+const running = ref(false) // a sim loop is alive
+const started = ref(false)
+const paused = ref(false)
+const finished = ref(false)
+const awaiting = ref(false) // blocked inside a policy await (decider fetch)
+const error = ref<string | null>(null)
+const loadingAssets = ref(false)
+const loadStage = ref("")
+const hud = ref<GameSnapshot | null>(null)
+const ticks = ref(0)
+const alivePumpkins = ref(0)
+const aliveSlugs = ref(0)
+const feed = ref<FeedItem[]>([])
+const endLine = ref("")
+const expanded = ref<number | null>(null)
+const copiedKey = ref<string | null>(null)
+
+function formatDetail(d: FeedItem): string {
+  return JSON.stringify(
+    {
+      request: d.request,
+      response: { choice: d.choice, confidence: d.confidence, probabilities: d.probabilities },
+    },
+    null,
+    2,
+  )
+}
+
+/** Chosen option's probability as "51.3%", from the decider's distribution. */
+function choiceProb(d: FeedItem): string | null {
+  const p = d.probabilities?.[d.choice] ?? d.confidence
+  return p == null ? null : `${(p * 100).toFixed(1)}%`
+}
+
+async function copyText(key: string, text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text)
+    copiedKey.value = key
+    setTimeout(() => {
+      if (copiedKey.value === key) copiedKey.value = null
+    }, 1500)
+  } catch {
+    copiedKey.value = null
+  }
+}
+
+/** The exact POST body sent to the decider for this decision (state +
+ * question under its id) — paste it to the API for an external retry. */
+function requestBody(d: FeedItem): string {
+  if (!d.request) return ""
+  return JSON.stringify(
+    { state: d.request.state, questions: { [d.question]: d.request.question } },
+    null,
+    2,
+  )
+}
+
+let engine: HalloweenGameEngine | null = null
+let renderer: ReturnType<typeof createMiniGameRenderer> | null = null
+let policy: Policy | null = null
+let rng: Rng = Math.random
+let runId = 0
+let raf = 0
+let lastSeenDecisions = 0
+
+const decisionTotal = computed(() => feed.value.filter((d) => !d.note).length)
+const inventoryLine = computed(
+  () =>
+    hud.value?.inventory
+      .map((i) => (i.kind === "pumpkin" ? i.pumpkinType : i.abilityId))
+      .join(", ") || "empty",
+)
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function pushNote(choice: string): void {
+  if (!engine) return
+  const snap = engine.snapshot()
+  feed.value.push({ phase: `R${snap.round}/${snap.phase}`, question: "note", choice, note: true })
+  void nextTick(scrollFeed)
+}
+
+function syncPolicyDecisions(): void {
+  const decisions = (policy as SystemOnePolicy | null)?.decisions
+  if (!decisions) return
+  while (lastSeenDecisions < decisions.length) {
+    feed.value.push(decisions[lastSeenDecisions])
+    lastSeenDecisions++
+  }
+  void nextTick(scrollFeed)
+}
+
+function scrollFeed(): void {
+  const el = feedEl.value
+  if (el) el.scrollTop = el.scrollHeight
+}
+
+/** One fixed sim step. Mirrors driver.ts: cards phase resolves popups via
+ * the policy, playing phase calls onTick, then engine.update(DT). The run id
+ * guards against stale async steps: if a restart happened while a decider
+ * fetch was in flight, bail without touching the new run's engine. */
+async function simStep(config: HalloweenGameConfig, id: number): Promise<boolean> {
+  if (!engine || !policy) return false
+  const snap = engine.snapshot()
+  if (snap.phase === "gameover" || snap.phase === "ended") return false
+
+  if (snap.phase === "cards" && snap.cards) {
+    const pumpkins = engine.pumpkins.filter((p) => p.health > 0)
+    // Full CardContext, mirroring driver.ts — systemone's card doctrine
+    // reads round/inventory/duplicates/answers/field size.
+    const owned = (t: string): number =>
+      snap.inventory.filter((i) => i.kind === "pumpkin" && i.pumpkinType === t).length
+    awaiting.value = true
+    try {
+      const pick = await policy.pickCard(snap.cards.cards, rng, {
+        cramerCount: pumpkins.filter((p) => p.type === "cramer").length,
+        damagedAny: pumpkins.some((p) => p.health < p.maxHealth),
+        round: snap.round,
+        inventoryFull: snap.inventory.length >= 6,
+        herbertCount: pumpkins.filter((p) => p.type === "herbert").length + owned("herbert"),
+        gwynevereCount: pumpkins.filter((p) => p.type === "gwynevere").length + owned("gwynevere"),
+        answerCount: snap.inventory.filter(
+          (i) =>
+            i.kind === "ability" &&
+            (i.abilityId === "annihilation" ||
+              i.abilityId === "holy_grenade" ||
+              i.abilityId === "freeze"),
+        ).length,
+        fieldCount: pumpkins.length,
+      })
+      if (policyName.value === "heuristic") {
+        feed.value.push({ phase: "cards", question: "card_decision", choice: String(pick) })
+      }
+      if (id !== runId) return true // superseded by a restart — drop the pick
+      engine.pickCard(pick)
+    } finally {
+      awaiting.value = false
+    }
+  } else if (snap.phase === "playing") {
+    awaiting.value = true
+    try {
+      await policy.onTick(engine, config, rng)
+    } finally {
+      awaiting.value = false
+    }
+    if (id !== runId) return true // superseded by a restart — skip the update
+  }
+  engine.update(DT)
+  ticks.value++
+  syncPolicyDecisions()
+
+  const after = engine.snapshot()
+  if (after.round !== snap.round && after.phase === "playing") {
+    pushNote(`reached round ${after.round}`)
+  }
+  const done = after.phase === "gameover" || after.phase === "ended"
+  if (done) {
+    const report = engine.buildReport(false)
+    endLine.value =
+      `game over: R${after.round} completed ${report.completed_rounds}, ` +
+      `score ${report.score}, ${report.kills.length} kills ` +
+      `(${after.gameOverReason ?? after.phase})`
+    pushNote(endLine.value)
+  }
+  return !done && ticks.value < MAX_TICKS
+}
+
+/** Sim task: advances the game while the render loop paints. Each iteration
+ * runs `speed` sequential sim steps, then yields ~33ms so the UI breathes.
+ * Systemone steps are decider-bound (each awaits a fetch), so speed scales
+ * decider throughput; heuristic steps are synchronous. Pause is honored
+ * between steps. */
+async function simLoop(config: HalloweenGameConfig, id: number): Promise<void> {
+  while (id === runId) {
+    if (paused.value) {
+      await sleep(100)
+      continue
+    }
+    const steps = speed.value
+    for (let i = 0; i < steps; i++) {
+      if (id !== runId || paused.value) break
+      try {
+        const alive = await simStep(config, id)
+        if (id !== runId) return
+        if (!alive) {
+          finished.value = true
+          running.value = false
+          return
+        }
+      } catch (e) {
+        error.value = (e as Error).message
+        running.value = false
+        return
+      }
+    }
+    await sleep(33)
+  }
+}
+
+const renderFrame = (): void => {
+  if (engine) {
+    renderer?.sync()
+    hud.value = engine.snapshot()
+    alivePumpkins.value = engine.pumpkins.filter((p) => p.health > 0).length
+    aliveSlugs.value = engine.slugs.filter((s) => s.health > 0).length
+  }
+  raf = requestAnimationFrame(renderFrame)
+}
+
+async function restart(): Promise<void> {
+  runId++ // abort any in-flight loop
+  const id = runId
+  error.value = null
+  endLine.value = ""
+  feed.value = []
+  expanded.value = null
+  copiedKey.value = null
+  ticks.value = 0
+  finished.value = false
+  paused.value = false
+  lastSeenDecisions = 0
+
+  renderer?.destroy()
+  renderer = null
+  engine = null
+
+  if (!halloweenStore.config) await halloweenStore.fetchConfig()
+  const config = halloweenStore.config ?? defaultConfig()
+
+  // Hard block like MiniGame.vue: no assets → no sim. The renderer falls back
+  // to tinted placeholders without a bundle, so starting anyway would show a
+  // misleading visual.
+  loadingAssets.value = true
+  loadStage.value = "Preparing assets…"
+  let assetBundle: HalloweenAssets
+  try {
+    assetBundle = await preloadHalloweenAssets((percent, stage) => {
+      loadStage.value = `${percent}% — ${stage}`
+    })
+  } catch (e) {
+    if (id !== runId) return // superseded by a newer restart — drop the error
+    error.value = `Failed to load assets: ${(e as Error).message}`
+    loadingAssets.value = false
+    loadStage.value = ""
+    running.value = false
+    return
+  }
+  if (id !== runId) return // superseded while assets were loading
+  loadingAssets.value = false
+  loadStage.value = ""
+
+  rng = mulberry32(seed.value)
+  engine = new HalloweenGameEngine(config, rng)
+  policy =
+    policyName.value === "systemone"
+      ? new SystemOnePolicy({ url: systemoneUrl.value, timeoutMs: 20000, recordDetails: true })
+      : new HeuristicPolicy()
+  hud.value = engine.snapshot()
+
+  renderer = createMiniGameRenderer(engine, assetBundle)
+  if (canvasEl.value) await renderer.init(canvasEl.value)
+  if (id !== runId) return // superseded while the renderer was initializing
+  // Animation-only wiring (no sounds in the visualizer): engine events drive
+  // the renderer's fire/hurt/death one-shots, mirroring MiniGame.vue.
+  engine.onEvent = (event) => renderer?.onGameEvent(event)
+
+  started.value = true
+  running.value = true
+  pushNote(`start policy=${policy.name} seed=${seed.value}`)
+  void simLoop(config, id)
+}
+
+/** Advance exactly one sim step while paused (steps through systemone
+ * decider calls one at a time — handy for watching its reasoning). */
+async function stepOnce(): Promise<void> {
+  if (!engine || !policy || finished.value || !paused.value) return
+  if (!halloweenStore.config) await halloweenStore.fetchConfig()
+  const config = halloweenStore.config ?? defaultConfig()
+  try {
+    const alive = await simStep(config, runId)
+    if (!alive) finished.value = true
+  } catch (e) {
+    error.value = (e as Error).message
+  }
+}
+
+onMounted(() => {
+  raf = requestAnimationFrame(renderFrame)
+  void restart()
+})
+
+onUnmounted(() => {
+  runId++
+  cancelAnimationFrame(raf)
+  renderer?.destroy()
+  renderer = null
+  engine = null
+  policy = null
+})
+</script>

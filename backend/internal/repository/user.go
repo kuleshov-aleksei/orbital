@@ -230,6 +230,26 @@ func (r *UserRepository) DeleteAllGuests() (int64, error) {
 	return result.RowsAffected()
 }
 
+// GetGuestIDs returns the IDs of all guest users (used before bulk deletion
+// so related data can be purged).
+func (r *UserRepository) GetGuestIDs() ([]string, error) {
+	rows, err := r.db.Query(`SELECT id FROM users WHERE is_guest = 1`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // GetByEmail retrieves a user by email
 func (r *UserRepository) GetByEmail(email string, authProvider *models.AuthProvider) (*models.User, error) {
 	if email == "" {

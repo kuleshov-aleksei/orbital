@@ -1,10 +1,12 @@
 <template>
-  <div class="auth-view fixed inset-0 bg-theme-bg-primary flex items-center justify-center z-50">
+  <div
+    class="auth-view fixed inset-0 bg-theme-bg-primary flex items-start lg:items-center justify-center pt-8 lg:pt-0 overflow-y-auto z-50">
     <div class="max-w-md lg:max-w-5xl w-full mx-4">
       <div class="lg:flex lg:items-center lg:justify-center lg:gap-16">
         <!-- Logo/Title -->
         <div class="text-center mb-8 lg:mb-0 lg:flex-shrink-0">
           <div
+            v-if="!isMobile"
             class="w-20 h-20 lg:w-28 lg:h-28 bg-theme-accent rounded-2xl flex items-center justify-center mx-auto mb-4">
             <img
               src="/orbital-logo.png"
@@ -12,14 +14,22 @@
               class="w-16 h-16 lg:w-24 lg:h-24 object-contain" />
           </div>
 
-          <h1 class="text-3xl lg:text-4xl font-bold text-theme-text-primary mb-2">
+          <h1
+            class="text-3xl lg:text-4xl font-bold text-theme-text-primary mb-2 flex items-center justify-center gap-2">
+            <img
+              v-if="isMobile"
+              src="/orbital-logo.png"
+              alt="Orbital Logo"
+              class="w-8 h-8 object-contain" />
             Welcome to Orbital
           </h1>
 
-          <p class="text-theme-text-muted text-lg">Voice chat for my dudes</p>
+          <p v-if="!isMobile" class="text-theme-text-muted text-lg">Voice chat for my dudes</p>
 
           <!-- Landing actions: GitHub + Download (web only) -->
-          <div v-if="!isElectron()" class="mt-6 flex items-center justify-center gap-3">
+          <div
+            v-if="!isElectron() && !isMobile"
+            class="mt-6 flex items-center justify-center gap-3">
             <a
               href="https://github.com/kuleshov-aleksei/orbital"
               target="_blank"
@@ -75,6 +85,18 @@
               "
               @click="activeTab = 'password'">
               {{ isRegisterMode ? "Register" : "Login" }}
+            </button>
+            <button
+              type="button"
+              data-testid="auth-tab-qr"
+              class="flex-1 py-2 text-center font-medium transition-colors"
+              :class="
+                activeTab === 'qr'
+                  ? 'text-theme-text-primary border-b-2 border-theme-accent'
+                  : 'text-theme-text-muted hover:text-theme-text-primary'
+              "
+              @click="activeTab = 'qr'">
+              QR code
             </button>
           </div>
 
@@ -324,6 +346,11 @@
               </span>
             </div>
           </div>
+
+          <!-- QR code Tab -->
+          <div v-show="activeTab === 'qr'">
+            <QRLoginPanel v-if="activeTab === 'qr'" />
+          </div>
         </div>
       </div>
     </div>
@@ -332,7 +359,8 @@
 
 <script setup lang="ts">
 import { ref, computed } from "vue"
-import { useUserStore } from "@/stores"
+import { storeToRefs } from "pinia"
+import { useUserStore, useAppStore } from "@/stores"
 import {
   PhUser,
   PhEye,
@@ -344,10 +372,13 @@ import {
 import { isElectron } from "@/services/electron"
 import DiscordIcon from "~icons/simple-icons/discord"
 import GoogleIcon from "~icons/logos/google-icon"
+import QRLoginPanel from "@/components/auth/QRLoginPanel.vue"
 
 const userStore = useUserStore()
+const appStore = useAppStore()
+const { isMobile } = storeToRefs(appStore)
 
-const activeTab = ref<"oauth" | "password">("oauth")
+const activeTab = ref<"oauth" | "password" | "qr">("oauth")
 
 const isRegisterMode = ref(false)
 const isLoading = ref(false)

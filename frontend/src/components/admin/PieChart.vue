@@ -1,5 +1,7 @@
 <template>
-  <div :style="height ? { height: height + 'px' } : undefined">
+  <div
+    class="relative w-full overflow-hidden"
+    :style="height ? { height: height + 'px' } : { height: '100%' }">
     <canvas ref="canvasRef"></canvas>
   </div>
 </template>

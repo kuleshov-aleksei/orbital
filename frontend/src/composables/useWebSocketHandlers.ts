@@ -7,6 +7,7 @@ import {
   useUsersStore,
   useSoundPackStore,
   useChatStore,
+  useHalloweenStore,
 } from "@/stores"
 import { wsService } from "@/services/websocket"
 import type {
@@ -31,6 +32,7 @@ export function useWebSocketHandlers() {
   const userStore = useUserStore()
   const soundPackStore = useSoundPackStore()
   const chatStore = useChatStore()
+  const halloweenStore = useHalloweenStore()
   const hasConnected = ref(false)
 
   const cleanupFns: Array<() => void> = []
@@ -86,6 +88,13 @@ export function useWebSocketHandlers() {
     }
     wsService.on("room_user_left", onRoomUserLeft)
     onCleanup(() => wsService.off("room_user_left", onRoomUserLeft))
+
+    const onHalloweenPumpkinState: MessageCallback = (message) => {
+      const data = message.data as { user_id?: string; equipped_json?: string }
+      halloweenStore.handlePumpkinState(data)
+    }
+    wsService.on("halloween_pumpkin_state", onHalloweenPumpkinState)
+    onCleanup(() => wsService.off("halloween_pumpkin_state", onHalloweenPumpkinState))
 
     const onConnect: ConnectionCallback = () => {
       appStore.clearError()

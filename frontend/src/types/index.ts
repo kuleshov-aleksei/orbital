@@ -92,6 +92,7 @@ export type WebSocketMessageType =
   | "client_stats"
   | "room_stats"
   | "request_logs"
+  | "halloween_pumpkin_state"
 
 export interface WebSocketMessage {
   type: WebSocketMessageType

@@ -53,7 +53,10 @@ func main() {
 	var debugLogService *service.DebugLogService
 	var audioService *service.AudioService
 	var sessionRepo *repository.SessionRepository
+	var qrLoginRepo *repository.QRLoginRepository
 	var analyticsService *service.AnalyticsService
+	var halloweenService *service.HalloweenService
+	var pumpkinAssetService *service.PumpkinAssetService
 
 	if cfg.Database.Path != "" {
 		db, err := storage.NewDB(cfg.Database.Path)
@@ -73,6 +76,7 @@ func main() {
 		userRepo = repository.NewUserRepository(db)
 		debugLogRepo := repository.NewDebugLogRepository(db)
 		sessionRepo = repository.NewSessionRepository(db)
+		qrLoginRepo = repository.NewQRLoginRepository(db)
 		userRepo = repository.NewUserRepository(db)
 
 		// Initialize services with repositories
@@ -81,6 +85,8 @@ func main() {
 		debugLogService = service.NewDebugLogService(debugLogRepo, "data")
 		audioService = service.NewAudioService(repository.NewAudioRepository(db), "data")
 		analyticsService = service.NewAnalyticsService(sessionRepo)
+		halloweenService = service.NewHalloweenService(repository.NewHalloweenRepository(db))
+		pumpkinAssetService = service.NewPumpkinAssetService("data", "assets")
 
 		// Load data from database
 		if err := categoryService.LoadFromDB(); err != nil {
@@ -88,6 +94,15 @@ func main() {
 		}
 		if err := roomService.LoadFromDB(); err != nil {
 			log.Fatalf("Failed to load rooms from database: %v", err)
+		}
+
+		// Seed pumpkin art into the data dir (never overwrites uploads).
+		if catalog, err := halloweenService.GetAdminCatalog(); err != nil {
+			log.Printf("Warning: Failed to load halloween catalog for art seeding: %v", err)
+		} else if seeded, err := pumpkinAssetService.SeedPlaceholders(catalog); err != nil {
+			log.Printf("Warning: Failed to seed pumpkin art: %v", err)
+		} else if seeded > 0 {
+			log.Printf("Seeded %d pumpkin art files", seeded)
 		}
 	} else {
 		// Initialize services without database (memory-only mode)
@@ -106,6 +121,14 @@ func main() {
 	// Initialize auth service and role service
 	authService := service.NewAuthService(cfg.GetAuthConfig(), userRepo)
 	roleService := service.NewRoleService(userRepo)
+
+	// QR device linking needs the database; it stays disabled in memory-only mode
+	var qrLoginService *service.QRLoginService
+	var qrLoginHandler *handlers.QRLoginHandler
+	if qrLoginRepo != nil {
+		qrLoginService = service.NewQRLoginService(qrLoginRepo, authService)
+		qrLoginHandler = handlers.NewQRLoginHandler(qrLoginService)
+	}
 
 	// Initialize LiveKit service
 	var livekitService *service.LiveKitService
@@ -130,7 +153,7 @@ func main() {
 	roomHandler := handlers.NewRoomHandler(roomService, categoryService, livekitService, wsHub)
 	categoryHandler := handlers.NewCategoryHandler(categoryService, roomService, wsHub)
 	authHandler := handlers.NewAuthHandler(authService, roleService, cfg.Server.ExternalURL, cfg.Server.ElectronRedirectURL)
-	adminHandler := handlers.NewAdminHandlerWithHub(roleService, userRepo, debugLogService, analyticsService, wsHub)
+	adminHandler := handlers.NewAdminHandlerWithHub(roleService, userRepo, debugLogService, analyticsService, halloweenService, wsHub)
 	usersHandler := handlers.NewUsersHandler(userRepo, wsHub)
 	livekitHandler := handlers.NewLiveKitHandler(livekitService)
 	avatarHandler := handlers.NewAvatarHandler(avatarService, userRepo)
@@ -139,6 +162,11 @@ func main() {
 	var audioHandler *handlers.AudioHandler
 	if audioService != nil {
 		audioHandler = handlers.NewAudioHandler(audioService)
+	}
+
+	var halloweenHandler *handlers.HalloweenHandler
+	if halloweenService != nil {
+		halloweenHandler = handlers.NewHalloweenHandlerWithAssets(halloweenService, pumpkinAssetService, wsHub)
 	}
 
 	// Setup router
@@ -170,6 +198,15 @@ func main() {
 	r.HandleFunc("/api/auth/register", authHandler.Register).Methods("POST")
 	r.HandleFunc("/api/auth/login", authHandler.LoginPassword).Methods("POST")
 
+	// QR device linking (single-use pairing; disabled without a database)
+	if qrLoginHandler != nil {
+		r.HandleFunc("/api/auth/qr/challenge", qrLoginHandler.CreateChallenge).Methods("POST")
+		r.Handle("/api/auth/qr/challenge/{id}", authHandler.AuthMiddleware(http.HandlerFunc(qrLoginHandler.GetChallenge))).Methods("GET")
+		r.Handle("/api/auth/qr/approve", authHandler.AuthMiddleware(http.HandlerFunc(qrLoginHandler.ApproveChallenge))).Methods("POST")
+		r.HandleFunc("/api/auth/qr/claim", qrLoginHandler.ClaimChallenge).Methods("POST")
+		go qrLoginService.StartCleanupLoop(time.Minute)
+	}
+
 	// Users route (public)
 	r.HandleFunc("/api/users", usersHandler.GetAllUsers).Methods("GET")
 
@@ -189,6 +226,25 @@ func main() {
 
 	// General configuration route (public)
 	r.HandleFunc("/api/config", roomHandler.GetConfig).Methods("GET")
+
+	// Halloween routes (protected)
+	if halloweenHandler != nil {
+		halloweenRouter := r.PathPrefix("/api/halloween").Subrouter()
+		halloweenRouter.Use(authHandler.AuthMiddleware)
+		halloweenRouter.HandleFunc("/state", halloweenHandler.GetState).Methods("GET")
+		halloweenRouter.HandleFunc("/pumpkin-states", halloweenHandler.GetPumpkinStates).Methods("GET")
+		halloweenRouter.HandleFunc("/pumpkin", halloweenHandler.UpdatePumpkin).Methods("PUT")
+		halloweenRouter.HandleFunc("/game/config", halloweenHandler.GetConfig).Methods("GET")
+		halloweenRouter.HandleFunc("/game/report", halloweenHandler.SubmitGame).Methods("POST")
+		halloweenRouter.HandleFunc("/leaderboard", halloweenHandler.GetLeaderboard).Methods("GET")
+		// Pumpkin art is public (like audio/avatars): <img> and Pixi loaders
+		// cannot send Authorization headers.
+		r.HandleFunc("/api/halloween/assets/{id}", halloweenHandler.GetAsset).Methods("GET")
+		// Decider submissions from the balance harness (development only, no auth).
+		if cfg.IsDevelopment() {
+			r.HandleFunc("/api/halloween/game/report/bot", halloweenHandler.SubmitBotGame).Methods("POST")
+		}
+	}
 
 	// Latest desktop release (public, resolved from the update feed)
 	r.HandleFunc("/api/releases/latest", releaseHandler.GetLatest).Methods("GET")
@@ -257,6 +313,23 @@ func main() {
 	superAdminRouter.HandleFunc("/stats/rooms/{id}/unsubscribe", adminHandler.StatsUnsubscribe).Methods("POST")
 	superAdminRouter.HandleFunc("/stats/status", adminHandler.GetStatsStatus).Methods("GET")
 	superAdminRouter.HandleFunc("/analytics/report", adminHandler.GetAnalyticsReport).Methods("GET")
+
+	// Halloween admin routes (super_admin only)
+	if halloweenHandler != nil {
+		superAdminRouter.HandleFunc("/halloween/games", halloweenHandler.AdminGetGames).Methods("GET")
+		superAdminRouter.HandleFunc("/halloween/items", halloweenHandler.AdminGetItems).Methods("GET")
+		superAdminRouter.HandleFunc("/halloween/items", halloweenHandler.AdminCreateItem).Methods("POST")
+		superAdminRouter.HandleFunc("/halloween/items/{id}", halloweenHandler.AdminUpdateItem).Methods("PATCH")
+		superAdminRouter.HandleFunc("/halloween/items/{id}", halloweenHandler.AdminDeleteItem).Methods("DELETE")
+		superAdminRouter.HandleFunc("/halloween/items/{id}/restore", halloweenHandler.AdminRestoreItem).Methods("POST")
+		superAdminRouter.HandleFunc("/halloween/items/{id}/asset", halloweenHandler.AdminUploadAsset).Methods("POST")
+		superAdminRouter.HandleFunc("/halloween/layouts", halloweenHandler.AdminGetLayouts).Methods("GET")
+		superAdminRouter.HandleFunc("/halloween/layouts", halloweenHandler.AdminUpsertLayouts).Methods("PUT")
+		superAdminRouter.HandleFunc("/halloween/rewards", halloweenHandler.AdminGetRewards).Methods("GET")
+		superAdminRouter.HandleFunc("/halloween/rewards", halloweenHandler.AdminIssueReward).Methods("POST")
+		superAdminRouter.HandleFunc("/halloween/config/export", halloweenHandler.AdminExportConfig).Methods("GET")
+		superAdminRouter.HandleFunc("/halloween/config/import", halloweenHandler.AdminImportConfig).Methods("POST")
+	}
 
 	// Debug log upload route (authenticated users)
 	r.Handle("/api/logs", authHandler.AuthMiddleware(http.HandlerFunc(adminHandler.UploadDebugLog))).Methods("POST")

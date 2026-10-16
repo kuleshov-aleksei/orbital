@@ -1,0 +1,424 @@
+// System One decider client + structured game-state builder for the
+// balance test harness. Every gameplay decision in the `systemone` policy
+// goes through this client (POST localhost:8000/v1/systemone). Any failure
+// throws — the run must fail, never silently fall back to heuristics.
+import {
+  LANE_COUNT,
+  PLACEMENT_COLUMNS,
+  columnForX,
+  laneForY,
+  type HalloweenGameEngine,
+} from "../../frontend/src/halloween/game/engine"
+import { ABILITY_META } from "../../frontend/src/halloween/game/balance"
+import type { AbilityId, PumpkinType } from "../../frontend/src/halloween/game/types"
+import type { HalloweenGameConfig } from "../../frontend/src/halloween/types"
+
+export class SystemOneError extends Error {
+  readonly status: number | null
+  readonly body: string | null
+  constructor(message: string, status: number | null = null, body: string | null = null) {
+    super(message)
+    this.name = "SystemOneError"
+    this.status = status
+    this.body = body
+  }
+}
+
+export interface SystemOneClientOptions {
+  url: string
+  /** Sent explicitly; falls back to DEFAULT_SYSTEMONE_MODEL when unset. */
+  model?: string
+  timeoutMs?: number
+  maxRetries?: number
+}
+
+/** Default decider model — the single source of truth for the fallback. */
+export const DEFAULT_SYSTEMONE_MODEL = "winnow:e4b"
+
+export interface ChoiceQuestion {
+  type: "choice"
+  instructions: string | Record<string, unknown>
+  criteria: Record<string, string | null>
+}
+
+interface SystemOneAnswer {
+  type?: string
+  choice?: string
+  confidence?: number
+  probabilities?: Record<string, number>
+}
+
+interface SystemOneResponse {
+  answers?: Record<string, SystemOneAnswer>
+}
+
+/** The decider's answer: winning option plus the model's uncertainty
+ * (per-option probabilities when the backend reports them). */
+export interface ChoiceResult {
+  choice: string
+  confidence?: number
+  probabilities?: Record<string, number>
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/** POST one `choice` question and return the decider's answer (winning
+ * option key plus confidence/probabilities). Throws on any failure
+ * (network, timeout, non-2xx, unknown choice). Retries with backoff only
+ * on 429/529, per the System One docs. */
+export async function askChoice(
+  opts: SystemOneClientOptions,
+  state: unknown,
+  questionId: string,
+  question: ChoiceQuestion,
+): Promise<ChoiceResult> {
+  const timeoutMs = opts.timeoutMs ?? 20000
+  const maxRetries = opts.maxRetries ?? 3
+  const body: Record<string, unknown> = {
+    state,
+    model: opts.model ?? DEFAULT_SYSTEMONE_MODEL,
+    questions: { [questionId]: question },
+  }
+
+  let lastError: unknown = null
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs)
+    try {
+      const res = await fetch(opts.url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      })
+      const text = await res.text()
+      if (res.status === 429 || res.status === 529) {
+        lastError = new SystemOneError(
+          `systemone overloaded (status ${res.status}), attempt ${attempt + 1}`,
+          res.status,
+          text.slice(0, 500),
+        )
+        await sleep(500 * Math.pow(2, attempt))
+        continue
+      }
+      if (!res.ok) {
+        throw new SystemOneError(
+          `systemone request failed: status ${res.status} for question "${questionId}"`,
+          res.status,
+          text.slice(0, 1000),
+        )
+      }
+      let parsed: SystemOneResponse
+      try {
+        parsed = JSON.parse(text) as SystemOneResponse
+      } catch {
+        throw new SystemOneError(
+          `systemone returned invalid JSON for question "${questionId}"`,
+          res.status,
+          text.slice(0, 500),
+        )
+      }
+      const answer = parsed.answers?.[questionId]
+      if (!answer || answer.type !== "choice" || typeof answer.choice !== "string") {
+        throw new SystemOneError(
+          `systemone answer missing/invalid for question "${questionId}"`,
+          res.status,
+          text.slice(0, 500),
+        )
+      }
+      if (!(answer.choice in question.criteria)) {
+        throw new SystemOneError(
+          `systemone returned unknown option "${answer.choice}" for question "${questionId}"`,
+          res.status,
+          text.slice(0, 500),
+        )
+      }
+      return {
+        choice: answer.choice,
+        confidence: answer.confidence,
+        probabilities: answer.probabilities,
+      }
+    } catch (e) {
+      if (e instanceof SystemOneError && e.status !== 429 && e.status !== 529) throw e
+      if (e instanceof SystemOneError) {
+        lastError = e
+        continue
+      }
+      const aborted =
+        (e as Error).name === "AbortError" || (e as Error).name === "TimeoutError"
+      throw new SystemOneError(
+        aborted
+          ? `systemone request timed out after ${timeoutMs}ms for question "${questionId}"`
+          : `systemone request failed for question "${questionId}": ${(e as Error).message}`,
+      )
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new SystemOneError(`systemone exhausted retries for question "${questionId}"`)
+}
+
+// ---- Structured state ------------------------------------------------------
+// Object state per https://docs.typesafe.ai/concepts/state: named fields so
+// each part of the battlefield keeps its relationships clear. Rebuilt fresh
+// before every decider call since the engine mutates between calls.
+
+export interface FieldPumpkinState {
+  id: number
+  type: PumpkinType
+  level: number
+  health: number
+  max_health: number
+  col: number
+  lane: number
+  /** Anti-slug DPS = damage / live fireInterval (buffs included). 0 for
+   * tanks, economy and Herbert (pure healer — see role). */
+  dps: number
+  role: string
+  /** Slugs currently chewing on this pumpkin (engine attackingPumpkinId). */
+  attackers: number
+}
+
+const PUMPKIN_ROLES: Record<PumpkinType, string> = {
+  ferdinand: "dps",
+  pearcer: "dps-pierce",
+  gwynevere: "artillery-aoe",
+  chunky: "tank",
+  herbert: "support-healer",
+  cramer: "economy",
+}
+
+/** Live anti-slug DPS of one pumpkin. Uses the engine's live fireInterval
+ * so rate buffs (do_not_stop_daddy) are included. AoE/pierce multiply this
+ * against grouped slugs — reported separately via role + blast_radius. */
+export function pumpkinDps(p: {
+  type: PumpkinType
+  damage: number
+  fireInterval: number
+}): number {
+  if (p.type === "herbert" || p.type === "chunky" || p.type === "cramer") return 0
+  if (!Number.isFinite(p.fireInterval) || p.fireInterval <= 0) return 0
+  return Math.round((p.damage / p.fireInterval) * 10) / 10
+}
+
+/** Total anti-slug DPS of every live pumpkin on the field. */
+export function fieldDps(engine: HalloweenGameEngine): number {
+  let total = 0
+  for (const p of engine.pumpkins) {
+    if (p.health > 0) total += pumpkinDps(p)
+  }
+  return Math.round(total * 10) / 10
+}
+
+export interface SlugLaneState {
+  lane: number
+  count: number
+  nearest_x: number | null
+  shielded: number
+  types: Record<string, number>
+}
+
+function slugSummary(s: { type: string; x: number; shields: number }): string {
+  return `${s.type}@x${Math.round(s.x)}${s.shields > 0 ? `(${s.shields}sh)` : ""}`
+}
+
+export function buildSystemOneState(
+  engine: HalloweenGameEngine,
+  config: HalloweenGameConfig,
+): Record<string, unknown> {
+  const snap = engine.snapshot()
+  const alive = engine.pumpkins.filter((p) => p.health > 0)
+  const liveSlugs = engine.slugs.filter((s) => s.health > 0)
+
+  const field: FieldPumpkinState[] = alive.map((p) => {
+    const attackers = liveSlugs.filter((s) => s.attackingPumpkinId === p.id).length
+    return {
+      id: p.id,
+      type: p.type,
+      level: p.level,
+      health: Math.round(p.health),
+      max_health: p.maxHealth,
+      col: columnForX(p.x),
+      lane: laneForY(p.y),
+      dps: pumpkinDps(p),
+      role: PUMPKIN_ROLES[p.type],
+      attackers,
+    }
+  })
+
+  // Per-lane firepower vs per-lane slug HP. Shooters only hit their own
+  // lane ahead of them (engine nearestSlugOnLane / gwynevereTarget), so a
+  // lane with HP but no DPS is undefended. TTK is a rough estimate —
+  // kills, overkill and slug movement aren't modeled.
+  const total = fieldDps(engine)
+  const totalSlugHp = Math.round(liveSlugs.reduce((a, s) => a + s.health, 0))
+  const lanes = engine.activeLanes().map((lane) => {
+    const lanePumpkins = field.filter((p) => p.lane === lane)
+    const laneDps = Math.round(lanePumpkins.reduce((a, p) => a + p.dps, 0) * 10) / 10
+    const laneHp = Math.round(
+      liveSlugs.filter((s) => s.lane === lane).reduce((a, s) => a + s.health, 0),
+    )
+    return {
+      lane,
+      defenders: lanePumpkins.length,
+      undefended: lanePumpkins.length === 0,
+      /** HP the lane can absorb before collapsing — a "defended" lane
+       * with 5 total HP is one hit from gone. */
+      lane_hp_total: lanePumpkins.reduce((a, p) => a + p.health, 0),
+      /** Rightmost occupied column — high values mean slugs make contact
+       * fast (they enter from the right). Null when the lane is empty. */
+      frontmost_col:
+        lanePumpkins.length > 0 ? Math.max(...lanePumpkins.map((p) => p.col)) : null,
+      lane_dps: laneDps,
+      lane_slug_hp: laneHp,
+      lane_ttk_s: laneDps > 0 && laneHp > 0 ? Math.round((laneHp / laneDps) * 10) / 10 : null,
+    }
+  })
+  const undefendedLanes = lanes.filter((l) => l.undefended).map((l) => l.lane)
+
+  const taken = new Set(field.map((p) => `${p.col}:${p.lane}`))
+  const activeLanes = engine.activeLanes()
+  const lanesOpeningNextRound = Array.from({ length: LANE_COUNT }, (_, lane) => lane).filter(
+    (lane) => !activeLanes.includes(lane),
+  )
+  // The decider never picks cells from state (cells arrive as question
+  // options) — per-lane free counts suffice for judging room to reinforce.
+  const freeCellsPerLane: Record<number, number> = {}
+  for (let col = 0; col < PLACEMENT_COLUMNS; col++) {
+    for (let lane = 0; lane < LANE_COUNT; lane++) {
+      if (!activeLanes.includes(lane)) continue
+      if (!taken.has(`${col}:${lane}`)) {
+        freeCellsPerLane[lane] = (freeCellsPerLane[lane] ?? 0) + 1
+      }
+    }
+  }
+
+  const byLane: SlugLaneState[] = activeLanes.map((lane) => {
+    const inLane = liveSlugs.filter((s) => s.lane === lane)
+    const types: Record<string, number> = {}
+    for (const s of inLane) types[s.type] = (types[s.type] ?? 0) + 1
+    return {
+      lane,
+      count: inLane.length,
+      nearest_x: inLane.length > 0 ? Math.round(Math.min(...inLane.map((s) => s.x))) : null,
+      shielded: inLane.filter((s) => s.shields > 0).length,
+      types,
+    }
+  })
+  // Nearest-individual-threat detail is redundant with by_lane (which has
+  // per-lane counts, nearest x, shields and types) — ship only the leak
+  // count and the heaviest slug summary.
+  const leaking = liveSlugs.filter((s) => s.x < 450).length
+
+  // Every shop option stays visible (so pricier investments like cramer
+  // can be planned for). Include the facts needed to compare bodies: cost,
+  // ownership, HP, firepower, and blast radius. Unaffordable entries add how
+  // many coins are still missing.
+  const shop = Object.keys(config.pumpkins).map((t) => {
+    const type = t as PumpkinType
+    const pumpkinCfg = config.pumpkins[type]
+    const base = pumpkinCfg?.cost ?? 0
+    const price = engine.costFor(type)
+    const hp = pumpkinCfg?.health ?? 0
+    const rate = pumpkinCfg?.fire_rate ?? 0
+    const damage = pumpkinCfg?.damage_per_shot ?? 0
+    const dps =
+      type === "chunky" || type === "herbert" || type === "cramer" || rate <= 0
+        ? 0
+        : Math.round(damage * rate * 10) / 10
+    const blast_radius = pumpkinCfg?.levels?.[0]?.blast_radius ?? 0
+    if (snap.coins >= price) {
+      return {
+        type,
+        price,
+        base_cost: base,
+        affordable: true,
+        draft_only: pumpkinCfg?.draft_only ?? false,
+        hp,
+        dps,
+        blast_radius,
+      }
+    }
+    return {
+      type,
+      price,
+      affordable: false,
+      need: price - snap.coins,
+      draft_only: pumpkinCfg?.draft_only ?? false,
+      hp,
+      dps,
+      blast_radius,
+    }
+  })
+
+  const inventory = snap.inventory.map((item, index) => {
+    if (item.kind === "pumpkin") {
+      return { index, kind: "pumpkin", pumpkin_type: item.pumpkinType }
+    }
+    const meta = ABILITY_META[item.abilityId as AbilityId]
+    return {
+      index,
+      kind: "ability",
+      ability_id: item.abilityId,
+      target: meta?.target ?? "none",
+      description: meta?.description ?? "",
+    }
+  })
+
+  return {
+    game: {
+      round: snap.round,
+      phase: snap.phase,
+      score: snap.score,
+      active_lanes: activeLanes,
+      lanes_opening_next_round: lanesOpeningNextRound,
+      battlefield_width: engine.getWidth(),
+    },
+    economy: {
+      coins: snap.coins,
+      xp: snap.xp,
+      inventory_used: snap.inventory.length,
+      inventory_capacity: 6,
+      shop,
+    },
+    inventory,
+    battlefield: {
+      columns: PLACEMENT_COLUMNS,
+      lanes: LANE_COUNT,
+      field,
+      free_cells_per_lane: freeCellsPerLane,
+      /** Active lanes with no pumpkin on them — placing a defender here
+       * before slugs arrive prevents leaks. */
+      undefended_lanes: undefendedLanes,
+      firepower: {
+        field_dps_total: total,
+        total_slug_hp: totalSlugHp,
+        ttk_s_estimate: total > 0 && totalSlugHp > 0 ? Math.round((totalSlugHp / total) * 10) / 10 : null,
+        lanes,
+      },
+    },
+    slugs: {
+      total: liveSlugs.length,
+      by_lane: byLane,
+      leaking,
+      heaviest: slugSummary(
+        liveSlugs.length > 0
+          ? [...liveSlugs].sort((a, b) => b.health - a.health)[0]
+          : { type: "none", x: 0, shields: 0 },
+      ),
+    },
+    rules: [
+      "Survive rounds — you lose when every field pumpkin dies.",
+      "Round 1 uses lanes 1-3 only; round 2 opens lanes 0 and 4, and all five stay active afterward.",
+      "Coins buy shop pumpkins into the inventory (max 6 slots; buying a type raises its next price). XP auto-levels the field — you only buy and place.",
+      "Pocket pumpkins do nothing until placed. Shooters hit only slugs in their own lane: a lane with slugs and no DPS leaks them.",
+      "Escaped slugs lash out at your 4 closest pumpkins (100/75/50/25% damage) and pay no reward.",
+      "Roles: ferdinand cheap DPS; chunky no-attack tank (parks frontline-right); gwynevere AoE (5 HP — needs a front line); herbert heals the most-damaged ally, any lane (two cannot heal each other); cramer mints coins; pearcer pierces (card-only).",
+      "Damaged pumpkins deal full DPS — HP is only a buffer. Dells park at the right edge and spawn marvins: burn them down in-lane or they stall the round.",
+    ],
+  }
+}

@@ -1,0 +1,3355 @@
+{
+  "textures": [
+    {
+      "image": "spritesheet.png",
+      "format": "RGBA8888",
+      "size": {
+        "w": 7680,
+        "h": 512
+      },
+      "scale": 1,
+      "frames": {
+        "idle_subtle_breath_squash_0": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_1": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 128,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_2": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 256,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_3": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 384,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_4": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 512,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_5": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 640,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_6": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 768,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_7": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 896,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_8": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1024,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_9": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1152,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_10": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1280,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_11": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1408,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_12": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1536,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_13": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1664,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_14": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1792,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_15": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1920,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_16": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2048,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_17": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2176,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_18": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2304,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_19": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2432,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_20": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2560,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_21": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2688,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_22": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2816,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_23": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2944,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_24": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 3072,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_25": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 3200,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_26": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 3328,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_27": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 3456,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_28": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 3584,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_29": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 3712,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_30": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 3840,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_31": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 3968,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_32": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 4096,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_33": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 4224,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_34": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 4352,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_35": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 4480,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_36": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 4608,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_37": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 4736,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_38": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 4864,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_39": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 4992,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_40": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 5120,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_41": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 5248,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_42": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 5376,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_43": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 5504,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_44": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 5632,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_45": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 5760,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_46": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 5888,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_47": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 6016,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_48": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 6144,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_49": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 6272,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_50": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 6400,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_51": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 6528,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_52": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 6656,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_53": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 6784,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_54": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 6912,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_55": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 7040,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_56": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 7168,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_57": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 7296,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_58": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 7424,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "idle_subtle_breath_squash_59": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 7552,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_0": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 0,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_1": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 128,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_2": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 256,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_3": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 384,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_4": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 512,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_5": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 640,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_6": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 768,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_7": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 896,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_8": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1024,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_9": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1152,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_10": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1280,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_11": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1408,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_12": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1536,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_13": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1664,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_14": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1792,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_15": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1920,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_16": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2048,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_17": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2176,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_18": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2304,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_19": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2432,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_20": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2560,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_21": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2688,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_22": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2816,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_23": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2944,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_24": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 3072,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_25": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 3200,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_26": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 3328,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_27": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 3456,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_28": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 3584,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_29": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 3712,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_30": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 3840,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_31": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 3968,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_32": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 4096,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_33": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 4224,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_34": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 4352,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_35": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 4480,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_36": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 4608,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_37": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 4736,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_38": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 4864,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_39": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 4992,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_40": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 5120,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_41": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 5248,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_42": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 5376,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_43": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 5504,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_44": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 5632,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_45": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 5760,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_46": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 5888,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_47": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 6016,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_48": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 6144,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_49": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 6272,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_50": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 6400,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_51": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 6528,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_52": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 6656,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_53": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 6784,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_54": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 6912,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_55": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 7040,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_56": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 7168,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_57": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 7296,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_58": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 7424,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "death_crack_collapse_does_not_loop_59": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 7552,
+            "y": 128,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "fire_recoil_kick_toward_the_right_0": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 0,
+            "y": 256,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "fire_recoil_kick_toward_the_right_1": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 128,
+            "y": 256,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "fire_recoil_kick_toward_the_right_2": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 256,
+            "y": 256,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "fire_recoil_kick_toward_the_right_3": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 384,
+            "y": 256,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "fire_recoil_kick_toward_the_right_4": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 512,
+            "y": 256,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "fire_recoil_kick_toward_the_right_5": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 640,
+            "y": 256,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "fire_recoil_kick_toward_the_right_6": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 768,
+            "y": 256,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "fire_recoil_kick_toward_the_right_7": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 896,
+            "y": 256,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "fire_recoil_kick_toward_the_right_8": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1024,
+            "y": 256,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "fire_recoil_kick_toward_the_right_9": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1152,
+            "y": 256,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "fire_recoil_kick_toward_the_right_10": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1280,
+            "y": 256,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "fire_recoil_kick_toward_the_right_11": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1408,
+            "y": 256,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "fire_recoil_kick_toward_the_right_12": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1536,
+            "y": 256,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "fire_recoil_kick_toward_the_right_13": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1664,
+            "y": 256,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "fire_recoil_kick_toward_the_right_14": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1792,
+            "y": 256,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "fire_recoil_kick_toward_the_right_15": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1920,
+            "y": 256,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "fire_recoil_kick_toward_the_right_16": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2048,
+            "y": 256,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "fire_recoil_kick_toward_the_right_17": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2176,
+            "y": 256,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "fire_recoil_kick_toward_the_right_18": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2304,
+            "y": 256,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "fire_recoil_kick_toward_the_right_19": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2432,
+            "y": 256,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "fire_recoil_kick_toward_the_right_20": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2560,
+            "y": 256,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "hurt_white_flash_small_shake_0": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 0,
+            "y": 384,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "hurt_white_flash_small_shake_1": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 128,
+            "y": 384,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "hurt_white_flash_small_shake_2": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 256,
+            "y": 384,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "hurt_white_flash_small_shake_3": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 384,
+            "y": 384,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "hurt_white_flash_small_shake_4": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 512,
+            "y": 384,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "hurt_white_flash_small_shake_5": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 640,
+            "y": 384,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "hurt_white_flash_small_shake_6": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 768,
+            "y": 384,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "hurt_white_flash_small_shake_7": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 896,
+            "y": 384,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "hurt_white_flash_small_shake_8": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1024,
+            "y": 384,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "hurt_white_flash_small_shake_9": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1152,
+            "y": 384,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "hurt_white_flash_small_shake_10": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1280,
+            "y": 384,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "hurt_white_flash_small_shake_11": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1408,
+            "y": 384,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "hurt_white_flash_small_shake_12": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1536,
+            "y": 384,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "hurt_white_flash_small_shake_13": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1664,
+            "y": 384,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "hurt_white_flash_small_shake_14": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1792,
+            "y": 384,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "hurt_white_flash_small_shake_15": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 1920,
+            "y": 384,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "hurt_white_flash_small_shake_16": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2048,
+            "y": 384,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "hurt_white_flash_small_shake_17": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2176,
+            "y": 384,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "hurt_white_flash_small_shake_18": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2304,
+            "y": 384,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "hurt_white_flash_small_shake_19": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2432,
+            "y": 384,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "hurt_white_flash_small_shake_20": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2560,
+            "y": 384,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "hurt_white_flash_small_shake_21": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2688,
+            "y": 384,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "hurt_white_flash_small_shake_22": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2816,
+            "y": 384,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        },
+        "hurt_white_flash_small_shake_23": {
+          "watermarkEligible": true,
+          "frame": {
+            "x": 2944,
+            "y": 384,
+            "w": 128,
+            "h": 128
+          },
+          "sourceSize": {
+            "w": 128,
+            "h": 128
+          },
+          "spriteSourceSize": {
+            "x": 0,
+            "y": 0,
+            "w": 128,
+            "h": 128
+          }
+        }
+      }
+    }
+  ],
+  "animations": {
+    "idle_subtle_breath_squash": [
+      "idle_subtle_breath_squash_0",
+      "idle_subtle_breath_squash_1",
+      "idle_subtle_breath_squash_2",
+      "idle_subtle_breath_squash_3",
+      "idle_subtle_breath_squash_4",
+      "idle_subtle_breath_squash_5",
+      "idle_subtle_breath_squash_6",
+      "idle_subtle_breath_squash_7",
+      "idle_subtle_breath_squash_8",
+      "idle_subtle_breath_squash_9",
+      "idle_subtle_breath_squash_10",
+      "idle_subtle_breath_squash_11",
+      "idle_subtle_breath_squash_12",
+      "idle_subtle_breath_squash_13",
+      "idle_subtle_breath_squash_14",
+      "idle_subtle_breath_squash_15",
+      "idle_subtle_breath_squash_16",
+      "idle_subtle_breath_squash_17",
+      "idle_subtle_breath_squash_18",
+      "idle_subtle_breath_squash_19",
+      "idle_subtle_breath_squash_20",
+      "idle_subtle_breath_squash_21",
+      "idle_subtle_breath_squash_22",
+      "idle_subtle_breath_squash_23",
+      "idle_subtle_breath_squash_24",
+      "idle_subtle_breath_squash_25",
+      "idle_subtle_breath_squash_26",
+      "idle_subtle_breath_squash_27",
+      "idle_subtle_breath_squash_28",
+      "idle_subtle_breath_squash_29",
+      "idle_subtle_breath_squash_30",
+      "idle_subtle_breath_squash_31",
+      "idle_subtle_breath_squash_32",
+      "idle_subtle_breath_squash_33",
+      "idle_subtle_breath_squash_34",
+      "idle_subtle_breath_squash_35",
+      "idle_subtle_breath_squash_36",
+      "idle_subtle_breath_squash_37",
+      "idle_subtle_breath_squash_38",
+      "idle_subtle_breath_squash_39",
+      "idle_subtle_breath_squash_40",
+      "idle_subtle_breath_squash_41",
+      "idle_subtle_breath_squash_42",
+      "idle_subtle_breath_squash_43",
+      "idle_subtle_breath_squash_44",
+      "idle_subtle_breath_squash_45",
+      "idle_subtle_breath_squash_46",
+      "idle_subtle_breath_squash_47",
+      "idle_subtle_breath_squash_48",
+      "idle_subtle_breath_squash_49",
+      "idle_subtle_breath_squash_50",
+      "idle_subtle_breath_squash_51",
+      "idle_subtle_breath_squash_52",
+      "idle_subtle_breath_squash_53",
+      "idle_subtle_breath_squash_54",
+      "idle_subtle_breath_squash_55",
+      "idle_subtle_breath_squash_56",
+      "idle_subtle_breath_squash_57",
+      "idle_subtle_breath_squash_58",
+      "idle_subtle_breath_squash_59"
+    ],
+    "death_crack_collapse_does_not_loop": [
+      "death_crack_collapse_does_not_loop_0",
+      "death_crack_collapse_does_not_loop_1",
+      "death_crack_collapse_does_not_loop_2",
+      "death_crack_collapse_does_not_loop_3",
+      "death_crack_collapse_does_not_loop_4",
+      "death_crack_collapse_does_not_loop_5",
+      "death_crack_collapse_does_not_loop_6",
+      "death_crack_collapse_does_not_loop_7",
+      "death_crack_collapse_does_not_loop_8",
+      "death_crack_collapse_does_not_loop_9",
+      "death_crack_collapse_does_not_loop_10",
+      "death_crack_collapse_does_not_loop_11",
+      "death_crack_collapse_does_not_loop_12",
+      "death_crack_collapse_does_not_loop_13",
+      "death_crack_collapse_does_not_loop_14",
+      "death_crack_collapse_does_not_loop_15",
+      "death_crack_collapse_does_not_loop_16",
+      "death_crack_collapse_does_not_loop_17",
+      "death_crack_collapse_does_not_loop_18",
+      "death_crack_collapse_does_not_loop_19",
+      "death_crack_collapse_does_not_loop_20",
+      "death_crack_collapse_does_not_loop_21",
+      "death_crack_collapse_does_not_loop_22",
+      "death_crack_collapse_does_not_loop_23",
+      "death_crack_collapse_does_not_loop_24",
+      "death_crack_collapse_does_not_loop_25",
+      "death_crack_collapse_does_not_loop_26",
+      "death_crack_collapse_does_not_loop_27",
+      "death_crack_collapse_does_not_loop_28",
+      "death_crack_collapse_does_not_loop_29",
+      "death_crack_collapse_does_not_loop_30",
+      "death_crack_collapse_does_not_loop_31",
+      "death_crack_collapse_does_not_loop_32",
+      "death_crack_collapse_does_not_loop_33",
+      "death_crack_collapse_does_not_loop_34",
+      "death_crack_collapse_does_not_loop_35",
+      "death_crack_collapse_does_not_loop_36",
+      "death_crack_collapse_does_not_loop_37",
+      "death_crack_collapse_does_not_loop_38",
+      "death_crack_collapse_does_not_loop_39",
+      "death_crack_collapse_does_not_loop_40",
+      "death_crack_collapse_does_not_loop_41",
+      "death_crack_collapse_does_not_loop_42",
+      "death_crack_collapse_does_not_loop_43",
+      "death_crack_collapse_does_not_loop_44",
+      "death_crack_collapse_does_not_loop_45",
+      "death_crack_collapse_does_not_loop_46",
+      "death_crack_collapse_does_not_loop_47",
+      "death_crack_collapse_does_not_loop_48",
+      "death_crack_collapse_does_not_loop_49",
+      "death_crack_collapse_does_not_loop_50",
+      "death_crack_collapse_does_not_loop_51",
+      "death_crack_collapse_does_not_loop_52",
+      "death_crack_collapse_does_not_loop_53",
+      "death_crack_collapse_does_not_loop_54",
+      "death_crack_collapse_does_not_loop_55",
+      "death_crack_collapse_does_not_loop_56",
+      "death_crack_collapse_does_not_loop_57",
+      "death_crack_collapse_does_not_loop_58",
+      "death_crack_collapse_does_not_loop_59"
+    ],
+    "fire_recoil_kick_toward_the_right": [
+      "fire_recoil_kick_toward_the_right_0",
+      "fire_recoil_kick_toward_the_right_1",
+      "fire_recoil_kick_toward_the_right_2",
+      "fire_recoil_kick_toward_the_right_3",
+      "fire_recoil_kick_toward_the_right_4",
+      "fire_recoil_kick_toward_the_right_5",
+      "fire_recoil_kick_toward_the_right_6",
+      "fire_recoil_kick_toward_the_right_7",
+      "fire_recoil_kick_toward_the_right_8",
+      "fire_recoil_kick_toward_the_right_9",
+      "fire_recoil_kick_toward_the_right_10",
+      "fire_recoil_kick_toward_the_right_11",
+      "fire_recoil_kick_toward_the_right_12",
+      "fire_recoil_kick_toward_the_right_13",
+      "fire_recoil_kick_toward_the_right_14",
+      "fire_recoil_kick_toward_the_right_15",
+      "fire_recoil_kick_toward_the_right_16",
+      "fire_recoil_kick_toward_the_right_17",
+      "fire_recoil_kick_toward_the_right_18",
+      "fire_recoil_kick_toward_the_right_19",
+      "fire_recoil_kick_toward_the_right_20"
+    ],
+    "hurt_white_flash_small_shake": [
+      "hurt_white_flash_small_shake_0",
+      "hurt_white_flash_small_shake_1",
+      "hurt_white_flash_small_shake_2",
+      "hurt_white_flash_small_shake_3",
+      "hurt_white_flash_small_shake_4",
+      "hurt_white_flash_small_shake_5",
+      "hurt_white_flash_small_shake_6",
+      "hurt_white_flash_small_shake_7",
+      "hurt_white_flash_small_shake_8",
+      "hurt_white_flash_small_shake_9",
+      "hurt_white_flash_small_shake_10",
+      "hurt_white_flash_small_shake_11",
+      "hurt_white_flash_small_shake_12",
+      "hurt_white_flash_small_shake_13",
+      "hurt_white_flash_small_shake_14",
+      "hurt_white_flash_small_shake_15",
+      "hurt_white_flash_small_shake_16",
+      "hurt_white_flash_small_shake_17",
+      "hurt_white_flash_small_shake_18",
+      "hurt_white_flash_small_shake_19",
+      "hurt_white_flash_small_shake_20",
+      "hurt_white_flash_small_shake_21",
+      "hurt_white_flash_small_shake_22",
+      "hurt_white_flash_small_shake_23"
+    ]
+  },
+  "meta": {
+    "app": "tizo8",
+    "version": "1.0",
+    "pairs": [
+      {
+        "id": "pair_motion_mv0z2kzo_83c708dd",
+        "label": "idle - subtle breath/squash",
+        "fps": 30,
+        "frameCount": 60
+      },
+      {
+        "id": "pair_motion_mv0z3zma_f209d931",
+        "label": "death - crack, collapse, does not loop",
+        "fps": 30,
+        "frameCount": 60
+      },
+      {
+        "id": "pair_motion_mv0z30ft_c5bfd7d1",
+        "label": "fire - recoil/kick toward the right",
+        "fps": 30,
+        "frameCount": 21
+      },
+      {
+        "id": "pair_motion_mv0z3g81_5ae229fb",
+        "label": "hurt - white flash + small shake",
+        "fps": 30,
+        "frameCount": 24
+      }
+    ]
+  }
+}

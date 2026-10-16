@@ -26,10 +26,11 @@ RUN apk --no-cache add \
 
 WORKDIR /root/
 
-# Create data directory for avatars
-RUN mkdir -p /root/data/avatars
+# Create data directories for uploads (avatars, audio, halloween art)
+RUN mkdir -p /root/data/avatars /root/data/audio /root/data/halloween
 
 COPY --from=builder /app/orbital .
+COPY --from=builder /app/assets ./assets
 
 EXPOSE 8080
 CMD ["./orbital"]

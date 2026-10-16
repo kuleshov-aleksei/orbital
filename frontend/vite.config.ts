@@ -56,6 +56,9 @@ export default defineConfig({
   server: {
     port: 3000,
     host: "0.0.0.0",
+    // Dev-only: the /dev/balance visual imports the balance harness
+    // (tools/halloween-balance/*) as single source of truth.
+    fs: { allow: [".."] },
     https: isHttps
       ? {
           key: readFileSync("../certs/key.pem"),
