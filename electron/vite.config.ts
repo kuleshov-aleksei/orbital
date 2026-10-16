@@ -117,9 +117,6 @@ export default defineConfig(({ command, mode }) => {
             },
           },
         },
-        renderer: {
-          nodePolyfills: true,
-        },
       }),
       // The venmic worker runs in a utilityProcess, which - unlike the main
       // process - can only load bundles from app.asar through the CJS loader.
