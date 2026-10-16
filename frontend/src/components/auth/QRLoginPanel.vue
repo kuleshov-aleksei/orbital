@@ -39,7 +39,7 @@
         Generate a new code
       </button>
       <p v-if="!canRegenerate" class="mt-2 text-theme-text-muted text-xs">
-        You can generate a new code in {{ countdown }}
+        You can generate a new code in {{ unlockCountdown }}
       </p>
     </div>
 
@@ -105,12 +105,19 @@ const remainingSeconds = computed(() =>
 
 const canRegenerate = computed(() => remainingSeconds.value <= REGEN_UNLOCK_SECONDS)
 
-const countdown = computed(() => {
-  const remaining = remainingSeconds.value
-  const mm = Math.floor(remaining / 60)
-  const ss = remaining % 60
+function formatDuration(seconds: number): string {
+  const mm = Math.floor(seconds / 60)
+  const ss = seconds % 60
   return `${mm}:${ss.toString().padStart(2, "0")}`
-})
+}
+
+const countdown = computed(() => formatDuration(remainingSeconds.value))
+
+// Time until the "Generate a new code" button unlocks, not the code's own
+// expiry: it hits 0:00 exactly when remainingSeconds reaches the unlock window.
+const unlockCountdown = computed(() =>
+  formatDuration(Math.max(0, remainingSeconds.value - REGEN_UNLOCK_SECONDS)),
+)
 
 function stopTimers() {
   if (pollTimer) clearInterval(pollTimer)
