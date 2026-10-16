@@ -2,7 +2,7 @@
   <div
     id="app"
     :data-theme="themeStore.currentTheme"
-    class="h-screen bg-theme-bg-primary text-theme-text-primary">
+    class="h-dvh bg-theme-bg-primary text-theme-text-primary">
     <router-view />
   </div>
 </template>
