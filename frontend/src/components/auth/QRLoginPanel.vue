@@ -69,6 +69,7 @@ import { useUserStore } from "@/stores"
 import type { UserSession } from "@/stores/user"
 import { apiService } from "@/services/api"
 import { collectSystemInfo } from "@/services/systemInfo"
+import { debugError } from "@/utils/debug"
 import {
   buildQRLoginPayload,
   formatQRDeviceName,
@@ -218,8 +219,11 @@ async function start() {
     }, 500)
     pollTimer = setInterval(() => void pollOnce(), POLL_INTERVAL_MS)
     void pollOnce()
-  } catch {
-    if (!stopped) fail("Could not start device linking. Check your connection and try again.")
+  } catch (error) {
+    if (!stopped) {
+      debugError("[QRLogin] Failed to start device linking:", error)
+      fail("Could not start device linking. Check your connection and try again.")
+    }
   }
 }
 
