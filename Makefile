@@ -1,4 +1,4 @@
-.PHONY: help install build dev dev-public dev-electron lint lint-full prettier test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all balance-drift balance-check
+.PHONY: help install build dev dev-public dev-electron lint lint-full prettier test test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all balance-drift balance-check
 
 # Default target
 help:
@@ -9,8 +9,10 @@ help:
 	@echo "  dev-public        - Run development servers on all interfaces (0.0.0.0)"
 	@echo "  dev-electron      - Run Electron in development mode (starts backend + LiveKit)"
 	@echo "  lint              - Run linters for frontend and backend"
-	@echo "  test              - Run tests"
-	@echo "  test-headed       - Run tests in headed mode"
+	@echo "  test              - Run tests (Playwright e2e in Docker)"
+	@echo "  test-e2e-docker   - Run Playwright e2e tests in Docker"
+	@echo "  test-headed       - Run tests in headed mode (local browser required)"
+	@echo "  docker-build-test - Build the Playwright test Docker image"
 	@echo "  clean             - Clean build artifacts"
 	@echo "  docker-build      - Build Docker images"
 	@echo "  docker-up         - Run with Docker Compose"
@@ -34,6 +36,10 @@ VERSION := $(shell ./scripts/version.sh 2>/dev/null || echo "dev-unknown")
 
 # Public update feed baked into the desktop app (override with UPDATE_URL env).
 UPDATE_URL ?= https://orbital-updates.encamy.com/
+
+# Dockerized Playwright E2E test runner
+PLAYWRIGHT_TEST_IMAGE ?= orbital-playwright-tests
+PLAYWRIGHT_TEST_ARGS ?=
 
 # Build everything
 build:
@@ -133,12 +139,18 @@ prettier:
 	@echo "Running prettier"
 	cd frontend && pnpm run prettier
 
+# Build the Playwright test image
+docker-build-test:
+	@echo "Building Playwright test image..."
+	@docker build --network host --quiet -t $(PLAYWRIGHT_TEST_IMAGE) -f docker/Dockerfile.playwright . >/dev/null
+
+# Run frontend e2e tests inside Docker (starts backend + LiveKit in the container)
+test-e2e-docker: docker-build-test
+	@PLAYWRIGHT_TEST_IMAGE=$(PLAYWRIGHT_TEST_IMAGE) PLAYWRIGHT_TEST_ARGS="$(PLAYWRIGHT_TEST_ARGS)" bash scripts/run-tests.sh frontend
+
 # Run tests
-test:
-	@echo "Running frontend e2e tests..."
-	cd frontend && pnpm run test:e2e
-	@echo "Running backend tests..."
-	cd backend && go test ./...
+test: docker-build-test
+	@PLAYWRIGHT_TEST_IMAGE=$(PLAYWRIGHT_TEST_IMAGE) PLAYWRIGHT_TEST_ARGS="$(PLAYWRIGHT_TEST_ARGS)" bash scripts/run-tests.sh all
 
 # Run tests
 test-headed:
