@@ -506,12 +506,13 @@ const submitting = ref(false)
 const loading = ref(true)
 const loadProgress = ref(0)
 const loadStage = ref("Preparing assets…")
-// Visual labels stay 1x/2x/3x; actual multipliers are 2x/4x/6x so the game
-// starts twice as fast as before (label 1x = 2x sim speed).
+// Visual labels stay 1x/2x/3x/6x; actual multipliers are 2x/4x/6x/12x so the
+// game starts twice as fast as before (label 1x = 2x sim speed).
 const SPEED_OPTIONS = [
   { label: 1, mult: 2 },
   { label: 2, mult: 4 },
   { label: 3, mult: 6 },
+  { label: 6, mult: 12 },
 ] as const
 const speedLabel = ref<number>(1)
 const speedMult = computed(() => SPEED_OPTIONS.find((o) => o.label === speedLabel.value)?.mult ?? 2)
@@ -989,7 +990,16 @@ const tick = (now: number) => {
   const dt = Math.min((now - last) / 1000, 0.05)
   last = now
   if (engine) {
-    engine.update(dt * speedMult.value)
+    // Sub-step high speed multipliers so each engine update stays small:
+    // the engine clamps dt to 0.25s, which would otherwise cap the effective
+    // speed and let fast projectiles tunnel through slugs.
+    const MAX_STEP = 1 / 60
+    let remaining = dt * speedMult.value
+    while (remaining > 1e-6) {
+      const step = Math.min(remaining, MAX_STEP)
+      engine.update(step)
+      remaining -= step
+    }
     renderer?.sync()
     hud.value = engine.snapshot()
     hoveredPumpkin.value = engine.hoveredPumpkin ? { ...engine.hoveredPumpkin } : null
