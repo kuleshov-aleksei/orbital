@@ -28,15 +28,6 @@ jobs:
           git config --global --add safe.directory /opt/actions-runner/_work/orbital/orbital
           git fetch --prune --unshallow --tags
 
-      - name: Repair runner Node symlinks
-        run: ./scripts/fix-runner-node-symlinks.sh
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v6.1.0
-        with:
-          version: 12.1.0
-          cache: true
-
       - name: Extract version
         id: get_version
         run: |
