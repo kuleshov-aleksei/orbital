@@ -116,12 +116,9 @@ const DELL_SPAWN_INTERVAL = 5
 // otherwise be an infinite XP/coin farm (each Marvin is 3 XP + kill reward).
 const DELL_MAX_SPAWNS = 20
 // A retired Dell with nothing left to spawn converts into a Gerald with this
-// health multiplier. Punish mechanic, and only for the truly stale case: a
-// capped Dell converts only once the spawn queue is drained AND no live
-// pumpkin shares his lane (lane fire would still kill him, queued slugs
-// still progress the round). A Dell parked in an undefended lane after the
-// queue drains would otherwise stall the round forever — nothing can reach
-// him, nothing new spawns — so he walks the lane himself instead.
+// health multiplier. Punish mechanic: once his Marvin cap is reached he always
+// walks the lane himself — no spawn-queue, lane-defender, or held-card
+// exceptions that could leave him standing there forever.
 const DELL_RETIRED_HP_MUL = 1.5
 const DISTRACTION_DURATION = 5
 const FREEZE_DURATION = 8
@@ -160,8 +157,8 @@ export const SHOP_PRICE_GROWTH = 1.15
 export const SHOP_PRICE_CAP_MULT = 5
 
 // PEARcer is a piercing sniper: each seed passes through this many slugs.
-// More than enough — if you need more than 8, you're showing off.
-export const PEARCER_PIERCE = 8
+// More than enough — if you need more than 16, you're showing off.
+export const PEARCER_PIERCE = 16
 
 export function lanePitch(): number {
   return FIELD_LAYOUT.laneHeight + FIELD_LAYOUT.rowGap
@@ -1009,8 +1006,8 @@ export class HalloweenGameEngine {
       const direction = slug.distractionFor > 0 ? 1 : -1
 
       // Dr. Dell Conagher doesn't move; spawns Marvins (capped per Dell).
-      // Once stale (capped, queue drained, nobody engaging him) he converts
-      // to a buffed Gerald and walks the lane — no sitting still, no stalls.
+      // Once capped he converts to a buffed Gerald and walks the lane — no
+      // sitting still, no stalls, regardless of queue or lane defenders.
       if (slug.type === "dell" && slug.health > 0) {
         slug.spawnTimer += dt
         if (slug.spawnTimer >= DELL_SPAWN_INTERVAL && slug.spawnedCount < DELL_MAX_SPAWNS) {
@@ -1018,7 +1015,7 @@ export class HalloweenGameEngine {
           slug.spawnedCount += 1
           this.spawnSlug("marvin", slug.x + 10, slug.y)
         }
-        if (slug.spawnedCount >= DELL_MAX_SPAWNS && this.isDellStale(slug)) {
+        if (slug.spawnedCount >= DELL_MAX_SPAWNS) {
           this.retireDell(slug)
         } else {
           continue
@@ -1110,19 +1107,6 @@ export class HalloweenGameEngine {
     if (escaped.length > 0) {
       this.slugs = this.slugs.filter((s) => !escaped.includes(s.id))
     }
-  }
-
-  // A capped Dell is stale only when nothing can ever change his state: the
-  // spawn queue is drained, no live pumpkin shares his lane, and the pocket
-  // holds no dell-answer (annihilation, holy grenade). Anything else — lane
-  // fire, queued slugs, a banked answer — still resolves him unconverted.
-  private isDellStale(slug: GameSlug): boolean {
-    if (this.spawnQueue.length > 0) return false
-    if (this.pumpkins.some((p) => p.health > 0 && laneForY(p.y) === slug.lane)) return false
-    return !this.inventory.some(
-      (i) =>
-        i.kind === "ability" && (i.abilityId === "annihilation" || i.abilityId === "holy_grenade"),
-    )
   }
 
   // A Dell out of Marvins becomes a buffed Gerald (1.5x round-scaled health,
