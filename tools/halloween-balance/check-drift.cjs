@@ -129,6 +129,11 @@ const goHP = (GO.match(/SlugHPGrowth:\s*([\d.]+)/) || [])[1]
 const tsHP = (TS.match(/slug_hp_growth:\s*([\d.]+)/) || [])[1]
 check("slug_hp_growth", goHP ?? "<missing>", tsHP ?? "<missing>")
 
+// --- ability damage growth (compounds per round; R1 stays at base) ---
+const goAbilityDamage = (GO.match(/AbilityDamageGrowth:\s*([\d.]+)/) || [])[1]
+const tsAbilityDamage = (TS.match(/ability_damage_growth:\s*([\d.]+)/) || [])[1]
+check("ability_damage_growth", goAbilityDamage ?? "<missing>", tsAbilityDamage ?? "<missing>")
+
 if (failures > 0) {
   console.error(`\n${failures} drifted value(s). Update tools/halloween-balance/fixture.ts to match the backend.`)
   process.exit(1)

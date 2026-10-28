@@ -129,6 +129,7 @@ export interface GameThornPatch {
   x: number
   duration: number
   width: number
+  dps: number
 }
 
 export interface CardOffer {

@@ -262,6 +262,9 @@ func TestHalloweenSpawnTablesConfig(t *testing.T) {
 	if cfg.SlugHPGrowth != 1.27 {
 		t.Errorf("slug_hp_growth = %v, want 1.27", cfg.SlugHPGrowth)
 	}
+	if cfg.AbilityDamageGrowth != 1.27 {
+		t.Errorf("ability_damage_growth = %v, want 1.27", cfg.AbilityDamageGrowth)
+	}
 	if cfg.ShieldMin != 3 || cfg.ShieldMax != 6 {
 		t.Errorf("shield bounds = %d..%d, want 3..6", cfg.ShieldMin, cfg.ShieldMax)
 	}
@@ -1845,17 +1848,17 @@ func TestHalloweenPackageImportRejects(t *testing.T) {
 	}
 
 	cases := map[string][]byte{
-		"empty":               {},
-		"missing config":      buildTestTar(t, map[string][]byte{"assets/base_a.png": packageTestPNG("x")}),
-		"invalid json":        buildTestTar(t, map[string][]byte{"config.json": []byte("{nope")}),
-		"bad version":         buildTestTar(t, map[string][]byte{"config.json": badVersion}),
-		"unexpected entry":    buildTestTar(t, map[string][]byte{"config.json": packageTestConfig(t, goodItems), "notes.txt": []byte("hi")}),
-		"absolute entry":      buildTestTar(t, map[string][]byte{"config.json": packageTestConfig(t, goodItems), "/config.json": []byte("{}")}),
-		"traversal entry":     buildTestTar(t, map[string][]byte{"config.json": packageTestConfig(t, goodItems), "assets/../../evil.png": packageTestPNG("x")}),
-		"duplicate entry":     dupBuf.Bytes(),
-		"not a png":           buildTestTar(t, map[string][]byte{"config.json": packageTestConfig(t, goodItems), "assets/pkg_hat.png": []byte("definitely not png")}),
-		"asset for unknown":   buildTestTar(t, map[string][]byte{"config.json": packageTestConfig(t, goodItems), "assets/ghost.png": packageTestPNG("x")}),
-		"not a tar":           []byte("this is not a tar archive at all...."),
+		"empty":             {},
+		"missing config":    buildTestTar(t, map[string][]byte{"assets/base_a.png": packageTestPNG("x")}),
+		"invalid json":      buildTestTar(t, map[string][]byte{"config.json": []byte("{nope")}),
+		"bad version":       buildTestTar(t, map[string][]byte{"config.json": badVersion}),
+		"unexpected entry":  buildTestTar(t, map[string][]byte{"config.json": packageTestConfig(t, goodItems), "notes.txt": []byte("hi")}),
+		"absolute entry":    buildTestTar(t, map[string][]byte{"config.json": packageTestConfig(t, goodItems), "/config.json": []byte("{}")}),
+		"traversal entry":   buildTestTar(t, map[string][]byte{"config.json": packageTestConfig(t, goodItems), "assets/../../evil.png": packageTestPNG("x")}),
+		"duplicate entry":   dupBuf.Bytes(),
+		"not a png":         buildTestTar(t, map[string][]byte{"config.json": packageTestConfig(t, goodItems), "assets/pkg_hat.png": []byte("definitely not png")}),
+		"asset for unknown": buildTestTar(t, map[string][]byte{"config.json": packageTestConfig(t, goodItems), "assets/ghost.png": packageTestPNG("x")}),
+		"not a tar":         []byte("this is not a tar archive at all...."),
 	}
 	for name, raw := range cases {
 		if _, err := pkg.ImportPackage(raw); err == nil {

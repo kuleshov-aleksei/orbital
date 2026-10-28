@@ -85,6 +85,14 @@ export function speedVariationForRound(round: number, config?: SpawnConfig): num
   return 0.04
 }
 
+export function abilityDamageMultiplierForRound(
+  round: number,
+  config?: Pick<HalloweenGameConfig, "ability_damage_growth">,
+): number {
+  const growth = config?.ability_damage_growth ?? 1
+  return Math.pow(growth, Math.max(0, round - 1))
+}
+
 const VALID_STARTING_PUMPKINS: PumpkinType[] = [
   "ferdinand",
   "chunky",
@@ -190,19 +198,20 @@ export const ABILITY_META: Record<AbilityId, AbilityMeta> = {
   },
   holy_grenade: {
     name: "Holy grenade",
-    description: "Drop a grenade that detonates in 3s, dealing 50 damage in a 300-unit radius.",
+    description:
+      "Drop a grenade that detonates in 3s, dealing 50 base damage in a 300-unit radius. Damage scales with the round.",
     target: "point",
   },
   beer: {
     name: "Beer puddle",
     description:
-      "A sticky puddle that drags slugs toward the cup and slows them by 40%. Slugs that reach the center get stuck for 2 seconds. Lasts 30 seconds.",
+      "A sticky puddle that drags slugs toward the cup and slows them by 40%. Slugs that reach the center get stuck for 2 seconds. Lasts 60 seconds.",
     target: "point",
   },
   salt_line: {
     name: "Salt line",
     description:
-      "A vertical line of salt that slows slugs by 30% while they step on it. Lasts 30 seconds.",
+      "A vertical line of salt that slows slugs by 30% while they step on it. Lasts 60 seconds.",
     target: "point",
   },
   tailwind: {
@@ -217,7 +226,8 @@ export const ABILITY_META: Record<AbilityId, AbilityMeta> = {
   },
   thorn_patch: {
     name: "Thorn patch",
-    description: "A patch of thorns that damages slugs crossing it for 20 seconds.",
+    description:
+      "A patch of thorns that damages slugs crossing it for 40 seconds. Damage scales with the round.",
     target: "point",
   },
 }

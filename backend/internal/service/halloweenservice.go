@@ -34,7 +34,8 @@ type HalloweenGameConfig struct {
 	LevelCosts []int `json:"level_costs"`
 	// SlugHPGrowth compounds slug max HP per round: HP *= growth^(round-1).
 	// Round 1 is exactly 1.0 — the tutorial round doesn't need surprises.
-	SlugHPGrowth float64 `json:"slug_hp_growth"`
+	SlugHPGrowth        float64 `json:"slug_hp_growth"`
+	AbilityDamageGrowth float64 `json:"ability_damage_growth"`
 	// ShieldMin/ShieldMax bound the shields rolled by each shielded slug.
 	// One hit strips one shield regardless of damage. Yes, really.
 	ShieldMin int `json:"shield_min"`
@@ -263,7 +264,8 @@ func (s *HalloweenService) Config() *HalloweenGameConfig {
 			ShieldPerRound: 2,
 		},
 		// Slugs lift weights between rounds. Your pumpkins don't. Adapt.
-		SlugHPGrowth: 1.27,
+		SlugHPGrowth:        1.27,
+		AbilityDamageGrowth: 1.27,
 		// Level 1->2 costs 40 XP, 2->3 costs 80 XP. Full max-out is 120 XP;
 		// ~1000 XP is earnable through round 7, so 7-10 maxed pumpkins max.
 		LevelCosts: []int{40, 80},

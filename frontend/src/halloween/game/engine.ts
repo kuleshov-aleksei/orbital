@@ -21,6 +21,7 @@ import {
   ABILITY_META,
   INVENTORY_CAPACITY,
   MAX_PUMPKIN_LEVEL,
+  abilityDamageMultiplierForRound,
   buildCardOffer,
   levelStatsFor,
   levelUpCost,
@@ -128,12 +129,12 @@ const GRENADE_DAMAGE = 50
 // Beer puddle: a sticky trap. Slugs inside the puddle radius are dragged
 // toward the cup (both directions) and slowed; reaching the center sticks
 // them briefly. Generous radius so near-lane aim still connects.
-const BEER_DURATION = 30
+const BEER_DURATION = 60
 const BEER_PUDDLE_RADIUS = 130
 const BEER_PUDDLE_SLOW = 0.4 // slow applied while a slug wades through the puddle
 const BEER_STICK_RADIUS = 26 // reaching the center sticks the slug...
 const BEER_STICK_TIME = 2 // ...for this long (once per slug per cup)
-const SALT_DURATION = 30
+const SALT_DURATION = 60
 const SALT_WIDTH = 120
 const SALT_SLOW = 0.3 // slow applied while a slug steps on the line
 // Tailwind: global fire-rate buff, reverted when the timer expires.
@@ -142,7 +143,7 @@ const TAILWIND_MUL = 1.5
 // Thorn patch: salt's evil twin — same x-footprint as a salt line (all
 // lanes), but damage instead of slow. Tuned so healthy slugs walk through
 // irritated, not dead: a 10-HP scout needs ~1.25s inside to die.
-const THORN_DURATION = 20
+const THORN_DURATION = 40
 const THORN_WIDTH = 120
 const THORN_DPS = 8
 // Seed rain: a clutch-or-dead card. 100 buys a Ferdinand outright or closes
@@ -863,7 +864,7 @@ export class HalloweenGameEngine {
           y,
           fuse: GRENADE_FUSE,
           blastRadius: GRENADE_RADIUS,
-          damage: GRENADE_DAMAGE,
+          damage: GRENADE_DAMAGE * abilityDamageMultiplierForRound(this.round, this.config),
         })
         break
       case "beer":
@@ -885,6 +886,7 @@ export class HalloweenGameEngine {
           x,
           duration: THORN_DURATION,
           width: THORN_WIDTH,
+          dps: THORN_DPS * abilityDamageMultiplierForRound(this.round, this.config),
         })
         break
       default:
@@ -1476,7 +1478,7 @@ export class HalloweenGameEngine {
       for (const slug of [...this.slugs]) {
         if (slug.health <= 0) continue
         if (Math.abs(slug.x - patch.x) <= patch.width / 2 + slug.radius) {
-          this.damageSlug(slug, THORN_DPS * dt, "thorn_patch")
+          this.damageSlug(slug, patch.dps * dt, "thorn_patch")
         }
       }
     }

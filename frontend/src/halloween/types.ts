@@ -236,6 +236,8 @@ export interface HalloweenGameConfig {
   spawn_scaling?: HalloweenSpawnScalingConfig
   // Per-round slug HP multiplier base: HP *= growth^(round-1). Absent = 1 (flat).
   slug_hp_growth?: number
+  // Per-round ability damage multiplier base. Absent = 1 (flat).
+  ability_damage_growth?: number
   // XP price per level-up: index 0 levels 1->2, index 1 levels 2->3.
   // Absent = [40, 80] fallback.
   level_costs?: number[]

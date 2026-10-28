@@ -149,6 +149,7 @@ export function defaultConfig(): HalloweenGameConfig {
       shield_per_round: 2,
     },
     slug_hp_growth: 1.27,
+    ability_damage_growth: 1.27,
     level_costs: [40, 80],
     shield_min: 3,
     shield_max: 6,
