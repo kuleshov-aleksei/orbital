@@ -27,6 +27,11 @@ certs
 **/dist
 **/dist-electron
 
+# Test artifacts and local test data
+frontend/playwright-report
+frontend/test-results
+backend/data
+
 # Logs
 *.log
 npm-debug.log*

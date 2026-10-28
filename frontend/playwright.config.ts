@@ -1,7 +1,16 @@
 import { defineConfig, devices } from "@playwright/test"
+import type { ReporterDescription } from "@playwright/test"
 
 const FRONTEND_URL = "http://127.0.0.1:3000"
 const BACKEND_URL = "http://127.0.0.1:8080"
+const summaryMode = process.env.PLAYWRIGHT_SUMMARY_ONLY === "1"
+const serverOutput = summaryMode ? "ignore" : "pipe"
+
+const reporters: ReporterDescription[] = summaryMode
+  ? [["./tests/reporters/summary-reporter.ts"], ["html", { open: "never" }]]
+  : process.env.CI
+    ? [["github"], ["html"]]
+    : [["list"], ["html"]]
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -14,7 +23,7 @@ export default defineConfig({
   fullyParallel: false,
   retries: process.env.CI ? 2 : 0,
   workers: 1,
-  reporter: process.env.CI ? [["github"], ["html"]] : [["list"], ["html"]],
+  reporter: reporters,
   use: {
     baseURL: FRONTEND_URL,
     trace: "retain-on-failure",
@@ -47,12 +56,16 @@ export default defineConfig({
       cwd: "../backend",
       url: `${BACKEND_URL}/api/health`,
       reuseExistingServer: false,
+      stdout: serverOutput,
+      stderr: serverOutput,
     },
     {
       command: "pnpm run dev -- --host 127.0.0.1 --port 3000",
       cwd: ".",
       url: FRONTEND_URL,
       reuseExistingServer: !process.env.CI,
+      stdout: serverOutput,
+      stderr: serverOutput,
     },
   ],
 })

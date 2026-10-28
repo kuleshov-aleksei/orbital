@@ -1,0 +1,57 @@
+# Playwright E2E test image
+#
+# Runs the frontend Playwright suite with the Go backend and LiveKit server
+# started inside the same container, so no local browser/Playwright install is
+# required. Build from the repository root:
+#
+#   docker build -t orbital-playwright-tests -f docker/Dockerfile.playwright .
+
+FROM golang:1.27.3-alpine AS go
+
+FROM livekit/livekit-server:v1.13.10 AS livekit
+
+FROM mcr.microsoft.com/playwright:v1.64.1-noble
+
+# The Go toolchain comes from the pinned golang image above. Keep it local so
+# `go run` cannot try to download a different toolchain at test time.
+ENV GOTOOLCHAIN=local
+ENV PATH="/usr/local/go/bin:${PATH}"
+
+# build-essential + libvips are required to build the backend (bimg/CGO).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        curl \
+        git \
+        libvips-dev \
+        pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=go /usr/local/go /usr/local/go
+COPY --from=livekit /livekit-server /usr/local/bin/livekit-server
+
+RUN npm install -g pnpm@9.0.0
+
+WORKDIR /app
+
+# Install dependencies in their own layer so source-only changes stay cached.
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./frontend/
+RUN cd frontend && pnpm install --frozen-lockfile
+
+COPY frontend/ ./frontend/
+COPY backend/ ./backend/
+COPY tools/ ./tools/
+COPY livekit/ ./livekit/
+
+WORKDIR /app/backend
+RUN go mod download
+
+RUN mkdir -p /app/backend/data
+
+COPY docker/playwright-entrypoint.sh /usr/local/bin/playwright-entrypoint.sh
+RUN chmod +x /usr/local/bin/playwright-entrypoint.sh
+
+WORKDIR /app/frontend
+
+ENTRYPOINT ["/usr/local/bin/playwright-entrypoint.sh"]
