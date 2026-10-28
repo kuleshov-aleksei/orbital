@@ -583,9 +583,10 @@ const hoverInfo = computed<PumpkinHoverInfo | null>(() => {
   // simply 1/interval. Dividing by the multiplier again would double-count
   // buffs and make level-ups look like downgrades.
   const ratePerSec = Number.isFinite(p.fireInterval) && p.fireInterval > 0 ? 1 / p.fireInterval : 0
+  const buffMul = baseHealth > 0 ? p.maxHealth / baseHealth : 1
   const buffs: string[] = []
   if (p.fireRateMul > 1) buffs.push(`Fire rate ×${p.fireRateMul}`)
-  if (p.maxHealth > baseHealth) buffs.push("Health ×2")
+  if (buffMul > 1) buffs.push(`Health ×${Number(buffMul.toFixed(2))}`)
 
   // Next-level preview for the improvement diff (null when maxed or dead).
   const preview = engine?.levelUpPreview(p.id) ?? null
@@ -598,7 +599,6 @@ const hoverInfo = computed<PumpkinHoverInfo | null>(() => {
   // Cramer shows seed production, and Chunky is pure HP. Rows that improve
   // on level-up carry `next`, rendered as "current → next" with accent.
   // wide_pumpkin doubles max HP, so the previewed max keeps that multiplier.
-  const buffMul = baseHealth > 0 ? p.maxHealth / baseHealth : 1
   const nextMax = next ? Math.round(next.health * buffMul) : 0
   const stats: TooltipStat[] = [
     {
