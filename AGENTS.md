@@ -8,6 +8,22 @@ The role of this file is to describe common mistakes and confusion points that a
 
 Follow sub-agents instructions. If sub-agent instruction says save patch notes to file, that means SAVE PATCH NOTES TO THE FILE
 
+## Skills
+
+Project skills live in `.opencode/skills/`. Load the matching skill before starting work in its area:
+
+| Skill | Use when |
+|---|---|
+| `orbital-log-triage` | Diagnosing attached/pasted logs and runtime bugs |
+| `orbital-livekit-connection` | Join/reconnect, audio, mute/deafen, screen share, presence |
+| `orbital-release-ops` | Electron build/publish, updater, S3/Garage, release/download endpoints |
+| `orbital-verify` | Choosing and running lint/test/build checks |
+| `orbital-retro` | Reviewing the session after verification passes |
+
+### Retro
+
+For implementation tasks, after verification passes and before the final response, load and run `orbital-retro`. It should suggest documentation, skill, or infrastructure improvements; it must not edit files unless the user asks.
+
 ## Project Overview
 
 The Orbital is a voice chat web application for 5-10 people using LiveKit SFU technology.
@@ -73,6 +89,7 @@ Do not try to explore source code or write scripts to test them. Documentation f
 
 ### Code Quality
 - Run `make lint` before committing
+- `make lint` only lints changed tracked files; lint new/untracked files explicitly
 - Use meaningful variable and function names
 - Add comments for complex logic
 - Follow language-specific conventions
@@ -97,9 +114,11 @@ Types coming FROM backend to frontend should have **snake_case**. Do not follow 
 - Test LiveKit functionality in browsers
 - Test WebSocket connections
 - Use integration tests for API endpoints
+- Never commit raw debug logs, credentials, or secrets from user reports
 
 ### Electron Development
 - Electron desktop app is in the `electron/` directory
+- Release/update changes must follow `docs/notes/MIGRATION_TO_S3.md` and the `orbital-release-ops` skill
 - Uses Vite for bundling with `vite-plugin-electron`
 - Features include: system tray, window controls, auto-updates, deep linking (`orbital://`), desktop capture for screen sharing
 - Frontend interacts with Electron via `window.electronAPI` (see `frontend/src/services/electron.ts`)
