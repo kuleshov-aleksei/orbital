@@ -89,7 +89,7 @@ Do not try to explore source code or write scripts to test them. Documentation f
 
 ### Code Quality
 - Run `make lint` before committing
-- `make lint` only lints changed tracked files; lint new/untracked files explicitly
+- `make lint` covers changed and untracked files; use `make lint-full` to lint all frontend sources
 - Use meaningful variable and function names
 - Add comments for complex logic
 - Follow language-specific conventions

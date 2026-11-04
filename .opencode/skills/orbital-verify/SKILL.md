@@ -19,7 +19,7 @@ description: Use before declaring any Orbital code change complete. Selects the 
 ## Workflow
 
 1. Run the canonical targets: `make lint`, `make test`, `make build`.
-2. For frontend changes, remember `make lint` only covers changed tracked files; lint new files explicitly.
+2. For frontend changes, `make lint` covers changed and untracked files; use `make lint-full` to lint all sources.
 3. For backend changes, run package-scoped tests when the full suite is too slow.
 4. If a typecheck fails, determine whether the errors are new or part of the known baseline.
 5. Report exactly what ran, what passed, and what was skipped.
