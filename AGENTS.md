@@ -15,6 +15,7 @@ Project skills live in `.opencode/skills/`. Load the matching skill before start
 | Skill | Use when |
 |---|---|
 | `orbital-log-triage` | Diagnosing attached/pasted logs and runtime bugs |
+| `orbital-dependency-audit` | Reviewing Renovate/Dependabot PRs and package/lockfile/runtime-image updates |
 | `orbital-livekit-connection` | Join/reconnect, audio, mute/deafen, screen share, presence |
 | `orbital-release-ops` | Electron build/publish, updater, S3/Garage, release/download endpoints |
 | `orbital-verify` | Choosing and running lint/test/build checks |
