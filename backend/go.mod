@@ -9,7 +9,7 @@ require (
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/h2non/bimg v1.1.9
 	github.com/joho/godotenv v1.5.1
-	github.com/livekit/protocol v1.53.0
+	github.com/livekit/protocol v1.53.1
 	github.com/livekit/server-sdk-go/v2 v2.19.0
 	golang.org/x/crypto v0.58.0
 	golang.org/x/oauth2 v0.37.0
