@@ -142,7 +142,7 @@ func (s *AuthService) GetOAuthURL(provider models.AuthProvider, state string) (s
 func (s *AuthService) GetElectronOAuthURL(provider models.AuthProvider, state string) (string, error) {
 	config, ok := s.electronOAuthConfigs[provider]
 	if !ok {
-		return "", fmt.Errorf("Electron OAuth not configured for provider: %s", provider)
+		return "", fmt.Errorf("electron OAuth not configured for provider: %s", provider)
 	}
 
 	log.Printf("[Auth] GetElectronOAuthURL - redirect_uri: %s", config.RedirectURL)
@@ -158,7 +158,7 @@ func (s *AuthService) ExchangeCode(ctx context.Context, provider models.AuthProv
 	if useElectronConfig {
 		config, ok = s.electronOAuthConfigs[provider]
 		if !ok {
-			return nil, fmt.Errorf("Electron OAuth not configured for provider: %s", provider)
+			return nil, fmt.Errorf("electron OAuth not configured for provider: %s", provider)
 		}
 	} else {
 		config, ok = s.oauthConfigs[provider]
@@ -196,7 +196,7 @@ func (s *AuthService) fetchDiscordUserInfo(accessToken string) (*models.OAuthUse
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -248,7 +248,7 @@ func (s *AuthService) fetchGoogleUserInfo(accessToken string) (*models.OAuthUser
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)

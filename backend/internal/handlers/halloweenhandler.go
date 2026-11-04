@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -37,7 +38,7 @@ func NewHalloweenHandlerWithAssets(halloweenService *service.HalloweenService, p
 
 // GetState returns equipped customization, owned items, and the catalog.
 func (h *HalloweenHandler) GetState(w http.ResponseWriter, r *http.Request) {
-	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 	if !ok || claims == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -50,13 +51,13 @@ func (h *HalloweenHandler) GetState(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(state)
+	writeJSON(w, state)
 }
 
 // UpdatePumpkin saves the user's equipped customization and broadcasts it to
 // their room.
 func (h *HalloweenHandler) UpdatePumpkin(w http.ResponseWriter, r *http.Request) {
-	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 	if !ok || claims == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -78,14 +79,14 @@ func (h *HalloweenHandler) UpdatePumpkin(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "saved"})
+	writeJSON(w, map[string]string{"status": "saved"})
 }
 
 // GetPumpkinStates returns the equipped customization of the requested users
 // (comma-separated `user_ids`). Clients use it to sync other call members'
 // pumpkins on join, which are otherwise only pushed on change.
 func (h *HalloweenHandler) GetPumpkinStates(w http.ResponseWriter, r *http.Request) {
-	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 	if !ok || claims == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -94,7 +95,7 @@ func (h *HalloweenHandler) GetPumpkinStates(w http.ResponseWriter, r *http.Reque
 	raw := r.URL.Query().Get("user_ids")
 	if raw == "" {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(models.PumpkinStatesResponse{States: map[string]string{}})
+		writeJSON(w, models.PumpkinStatesResponse{States: map[string]string{}})
 		return
 	}
 
@@ -106,18 +107,18 @@ func (h *HalloweenHandler) GetPumpkinStates(w http.ResponseWriter, r *http.Reque
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(models.PumpkinStatesResponse{States: states})
+	writeJSON(w, models.PumpkinStatesResponse{States: states})
 }
 
 // GetConfig returns the server-authoritative game configuration.
 func (h *HalloweenHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(h.halloweenService.Config())
+	writeJSON(w, h.halloweenService.Config())
 }
 
 // SubmitGame validates and stores a finished game, granting rewards.
 func (h *HalloweenHandler) SubmitGame(w http.ResponseWriter, r *http.Request) {
-	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 	if !ok || claims == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -136,7 +137,7 @@ func (h *HalloweenHandler) SubmitGame(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	writeJSON(w, response)
 }
 
 // SubmitBotGame stores a decider-submitted game result (balance harness).
@@ -161,7 +162,7 @@ func (h *HalloweenHandler) SubmitBotGame(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	writeJSON(w, response)
 }
 
 // GetLeaderboard returns the highest scores across all users.
@@ -173,7 +174,7 @@ func (h *HalloweenHandler) GetLeaderboard(w http.ResponseWriter, r *http.Request
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(entries)
+	writeJSON(w, entries)
 }
 
 // AdminGetGames returns all stored game results with parsed reports and stats
@@ -186,7 +187,7 @@ func (h *HalloweenHandler) AdminGetGames(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(results)
+	writeJSON(w, results)
 }
 
 // AdminGetRewards returns the full rewards ledger (super_admin only).
@@ -198,7 +199,7 @@ func (h *HalloweenHandler) AdminGetRewards(w http.ResponseWriter, r *http.Reques
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(rewards)
+	writeJSON(w, rewards)
 }
 
 // AdminGetItems returns the decoration catalog (super_admin only,
@@ -211,7 +212,7 @@ func (h *HalloweenHandler) AdminGetItems(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(items)
+	writeJSON(w, items)
 }
 
 // GetAsset serves backend-owned pumpkin decoration art from the data dir.
@@ -260,7 +261,7 @@ func (h *HalloweenHandler) AdminCreateItem(w http.ResponseWriter, r *http.Reques
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(item)
+	writeJSON(w, item)
 }
 
 // AdminUpdateItem updates a catalog entry (super_admin only).
@@ -285,7 +286,7 @@ func (h *HalloweenHandler) AdminUpdateItem(w http.ResponseWriter, r *http.Reques
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(item)
+	writeJSON(w, item)
 }
 
 // AdminDeleteItem soft-deletes a catalog entry (super_admin only).
@@ -303,7 +304,7 @@ func (h *HalloweenHandler) AdminDeleteItem(w http.ResponseWriter, r *http.Reques
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
+	writeJSON(w, map[string]string{"status": "deleted"})
 }
 
 // AdminRestoreItem clears the soft-delete flag (super_admin only).
@@ -321,7 +322,7 @@ func (h *HalloweenHandler) AdminRestoreItem(w http.ResponseWriter, r *http.Reque
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "restored"})
+	writeJSON(w, map[string]string{"status": "restored"})
 }
 
 // AdminUploadAsset stores PNG art for a catalog entry (super_admin only).
@@ -353,7 +354,7 @@ func (h *HalloweenHandler) AdminUploadAsset(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "No asset file provided", http.StatusBadRequest)
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	fileData, err := io.ReadAll(file)
 	if err != nil {
@@ -381,7 +382,7 @@ func (h *HalloweenHandler) AdminUploadAsset(w http.ResponseWriter, r *http.Reque
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(item)
+	writeJSON(w, item)
 }
 
 // AdminGetLayouts returns the socket anchors for one base (super_admin only).
@@ -399,7 +400,7 @@ func (h *HalloweenHandler) AdminGetLayouts(w http.ResponseWriter, r *http.Reques
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(sockets)
+	writeJSON(w, sockets)
 }
 
 // AdminUpsertLayouts replaces the socket anchors for a base (super_admin only).
@@ -420,7 +421,7 @@ func (h *HalloweenHandler) AdminUpsertLayouts(w http.ResponseWriter, r *http.Req
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "saved"})
+	writeJSON(w, map[string]string{"status": "saved"})
 }
 
 // AdminIssueReward grants a specific item to a user (super_admin only).
@@ -447,7 +448,7 @@ func (h *HalloweenHandler) AdminIssueReward(w http.ResponseWriter, r *http.Reque
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	writeJSON(w, map[string]interface{}{
 		"status":  "success",
 		"message": message,
 		"granted": granted,
@@ -472,7 +473,9 @@ func (h *HalloweenHandler) AdminExportConfig(w http.ResponseWriter, r *http.Requ
 	filename := fmt.Sprintf("halloween-pumpkin-package-%s.tar", time.Now().UTC().Format("2006-01-02"))
 	w.Header().Set("Content-Type", "application/x-tar")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
-	w.Write(data)
+	if _, err := w.Write(data); err != nil {
+		log.Printf("Failed to write halloween package response: %v", err)
+	}
 }
 
 // AdminImportConfig replaces the whole catalog + layouts + art from a config
@@ -495,7 +498,7 @@ func (h *HalloweenHandler) AdminImportConfig(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "No package file provided", http.StatusBadRequest)
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	data, err := io.ReadAll(file)
 	if err != nil {
@@ -511,5 +514,5 @@ func (h *HalloweenHandler) AdminImportConfig(w http.ResponseWriter, r *http.Requ
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(res)
+	writeJSON(w, res)
 }

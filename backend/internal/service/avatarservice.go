@@ -123,7 +123,7 @@ func (s *AvatarService) deleteOldAvatar(avatarURL string) {
 	}
 
 	oldPath := filepath.Join(s.dataDir, "avatars", guid)
-	os.Remove(oldPath)
+	_ = os.Remove(oldPath)
 }
 
 func (s *AvatarService) GetAvatarPath(guid string) (string, error) {

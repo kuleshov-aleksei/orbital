@@ -95,7 +95,7 @@ func (h *QRLoginHandler) ApproveChallenge(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 	if !ok || claims == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -138,7 +138,7 @@ func (h *QRLoginHandler) ClaimChallenge(w http.ResponseWriter, r *http.Request) 
 			// later 200 that carries the sealed payload.
 			w.Header().Set("Cache-Control", "no-store")
 			w.WriteHeader(http.StatusAccepted)
-			json.NewEncoder(w).Encode(models.ClaimQRChallengeResponse{
+			writeJSON(w, models.ClaimQRChallengeResponse{
 				Status: models.QRLoginChallengePending,
 			})
 			return
@@ -179,7 +179,7 @@ func writeQRJSON(w http.ResponseWriter, status int, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	writeJSON(w, v)
 }
 
 // qrClientIP prefers the first X-Forwarded-For entry (nginx) and falls back

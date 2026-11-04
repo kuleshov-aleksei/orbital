@@ -80,7 +80,7 @@ func qrAuthedRequest(t *testing.T, method, target string, body interface{}, user
 
 	req := httptest.NewRequest(method, target, &buf)
 	if userID != "" {
-		req = req.WithContext(context.WithValue(req.Context(), "user", &models.JWTClaims{UserID: userID}))
+		req = req.WithContext(context.WithValue(req.Context(), userContextKey, &models.JWTClaims{UserID: userID}))
 	}
 	return req
 }

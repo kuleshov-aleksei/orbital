@@ -47,7 +47,7 @@ func (h *LiveKitHandler) GenerateToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get user claims from context (set by AuthMiddleware)
-	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 	if !ok || claims == nil {
 		h.sendError(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -80,7 +80,7 @@ func (h *LiveKitHandler) GenerateToken(w http.ResponseWriter, r *http.Request) {
 	// Send successful response
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(TokenResponse{
+	writeJSON(w, TokenResponse{
 		Token:   token,
 		RoomURL: roomURL,
 	})
@@ -96,13 +96,13 @@ func (h *LiveKitHandler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if isHealthy {
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{
+		writeJSON(w, map[string]string{
 			"status":  "healthy",
 			"service": "livekit",
 		})
 	} else {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(map[string]string{
+		writeJSON(w, map[string]string{
 			"status":  "unhealthy",
 			"service": "livekit",
 		})
@@ -113,5 +113,5 @@ func (h *LiveKitHandler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 func (h *LiveKitHandler) sendError(w http.ResponseWriter, message string, statusCode int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(ErrorResponse{Error: message})
+	writeJSON(w, ErrorResponse{Error: message})
 }

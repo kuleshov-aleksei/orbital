@@ -86,7 +86,7 @@ func (h *AuthHandler) GetOAuthUrl(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[Auth] Generated OAuth URL: %s", authURL)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, map[string]string{
 		"url":   authURL,
 		"state": state,
 	})
@@ -220,9 +220,8 @@ func (h *AuthHandler) handleCallback(w http.ResponseWriter, r *http.Request, pro
 
 	// Check if this user should be made super_admin (first non-guest user)
 	if err := h.roleService.AssignSuperAdminIfFirst(user.ID); err != nil {
-		// Log error but don't fail the login
-		// The user will just have default 'user' role
-		// We can't log here without a logger, but we'll continue
+		// Log error but don't fail the login; the user keeps the default role.
+		log.Printf("Failed to assign super admin if first: %v", err)
 	}
 
 	// Refresh user data in case role was changed
@@ -297,7 +296,8 @@ func (h *AuthHandler) handleElectronCallback(w http.ResponseWriter, r *http.Requ
 
 	// Check if this user should be made super_admin
 	if err := h.roleService.AssignSuperAdminIfFirst(user.ID); err != nil {
-		// Log error but don't fail the login
+		// Log error but don't fail the login; the user keeps the default role.
+		log.Printf("Failed to assign super admin if first: %v", err)
 	}
 
 	// Refresh user data in case role was changed
@@ -337,7 +337,7 @@ func (h *AuthHandler) GuestLogin(w http.ResponseWriter, r *http.Request) {
 
 	// Return auth response
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(models.AuthResponse{
+	writeJSON(w, models.AuthResponse{
 		Token:     token,
 		User:      *user,
 		ExpiresAt: expiry,
@@ -346,7 +346,7 @@ func (h *AuthHandler) GuestLogin(w http.ResponseWriter, r *http.Request) {
 
 // GetCurrentUser returns the current authenticated user
 func (h *AuthHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
-	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 	if !ok || claims == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -360,14 +360,14 @@ func (h *AuthHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(user)
+	writeJSON(w, user)
 }
 
 // RefreshToken slides an authenticated session forward by issuing a new JWT
 // with a fresh expiry. The current token must still be valid (AuthMiddleware
 // rejects expired tokens), so clients must refresh before expiry.
 func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
-	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 	if !ok || claims == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -388,7 +388,7 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(models.AuthResponse{
+	writeJSON(w, models.AuthResponse{
 		Token:     token,
 		User:      *user,
 		ExpiresAt: expiry,
@@ -400,7 +400,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	// In a stateless JWT system, logout is handled client-side
 	// by removing the token from storage
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, map[string]string{
 		"status":  "ok",
 		"message": "Logged out successfully",
 	})
@@ -434,7 +434,7 @@ func (h *AuthHandler) AuthMiddleware(next http.Handler) http.Handler {
 
 		// Add claims to request context
 		ctx := r.Context()
-		ctx = context.WithValue(ctx, "user", claims)
+		ctx = context.WithValue(ctx, userContextKey, claims)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -442,7 +442,7 @@ func (h *AuthHandler) AuthMiddleware(next http.Handler) http.Handler {
 // RequireAdmin creates a middleware that requires admin or super_admin role
 func (h *AuthHandler) RequireAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := r.Context().Value("user").(*models.JWTClaims)
+		claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 		if !ok || claims == nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
@@ -461,7 +461,7 @@ func (h *AuthHandler) RequireAdmin(next http.Handler) http.Handler {
 // RequireSuperAdmin creates a middleware that requires super_admin role
 func (h *AuthHandler) RequireSuperAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := r.Context().Value("user").(*models.JWTClaims)
+		claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 		if !ok || claims == nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
@@ -486,7 +486,7 @@ func (h *AuthHandler) GetAuthStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(status)
+	writeJSON(w, status)
 }
 
 // Register handles user registration with email, nickname, and password
@@ -526,7 +526,8 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	// Check if this user should be made super_admin (first non-guest user)
 	if err := h.roleService.AssignSuperAdminIfFirst(user.ID); err != nil {
-		// Log error but don't fail the login
+		// Log error but don't fail the login; the user keeps the default role.
+		log.Printf("Failed to assign super admin if first: %v", err)
 	}
 
 	// Refresh user data in case role was changed
@@ -537,7 +538,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(models.LoginResponse{
+	writeJSON(w, models.LoginResponse{
 		Token:     token,
 		User:      *user,
 		ExpiresAt: expiry,
@@ -576,7 +577,7 @@ func (h *AuthHandler) LoginPassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(models.LoginResponse{
+	writeJSON(w, models.LoginResponse{
 		Token:     token,
 		User:      *user,
 		ExpiresAt: expiry,

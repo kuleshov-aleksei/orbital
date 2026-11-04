@@ -162,7 +162,7 @@ func (s *HalloweenPackageService) ImportPackage(data []byte) (*models.HalloweenP
 
 		switch {
 		case name == HalloweenPackageConfigName:
-			if hdr.Typeflag != tar.TypeReg && hdr.Typeflag != tar.TypeRegA {
+			if hdr.Typeflag != tar.TypeReg {
 				return nil, fmt.Errorf("invalid entry: %s", name)
 			}
 			if hdr.Size < 0 || hdr.Size > MaxHalloweenPackageConfigSize {
@@ -185,7 +185,7 @@ func (s *HalloweenPackageService) ImportPackage(data []byte) (*models.HalloweenP
 			if !validPackageItemID(id) {
 				return nil, fmt.Errorf("invalid asset id: %s", name)
 			}
-			if hdr.Typeflag != tar.TypeReg && hdr.Typeflag != tar.TypeRegA {
+			if hdr.Typeflag != tar.TypeReg {
 				return nil, fmt.Errorf("invalid entry: %s", name)
 			}
 			if hdr.Size < 0 || hdr.Size > MaxPumpkinAssetSize {

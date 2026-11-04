@@ -75,7 +75,7 @@ func (r *RoomRepository) GetAll() ([]*models.Room, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var rooms []*models.Room
 	for rows.Next() {
@@ -110,7 +110,7 @@ func (r *RoomRepository) GetByCategory(categoryID string) ([]*models.Room, error
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var rooms []*models.Room
 	for rows.Next() {

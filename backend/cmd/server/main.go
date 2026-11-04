@@ -63,7 +63,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to initialize database: %v", err)
 		}
-		defer db.Close()
+		defer func() { _ = db.Close() }()
 
 		// Run migrations
 		if err := db.RunMigrations(); err != nil {
@@ -77,7 +77,6 @@ func main() {
 		debugLogRepo := repository.NewDebugLogRepository(db)
 		sessionRepo = repository.NewSessionRepository(db)
 		qrLoginRepo = repository.NewQRLoginRepository(db)
-		userRepo = repository.NewUserRepository(db)
 
 		// Initialize services with repositories
 		categoryService = service.NewCategoryService(categoryRepo)
@@ -364,10 +363,16 @@ func main() {
 	log.Fatal(server.ListenAndServe())
 }
 
+func writeJSON(w http.ResponseWriter, v interface{}) {
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		log.Printf("Failed to encode JSON response: %v", err)
+	}
+}
+
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, map[string]string{
 		"status":  "ok",
 		"service": "orbital-backend",
 		"version": version.GetVersion(),
@@ -377,7 +382,7 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 func versionHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, map[string]string{
 		"version": version.GetVersion(),
 	})
 }

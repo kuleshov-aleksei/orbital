@@ -427,10 +427,7 @@ func (s *HalloweenService) SubmitGame(userID string, report *models.HalloweenGam
 	}
 
 	computed := s.ComputeScore(report)
-	cheater := false
-	if math.Abs(float64(report.Score-computed)) > 0.1*float64(computed) {
-		cheater = true
-	}
+	cheater := math.Abs(float64(report.Score-computed)) > 0.1*float64(computed)
 
 	granted := []string{}
 	message := ""

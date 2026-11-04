@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -29,7 +28,7 @@ type AvatarUploadResponse struct {
 }
 
 func (h *AvatarHandler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
-	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 	if !ok || claims == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -58,7 +57,7 @@ func (h *AvatarHandler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "No avatar file provided", http.StatusBadRequest)
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	fileData, err := io.ReadAll(file)
 	if err != nil {
@@ -91,7 +90,7 @@ func (h *AvatarHandler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(AvatarUploadResponse{
+	writeJSON(w, AvatarUploadResponse{
 		AvatarURL: result.AvatarURL,
 	})
 }

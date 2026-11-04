@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -31,7 +32,7 @@ func (h *CategoryHandler) GetCategories(w http.ResponseWriter, r *http.Request) 
 	categories := h.categoryService.GetCategories()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(categories)
+	writeJSON(w, categories)
 }
 
 // CreateCategory handles POST /api/categories
@@ -59,7 +60,7 @@ func (h *CategoryHandler) CreateCategory(w http.ResponseWriter, r *http.Request)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(category)
+	writeJSON(w, category)
 }
 
 // RenameCategory handles PUT /api/categories/:id
@@ -93,7 +94,7 @@ func (h *CategoryHandler) RenameCategory(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(category)
+	writeJSON(w, category)
 }
 
 // DeleteCategory handles DELETE /api/categories/:id
@@ -127,7 +128,6 @@ func (h *CategoryHandler) DeleteCategory(w http.ResponseWriter, r *http.Request)
 
 	// Handle room migration or deletion
 	var migratedRooms []string
-	var deletedRoomIDs []string
 	if !req.DeleteRooms && targetCategoryID != "" {
 		// Migrate rooms to target category
 		rooms := h.roomService.GetRoomsByCategory(categoryID)
@@ -155,8 +155,10 @@ func (h *CategoryHandler) DeleteCategory(w http.ResponseWriter, r *http.Request)
 				h.roomService.LeaveRoom(room.ID, user.ID)
 			}
 			// Delete the room
-			h.roomService.DeleteRoom(room.ID)
-			deletedRoomIDs = append(deletedRoomIDs, room.ID)
+			if err := h.roomService.DeleteRoom(room.ID); err != nil {
+				log.Printf("Failed to delete room %s: %v", room.ID, err)
+				continue
+			}
 			// Broadcast room deletion to all clients
 			if h.wsHub != nil {
 				roomDeletedMessage := map[string]interface{}{
@@ -185,7 +187,7 @@ func (h *CategoryHandler) DeleteCategory(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, map[string]string{
 		"status": "success",
 	})
 }
@@ -223,5 +225,5 @@ func (h *CategoryHandler) UpdateCategoryOrder(w http.ResponseWriter, r *http.Req
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+	writeJSON(w, map[string]string{"status": "success"})
 }

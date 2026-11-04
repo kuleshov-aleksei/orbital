@@ -83,7 +83,7 @@ func (r *SessionRepository) GetAll() ([]*models.UserSession, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var sessions []*models.UserSession
 	for rows.Next() {
@@ -130,7 +130,7 @@ func (r *SessionRepository) GetLatestElectronSessions() ([]ElectronVersionSessio
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var result []ElectronVersionSession
 	for rows.Next() {

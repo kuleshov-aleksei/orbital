@@ -81,7 +81,7 @@ func (s *AudioService) UploadAudio(userID string, fileData []byte, displayName s
 	}
 
 	if err := s.repo.Create(audioFile); err != nil {
-		os.Remove(filePath)
+		_ = os.Remove(filePath)
 		return nil, fmt.Errorf("failed to save audio record: %w", err)
 	}
 

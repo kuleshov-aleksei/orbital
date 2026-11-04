@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -70,7 +69,7 @@ func (h *ReleaseHandler) GetLatest(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(release)
+	writeJSON(w, release)
 }
 
 // getCached returns the cached release when it is still fresh.
@@ -120,7 +119,7 @@ func (h *ReleaseHandler) fetchManifestVersion(ctx context.Context) (string, erro
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("latest.yml returned status %d", resp.StatusCode)
@@ -142,5 +141,5 @@ func (h *ReleaseHandler) fetchManifestVersion(ctx context.Context) (string, erro
 func (h *ReleaseHandler) sendError(w http.ResponseWriter, message string, statusCode int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(ErrorResponse{Error: message})
+	writeJSON(w, ErrorResponse{Error: message})
 }

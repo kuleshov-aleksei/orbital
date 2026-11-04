@@ -53,7 +53,7 @@ func (r *AudioRepository) GetAll() ([]*models.AudioFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var files []*models.AudioFile
 	for rows.Next() {
@@ -82,7 +82,7 @@ func (r *AudioRepository) GetByUserID(userID string) ([]*models.AudioFile, error
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var files []*models.AudioFile
 	for rows.Next() {

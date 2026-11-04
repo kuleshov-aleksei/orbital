@@ -127,7 +127,7 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(roomResponse)
+	writeJSON(w, roomResponse)
 }
 
 // GetRooms handles GET /api/rooms
@@ -143,7 +143,7 @@ func (h *RoomHandler) GetRooms(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(rooms)
+	writeJSON(w, rooms)
 }
 
 // GetRoom handles GET /api/rooms/{id}
@@ -158,7 +158,7 @@ func (h *RoomHandler) GetRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(room)
+	writeJSON(w, room)
 }
 
 // GetRoomUsers handles GET /api/rooms/{id}/users
@@ -169,7 +169,7 @@ func (h *RoomHandler) GetRoomUsers(w http.ResponseWriter, r *http.Request) {
 	users := h.roomService.GetRoomUsers(roomID)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(users)
+	writeJSON(w, users)
 }
 
 // JoinRoom handles POST /api/rooms/{id}/join
@@ -179,7 +179,7 @@ func (h *RoomHandler) JoinRoom(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	roomID := vars["id"]
 
-	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 	if !ok || claims == nil || claims.UserID == "" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -225,7 +225,7 @@ func (h *RoomHandler) JoinRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(user)
+	writeJSON(w, user)
 }
 
 // LeaveRoom handles POST /api/rooms/{id}/leave
@@ -234,7 +234,7 @@ func (h *RoomHandler) LeaveRoom(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	roomID := vars["id"]
 
-	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 	if !ok || claims == nil || claims.UserID == "" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -277,7 +277,7 @@ func (h *RoomHandler) LeaveRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+	writeJSON(w, map[string]string{"status": "success"})
 }
 
 // KickUser handles POST /api/rooms/{room_id}/kick/{user_id}
@@ -312,7 +312,7 @@ func (h *RoomHandler) KickUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+	writeJSON(w, map[string]string{"status": "success"})
 }
 
 // UpdateRoom handles PUT /api/rooms/{id}
@@ -382,7 +382,7 @@ func (h *RoomHandler) UpdateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(room)
+	writeJSON(w, room)
 }
 
 // DeleteRoom handles DELETE /api/rooms/{id}
@@ -416,7 +416,7 @@ func (h *RoomHandler) DeleteRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+	writeJSON(w, map[string]string{"status": "success"})
 }
 
 // UpdateRoomOrder handles PUT /api/rooms/order
@@ -452,7 +452,7 @@ func (h *RoomHandler) UpdateRoomOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+	writeJSON(w, map[string]string{"status": "success"})
 }
 
 // RoomConfigResponse represents the room configuration response
@@ -478,5 +478,5 @@ func (h *RoomHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(cfg)
+	writeJSON(w, cfg)
 }

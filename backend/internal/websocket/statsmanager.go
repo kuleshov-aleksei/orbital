@@ -256,7 +256,7 @@ func (c *Client) handleClientStatsBatch(data interface{}) {
 		log.Printf("[Stats] Failed to create gzip reader: %v", err)
 		return
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	raw, err := io.ReadAll(reader)
 	if err != nil {

@@ -15,7 +15,7 @@ import (
 
 // StatsSubscribe subscribes the requesting admin to stats for a room (super_admin only)
 func (h *AdminHandler) StatsSubscribe(w http.ResponseWriter, r *http.Request) {
-	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 	if !ok || claims == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -35,7 +35,7 @@ func (h *AdminHandler) StatsSubscribe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, map[string]string{
 		"status":  "success",
 		"message": "Subscribed to room stats",
 	})
@@ -43,7 +43,7 @@ func (h *AdminHandler) StatsSubscribe(w http.ResponseWriter, r *http.Request) {
 
 // StatsUnsubscribe unsubscribes the requesting admin from stats for a room (super_admin only)
 func (h *AdminHandler) StatsUnsubscribe(w http.ResponseWriter, r *http.Request) {
-	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 	if !ok || claims == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -61,7 +61,7 @@ func (h *AdminHandler) StatsUnsubscribe(w http.ResponseWriter, r *http.Request) 
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, map[string]string{
 		"status":  "success",
 		"message": "Unsubscribed from room stats",
 	})
@@ -81,7 +81,7 @@ func (h *AdminHandler) EnableStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, map[string]string{
 		"status":  "success",
 		"message": "Stats collection enabled for room",
 	})
@@ -101,7 +101,7 @@ func (h *AdminHandler) DisableStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, map[string]string{
 		"status":  "success",
 		"message": "Stats collection disabled for room",
 	})
@@ -117,12 +117,12 @@ func (h *AdminHandler) GetStatsStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(statuses)
+	writeJSON(w, statuses)
 }
 
 // GetAnalyticsReport returns pre-calculated usage analytics (super_admin only)
 func (h *AdminHandler) GetAnalyticsReport(w http.ResponseWriter, r *http.Request) {
-	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 	if !ok || claims == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -145,7 +145,7 @@ func (h *AdminHandler) GetAnalyticsReport(w http.ResponseWriter, r *http.Request
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(report)
+	writeJSON(w, report)
 }
 
 // AdminHandler handles admin-related HTTP requests
@@ -191,7 +191,7 @@ func NewAdminHandlerWithHub(roleService *service.RoleService, userRepo *reposito
 // PromoteUser promotes a user to admin (super_admin only)
 func (h *AdminHandler) PromoteUser(w http.ResponseWriter, r *http.Request) {
 	// Get current user (super_admin) from context
-	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 	if !ok || claims == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -212,7 +212,7 @@ func (h *AdminHandler) PromoteUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, map[string]string{
 		"status":  "success",
 		"message": "User promoted to admin",
 	})
@@ -221,7 +221,7 @@ func (h *AdminHandler) PromoteUser(w http.ResponseWriter, r *http.Request) {
 // DemoteUser demotes an admin to regular user (super_admin only)
 func (h *AdminHandler) DemoteUser(w http.ResponseWriter, r *http.Request) {
 	// Get current user (super_admin) from context
-	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 	if !ok || claims == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -242,7 +242,7 @@ func (h *AdminHandler) DemoteUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, map[string]string{
 		"status":  "success",
 		"message": "User demoted to regular user",
 	})
@@ -257,7 +257,7 @@ func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(users)
+	writeJSON(w, users)
 }
 
 // GetUserRole returns the role of a specific user (admin+)
@@ -276,14 +276,14 @@ func (h *AdminHandler) GetUserRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, map[string]string{
 		"role": role,
 	})
 }
 
 // DeleteUser deletes a user (super_admin only)
 func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
-	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 	if !ok || claims == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -328,7 +328,7 @@ func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, map[string]string{
 		"status":  "success",
 		"message": "User deleted",
 	})
@@ -336,7 +336,7 @@ func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 
 // DeleteAllGuests deletes all guest users (super_admin only)
 func (h *AdminHandler) DeleteAllGuests(w http.ResponseWriter, r *http.Request) {
-	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 	if !ok || claims == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -363,7 +363,7 @@ func (h *AdminHandler) DeleteAllGuests(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	writeJSON(w, map[string]interface{}{
 		"status":        "success",
 		"message":       "Guest users deleted",
 		"deleted_count": deletedCount,
@@ -372,7 +372,7 @@ func (h *AdminHandler) DeleteAllGuests(w http.ResponseWriter, r *http.Request) {
 
 // UploadDebugLog handles uploading debug logs from clients
 func (h *AdminHandler) UploadDebugLog(w http.ResponseWriter, r *http.Request) {
-	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 	if !ok || claims == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -401,7 +401,7 @@ func (h *AdminHandler) UploadDebugLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	writeJSON(w, map[string]interface{}{
 		"status":  "success",
 		"message": "Logs uploaded successfully",
 		"log_id":  debugLog.ID,
@@ -410,7 +410,7 @@ func (h *AdminHandler) UploadDebugLog(w http.ResponseWriter, r *http.Request) {
 
 // ListDebugLogs returns all debug logs (super_admin only)
 func (h *AdminHandler) ListDebugLogs(w http.ResponseWriter, r *http.Request) {
-	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 	if !ok || claims == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -428,12 +428,12 @@ func (h *AdminHandler) ListDebugLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(logs)
+	writeJSON(w, logs)
 }
 
 // GetDebugLog returns a specific debug log file content (super_admin only)
 func (h *AdminHandler) GetDebugLog(w http.ResponseWriter, r *http.Request) {
-	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 	if !ok || claims == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -469,7 +469,7 @@ func (h *AdminHandler) GetDebugLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	writeJSON(w, map[string]interface{}{
 		"log":     debugLog,
 		"content": content,
 	})
@@ -477,7 +477,7 @@ func (h *AdminHandler) GetDebugLog(w http.ResponseWriter, r *http.Request) {
 
 // DeleteDebugLog deletes a debug log (super_admin only)
 func (h *AdminHandler) DeleteDebugLog(w http.ResponseWriter, r *http.Request) {
-	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 	if !ok || claims == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -507,7 +507,7 @@ func (h *AdminHandler) DeleteDebugLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, map[string]string{
 		"status":  "success",
 		"message": "Log deleted successfully",
 	})

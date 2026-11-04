@@ -28,7 +28,7 @@ func TestGetLatestElectronSessionsAndBackfill(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewDB: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	if err := db.RunMigrations(); err != nil {
 		t.Fatalf("RunMigrations: %v", err)

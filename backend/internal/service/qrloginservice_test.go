@@ -41,7 +41,7 @@ func newQRTestFixture(t *testing.T) *qrTestFixture {
 	if err != nil {
 		t.Fatalf("failed to create in-memory db: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 
 	if err := db.RunMigrations(); err != nil {
 		t.Fatalf("failed to run migrations: %v", err)

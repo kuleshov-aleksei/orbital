@@ -48,7 +48,7 @@ func (s *DebugLogService) SaveLog(userID, username, version, systemInfo, logs st
 	}
 
 	if err := s.repo.Create(debugLog); err != nil {
-		os.Remove(filePath)
+		_ = os.Remove(filePath)
 		return nil, fmt.Errorf("failed to save log record: %w", err)
 	}
 

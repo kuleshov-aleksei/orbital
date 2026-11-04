@@ -118,24 +118,24 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 	// Client-supplied user IDs in messages are never trusted (see handlePing/handleJoinRoom).
 	if h.authService == nil {
 		log.Printf("WebSocket connection rejected (roomID=%q): auth service unavailable", roomID)
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 	token := r.URL.Query().Get("token")
 	if token == "" {
 		log.Printf("WebSocket connection rejected (roomID=%q): missing token", roomID)
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 	claims, err := h.authService.ValidateJWT(token)
 	if err != nil {
 		log.Printf("WebSocket connection rejected (roomID=%q): token validation failed: %v", roomID, err)
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 	if claims.UserID == "" {
 		log.Printf("WebSocket connection rejected (roomID=%q): token has empty userID", roomID)
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 	client.mu.Lock()
@@ -558,7 +558,7 @@ func (c *Client) readPump() {
 			}
 		}
 
-		c.conn.Close()
+		_ = c.conn.Close()
 	}()
 
 	for {
@@ -588,23 +588,16 @@ func (c *Client) readPump() {
 
 // writePump handles sending messages to the WebSocket connection
 func (c *Client) writePump() {
-	defer c.conn.Close()
+	defer func() { _ = c.conn.Close() }()
 
-	for {
-		select {
-		case message, ok := <-c.send:
-			if !ok {
-				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
-				return
-			}
-
-			err := c.conn.WriteMessage(websocket.TextMessage, message)
-			if err != nil {
-				log.Printf("WebSocket write error: %v", err)
-				return
-			}
+	for message := range c.send {
+		if err := c.conn.WriteMessage(websocket.TextMessage, message); err != nil {
+			log.Printf("WebSocket write error: %v", err)
+			return
 		}
 	}
+
+	_ = c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 }
 
 // handleMessage processes incoming WebSocket messages
@@ -642,7 +635,10 @@ func (c *Client) handleMessage(message models.WebSocketMessage) {
 func (c *Client) handleJoinRoom(data interface{}) {
 	var req models.JoinRoomRequest
 	jsonData, _ := json.Marshal(data)
-	json.Unmarshal(jsonData, &req)
+	if err := json.Unmarshal(jsonData, &req); err != nil {
+		log.Printf("[WebSocket] Invalid join_room payload: %v", err)
+		return
+	}
 
 	c.mu.Lock()
 	c.lastPingTime = time.Now() // Reset ping time on join to prevent immediate timeout
@@ -791,24 +787,14 @@ func (c *Client) handleLeaveRoom(data interface{}) {
 	// but may have temporarily lost their WebSocket connection.
 }
 
-// cleanupLiveKitRoom deletes the LiveKit room when the last user leaves
-func (h *Hub) cleanupLiveKitRoom(roomID string) {
-	if h.livekitService != nil && h.livekitService.IsHealthy() {
-		err := h.livekitService.DeleteRoom(roomID)
-		if err != nil {
-			// Log error but don't fail - room might already be deleted
-			log.Printf("[Hub] LiveKit DeleteRoom error (may already be deleted): %v", err)
-		} else {
-			log.Printf("[Hub] LiveKit room deleted: %s", roomID)
-		}
-	}
-}
-
 // handleNicknameChange handles user nickname changes
 func (c *Client) handleNicknameChange(data interface{}) {
 	var req models.NicknameChangeRequest
 	jsonData, _ := json.Marshal(data)
-	json.Unmarshal(jsonData, &req)
+	if err := json.Unmarshal(jsonData, &req); err != nil {
+		log.Printf("[WebSocket] Invalid nickname_change payload: %v", err)
+		return
+	}
 
 	// Only allow users to change their own nickname
 	if req.UserID != c.userID {
@@ -841,7 +827,10 @@ func (c *Client) handleNicknameChange(data interface{}) {
 func (c *Client) handleUpdateMuteState(data interface{}) {
 	var req models.UpdateAudioStateRequest
 	jsonData, _ := json.Marshal(data)
-	json.Unmarshal(jsonData, &req)
+	if err := json.Unmarshal(jsonData, &req); err != nil {
+		log.Printf("[WebSocket] Invalid update_mute_state payload: %v", err)
+		return
+	}
 
 	c.mu.RLock()
 	userID := c.userID
@@ -897,7 +886,10 @@ func (c *Client) handleUpdateMuteState(data interface{}) {
 func (c *Client) handleUpdateDeafenState(data interface{}) {
 	var req models.UpdateAudioStateRequest
 	jsonData, _ := json.Marshal(data)
-	json.Unmarshal(jsonData, &req)
+	if err := json.Unmarshal(jsonData, &req); err != nil {
+		log.Printf("[WebSocket] Invalid update_deafen_state payload: %v", err)
+		return
+	}
 
 	c.mu.RLock()
 	userID := c.userID
@@ -956,7 +948,10 @@ func (c *Client) handlePing(data interface{}) {
 		Timestamp int64  `json:"timestamp"`
 	}
 	jsonData, _ := json.Marshal(data)
-	json.Unmarshal(jsonData, &pingData)
+	if err := json.Unmarshal(jsonData, &pingData); err != nil {
+		log.Printf("[WebSocket] Invalid ping payload: %v", err)
+		return
+	}
 
 	// Identity comes solely from the JWT validated at connection time.
 	// A user_id in the ping body is never trusted; a mismatch is logged and ignored.
@@ -1169,7 +1164,7 @@ func (h *Hub) checkGlobalPingTimeouts(timeout time.Duration) {
 		if h.roomClients[client.roomID] != nil {
 			delete(h.roomClients[client.roomID], client)
 		}
-		client.conn.Close()
+		_ = client.conn.Close()
 	}
 }
 
@@ -1280,7 +1275,10 @@ func (c *Client) handleSendMessage(data interface{}) {
 
 	var req models.SendChatMessageRequest
 	jsonData, _ := json.Marshal(data)
-	json.Unmarshal(jsonData, &req)
+	if err := json.Unmarshal(jsonData, &req); err != nil {
+		log.Printf("[WebSocket] Invalid send_message payload: %v", err)
+		return
+	}
 
 	// Validate content
 	content := req.Content

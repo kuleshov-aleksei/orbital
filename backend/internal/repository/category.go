@@ -83,7 +83,7 @@ func (r *CategoryRepository) GetAll() ([]*models.Category, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var categories []*models.Category
 	for rows.Next() {

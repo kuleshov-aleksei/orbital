@@ -52,7 +52,7 @@ func TestRefreshTokenSlidesExpiry(t *testing.T) {
 	handler, authService, user := newTestAuthHandler(t)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/refresh", nil)
-	req = req.WithContext(context.WithValue(req.Context(), "user", &models.JWTClaims{
+	req = req.WithContext(context.WithValue(req.Context(), userContextKey, &models.JWTClaims{
 		UserID: user.ID,
 		Role:   user.Role,
 	}))

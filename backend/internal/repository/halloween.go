@@ -46,7 +46,7 @@ func (r *HalloweenRepository) GetAllItems() ([]*models.HalloweenItem, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var items []*models.HalloweenItem
 	for rows.Next() {
@@ -67,7 +67,7 @@ func (r *HalloweenRepository) GetAllItemsAdmin() ([]*models.HalloweenItem, error
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var items []*models.HalloweenItem
 	for rows.Next() {
@@ -88,7 +88,7 @@ func (r *HalloweenRepository) GetItemsByRarity(rarity string) ([]*models.Hallowe
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var items []*models.HalloweenItem
 	for rows.Next() {
@@ -210,12 +210,12 @@ func (r *HalloweenRepository) ReplaceCatalog(items []models.HalloweenConfigItem,
 		for rows.Next() {
 			var id string
 			if err := rows.Scan(&id); err != nil {
-				rows.Close()
+				_ = rows.Close()
 				return err
 			}
 			stored = append(stored, id)
 		}
-		rows.Close()
+		_ = rows.Close()
 		if err := rows.Err(); err != nil {
 			return err
 		}
@@ -253,7 +253,7 @@ func (r *HalloweenRepository) GetBaseSockets(baseID string) ([]*models.Halloween
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []*models.HalloweenBaseSocket
 	for rows.Next() {
@@ -272,7 +272,7 @@ func (r *HalloweenRepository) GetAllBaseSockets() ([]*models.HalloweenBaseSocket
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []*models.HalloweenBaseSocket
 	for rows.Next() {
@@ -344,7 +344,7 @@ func (r *HalloweenRepository) GetPumpkinStates(userIDs []string) (map[string]str
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var userID, equipped string
@@ -373,7 +373,7 @@ func (r *HalloweenRepository) GetOwnedItems(userID string) ([]*models.HalloweenO
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var owned []*models.HalloweenOwnedItem
 	for rows.Next() {
@@ -453,7 +453,7 @@ func (r *HalloweenRepository) GetLeaderboard(limit int) ([]*models.HalloweenLead
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var entries []*models.HalloweenLeaderboardEntry
 	for rows.Next() {
@@ -478,7 +478,7 @@ func (r *HalloweenRepository) GetAllGameResults() ([]*models.GameResult, error) 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var results []*models.GameResult
 	for rows.Next() {
@@ -514,7 +514,7 @@ func (r *HalloweenRepository) GetRewardsForGame(gameID int64) ([]*models.Hallowe
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var rewards []*models.HalloweenRewardGranted
 	for rows.Next() {
@@ -544,7 +544,7 @@ func (r *HalloweenRepository) GetAllRewards() ([]*models.HalloweenAdminReward, e
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var rewards []*models.HalloweenAdminReward
 	for rows.Next() {

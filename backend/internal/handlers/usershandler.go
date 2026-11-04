@@ -56,14 +56,14 @@ func (h *UsersHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(publicUsers)
+	writeJSON(w, publicUsers)
 }
 
 // UpdateSoundPack updates the current user's sound pack preference
 // PATCH /api/users/me/sound-pack
 func (h *UsersHandler) UpdateSoundPack(w http.ResponseWriter, r *http.Request) {
 	// Get user from context (set by auth middleware)
-	claims, ok := r.Context().Value("user").(*models.JWTClaims)
+	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 	if !ok || claims == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -95,7 +95,7 @@ func (h *UsersHandler) UpdateSoundPack(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, map[string]string{
 		"sound_pack": req.SoundPack,
 	})
 }
