@@ -449,6 +449,24 @@ export interface DebugLog {
   log_filename: string
 }
 
+export type SecurityCheckStatus = "pass" | "warn" | "fail" | "info"
+export type SecurityCheckSeverity = "critical" | "high" | "medium" | "low" | "info"
+
+export interface SecurityCheck {
+  id: string
+  title: string
+  status: SecurityCheckStatus
+  severity: SecurityCheckSeverity
+  message: string
+  recommendation: string
+}
+
+export interface SecuritySelfCheckReport {
+  generated_at: string
+  overall_status: Exclude<SecurityCheckStatus, "info">
+  checks: SecurityCheck[]
+}
+
 // Electron Desktop App Types
 export interface DesktopSource {
   id: string

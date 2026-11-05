@@ -42,6 +42,18 @@
           Debug Logs
         </button>
         <button
+          v-if="isSuperAdmin"
+          type="button"
+          class="px-4 py-2 text-sm font-medium transition-colors"
+          :class="
+            activeTab === 'security'
+              ? 'text-white border-b-2 border-indigo-500'
+              : 'text-gray-400 hover:text-gray-200'
+          "
+          @click="activeTab = 'security'">
+          Security
+        </button>
+        <button
           type="button"
           class="px-4 py-2 text-sm font-medium transition-colors"
           :class="
@@ -396,6 +408,11 @@
         </div>
       </div>
 
+      <!-- Security Section (Super Admin Only) -->
+      <div v-if="activeTab === 'security' && isSuperAdmin">
+        <SecuritySelfCheck />
+      </div>
+
       <!-- Stats Section (Super Admin Only) -->
       <div v-if="activeTab === 'stats' && isSuperAdmin" class="space-y-4">
         <!-- Room Selector & Controls -->
@@ -647,6 +664,7 @@ import { apiService } from "@/services/api"
 import { useAdminStats } from "@/composables/useAdminStats"
 import StatsMap from "@/components/admin/StatsMap.vue"
 import UsageAnalytics from "@/components/admin/UsageAnalytics.vue"
+import SecuritySelfCheck from "@/components/admin/SecuritySelfCheck.vue"
 import HalloweenAdmin from "@/components/admin/HalloweenAdmin.vue"
 import HalloweenPumpkinStudio from "@/components/admin/HalloweenPumpkinStudio.vue"
 import { wsService } from "@/services/websocket"
@@ -669,7 +687,7 @@ const deletingGuests = ref(false)
 const avatarErrors = ref<Set<string>>(new Set())
 
 const activeTab = ref<
-  "users" | "logs" | "audio" | "stats" | "analytics" | "halloween" | "halloween-assets"
+  "users" | "logs" | "security" | "audio" | "stats" | "analytics" | "halloween" | "halloween-assets"
 >("users")
 
 const showDeleteModal = ref(false)

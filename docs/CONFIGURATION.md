@@ -66,11 +66,11 @@ All configuration values can be overridden via environment variables:
 
 | Environment Variable | Description | Default |
 |---------------------|-------------|---------|
-| `PORT` | Server port | 8080 |
-| `GIN_MODE` | Server mode (debug, release, test) | debug |
+| `SERVER_PORT` | Server port | 8080 |
+| `SERVER_MODE` | Server mode (`development` or `production`) | development |
 | `EXTERNAL_URL` | Frontend URL for OAuth redirects | http://localhost:5173 |
 | `ELECTRON_REDIRECT_URL` | Deep link URL for Electron OAuth callback | orbital://auth/callback |
-| `CORS_ORIGINS` | CORS origins (comma-separated) | * |
+| `SERVER_CORS_ORIGINS` | CORS and WebSocket origins (comma-separated) | * |
 | `LIVEKIT_URL` | LiveKit WebSocket URL | ws://localhost:7880 |
 | `LIVEKIT_API_KEY` | LiveKit API key | dev_key |
 | `LIVEKIT_API_SECRET` | LiveKit API secret | this_is_a_development_secret_key_32chars |
@@ -136,14 +136,14 @@ go run ./cmd/server -config=/path/to/custom.yaml
 ```bash
 # Override specific values
 cd backend
-PORT=9090 LIVEKIT_URL=ws://localhost:7880 go run ./cmd/server
+SERVER_PORT=9090 LIVEKIT_URL=ws://localhost:7880 go run ./cmd/server
 ```
 
 ### Docker Usage
 
 ```bash
 # With environment variables
-docker run -e PORT=8080 -e LIVEKIT_URL=ws://livekit:7880 orbital-backend
+docker run -e SERVER_PORT=8080 -e LIVEKIT_URL=ws://livekit:7880 orbital-backend
 
 # With custom config file (mounted)
 docker run -v /path/to/config.yaml:/app/configs/config.yaml orbital-backend
@@ -193,8 +193,8 @@ logging:
 Or via environment variables:
 
 ```bash
-export GIN_MODE=release
-export CORS_ORIGINS=https://yourdomain.com
+export SERVER_MODE=production
+export SERVER_CORS_ORIGINS=https://yourdomain.com
 export LOG_LEVEL=warn
 export LOG_REQUESTS=false
 export LIVEKIT_URL=wss://your-domain.com/livekit
@@ -215,6 +215,8 @@ export LIVEKIT_URL=wss://your-domain.com/livekit
 3. **CORS Origins**: In production, specify exact domains instead of using `*`.
 
 4. **OAuth Secrets**: Never commit `DISCORD_CLIENT_SECRET` or `GOOGLE_CLIENT_SECRET` to version control.
+
+5. **Security self-check**: Sign in as a super admin and open **Admin → Security** to review the running backend configuration. Each check includes an exact remediation step. Restart the backend after changing environment variables.
 
 ## Deployment
 

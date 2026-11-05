@@ -17,8 +17,8 @@ services:
     env_file:
       - .env
     environment:
-      - GIN_MODE=release
-      - PORT=8080
+      - SERVER_MODE=production
+      - SERVER_PORT=8080
       - RELEASES_URL=${RELEASES_URL:-https://orbital-updates.encamy.com}
       - LIVEKIT_URL=${LIVEKIT_URL:-ws://localhost:7880}
       - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-dev_key}

@@ -12,6 +12,7 @@ import {
   AudioFile,
   StatsStatus,
   AnalyticsReport,
+  SecuritySelfCheckReport,
 } from "@/types"
 import type {
   HalloweenGameConfig,
@@ -961,6 +962,11 @@ export const apiService = {
   // ===== Usage Analytics API (super_admin only) =====
   async getAnalyticsReport(): Promise<AnalyticsReport> {
     return apiRequest<AnalyticsReport>("/admin/analytics/report")
+  },
+
+  // ===== Security self-check API (super_admin only) =====
+  async getSecuritySelfCheck(): Promise<SecuritySelfCheckReport> {
+    return apiRequest<SecuritySelfCheckReport>("/admin/self-check")
   },
 }
 
