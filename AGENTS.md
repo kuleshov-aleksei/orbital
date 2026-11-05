@@ -141,7 +141,8 @@ The project uses a Makefile for common operations:
 - `make dev-public` - Start development servers on 0.0.0.0 with HTTPS
 - `make dev-electron` - Run Electron in development mode
 - `make lint` - Run code quality checks
-- `make test` - Run tests
+- `make test` - Run full test suite (Playwright e2e in Docker)
+- `make test-backend` - Run backend Go tests
 - `make test-headed` - Run tests in headed mode
 - `make docker-build` - Build Docker images
 - `make docker-up` - Run with Docker Compose

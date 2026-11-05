@@ -93,7 +93,8 @@ The Orbital implements a hierarchical role system:
 - `make run-build` - Run build artifacts
 - `make dev-public` - Run development servers on 0.0.0.0 address
 - `make lint` - Run linters for both frontend and backend
-- `make test` - Run test suite
+- `make test` - Run full test suite (Playwright e2e in Docker)
+- `make test-backend` - Run backend Go tests
 - `make docker-build` - Build Docker images
 - `make docker-up` - Run with Docker Compose
 - `make clean` - Clean build artifacts

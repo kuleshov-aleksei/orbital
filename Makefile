@@ -1,4 +1,4 @@
-.PHONY: help install build dev dev-public dev-electron lint lint-full prettier test test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all balance-drift balance-check
+.PHONY: help install build dev dev-public dev-electron lint lint-full prettier test test-backend test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all balance-drift balance-check
 
 # Default target
 help:
@@ -10,6 +10,7 @@ help:
 	@echo "  dev-electron      - Run Electron in development mode (starts backend + LiveKit)"
 	@echo "  lint              - Run linters for frontend and backend"
 	@echo "  test              - Run tests (Playwright e2e in Docker)"
+	@echo "  test-backend      - Run backend Go tests"
 	@echo "  test-e2e-docker   - Run Playwright e2e tests in Docker"
 	@echo "  test-headed       - Run tests in headed mode (local browser required)"
 	@echo "  docker-build-test - Build the Playwright test Docker image"
@@ -151,6 +152,11 @@ test-e2e-docker: docker-build-test
 # Run tests
 test: docker-build-test
 	@PLAYWRIGHT_TEST_IMAGE=$(PLAYWRIGHT_TEST_IMAGE) PLAYWRIGHT_TEST_ARGS="$(PLAYWRIGHT_TEST_ARGS)" bash scripts/run-tests.sh all
+
+# Run backend unit tests
+test-backend:
+	@echo "Running backend tests..."
+	cd backend && go test ./...
 
 # Run tests
 test-headed:
