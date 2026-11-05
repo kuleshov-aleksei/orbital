@@ -52,7 +52,11 @@ export default defineConfig({
       // first registered user deterministically becomes super_admin (needed
       // for admin-gated room create/delete) and real dev data stays untouched.
       command:
-        "sh -c 'rm -f data/orbital-e2e.db data/orbital-e2e.db-* && DATABASE_PATH=data/orbital-e2e.db go run ./cmd/server'",
+        "sh -c 'rm -f data/orbital-e2e.db data/orbital-e2e.db-* && DATABASE_PATH=data/orbital-e2e.db " +
+        "RATE_LIMIT_AUTH_PER_MINUTE=1000 RATE_LIMIT_GUEST_PER_HOUR=1000 " +
+        "RATE_LIMIT_OAUTH_PER_MINUTE=1000 RATE_LIMIT_GUEST_UPLOAD_PER_HOUR=1000 " +
+        "RATE_LIMIT_USER_UPLOAD_PER_HOUR=1000 RATE_LIMIT_DEBUG_LOG_PER_MINUTE=1000 " +
+        "go run ./cmd/server'",
       cwd: "../backend",
       url: `${BACKEND_URL}/api/health`,
       reuseExistingServer: false,

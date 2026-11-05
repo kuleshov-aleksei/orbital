@@ -447,7 +447,12 @@ const handleLoginWithGoogle = () => {
 }
 
 const handleContinueAsGuest = async () => {
-  await userStore.continueAsGuest()
+  try {
+    await userStore.continueAsGuest()
+  } catch (error: unknown) {
+    const err = error as Error
+    errorMessage.value = err.message || "Guest login failed. Please try again."
+  }
 }
 
 const handleNicknameInput = () => {

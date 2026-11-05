@@ -11,6 +11,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/kuleshov-aleksei/orbital/internal/config"
 	"github.com/kuleshov-aleksei/orbital/internal/handlers"
+	"github.com/kuleshov-aleksei/orbital/internal/ratelimit"
 	"github.com/kuleshov-aleksei/orbital/internal/repository"
 	"github.com/kuleshov-aleksei/orbital/internal/service"
 	"github.com/kuleshov-aleksei/orbital/internal/storage"
@@ -87,8 +88,11 @@ func main() {
 		// Initialize services with repositories
 		categoryService = service.NewCategoryService(categoryRepo)
 		roomService = service.NewRoomService(roomRepo, userRepo)
-		debugLogService = service.NewDebugLogService(debugLogRepo, "data")
-		audioService = service.NewAudioService(repository.NewAudioRepository(db), "data")
+		debugLogService = service.NewDebugLogService(debugLogRepo, "data", cfg.RateLimit.DebugLogQuotaBytes())
+		if err := debugLogService.BackfillFileSizes(); err != nil {
+			log.Printf("Warning: Failed to backfill debug log sizes: %v", err)
+		}
+		audioService = service.NewAudioService(repository.NewAudioRepository(db), "data", cfg.RateLimit.AudioQuotaBytes())
 		analyticsService = service.NewAnalyticsService(sessionRepo)
 		halloweenService = service.NewHalloweenService(repository.NewHalloweenRepository(db))
 		pumpkinAssetService = service.NewPumpkinAssetService("data", "assets")
@@ -132,7 +136,11 @@ func main() {
 	var qrLoginHandler *handlers.QRLoginHandler
 	if qrLoginRepo != nil {
 		qrLoginService = service.NewQRLoginService(qrLoginRepo, authService)
-		qrLoginHandler = handlers.NewQRLoginHandler(qrLoginService)
+		qrLoginHandler = handlers.NewQRLoginHandler(
+			qrLoginService,
+			cfg.RateLimit.QRChallengePerMinute,
+			cfg.RateLimit.QRApprovePerMinute,
+		)
 	}
 
 	// Initialize LiveKit service
@@ -178,6 +186,26 @@ func main() {
 	// Setup router
 	r := mux.NewRouter()
 
+	limiter := ratelimit.New()
+	clientIPKey := func(r *http.Request) string {
+		return ratelimit.ClientIP(r)
+	}
+	userOrIPKey := func(r *http.Request) string {
+		if userID := handlers.UserIDFromContext(r.Context()); userID != "" {
+			return "user:" + userID
+		}
+		return "ip:" + ratelimit.ClientIP(r)
+	}
+	audioUploadLimit := func(r *http.Request) (int, time.Duration) {
+		if handlers.IsGuestFromContext(r.Context()) {
+			return cfg.RateLimit.GuestUploadPerHour, time.Hour
+		}
+		return cfg.RateLimit.UserUploadPerHour, time.Hour
+	}
+	withRateLimit := func(name string, max int, window time.Duration, key ratelimit.KeyFunc, next http.Handler) http.Handler {
+		return limiter.Middleware(name, ratelimit.Every(max, window), key, next)
+	}
+
 	// Add request logging middleware if enabled
 	if cfg.ShouldLogRequests() {
 		r.Use(requestLoggingMiddleware)
@@ -188,21 +216,21 @@ func main() {
 	r.HandleFunc("/api/version", versionHandler).Methods("GET")
 
 	// Auth routes
-	r.HandleFunc("/api/auth/discord/login", authHandler.DiscordLogin).Methods("GET")
+	r.Handle("/api/auth/discord/login", withRateLimit("oauth-url", cfg.RateLimit.OAuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.DiscordLogin))).Methods("GET")
 	r.HandleFunc("/api/auth/discord/callback", authHandler.DiscordCallback).Methods("GET")
-	r.HandleFunc("/api/auth/discord/url", authHandler.GetOAuthUrl).Methods("GET")
+	r.Handle("/api/auth/discord/url", withRateLimit("oauth-url", cfg.RateLimit.OAuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.GetOAuthUrl))).Methods("GET")
 	r.HandleFunc("/api/auth/discord/electron/callback", authHandler.DiscordElectronCallback).Methods("GET")
-	r.HandleFunc("/api/auth/google/login", authHandler.GoogleLogin).Methods("GET")
+	r.Handle("/api/auth/google/login", withRateLimit("oauth-url", cfg.RateLimit.OAuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.GoogleLogin))).Methods("GET")
 	r.HandleFunc("/api/auth/google/callback", authHandler.GoogleCallback).Methods("GET")
-	r.HandleFunc("/api/auth/google/url", authHandler.GetOAuthUrl).Methods("GET")
+	r.Handle("/api/auth/google/url", withRateLimit("oauth-url", cfg.RateLimit.OAuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.GetOAuthUrl))).Methods("GET")
 	r.HandleFunc("/api/auth/google/electron/callback", authHandler.GoogleElectronCallback).Methods("GET")
-	r.HandleFunc("/api/auth/guest", authHandler.GuestLogin).Methods("POST")
+	r.Handle("/api/auth/guest", withRateLimit("guest-login", cfg.RateLimit.GuestPerHour, time.Hour, clientIPKey, http.HandlerFunc(authHandler.GuestLogin))).Methods("POST")
 	r.Handle("/api/auth/logout", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.Logout))).Methods("POST")
 	r.Handle("/api/auth/me", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.GetCurrentUser))).Methods("GET")
 	r.Handle("/api/auth/refresh", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.RefreshToken))).Methods("POST")
 	r.HandleFunc("/api/auth/status", authHandler.GetAuthStatus).Methods("GET")
-	r.HandleFunc("/api/auth/register", authHandler.Register).Methods("POST")
-	r.HandleFunc("/api/auth/login", authHandler.LoginPassword).Methods("POST")
+	r.Handle("/api/auth/register", withRateLimit("auth-register", cfg.RateLimit.AuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.Register))).Methods("POST")
+	r.Handle("/api/auth/login", withRateLimit("auth-login", cfg.RateLimit.AuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.LoginPassword))).Methods("POST")
 
 	// QR device linking (single-use pairing; disabled without a database)
 	if qrLoginHandler != nil {
@@ -224,7 +252,8 @@ func main() {
 	if audioHandler != nil {
 		r.HandleFunc("/api/audio", audioHandler.ListAudio).Methods("GET")
 		r.HandleFunc("/api/audio/{id}", audioHandler.GetAudio).Methods("GET")
-		r.Handle("/api/audio/upload", authHandler.AuthMiddleware(http.HandlerFunc(audioHandler.UploadAudio))).Methods("POST")
+		audioUploadHandler := limiter.Middleware("audio-upload", audioUploadLimit, clientIPKey, http.HandlerFunc(audioHandler.UploadAudio))
+		r.Handle("/api/audio/upload", authHandler.AuthMiddleware(audioUploadHandler)).Methods("POST")
 	}
 
 	// Sound pack routes (protected)
@@ -339,7 +368,8 @@ func main() {
 	}
 
 	// Debug log upload route (authenticated users)
-	r.Handle("/api/logs", authHandler.AuthMiddleware(http.HandlerFunc(adminHandler.UploadDebugLog))).Methods("POST")
+	debugLogUploadHandler := limiter.Middleware("debug-log-upload", ratelimit.Every(cfg.RateLimit.DebugLogPerMinute, time.Minute), userOrIPKey, http.HandlerFunc(adminHandler.UploadDebugLog))
+	r.Handle("/api/logs", authHandler.AuthMiddleware(debugLogUploadHandler)).Methods("POST")
 
 	// WebSocket routes
 	r.HandleFunc("/ws/{roomId}", func(w http.ResponseWriter, r *http.Request) {

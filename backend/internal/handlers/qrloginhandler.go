@@ -4,13 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strings"
-	"sync"
 	"time"
 
 	"github.com/gorilla/mux"
 
 	"github.com/kuleshov-aleksei/orbital/internal/models"
+	"github.com/kuleshov-aleksei/orbital/internal/ratelimit"
 	"github.com/kuleshov-aleksei/orbital/internal/service"
 )
 
@@ -19,13 +18,20 @@ import (
 // device has no session yet); reading a challenge and approving it require a
 // logged-in, non-guest session via AuthMiddleware.
 type QRLoginHandler struct {
-	qr      *service.QRLoginService
-	limiter *qrRateLimiter
+	qr             *service.QRLoginService
+	limiter        *ratelimit.Limiter
+	challengeLimit int
+	approveLimit   int
 }
 
 // NewQRLoginHandler creates a new QR login handler
-func NewQRLoginHandler(qr *service.QRLoginService) *QRLoginHandler {
-	return &QRLoginHandler{qr: qr, limiter: newQRRateLimiter()}
+func NewQRLoginHandler(qr *service.QRLoginService, challengeLimit, approveLimit int) *QRLoginHandler {
+	return &QRLoginHandler{
+		qr:             qr,
+		limiter:        ratelimit.New(),
+		challengeLimit: challengeLimit,
+		approveLimit:   approveLimit,
+	}
 }
 
 // qrChallengeView is the scanner-safe projection of a challenge: the sealed
@@ -42,8 +48,8 @@ type qrChallengeView struct {
 
 // CreateChallenge registers a pending challenge for the new device
 func (h *QRLoginHandler) CreateChallenge(w http.ResponseWriter, r *http.Request) {
-	if !h.limiter.allow(qrClientIP(r), 10, time.Minute) {
-		http.Error(w, "Too many requests", http.StatusTooManyRequests)
+	if allowed, retryAfter := h.limiter.Allow("qr-challenge:"+ratelimit.ClientIP(r), h.challengeLimit, time.Minute); !allowed {
+		ratelimit.WriteTooManyRequests(w, retryAfter)
 		return
 	}
 
@@ -90,8 +96,8 @@ func (h *QRLoginHandler) GetChallenge(w http.ResponseWriter, r *http.Request) {
 // ApproveChallenge seals a fresh session token to the challenge key.
 // Guests are rejected: device linking is for real accounts only.
 func (h *QRLoginHandler) ApproveChallenge(w http.ResponseWriter, r *http.Request) {
-	if !h.limiter.allow(qrClientIP(r), 30, time.Minute) {
-		http.Error(w, "Too many requests", http.StatusTooManyRequests)
+	if allowed, retryAfter := h.limiter.Allow("qr-approve:"+ratelimit.ClientIP(r), h.approveLimit, time.Minute); !allowed {
+		ratelimit.WriteTooManyRequests(w, retryAfter)
 		return
 	}
 
@@ -180,55 +186,4 @@ func writeQRJSON(w http.ResponseWriter, status int, v interface{}) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
 	writeJSON(w, v)
-}
-
-// qrClientIP prefers the first X-Forwarded-For entry (nginx) and falls back
-// to the direct peer address
-func qrClientIP(r *http.Request) string {
-	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
-		if first, _, _ := strings.Cut(fwd, ","); strings.TrimSpace(first) != "" {
-			return strings.TrimSpace(first)
-		}
-	}
-	return r.RemoteAddr
-}
-
-// qrRateLimiter is a small in-memory fixed-window limiter keyed by client IP
-type qrRateLimiter struct {
-	mu   sync.Mutex
-	hits map[string][]time.Time
-}
-
-func newQRRateLimiter() *qrRateLimiter {
-	return &qrRateLimiter{hits: make(map[string][]time.Time)}
-}
-
-// allow reports whether a request fits within max events per window
-func (l *qrRateLimiter) allow(key string, max int, window time.Duration) bool {
-	now := time.Now()
-	cutoff := now.Add(-window)
-
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	recent := l.hits[key][:0]
-	for _, ts := range l.hits[key] {
-		if ts.After(cutoff) {
-			recent = append(recent, ts)
-		}
-	}
-
-	if len(recent) >= max {
-		l.hits[key] = recent
-		return false
-	}
-
-	l.hits[key] = append(recent, now)
-
-	// Bound memory: drop the keyspace shard when it grows without bound
-	if len(l.hits) > 10000 {
-		l.hits = make(map[string][]time.Time)
-	}
-
-	return true
 }

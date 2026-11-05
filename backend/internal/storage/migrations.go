@@ -340,6 +340,11 @@ CREATE INDEX IF NOT EXISTS idx_qr_login_challenges_status ON qr_login_challenges
 		SQL: `ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS idx_users_token_version ON users(token_version);`,
 	},
+	{
+		Version: 31,
+		Name:    "add_file_size_to_debug_logs",
+		SQL:     `ALTER TABLE debug_logs ADD COLUMN file_size INTEGER NOT NULL DEFAULT -1;`,
+	},
 }
 
 func (db *DB) RunMigrations() error {

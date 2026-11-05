@@ -103,6 +103,15 @@ func (r *AudioRepository) GetByUserID(userID string) ([]*models.AudioFile, error
 	return files, rows.Err()
 }
 
+func (r *AudioRepository) TotalSizeByUserID(userID string) (int64, error) {
+	var total int64
+	err := r.db.QueryRow(
+		`SELECT COALESCE(SUM(file_size), 0) FROM audio_files WHERE uploaded_by = ?`,
+		userID,
+	).Scan(&total)
+	return total, err
+}
+
 func (r *AudioRepository) UpdateDisplayName(id string, displayName string) error {
 	_, err := r.db.Exec(`UPDATE audio_files SET display_name = ? WHERE id = ?`, displayName, id)
 	return err

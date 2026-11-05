@@ -21,6 +21,7 @@ var (
 	ErrAudioInvalidFileType = errors.New("invalid file type, only MP3 and OPUS files are allowed")
 	ErrAudioNotFound        = errors.New("audio file not found")
 	ErrAudioSystemFile      = errors.New("cannot modify system audio files")
+	ErrAudioQuotaExceeded   = errors.New("audio storage quota exceeded")
 )
 
 type audioTypeInfo struct {
@@ -29,14 +30,16 @@ type audioTypeInfo struct {
 }
 
 type AudioService struct {
-	repo    *repository.AudioRepository
-	dataDir string
+	repo            *repository.AudioRepository
+	dataDir         string
+	maxStorageBytes int64
 }
 
-func NewAudioService(repo *repository.AudioRepository, dataDir string) *AudioService {
+func NewAudioService(repo *repository.AudioRepository, dataDir string, maxStorageBytes int64) *AudioService {
 	return &AudioService{
-		repo:    repo,
-		dataDir: dataDir,
+		repo:            repo,
+		dataDir:         dataDir,
+		maxStorageBytes: maxStorageBytes,
 	}
 }
 
@@ -50,6 +53,14 @@ type AudioUploadResult struct {
 func (s *AudioService) UploadAudio(userID string, fileData []byte, displayName string) (*AudioUploadResult, error) {
 	if len(fileData) > MaxAudioFileSize {
 		return nil, ErrAudioFileTooLarge
+	}
+
+	total, err := s.repo.TotalSizeByUserID(userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check audio quota: %w", err)
+	}
+	if total+int64(len(fileData)) > s.maxStorageBytes {
+		return nil, ErrAudioQuotaExceeded
 	}
 
 	audioType, err := detectAudioType(fileData)

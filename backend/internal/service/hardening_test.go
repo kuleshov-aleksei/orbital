@@ -71,7 +71,7 @@ func TestDebugLogStoredFilenameTraversalRejected(t *testing.T) {
 	}
 
 	repo := repository.NewDebugLogRepository(db)
-	svc := NewDebugLogService(repo, t.TempDir())
+	svc := NewDebugLogService(repo, t.TempDir(), 100*1024*1024)
 	log := &models.DebugLog{
 		UserID:      "user-1",
 		Username:    "Alice",
@@ -104,7 +104,7 @@ func TestDebugLogFilenameIgnoresUserInput(t *testing.T) {
 	}
 
 	repo := repository.NewDebugLogRepository(db)
-	svc := NewDebugLogService(repo, dataDir)
+	svc := NewDebugLogService(repo, dataDir, 100*1024*1024)
 	log, err := svc.SaveLog("../../evil", "Mallory", "1", "test", "log contents")
 	if err != nil {
 		t.Fatalf("SaveLog: %v", err)

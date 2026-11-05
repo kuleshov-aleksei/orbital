@@ -57,3 +57,16 @@ logging:
 websocket:
   ping_timeout: 30s  # Time without ping before disconnecting a user
   ping_check_interval: 10s  # How often to check for ping timeouts
+
+# Rate limits and upload quotas
+rate_limit:
+  auth_per_minute: 10
+  guest_per_hour: 10
+  oauth_per_minute: 20
+  guest_upload_per_hour: 5
+  user_upload_per_hour: 20
+  debug_log_per_minute: 1
+  qr_challenge_per_minute: 10
+  qr_approve_per_minute: 30
+  audio_quota_mb: 512
+  debug_log_quota_mb: 100

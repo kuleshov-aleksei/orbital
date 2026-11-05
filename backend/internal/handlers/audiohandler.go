@@ -84,6 +84,8 @@ func (h *AudioHandler) UploadAudio(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusRequestEntityTooLarge)
 		case service.ErrAudioInvalidFileType:
 			http.Error(w, err.Error(), http.StatusBadRequest)
+		case service.ErrAudioQuotaExceeded:
+			http.Error(w, err.Error(), http.StatusInsufficientStorage)
 		default:
 			http.Error(w, "Failed to process audio file", http.StatusInternalServerError)
 		}

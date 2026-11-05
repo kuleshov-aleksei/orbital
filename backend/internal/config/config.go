@@ -25,6 +25,20 @@ type Config struct {
 	Auth      AuthConfig      `yaml:"auth"`
 	WebSocket WebSocketConfig `yaml:"websocket"`
 	LiveKit   LiveKitConfig   `yaml:"livekit"`
+	RateLimit RateLimitConfig `yaml:"rate_limit"`
+}
+
+type RateLimitConfig struct {
+	AuthPerMinute        int `yaml:"auth_per_minute"`
+	GuestPerHour         int `yaml:"guest_per_hour"`
+	OAuthPerMinute       int `yaml:"oauth_per_minute"`
+	GuestUploadPerHour   int `yaml:"guest_upload_per_hour"`
+	UserUploadPerHour    int `yaml:"user_upload_per_hour"`
+	DebugLogPerMinute    int `yaml:"debug_log_per_minute"`
+	QRChallengePerMinute int `yaml:"qr_challenge_per_minute"`
+	QRApprovePerMinute   int `yaml:"qr_approve_per_minute"`
+	AudioQuotaMB         int `yaml:"audio_quota_mb"`
+	DebugLogQuotaMB      int `yaml:"debug_log_quota_mb"`
 }
 
 // AuthConfig holds OAuth and JWT configuration
@@ -117,6 +131,18 @@ func DefaultConfig() *Config {
 			PingCheckInterval: 10 * time.Second,
 		},
 		LiveKit: DefaultLiveKitConfig(),
+		RateLimit: RateLimitConfig{
+			AuthPerMinute:        10,
+			GuestPerHour:         10,
+			OAuthPerMinute:       20,
+			GuestUploadPerHour:   5,
+			UserUploadPerHour:    20,
+			DebugLogPerMinute:    1,
+			QRChallengePerMinute: 10,
+			QRApprovePerMinute:   30,
+			AudioQuotaMB:         512,
+			DebugLogQuotaMB:      100,
+		},
 	}
 }
 
@@ -256,6 +282,38 @@ func (c *Config) loadFromEnv() {
 
 	// LiveKit config
 	c.LiveKit.LoadFromEnv()
+
+	// Rate limit and quota config
+	if v, ok := getEnvInt("RATE_LIMIT_AUTH_PER_MINUTE"); ok {
+		c.RateLimit.AuthPerMinute = v
+	}
+	if v, ok := getEnvInt("RATE_LIMIT_GUEST_PER_HOUR"); ok {
+		c.RateLimit.GuestPerHour = v
+	}
+	if v, ok := getEnvInt("RATE_LIMIT_OAUTH_PER_MINUTE"); ok {
+		c.RateLimit.OAuthPerMinute = v
+	}
+	if v, ok := getEnvInt("RATE_LIMIT_GUEST_UPLOAD_PER_HOUR"); ok {
+		c.RateLimit.GuestUploadPerHour = v
+	}
+	if v, ok := getEnvInt("RATE_LIMIT_USER_UPLOAD_PER_HOUR"); ok {
+		c.RateLimit.UserUploadPerHour = v
+	}
+	if v, ok := getEnvInt("RATE_LIMIT_DEBUG_LOG_PER_MINUTE"); ok {
+		c.RateLimit.DebugLogPerMinute = v
+	}
+	if v, ok := getEnvInt("RATE_LIMIT_QR_CHALLENGE_PER_MINUTE"); ok {
+		c.RateLimit.QRChallengePerMinute = v
+	}
+	if v, ok := getEnvInt("RATE_LIMIT_QR_APPROVE_PER_MINUTE"); ok {
+		c.RateLimit.QRApprovePerMinute = v
+	}
+	if v, ok := getEnvInt("RATE_LIMIT_AUDIO_QUOTA_MB"); ok {
+		c.RateLimit.AudioQuotaMB = v
+	}
+	if v, ok := getEnvInt("RATE_LIMIT_DEBUG_LOG_QUOTA_MB"); ok {
+		c.RateLimit.DebugLogQuotaMB = v
+	}
 }
 
 // splitEnvList splits a comma-separated environment variable into a slice
@@ -276,6 +334,26 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func getEnvInt(key string) (int, bool) {
+	value := os.Getenv(key)
+	if value == "" {
+		return 0, false
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, false
+	}
+	return parsed, true
+}
+
+func (c RateLimitConfig) AudioQuotaBytes() int64 {
+	return int64(c.AudioQuotaMB) * 1024 * 1024
+}
+
+func (c RateLimitConfig) DebugLogQuotaBytes() int64 {
+	return int64(c.DebugLogQuotaMB) * 1024 * 1024
 }
 
 // IsDevelopment returns true if the server is running in development mode
@@ -310,8 +388,32 @@ func (c *Config) Validate() error {
 	if c.IsProduction() && c.Auth.JWTSecret == "change-this-in-production" {
 		return fmt.Errorf("default JWT secret must be changed in production")
 	}
+	if err := c.RateLimit.Validate(); err != nil {
+		return err
+	}
 	if err := c.LiveKit.Validate(); err != nil {
 		return fmt.Errorf("livekit configuration: %w", err)
+	}
+	return nil
+}
+
+func (c RateLimitConfig) Validate() error {
+	values := map[string]int{
+		"RATE_LIMIT_AUTH_PER_MINUTE":         c.AuthPerMinute,
+		"RATE_LIMIT_GUEST_PER_HOUR":          c.GuestPerHour,
+		"RATE_LIMIT_OAUTH_PER_MINUTE":        c.OAuthPerMinute,
+		"RATE_LIMIT_GUEST_UPLOAD_PER_HOUR":   c.GuestUploadPerHour,
+		"RATE_LIMIT_USER_UPLOAD_PER_HOUR":    c.UserUploadPerHour,
+		"RATE_LIMIT_DEBUG_LOG_PER_MINUTE":    c.DebugLogPerMinute,
+		"RATE_LIMIT_QR_CHALLENGE_PER_MINUTE": c.QRChallengePerMinute,
+		"RATE_LIMIT_QR_APPROVE_PER_MINUTE":   c.QRApprovePerMinute,
+		"RATE_LIMIT_AUDIO_QUOTA_MB":          c.AudioQuotaMB,
+		"RATE_LIMIT_DEBUG_LOG_QUOTA_MB":      c.DebugLogQuotaMB,
+	}
+	for name, value := range values {
+		if value <= 0 {
+			return fmt.Errorf("%s must be positive", name)
+		}
 	}
 	return nil
 }

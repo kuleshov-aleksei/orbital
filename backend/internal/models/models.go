@@ -332,6 +332,7 @@ type DebugLog struct {
 	SystemInfo  string    `json:"system_info"`
 	CreatedAt   time.Time `json:"created_at"`
 	LogFilename string    `json:"log_filename"`
+	FileSize    int64     `json:"file_size"`
 }
 
 // DebugLogUploadRequest represents a request to upload debug logs

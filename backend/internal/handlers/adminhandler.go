@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
@@ -403,6 +404,10 @@ func (h *AdminHandler) UploadDebugLog(w http.ResponseWriter, r *http.Request) {
 	// Identity comes from the authenticated session, never the request body.
 	debugLog, err := h.debugLogService.SaveLog(claims.UserID, claims.Nickname, req.Version, req.SystemInfo, req.Logs)
 	if err != nil {
+		if errors.Is(err, service.ErrDebugLogQuotaExceeded) {
+			http.Error(w, err.Error(), http.StatusInsufficientStorage)
+			return
+		}
 		http.Error(w, "Failed to save logs: "+err.Error(), http.StatusInternalServerError)
 		return
 	}

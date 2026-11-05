@@ -65,7 +65,7 @@ func newTestQRLoginHandler(t *testing.T) (*QRLoginHandler, *models.User, *models
 
 	authService := service.NewAuthService(&config.AuthConfig{JWTSecret: "test-secret"}, userRepo)
 	qrService := service.NewQRLoginService(repository.NewQRLoginRepository(db), authService)
-	return NewQRLoginHandler(qrService), user, guest
+	return NewQRLoginHandler(qrService, 10, 30), user, guest
 }
 
 func qrAuthedRequest(t *testing.T, method, target string, body interface{}, userID string) *http.Request {
@@ -223,6 +223,56 @@ func TestQRApproveRejectsGuests(t *testing.T) {
 	handler.ApproveChallenge(approveRec, approveReq)
 	if approveRec.Code != http.StatusForbidden {
 		t.Fatalf("guest approve status = %d, want %d", approveRec.Code, http.StatusForbidden)
+	}
+}
+
+func TestQRChallengeCreationRateLimited(t *testing.T) {
+	handler, _, _ := newTestQRLoginHandler(t)
+
+	statuses := make([]int, 0, 11)
+	for i := 0; i < 11; i++ {
+		req := qrAuthedRequest(t, http.MethodPost, "/api/auth/qr/challenge", models.CreateQRChallengeRequest{
+			PublicKey:  qrTestPublicKey,
+			DeviceName: "Phone",
+		}, "")
+		req.Header.Set("X-Forwarded-For", "10.9.8.1")
+		rec := httptest.NewRecorder()
+		handler.CreateChallenge(rec, req)
+		statuses = append(statuses, rec.Code)
+	}
+
+	for i := 0; i < 10; i++ {
+		if statuses[i] != http.StatusOK {
+			t.Fatalf("request %d status = %d, want %d", i, statuses[i], http.StatusOK)
+		}
+	}
+	if statuses[10] != http.StatusTooManyRequests {
+		t.Fatalf("request 11 status = %d, want %d", statuses[10], http.StatusTooManyRequests)
+	}
+}
+
+func TestQRApproveRateLimited(t *testing.T) {
+	handler, user, _ := newTestQRLoginHandler(t)
+
+	statuses := make([]int, 0, 31)
+	for i := 0; i < 31; i++ {
+		req := qrAuthedRequest(t, http.MethodPost, "/api/auth/qr/approve", models.ApproveQRChallengeRequest{
+			ChallengeID: "does-not-exist",
+			PublicKey:   qrTestPublicKey,
+		}, user.ID)
+		req.Header.Set("X-Forwarded-For", "10.9.9.1")
+		rec := httptest.NewRecorder()
+		handler.ApproveChallenge(rec, req)
+		statuses = append(statuses, rec.Code)
+	}
+
+	for i := 0; i < 30; i++ {
+		if statuses[i] != http.StatusNotFound {
+			t.Fatalf("request %d status = %d, want %d", i, statuses[i], http.StatusNotFound)
+		}
+	}
+	if statuses[30] != http.StatusTooManyRequests {
+		t.Fatalf("request 31 status = %d, want %d", statuses[30], http.StatusTooManyRequests)
 	}
 }
 

@@ -18,8 +18,8 @@ func NewDebugLogRepository(db *storage.DB) *DebugLogRepository {
 
 func (r *DebugLogRepository) Create(log *models.DebugLog) error {
 	result, err := r.db.Exec(
-		`INSERT INTO debug_logs (user_id, username, version, system_info, created_at, log_filename) VALUES (?, ?, ?, ?, ?, ?)`,
-		log.UserID, log.Username, log.Version, log.SystemInfo, log.CreatedAt, log.LogFilename,
+		`INSERT INTO debug_logs (user_id, username, version, system_info, created_at, log_filename, file_size) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		log.UserID, log.Username, log.Version, log.SystemInfo, log.CreatedAt, log.LogFilename, log.FileSize,
 	)
 	if err != nil {
 		return err
@@ -39,9 +39,9 @@ func (r *DebugLogRepository) GetByID(id int64) (*models.DebugLog, error) {
 	var createdAt time.Time
 
 	err := r.db.QueryRow(
-		`SELECT id, user_id, username, version, system_info, created_at, log_filename FROM debug_logs WHERE id = ?`,
+		`SELECT id, user_id, username, version, system_info, created_at, log_filename, file_size FROM debug_logs WHERE id = ?`,
 		id,
-	).Scan(&log.ID, &log.UserID, &log.Username, &log.Version, &log.SystemInfo, &createdAt, &log.LogFilename)
+	).Scan(&log.ID, &log.UserID, &log.Username, &log.Version, &log.SystemInfo, &createdAt, &log.LogFilename, &log.FileSize)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -56,7 +56,7 @@ func (r *DebugLogRepository) GetByID(id int64) (*models.DebugLog, error) {
 
 func (r *DebugLogRepository) GetAll() ([]*models.DebugLog, error) {
 	rows, err := r.db.Query(
-		`SELECT id, user_id, username, version, system_info, created_at, log_filename FROM debug_logs ORDER BY created_at DESC`,
+		`SELECT id, user_id, username, version, system_info, created_at, log_filename, file_size FROM debug_logs ORDER BY created_at DESC`,
 	)
 	if err != nil {
 		return nil, err
@@ -68,7 +68,7 @@ func (r *DebugLogRepository) GetAll() ([]*models.DebugLog, error) {
 		log := &models.DebugLog{}
 		var createdAt time.Time
 
-		err := rows.Scan(&log.ID, &log.UserID, &log.Username, &log.Version, &log.SystemInfo, &createdAt, &log.LogFilename)
+		err := rows.Scan(&log.ID, &log.UserID, &log.Username, &log.Version, &log.SystemInfo, &createdAt, &log.LogFilename, &log.FileSize)
 		if err != nil {
 			return nil, err
 		}
@@ -78,6 +78,20 @@ func (r *DebugLogRepository) GetAll() ([]*models.DebugLog, error) {
 	}
 
 	return logs, rows.Err()
+}
+
+func (r *DebugLogRepository) TotalSizeByUserID(userID string) (int64, error) {
+	var total int64
+	err := r.db.QueryRow(
+		`SELECT COALESCE(SUM(CASE WHEN file_size > 0 THEN file_size ELSE 0 END), 0) FROM debug_logs WHERE user_id = ?`,
+		userID,
+	).Scan(&total)
+	return total, err
+}
+
+func (r *DebugLogRepository) SetFileSize(id int64, size int64) error {
+	_, err := r.db.Exec(`UPDATE debug_logs SET file_size = ? WHERE id = ?`, size, id)
+	return err
 }
 
 func (r *DebugLogRepository) Delete(id int64) error {

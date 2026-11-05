@@ -58,6 +58,19 @@ logging:
 websocket:
   ping_timeout: 30s
   ping_check_interval: 10s
+
+# Rate limits and upload quotas
+rate_limit:
+  auth_per_minute: 10
+  guest_per_hour: 10
+  oauth_per_minute: 20
+  guest_upload_per_hour: 5
+  user_upload_per_hour: 20
+  debug_log_per_minute: 1
+  qr_challenge_per_minute: 10
+  qr_approve_per_minute: 30
+  audio_quota_mb: 512
+  debug_log_quota_mb: 100
 ```
 
 ## Environment Variable Overrides
@@ -83,12 +96,33 @@ All configuration values can be overridden via environment variables:
 | `DATABASE_PATH` | SQLite database path | ./data/orbital.db |
 | `WS_PING_TIMEOUT` | WebSocket ping timeout | 30s |
 | `WS_PING_CHECK_INTERVAL` | WebSocket ping check interval | 10s |
+| `RATE_LIMIT_AUTH_PER_MINUTE` | Login/register attempts per IP per minute | 10 |
+| `RATE_LIMIT_GUEST_PER_HOUR` | Guest logins per IP per hour | 10 |
+| `RATE_LIMIT_OAUTH_PER_MINUTE` | OAuth URL generations per IP per minute | 20 |
+| `RATE_LIMIT_GUEST_UPLOAD_PER_HOUR` | Audio uploads per guest IP per hour | 5 |
+| `RATE_LIMIT_USER_UPLOAD_PER_HOUR` | Audio uploads per logged-in IP per hour | 20 |
+| `RATE_LIMIT_DEBUG_LOG_PER_MINUTE` | Debug-log uploads per user per minute | 1 |
+| `RATE_LIMIT_QR_CHALLENGE_PER_MINUTE` | QR challenge creations per IP per minute | 10 |
+| `RATE_LIMIT_QR_APPROVE_PER_MINUTE` | QR approvals per IP per minute | 30 |
+| `RATE_LIMIT_AUDIO_QUOTA_MB` | Audio storage quota per user in MB | 512 |
+| `RATE_LIMIT_DEBUG_LOG_QUOTA_MB` | Debug-log storage quota per user in MB | 100 |
 | `DISCORD_CLIENT_ID` | Discord OAuth client ID | (empty) |
 | `DISCORD_CLIENT_SECRET` | Discord OAuth client secret | (empty) |
 | `DISCORD_REDIRECT_URL` | Discord OAuth redirect URL | http://localhost:3000/api/auth/discord/callback |
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID | (empty) |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret | (empty) |
 | `GOOGLE_REDIRECT_URL` | Google OAuth redirect URL | http://localhost:3000/api/auth/google/callback |
+
+## Rate Limits and Upload Quotas
+
+Limits are enforced in memory per backend process and reset on restart. Client
+IPs come from the first `X-Forwarded-For` entry because Orbital is deployed
+behind Traefik; the direct peer address is the fallback.
+
+Audio uploads are limited per IP and role. Debug-log uploads are limited per
+authenticated user. Both upload types also enforce a per-user storage quota;
+debug logs have no count cap. Existing debug-log files are measured at startup
+so the storage quota includes logs created before the quota column existed.
 
 ## LiveKit Configuration
 
