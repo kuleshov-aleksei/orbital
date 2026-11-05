@@ -1,6 +1,11 @@
 #!/bin/sh
 set -eu
 
+# Docker daemon/CLI proxy settings are injected into the container even for
+# loopback traffic. Playwright's webServer readiness probe then goes through
+# the egress proxy and gets a 503 instead of reaching the local backend.
+unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+
 LIVEKIT_PID=""
 
 cleanup() {
