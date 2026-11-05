@@ -41,6 +41,7 @@ type User struct {
 	IsGuest          bool         `json:"is_guest"`
 	Role             string       `json:"role"` // guest, user, admin, super_admin
 	PasswordHash     string       `json:"-"`    // Never exposed to frontend
+	TokenVersion     int64        `json:"-"`    // Bumped to revoke all issued tokens
 }
 
 // PublicUser represents a user with limited public information
@@ -226,6 +227,7 @@ type JWTClaims struct {
 	AvatarURL    string       `json:"avatar_url,omitempty"`
 	IsGuest      bool         `json:"is_guest"`
 	Role         string       `json:"role"`
+	TokenVersion int64        `json:"token_version"`
 }
 
 // AuthResponse represents the response after successful authentication

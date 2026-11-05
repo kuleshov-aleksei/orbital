@@ -535,7 +535,7 @@ export interface ElectronAPI {
   closeWindow: () => void
   onDeepLink: (callback: (url: string) => void) => void
   openExternal: (url: string) => Promise<boolean>
-  oauthAuthenticate: () => Promise<void>
+  oauthAuthenticate: (state: string) => Promise<void>
   onOAuthToken: (callback: (data: { token: string; expires: string }) => void) => void
   getCloseToTray: () => Promise<boolean | null>
   setCloseToTray: (value: boolean) => Promise<void>

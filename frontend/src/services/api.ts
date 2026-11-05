@@ -614,8 +614,8 @@ export const apiService = {
 
   async initiateOAuthLogin(provider: "discord" | "google"): Promise<void> {
     if (isElectron()) {
-      await oauthAuthenticate()
-      const { url } = await this.getOAuthUrl(provider, true)
+      const { url, state } = await this.getOAuthUrl(provider, true)
+      await oauthAuthenticate(state)
       await openExternal(url)
     } else {
       window.location.href = `${API_BASE}/auth/${provider}/login`

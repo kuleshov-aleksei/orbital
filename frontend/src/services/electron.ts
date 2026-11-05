@@ -131,11 +131,11 @@ export async function openExternal(url: string): Promise<boolean> {
   return window.electronAPI!.openExternal(url)
 }
 
-export async function oauthAuthenticate(): Promise<void> {
+export async function oauthAuthenticate(state: string): Promise<void> {
   if (!isElectron()) {
     throw new Error("Not running in Electron")
   }
-  return window.electronAPI!.oauthAuthenticate()
+  return window.electronAPI!.oauthAuthenticate(state)
 }
 
 export function onOAuthToken(callback: (data: { token: string; expires: string }) => void): void {

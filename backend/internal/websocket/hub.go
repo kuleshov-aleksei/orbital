@@ -138,6 +138,17 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 		_ = conn.Close()
 		return
 	}
+	user, err := h.authService.GetUserByID(claims.UserID)
+	if err != nil || user == nil {
+		log.Printf("WebSocket connection rejected (roomID=%q): user no longer exists", roomID)
+		_ = conn.Close()
+		return
+	}
+	if claims.TokenVersion != user.TokenVersion {
+		log.Printf("WebSocket connection rejected (roomID=%q): token has been revoked", roomID)
+		_ = conn.Close()
+		return
+	}
 	client.mu.Lock()
 	client.userID = claims.UserID
 	client.mu.Unlock()

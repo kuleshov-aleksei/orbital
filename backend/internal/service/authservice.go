@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/mail"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -19,8 +20,25 @@ import (
 	"github.com/kuleshov-aleksei/orbital/internal/repository"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
 )
+
+// googleOAuthEndpoint uses Google's current OAuth 2.0 endpoint. The legacy
+// /o/oauth2/auth endpoint is still reachable, but Google's current guidance
+// (and newer client types) expect the v2 authorization endpoint.
+var googleOAuthEndpoint = oauth2.Endpoint{
+	AuthURL:   "https://accounts.google.com/o/oauth2/v2/auth",
+	TokenURL:  "https://oauth2.googleapis.com/token",
+	AuthStyle: oauth2.AuthStyleInParams,
+}
+
+const oauthStateTTL = 5 * time.Minute
+
+type oauthStateEntry struct {
+	Provider     models.AuthProvider
+	Electron     bool
+	CodeVerifier string
+	ExpiresAt    time.Time
+}
 
 // AuthService handles OAuth authentication and JWT management
 type AuthService struct {
@@ -28,6 +46,9 @@ type AuthService struct {
 	userRepo             *repository.UserRepository
 	oauthConfigs         map[models.AuthProvider]*oauth2.Config
 	electronOAuthConfigs map[models.AuthProvider]*oauth2.Config
+
+	stateMu sync.Mutex
+	states  map[string]oauthStateEntry
 }
 
 // NewAuthService creates a new auth service
@@ -37,6 +58,7 @@ func NewAuthService(cfg *config.AuthConfig, userRepo *repository.UserRepository)
 		userRepo:             userRepo,
 		oauthConfigs:         make(map[models.AuthProvider]*oauth2.Config),
 		electronOAuthConfigs: make(map[models.AuthProvider]*oauth2.Config),
+		states:               make(map[string]oauthStateEntry),
 	}
 
 	// Debug logging for OAuth configuration
@@ -74,7 +96,7 @@ func NewAuthService(cfg *config.AuthConfig, userRepo *repository.UserRepository)
 		service.oauthConfigs[models.AuthProviderGoogle] = &oauth2.Config{
 			ClientID:     cfg.Google.ClientID,
 			ClientSecret: cfg.Google.ClientSecret,
-			Endpoint:     google.Endpoint,
+			Endpoint:     googleOAuthEndpoint,
 			RedirectURL:  cfg.Google.RedirectURL,
 			Scopes:       []string{"openid", "profile", "email"},
 		}
@@ -108,7 +130,7 @@ func NewAuthService(cfg *config.AuthConfig, userRepo *repository.UserRepository)
 		service.electronOAuthConfigs[models.AuthProviderGoogle] = &oauth2.Config{
 			ClientID:     cfg.Google.ClientID,
 			ClientSecret: cfg.Google.ClientSecret,
-			Endpoint:     google.Endpoint,
+			Endpoint:     googleOAuthEndpoint,
 			RedirectURL:  cfg.GoogleElectronRedirectURL,
 			Scopes:       []string{"openid", "profile", "email"},
 		}
@@ -118,40 +140,84 @@ func NewAuthService(cfg *config.AuthConfig, userRepo *repository.UserRepository)
 	return service
 }
 
-// GenerateState creates a random state parameter for CSRF protection
-func (s *AuthService) GenerateState() (string, error) {
+// GenerateState creates a random, single-use OAuth state bound to a provider
+// and flow. The state is stored server-side so a callback can only complete a
+// flow that this server actually initiated.
+func (s *AuthService) GenerateState(provider models.AuthProvider, electron bool) (string, string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		return "", err
+		return "", "", err
 	}
-	return base64.URLEncoding.EncodeToString(b), nil
+	state := base64.RawURLEncoding.EncodeToString(b)
+	verifier := oauth2.GenerateVerifier()
+
+	now := time.Now()
+	s.stateMu.Lock()
+	s.pruneStatesLocked(now)
+	s.states[state] = oauthStateEntry{
+		Provider:     provider,
+		Electron:     electron,
+		CodeVerifier: verifier,
+		ExpiresAt:    now.Add(oauthStateTTL),
+	}
+	s.stateMu.Unlock()
+
+	return state, verifier, nil
+}
+
+// ConsumeState validates and burns an OAuth state. It never leaves a state
+// reusable, even when the callback later fails.
+func (s *AuthService) ConsumeState(state string) (models.AuthProvider, bool, string, error) {
+	if state == "" {
+		return "", false, "", fmt.Errorf("missing oauth state")
+	}
+
+	now := time.Now()
+	s.stateMu.Lock()
+	entry, ok := s.states[state]
+	delete(s.states, state)
+	s.pruneStatesLocked(now)
+	s.stateMu.Unlock()
+
+	if !ok || now.After(entry.ExpiresAt) {
+		return "", false, "", fmt.Errorf("invalid or expired oauth state")
+	}
+	return entry.Provider, entry.Electron, entry.CodeVerifier, nil
+}
+
+func (s *AuthService) pruneStatesLocked(now time.Time) {
+	for state, entry := range s.states {
+		if now.After(entry.ExpiresAt) {
+			delete(s.states, state)
+		}
+	}
 }
 
 // GetOAuthURL returns the OAuth authorization URL for a provider
-func (s *AuthService) GetOAuthURL(provider models.AuthProvider, state string) (string, error) {
+func (s *AuthService) GetOAuthURL(provider models.AuthProvider, state, codeVerifier string) (string, error) {
 	config, ok := s.oauthConfigs[provider]
 	if !ok {
 		return "", fmt.Errorf("OAuth not configured for provider: %s", provider)
 	}
 
 	log.Printf("[Auth] GetOAuthURL - redirect_uri: %s", config.RedirectURL)
-	return config.AuthCodeURL(state, oauth2.AccessTypeOnline), nil
+	return config.AuthCodeURL(state, oauth2.AccessTypeOnline, oauth2.S256ChallengeOption(codeVerifier)), nil
 }
 
 // GetElectronOAuthURL returns the OAuth URL for Electron with custom redirect
-func (s *AuthService) GetElectronOAuthURL(provider models.AuthProvider, state string) (string, error) {
+func (s *AuthService) GetElectronOAuthURL(provider models.AuthProvider, state, codeVerifier string) (string, error) {
 	config, ok := s.electronOAuthConfigs[provider]
 	if !ok {
 		return "", fmt.Errorf("electron OAuth not configured for provider: %s", provider)
 	}
 
 	log.Printf("[Auth] GetElectronOAuthURL - redirect_uri: %s", config.RedirectURL)
-	return config.AuthCodeURL(state, oauth2.AccessTypeOnline), nil
+	return config.AuthCodeURL(state, oauth2.AccessTypeOnline, oauth2.S256ChallengeOption(codeVerifier)), nil
 }
 
 // ExchangeCode exchanges an OAuth code for an access token and user info
 // Use electronConfig parameter to specify which config to use
-func (s *AuthService) ExchangeCode(ctx context.Context, provider models.AuthProvider, code string, useElectronConfig bool) (*models.OAuthUserInfo, error) {
+func (s *AuthService) ExchangeCode(ctx context.Context, provider models.AuthProvider, code string, useElectronConfig bool, codeVerifier string) (*models.OAuthUserInfo, error) {
 	var config *oauth2.Config
 	var ok bool
 
@@ -167,8 +233,12 @@ func (s *AuthService) ExchangeCode(ctx context.Context, provider models.AuthProv
 		}
 	}
 
-	// Exchange code for token
-	token, err := config.Exchange(ctx, code)
+	// Exchange code for token (include the PKCE verifier when present)
+	opts := []oauth2.AuthCodeOption{}
+	if codeVerifier != "" {
+		opts = append(opts, oauth2.VerifierOption(codeVerifier))
+	}
+	token, err := config.Exchange(ctx, code, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to exchange code: %w", err)
 	}
@@ -365,6 +435,7 @@ func (s *AuthService) GenerateJWTWithExpiry(user *models.User, expiry time.Durat
 		"avatar_url":    user.AvatarURL,
 		"is_guest":      user.IsGuest,
 		"role":          user.Role,
+		"token_version": user.TokenVersion,
 		"exp":           expiryTime.Unix(),
 		"iat":           time.Now().Unix(),
 	}
@@ -424,8 +495,35 @@ func (s *AuthService) ValidateJWT(tokenString string) (*models.JWTClaims, error)
 	if role, ok := claims["role"].(string); ok {
 		jwtClaims.Role = role
 	}
+	if tokenVersion, ok := claims["token_version"].(float64); ok {
+		jwtClaims.TokenVersion = int64(tokenVersion)
+	}
 
 	return jwtClaims, nil
+}
+
+// ClaimsFromUser builds fresh claims from the current database state. Callers
+// must use this instead of trusting values embedded in an old token.
+func ClaimsFromUser(user *models.User) *models.JWTClaims {
+	return &models.JWTClaims{
+		UserID:       user.ID,
+		Nickname:     user.Nickname,
+		AuthProvider: user.AuthProvider,
+		Email:        user.Email,
+		AvatarURL:    user.AvatarURL,
+		IsGuest:      user.IsGuest,
+		Role:         user.Role,
+		TokenVersion: user.TokenVersion,
+	}
+}
+
+// RevokeTokens invalidates all JWTs issued for a user by bumping the per-user
+// token version checked by AuthMiddleware.
+func (s *AuthService) RevokeTokens(userID string) error {
+	if s.userRepo == nil {
+		return fmt.Errorf("user repository unavailable")
+	}
+	return s.userRepo.IncrementTokenVersion(userID)
 }
 
 // Helper functions
@@ -441,6 +539,9 @@ func generateGuestNickname(userID string) string {
 
 // GetUserByID retrieves a user by their ID
 func (s *AuthService) GetUserByID(userID string) (*models.User, error) {
+	if s.userRepo == nil {
+		return nil, fmt.Errorf("user repository unavailable")
+	}
 	return s.userRepo.GetByID(userID)
 }
 

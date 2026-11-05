@@ -6,12 +6,14 @@ export const OAUTH_CALLBACK_PORT = 27271
 
 let oauthCallbackServer: http.Server | null = null
 let oauthCallbackResolve: ((token: string) => void) | null = null
+let expectedOAuthState: string | null = null
 
-export function startOAuthCallbackServer(): Promise<void> {
+export function startOAuthCallbackServer(state: string): Promise<void> {
   return new Promise((resolve, reject) => {
     if (oauthCallbackServer) {
       oauthCallbackServer.close()
     }
+    expectedOAuthState = state
 
     oauthCallbackServer = http.createServer((req, res) => {
       const url = new URL(req.url || "/", `http://127.0.0.1:${OAUTH_CALLBACK_PORT}`)
@@ -20,11 +22,23 @@ export function startOAuthCallbackServer(): Promise<void> {
       if (pathname === "/callback") {
         const token = url.searchParams.get("token")
         const expires = url.searchParams.get("expires")
+        const state = url.searchParams.get("state")
+
+        if (!expectedOAuthState || state !== expectedOAuthState) {
+          log.warn("[OAuth] Callback state mismatch; refusing token")
+          expectedOAuthState = null
+          res.writeHead(400, { "Content-Type": "text/html" })
+          res.end("<h1>Authentication Failed</h1><p>Invalid OAuth state.</p>")
+          oauthCallbackServer?.close()
+          oauthCallbackServer = null
+          return
+        }
 
         log.info("[OAuth] Token found:", token !== null)
         log.info("[OAuth] Expires found:", expires !== null)
 
         if (token) {
+          expectedOAuthState = null
           res.writeHead(200, { "Content-Type": "text/html" })
           res.end(`
             <html>
@@ -71,6 +85,7 @@ export function startOAuthCallbackServer(): Promise<void> {
 }
 
 export function stopOAuthCallbackServer() {
+  expectedOAuthState = null
   if (oauthCallbackServer) {
     oauthCallbackServer.close()
     oauthCallbackServer = null

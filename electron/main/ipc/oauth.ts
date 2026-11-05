@@ -8,11 +8,11 @@ import {
 } from "../features/oauth"
 
 export function registerOauthIpc() {
-  ipcMain.handle("oauth-authenticate", async () => {
+  ipcMain.handle("oauth-authenticate", async (_, state: string) => {
     log.info("[OAuth] Starting OAuth authentication flow")
 
     try {
-      await startOAuthCallbackServer()
+      await startOAuthCallbackServer(state)
       return { port: OAUTH_CALLBACK_PORT }
     } catch (error) {
       log.error("[OAuth] Failed to start callback server:", error)

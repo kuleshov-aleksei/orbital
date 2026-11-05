@@ -236,26 +236,36 @@ func (rs *RoomService) JoinRoom(roomID, userID, nickname string) (*models.User, 
 		return nil, nil, &RoomError{Message: "Room is full"}
 	}
 
-	// Create user if not exists, or update nickname if different
-	user, userExists := rs.users[userID]
-	if !userExists {
-		user = &models.User{
-			ID:        userID,
-			Nickname:  nickname,
-			Status:    "online",
-			CreatedAt: time.Now(),
-			LastSeen:  time.Now(),
+	// Joining must never create a user row. A token whose user was deleted
+	// must not be able to resurrect the account by joining a room.
+	var user *models.User
+	if rs.userRepo != nil {
+		dbUser, err := rs.userRepo.GetByID(userID)
+		if err != nil {
+			return nil, nil, &RoomError{Message: "Failed to load user"}
 		}
+		if dbUser == nil {
+			return nil, nil, &RoomError{Message: "User not found"}
+		}
+		user = dbUser
 		rs.users[userID] = user
-
-		// Save new user to database
-		if rs.userRepo != nil {
-			if err := rs.userRepo.Create(user); err != nil {
-				// Log error but don't fail the join
-				log.Printf("Failed to save user to database: %v", err)
+	} else {
+		// Memory-only mode has no persistent user store; keep the legacy
+		// in-memory behavior there.
+		user = rs.users[userID]
+		if user == nil {
+			user = &models.User{
+				ID:        userID,
+				Nickname:  nickname,
+				Status:    "online",
+				CreatedAt: time.Now(),
+				LastSeen:  time.Now(),
 			}
+			rs.users[userID] = user
 		}
-	} else if user.Nickname != nickname {
+	}
+
+	if user.Nickname != nickname {
 		// Update nickname if it's different
 		user.Nickname = nickname
 		user.LastSeen = time.Now()
@@ -513,6 +523,13 @@ func (rs *RoomService) UpdateUserDeafenStatus(roomID, userID string, isDeafened 
 		user.IsDeafened = isDeafened
 		user.LastSeen = time.Now()
 	}
+}
+
+// IsUserInRoom reports whether the user has actually joined the room.
+func (rs *RoomService) IsUserInRoom(roomID, userID string) bool {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+	return rs.members[roomID] != nil && rs.members[roomID][userID] != nil
 }
 
 // UpdateUserNickname updates user's nickname

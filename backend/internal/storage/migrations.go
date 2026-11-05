@@ -334,6 +334,12 @@ INSERT OR IGNORE INTO halloween_base_sockets (base_id, socket, offset_x, offset_
 CREATE INDEX IF NOT EXISTS idx_qr_login_challenges_expires ON qr_login_challenges(expires_at);
 CREATE INDEX IF NOT EXISTS idx_qr_login_challenges_status ON qr_login_challenges(status);`,
 	},
+	{
+		Version: 30,
+		Name:    "add_token_version_to_users",
+		SQL: `ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS idx_users_token_version ON users(token_version);`,
+	},
 }
 
 func (db *DB) RunMigrations() error {

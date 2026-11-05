@@ -190,7 +190,7 @@ func main() {
 	r.HandleFunc("/api/auth/google/url", authHandler.GetOAuthUrl).Methods("GET")
 	r.HandleFunc("/api/auth/google/electron/callback", authHandler.GoogleElectronCallback).Methods("GET")
 	r.HandleFunc("/api/auth/guest", authHandler.GuestLogin).Methods("POST")
-	r.HandleFunc("/api/auth/logout", authHandler.Logout).Methods("POST")
+	r.Handle("/api/auth/logout", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.Logout))).Methods("POST")
 	r.Handle("/api/auth/me", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.GetCurrentUser))).Methods("GET")
 	r.Handle("/api/auth/refresh", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.RefreshToken))).Methods("POST")
 	r.HandleFunc("/api/auth/status", authHandler.GetAuthStatus).Methods("GET")

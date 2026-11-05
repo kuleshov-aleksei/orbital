@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -56,12 +58,6 @@ func (h *AuthHandler) GetOAuthUrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	state, err := h.authService.GenerateState()
-	if err != nil {
-		http.Error(w, "Failed to generate state", http.StatusInternalServerError)
-		return
-	}
-
 	isElectron := r.URL.Query().Get("electron") == "true"
 	log.Printf("[Auth] GetOAuthUrl - provider: %s, isElectron: %v", provider, isElectron)
 
@@ -71,11 +67,20 @@ func (h *AuthHandler) GetOAuthUrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	state, verifier, err := h.authService.GenerateState(provider, isElectron)
+	if err != nil {
+		http.Error(w, "Failed to generate state", http.StatusInternalServerError)
+		return
+	}
+	if !isElectron {
+		h.setOAuthStateCookie(w, r, state)
+	}
+
 	var authURL string
 	if isElectron {
-		authURL, err = h.authService.GetElectronOAuthURL(provider, state)
+		authURL, err = h.authService.GetElectronOAuthURL(provider, state, verifier)
 	} else {
-		authURL, err = h.authService.GetOAuthURL(provider, state)
+		authURL, err = h.authService.GetOAuthURL(provider, state, verifier)
 	}
 
 	if err != nil {
@@ -101,25 +106,16 @@ func (h *AuthHandler) initiateOAuth(w http.ResponseWriter, r *http.Request, prov
 	}
 
 	// Generate state for CSRF protection
-	state, err := h.authService.GenerateState()
+	state, verifier, err := h.authService.GenerateState(provider, false)
 	if err != nil {
 		http.Error(w, "Failed to generate state", http.StatusInternalServerError)
 		return
 	}
 
-	// Store state in cookie (valid for 5 minutes)
-	http.SetCookie(w, &http.Cookie{
-		Name:     "oauth_state",
-		Value:    state,
-		Path:     "/",
-		MaxAge:   300, // 5 minutes
-		HttpOnly: true,
-		Secure:   false, // Set to true in production with HTTPS
-		SameSite: http.SameSiteLaxMode,
-	})
+	h.setOAuthStateCookie(w, r, state)
 
 	// Get OAuth URL
-	authURL, err := h.authService.GetOAuthURL(provider, state)
+	authURL, err := h.authService.GetOAuthURL(provider, state, verifier)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -151,48 +147,29 @@ func (h *AuthHandler) GoogleElectronCallback(w http.ResponseWriter, r *http.Requ
 
 // handleCallback processes OAuth callback
 func (h *AuthHandler) handleCallback(w http.ResponseWriter, r *http.Request, provider models.AuthProvider) {
-	var stateValid bool
-	var stateValue string
-
-	// Check for state in URL parameter (Electron/external browser flow)
+	// A web callback must prove it belongs to the browser that started the
+	// flow: the state in the URL must match the HttpOnly state cookie and the
+	// server-side one-time state record. This blocks login CSRF, where an
+	// attacker would otherwise hand a victim a callback URL for the attacker's
+	// account.
 	queryState := r.URL.Query().Get("state")
-	if queryState != "" {
-		stateValue = queryState
-		// Also set cookie for consistency, but we'll validate URL state
-		http.SetCookie(w, &http.Cookie{
-			Name:     "oauth_state",
-			Value:    stateValue,
-			Path:     "/",
-			MaxAge:   300,
-			HttpOnly: true,
-			Secure:   false,
-			SameSite: http.SameSiteLaxMode,
-		})
-		stateValid = true
-	} else {
-		// Check for state in cookie (web flow)
-		stateCookie, err := r.Cookie("oauth_state")
-		if err != nil {
-			http.Error(w, "Missing state parameter", http.StatusBadRequest)
-			return
-		}
-		stateValue = stateCookie.Value
-		stateValid = true
-	}
+	stateCookie, cookieErr := r.Cookie("oauth_state")
+	h.clearOAuthStateCookie(w, r)
 
-	if !stateValid || stateValue == "" {
+	if queryState == "" || cookieErr != nil || stateCookie.Value == "" {
+		http.Error(w, "Missing state parameter", http.StatusBadRequest)
+		return
+	}
+	if subtle.ConstantTimeCompare([]byte(queryState), []byte(stateCookie.Value)) != 1 {
 		http.Error(w, "Invalid state parameter", http.StatusBadRequest)
 		return
 	}
 
-	// Clear state cookie
-	http.SetCookie(w, &http.Cookie{
-		Name:     "oauth_state",
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-	})
+	stateProvider, stateElectron, codeVerifier, err := h.authService.ConsumeState(queryState)
+	if err != nil || stateProvider != provider || stateElectron {
+		http.Error(w, "Invalid state parameter", http.StatusBadRequest)
+		return
+	}
 
 	// Get authorization code
 	code := r.URL.Query().Get("code")
@@ -203,7 +180,7 @@ func (h *AuthHandler) handleCallback(w http.ResponseWriter, r *http.Request, pro
 
 	// For web callback, use regular config (not electron)
 	log.Printf("[Auth] Exchanging code for provider: %s (web)", provider)
-	oauthInfo, err := h.authService.ExchangeCode(r.Context(), provider, code, false)
+	oauthInfo, err := h.authService.ExchangeCode(r.Context(), provider, code, false, codeVerifier)
 	if err != nil {
 		log.Printf("[Auth] ExchangeCode error: %v", err)
 		http.Error(w, "Failed to exchange code: "+err.Error(), http.StatusInternalServerError)
@@ -226,8 +203,8 @@ func (h *AuthHandler) handleCallback(w http.ResponseWriter, r *http.Request, pro
 
 	// Refresh user data in case role was changed
 	user, err = h.authService.GetUserByID(user.ID)
-	if err != nil {
-		http.Error(w, "Failed to get user: "+err.Error(), http.StatusInternalServerError)
+	if err != nil || user == nil {
+		http.Error(w, "Failed to get user", http.StatusInternalServerError)
 		return
 	}
 
@@ -238,37 +215,27 @@ func (h *AuthHandler) handleCallback(w http.ResponseWriter, r *http.Request, pro
 		return
 	}
 
-	// Redirect to frontend with token
-	redirectURL := r.URL.Query().Get("redirect_url")
-	if redirectURL == "" {
-		redirectURL = strings.TrimSuffix(h.externalURL, "/") + "/auth/callback/"
-	}
-	// For Electron, redirect to deep link
-	if strings.HasPrefix(redirectURL, "orbital://") {
-		redirectURL = h.electronRedirectURL + "?token=" + token + "&expires=" + expiry.Format(time.RFC3339)
-	} else {
-		redirectURL += "?token=" + token + "&expires=" + expiry.Format(time.RFC3339)
-	}
+	// Redirect to the configured frontend only. Post-login redirects are never
+	// taken from user-supplied query parameters.
+	params := url.Values{}
+	params.Set("token", token)
+	params.Set("expires", expiry.Format(time.RFC3339))
+	redirectURL := strings.TrimSuffix(h.externalURL, "/") + "/auth/callback/?" + params.Encode()
 	http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 }
 
 // handleElectronCallback processes OAuth callback for Electron - redirects to deep link
 func (h *AuthHandler) handleElectronCallback(w http.ResponseWriter, r *http.Request, provider models.AuthProvider) {
 	log.Printf("[Auth] Electron callback received for provider: %s", provider)
-	log.Printf("[Auth] Query params: %s", r.URL.RawQuery)
 
-	var stateValue string
-
-	// Check for state in URL parameter (Electron/external browser flow)
 	queryState := r.URL.Query().Get("state")
-	if queryState != "" {
-		stateValue = queryState
-	} else {
+	if queryState == "" {
 		http.Error(w, "Missing state parameter", http.StatusBadRequest)
 		return
 	}
 
-	if stateValue == "" {
+	stateProvider, stateElectron, codeVerifier, err := h.authService.ConsumeState(queryState)
+	if err != nil || stateProvider != provider || !stateElectron {
 		http.Error(w, "Invalid state parameter", http.StatusBadRequest)
 		return
 	}
@@ -281,7 +248,7 @@ func (h *AuthHandler) handleElectronCallback(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Exchange code for user info (electron = true)
-	oauthInfo, err := h.authService.ExchangeCode(r.Context(), provider, code, true)
+	oauthInfo, err := h.authService.ExchangeCode(r.Context(), provider, code, true, codeVerifier)
 	if err != nil {
 		http.Error(w, "Failed to exchange code: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -302,8 +269,8 @@ func (h *AuthHandler) handleElectronCallback(w http.ResponseWriter, r *http.Requ
 
 	// Refresh user data in case role was changed
 	user, err = h.authService.GetUserByID(user.ID)
-	if err != nil {
-		http.Error(w, "Failed to get user: "+err.Error(), http.StatusInternalServerError)
+	if err != nil || user == nil {
+		http.Error(w, "Failed to get user", http.StatusInternalServerError)
 		return
 	}
 
@@ -314,9 +281,14 @@ func (h *AuthHandler) handleElectronCallback(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Redirect to Electron's local OAuth callback server
-	redirectURL := "http://127.0.0.1:27271/callback?token=" + token + "&expires=" + expiry.Format(time.RFC3339)
-	log.Printf("[Auth] Electron redirect URL: %s", redirectURL)
+	// Redirect to Electron's local OAuth callback server. The state is echoed
+	// back so the desktop app can verify it matches the flow it started.
+	// This address must match OAUTH_CALLBACK_PORT in electron/main/features/oauth.ts.
+	params := url.Values{}
+	params.Set("token", token)
+	params.Set("expires", expiry.Format(time.RFC3339))
+	params.Set("state", queryState)
+	redirectURL := "http://127.0.0.1:27271/callback?" + params.Encode()
 	http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 }
 
@@ -354,7 +326,7 @@ func (h *AuthHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 
 	// Get fresh user data from database
 	user, err := h.authService.GetUserByID(claims.UserID)
-	if err != nil {
+	if err != nil || user == nil {
 		http.Error(w, "User not found", http.StatusNotFound)
 		return
 	}
@@ -376,7 +348,7 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	// Re-fetch fresh user data so role/nickname/avatar changes are reflected
 	// in the new token instead of being carried over from stale claims.
 	user, err := h.authService.GetUserByID(claims.UserID)
-	if err != nil {
+	if err != nil || user == nil {
 		http.Error(w, "User not found", http.StatusNotFound)
 		return
 	}
@@ -395,10 +367,21 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Logout handles logout (client should also delete token)
+// Logout revokes every JWT issued for the current user and clears the client
+// token. Logout requires a valid session so an attacker cannot revoke other
+// users' sessions.
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
-	// In a stateless JWT system, logout is handled client-side
-	// by removing the token from storage
+	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
+	if !ok || claims == nil || claims.UserID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if err := h.authService.RevokeTokens(claims.UserID); err != nil {
+		http.Error(w, "Failed to revoke session", http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	writeJSON(w, map[string]string{
 		"status":  "ok",
@@ -428,13 +411,25 @@ func (h *AuthHandler) AuthMiddleware(next http.Handler) http.Handler {
 		// Validate token
 		claims, err := h.authService.ValidateJWT(token)
 		if err != nil {
-			http.Error(w, "Invalid token: "+err.Error(), http.StatusUnauthorized)
+			http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
 			return
 		}
 
-		// Add claims to request context
+		// Always reload the user so deletion, demotion, and logout take effect
+		// immediately instead of waiting for a 60-day token to expire.
+		user, err := h.authService.GetUserByID(claims.UserID)
+		if err != nil || user == nil {
+			http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
+			return
+		}
+		if claims.TokenVersion != user.TokenVersion {
+			http.Error(w, "Session has been revoked", http.StatusUnauthorized)
+			return
+		}
+
+		// Add fresh claims to request context (never trust stale token roles).
 		ctx := r.Context()
-		ctx = context.WithValue(ctx, userContextKey, claims)
+		ctx = context.WithValue(ctx, userContextKey, service.ClaimsFromUser(user))
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -517,13 +512,6 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate JWT token (2 months expiry for password users)
-	token, expiry, err := h.authService.GenerateJWTWithExpiry(user, 60*24*time.Hour)
-	if err != nil {
-		http.Error(w, "Failed to generate token: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	// Check if this user should be made super_admin (first non-guest user)
 	if err := h.roleService.AssignSuperAdminIfFirst(user.ID); err != nil {
 		// Log error but don't fail the login; the user keeps the default role.
@@ -532,8 +520,16 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	// Refresh user data in case role was changed
 	user, err = h.authService.GetUserByID(user.ID)
+	if err != nil || user == nil {
+		http.Error(w, "Failed to get user", http.StatusInternalServerError)
+		return
+	}
+
+	// Generate JWT after the bootstrap role assignment so the first
+	// super_admin receives a token with the correct role.
+	token, expiry, err := h.authService.GenerateJWTWithExpiry(user, 60*24*time.Hour)
 	if err != nil {
-		http.Error(w, "Failed to get user: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Failed to generate token: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -543,6 +539,37 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		User:      *user,
 		ExpiresAt: expiry,
 	})
+}
+
+func (h *AuthHandler) setOAuthStateCookie(w http.ResponseWriter, r *http.Request, state string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "oauth_state",
+		Value:    state,
+		Path:     "/",
+		MaxAge:   300,
+		HttpOnly: true,
+		Secure:   isSecureRequest(r),
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func (h *AuthHandler) clearOAuthStateCookie(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "oauth_state",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   isSecureRequest(r),
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func isSecureRequest(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+	return strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
 }
 
 // LoginPassword handles user login with email or nickname and password
