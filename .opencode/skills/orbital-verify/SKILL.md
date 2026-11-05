@@ -18,10 +18,10 @@ description: Use before declaring any Orbital code change complete. Selects the 
 
 ## Workflow
 
-1. Run the canonical targets: `make lint`, `make test`, `make build`.
-2. For frontend changes, `make lint` covers changed and untracked files; use `make lint-full` to lint all sources.
-3. For backend changes, run package-scoped tests when the full suite is too slow.
-4. If a typecheck fails, determine whether the errors are new or part of the known baseline.
+1. Run `make lint` and `make build`.
+2. For backend-only changes, run `make test-backend` (Go unit/integration tests). `make test` is the Docker/Playwright e2e suite; run it only when the change needs browser/e2e coverage or the user asks.
+3. For frontend changes, `make lint` covers changed and untracked files; use `make lint-full` to lint all sources.
+4. For frontend changes, run `cd frontend && pnpm typecheck` and determine whether errors are new or part of the known baseline.
 5. Report exactly what ran, what passed, and what was skipped.
 
 ## Guardrails
