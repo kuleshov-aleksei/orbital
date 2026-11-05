@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"time"
@@ -13,8 +14,12 @@ import (
 )
 
 const (
-	defaultStatsIntervalMs = 15000
+	defaultStatsIntervalMs    = 15000
+	maxStatsCompressedBytes   = 1 << 20
+	maxStatsDecompressedBytes = 2 << 20
 )
+
+var errStatsBatchTooLarge = fmt.Errorf("stats batch exceeds size limit")
 
 func (h *Hub) EnableStatsCollection(roomID string) {
 	h.mu.Lock()
@@ -238,6 +243,35 @@ func (h *Hub) broadcastRoomStats(roomID string) {
 	}
 }
 
+func decodeStatsBatch(dataStr string) ([]byte, error) {
+	if base64.StdEncoding.DecodedLen(len(dataStr)) > maxStatsCompressedBytes {
+		return nil, errStatsBatchTooLarge
+	}
+
+	compressed, err := base64.StdEncoding.DecodeString(dataStr)
+	if err != nil {
+		return nil, fmt.Errorf("base64 decode: %w", err)
+	}
+	if len(compressed) > maxStatsCompressedBytes {
+		return nil, errStatsBatchTooLarge
+	}
+
+	reader, err := gzip.NewReader(bytes.NewReader(compressed))
+	if err != nil {
+		return nil, fmt.Errorf("gzip reader: %w", err)
+	}
+	defer func() { _ = reader.Close() }()
+
+	raw, err := io.ReadAll(io.LimitReader(reader, maxStatsDecompressedBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("decompress: %w", err)
+	}
+	if len(raw) > maxStatsDecompressedBytes {
+		return nil, errStatsBatchTooLarge
+	}
+	return raw, nil
+}
+
 func (c *Client) handleClientStatsBatch(data interface{}) {
 	dataStr, ok := data.(string)
 	if !ok {
@@ -245,22 +279,19 @@ func (c *Client) handleClientStatsBatch(data interface{}) {
 		return
 	}
 
-	compressed, err := base64.StdEncoding.DecodeString(dataStr)
-	if err != nil {
-		log.Printf("[Stats] Failed to base64 decode stats batch: %v", err)
+	c.mu.RLock()
+	userID := c.userID
+	roomID := c.roomID
+	c.mu.RUnlock()
+
+	if roomID == "" || c.hub.roomService == nil || !c.hub.roomService.IsUserInRoom(roomID, userID) {
+		log.Printf("[Stats] Rejecting stats batch from user %s: not a member of room %s", userID, roomID)
 		return
 	}
 
-	reader, err := gzip.NewReader(bytes.NewReader(compressed))
+	raw, err := decodeStatsBatch(dataStr)
 	if err != nil {
-		log.Printf("[Stats] Failed to create gzip reader: %v", err)
-		return
-	}
-	defer func() { _ = reader.Close() }()
-
-	raw, err := io.ReadAll(reader)
-	if err != nil {
-		log.Printf("[Stats] Failed to decompress stats batch: %v", err)
+		log.Printf("[Stats] Rejecting stats batch: %v", err)
 		return
 	}
 
@@ -269,11 +300,6 @@ func (c *Client) handleClientStatsBatch(data interface{}) {
 		log.Printf("[Stats] Failed to unmarshal stats batch: %v", err)
 		return
 	}
-
-	c.mu.RLock()
-	userID := c.userID
-	roomID := c.roomID
-	c.mu.RUnlock()
 
 	if batch.RoomID != roomID || batch.ReporterID != userID {
 		log.Printf("[Stats] Stats batch room/user mismatch: client=%s/%s, batch=%s/%s",
@@ -311,9 +337,10 @@ func (h *Hub) CleanupRoomStats(roomID string) {
 
 func (c *Client) handleRequestStatsState(data interface{}) {
 	c.mu.RLock()
+	userID := c.userID
 	roomID := c.roomID
 	c.mu.RUnlock()
-	if roomID == "" {
+	if roomID == "" || c.hub.roomService == nil || !c.hub.roomService.IsUserInRoom(roomID, userID) {
 		return
 	}
 

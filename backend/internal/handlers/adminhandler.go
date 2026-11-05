@@ -378,13 +378,19 @@ func (h *AdminHandler) UploadDebugLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if r.ContentLength > service.MaxDebugLogSize {
+		http.Error(w, "Log upload exceeds 20MB limit", http.StatusRequestEntityTooLarge)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, service.MaxDebugLogSize)
+
 	var req models.DebugLogUploadRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	if req.UserID == "" || req.Username == "" || req.Logs == "" {
+	if req.Logs == "" {
 		http.Error(w, "Missing required fields", http.StatusBadRequest)
 		return
 	}
@@ -394,7 +400,8 @@ func (h *AdminHandler) UploadDebugLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	debugLog, err := h.debugLogService.SaveLog(req.UserID, req.Username, req.Version, req.SystemInfo, req.Logs)
+	// Identity comes from the authenticated session, never the request body.
+	debugLog, err := h.debugLogService.SaveLog(claims.UserID, claims.Nickname, req.Version, req.SystemInfo, req.Logs)
 	if err != nil {
 		http.Error(w, "Failed to save logs: "+err.Error(), http.StatusInternalServerError)
 		return

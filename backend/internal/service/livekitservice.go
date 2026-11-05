@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -12,6 +13,16 @@ import (
 	livekit "github.com/livekit/protocol/livekit"
 	lksdk "github.com/livekit/server-sdk-go/v2"
 )
+
+// LiveKitTokenTTL keeps join tokens short-lived. LiveKit refreshes tokens for
+// connected participants, so this does not limit long calls.
+const LiveKitTokenTTL = 10 * time.Minute
+
+type participantMetadata struct {
+	Nickname string `json:"nickname"`
+	Avatar   string `json:"avatar"`
+	Role     string `json:"role"`
+}
 
 // LiveKitService wraps LiveKit server SDK operations
 type LiveKitService struct {
@@ -63,16 +74,22 @@ func (s *LiveKitService) GenerateAccessToken(data LiveKitTokenData) (string, err
 		CanUpdateOwnMetadata: &canUpdateMetadata,
 	}
 
-	// Set user metadata
-	metadata := fmt.Sprintf(`{"nickname":"%s","avatar":"%s","role":"%s"}`,
-		data.Nickname, data.Avatar, data.Role)
+	// Set user metadata. Marshal it so nicknames/avatars cannot inject JSON.
+	metadataBytes, err := json.Marshal(participantMetadata{
+		Nickname: data.Nickname,
+		Avatar:   data.Avatar,
+		Role:     data.Role,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal participant metadata: %w", err)
+	}
 
 	// Build token
 	token, err := at.SetVideoGrant(grant).
 		SetIdentity(data.UserID).
 		SetName(data.Nickname).
-		SetMetadata(metadata).
-		SetValidFor(24 * time.Hour).
+		SetMetadata(string(metadataBytes)).
+		SetValidFor(LiveKitTokenTTL).
 		ToJWT()
 
 	if err != nil {

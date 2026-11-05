@@ -45,6 +45,12 @@ func main() {
 	// Log configuration (without sensitive data)
 	log.Printf("Configuration loaded: %s", cfg.String())
 	log.Printf("Server starting in %s mode on port %s", cfg.Server.Mode, cfg.Server.Port)
+	for _, origin := range cfg.GetCORSOrigins() {
+		if origin == "*" {
+			log.Printf("WARNING: CORS/WebSocket origins allow every origin; set SERVER_CORS_ORIGINS in production")
+			break
+		}
+	}
 
 	// Initialize database
 	var categoryService *service.CategoryService
@@ -154,7 +160,7 @@ func main() {
 	authHandler := handlers.NewAuthHandler(authService, roleService, cfg.Server.ExternalURL, cfg.Server.ElectronRedirectURL)
 	adminHandler := handlers.NewAdminHandlerWithHub(roleService, userRepo, debugLogService, analyticsService, halloweenService, wsHub)
 	usersHandler := handlers.NewUsersHandler(userRepo, wsHub)
-	livekitHandler := handlers.NewLiveKitHandler(livekitService)
+	livekitHandler := handlers.NewLiveKitHandler(livekitService, roomService)
 	avatarHandler := handlers.NewAvatarHandler(avatarService, userRepo)
 	releaseHandler := handlers.NewReleaseHandler(cfg.GetReleasesURL())
 

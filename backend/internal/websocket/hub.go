@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,6 +15,8 @@ import (
 	"github.com/kuleshov-aleksei/orbital/internal/repository"
 	"github.com/kuleshov-aleksei/orbital/internal/service"
 )
+
+const maxWebSocketMessageSize = 1 << 20
 
 // Hub manages WebSocket connections
 type Hub struct {
@@ -66,17 +69,62 @@ func NewHub(roomService *service.RoomService, authService *service.AuthService, 
 		statsAdminSubs:    make(map[string]map[*Client]bool),
 		statsRoomData:     make(map[string]map[string]models.ClientStatsBatch),
 		pendingAdminSubs:  make(map[string]map[string]bool),
-		upgrader: websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool {
-				return true // Allow all origins for development
-			},
-		},
 	}
+	hub.upgrader = websocket.Upgrader{CheckOrigin: hub.checkOrigin}
 
 	// Start the ping monitor goroutine
 	go hub.startPingMonitor()
 
 	return hub
+}
+
+// checkOrigin limits WebSocket upgrades to the configured frontend origins.
+// Non-browser clients that omit Origin are allowed; Electron uses orbital://app.
+func (h *Hub) checkOrigin(r *http.Request) bool {
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	if origin == "" {
+		return true
+	}
+	if strings.EqualFold(strings.TrimRight(origin, "/"), "orbital://app") {
+		return true
+	}
+	if h.cfg == nil {
+		return false
+	}
+
+	for _, allowed := range h.cfg.GetCORSOrigins() {
+		allowed = strings.TrimRight(strings.TrimSpace(allowed), "/")
+		if allowed == "*" || strings.EqualFold(allowed, strings.TrimRight(origin, "/")) {
+			return true
+		}
+	}
+	return false
+}
+
+func (h *Hub) subscribeClientToRoom(client *Client, roomID string) {
+	if roomID == "" {
+		return
+	}
+	h.mu.Lock()
+	if h.roomClients[roomID] == nil {
+		h.roomClients[roomID] = make(map[*Client]bool)
+	}
+	h.roomClients[roomID][client] = true
+	h.mu.Unlock()
+}
+
+func (h *Hub) unsubscribeClientFromRoom(client *Client, roomID string) {
+	if roomID == "" {
+		return
+	}
+	h.mu.Lock()
+	if h.roomClients[roomID] != nil {
+		delete(h.roomClients[roomID], client)
+		if len(h.roomClients[roomID]) == 0 {
+			delete(h.roomClients, roomID)
+		}
+	}
+	h.mu.Unlock()
 }
 
 // HandleWebSocket handles WebSocket connections
@@ -86,6 +134,7 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 		log.Printf("WebSocket upgrade error: %v", err)
 		return
 	}
+	conn.SetReadLimit(maxWebSocketMessageSize)
 
 	// Enable TCP keepalive to detect half-open connections (power loss, network cut)
 	if tcpConn, ok := conn.UnderlyingConn().(*net.TCPConn); ok {
@@ -155,22 +204,19 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 	userID := claims.UserID
 	log.Printf("WebSocket client authenticated with userID: %s", userID)
 
-	// Add client to the clients map FIRST (before broadcasting)
-	// This ensures the client will receive broadcasts
+	// Add client to the global clients map first so presence and global
+	// broadcasts work immediately. Room subscription happens only after a
+	// successful join_room.
 	h.mu.Lock()
 	h.clients[client] = true
-
-	// Only add to roomClients if roomID is provided (not empty)
-	if roomID != "" {
-		if h.roomClients[roomID] == nil {
-			h.roomClients[roomID] = make(map[*Client]bool)
-		}
-		h.roomClients[roomID][client] = true
-		log.Printf("WebSocket client connected to room %s (user: %s, total clients: %d)", roomID, userID, len(h.clients))
-	} else {
-		log.Printf("WebSocket client connected for global broadcasts (user: %s, total clients: %d)", userID, len(h.clients))
-	}
+	clientCount := len(h.clients)
 	h.mu.Unlock()
+
+	if roomID != "" {
+		log.Printf("WebSocket client connected to room %s (user: %s, awaiting join, total clients: %d)", roomID, userID, clientCount)
+	} else {
+		log.Printf("WebSocket client connected for global broadcasts (user: %s, total clients: %d)", userID, clientCount)
+	}
 
 	// Apply any pending admin stats subscriptions for this user
 	h.applyPendingAdminSubs(client, userID)
@@ -702,6 +748,8 @@ func (c *Client) handleJoinRoom(data interface{}) {
 		return
 	}
 
+	c.hub.subscribeClientToRoom(c, c.roomID)
+
 	// Track the call session (1 row per user per call)
 	c.hub.recordSessionStart(userID, c.roomID, req.DeviceInfo)
 
@@ -766,6 +814,7 @@ func (c *Client) handleLeaveRoom(data interface{}) {
 	roomID := c.roomID
 	c.mu.RUnlock()
 
+	c.hub.unsubscribeClientFromRoom(c, roomID)
 	c.hub.roomService.LeaveRoom(roomID, userID)
 
 	// Finalize the call session last_seen so short calls get accurate durations
@@ -857,6 +906,10 @@ func (c *Client) handleUpdateMuteState(data interface{}) {
 		log.Printf("[WebSocket] Cannot update mute state: roomID is empty")
 		return
 	}
+	if c.hub.roomService == nil || !c.hub.roomService.IsUserInRoom(roomID, userID) {
+		log.Printf("[WebSocket] Rejecting mute state for user %s: not a member of room %s", userID, roomID)
+		return
+	}
 
 	log.Printf("[WebSocket] handleUpdateMuteState: userID=%q, roomID=%q, is_muted=%v", userID, roomID, req.IsMuted)
 
@@ -914,6 +967,10 @@ func (c *Client) handleUpdateDeafenState(data interface{}) {
 	roomID := req.RoomID
 	if roomID == "" {
 		log.Printf("[WebSocket] Cannot update deafen state: roomID is empty")
+		return
+	}
+	if c.hub.roomService == nil || !c.hub.roomService.IsUserInRoom(roomID, userID) {
+		log.Printf("[WebSocket] Rejecting deafen state for user %s: not a member of room %s", userID, roomID)
 		return
 	}
 
@@ -1281,6 +1338,14 @@ func (c *Client) handleSendMessage(data interface{}) {
 
 	if userID == "" {
 		log.Printf("[Chat] Cannot send message: userID is empty")
+		return
+	}
+	if roomID == "" || c.hub.roomService == nil || !c.hub.roomService.IsUserInRoom(roomID, userID) {
+		log.Printf("[Chat] Rejecting message from user %s: not a member of room %s", userID, roomID)
+		c.send <- marshalMessage(models.WebSocketMessage{
+			Type: "error",
+			Data: map[string]string{"message": "You are not in this room"},
+		})
 		return
 	}
 

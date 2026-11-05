@@ -231,8 +231,13 @@ func (rs *RoomService) JoinRoom(roomID, userID, nickname string) (*models.User, 
 		return nil, nil, &RoomError{Message: "Room not found"}
 	}
 
-	// Check if room is full
-	if rs.getRoomUserCount(roomID) >= room.MaxUsers {
+	// Check if room is full. Existing members may rejoin even when the room is
+	// at capacity so reconnects do not fail.
+	var existingMember *models.RoomMember
+	if rs.members[roomID] != nil {
+		existingMember = rs.members[roomID][userID]
+	}
+	if existingMember == nil && rs.getRoomUserCount(roomID) >= room.MaxUsers {
 		return nil, nil, &RoomError{Message: "Room is full"}
 	}
 
@@ -279,10 +284,7 @@ func (rs *RoomService) JoinRoom(roomID, userID, nickname string) (*models.User, 
 	}
 
 	// Check if member already exists to preserve their state
-	var member *models.RoomMember
-	if rs.members[roomID] != nil {
-		member = rs.members[roomID][userID]
-	}
+	member := existingMember
 
 	if member == nil {
 		now := time.Now()

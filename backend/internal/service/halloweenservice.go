@@ -829,6 +829,9 @@ func (s *HalloweenService) CreateItem(req *models.CreateHalloweenItemRequest) (*
 	if req.ID == "" || req.Name == "" {
 		return nil, errors.New("id and name are required")
 	}
+	if !ValidPumpkinAssetID(req.ID) {
+		return nil, errors.New("invalid item id")
+	}
 	if !validPumpkinSocket(req.Socket) {
 		return nil, errors.New("socket must be base, hat, eyes, mouth, or feet")
 	}
@@ -861,6 +864,9 @@ func (s *HalloweenService) CreateItem(req *models.CreateHalloweenItemRequest) (*
 // UpdateItem validates and updates a catalog entry (super_admin only).
 // AssetPath is managed exclusively via the asset upload endpoint.
 func (s *HalloweenService) UpdateItem(id string, req *models.UpdateHalloweenItemRequest) (*models.HalloweenItem, error) {
+	if !ValidPumpkinAssetID(id) {
+		return nil, errors.New("invalid item id")
+	}
 	existing, err := s.repo.GetItemAdmin(id)
 	if err != nil {
 		return nil, err

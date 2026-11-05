@@ -333,6 +333,10 @@ func (h *HalloweenHandler) AdminUploadAsset(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "Invalid item id", http.StatusBadRequest)
 		return
 	}
+	if !service.ValidPumpkinAssetID(id) {
+		http.Error(w, "Invalid item id", http.StatusBadRequest)
+		return
+	}
 	if h.pumpkinAssets == nil {
 		http.Error(w, "Asset storage not configured", http.StatusInternalServerError)
 		return

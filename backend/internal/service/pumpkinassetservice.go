@@ -25,6 +25,21 @@ var (
 
 var pngMagic = []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
 
+// ValidPumpkinAssetID constrains catalog IDs before they are used in file paths.
+func ValidPumpkinAssetID(id string) bool {
+	if len(id) == 0 || len(id) > 64 {
+		return false
+	}
+	for i := 0; i < len(id); i++ {
+		c := id[i]
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
 // PumpkinAssetService stores backend-owned pumpkin decoration art under
 // <dataDir>/halloween/, mirroring AudioService. Files are named
 // <item_id>.png so the catalog row is the source of truth. Nothing is
@@ -40,6 +55,9 @@ func NewPumpkinAssetService(dataDir string, seedDir string) *PumpkinAssetService
 }
 
 func (s *PumpkinAssetService) SaveAsset(itemID string, fileData []byte) (string, error) {
+	if !ValidPumpkinAssetID(itemID) {
+		return "", ErrPumpkinAssetNotFound
+	}
 	if len(fileData) > MaxPumpkinAssetSize {
 		return "", ErrPumpkinAssetTooLarge
 	}
@@ -65,6 +83,9 @@ func (s *PumpkinAssetService) SaveAsset(itemID string, fileData []byte) (string,
 }
 
 func (s *PumpkinAssetService) AssetPath(itemID string) (string, error) {
+	if !ValidPumpkinAssetID(itemID) {
+		return "", ErrPumpkinAssetNotFound
+	}
 	filePath := filepath.Join(s.dataDir, "halloween", itemID+".png")
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return "", ErrPumpkinAssetNotFound
@@ -93,6 +114,9 @@ func (s *PumpkinAssetService) ReadAsset(itemID string) ([]byte, error) {
 // DeleteAsset removes the art file for an item. A missing file is not an
 // error (used to clean up orphans of removed catalog rows).
 func (s *PumpkinAssetService) DeleteAsset(itemID string) error {
+	if !ValidPumpkinAssetID(itemID) {
+		return ErrPumpkinAssetNotFound
+	}
 	filePath := filepath.Join(s.dataDir, "halloween", itemID+".png")
 	if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
 		return err
@@ -111,6 +135,9 @@ func (s *PumpkinAssetService) SeedPlaceholders(catalog []*models.HalloweenItem) 
 
 	seeded := 0
 	for _, item := range catalog {
+		if !ValidPumpkinAssetID(item.ID) {
+			continue
+		}
 		switch item.Socket {
 		case "base", "hat", "eyes", "mouth", "feet":
 		default:

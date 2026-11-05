@@ -12,12 +12,14 @@ import (
 // LiveKitHandler handles LiveKit-related HTTP requests
 type LiveKitHandler struct {
 	livekitService *service.LiveKitService
+	roomService    *service.RoomService
 }
 
 // NewLiveKitHandler creates a new LiveKit handler
-func NewLiveKitHandler(livekitService *service.LiveKitService) *LiveKitHandler {
+func NewLiveKitHandler(livekitService *service.LiveKitService, roomService *service.RoomService) *LiveKitHandler {
 	return &LiveKitHandler{
 		livekitService: livekitService,
+		roomService:    roomService,
 	}
 }
 
@@ -63,6 +65,14 @@ func (h *LiveKitHandler) GenerateToken(w http.ResponseWriter, r *http.Request) {
 	// Validate room_id
 	if req.RoomID == "" {
 		h.sendError(w, "room_id is required", http.StatusBadRequest)
+		return
+	}
+	if h.roomService == nil {
+		h.sendError(w, "Room service is not available", http.StatusServiceUnavailable)
+		return
+	}
+	if _, exists := h.roomService.GetRoom(req.RoomID); !exists {
+		h.sendError(w, "Room not found", http.StatusNotFound)
 		return
 	}
 

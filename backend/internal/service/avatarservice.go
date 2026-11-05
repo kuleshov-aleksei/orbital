@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/h2non/bimg"
@@ -109,31 +110,46 @@ func (s *AvatarService) isValidImageType(data []byte) bool {
 	return false
 }
 
+func normalizeAvatarGUID(raw string) (string, bool) {
+	if raw == "" {
+		return "", false
+	}
+	base := filepath.Base(raw)
+	if base == "" || base == "." || base == ".." {
+		return "", false
+	}
+
+	if ext := filepath.Ext(base); ext != "" {
+		if ext != ".jpg" {
+			return "", false
+		}
+		base = strings.TrimSuffix(base, ext)
+	}
+
+	parsed, err := uuid.Parse(base)
+	if err != nil {
+		return "", false
+	}
+	return parsed.String(), true
+}
+
 func (s *AvatarService) deleteOldAvatar(avatarURL string) {
-	guid := filepath.Base(avatarURL)
-	if guid == "" || guid == "." || guid == "/" {
+	guid, ok := normalizeAvatarGUID(avatarURL)
+	if !ok {
 		return
 	}
 
-	ext := filepath.Ext(guid)
-	if ext == "" {
-		guid = guid + ".jpg"
-	} else if ext != ".jpg" {
-		return
-	}
-
-	oldPath := filepath.Join(s.dataDir, "avatars", guid)
+	oldPath := filepath.Join(s.dataDir, "avatars", guid+".jpg")
 	_ = os.Remove(oldPath)
 }
 
 func (s *AvatarService) GetAvatarPath(guid string) (string, error) {
-	if guid == "" {
+	normalized, ok := normalizeAvatarGUID(guid)
+	if !ok {
 		return "", errors.New("invalid avatar guid")
 	}
 
-	filename := fmt.Sprintf("%s.jpg", guid)
-	filePath := filepath.Join(s.dataDir, "avatars", filename)
-
+	filePath := filepath.Join(s.dataDir, "avatars", normalized+".jpg")
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return "", errors.New("avatar not found")
 	}
@@ -146,18 +162,11 @@ func (s *AvatarService) DeleteAvatar(avatarURL string) error {
 		return nil
 	}
 
-	guid := filepath.Base(avatarURL)
-	if guid == "" || guid == "." || guid == "/" {
+	guid, ok := normalizeAvatarGUID(avatarURL)
+	if !ok {
 		return nil
 	}
 
-	ext := filepath.Ext(guid)
-	if ext == "" {
-		guid = guid + ".jpg"
-	} else if ext != ".jpg" {
-		return nil
-	}
-
-	filePath := filepath.Join(s.dataDir, "avatars", guid)
+	filePath := filepath.Join(s.dataDir, "avatars", guid+".jpg")
 	return os.Remove(filePath)
 }

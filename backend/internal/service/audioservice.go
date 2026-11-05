@@ -99,6 +99,18 @@ func (s *AudioService) GetAllAudio() ([]*models.AudioFile, error) {
 	return s.repo.GetAll()
 }
 
+func safeAudioFilename(filename string) (string, bool) {
+	if filename == "" || filename == "." || filename == ".." || filename != filepath.Base(filename) {
+		return "", false
+	}
+	switch filepath.Ext(filename) {
+	case ".mp3", ".opus":
+		return filename, true
+	default:
+		return "", false
+	}
+}
+
 func (s *AudioService) GetAudioPath(id string) (string, error) {
 	file, err := s.repo.GetByID(id)
 	if err != nil {
@@ -108,7 +120,11 @@ func (s *AudioService) GetAudioPath(id string) (string, error) {
 		return "", ErrAudioNotFound
 	}
 
-	filePath := filepath.Join(s.dataDir, "audio", file.Filename)
+	filename, ok := safeAudioFilename(file.Filename)
+	if !ok {
+		return "", ErrAudioNotFound
+	}
+	filePath := filepath.Join(s.dataDir, "audio", filename)
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return "", ErrAudioNotFound
 	}
@@ -143,7 +159,11 @@ func (s *AudioService) DeleteAudio(id string) error {
 		return errors.New("cannot delete system audio files")
 	}
 
-	filePath := filepath.Join(s.dataDir, "audio", file.Filename)
+	filename, ok := safeAudioFilename(file.Filename)
+	if !ok {
+		return ErrAudioNotFound
+	}
+	filePath := filepath.Join(s.dataDir, "audio", filename)
 	if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to delete audio file: %w", err)
 	}
