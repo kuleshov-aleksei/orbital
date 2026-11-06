@@ -32,6 +32,8 @@ export interface PublicUser {
   role: "guest" | "user" | "admin" | "super_admin"
   is_online: boolean
   sound_pack?: string
+  custom_status?: string // User-set status text, omitted when empty
+  created_at?: string // ISO timestamp of registration
 }
 
 // Screen sharing quality options

@@ -345,6 +345,11 @@ CREATE INDEX IF NOT EXISTS idx_users_token_version ON users(token_version);`,
 		Name:    "add_file_size_to_debug_logs",
 		SQL:     `ALTER TABLE debug_logs ADD COLUMN file_size INTEGER NOT NULL DEFAULT -1;`,
 	},
+	{
+		Version: 32,
+		Name:    "add_custom_status_to_users",
+		SQL:     `ALTER TABLE users ADD COLUMN custom_status TEXT NOT NULL DEFAULT '';`,
+	},
 }
 
 func (db *DB) RunMigrations() error {

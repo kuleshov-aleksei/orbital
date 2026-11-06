@@ -2,6 +2,11 @@
   <div
     class="user-card flex items-center px-3 py-2 rounded-lg hover:bg-theme-bg-hover transition-colors duration-200 cursor-pointer group relative"
     :data-testid="`user-card-${user.id}`"
+    role="button"
+    tabindex="0"
+    @click="openProfile"
+    @keydown.enter.prevent="openProfile"
+    @keydown.space.prevent="openProfile"
     @contextmenu="showContextMenu">
     <!-- User Avatar -->
     <UserAvatar
@@ -16,39 +21,25 @@
     <!-- User Info -->
     <div class="flex-1 min-w-0">
       <div
-        v-if="!isEditingNickname"
-        class="font-medium text-sm truncate cursor-pointer hover:text-theme-accent transition-colors"
-        :class="{ 'text-theme-text-muted': !user.is_online }"
-        :title="isCurrentUser ? 'Click to edit nickname' : ''"
-        @click="startEditingNickname">
+        class="font-medium text-sm truncate"
+        :class="user.is_online ? 'text-theme-text-primary' : 'text-theme-text-muted'">
         {{ user.nickname }}
       </div>
 
-      <div v-else class="flex items-center">
-        <input
-          ref="nicknameInput"
-          v-model="editingNickname"
-          type="text"
-          class="w-full px-2 py-1 text-sm bg-theme-bg-tertiary border border-theme-border rounded focus:outline-none focus:border-theme-accent"
-          maxlength="32"
-          placeholder="Enter nickname"
-          @blur="saveNickname"
-          @keydown.enter="saveNickname"
-          @keydown.escape="cancelEdit" />
-      </div>
-
-      <div class="text-xs text-theme-text-muted">
+      <div class="text-xs text-theme-text-muted truncate">
         <span v-if="user.is_speaking" class="text-green-400">Speaking...</span>
 
         <span v-else-if="user.is_deafened" class="text-red-400">Deafened</span>
 
         <span v-else-if="user.is_muted" class="text-red-400">Muted</span>
 
+        <span v-else-if="user.custom_status" :title="user.custom_status">{{
+          user.custom_status
+        }}</span>
+
         <span v-else-if="user.status === 'away'">Away</span>
 
         <span v-else-if="user.status === 'dnd'">Do Not Disturb</span>
-
-        <span v-else-if="user.is_online === true">Online</span>
 
         <span v-else-if="user.is_online === false">Offline</span>
 
@@ -81,16 +72,18 @@
     </div>
 
     <!-- Context Menu -->
-    <UserContextMenu ref="contextMenuRef" :user-id="user.id" :room-id="props.roomId" />
+    <!-- Wrapper keeps menu/backdrop clicks from bubbling up and opening the profile -->
+    <div @click.stop @keydown.stop>
+      <UserContextMenu ref="contextMenuRef" :user-id="user.id" :room-id="props.roomId" />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, useTemplateRef } from "vue"
+import { computed, useTemplateRef } from "vue"
 import { PhMicrophoneSlash, PhSpeakerHigh } from "@phosphor-icons/vue"
 import UserAvatar from "@/components/UserAvatar.vue"
 import UserContextMenu from "@/components/UserContextMenu.vue"
-import { useUserStore } from "@/stores"
 
 interface User {
   id: string
@@ -102,6 +95,7 @@ interface User {
   is_online?: boolean
   status?: "online" | "away" | "dnd"
   role?: "guest" | "user" | "admin" | "super_admin"
+  custom_status?: string
 }
 
 interface Props {
@@ -114,12 +108,10 @@ const props = withDefaults(defineProps<Props>(), {
   initialVolume: 80,
 })
 
-// Initialize UserStore
-const userStore = useUserStore()
+const emit = defineEmits<{
+  "open-profile": [userId: string, anchor: HTMLElement]
+}>()
 
-const isEditingNickname = ref(false)
-const editingNickname = ref("")
-const nicknameInput = useTemplateRef<HTMLInputElement>("nicknameInput")
 const contextMenuRef = useTemplateRef<InstanceType<typeof UserContextMenu>>("contextMenuRef")
 
 // Compute user status based on both status field and is_online
@@ -136,41 +128,14 @@ const userStatus = computed(() => {
   return "online"
 })
 
-// Check if this is the current user (for nickname editing)
-const currentUserId = userStore.userId
-const isCurrentUser = computed(() => props.user.id === currentUserId)
-
 const showContextMenu = (event: MouseEvent) => {
   event.preventDefault()
   event.stopPropagation()
   contextMenuRef.value?.show(event)
 }
 
-const startEditingNickname = () => {
-  if (!isCurrentUser.value) return
-
-  isEditingNickname.value = true
-  editingNickname.value = props.user.nickname
-
-  void nextTick(() => {
-    nicknameInput.value?.focus()
-    nicknameInput.value?.select()
-  })
-}
-
-const saveNickname = async () => {
-  if (!isCurrentUser.value) return
-
-  const trimmedNickname = editingNickname.value.trim()
-  if (trimmedNickname && trimmedNickname !== props.user.nickname) {
-    await userStore.updateNickname(trimmedNickname)
-  }
-  isEditingNickname.value = false
-}
-
-const cancelEdit = () => {
-  isEditingNickname.value = false
-  editingNickname.value = props.user.nickname
+const openProfile = (event: Event) => {
+  emit("open-profile", props.user.id, event.currentTarget as HTMLElement)
 }
 </script>
 

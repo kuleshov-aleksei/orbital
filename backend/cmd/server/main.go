@@ -259,6 +259,9 @@ func main() {
 	// Sound pack routes (protected)
 	r.Handle("/api/users/me/sound-pack", authHandler.AuthMiddleware(http.HandlerFunc(usersHandler.UpdateSoundPack))).Methods("PATCH")
 
+	// Custom status route (protected)
+	r.Handle("/api/users/me/custom-status", authHandler.AuthMiddleware(http.HandlerFunc(usersHandler.UpdateCustomStatus))).Methods("PATCH")
+
 	// General configuration route (public)
 	r.HandleFunc("/api/config", roomHandler.GetConfig).Methods("GET")
 

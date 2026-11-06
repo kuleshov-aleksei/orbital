@@ -237,13 +237,7 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 			log.Printf("[WebSocket] Broadcasting user_online for %s (%s) to %d clients", userID, user.Nickname, len(h.clients))
 			h.BroadcastToAll(models.WebSocketMessage{
 				Type: "user_online",
-				Data: models.PublicUser{
-					ID:        user.ID,
-					Nickname:  user.Nickname,
-					AvatarURL: user.AvatarURL,
-					Role:      user.Role,
-					IsOnline:  true,
-				},
+				Data: models.NewPublicUser(user, true),
 			})
 		}
 	} else {
@@ -267,13 +261,7 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 			for _, uid := range onlineUserIDs {
 				user, err := h.authService.GetUserByID(uid)
 				if err == nil && user != nil {
-					onlineUsers = append(onlineUsers, models.PublicUser{
-						ID:        user.ID,
-						Nickname:  user.Nickname,
-						AvatarURL: user.AvatarURL,
-						Role:      user.Role,
-						IsOnline:  true,
-					})
+					onlineUsers = append(onlineUsers, models.NewPublicUser(user, true))
 				}
 			}
 		}
@@ -364,6 +352,17 @@ func (h *Hub) BroadcastToAll(message interface{}) {
 	} else {
 		log.Printf("[WebSocket] Broadcast complete: %d sent successfully", successCount)
 	}
+}
+
+// BroadcastCustomStatusChange broadcasts a user's custom status change to all connected clients
+func (h *Hub) BroadcastCustomStatusChange(userID string, customStatus string) {
+	h.BroadcastToAll(models.WebSocketMessage{
+		Type: "custom_status_change",
+		Data: map[string]string{
+			"user_id":       userID,
+			"custom_status": customStatus,
+		},
+	})
 }
 
 // BroadcastSoundPackChange broadcasts a user's sound pack change to all connected clients
@@ -600,13 +599,7 @@ func (c *Client) readPump() {
 					if err == nil && user != nil {
 						c.hub.BroadcastToAll(models.WebSocketMessage{
 							Type: "user_offline",
-							Data: models.PublicUser{
-								ID:        user.ID,
-								Nickname:  user.Nickname,
-								AvatarURL: user.AvatarURL,
-								Role:      user.Role,
-								IsOnline:  false,
-							},
+							Data: models.NewPublicUser(user, false),
 						})
 					}
 				}
@@ -1065,13 +1058,7 @@ func (c *Client) handlePing(data interface{}) {
 				log.Printf("[WebSocket] Broadcasting user_online for %s (was_online=%v)", userID, wasOnline)
 				c.hub.BroadcastToAll(models.WebSocketMessage{
 					Type: "user_online",
-					Data: models.PublicUser{
-						ID:        user.ID,
-						Nickname:  user.Nickname,
-						AvatarURL: user.AvatarURL,
-						Role:      user.Role,
-						IsOnline:  true,
-					},
+					Data: models.NewPublicUser(user, true),
 				})
 			} else {
 				log.Printf("[WebSocket] Cannot broadcast user_online for %s: auth error=%v, user=%v", userID, err, user)
@@ -1146,13 +1133,7 @@ func (h *Hub) broadcastOnlineUsers() {
 		for _, userID := range onlineUserIDs {
 			user, err := h.authService.GetUserByID(userID)
 			if err == nil && user != nil {
-				onlineUsers = append(onlineUsers, models.PublicUser{
-					ID:        user.ID,
-					Nickname:  user.Nickname,
-					AvatarURL: user.AvatarURL,
-					Role:      user.Role,
-					IsOnline:  true,
-				})
+				onlineUsers = append(onlineUsers, models.NewPublicUser(user, true))
 			}
 		}
 	}

@@ -294,6 +294,8 @@ export function useWebSocketHandlers() {
         avatar_url?: string
         role: string
         is_online: boolean
+        custom_status?: string
+        created_at?: string
       }
       debugLog(
         "[WebSocket] User came online:",
@@ -313,6 +315,8 @@ export function useWebSocketHandlers() {
           avatar_url: data.avatar_url || "",
           role: data.role as PublicUser["role"],
           is_online: true,
+          custom_status: data.custom_status,
+          created_at: data.created_at,
         })
       }
     }
@@ -334,6 +338,8 @@ export function useWebSocketHandlers() {
           avatar_url?: string
           role: string
           is_online: boolean
+          custom_status?: string
+          created_at?: string
         }>
       }
 
@@ -344,6 +350,8 @@ export function useWebSocketHandlers() {
           avatar_url: user.avatar_url,
           role: user.role as PublicUser["role"],
           is_online: user.is_online,
+          custom_status: user.custom_status,
+          created_at: user.created_at,
         })
       })
 
@@ -415,6 +423,13 @@ export function useWebSocketHandlers() {
     }
     wsService.onGlobal("sound_pack_change", onSoundPackChange)
     onCleanup(() => wsService.offGlobal("sound_pack_change", onSoundPackChange))
+
+    const onCustomStatusChange: MessageCallback = (message) => {
+      const data = message.data as { user_id: string; custom_status: string }
+      usersStore.updateUserCustomStatus(data.user_id, data.custom_status)
+    }
+    wsService.onGlobal("custom_status_change", onCustomStatusChange)
+    onCleanup(() => wsService.offGlobal("custom_status_change", onCustomStatusChange))
   }
 
   const connectGlobalWebSocket = async () => {

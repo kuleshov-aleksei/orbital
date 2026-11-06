@@ -173,6 +173,22 @@ export const useUsersStore = defineStore("users", () => {
     }
   }
 
+  function updateUserCustomStatus(userId: string, customStatus: string) {
+    const index = allUsers.value.findIndex((u) => u.id === userId)
+    if (index !== -1) {
+      allUsers.value.splice(index, 1, {
+        ...allUsers.value[index],
+        custom_status: customStatus || undefined,
+      })
+    }
+  }
+
+  // Sets the current user's custom status on the server and mirrors it locally
+  async function setMyCustomStatus(userId: string, customStatus: string) {
+    const result = await apiService.updateCustomStatus(customStatus)
+    updateUserCustomStatus(userId, result.custom_status)
+  }
+
   return {
     // State
     allUsers,
@@ -189,6 +205,8 @@ export const useUsersStore = defineStore("users", () => {
     removeUser,
     setUsers,
     updateUserNickname,
+    updateUserCustomStatus,
+    setMyCustomStatus,
     updateOnlineStatus,
     updateOnlineUsersList,
   }

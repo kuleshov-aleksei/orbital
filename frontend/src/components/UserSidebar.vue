@@ -46,7 +46,8 @@
         :user="user"
         :room-id="props.roomId"
         :initial-volume="getInitialVolume(user.id)"
-        @volume-change="handleVolumeChange" />
+        @volume-change="handleVolumeChange"
+        @open-profile="toggleProfile" />
     </div>
 
     <!-- Collapsed state - show compact user avatars -->
@@ -56,7 +57,11 @@
         v-for="user in displayedUsers"
         :key="user.id"
         class="relative group cursor-pointer"
-        :title="user.nickname">
+        :title="user.nickname"
+        role="button"
+        tabindex="0"
+        @click="toggleProfile(user.id, $event.currentTarget as HTMLElement)"
+        @keydown.enter.prevent="toggleProfile(user.id, $event.currentTarget as HTMLElement)">
         <UserAvatar
           :user-id="user.id"
           :nickname="user.nickname"
@@ -78,12 +83,15 @@
         +{{ remainingUsersCount }}
       </div>
     </div>
+
+    <UserProfilePopover :user-id="profileUserId" :anchor="profileAnchor" @close="closeProfile" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue"
+import { computed, ref, shallowRef, watch } from "vue"
 import UserCard from "@/components/UserCard.vue"
+import UserProfilePopover from "@/components/UserProfilePopover.vue"
 import UserAvatar from "@/components/UserAvatar.vue"
 import { PhCaretDoubleRight } from "@phosphor-icons/vue"
 import { useUserStore } from "@/stores"
@@ -97,6 +105,7 @@ interface User {
   is_deafened?: boolean
   is_online: boolean
   status?: "online" | "away" | "dnd"
+  custom_status?: string
 }
 
 interface Props {
@@ -207,4 +216,25 @@ const getInitialVolume = (userId: string) => {
 const handleVolumeChange = (userId: string, volume: number) => {
   emit("volume-change", userId, volume)
 }
+
+// Profile popover: one shared instance, anchored to the clicked row
+const profileUserId = ref<string | null>(null)
+const profileAnchor = shallowRef<HTMLElement | null>(null)
+
+const toggleProfile = (userId: string, anchor: HTMLElement) => {
+  if (profileUserId.value === userId && profileAnchor.value === anchor) {
+    closeProfile()
+    return
+  }
+  profileUserId.value = userId
+  profileAnchor.value = anchor
+}
+
+const closeProfile = () => {
+  profileUserId.value = null
+  profileAnchor.value = null
+}
+
+// Anchor elements are swapped when collapsing/expanding or hiding on mobile
+watch([isCollapsed, isVisible], closeProfile)
 </script>

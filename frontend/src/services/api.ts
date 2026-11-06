@@ -831,6 +831,27 @@ export const apiService = {
     return response.json()
   },
 
+  // Update custom status text (empty string clears it)
+  async updateCustomStatus(customStatus: string): Promise<{ custom_status: string }> {
+    const token = getAuthToken()
+    const response = await fetch(`${API_BASE}/users/me/custom-status`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ custom_status: customStatus }),
+    })
+
+    if (!response.ok) {
+      if (response.status === 401) notifySessionExpired()
+      const errorText = await response.text()
+      throw new Error(`API Error: ${response.status} - ${errorText}`)
+    }
+
+    return response.json()
+  },
+
   // LiveKit token generation
   async getLiveKitToken(roomId: string): Promise<LiveKitTokenResponse> {
     return apiRequest<LiveKitTokenResponse>("/livekit/token", {

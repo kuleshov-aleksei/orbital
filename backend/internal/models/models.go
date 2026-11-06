@@ -31,7 +31,8 @@ type User struct {
 	IsSpeaking       bool         `json:"is_speaking"`
 	IsMuted          bool         `json:"is_muted"`
 	IsDeafened       bool         `json:"is_deafened"`
-	SoundPack        string       `json:"sound_pack"` // Sound pack preference
+	SoundPack        string       `json:"sound_pack"`    // Sound pack preference
+	CustomStatus     string       `json:"custom_status"` // User-set status text shown on profile popup
 	CreatedAt        time.Time    `json:"created_at"`
 	LastSeen         time.Time    `json:"last_seen"`
 	AuthProvider     AuthProvider `json:"auth_provider"`
@@ -47,12 +48,33 @@ type User struct {
 // PublicUser represents a user with limited public information
 // Used for global user list to avoid exposing sensitive data
 type PublicUser struct {
-	ID        string `json:"id"`
-	Nickname  string `json:"nickname"`
-	AvatarURL string `json:"avatar_url,omitempty"`
-	Role      string `json:"role"`
-	IsOnline  bool   `json:"is_online"`
-	SoundPack string `json:"sound_pack,omitempty"`
+	ID           string    `json:"id"`
+	Nickname     string    `json:"nickname"`
+	AvatarURL    string    `json:"avatar_url,omitempty"`
+	Role         string    `json:"role"`
+	IsOnline     bool      `json:"is_online"`
+	SoundPack    string    `json:"sound_pack,omitempty"`
+	CustomStatus string    `json:"custom_status,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+// NewPublicUser builds the public projection of a user.
+// Keep every public broadcast going through here so all fields stay in sync.
+func NewPublicUser(user *User, isOnline bool) PublicUser {
+	soundPack := user.SoundPack
+	if soundPack == "" {
+		soundPack = "default"
+	}
+	return PublicUser{
+		ID:           user.ID,
+		Nickname:     user.Nickname,
+		AvatarURL:    user.AvatarURL,
+		Role:         user.Role,
+		IsOnline:     isOnline,
+		SoundPack:    soundPack,
+		CustomStatus: user.CustomStatus,
+		CreatedAt:    user.CreatedAt,
+	}
 }
 
 // Room represents a voice room
@@ -357,6 +379,14 @@ type RequestLogsCommand struct {
 // UpdateSoundPackRequest represents a request to update user's sound pack preference
 type UpdateSoundPackRequest struct {
 	SoundPack string `json:"sound_pack"`
+}
+
+// MaxCustomStatusLength is the maximum number of characters (runes) in a custom status
+const MaxCustomStatusLength = 128
+
+// UpdateCustomStatusRequest represents a request to update user's custom status text
+type UpdateCustomStatusRequest struct {
+	CustomStatus string `json:"custom_status"`
 }
 
 // ChatMessage represents a chat message in a room
