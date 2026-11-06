@@ -162,3 +162,28 @@ func TestDecodeStatsBatchAcceptsSmallPayload(t *testing.T) {
 		t.Fatalf("decoded = %q", raw)
 	}
 }
+
+func TestSubscribeAdminByUserIDSubscribesEveryConnection(t *testing.T) {
+	hub := NewHub(nil, nil, nil, nil, nil, &config.Config{})
+	// One tab = global connection + room connection, plus another unrelated user
+	global := &Client{hub: hub, send: make(chan []byte, 4), userID: "admin"}
+	room := &Client{hub: hub, send: make(chan []byte, 4), userID: "admin", roomID: "room-1"}
+	other := &Client{hub: hub, send: make(chan []byte, 4), userID: "someone-else"}
+	for _, c := range []*Client{global, room, other} {
+		hub.clients[c] = true
+	}
+
+	hub.SubscribeAdminByUserID("admin", "room-1")
+	subs := hub.statsAdminSubs["room-1"]
+	if !subs[global] || !subs[room] {
+		t.Fatalf("expected both admin connections subscribed, got %v", subs)
+	}
+	if subs[other] {
+		t.Fatal("unrelated user must not be subscribed")
+	}
+
+	hub.UnsubscribeAdminByUserID("admin", "room-1")
+	if _, ok := hub.statsAdminSubs["room-1"]; ok {
+		t.Fatal("expected all admin connections unsubscribed")
+	}
+}

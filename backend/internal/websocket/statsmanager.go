@@ -103,22 +103,33 @@ func (h *Hub) UnsubscribeAdmin(client *Client) {
 	log.Printf("[Stats] Admin client %s unsubscribed from all stats", client.userID)
 }
 
-func (h *Hub) SubscribeAdminByUserID(userID, roomID string) {
+// clientsForUser returns every live connection of a user. One browser tab holds a
+// global connection plus a room connection while in a room, and an admin may have
+// several tabs open, so callers must not assume a single client per user.
+func (h *Hub) clientsForUser(userID string) []*Client {
 	h.mu.RLock()
-	var targetClient *Client
+	defer h.mu.RUnlock()
+	var clients []*Client
 	for client := range h.clients {
 		client.mu.RLock()
 		cid := client.userID
 		client.mu.RUnlock()
 		if cid == userID {
-			targetClient = client
-			break
+			clients = append(clients, client)
 		}
 	}
-	h.mu.RUnlock()
+	return clients
+}
 
-	if targetClient != nil {
-		h.SubscribeAdmin(targetClient, roomID)
+// SubscribeAdminByUserID subscribes all of the admin's connections: the HTTP request
+// does not say which one is the stats page, and only that one listens for room_stats.
+// Subscribing a single arbitrary client (map order is random) silently lost stats.
+func (h *Hub) SubscribeAdminByUserID(userID, roomID string) {
+	clients := h.clientsForUser(userID)
+	if len(clients) > 0 {
+		for _, client := range clients {
+			h.SubscribeAdmin(client, roomID)
+		}
 	} else {
 		// Store pending subscription for when the WS client connects/authenticates
 		h.mu.Lock()
@@ -150,23 +161,14 @@ func (h *Hub) applyPendingAdminSubs(client *Client, userID string) {
 }
 
 func (h *Hub) UnsubscribeAdminByUserID(userID, roomID string) {
-	h.mu.RLock()
-	var targetClient *Client
-	for client := range h.clients {
-		client.mu.RLock()
-		cid := client.userID
-		client.mu.RUnlock()
-		if cid == userID {
-			targetClient = client
-			break
-		}
-	}
-	h.mu.RUnlock()
+	clients := h.clientsForUser(userID)
 
-	if targetClient != nil {
+	if len(clients) > 0 {
 		h.mu.Lock()
 		if subs, ok := h.statsAdminSubs[roomID]; ok {
-			delete(subs, targetClient)
+			for _, client := range clients {
+				delete(subs, client)
+			}
 			if len(subs) == 0 {
 				delete(h.statsAdminSubs, roomID)
 			}
@@ -200,7 +202,11 @@ func (h *Hub) sendRoomStatsToAdmin(client *Client, roomID string) {
 		},
 	}
 
-	client.send <- marshalMessage(msg)
+	select {
+	case client.send <- marshalMessage(msg):
+	default:
+		log.Printf("[Stats] Failed to send stats snapshot to admin client %s: channel blocked", client.userID)
+	}
 }
 
 func (h *Hub) broadcastRoomStats(roomID string) {
