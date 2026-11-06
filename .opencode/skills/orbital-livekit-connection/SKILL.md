@@ -25,6 +25,13 @@ description: Use when changing or debugging LiveKit join/reconnect, mute/deafen,
 4. Keep cleanup symmetrical on leave/unmount (room, tracks, screen share, supervisor).
 5. Verify with the blackout script and user-driven browser/Electron testing.
 
+## Presence (sidebar mute/deafen/screen share/camera)
+
+- The backend room member is the single source of truth. The sidebar (`RoomCard.vue`) renders only `room.users[]`, which is fed by backend `user_media_state` / `media_states` broadcasts and room-list fetches.
+- `usePresenceBroadcast.ts` (wired once in `useLiveKit()`) sends the full snapshot via `wsService.sendMediaState` on any change. Screen share/camera come from `useLiveKitState` (`state.isScreenSharing` / `state.isCameraEnabled`, set by `LocalTrackPublished`/`LocalTrackUnpublished`), NOT `callStore` button intent.
+- Snapshots go over the room WebSocket (ordered after `join_room`); while it is not open the latest snapshot is stored and replayed inside `join_room.media_state` on reconnect.
+- `presence.ts` forwards only `is_speaking` to the room store. Do not add another writer of media flags to `roomStore.updateUserStatus`.
+
 ## Guardrails
 
 - Do not rely on internal SDK fields without guarding them.
@@ -37,4 +44,5 @@ description: Use when changing or debugging LiveKit join/reconnect, mute/deafen,
 - `frontend/src/composables/useLiveKit*.ts`
 - `frontend/src/services/livekit-audio-processors.ts`, `frontend/src/services/audio/`
 - `frontend/src/stores/call.ts`, `frontend/src/stores/presence.ts`
+- `frontend/src/composables/usePresenceBroadcast.ts`, `backend/internal/websocket/hub.go` (`applyMediaState`)
 - `scripts/simulate-blackout.sh`

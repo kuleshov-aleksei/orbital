@@ -184,16 +184,79 @@ describe("outbound buffering", () => {
     const connected = service.connectGlobal()
     const socket = lastSocket()
 
-    service.sendGlobalMessage("update_mute_state", { room_id: "room-1", is_muted: true })
+    service.sendGlobalMessage("nickname_change", { user_id: "user-1", nickname: "A" })
     expect(socket.sent).toHaveLength(0)
 
     socket.open()
     await connected
 
     expect(JSON.parse(socket.sent[0])).toEqual({
-      type: "update_mute_state",
-      data: { room_id: "room-1", is_muted: true },
+      type: "nickname_change",
+      data: { user_id: "user-1", nickname: "A" },
     })
+  })
+
+  it("sends media state snapshots in snake_case and replays the latest in join_room", async () => {
+    const service = new WebSocketService()
+    const connected = service.connect("room-1", "user-1")
+    const socket = lastSocket()
+    const state = {
+      isMuted: true,
+      isDeafened: false,
+      isScreenSharing: true,
+      isCameraEnabled: false,
+    }
+
+    // Not open yet: stored, not queued
+    service.sendMediaState("room-1", state)
+    socket.open()
+    await connected
+
+    const join = JSON.parse(socket.sent[0])
+    expect(join.type).toBe("join_room")
+    expect(join.data.media_state).toEqual({
+      is_muted: true,
+      is_deafened: false,
+      is_screen_sharing: true,
+      is_camera_enabled: false,
+    })
+    expect(socket.sent).toHaveLength(1)
+
+    service.sendMediaState("room-1", { ...state, isCameraEnabled: true })
+    expect(JSON.parse(socket.sent[1])).toEqual({
+      type: "update_media_state",
+      data: {
+        room_id: "room-1",
+        is_muted: true,
+        is_deafened: false,
+        is_screen_sharing: true,
+        is_camera_enabled: true,
+      },
+    })
+
+    // Snapshots for another room are ignored
+    service.sendMediaState("room-2", state)
+    expect(socket.sent).toHaveLength(2)
+  })
+
+  it("forgets the media state snapshot after leaving the room", async () => {
+    const service = new WebSocketService()
+    const first = service.connect("room-1", "user-1")
+    lastSocket().open()
+    await first
+    service.sendMediaState("room-1", {
+      isMuted: true,
+      isDeafened: true,
+      isScreenSharing: false,
+      isCameraEnabled: false,
+    })
+    service.disconnect()
+
+    const second = service.connect("room-1", "user-1")
+    lastSocket().open()
+    await second
+
+    expect(JSON.parse(lastSocket().sent[0]).data.media_state).toBeUndefined()
   })
 
   it("drops buffered messages when leaving the room", async () => {

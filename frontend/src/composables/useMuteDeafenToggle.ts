@@ -1,6 +1,5 @@
 import { useCallStore, useUserStore, useRoomStore } from "@/stores"
 import { useSounds } from "@/services/sounds"
-import { wsService } from "@/services/websocket"
 
 export function useMuteDeafenToggle() {
   const callStore = useCallStore()
@@ -26,20 +25,13 @@ export function useMuteDeafenToggle() {
     // Update call store (auto-undeafens when unmuting while deafened)
     callStore.setMuted(newValue)
 
-    // Send to server for global state sync (users outside the call will see the state)
-    const roomId = roomStore.activeRoomId
-    if (roomId) {
-      wsService.sendMuteState(roomId, newValue)
-      if (wasDeafened && !newValue) {
-        wsService.sendDeafenState(roomId, false)
-      }
-    }
-
-    // Immediately update room store for local user so UI updates right away
-    roomStore.updateUserStatus(userStore.userId, {
-      is_muted: newValue,
-      is_deafened: callStore.isDeafened,
-    })
+    // Server sync happens in usePresenceBroadcast (watches callStore and sends
+    // one full snapshot). Update the local sidebar entry right away.
+    roomStore.updateUserStatus(
+      userStore.userId,
+      { is_muted: callStore.isMuted, is_deafened: callStore.isDeafened },
+      roomStore.activeRoomId ?? undefined,
+    )
   }
 
   function toggleDeafen() {
@@ -56,18 +48,13 @@ export function useMuteDeafenToggle() {
     // This also handles auto-mute on deafen and restore-mute on undeafen
     callStore.setDeafened(newValue)
 
-    // Send to server for global state sync (users outside the call will see the state)
-    const roomId = roomStore.activeRoomId
-    if (roomId) {
-      wsService.sendDeafenState(roomId, newValue)
-    }
-
-    // Immediately update room store for local user so UI updates right away
-    // Use callStore.isMuted to get the actual current mute state after setDeafened
-    roomStore.updateUserStatus(userStore.userId, {
-      is_deafened: newValue,
-      is_muted: callStore.isMuted,
-    })
+    // Server sync happens in usePresenceBroadcast. Use callStore.isMuted to
+    // get the actual mute state after setDeafened (auto-mute / restore).
+    roomStore.updateUserStatus(
+      userStore.userId,
+      { is_deafened: callStore.isDeafened, is_muted: callStore.isMuted },
+      roomStore.activeRoomId ?? undefined,
+    )
   }
 
   return {

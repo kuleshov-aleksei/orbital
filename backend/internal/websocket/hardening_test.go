@@ -164,7 +164,11 @@ func TestDecodeStatsBatchAcceptsSmallPayload(t *testing.T) {
 }
 
 func TestSubscribeAdminByUserIDSubscribesEveryConnection(t *testing.T) {
-	hub := NewHub(nil, nil, nil, nil, nil, &config.Config{})
+	// NewHub starts the ping monitor goroutine; a zero interval panics in NewTicker
+	hub := NewHub(nil, nil, nil, nil, nil, &config.Config{WebSocket: config.WebSocketConfig{
+		PingTimeout:       30 * time.Second,
+		PingCheckInterval: time.Hour,
+	}})
 	// One tab = global connection + room connection, plus another unrelated user
 	global := &Client{hub: hub, send: make(chan []byte, 4), userID: "admin"}
 	room := &Client{hub: hub, send: make(chan []byte, 4), userID: "admin", roomID: "room-1"}

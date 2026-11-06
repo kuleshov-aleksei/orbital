@@ -87,6 +87,36 @@ describe("user status syncing", () => {
     expect(room.currentRoomUsers[0]).toMatchObject({ is_speaking: true, is_muted: true })
   })
 
+  it("tracks screen share and camera flags", () => {
+    const room = useRoomStore()
+    room.setRooms([makeRoom({ users: [makePreviewUser("u1")], user_count: 1 })])
+
+    room.updateUserStatus("u1", { is_screen_sharing: true, is_camera_enabled: true })
+    expect(room.rooms[0].users?.[0]).toMatchObject({
+      is_screen_sharing: true,
+      is_camera_enabled: true,
+    })
+
+    room.updateUserStatus("u1", { is_camera_enabled: false })
+    expect(room.rooms[0].users?.[0]).toMatchObject({
+      is_screen_sharing: true,
+      is_camera_enabled: false,
+    })
+  })
+
+  it("only patches the given room when roomId is passed", () => {
+    const room = useRoomStore()
+    room.setRooms([
+      makeRoom({ id: "r1", users: [makePreviewUser("u1")], user_count: 1 }),
+      makeRoom({ id: "r2", users: [makePreviewUser("u1")], user_count: 1 }),
+    ])
+
+    room.updateUserStatus("u1", { is_muted: true }, "r2")
+
+    expect(room.rooms[0].users?.[0].is_muted).toBe(false)
+    expect(room.rooms[1].users?.[0].is_muted).toBe(true)
+  })
+
   it("keeps user_count in sync when users are added and removed", () => {
     const room = useRoomStore()
     room.addRoom(makeRoom({ users: [], user_count: 0 }))

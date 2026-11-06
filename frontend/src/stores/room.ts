@@ -78,85 +78,61 @@ export const useRoomStore = defineStore("room", () => {
     currentRoomUsers.value = users
   }
 
-  function updateUserStatus(
-    userId: string,
-    status: {
-      is_speaking?: boolean
-      is_muted?: boolean
-      is_deafened?: boolean
-      is_screen_sharing?: boolean
-    },
-  ) {
-    debugLog(
-      `[RoomStore] updateUserStatus called: ${userId}: is speaking: ${status.is_speaking}; is muted: ${status.is_muted}; is deafend: ${status.is_deafened}; is screen sharing: ${status.is_screen_sharing}`,
-    )
-    // Update rooms array for sidebar display
-    // Use slice() to create new array references for Vue reactivity
+  type UserStatusUpdate = {
+    is_speaking?: boolean
+    is_muted?: boolean
+    is_deafened?: boolean
+    is_screen_sharing?: boolean
+    is_camera_enabled?: boolean
+  }
+
+  const STATUS_KEYS = [
+    "is_speaking",
+    "is_muted",
+    "is_deafened",
+    "is_screen_sharing",
+    "is_camera_enabled",
+  ] as const
+
+  // Patch a user's presence flags in the sidebar room list. When roomId is
+  // given only that room's entry is touched (media state is per room member).
+  function updateUserStatus(userId: string, status: UserStatusUpdate, roomId?: string) {
+    debugLog("[RoomStore] updateUserStatus:", userId, roomId ?? "(any room)", status)
+
     let hasChanges = false
-    let userFound = false
     const updatedRooms = rooms.value.map((room) => {
-      if (room.users) {
-        const userIndex = room.users.findIndex((u) => u.id === userId)
-        if (userIndex !== -1) {
-          userFound = true
-          const user = room.users[userIndex]
-          const updatedUser = { ...user }
-          if (status.is_speaking !== undefined) updatedUser.is_speaking = status.is_speaking
-          if (status.is_muted !== undefined) updatedUser.is_muted = status.is_muted
-          if (status.is_deafened !== undefined) updatedUser.is_deafened = status.is_deafened
-          if (status.is_screen_sharing !== undefined)
-            updatedUser.is_screen_sharing = status.is_screen_sharing
+      if (roomId && room.id !== roomId) return room
+      if (!room.users) return room
+      const userIndex = room.users.findIndex((u) => u.id === userId)
+      if (userIndex === -1) return room
 
-          // Check if anything actually changed
-          if (
-            updatedUser.is_speaking !== user.is_speaking ||
-            updatedUser.is_muted !== user.is_muted ||
-            updatedUser.is_deafened !== user.is_deafened ||
-            updatedUser.is_screen_sharing !== user.is_screen_sharing
-          ) {
-            hasChanges = true
-          }
-
-          // Create new users array with updated user
-          const updatedUsers = room.users.slice()
-          updatedUsers[userIndex] = updatedUser
-
-          return { ...room, users: updatedUsers }
+      const user = room.users[userIndex]
+      const updatedUser = { ...user }
+      let userChanged = false
+      for (const key of STATUS_KEYS) {
+        const value = status[key]
+        if (value !== undefined && updatedUser[key] !== value) {
+          updatedUser[key] = value
+          userChanged = true
         }
       }
-      return room
+      if (!userChanged) return room
+
+      hasChanges = true
+      // New array references so Vue picks up the change
+      const updatedUsers = room.users.slice()
+      updatedUsers[userIndex] = updatedUser
+      return { ...room, users: updatedUsers }
     })
 
-    // Only update if there were actual changes
     if (hasChanges) {
-      debugLog("[RoomStore] Updating rooms with changes for user:", userId, "status:", status)
       rooms.value = updatedRooms
-      // Log the updated state
-      const updatedRoom = rooms.value.find((r) => r.users?.some((u) => u.id === userId))
-      if (updatedRoom) {
-        const updatedUser = updatedRoom.users?.find((u) => u.id === userId)
-        debugLog(
-          "[RoomStore] After update - user in room:",
-          userId,
-          "is_muted:",
-          updatedUser?.is_muted,
-          "is_deafened:",
-          updatedUser?.is_deafened,
-        )
-      }
-    } else if (!userFound) {
-      debugLog(
-        "[RoomStore] User not found in any room:",
-        userId,
-        "Available user IDs:",
-        rooms.value.flatMap((r) => r.users?.map((u) => u.id) || []),
-      )
-    } else {
-      debugLog("[RoomStore] No changes for user:", userId, "status:", status)
     }
 
     // Also update current room users if applicable
-    updateCurrentRoomUser(userId, status)
+    if (!roomId || roomId === activeRoomId.value) {
+      updateCurrentRoomUser(userId, status)
+    }
   }
 
   function updateUserNickname(userId: string, nickname: string) {
@@ -187,6 +163,12 @@ export const useRoomStore = defineStore("room", () => {
         }
         room.users.push(newUser as (typeof room.users)[number])
         room.user_count = room.users.length
+      } else {
+        // Rejoin/reconnect: the join payload carries the fresh presence state
+        room.users[existingUserIndex] = {
+          ...room.users[existingUserIndex],
+          ...user,
+        } as (typeof room.users)[number]
       }
     }
   }

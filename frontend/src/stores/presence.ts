@@ -158,14 +158,15 @@ export const usePresenceStore = defineStore("presence", () => {
 
     participants.value.set(metadata.user_id, presenceState)
 
-    // Also update room store for UI consistency
+    // Only speaking state goes to the room store from LiveKit. Mute/deafen/
+    // screen share/camera in the sidebar come solely from the backend
+    // (user_media_state) so there is one writer and no flip-flopping.
     const roomStore = useRoomStore()
-    roomStore.updateUserStatus(metadata.user_id, {
-      is_speaking: presenceState.isSpeaking,
-      is_muted: presenceState.isMuted,
-      is_deafened: presenceState.isDeafened,
-      is_screen_sharing: presenceState.isScreenSharing,
-    })
+    roomStore.updateUserStatus(
+      metadata.user_id,
+      { is_speaking: presenceState.isSpeaking },
+      roomStore.activeRoomId ?? undefined,
+    )
   }
 
   // Initialize presence tracking with a LiveKit room

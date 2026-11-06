@@ -21,6 +21,7 @@ export interface RoomPreviewUser {
   is_deafened: boolean
   is_speaking: boolean
   is_screen_sharing?: boolean
+  is_camera_enabled?: boolean
   sound_pack?: string
 }
 
@@ -58,6 +59,7 @@ export interface User {
   is_muted?: boolean
   is_deafened?: boolean
   is_screen_sharing?: boolean
+  is_camera_enabled?: boolean
   screen_share_quality?: ScreenShareQuality
   status: "online" | "away" | "dnd"
   auth_provider: "guest" | "discord" | "google" | "password"
@@ -87,10 +89,9 @@ export type WebSocketMessageType =
   | "room_deleted"
   | "ping"
   | "pong"
-  | "user_audio_state"
-  | "audio_states"
-  | "update_mute_state"
-  | "update_deafen_state"
+  | "user_media_state"
+  | "media_states"
+  | "update_media_state"
   | "enable_stats_collection"
   | "disable_stats_collection"
   | "client_stats"
@@ -105,15 +106,18 @@ export interface WebSocketMessage {
   data: unknown
 }
 
-export interface UserAudioState {
+// Full presence snapshot of a room member (backend room member is the source of truth)
+export interface UserMediaState {
   user_id: string
   room_id: string
   is_muted: boolean
   is_deafened: boolean
+  is_screen_sharing: boolean
+  is_camera_enabled: boolean
 }
 
-export interface AudioStatesMessage {
-  states: UserAudioState[]
+export interface MediaStatesMessage {
+  states: UserMediaState[]
 }
 
 // API response types

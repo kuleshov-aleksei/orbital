@@ -3,7 +3,6 @@ import { createPinia, setActivePinia } from "pinia"
 import type { User } from "@/types"
 import { useCallStore } from "@/stores/call"
 import { useRoomStore } from "@/stores/room"
-import { wsService } from "@/services/websocket"
 import { useMuteDeafenToggle } from "./useMuteDeafenToggle"
 
 const sounds = vi.hoisted(() => ({
@@ -46,20 +45,15 @@ function makeUser(id: string): User {
   }
 }
 
-let sendMuteState: ReturnType<typeof vi.spyOn>
-let sendDeafenState: ReturnType<typeof vi.spyOn>
-
 beforeEach(() => {
   setActivePinia(createPinia())
   const room = useRoomStore()
   room.setActiveRoom("room-1")
   room.setCurrentRoomUsers([makeUser("u1")])
-  sendMuteState = vi.spyOn(wsService, "sendMuteState")
-  sendDeafenState = vi.spyOn(wsService, "sendDeafenState")
 })
 
 describe("toggleMute", () => {
-  it("mutes locally, plays the mute sound, and syncs over the WebSocket", () => {
+  it("mutes locally, plays the mute sound, and updates the local room entry", () => {
     const call = useCallStore()
     const room = useRoomStore()
     const { toggleMute } = useMuteDeafenToggle()
@@ -68,7 +62,6 @@ describe("toggleMute", () => {
 
     expect(call.isMuted).toBe(true)
     expect(sounds.playMute).toHaveBeenCalledTimes(1)
-    expect(sendMuteState).toHaveBeenCalledWith("room-1", true)
     expect(room.currentRoomUsers[0]).toMatchObject({ is_muted: true, is_deafened: false })
   })
 
@@ -85,8 +78,6 @@ describe("toggleMute", () => {
     expect(call.isDeafened).toBe(false)
     expect(sounds.playUndeafen).toHaveBeenCalledTimes(1)
     expect(sounds.playUnmute).not.toHaveBeenCalled()
-    expect(sendMuteState).toHaveBeenLastCalledWith("room-1", false)
-    expect(sendDeafenState).toHaveBeenCalledWith("room-1", false)
   })
 })
 
@@ -101,7 +92,6 @@ describe("toggleDeafen", () => {
     expect(call.isDeafened).toBe(true)
     expect(call.isMuted).toBe(true)
     expect(sounds.playDeafen).toHaveBeenCalledTimes(1)
-    expect(sendDeafenState).toHaveBeenCalledWith("room-1", true)
     expect(room.currentRoomUsers[0]).toMatchObject({ is_deafened: true, is_muted: true })
   })
 })

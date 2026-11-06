@@ -21,9 +21,8 @@ const maxWebSocketMessageSize = 1 << 20
 // Hub manages WebSocket connections
 type Hub struct {
 	clients        map[*Client]bool
-	roomClients    map[string]map[*Client]bool                 // room_id -> clients
-	onlineUsers    map[string]time.Time                        // user_id -> last_seen timestamp (global connections)
-	userAudioState map[string]map[string]models.UserAudioState // user_id -> room_id -> audio state (mute/deafen)
+	roomClients    map[string]map[*Client]bool // room_id -> clients
+	onlineUsers    map[string]time.Time        // user_id -> last_seen timestamp (global connections)
 	roomService    *service.RoomService
 	authService    *service.AuthService
 	livekitService *service.LiveKitService
@@ -58,7 +57,6 @@ func NewHub(roomService *service.RoomService, authService *service.AuthService, 
 		clients:           make(map[*Client]bool),
 		roomClients:       make(map[string]map[*Client]bool),
 		onlineUsers:       make(map[string]time.Time),
-		userAudioState:    make(map[string]map[string]models.UserAudioState),
 		roomService:       roomService,
 		authService:       authService,
 		livekitService:    livekitService,
@@ -531,30 +529,22 @@ func (h *Hub) GetOnlineUsers() []string {
 	return users
 }
 
-// sendAudioStatesToClient sends all current audio states to a client
-func (h *Hub) sendAudioStatesToClient(client *Client) {
-	h.mu.RLock()
-	audioStates := make([]models.UserAudioState, 0)
-	for _, roomStates := range h.userAudioState {
-		for _, state := range roomStates {
-			audioStates = append(audioStates, state)
-		}
-	}
-	h.mu.RUnlock()
-
-	log.Printf("[WebSocket] sendAudioStatesToClient: userID=%q, states_count=%d", client.userID, len(audioStates))
+// sendMediaStatesToClient sends the media state (mute/deafen/screen share/camera)
+// of every room member to a client. Room members are the single source of truth.
+func (h *Hub) sendMediaStatesToClient(client *Client) {
+	states := h.roomService.GetAllMediaStates()
 
 	message := models.WebSocketMessage{
-		Type: "audio_states",
+		Type: "media_states",
 		Data: map[string]interface{}{
-			"states": audioStates,
+			"states": states,
 		},
 	}
 	select {
 	case client.send <- marshalMessage(message):
-		log.Printf("[WebSocket] Sent %d audio states to user %s", len(audioStates), client.userID)
+		log.Printf("[WebSocket] Sent %d media states to user %s", len(states), client.userID)
 	default:
-		log.Printf("[WebSocket] Failed to send audio states to user %s: channel blocked", client.userID)
+		log.Printf("[WebSocket] Failed to send media states to user %s: channel blocked", client.userID)
 	}
 }
 
@@ -658,6 +648,8 @@ func (c *Client) handleMessage(message models.WebSocketMessage) {
 		c.handleNicknameChange(message.Data)
 	case "ping":
 		c.handlePing(message.Data)
+	case "update_media_state":
+		c.handleUpdateMediaState(message.Data)
 	case "update_mute_state":
 		c.handleUpdateMuteState(message.Data)
 	case "update_deafen_state":
@@ -736,6 +728,19 @@ func (c *Client) handleJoinRoom(data interface{}) {
 	if err != nil {
 		log.Printf("Error joining room: %v", err)
 		return
+	}
+
+	// Apply the client's media state at join so the member (and the
+	// room_user_joined/room_users broadcasts below) never carry stale defaults.
+	if req.MediaState != nil {
+		state := *req.MediaState
+		state.RoomID = c.roomID
+		if _, ok := c.hub.roomService.UpdateUserMediaState(c.roomID, userID, state); ok && previewUser != nil {
+			previewUser.IsMuted = state.IsMuted
+			previewUser.IsDeafened = state.IsDeafened
+			previewUser.IsScreenSharing = state.IsScreenSharing
+			previewUser.IsCameraEnabled = state.IsCameraEnabled
+		}
 	}
 
 	c.hub.subscribeClientToRoom(c, c.roomID)
@@ -873,128 +878,103 @@ func (c *Client) handleNicknameChange(data interface{}) {
 	c.hub.BroadcastToAll(nicknameMessage)
 }
 
-// handleUpdateMuteState handles mute state updates from clients
+// handleUpdateMediaState handles a full media state snapshot from a client
+func (c *Client) handleUpdateMediaState(data interface{}) {
+	var req models.UpdateMediaStateRequest
+	jsonData, _ := json.Marshal(data)
+	if err := json.Unmarshal(jsonData, &req); err != nil {
+		log.Printf("[WebSocket] Invalid update_media_state payload: %v", err)
+		return
+	}
+	c.applyMediaState(req)
+}
+
+// handleUpdateMuteState handles legacy mute-only updates (older clients).
+// It patches the stored snapshot so other fields are kept.
 func (c *Client) handleUpdateMuteState(data interface{}) {
-	var req models.UpdateAudioStateRequest
+	var req struct {
+		RoomID  string `json:"room_id"`
+		IsMuted bool   `json:"is_muted"`
+	}
 	jsonData, _ := json.Marshal(data)
 	if err := json.Unmarshal(jsonData, &req); err != nil {
 		log.Printf("[WebSocket] Invalid update_mute_state payload: %v", err)
 		return
 	}
-
-	c.mu.RLock()
-	userID := c.userID
-	c.mu.RUnlock()
-
-	if userID == "" {
-		log.Printf("[WebSocket] Cannot update mute state: userID is empty")
-		return
-	}
-
-	roomID := req.RoomID
-	if roomID == "" {
-		log.Printf("[WebSocket] Cannot update mute state: roomID is empty")
-		return
-	}
-	if c.hub.roomService == nil || !c.hub.roomService.IsUserInRoom(roomID, userID) {
-		log.Printf("[WebSocket] Rejecting mute state for user %s: not a member of room %s", userID, roomID)
-		return
-	}
-
-	log.Printf("[WebSocket] handleUpdateMuteState: userID=%q, roomID=%q, is_muted=%v", userID, roomID, req.IsMuted)
-
-	// Update user's audio state in hub
-	c.hub.mu.Lock()
-	if c.hub.userAudioState[userID] == nil {
-		c.hub.userAudioState[userID] = make(map[string]models.UserAudioState)
-	}
-	currentState := c.hub.userAudioState[userID][roomID]
-	if currentState.IsMuted != req.IsMuted {
-		c.hub.userAudioState[userID][roomID] = models.UserAudioState{
-			UserID:     userID,
-			RoomID:     roomID,
-			IsMuted:    req.IsMuted,
-			IsDeafened: currentState.IsDeafened,
-		}
-	}
-	c.hub.mu.Unlock()
-
-	// Update room service member state for API consistency
-	if c.hub.roomService != nil {
-		c.hub.roomService.UpdateUserMuteStatus(roomID, userID, req.IsMuted)
-	}
-
-	// Broadcast to all connected clients (global broadcast for server-side state)
-	c.hub.BroadcastToAll(models.WebSocketMessage{
-		Type: "user_audio_state",
-		Data: models.UserAudioState{
-			UserID:     userID,
-			RoomID:     roomID,
-			IsMuted:    req.IsMuted,
-			IsDeafened: currentState.IsDeafened,
-		},
-	})
+	c.patchMediaState(req.RoomID, func(s *models.UpdateMediaStateRequest) { s.IsMuted = req.IsMuted })
 }
 
-// handleUpdateDeafenState handles deafen state updates from clients
+// handleUpdateDeafenState handles legacy deafen-only updates (older clients).
 func (c *Client) handleUpdateDeafenState(data interface{}) {
-	var req models.UpdateAudioStateRequest
+	var req struct {
+		RoomID     string `json:"room_id"`
+		IsDeafened bool   `json:"is_deafened"`
+	}
 	jsonData, _ := json.Marshal(data)
 	if err := json.Unmarshal(jsonData, &req); err != nil {
 		log.Printf("[WebSocket] Invalid update_deafen_state payload: %v", err)
 		return
 	}
+	c.patchMediaState(req.RoomID, func(s *models.UpdateMediaStateRequest) { s.IsDeafened = req.IsDeafened })
+}
 
+func (c *Client) patchMediaState(roomID string, patch func(*models.UpdateMediaStateRequest)) {
 	c.mu.RLock()
 	userID := c.userID
 	c.mu.RUnlock()
 
-	if userID == "" {
-		log.Printf("[WebSocket] Cannot update deafen state: userID is empty")
+	if c.hub.roomService == nil {
+		return
+	}
+	current, ok := c.hub.roomService.GetUserMediaState(roomID, userID)
+	if !ok {
+		log.Printf("[WebSocket] Rejecting media state for user %s: not a member of room %s", userID, roomID)
+		return
+	}
+	req := models.UpdateMediaStateRequest{
+		RoomID:          roomID,
+		IsMuted:         current.IsMuted,
+		IsDeafened:      current.IsDeafened,
+		IsScreenSharing: current.IsScreenSharing,
+		IsCameraEnabled: current.IsCameraEnabled,
+	}
+	patch(&req)
+	c.applyMediaState(req)
+}
+
+// applyMediaState stores the snapshot on the room member and broadcasts it
+// to every connected client when something changed.
+func (c *Client) applyMediaState(req models.UpdateMediaStateRequest) {
+	c.mu.RLock()
+	userID := c.userID
+	c.mu.RUnlock()
+
+	if userID == "" || req.RoomID == "" || c.hub.roomService == nil {
+		log.Printf("[WebSocket] Cannot update media state: userID=%q roomID=%q", userID, req.RoomID)
 		return
 	}
 
-	roomID := req.RoomID
-	if roomID == "" {
-		log.Printf("[WebSocket] Cannot update deafen state: roomID is empty")
+	changed, ok := c.hub.roomService.UpdateUserMediaState(req.RoomID, userID, req)
+	if !ok {
+		log.Printf("[WebSocket] Rejecting media state for user %s: not a member of room %s", userID, req.RoomID)
 		return
 	}
-	if c.hub.roomService == nil || !c.hub.roomService.IsUserInRoom(roomID, userID) {
-		log.Printf("[WebSocket] Rejecting deafen state for user %s: not a member of room %s", userID, roomID)
+	if !changed {
 		return
 	}
 
-	log.Printf("[WebSocket] handleUpdateDeafenState: userID=%q, roomID=%q, is_deafened=%v", userID, roomID, req.IsDeafened)
+	log.Printf("[WebSocket] Media state: userID=%q roomID=%q muted=%v deafened=%v screen=%v camera=%v",
+		userID, req.RoomID, req.IsMuted, req.IsDeafened, req.IsScreenSharing, req.IsCameraEnabled)
 
-	// Update user's audio state in hub
-	c.hub.mu.Lock()
-	if c.hub.userAudioState[userID] == nil {
-		c.hub.userAudioState[userID] = make(map[string]models.UserAudioState)
-	}
-	currentState := c.hub.userAudioState[userID][roomID]
-	if currentState.IsDeafened != req.IsDeafened {
-		c.hub.userAudioState[userID][roomID] = models.UserAudioState{
-			UserID:     userID,
-			RoomID:     roomID,
-			IsMuted:    currentState.IsMuted,
-			IsDeafened: req.IsDeafened,
-		}
-	}
-	c.hub.mu.Unlock()
-
-	// Update room service member state for API consistency
-	if c.hub.roomService != nil {
-		c.hub.roomService.UpdateUserDeafenStatus(roomID, userID, req.IsDeafened)
-	}
-
-	// Broadcast to all connected clients (global broadcast for server-side state)
 	c.hub.BroadcastToAll(models.WebSocketMessage{
-		Type: "user_audio_state",
-		Data: models.UserAudioState{
-			UserID:     userID,
-			RoomID:     roomID,
-			IsMuted:    currentState.IsMuted,
-			IsDeafened: req.IsDeafened,
+		Type: "user_media_state",
+		Data: models.UserMediaState{
+			UserID:          userID,
+			RoomID:          req.RoomID,
+			IsMuted:         req.IsMuted,
+			IsDeafened:      req.IsDeafened,
+			IsScreenSharing: req.IsScreenSharing,
+			IsCameraEnabled: req.IsCameraEnabled,
 		},
 	})
 }
@@ -1033,8 +1013,8 @@ func (c *Client) handlePing(data interface{}) {
 
 	// Send initial audio states on first ping (client is now fully ready)
 	if shouldSendInitialData {
-		log.Printf("[WebSocket] First ping received from %s, sending initial audio states", userID)
-		c.hub.sendAudioStatesToClient(c)
+		log.Printf("[WebSocket] First ping received from %s, sending initial media states", userID)
+		c.hub.sendMediaStatesToClient(c)
 	}
 
 	// Update ping time in room service (this is what actually matters for timeout detection)

@@ -7,6 +7,23 @@ export type MessageCallback = (message: WebSocketMessage) => void
 export type ConnectionCallback = () => void
 export type DisconnectionCallback = (event: CloseEvent) => void
 
+// Full presence snapshot of the local user, sent to the backend room member
+export interface LocalMediaState {
+  isMuted: boolean
+  isDeafened: boolean
+  isScreenSharing: boolean
+  isCameraEnabled: boolean
+}
+
+function toMediaStatePayload(state: LocalMediaState) {
+  return {
+    is_muted: state.isMuted,
+    is_deafened: state.isDeafened,
+    is_screen_sharing: state.isScreenSharing,
+    is_camera_enabled: state.isCameraEnabled,
+  }
+}
+
 // Upper bound on buffered outbound messages — a long outage must not grow
 // memory without limit. Oldest messages are dropped first.
 const MAX_QUEUED_MESSAGES = 100
@@ -36,6 +53,9 @@ export class WebSocketService {
   // dropped. Pings are never buffered — a keepalive sent late is meaningless.
   private roomQueue: WebSocketMessage[] = []
   private globalQueue: WebSocketMessage[] = []
+  // Last media state snapshot; re-sent inside join_room on every (re)connect so
+  // the backend member never starts from stale defaults.
+  private lastMediaState: LocalMediaState | null = null
 
   constructor() {
     this.setupEventHandlers()
@@ -46,6 +66,7 @@ export class WebSocketService {
     // Anything queued for a different room must not leak into this session.
     if (this.roomId && this.roomId !== roomId) {
       this.roomQueue = []
+      this.lastMediaState = null
     }
     this.roomId = roomId
     this.userId = userId
@@ -68,6 +89,9 @@ export class WebSocketService {
             nickname:
               localStorage.getItem("orbital_user_nickname") || `User_${this.userId.substr(0, 8)}`,
             ...(deviceInfo ? { device_info: deviceInfo } : {}),
+            ...(this.lastMediaState
+              ? { media_state: toMediaStatePayload(this.lastMediaState) }
+              : {}),
           })
 
           // join_room stays first; buffered messages follow in order.
@@ -163,6 +187,7 @@ export class WebSocketService {
   disconnect(): void {
     // Leaving the room drops anything that was waiting for the connection.
     this.roomQueue = []
+    this.lastMediaState = null
     if (this.ws) {
       this.reconnectAttempts = this.maxReconnectAttempts // Prevent reconnection
       this.ws.close()
@@ -398,14 +423,16 @@ export class WebSocketService {
     return this.globalWs ? this.globalWs.readyState : WebSocket.CLOSED
   }
 
-  // Send mute state update to server (global WebSocket for server-side state)
-  sendMuteState(roomId: string, isMuted: boolean): void {
-    this.sendGlobalMessage("update_mute_state", { room_id: roomId, is_muted: isMuted })
-  }
-
-  // Send deafen state update to server (global WebSocket for server-side state)
-  sendDeafenState(roomId: string, isDeafened: boolean): void {
-    this.sendGlobalMessage("update_deafen_state", { room_id: roomId, is_deafened: isDeafened })
+  // Send the full media state snapshot over the room WebSocket. The room
+  // socket is ordered after join_room, so the backend always has the member
+  // before the update arrives (the global socket would race the join).
+  sendMediaState(roomId: string, state: LocalMediaState): void {
+    if (!this.ws || roomId !== this.roomId) return
+    this.lastMediaState = { ...state }
+    // Not open (connecting/reconnecting): don't queue. join_room on (re)connect
+    // carries lastMediaState, so only the latest snapshot ever reaches the server.
+    if (this.ws.readyState !== WebSocket.OPEN) return
+    this.sendMessage("update_media_state", { room_id: roomId, ...toMediaStatePayload(state) })
   }
 
   // Send chat message

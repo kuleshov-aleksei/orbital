@@ -9,6 +9,7 @@ import { useLiveKitScreenShare } from "./useLiveKitScreenShare"
 import { useLiveKitEvents } from "./useLiveKitEvents"
 import { useLiveKitConnection } from "./useLiveKitConnection"
 import { useLiveKitSupervisor } from "./useLiveKitSupervisor"
+import { usePresenceBroadcast } from "./usePresenceBroadcast"
 
 export interface UseLiveKitOptions {
   roomId: string
@@ -45,6 +46,13 @@ export function useLiveKit(options: UseLiveKitOptions) {
     publishAudioTrack: audio.publishAudioTrack,
   }
   const connection = useLiveKitConnection(state, connectionDeps)
+
+  // Keep the backend's sidebar presence (mute/deafen/screen/camera) in sync
+  usePresenceBroadcast({
+    roomId: options.roomId,
+    isScreenSharing: state.isScreenSharing,
+    isCameraEnabled: state.isCameraEnabled,
+  })
 
   // Fresh join with a new Room + token. No supervisor reset here on purpose:
   // supervisor-forced rejoins go through this so the episode budget survives.

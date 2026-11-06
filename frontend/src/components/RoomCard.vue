@@ -74,21 +74,22 @@
           <!-- Status Icons (right side) -->
           <div class="flex items-center gap-1 flex-shrink-0">
             <PhMicrophone
-              v-if="
-                !getUserAudioState(user, room.id).is_muted &&
-                !getUserAudioState(user, room.id).is_deafened
-              "
+              v-if="!user.is_muted && !user.is_deafened"
               class="w-3.5 h-3.5 text-green-400" />
 
-            <PhMicrophoneSlash
-              v-if="getUserAudioState(user, room.id).is_muted"
-              class="w-3.5 h-3.5 text-red-400" />
+            <PhMicrophoneSlash v-if="user.is_muted" class="w-3.5 h-3.5 text-red-400" />
 
-            <PhHeadphones
-              v-if="getUserAudioState(user, room.id).is_deafened"
-              class="w-3.5 h-3.5 text-red-400" />
+            <PhHeadphones v-if="user.is_deafened" class="w-3.5 h-3.5 text-red-400" />
 
-            <PhMonitor v-if="user.is_screen_sharing" class="w-3.5 h-3.5 text-blue-400" />
+            <PhVideoCamera
+              v-if="user.is_camera_enabled"
+              class="w-3.5 h-3.5 text-blue-400"
+              aria-label="Camera on" />
+
+            <PhMonitor
+              v-if="user.is_screen_sharing"
+              class="w-3.5 h-3.5 text-blue-400"
+              aria-label="Sharing screen" />
           </div>
         </div>
       </div>
@@ -108,11 +109,11 @@ import {
   PhHeadphones,
   PhMicrophoneSlash,
   PhMonitor,
+  PhVideoCamera,
 } from "@phosphor-icons/vue"
 import UserAvatar from "./UserAvatar.vue"
 import UserContextMenu from "./UserContextMenu.vue"
-import { useUserStore } from "@/stores"
-import type { Room, RoomPreviewUser } from "@/types"
+import type { Room } from "@/types"
 
 interface Props {
   room: Room
@@ -139,9 +140,6 @@ const showContextMenu = (event: MouseEvent) => {
   emit("show-context-menu", event, props.room)
 }
 
-const userStore = useUserStore()
-const getGlobalUserAudioState = userStore.getGlobalUserAudioState
-
 const userContextMenuRef =
   useTemplateRef<InstanceType<typeof UserContextMenu>>("userContextMenuRef")
 
@@ -149,16 +147,5 @@ const showUserContextMenu = (event: MouseEvent, userId: string) => {
   event.preventDefault()
   event.stopPropagation()
   userContextMenuRef.value?.show(event, userId)
-}
-
-const getUserAudioState = (user: RoomPreviewUser, roomId: string) => {
-  const wsState = getGlobalUserAudioState(user.id, roomId)
-  if (wsState.room_id === roomId) {
-    return wsState
-  }
-  return {
-    is_muted: user.is_muted,
-    is_deafened: user.is_deafened,
-  }
 }
 </script>

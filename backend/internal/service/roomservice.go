@@ -193,6 +193,7 @@ func (rs *RoomService) getRoomPreviewUsers(roomID string) []models.RoomPreviewUs
 					IsDeafened:      member.IsDeafened,
 					IsSpeaking:      member.IsSpeaking,
 					IsScreenSharing: member.IsScreenSharing,
+					IsCameraEnabled: member.IsCameraEnabled,
 					SoundPack:       soundPack,
 				}
 
@@ -337,6 +338,7 @@ func (rs *RoomService) JoinRoom(roomID, userID, nickname string) (*models.User, 
 		IsDeafened:      member.IsDeafened,
 		IsSpeaking:      member.IsSpeaking,
 		IsScreenSharing: member.IsScreenSharing,
+		IsCameraEnabled: member.IsCameraEnabled,
 		SoundPack:       soundPack,
 	}, nil
 }
@@ -377,6 +379,7 @@ func (rs *RoomService) LeaveRoom(roomID, userID string) *models.RoomPreviewUser 
 			leftUser.IsDeafened = member.IsDeafened
 			leftUser.IsSpeaking = member.IsSpeaking
 			leftUser.IsScreenSharing = member.IsScreenSharing
+			leftUser.IsCameraEnabled = member.IsCameraEnabled
 		}
 	}
 
@@ -423,6 +426,7 @@ func (rs *RoomService) KickUser(roomID, userID string) *models.RoomPreviewUser {
 			kickedUser.IsDeafened = member.IsDeafened
 			kickedUser.IsSpeaking = member.IsSpeaking
 			kickedUser.IsScreenSharing = member.IsScreenSharing
+			kickedUser.IsCameraEnabled = member.IsCameraEnabled
 		}
 	}
 
@@ -463,6 +467,7 @@ func (rs *RoomService) GetRoomUsers(roomID string) []models.RoomUser {
 					roomUser.IsMuted = member.IsMuted
 					roomUser.IsDeafened = member.IsDeafened
 					roomUser.IsScreenSharing = member.IsScreenSharing
+					roomUser.IsCameraEnabled = member.IsCameraEnabled
 					roomUser.ScreenShareQuality = member.ScreenShareQuality
 					roomUser.JoinedAt = member.JoinedAt
 					roomUser.Role = member.Role
@@ -524,6 +529,80 @@ func (rs *RoomService) UpdateUserDeafenStatus(roomID, userID string, isDeafened 
 	if user, exists := rs.users[userID]; exists {
 		user.IsDeafened = isDeafened
 		user.LastSeen = time.Now()
+	}
+}
+
+// UpdateUserMediaState replaces the member's full media state snapshot.
+// ok is false when the user is not a member of the room; changed reports
+// whether any field differed from the stored state.
+func (rs *RoomService) UpdateUserMediaState(roomID, userID string, state models.UpdateMediaStateRequest) (changed bool, ok bool) {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+
+	if rs.members[roomID] == nil {
+		return false, false
+	}
+	member, exists := rs.members[roomID][userID]
+	if !exists {
+		return false, false
+	}
+
+	changed = member.IsMuted != state.IsMuted ||
+		member.IsDeafened != state.IsDeafened ||
+		member.IsScreenSharing != state.IsScreenSharing ||
+		member.IsCameraEnabled != state.IsCameraEnabled
+
+	member.IsMuted = state.IsMuted
+	member.IsDeafened = state.IsDeafened
+	member.IsScreenSharing = state.IsScreenSharing
+	member.IsCameraEnabled = state.IsCameraEnabled
+
+	if user, exists := rs.users[userID]; exists {
+		user.IsMuted = state.IsMuted
+		user.IsDeafened = state.IsDeafened
+		user.LastSeen = time.Now()
+	}
+
+	return changed, true
+}
+
+// GetUserMediaState returns the member's current media state snapshot.
+func (rs *RoomService) GetUserMediaState(roomID, userID string) (models.UserMediaState, bool) {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+
+	if rs.members[roomID] == nil {
+		return models.UserMediaState{}, false
+	}
+	member, exists := rs.members[roomID][userID]
+	if !exists {
+		return models.UserMediaState{}, false
+	}
+	return memberMediaState(member), true
+}
+
+// GetAllMediaStates returns the media state of every member in every room.
+func (rs *RoomService) GetAllMediaStates() []models.UserMediaState {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+
+	states := make([]models.UserMediaState, 0)
+	for _, members := range rs.members {
+		for _, member := range members {
+			states = append(states, memberMediaState(member))
+		}
+	}
+	return states
+}
+
+func memberMediaState(member *models.RoomMember) models.UserMediaState {
+	return models.UserMediaState{
+		UserID:          member.UserID,
+		RoomID:          member.RoomID,
+		IsMuted:         member.IsMuted,
+		IsDeafened:      member.IsDeafened,
+		IsScreenSharing: member.IsScreenSharing,
+		IsCameraEnabled: member.IsCameraEnabled,
 	}
 }
 

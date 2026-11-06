@@ -18,7 +18,15 @@ import type {
 import { apiService } from "@/services/api"
 import { buildLogReport } from "@/services/systemInfo"
 import { debugLog, debugError } from "@/utils/debug"
-import type { User, Room, Category, PublicUser, ChatMessage } from "@/types"
+import type {
+  User,
+  Room,
+  Category,
+  PublicUser,
+  ChatMessage,
+  MediaStatesMessage,
+  UserMediaState,
+} from "@/types"
 
 declare const __APP_VERSION__: string
 
@@ -369,52 +377,36 @@ export function useWebSocketHandlers() {
     wsService.onGlobal("online_users", onOnlineUsers)
     onCleanup(() => wsService.offGlobal("online_users", onOnlineUsers))
 
-    const onAudioStates: MessageCallback = (message) => {
-      const data = message.data as {
-        states: Array<{
-          user_id: string
-          room_id: string
-          is_muted: boolean
-          is_deafened: boolean
-        }>
-      }
-      debugLog("[WebSocket] Received audio_states:", data.states.length, "users")
-      data.states.forEach((state) => {
-        userStore.updateGlobalUserAudioState(state.user_id, {
-          room_id: state.room_id,
+    // Backend room members are the single source of truth for the sidebar's
+    // mute/deafen/screen share/camera icons.
+    const applyMediaState = (state: UserMediaState) => {
+      roomStore.updateUserStatus(
+        state.user_id,
+        {
           is_muted: state.is_muted,
           is_deafened: state.is_deafened,
-        })
-      })
-    }
-    wsService.onGlobal("audio_states", onAudioStates)
-    onCleanup(() => wsService.offGlobal("audio_states", onAudioStates))
-
-    const onUserAudioState: MessageCallback = (message) => {
-      const data = message.data as {
-        user_id: string
-        room_id: string
-        is_muted: boolean
-        is_deafened: boolean
-      }
-      debugLog(
-        "[WebSocket] User audio state changed:",
-        data.user_id,
-        "room:",
-        data.room_id,
-        "muted:",
-        data.is_muted,
-        "deafened:",
-        data.is_deafened,
+          is_screen_sharing: state.is_screen_sharing,
+          is_camera_enabled: state.is_camera_enabled,
+        },
+        state.room_id,
       )
-      userStore.updateGlobalUserAudioState(data.user_id, {
-        room_id: data.room_id,
-        is_muted: data.is_muted,
-        is_deafened: data.is_deafened,
-      })
     }
-    wsService.onGlobal("user_audio_state", onUserAudioState)
-    onCleanup(() => wsService.offGlobal("user_audio_state", onUserAudioState))
+
+    const onMediaStates: MessageCallback = (message) => {
+      const data = message.data as MediaStatesMessage
+      debugLog("[WebSocket] Received media_states:", data.states?.length ?? 0, "users")
+      data.states?.forEach(applyMediaState)
+    }
+    wsService.onGlobal("media_states", onMediaStates)
+    onCleanup(() => wsService.offGlobal("media_states", onMediaStates))
+
+    const onUserMediaState: MessageCallback = (message) => {
+      const data = message.data as UserMediaState
+      debugLog("[WebSocket] User media state changed:", data)
+      applyMediaState(data)
+    }
+    wsService.onGlobal("user_media_state", onUserMediaState)
+    onCleanup(() => wsService.offGlobal("user_media_state", onUserMediaState))
 
     const onSoundPackChange: MessageCallback = (message) => {
       const data = message.data as {

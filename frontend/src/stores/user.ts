@@ -30,9 +30,6 @@ export const useUserStore = defineStore("user", () => {
   const nicknameUpdateError = ref<string | null>(null)
   const avatarUpdateStatus = ref<"idle" | "pending" | "success" | "error">("idle")
   const avatarUpdateError = ref<string | null>(null)
-  const globalUserAudioStates = ref<
-    Map<string, { user_id: string; room_id: string; is_muted: boolean; is_deafened: boolean }>
-  >(new Map())
 
   const userId = computed(() => currentUser.value?.id ?? "")
   const nickname = computed(() => currentUser.value?.nickname ?? "User")
@@ -47,18 +44,6 @@ export const useUserStore = defineStore("user", () => {
   const role = computed(() => currentUser.value?.role || "guest")
   const isAdmin = computed(() => role.value === "admin" || role.value === "super_admin")
   const isSuperAdmin = computed(() => role.value === "super_admin")
-
-  const getGlobalUserAudioState = computed(() => (userId: string, roomId: string) => {
-    const key = `${userId}:${roomId}`
-    return (
-      globalUserAudioStates.value.get(key) ?? {
-        user_id: "",
-        room_id: "",
-        is_muted: false,
-        is_deafened: false,
-      }
-    )
-  })
 
   function setUser(user: UserSession, authToken?: string, expiresAt?: string) {
     // Validate user object
@@ -145,27 +130,6 @@ export const useUserStore = defineStore("user", () => {
       currentUser.value.nickname = newNickname
       localStorage.setItem("orbital_user_nickname", newNickname)
     }
-  }
-
-  function updateGlobalUserAudioState(
-    userId: string,
-    status: { room_id?: string; is_muted?: boolean; is_deafened?: boolean },
-  ) {
-    const roomId = status.room_id ?? ""
-    const key = `${userId}:${roomId}`
-    const currentState = globalUserAudioStates.value.get(key) ?? {
-      user_id: userId,
-      room_id: roomId,
-      is_muted: false,
-      is_deafened: false,
-    }
-    const newState = {
-      user_id: userId,
-      room_id: roomId,
-      is_muted: status.is_muted ?? currentState.is_muted,
-      is_deafened: status.is_deafened ?? currentState.is_deafened,
-    }
-    globalUserAudioStates.value.set(key, newState)
   }
 
   async function updateAvatar(file: File): Promise<void> {
@@ -395,13 +359,10 @@ export const useUserStore = defineStore("user", () => {
     nicknameUpdateError,
     avatarUpdateStatus,
     avatarUpdateError,
-    globalUserAudioStates,
-    getGlobalUserAudioState,
     setUser,
     updateNickname,
     updateNicknameLocally,
     updateUserNickname,
-    updateGlobalUserAudioState,
     updateAvatar,
     loadUserFromStorage,
     clearUser,

@@ -104,6 +104,7 @@ type RoomMember struct {
 	IsMuted            bool      `json:"is_muted"`
 	IsDeafened         bool      `json:"is_deafened"`
 	IsScreenSharing    bool      `json:"is_screen_sharing"`
+	IsCameraEnabled    bool      `json:"is_camera_enabled"`
 	ScreenShareQuality string    `json:"screen_share_quality"`
 	LastPingTime       time.Time `json:"-"` // Not exposed to frontend, used for timeout detection
 }
@@ -114,19 +115,24 @@ type WebSocketMessage struct {
 	Data interface{} `json:"data"`
 }
 
-// UserAudioState represents a user's audio state (mute/deafen) for a specific room
-type UserAudioState struct {
-	UserID     string `json:"user_id"`
-	RoomID     string `json:"room_id"`
-	IsMuted    bool   `json:"is_muted"`
-	IsDeafened bool   `json:"is_deafened"`
+// UserMediaState is the full presence snapshot (mute/deafen/screen share/camera)
+// of a user in a room. The room member is the single source of truth for it.
+type UserMediaState struct {
+	UserID          string `json:"user_id"`
+	RoomID          string `json:"room_id"`
+	IsMuted         bool   `json:"is_muted"`
+	IsDeafened      bool   `json:"is_deafened"`
+	IsScreenSharing bool   `json:"is_screen_sharing"`
+	IsCameraEnabled bool   `json:"is_camera_enabled"`
 }
 
-// UpdateAudioStateRequest represents a request to update audio state
-type UpdateAudioStateRequest struct {
-	RoomID     string `json:"room_id"`
-	IsMuted    bool   `json:"is_muted"`
-	IsDeafened bool   `json:"is_deafened"`
+// UpdateMediaStateRequest is a full media state snapshot sent by a client
+type UpdateMediaStateRequest struct {
+	RoomID          string `json:"room_id"`
+	IsMuted         bool   `json:"is_muted"`
+	IsDeafened      bool   `json:"is_deafened"`
+	IsScreenSharing bool   `json:"is_screen_sharing"`
+	IsCameraEnabled bool   `json:"is_camera_enabled"`
 }
 
 // CreateRoomRequest represents a request to create a room
@@ -153,6 +159,9 @@ type JoinRoomRequest struct {
 	UserID     string `json:"user_id"`
 	Nickname   string `json:"nickname"`
 	DeviceInfo string `json:"device_info,omitempty"`
+	// MediaState is the client's current mute/deafen/screen/camera state at join
+	// time, so the member never starts with stale defaults. Optional for older clients.
+	MediaState *UpdateMediaStateRequest `json:"media_state,omitempty"`
 }
 
 // ICECandidate represents WebRTC ICE candidate
@@ -170,6 +179,7 @@ type RoomUser struct {
 	IsMuted            bool      `json:"is_muted"`
 	IsDeafened         bool      `json:"is_deafened"`
 	IsScreenSharing    bool      `json:"is_screen_sharing"`
+	IsCameraEnabled    bool      `json:"is_camera_enabled"`
 	ScreenShareQuality string    `json:"screen_share_quality,omitempty"`
 	SoundPack          string    `json:"sound_pack,omitempty"`
 	CreatedAt          time.Time `json:"created_at"`
@@ -210,6 +220,7 @@ type RoomPreviewUser struct {
 	IsDeafened      bool   `json:"is_deafened"`
 	IsSpeaking      bool   `json:"is_speaking"`
 	IsScreenSharing bool   `json:"is_screen_sharing"`
+	IsCameraEnabled bool   `json:"is_camera_enabled"`
 	SoundPack       string `json:"sound_pack,omitempty"`
 }
 
