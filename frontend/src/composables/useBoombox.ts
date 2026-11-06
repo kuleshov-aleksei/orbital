@@ -129,14 +129,15 @@ export function useBoombox(options: {
 
   const cleanupPlayback = async () => {
     const participant = options.localParticipant.value
-    if (participant && localTrackPublication) {
+    const publishedTrack = localTrackPublication?.track
+    if (participant && publishedTrack) {
       try {
-        await participant.unpublishTrack(localTrackPublication.track)
+        await participant.unpublishTrack(publishedTrack)
       } catch (e) {
         console.warn("[Boombox] Failed to unpublish track:", e)
       }
-      localTrackPublication = null
     }
+    localTrackPublication = null
 
     if (audioElement) {
       audioElement.pause()

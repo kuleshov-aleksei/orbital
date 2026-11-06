@@ -81,7 +81,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, useTemplateRef, nextTick } from "vue"
-import { Container, Sprite, Assets, SCALE_MODES } from "pixi.js"
+import { Container, Sprite, Assets } from "pixi.js"
 import { RoomEvent, ParticipantEvent } from "livekit-client"
 import type { RemoteParticipant } from "livekit-client"
 import AudioControls from "@/components/AudioControls.vue"
@@ -194,7 +194,6 @@ const {
   users: props.users,
   remoteStreamVolumes: props.remoteStreamVolumes,
   onVolumeChange: () => {},
-  onPingUpdate: () => {},
 })
 
 const spatialPosition = useSpatialPosition({
@@ -311,6 +310,9 @@ let collisionSystem: CollisionSystem | null = null
 let showCollisionDebug = false
 let collisionDebugOverlay: Container | null = null
 let onKeyDown: ((e: KeyboardEvent) => void) | null = null
+const onLocalSpeakingChanged = (speaking: boolean) => {
+  localCharacterDisplay?.setSpeaking(speaking)
+}
 let tilemapRenderer: TilemapRenderer | null = null
 const worldObjectDisplays: WorldObjectDisplay[] = []
 
@@ -420,7 +422,7 @@ async function setupWorld() {
   try {
     const texture = await Assets.load(assetPath("/assets/world/boombox.png"))
     const sprite = new Sprite(texture)
-    texture.baseTexture.scaleMode = SCALE_MODES.NEAREST
+    texture.source.scaleMode = "nearest"
     sprite.anchor.set(0.5, 0.5)
     sprite.scale.set(2.0)
     container.addChild(sprite)
@@ -671,7 +673,7 @@ function handleParticipantConnected(participant: RemoteParticipant) {
       if ("is_muted" in changedAttributes) {
         remoteCharacterDisplays.get(identity)?.setMuted(changedAttributes.is_muted === "true")
       }
-      handleBoomboxAttributesChanged(changedAttributes, identity)
+      handleBoomboxAttributesChanged(changedAttributes)
     })
     remoteCharacterDisplays.get(identity)?.setMuted(participant.attributes.is_muted === "true")
   })
@@ -730,9 +732,7 @@ onMounted(async () => {
 
   const lp = localParticipant.value
   if (lp) {
-    lp.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
-      localCharacterDisplay?.setSpeaking(speaking)
-    })
+    lp.on(ParticipantEvent.IsSpeakingChanged, onLocalSpeakingChanged)
     localCharacterDisplay?.setSpeaking(lp.isSpeaking)
   }
 
@@ -777,7 +777,7 @@ onUnmounted(async () => {
 
   const lp = localParticipant.value
   if (lp) {
-    lp.off(ParticipantEvent.IsSpeakingChanged)
+    lp.off(ParticipantEvent.IsSpeakingChanged, onLocalSpeakingChanged)
   }
 
   stopListening()

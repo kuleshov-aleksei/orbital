@@ -112,28 +112,7 @@ import {
 import UserAvatar from "./UserAvatar.vue"
 import UserContextMenu from "./UserContextMenu.vue"
 import { useUserStore } from "@/stores"
-
-// Use snake_case to match backend API and global types
-interface RoomPreviewUser {
-  id: string
-  nickname: string
-  role: string
-  is_muted: boolean
-  is_deafened: boolean
-  is_speaking: boolean
-  is_screen_sharing?: boolean
-}
-
-interface Room {
-  id: string
-  name: string
-  user_count: number
-  max_users: number
-  type: "voice" | "spatial_audio"
-  category: string
-  sort_order: number
-  users?: RoomPreviewUser[]
-}
+import type { Room, RoomPreviewUser } from "@/types"
 
 interface Props {
   room: Room

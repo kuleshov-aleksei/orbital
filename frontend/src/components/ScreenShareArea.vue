@@ -218,13 +218,7 @@ interface ParticipantData {
   isCameraEnabled?: boolean
   screenShareQuality?: ScreenShareQuality
   isCurrentUser?: boolean
-  stats?: {
-    ping: number
-    jitter: number
-    packetLoss: number
-    bitrate: number
-    kind?: string
-  }
+  stats?: ConnectionStats
 }
 
 interface CameraStreamData {

@@ -1,12 +1,12 @@
 import { ref, onUnmounted, type Ref } from "vue"
+import type { Room, RemoteAudioTrack, RemoteVideoTrack } from "livekit-client"
 import type {
-  Room,
-  LocalTrackPublication,
-  RemoteAudioTrack,
-  RemoteVideoTrack,
-  RTCInboundRtpStreamStats,
-} from "livekit-client"
-import type { PerPairObservation, ClientStatsBatch, ConnectionStats, TrackStats } from "@/types"
+  PerPairObservation,
+  ClientStatsBatch,
+  ConnectionStats,
+  TrackStats,
+  WebSocketMessage,
+} from "@/types"
 import { wsService } from "@/services/websocket"
 import { gzipSync } from "fflate"
 
@@ -16,8 +16,6 @@ const MAX_OBSERVATIONS_PER_USER = 30
 
 export interface StatsCollectorOptions {
   room: Ref<Room | null>
-  localAudioPublication: Ref<LocalTrackPublication | null>
-  localCameraPublication: Ref<LocalTrackPublication | null>
   remoteAudioTracks: Ref<Map<string, RemoteAudioTrack>>
   remoteCameraTracks: Ref<Map<string, RemoteVideoTrack>>
   remoteScreenTracks: Ref<Map<string, { video?: RemoteVideoTrack; audio?: RemoteAudioTrack }>>
@@ -498,14 +496,16 @@ export function useStatsCollector(options: StatsCollectorOptions) {
   }
 
   // Self-register WebSocket handlers for admin control
-  const handleEnableStats = (message: { data: { room_id: string; interval_ms?: number } }) => {
-    if (message.data.room_id === options.roomId) {
-      startBatchReporting(message.data.room_id, message.data.interval_ms || 15000)
+  const handleEnableStats = (message: WebSocketMessage) => {
+    const data = message.data as { room_id: string; interval_ms?: number }
+    if (data.room_id === options.roomId) {
+      startBatchReporting(data.room_id, data.interval_ms || 15000)
     }
   }
 
-  const handleDisableStats = (message: { data: { room_id: string } }) => {
-    if (message.data.room_id === options.roomId) {
+  const handleDisableStats = (message: WebSocketMessage) => {
+    const data = message.data as { room_id: string }
+    if (data.room_id === options.roomId) {
       stopBatchReporting()
     }
   }
@@ -514,6 +514,8 @@ export function useStatsCollector(options: StatsCollectorOptions) {
   wsService.on("disable_stats_collection", handleDisableStats)
 
   onUnmounted(() => {
+    wsService.off("enable_stats_collection", handleEnableStats)
+    wsService.off("disable_stats_collection", handleDisableStats)
     stopCollecting()
     stopPingInterval()
     stopBatchReporting()

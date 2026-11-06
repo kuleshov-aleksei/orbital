@@ -17,8 +17,6 @@ export function createWorldObjectSprite(
   container.y = config.y
   container.zIndex = config.y
 
-  let updateAnim: ((dt: number) => void) | null = null
-
   if (config.animated && config.frames && config.frames.length > 1) {
     const textures: Texture[] = []
     for (const frameId of config.frames) {
@@ -29,12 +27,9 @@ export function createWorldObjectSprite(
       const animSprite = new AnimatedSprite(textures)
       animSprite.anchor.set(0.5, 1)
       animSprite.animationSpeed = 1000 / (config.frameDuration || 300) / 60
+      // autoUpdate (default) advances the animation on pixi's shared ticker
       animSprite.play()
       container.addChild(animSprite)
-
-      updateAnim = () => {
-        animSprite.update(1 / 60)
-      }
     }
   } else {
     const tex = getTexture(config.sourceId, config.tileId)
@@ -49,9 +44,6 @@ export function createWorldObjectSprite(
   let time = 0
 
   const update = (dt: number) => {
-    if (updateAnim) {
-      updateAnim(dt)
-    }
     time += dt
     const sway = 1 + Math.sin(time / 600 + swayPhase) * 0.015
     container.scale.x = sway

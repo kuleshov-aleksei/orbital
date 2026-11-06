@@ -1,4 +1,4 @@
-import { Assets, Container, Sprite, Texture } from "pixi.js"
+import { Assets, Container, Rectangle, Sprite, Texture } from "pixi.js"
 import type { WorldData, TileDef, ProgressCallback } from "./WorldTypes"
 import { getTilesetUrl } from "./WorldData"
 
@@ -27,7 +27,6 @@ export interface TilemapRenderer {
 function getTileTextures(
   tileDef: TileDef,
   tilesetTexture: Texture,
-  tileSize: number,
   tileColumns: number,
   cellSize: number,
 ): Texture[] {
@@ -36,16 +35,10 @@ function getTileTextures(
   for (const frameId of frames) {
     const col = frameId % tileColumns
     const row = Math.floor(frameId / tileColumns)
-    const rect = {
-      x: col * cellSize,
-      y: row * cellSize,
-      width: cellSize,
-      height: cellSize,
-    }
     textures.push(
       new Texture({
-        source: tilesetTexture.baseTexture,
-        frame: rect,
+        source: tilesetTexture.source,
+        frame: new Rectangle(col * cellSize, row * cellSize, cellSize, cellSize),
       }),
     )
   }
@@ -165,19 +158,13 @@ async function loadTilesets(
         console.warn(`[TilemapRenderer] Failed to load tileset: ${url}`, e)
         return null
       }
-      const cellSize = tilesetTexture.baseTexture.width / source.tileColumns
-      tilesetTexture.baseTexture.scaleMode = cellSize === tileSize ? "nearest" : "linear"
+      const cellSize = tilesetTexture.source.width / source.tileColumns
+      tilesetTexture.source.scaleMode = cellSize === tileSize ? "nearest" : "linear"
 
       const prefix = `${source.id}:`
       let loadedCount = 0
       for (const tileDef of source.tiles) {
-        const textures = getTileTextures(
-          tileDef,
-          tilesetTexture,
-          tileSize,
-          source.tileColumns,
-          cellSize,
-        )
+        const textures = getTileTextures(tileDef, tilesetTexture, source.tileColumns, cellSize)
         tileTextures.set(prefix + tileDef.id, textures)
         tileDefMap.set(prefix + tileDef.id, tileDef)
         loadedCount++

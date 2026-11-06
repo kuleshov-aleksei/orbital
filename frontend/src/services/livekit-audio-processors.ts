@@ -44,11 +44,19 @@ export function createLiveKitNativeProcessor(): LiveKitNativeProcessor {
  * Get the appropriate audio constraints for publishing to LiveKit
  *
  * @param algorithm - The selected noise suppression algorithm
- * @returns MediaTrackConstraints to use when creating the audio track
+ * @returns Boolean capture flags to use when creating the audio track
  */
+// Narrower than MediaTrackConstraints: newer DOM typings allow strings for
+// echoCancellation, but LiveKit's AudioCaptureOptions only accepts booleans
+export interface LiveKitAudioConstraints {
+  noiseSuppression?: boolean
+  echoCancellation: boolean
+  autoGainControl: boolean
+}
+
 export function getLiveKitAudioConstraints(
   algorithm: NoiseSuppressionAlgorithm,
-): MediaTrackConstraints {
+): LiveKitAudioConstraints {
   switch (algorithm) {
     case "livekit-native":
       // Use LiveKit's built-in noise suppression

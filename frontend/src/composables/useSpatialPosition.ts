@@ -1,5 +1,5 @@
 import { ref, onUnmounted, type Ref } from "vue"
-import { DataPacket_Kind, RoomEvent } from "livekit-client"
+import { RoomEvent } from "livekit-client"
 import type { RemoteParticipant, Room, LocalParticipant } from "livekit-client"
 
 export interface Vector2 {
@@ -66,7 +66,7 @@ export function useSpatialPosition(options: {
           channelId: "position",
         }),
       )
-      await options.localParticipant.value?.publishData(payload, DataPacket_Kind.LOSSY)
+      await options.localParticipant.value?.publishData(payload, { reliable: false })
     } catch {
       // Ignore send errors
     }
@@ -103,7 +103,7 @@ export function useSpatialPosition(options: {
       const payload = _textEncoder.encode(
         JSON.stringify({ payload: { key }, channelId: "character" }),
       )
-      await options.localParticipant.value?.publishData(payload, DataPacket_Kind.LOSSY)
+      await options.localParticipant.value?.publishData(payload, { reliable: false })
     } catch {
       // Ignore send errors
     }
