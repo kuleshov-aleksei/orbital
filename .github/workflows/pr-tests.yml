@@ -1,0 +1,80 @@
+name: PR Tests
+
+# Fast, hermetic unit tests for pull requests. Runs on GitHub-hosted runners
+# and needs no secrets, LiveKit server, database, or any other local
+# infrastructure. Playwright e2e tests are intentionally excluded — use
+# `make test` (Docker) or `make test-headed` for those.
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      # internal/service/avatarservice.go uses github.com/h2non/bimg, which is
+      # cgo and needs libvips headers (same requirement as Dockerfile.backend).
+      - name: Install libvips
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libvips-dev pkg-config
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Run unit tests
+        env:
+          CGO_ENABLED: "1"
+        run: go test -count=1 ./...
+
+  frontend:
+    name: Frontend unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      # Keep in sync with the pnpm pin in docker/Dockerfile.*. Deliberately not
+      # a packageManager field: pnpm 12 then records package-manager
+      # dependencies in pnpm-lock.yaml, which would need a regenerated lockfile
+      # for `pnpm install --frozen-lockfile` to keep working.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 12.16.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run unit tests
+        run: pnpm run test:unit

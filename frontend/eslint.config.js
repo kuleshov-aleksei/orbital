@@ -6,7 +6,16 @@ import typescriptEslint from "typescript-eslint"
 import eslintPluginPrettier from "eslint-plugin-prettier"
 
 export default [
-  { ignores: ["*.d.ts", "**/coverage", "**/dist", "tests/**", "playwright.config*.ts"] },
+  {
+    ignores: [
+      "*.d.ts",
+      "**/coverage",
+      "**/dist",
+      "tests/**",
+      "playwright.config*.ts",
+      "vite.config*.ts",
+    ],
+  },
   eslint.configs.recommended,
   ...typescriptEslint.configs.recommended,
   ...eslintPluginVue.configs["flat/recommended"],

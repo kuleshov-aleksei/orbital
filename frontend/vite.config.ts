@@ -1,4 +1,4 @@
-import { defineConfig } from "vite"
+import { defineConfig } from "vitest/config"
 import vue from "@vitejs/plugin-vue"
 import Icons from "unplugin-icons/vite"
 import compression from "vite-plugin-compression"
@@ -38,6 +38,12 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: ["vue-demi"],
+  },
+  // Unit tests only. Playwright specs in tests/e2e are intentionally excluded —
+  // they need a running backend + LiveKit and are run via `make test`.
+  test: {
+    include: ["src/**/*.{test,spec}.{ts,tsx,js,jsx}"],
+    environment: "node",
   },
   build: {
     rollupOptions: {
