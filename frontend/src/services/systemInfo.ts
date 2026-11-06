@@ -9,12 +9,15 @@ interface BrowserInfo {
 
 function detectBrowser(): BrowserInfo {
   const ua = navigator.userAgent
+  // Order matters: Edge/Opera/Chrome share the "Chrome/" token, so the more
+  // specific Chromium-derived UAs must be matched first (they are otherwise
+  // reported as Chrome). The same applies to the iOS builds of Firefox/Chrome.
   const patterns: Array<[string, RegExp]> = [
-    ["Chrome", /Chrome\/([\d.]+)/],
-    ["Edge", /Edg\/([\d.]+)/],
-    ["Firefox", /Firefox\/([\d.]+)/],
+    ["Edge", /Edg(?:e|A|iOS)?\/([\d.]+)/],
+    ["Opera", /(?:OPR|OPiOS|Opera Mini)\/([\d.]+)/],
+    ["Firefox", /(?:Firefox|FxiOS)\/([\d.]+)/],
+    ["Chrome", /(?:Chrome|CriOS)\/([\d.]+)/],
     ["Safari", /Version\/([\d.]+) Safari/],
-    ["Opera", /OPR\/([\d.]+)/],
   ]
   for (const [name, pattern] of patterns) {
     const match = ua.match(pattern)

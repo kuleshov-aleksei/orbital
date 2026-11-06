@@ -44,6 +44,9 @@ export default defineConfig({
   test: {
     include: ["src/**/*.{test,spec}.{ts,tsx,js,jsx}"],
     environment: "node",
+    setupFiles: ["src/test-setup.ts"],
+    clearMocks: true,
+    restoreMocks: true,
   },
   build: {
     rollupOptions: {

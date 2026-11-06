@@ -72,6 +72,7 @@ export interface User {
 export type WebSocketMessageType =
   | "join_room"
   | "leave_room"
+  | "send_message"
   | "ice_candidate"
   | "sdp_offer"
   | "sdp_answer"
@@ -90,6 +91,8 @@ export type WebSocketMessageType =
   | "enable_stats_collection"
   | "disable_stats_collection"
   | "client_stats"
+  | "client_stats_batch"
+  | "request_stats_state"
   | "room_stats"
   | "request_logs"
   | "halloween_pumpkin_state"

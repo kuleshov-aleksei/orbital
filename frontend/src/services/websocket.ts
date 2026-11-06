@@ -7,6 +7,10 @@ export type MessageCallback = (message: WebSocketMessage) => void
 export type ConnectionCallback = () => void
 export type DisconnectionCallback = (event: CloseEvent) => void
 
+// Upper bound on buffered outbound messages — a long outage must not grow
+// memory without limit. Oldest messages are dropped first.
+const MAX_QUEUED_MESSAGES = 100
+
 export class WebSocketService {
   private ws: WebSocket | null = null
   private globalWs: WebSocket | null = null
@@ -28,6 +32,10 @@ export class WebSocketService {
   // Set while closing the global socket on purpose so onclose does not kick off
   // a reconnect loop (e.g. on session expiry / logout).
   private globalManualClose = false
+  // Messages written while the socket is (re)connecting are buffered instead of
+  // dropped. Pings are never buffered — a keepalive sent late is meaningless.
+  private roomQueue: WebSocketMessage[] = []
+  private globalQueue: WebSocketMessage[] = []
 
   constructor() {
     this.setupEventHandlers()
@@ -35,6 +43,10 @@ export class WebSocketService {
 
   // Connect to WebSocket for a room
   async connect(roomId: string, userId: string, deviceInfo?: string): Promise<void> {
+    // Anything queued for a different room must not leak into this session.
+    if (this.roomId && this.roomId !== roomId) {
+      this.roomQueue = []
+    }
     this.roomId = roomId
     this.userId = userId
 
@@ -57,6 +69,9 @@ export class WebSocketService {
               localStorage.getItem("orbital_user_nickname") || `User_${this.userId.substr(0, 8)}`,
             ...(deviceInfo ? { device_info: deviceInfo } : {}),
           })
+
+          // join_room stays first; buffered messages follow in order.
+          this.flushQueue(this.ws, this.roomQueue, "WebSocket")
 
           this.notifyConnectionCallbacks()
           resolve()
@@ -110,6 +125,7 @@ export class WebSocketService {
           console.log("Global WebSocket connected:", event)
           this.globalConnectionPromise = null
           this.globalReconnectAttempts = 0
+          this.flushQueue(this.globalWs, this.globalQueue, "global WebSocket")
           this.notifyGlobalConnectionCallbacks()
           resolve()
         }
@@ -145,6 +161,8 @@ export class WebSocketService {
 
   // Disconnect from WebSocket
   disconnect(): void {
+    // Leaving the room drops anything that was waiting for the connection.
+    this.roomQueue = []
     if (this.ws) {
       this.reconnectAttempts = this.maxReconnectAttempts // Prevent reconnection
       this.ws.close()
@@ -154,6 +172,7 @@ export class WebSocketService {
 
   // Disconnect from global WebSocket
   async disconnectGlobal(): Promise<void> {
+    this.globalQueue = []
     // If connection is in progress, wait for it to complete or fail
     if (this.globalConnectionPromise) {
       try {
@@ -193,35 +212,63 @@ export class WebSocketService {
 
   // Send message to WebSocket
   sendMessage(type: WebSocketMessage["type"], data: unknown): void {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      const message: WebSocketMessage = { type, data }
-      this.ws.send(JSON.stringify(message))
+    const message: WebSocketMessage = { type, data }
 
-      if (message.type !== "ping") {
-        console.log("Sent WebSocket message:", message)
-      }
-    } else {
-      console.warn("WebSocket not connected, cannot send message:", {
-        type,
-        data,
-      })
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.writeToSocket(this.ws, message, "WebSocket")
+      return
     }
+
+    if (type === "ping") {
+      console.warn("WebSocket not connected, skipping ping")
+      return
+    }
+
+    this.roomQueue.push(message)
+    if (this.roomQueue.length > MAX_QUEUED_MESSAGES) {
+      this.roomQueue.shift()
+    }
+    console.warn("WebSocket not connected, queued message:", type)
   }
 
   // Send message to global WebSocket
   sendGlobalMessage(type: WebSocketMessage["type"], data: unknown): void {
-    if (this.globalWs && this.globalWs.readyState === WebSocket.OPEN) {
-      const message: WebSocketMessage = { type, data }
-      this.globalWs.send(JSON.stringify(message))
+    const message: WebSocketMessage = { type, data }
 
-      if (message.type !== "ping") {
-        console.log("Sent global WebSocket message:", message)
+    if (this.globalWs && this.globalWs.readyState === WebSocket.OPEN) {
+      this.writeToSocket(this.globalWs, message, "global WebSocket")
+      return
+    }
+
+    if (type === "ping") {
+      console.warn("Global WebSocket not connected, skipping ping")
+      return
+    }
+
+    this.globalQueue.push(message)
+    if (this.globalQueue.length > MAX_QUEUED_MESSAGES) {
+      this.globalQueue.shift()
+    }
+    console.warn("Global WebSocket not connected, queued message:", type)
+  }
+
+  private writeToSocket(socket: WebSocket, message: WebSocketMessage, label: string): void {
+    socket.send(JSON.stringify(message))
+
+    if (message.type !== "ping") {
+      console.log(`Sent ${label} message:`, message)
+    }
+  }
+
+  // Flush buffered messages once the socket is open, preserving send order.
+  private flushQueue(socket: WebSocket | null, queue: WebSocketMessage[], label: string): void {
+    if (!socket || socket.readyState !== WebSocket.OPEN) return
+
+    while (queue.length > 0) {
+      const message = queue.shift()
+      if (message) {
+        this.writeToSocket(socket, message, label)
       }
-    } else {
-      console.warn("Global WebSocket not connected, cannot send message:", {
-        type,
-        data,
-      })
     }
   }
 
