@@ -30,8 +30,14 @@ COPY frontend/package.json ./
 COPY frontend/pnpm-*.yaml ./
 RUN pnpm install --frozen-lockfile
 
-# Frontend source (cached until source files change)
+# Frontend source (cached until source files change).
+# tools/halloween-balance is imported by the dev-only balance visualizer,
+# which vue-tsc checks too
+COPY tools/halloween-balance/ /app/tools/halloween-balance/
 COPY frontend/ .
+
+# Release quality gate: fail the build on type errors
+RUN pnpm run typecheck
 
 WORKDIR /app/electron
 

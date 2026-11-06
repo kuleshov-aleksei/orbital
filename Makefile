@@ -1,4 +1,4 @@
-.PHONY: help install build dev dev-public dev-electron lint lint-full prettier test test-unit test-backend test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all balance-drift balance-check
+.PHONY: help install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-backend test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all balance-drift balance-check
 
 # Default target
 help:
@@ -9,6 +9,7 @@ help:
 	@echo "  dev-public        - Run development servers on all interfaces (0.0.0.0)"
 	@echo "  dev-electron      - Run Electron in development mode (starts backend + LiveKit)"
 	@echo "  lint              - Run linters for frontend and backend"
+	@echo "  check             - Release quality gate: frontend typecheck + full backend lint"
 	@echo "  test              - Run tests (Playwright e2e in Docker)"
 	@echo "  test-unit         - Run frontend unit tests (Vitest)"
 	@echo "  test-backend      - Run backend Go tests"
@@ -129,6 +130,13 @@ dev-public: certs
 lint:
 	@echo "Running frontend linter..."
 	cd frontend && pnpm run lint
+	@echo "Running backend linter..."
+	cd backend && golangci-lint run
+
+# Release quality gate (same checks the release Dockerfiles run)
+check:
+	@echo "Running frontend typecheck..."
+	cd frontend && pnpm run typecheck
 	@echo "Running backend linter..."
 	cd backend && golangci-lint run
 

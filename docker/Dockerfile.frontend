@@ -6,12 +6,17 @@ ARG APP_URL=http://localhost:8000
 ENV VITE_APP_VERSION=${VERSION}
 ENV VITE_APP_URL=${APP_URL}
 
-WORKDIR /app
+# Mirror the repo layout (/app/frontend + /app/tools): the dev-only balance
+# visualizer imports from tools/halloween-balance, and vue-tsc checks it too
+WORKDIR /app/frontend
 COPY frontend/package.json ./
 COPY frontend/pnpm-*.yaml ./
 RUN npm install -g pnpm@12.16.1 && pnpm install --frozen-lockfile
 
+COPY tools/halloween-balance/ /app/tools/halloween-balance/
 COPY frontend/ .
+# Release quality gate: fail the image build on type errors
+RUN pnpm run typecheck
 RUN pnpm run generate:licenses
 RUN pnpm run build
 
@@ -19,7 +24,7 @@ FROM alpine:3.24
 
 RUN apk add --no-cache nginx nginx-mod-http-brotli
 
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /app/frontend/dist /usr/share/nginx/html
 COPY docker/nginx.conf /etc/nginx/nginx.conf
 
 EXPOSE 8000
