@@ -48,7 +48,7 @@
     "vue-virtual-scroller": "^3.0.5"
   },
   "optionalDependencies": {
-    "@vencord/venmic": "^7.2.3",
+    "@vencord/venmic": "^7.2.5",
     "dbus-native": "^0.16.3"
   },
   "devDependencies": {
