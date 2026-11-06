@@ -15,14 +15,14 @@ COPY frontend/ .
 RUN pnpm run generate:licenses
 RUN pnpm run build
 
-# Use stable alpine (nginx 1.26) which matches Alpine repos brotli module
-FROM docker.io/nginx:1.28.2-alpine
+FROM alpine:3.24
 
-# Install brotli module from Alpine v3.19 main
-RUN apk add --no-cache nginx-mod-http-brotli
+RUN apk add --no-cache nginx nginx-mod-http-brotli
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY docker/nginx.conf /etc/nginx/nginx.conf
 
 EXPOSE 8000
+# Let nginx drain in-flight requests on `docker stop`.
+STOPSIGNAL SIGQUIT
 CMD ["nginx", "-g", "daemon off;"]
