@@ -758,7 +758,10 @@ onUnmounted(async () => {
     animationFrameId = null
   }
 
-  document.removeEventListener("keydown", onKeyDown)
+  if (onKeyDown) {
+    document.removeEventListener("keydown", onKeyDown)
+    onKeyDown = null
+  }
 
   if (collisionDebugOverlay) {
     worldRenderer.removeCollisionDebug(collisionDebugOverlay)

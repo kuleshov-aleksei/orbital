@@ -1,3 +1,5 @@
+import type { KillSource, SlugType } from "./game/types"
+
 // Halloween feature types — mirror the Go backend snake_case payloads
 // (see backend/internal/models/halloween.go and halloweenservice.go).
 
@@ -106,9 +108,9 @@ export interface EquippedCustomization {
 
 // HalloweenSlugKill describes one slug killed during a game.
 export interface HalloweenSlugKill {
-  type: "scout" | "marvin" | "gerald" | "dell"
+  type: SlugType
   x: number
-  source: "pumpkin" | "annihilation" | "holy_grenade" | "beer" | "salt_line"
+  source: KillSource
 }
 
 // HalloweenGameReport is the payload submitted after a game.

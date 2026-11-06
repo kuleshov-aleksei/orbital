@@ -47,7 +47,7 @@ const HalloweenBotUserID = "decider"
 type HalloweenSlugKill struct {
 	Type   string  `json:"type"`   // scout | marvin | gerald | dell
 	X      float64 `json:"x"`      // battlefield position, 0-1000
-	Source string  `json:"source"` // pumpkin | annihilation | holy_grenade | beer | salt_line
+	Source string  `json:"source"` // pumpkin | annihilation | holy_grenade | beer | salt_line | thorn_patch
 }
 
 // HalloweenGameReport is the payload the client submits after a game.

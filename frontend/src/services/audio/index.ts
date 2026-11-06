@@ -12,12 +12,12 @@ import { createSpeexProcessor } from "./SpeexProcessor"
  * Simplified: Only LiveKit native, browser native, and off options
  */
 
-const processorRegistry: Map<NoiseSuppressionAlgorithm, () => AudioProcessor> = new Map([
+// WASM algorithms (rnnoise, speex) are not constraint providers: they run as LiveKit
+// TrackProcessors via getTrackProcessor() and use the default constraints
+const processorRegistry = new Map<NoiseSuppressionAlgorithm, () => AudioProcessor>([
   ["browser-native", () => new BrowserNativeProcessor()],
   ["off", () => createNoNoiseSuppressionProcessor()],
   ["livekit-native", () => createLiveKitNativeProcessor()],
-  ["rnnoise", () => createRNNoiseProcessor()],
-  ["speex", () => createSpeexProcessor()],
 ])
 
 /**

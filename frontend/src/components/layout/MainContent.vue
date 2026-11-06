@@ -36,7 +36,7 @@
       :is-mobile="appStore.isMobile"
       :world-id="roomStore.activeRoom?.world || 'default'"
       @leave-room="$emit('leave-room')"
-      @show-room-list="appStore.showRoomsList()"
+      @show-room-list="appStore.showRoomsView()"
       @toggle-user-sidebar="appStore.toggleMobileUserSidebar()" />
   </main>
 </template>
