@@ -128,7 +128,7 @@ const configStore = useConfigStore()
 const roomName = ref("")
 const maxUsers = ref(10)
 const roomType = ref("voice")
-const roomWorld = ref(AVAILABLE_WORLDS[0] || "default")
+const roomWorld = ref(AVAILABLE_WORLDS[0]?.id ?? "default")
 
 const availableWorlds = computed(() => AVAILABLE_WORLDS)
 
@@ -136,7 +136,7 @@ onMounted(() => {
   roomName.value = props.initialName ?? ""
   maxUsers.value = props.initialMaxUsers ?? configStore.defaultMaxUsers
   roomType.value = props.initialType ?? "voice"
-  roomWorld.value = props.initialWorld ?? (AVAILABLE_WORLDS[0] || "default")
+  roomWorld.value = props.initialWorld ?? AVAILABLE_WORLDS[0]?.id ?? "default"
 })
 
 // Character count

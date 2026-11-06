@@ -64,7 +64,7 @@ function snapRound(engine: HalloweenGameEngine): number {
 }
 
 /** Read input mode through a function boundary (widens literal narrowing). */
-function currentMode(engine: HalloweenGameEngine): GameInputMode {
+export function currentMode(engine: HalloweenGameEngine): GameInputMode {
   return engine.mode
 }
 

@@ -1,5 +1,5 @@
 import { ref, onUnmounted } from "vue"
-import type { RoomStatsMessage, ClientStatsBatch, StatsStatus } from "@/types"
+import type { ClientStatsBatch, StatsStatus } from "@/types"
 import { apiService } from "@/services/api"
 
 export function useAdminStats() {

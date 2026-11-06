@@ -6,7 +6,15 @@
 
 <script setup lang="ts">
 import { onMounted, watch, onUnmounted, useTemplateRef } from "vue"
-import { Chart, CategoryScale, LinearScale, BarController, BarElement, Tooltip } from "chart.js"
+import {
+  Chart,
+  CategoryScale,
+  LinearScale,
+  BarController,
+  BarElement,
+  Tooltip,
+  type TooltipItem,
+} from "chart.js"
 
 const props = defineProps<{
   data: {
@@ -87,9 +95,10 @@ const renderChart = () => {
           borderColor: "#374151",
           borderWidth: 1,
           callbacks: {
-            label: (ctx: { parsed: { y: number } }) => {
-              if (props.formatValue) return props.formatValue(ctx.parsed.y)
-              return ctx.parsed.y.toFixed(1)
+            label: (ctx: TooltipItem<"bar">) => {
+              const y = ctx.parsed.y ?? 0
+              if (props.formatValue) return props.formatValue(y)
+              return y.toFixed(1)
             },
           },
         },

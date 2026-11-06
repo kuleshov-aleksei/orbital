@@ -15,6 +15,7 @@ import {
   LineController,
   Filler,
   Tooltip,
+  type TooltipItem,
 } from "chart.js"
 
 const props = defineProps<{
@@ -106,9 +107,10 @@ const renderChart = () => {
           borderColor: "#374151",
           borderWidth: 1,
           callbacks: {
-            label: (ctx: { parsed: { y: number } }) => {
-              if (props.formatValue) return props.formatValue(ctx.parsed.y)
-              return ctx.parsed.y.toFixed(2) + (props.valueSuffix || "")
+            label: (ctx: TooltipItem<"line">) => {
+              const y = ctx.parsed.y ?? 0
+              if (props.formatValue) return props.formatValue(y)
+              return y.toFixed(2) + (props.valueSuffix || "")
             },
           },
         },

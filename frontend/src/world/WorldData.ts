@@ -21,7 +21,10 @@ const DEFAULT_WORLD_DATA: WorldData = {
   props: [{ id: "boombox", x: 0, y: -200 }],
 }
 
-function convertV1ToV2(data: Record<string, unknown>): WorldData {
+type RawRecord = Record<string, unknown>
+
+function convertV1ToV2(data: RawRecord): WorldData {
+  const tileSize = (data.tileSize as number) || 32
   const sources: WorldSource[] = []
   if (data.tileset || (data.tiles as unknown[] | undefined)?.length) {
     sources.push({
@@ -29,7 +32,7 @@ function convertV1ToV2(data: Record<string, unknown>): WorldData {
       tileset: (data.tileset as string) || "",
       tileColumns: (data.tileColumns as number) || 1,
       tiles:
-        (data.tiles as unknown[])?.map((t: Record<string, unknown>) => ({
+        (data.tiles as RawRecord[] | undefined)?.map((t) => ({
           id: t.id as number,
           collidable: (t.collidable as boolean) ?? false,
           animated: (t.animated as boolean) ?? false,
@@ -44,20 +47,20 @@ function convertV1ToV2(data: Record<string, unknown>): WorldData {
 
   return {
     version: 2,
-    tileSize: (data.tileSize as number) || 32,
+    tileSize,
     sources,
     bounds: data.bounds as WorldData["bounds"],
     spawn: data.spawn as WorldData["spawn"],
     layers:
-      (data.layers as unknown[])?.map((l: Record<string, unknown>) => ({
+      (data.layers as RawRecord[] | undefined)?.map((l): LayerData => ({
         name: l.name as string,
         type: l.type as LayerData["type"],
-        sourceId: (l.sourceId as number) ?? (sources.length > 0 ? sources[0].id : 0),
+        tileSize,
         data: l.data as LayerData["data"],
       })) || [],
     objects:
-      (data.objects as unknown[])?.map(
-        (o: Record<string, unknown>) =>
+      (data.objects as RawRecord[] | undefined)?.map(
+        (o) =>
           ({
             ...o,
             sourceId: (o.sourceId as number) ?? 0,
@@ -99,7 +102,7 @@ export async function loadWorld(
       layers: data.layers.map((l) => ({
         name: l.name,
         type: l.type,
-        sourceId: l.sourceId,
+        tileSize: l.tileSize,
         cellCount: l.data.length,
       })),
       bounds: data.bounds,

@@ -59,19 +59,14 @@ export function createSongTitleOverlay(): SongTitleOverlay {
 
   let elapsed = 0
   let targetAlpha = 0
-  let currentTitle = ""
 
   const setSong = (title: string) => {
-    currentTitle = title
     text.text = title
   }
 
   const setVisible = (visible: boolean) => {
     targetAlpha = visible ? 1 : 0
     container.visible = true
-    if (!visible) {
-      currentTitle = ""
-    }
   }
 
   const update = (screenWidth: number, screenHeight: number, deltaMs: number) => {

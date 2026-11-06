@@ -72,7 +72,6 @@
       <Transition name="toolbar-fade">
         <div
           v-if="showToolbar"
-          ref="toolbarRef"
           class="absolute flex items-center gap-0.5 px-1.5 py-1.5 bg-theme-bg-hover border border-theme-border rounded-lg shadow-lg z-50"
           :style="{ ...toolbarStyle, position: 'fixed' }">
           <button
@@ -131,7 +130,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from "vue"
+import { ref, computed, watch, nextTick, useTemplateRef } from "vue"
 import { PhChatDots, PhChatCircle, PhPaperPlaneRight, PhX } from "@phosphor-icons/vue"
 import { useChatStore, useUserStore, useRoomStore, useUsersStore } from "@/stores"
 import { wsService } from "@/services/websocket"
@@ -148,9 +147,8 @@ const roomStore = useRoomStore()
 const usersStore = useUsersStore()
 
 const messageInput = ref("")
-const inputRef = ref<HTMLTextAreaElement | null>(null)
-const messagesContainerRef = ref<HTMLElement | null>(null)
-const toolbarRef = ref<HTMLElement | null>(null)
+const inputRef = useTemplateRef<HTMLTextAreaElement>("inputRef")
+const messagesContainerRef = useTemplateRef<HTMLElement>("messagesContainerRef")
 
 const showToolbar = ref(false)
 const toolbarStyle = ref({})
@@ -258,7 +256,7 @@ const wrapSelection = (prefix: string, suffix: string) => {
   const selectedText = value.slice(start, end)
   const textBefore = value.slice(0, start)
   const textAfter = value.slice(end)
-  let newValue = value
+  let newValue: string
   let newStart = start
   let newEnd = end
 

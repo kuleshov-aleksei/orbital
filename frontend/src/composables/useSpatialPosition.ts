@@ -1,7 +1,6 @@
 import { ref, onUnmounted, type Ref } from "vue"
 import { DataPacket_Kind, RoomEvent } from "livekit-client"
-import type { Participant, Room, LocalParticipant } from "livekit-client"
-import { debugLog } from "@/utils/debug"
+import type { RemoteParticipant, Room, LocalParticipant } from "livekit-client"
 
 export interface Vector2 {
   x: number
@@ -28,14 +27,13 @@ export function useSpatialPosition(options: {
   const _remotePositions = new Map<string, Vector2>()
   const _remoteCharacterKeys = new Map<string, string>()
   const _interpolatedPositions = new Map<string, Vector2>()
-  const _sendLock = false
   const _textEncoder = new TextEncoder()
   const _textDecoder = new TextDecoder()
 
   let sendInterval: ReturnType<typeof setInterval> | null = null
   let tickInterval: ReturnType<typeof setInterval> | null = null
 
-  const handleDataReceived = (payload: Uint8Array, participant: Participant) => {
+  const handleDataReceived = (payload: Uint8Array, participant?: RemoteParticipant) => {
     if (!participant) return
     try {
       const data = JSON.parse(_textDecoder.decode(payload))
@@ -115,7 +113,7 @@ export function useSpatialPosition(options: {
     const room = options.room.value
     if (!room) return
 
-    room.on(RoomEvent.DataReceived, handleDataReceived as any)
+    room.on(RoomEvent.DataReceived, handleDataReceived)
 
     // Send position immediately so new joiners get our current position right away
     void sendMyPosition()
@@ -132,7 +130,7 @@ export function useSpatialPosition(options: {
   const stopPositionSync = () => {
     const room = options.room.value
     if (room) {
-      room.off(RoomEvent.DataReceived, handleDataReceived as any)
+      room.off(RoomEvent.DataReceived, handleDataReceived)
     }
 
     if (sendInterval) {

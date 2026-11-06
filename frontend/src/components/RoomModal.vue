@@ -191,7 +191,7 @@ const configStore = useConfigStore()
 const roomName = ref("")
 const roomCategory = ref("")
 const roomType = ref<"voice" | "spatial_audio">("voice")
-const roomWorld = ref(AVAILABLE_WORLDS[0] || "default")
+const roomWorld = ref(AVAILABLE_WORLDS[0]?.id ?? "default")
 const maxUsers = ref(10)
 
 const availableWorlds = computed(() => AVAILABLE_WORLDS)

@@ -23,7 +23,7 @@ import {
   type ChoiceQuestion,
   type SystemOneClientOptions,
 } from "./systemone"
-import type { CardContext, Policy } from "./policies"
+import { currentMode, type CardContext, type Policy } from "./policies"
 import type { Rng } from "./rng"
 
 export interface DecisionRecord {
@@ -533,7 +533,7 @@ export class SystemOnePolicy implements Policy {
       engine.selectInventoryItem(invIndex)
       if (engine.mode !== "place-pumpkin") return // stale slot — resync next tick
       engine.onWorldClick(columnX(parseInt(cm[1], 10)), laneCenterY(parseInt(cm[2], 10)))
-      if (engine.mode !== "none") return // placement rejected (occupied) — resync next tick
+      if (currentMode(engine) !== "none") return // placement rejected (occupied) — resync next tick
       this.consecutiveWhichHolds = 0 // a body hit the field — pocket is flowing again
     }
   }
