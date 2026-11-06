@@ -191,3 +191,20 @@ func TestSubscribeAdminByUserIDSubscribesEveryConnection(t *testing.T) {
 		t.Fatal("expected all admin connections unsubscribed")
 	}
 }
+
+func TestPingCheckIntervalFallsBackForNonPositive(t *testing.T) {
+	for _, d := range []time.Duration{0, -time.Second} {
+		if got := pingCheckInterval(d); got != defaultPingCheckInterval {
+			t.Fatalf("pingCheckInterval(%v) = %v, want %v", d, got, defaultPingCheckInterval)
+		}
+	}
+	if got := pingCheckInterval(time.Minute); got != time.Minute {
+		t.Fatalf("pingCheckInterval(1m) = %v", got)
+	}
+}
+
+func TestNewHubWithZeroConfigDoesNotPanic(t *testing.T) {
+	NewHub(nil, nil, nil, nil, nil, &config.Config{})
+	// Give the ping monitor goroutine a chance to start; a panic there kills the test binary.
+	time.Sleep(20 * time.Millisecond)
+}

@@ -1063,6 +1063,18 @@ func marshalMessage(message interface{}) []byte {
 
 // startPingMonitor periodically checks for clients that haven't sent pings within the timeout period
 // and broadcasts user list every 30 seconds
+// defaultPingCheckInterval matches config.DefaultConfig; used when the configured
+// interval is zero/negative (e.g. a partial config) instead of panicking in NewTicker.
+const defaultPingCheckInterval = 10 * time.Second
+
+func pingCheckInterval(configured time.Duration) time.Duration {
+	if configured <= 0 {
+		log.Printf("WARNING: invalid ping check interval %v, using %v", configured, defaultPingCheckInterval)
+		return defaultPingCheckInterval
+	}
+	return configured
+}
+
 func (h *Hub) startPingMonitor() {
 	// Safety check for config
 	if h.cfg == nil {
@@ -1070,10 +1082,12 @@ func (h *Hub) startPingMonitor() {
 		return
 	}
 
-	log.Printf("Starting ping monitor (timeout: %v, check interval: %v)",
-		h.cfg.WebSocket.PingTimeout, h.cfg.WebSocket.PingCheckInterval)
+	checkInterval := pingCheckInterval(h.cfg.WebSocket.PingCheckInterval)
 
-	checkTicker := time.NewTicker(h.cfg.WebSocket.PingCheckInterval)
+	log.Printf("Starting ping monitor (timeout: %v, check interval: %v)",
+		h.cfg.WebSocket.PingTimeout, checkInterval)
+
+	checkTicker := time.NewTicker(checkInterval)
 	broadcastTicker := time.NewTicker(30 * time.Second)
 	defer checkTicker.Stop()
 	defer broadcastTicker.Stop()
