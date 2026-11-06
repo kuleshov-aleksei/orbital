@@ -831,8 +831,11 @@ export const apiService = {
     return response.json()
   },
 
-  // Update custom status text (empty string clears it)
-  async updateCustomStatus(customStatus: string): Promise<{ custom_status: string }> {
+  // Update custom status text + emoji ref (empty strings clear them)
+  async updateCustomStatus(
+    customStatus: string,
+    customStatusEmoji: string,
+  ): Promise<{ custom_status: string; custom_status_emoji: string }> {
     const token = getAuthToken()
     const response = await fetch(`${API_BASE}/users/me/custom-status`, {
       method: "PATCH",
@@ -840,7 +843,10 @@ export const apiService = {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ custom_status: customStatus }),
+      body: JSON.stringify({
+        custom_status: customStatus,
+        custom_status_emoji: customStatusEmoji,
+      }),
     })
 
     if (!response.ok) {

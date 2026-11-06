@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"unicode"
@@ -113,19 +114,71 @@ func (h *UsersHandler) UpdateCustomStatus(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := h.userRepo.UpdateCustomStatus(claims.UserID, customStatus); err != nil {
+	emoji := strings.TrimSpace(req.CustomStatusEmoji)
+	if err := validateStatusEmoji(emoji); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := h.userRepo.UpdateCustomStatus(claims.UserID, customStatus, emoji); err != nil {
 		http.Error(w, "Failed to update custom status", http.StatusInternalServerError)
 		return
 	}
 
+	result := models.CustomStatusResponse{
+		UserID:            claims.UserID,
+		CustomStatus:      customStatus,
+		CustomStatusEmoji: emoji,
+	}
 	if h.hub != nil {
-		h.hub.BroadcastCustomStatusChange(claims.UserID, customStatus)
+		h.hub.BroadcastCustomStatusChange(result)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	writeJSON(w, map[string]string{
-		"custom_status": customStatus,
-	})
+	writeJSON(w, result)
+}
+
+// Emoji references are stored as opaque strings so new kinds can be added later:
+//   - unicode emoji: the emoji itself, e.g. "🎮" or "👍🏽"
+//   - custom emoji:  "custom:<id>" (reserved; rejected until custom emojis exist)
+const (
+	customEmojiPrefix    = "custom:"
+	maxStatusEmojiBytes  = 32 // fits long ZWJ sequences (families, flags with tags)
+	maxStatusEmojiRunes  = 12
+	combiningKeycapRune  = '\u20E3'
+	regionalIndicatorMin = '\U0001F1E6'
+	regionalIndicatorMax = '\U0001F1FF'
+)
+
+var errUnsupportedEmoji = errors.New("unsupported status emoji")
+
+// validateStatusEmoji accepts an empty string (no emoji) or a single unicode emoji.
+// It is deliberately loose: it rejects plain text/whitespace, not every non-emoji symbol.
+func validateStatusEmoji(emoji string) error {
+	if emoji == "" {
+		return nil
+	}
+	if strings.HasPrefix(emoji, customEmojiPrefix) {
+		// Extension point: look the id up in a custom emoji repository here.
+		return errors.New("custom emojis are not supported yet")
+	}
+	if len(emoji) > maxStatusEmojiBytes || utf8.RuneCountInString(emoji) > maxStatusEmojiRunes {
+		return errUnsupportedEmoji
+	}
+	hasSymbol := false
+	for _, r := range emoji {
+		if unicode.IsSpace(r) || unicode.IsControl(r) || unicode.IsLetter(r) {
+			return errUnsupportedEmoji
+		}
+		if unicode.Is(unicode.So, r) || r == combiningKeycapRune ||
+			(r >= regionalIndicatorMin && r <= regionalIndicatorMax) {
+			hasSymbol = true
+		}
+	}
+	if !hasSymbol {
+		return errUnsupportedEmoji
+	}
+	return nil
 }
 
 // normalizeCustomStatus collapses the status to a single trimmed line:

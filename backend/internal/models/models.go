@@ -24,38 +24,40 @@ const (
 
 // User represents a user in the system
 type User struct {
-	ID               string       `json:"id"`
-	Nickname         string       `json:"nickname"`
-	OriginalNickname string       `json:"original_nickname,omitempty"` // Immutable login key
-	Status           string       `json:"status"`                      // online, away, dnd
-	IsSpeaking       bool         `json:"is_speaking"`
-	IsMuted          bool         `json:"is_muted"`
-	IsDeafened       bool         `json:"is_deafened"`
-	SoundPack        string       `json:"sound_pack"`    // Sound pack preference
-	CustomStatus     string       `json:"custom_status"` // User-set status text shown on profile popup
-	CreatedAt        time.Time    `json:"created_at"`
-	LastSeen         time.Time    `json:"last_seen"`
-	AuthProvider     AuthProvider `json:"auth_provider"`
-	ProviderID       string       `json:"provider_id,omitempty"`
-	Email            string       `json:"email,omitempty"`
-	AvatarURL        string       `json:"avatar_url,omitempty"`
-	IsGuest          bool         `json:"is_guest"`
-	Role             string       `json:"role"` // guest, user, admin, super_admin
-	PasswordHash     string       `json:"-"`    // Never exposed to frontend
-	TokenVersion     int64        `json:"-"`    // Bumped to revoke all issued tokens
+	ID                string       `json:"id"`
+	Nickname          string       `json:"nickname"`
+	OriginalNickname  string       `json:"original_nickname,omitempty"` // Immutable login key
+	Status            string       `json:"status"`                      // online, away, dnd
+	IsSpeaking        bool         `json:"is_speaking"`
+	IsMuted           bool         `json:"is_muted"`
+	IsDeafened        bool         `json:"is_deafened"`
+	SoundPack         string       `json:"sound_pack"`          // Sound pack preference
+	CustomStatus      string       `json:"custom_status"`       // User-set status text shown on profile popup
+	CustomStatusEmoji string       `json:"custom_status_emoji"` // Emoji reference shown next to the status (see handlers.validateStatusEmoji)
+	CreatedAt         time.Time    `json:"created_at"`
+	LastSeen          time.Time    `json:"last_seen"`
+	AuthProvider      AuthProvider `json:"auth_provider"`
+	ProviderID        string       `json:"provider_id,omitempty"`
+	Email             string       `json:"email,omitempty"`
+	AvatarURL         string       `json:"avatar_url,omitempty"`
+	IsGuest           bool         `json:"is_guest"`
+	Role              string       `json:"role"` // guest, user, admin, super_admin
+	PasswordHash      string       `json:"-"`    // Never exposed to frontend
+	TokenVersion      int64        `json:"-"`    // Bumped to revoke all issued tokens
 }
 
 // PublicUser represents a user with limited public information
 // Used for global user list to avoid exposing sensitive data
 type PublicUser struct {
-	ID           string    `json:"id"`
-	Nickname     string    `json:"nickname"`
-	AvatarURL    string    `json:"avatar_url,omitempty"`
-	Role         string    `json:"role"`
-	IsOnline     bool      `json:"is_online"`
-	SoundPack    string    `json:"sound_pack,omitempty"`
-	CustomStatus string    `json:"custom_status,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID                string    `json:"id"`
+	Nickname          string    `json:"nickname"`
+	AvatarURL         string    `json:"avatar_url,omitempty"`
+	Role              string    `json:"role"`
+	IsOnline          bool      `json:"is_online"`
+	SoundPack         string    `json:"sound_pack,omitempty"`
+	CustomStatus      string    `json:"custom_status,omitempty"`
+	CustomStatusEmoji string    `json:"custom_status_emoji,omitempty"`
+	CreatedAt         time.Time `json:"created_at"`
 }
 
 // NewPublicUser builds the public projection of a user.
@@ -66,14 +68,15 @@ func NewPublicUser(user *User, isOnline bool) PublicUser {
 		soundPack = "default"
 	}
 	return PublicUser{
-		ID:           user.ID,
-		Nickname:     user.Nickname,
-		AvatarURL:    user.AvatarURL,
-		Role:         user.Role,
-		IsOnline:     isOnline,
-		SoundPack:    soundPack,
-		CustomStatus: user.CustomStatus,
-		CreatedAt:    user.CreatedAt,
+		ID:                user.ID,
+		Nickname:          user.Nickname,
+		AvatarURL:         user.AvatarURL,
+		Role:              user.Role,
+		IsOnline:          isOnline,
+		SoundPack:         soundPack,
+		CustomStatus:      user.CustomStatus,
+		CustomStatusEmoji: user.CustomStatusEmoji,
+		CreatedAt:         user.CreatedAt,
 	}
 }
 
@@ -386,7 +389,15 @@ const MaxCustomStatusLength = 128
 
 // UpdateCustomStatusRequest represents a request to update user's custom status text
 type UpdateCustomStatusRequest struct {
-	CustomStatus string `json:"custom_status"`
+	CustomStatus      string `json:"custom_status"`
+	CustomStatusEmoji string `json:"custom_status_emoji"`
+}
+
+// CustomStatusResponse is returned by the custom status endpoint and broadcast over WebSocket
+type CustomStatusResponse struct {
+	UserID            string `json:"user_id,omitempty"`
+	CustomStatus      string `json:"custom_status"`
+	CustomStatusEmoji string `json:"custom_status_emoji"`
 }
 
 // ChatMessage represents a chat message in a room

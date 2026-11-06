@@ -355,13 +355,10 @@ func (h *Hub) BroadcastToAll(message interface{}) {
 }
 
 // BroadcastCustomStatusChange broadcasts a user's custom status change to all connected clients
-func (h *Hub) BroadcastCustomStatusChange(userID string, customStatus string) {
+func (h *Hub) BroadcastCustomStatusChange(status models.CustomStatusResponse) {
 	h.BroadcastToAll(models.WebSocketMessage{
 		Type: "custom_status_change",
-		Data: map[string]string{
-			"user_id":       userID,
-			"custom_status": customStatus,
-		},
+		Data: status,
 	})
 }
 

@@ -106,6 +106,7 @@ interface User {
   is_online: boolean
   status?: "online" | "away" | "dnd"
   custom_status?: string
+  custom_status_emoji?: string
 }
 
 interface Props {

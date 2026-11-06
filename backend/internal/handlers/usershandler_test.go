@@ -46,7 +46,7 @@ func TestUpdateCustomStatusPersistsAndIsPublic(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 
-	rec := patchCustomStatus(h, "u1", `{"custom_status":"  grinding\nranked  "}`)
+	rec := patchCustomStatus(h, "u1", `{"custom_status":"  grinding\nranked  ","custom_status_emoji":"🎮"}`)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
@@ -60,6 +60,9 @@ func TestUpdateCustomStatusPersistsAndIsPublic(t *testing.T) {
 	if len(users) != 1 {
 		t.Fatalf("got %d users, want 1", len(users))
 	}
+	if users[0].CustomStatusEmoji != "🎮" {
+		t.Errorf("custom_status_emoji = %q, want 🎮", users[0].CustomStatusEmoji)
+	}
 	if users[0].CustomStatus != "grinding ranked" {
 		t.Errorf("custom_status = %q, want %q", users[0].CustomStatus, "grinding ranked")
 	}
@@ -72,8 +75,8 @@ func TestUpdateCustomStatusPersistsAndIsPublic(t *testing.T) {
 		t.Fatalf("clear status = %d", rec.Code)
 	}
 	user, _ := repo.GetByID("u1")
-	if user.CustomStatus != "" {
-		t.Errorf("custom_status after clear = %q, want empty", user.CustomStatus)
+	if user.CustomStatus != "" || user.CustomStatusEmoji != "" {
+		t.Errorf("status after clear = %q %q, want empty", user.CustomStatus, user.CustomStatusEmoji)
 	}
 }
 
@@ -105,6 +108,35 @@ func TestNormalizeCustomStatus(t *testing.T) {
 	for in, want := range cases {
 		if got := normalizeCustomStatus(in); got != want {
 			t.Errorf("normalizeCustomStatus(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestUpdateCustomStatusRejectsBadEmoji(t *testing.T) {
+	h, _ := newUsersHandlerForTest(t)
+	for _, emoji := range []string{"abc", "custom:party", "🎮 🎮", "!!"} {
+		rec := patchCustomStatus(h, "u1", `{"custom_status":"hi","custom_status_emoji":"`+emoji+`"}`)
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("emoji %q: status = %d, want 400", emoji, rec.Code)
+		}
+	}
+}
+
+func TestValidateStatusEmojiAcceptsCommonForms(t *testing.T) {
+	valid := []string{
+		"",
+		"🎮",
+		"❤️",      // variation selector
+		"👍🏽",      // skin tone modifier
+		"👨‍👩‍👧‍👦", // ZWJ family
+		"🇺🇦",      // regional indicator flag
+		"1️⃣",     // keycap
+		"🏴\U000E0067\U000E0062\U000E0065\U000E006E\U000E0067\U000E007F", // England tag flag
+		"☕",
+	}
+	for _, emoji := range valid {
+		if err := validateStatusEmoji(emoji); err != nil {
+			t.Errorf("validateStatusEmoji(%q) = %v, want nil", emoji, err)
 		}
 	}
 }

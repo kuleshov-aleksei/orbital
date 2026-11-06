@@ -3,7 +3,7 @@
     <div
       v-if="user && anchor"
       ref="popoverRef"
-      class="fixed z-50 w-72 rounded-xl overflow-hidden bg-theme-bg-secondary border border-theme-border shadow-2xl"
+      class="fixed z-50 w-86 max-w-[calc(100vw-16px)] rounded-xl overflow-hidden bg-theme-bg-secondary border border-theme-border shadow-2xl"
       :style="positionStyle"
       role="dialog"
       :aria-label="`${user.nickname} profile`"
@@ -64,26 +64,43 @@
           <!-- Custom status -->
           <div v-if="isEditingStatus">
             <div class="relative">
+              <button
+                type="button"
+                class="absolute left-1 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded hover:bg-theme-bg-hover transition-colors"
+                :class="{ 'bg-theme-bg-hover': isPickerOpen }"
+                :title="emojiDraft ? 'Change emoji' : 'Add emoji'"
+                :aria-expanded="isPickerOpen"
+                data-testid="custom-status-emoji-button"
+                @mousedown.prevent
+                @click="togglePicker">
+                <EmojiGlyph v-if="emojiDraft" :emoji-ref="emojiDraft" :size="16" />
+                <PhSmiley v-else class="w-4 h-4 text-theme-text-muted" />
+              </button>
               <input
                 ref="statusInput"
                 v-model="statusDraft"
                 type="text"
                 :maxlength="MAX_STATUS_LENGTH"
                 placeholder="What's up?"
-                class="w-full pl-2 pr-8 py-1.5 text-sm bg-theme-bg-primary border border-theme-border rounded focus:outline-none focus:border-theme-accent text-theme-text-primary"
+                class="w-full pl-8 pr-8 py-1.5 text-sm bg-theme-bg-primary border border-theme-border rounded focus:outline-none focus:border-theme-accent text-theme-text-primary"
                 data-testid="custom-status-input"
                 @keydown.enter="saveStatus"
                 @keydown.escape.stop="cancelStatus" />
               <button
-                v-if="statusDraft"
+                v-if="statusDraft || emojiDraft"
                 type="button"
                 class="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-theme-text-muted hover:text-theme-text-primary"
                 title="Clear"
                 @mousedown.prevent
-                @click="statusDraft = ''">
+                @click="clearDraft">
                 <PhX class="w-3.5 h-3.5" />
               </button>
             </div>
+            <EmojiPicker
+              v-if="isPickerOpen"
+              class="mt-1.5"
+              @select="selectEmoji"
+              @close="closePicker" />
             <div class="mt-1.5 flex items-center justify-between text-[11px] text-theme-text-muted">
               <span>{{ statusDraft.length }}/{{ MAX_STATUS_LENGTH }}</span>
               <div class="flex gap-2">
@@ -107,17 +124,27 @@
             class="w-full flex items-start gap-2 text-left text-sm rounded px-2 py-1.5 -mx-2 hover:bg-theme-bg-hover transition-colors"
             data-testid="custom-status-edit"
             @click="startEditingStatus">
-            <PhChatCircleDots class="w-4 h-4 mt-0.5 flex-shrink-0 text-theme-text-muted" />
-            <span v-if="user.custom_status" class="text-theme-text-primary break-words min-w-0">{{
+            <EmojiGlyph
+              v-if="user.custom_status_emoji"
+              :emoji-ref="user.custom_status_emoji"
+              :size="16"
+              class="mt-0.5 flex-shrink-0" />
+            <PhChatCircleDots v-else class="w-4 h-4 mt-0.5 flex-shrink-0 text-theme-text-muted" />
+            <span v-if="hasStatus" class="text-theme-text-primary break-words min-w-0">{{
               user.custom_status
             }}</span>
             <span v-else class="text-theme-text-muted">Set a custom status</span>
           </button>
           <p
-            v-else-if="user.custom_status"
-            class="text-sm text-theme-text-primary break-words"
+            v-else-if="hasStatus"
+            class="flex items-start gap-2 text-sm text-theme-text-primary break-words"
             data-testid="custom-status-text">
-            {{ user.custom_status }}
+            <EmojiGlyph
+              v-if="user.custom_status_emoji"
+              :emoji-ref="user.custom_status_emoji"
+              :size="16"
+              class="mt-0.5 flex-shrink-0" />
+            <span class="min-w-0">{{ user.custom_status }}</span>
           </p>
 
           <!-- Stats -->
@@ -148,8 +175,11 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onUnmounted, useTemplateRef } from "vue"
-import { PhChatCircleDots, PhPencilSimple, PhSpeakerHigh, PhX } from "@phosphor-icons/vue"
+import { PhChatCircleDots, PhPencilSimple, PhSmiley, PhSpeakerHigh, PhX } from "@phosphor-icons/vue"
 import UserAvatar from "@/components/UserAvatar.vue"
+import EmojiGlyph from "@/components/EmojiGlyph.vue"
+import EmojiPicker from "@/components/EmojiPicker.vue"
+import type { EmojiRef } from "@/services/emoji"
 import { useUserStore, useUsersStore, useRoomStore } from "@/stores"
 import type { PublicUser } from "@/types"
 
@@ -181,6 +211,8 @@ const user = computed<PublicUser | null>(() => {
   if (!found) return null
   return isSelf.value ? { ...found, nickname: userStore.nickname } : found
 })
+
+const hasStatus = computed(() => !!(user.value?.custom_status || user.value?.custom_status_emoji))
 
 const status = computed(() => (user.value?.is_online ? "online" : "offline"))
 
@@ -281,6 +313,8 @@ const removeListeners = () => {
 const isEditingStatus = ref(false)
 const isSavingStatus = ref(false)
 const statusDraft = ref("")
+const emojiDraft = ref<EmojiRef>("")
+const isPickerOpen = ref(false)
 const statusError = ref<string | null>(null)
 const isEditingNickname = ref(false)
 const nicknameDraft = ref("")
@@ -288,11 +322,37 @@ const nicknameDraft = ref("")
 const resetEditing = () => {
   isEditingStatus.value = false
   isEditingNickname.value = false
+  isPickerOpen.value = false
   statusError.value = null
+}
+
+const setPickerOpen = (open: boolean) => {
+  isPickerOpen.value = open
+  // Picker changes the popover height; keep it inside the viewport
+  void nextTick(updatePosition)
+}
+
+const togglePicker = () => setPickerOpen(!isPickerOpen.value)
+
+const closePicker = () => {
+  setPickerOpen(false)
+  statusInput.value?.focus()
+}
+
+const selectEmoji = (emojiRef: EmojiRef) => {
+  emojiDraft.value = emojiRef
+  closePicker()
+}
+
+const clearDraft = () => {
+  statusDraft.value = ""
+  emojiDraft.value = ""
 }
 
 const startEditingStatus = () => {
   statusDraft.value = user.value?.custom_status ?? ""
+  emojiDraft.value = user.value?.custom_status_emoji ?? ""
+  isPickerOpen.value = false
   statusError.value = null
   isEditingStatus.value = true
   void nextTick(() => {
@@ -303,6 +363,7 @@ const startEditingStatus = () => {
 
 const cancelStatus = () => {
   isEditingStatus.value = false
+  isPickerOpen.value = false
   statusError.value = null
   void nextTick(updatePosition)
 }
@@ -310,14 +371,18 @@ const cancelStatus = () => {
 const saveStatus = async () => {
   if (!props.userId || isSavingStatus.value) return
   const next = statusDraft.value.trim()
-  if (next === (user.value?.custom_status ?? "")) {
+  const nextEmoji = emojiDraft.value
+  if (
+    next === (user.value?.custom_status ?? "") &&
+    nextEmoji === (user.value?.custom_status_emoji ?? "")
+  ) {
     cancelStatus()
     return
   }
   isSavingStatus.value = true
   statusError.value = null
   try {
-    await usersStore.setMyCustomStatus(props.userId, next)
+    await usersStore.setMyCustomStatus(props.userId, next, nextEmoji)
     cancelStatus()
   } catch (error) {
     console.error("Failed to update custom status:", error)

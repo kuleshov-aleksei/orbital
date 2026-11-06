@@ -33,9 +33,15 @@
 
         <span v-else-if="user.is_muted" class="text-red-400">Muted</span>
 
-        <span v-else-if="user.custom_status" :title="user.custom_status">{{
-          user.custom_status
-        }}</span>
+        <span
+          v-else-if="user.custom_status || user.custom_status_emoji"
+          :title="user.custom_status">
+          <EmojiGlyph
+            v-if="user.custom_status_emoji"
+            :emoji-ref="user.custom_status_emoji"
+            :size="12"
+            class="mr-0.5" />{{ user.custom_status }}
+        </span>
 
         <span v-else-if="user.status === 'away'">Away</span>
 
@@ -83,6 +89,7 @@
 import { computed, useTemplateRef } from "vue"
 import { PhMicrophoneSlash, PhSpeakerHigh } from "@phosphor-icons/vue"
 import UserAvatar from "@/components/UserAvatar.vue"
+import EmojiGlyph from "@/components/EmojiGlyph.vue"
 import UserContextMenu from "@/components/UserContextMenu.vue"
 
 interface User {
@@ -96,6 +103,7 @@ interface User {
   status?: "online" | "away" | "dnd"
   role?: "guest" | "user" | "admin" | "super_admin"
   custom_status?: string
+  custom_status_emoji?: string
 }
 
 interface Props {

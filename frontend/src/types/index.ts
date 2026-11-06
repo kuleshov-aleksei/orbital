@@ -33,6 +33,7 @@ export interface PublicUser {
   is_online: boolean
   sound_pack?: string
   custom_status?: string // User-set status text, omitted when empty
+  custom_status_emoji?: string // EmojiRef (see services/emoji/types.ts), omitted when empty
   created_at?: string // ISO timestamp of registration
 }
 

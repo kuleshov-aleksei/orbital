@@ -40,19 +40,28 @@ describe("users store custom status", () => {
     expect(store.allUsers.find((u) => u.id === "u2")?.custom_status).toBe("afk")
     expect(store.allUsers.find((u) => u.id === "u1")?.custom_status).toBeUndefined()
 
-    store.updateUserCustomStatus("u2", "")
+    store.updateUserCustomStatus("u2", "", "")
     expect(store.allUsers.find((u) => u.id === "u2")?.custom_status).toBeUndefined()
+
+    store.updateUserCustomStatus("u2", "", "🔥")
+    const u2 = store.allUsers.find((u) => u.id === "u2")
+    expect(u2?.custom_status).toBeUndefined()
+    expect(u2?.custom_status_emoji).toBe("🔥")
   })
 
   it("stores the server-normalized status after saving", async () => {
-    vi.mocked(apiService.updateCustomStatus).mockResolvedValue({ custom_status: "ranked" })
+    vi.mocked(apiService.updateCustomStatus).mockResolvedValue({
+      custom_status: "ranked",
+      custom_status_emoji: "🎮",
+    })
     const store = useUsersStore()
     store.setUsers([publicUser()])
 
-    await store.setMyCustomStatus("u1", " ranked ")
+    await store.setMyCustomStatus("u1", " ranked ", "🎮")
 
-    expect(apiService.updateCustomStatus).toHaveBeenCalledWith(" ranked ")
+    expect(apiService.updateCustomStatus).toHaveBeenCalledWith(" ranked ", "🎮")
     expect(store.allUsers[0].custom_status).toBe("ranked")
+    expect(store.allUsers[0].custom_status_emoji).toBe("🎮")
     expect(store.allUsers[0].created_at).toBe("2025-03-14T12:00:00Z")
   })
 
