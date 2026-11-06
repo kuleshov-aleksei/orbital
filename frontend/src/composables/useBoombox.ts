@@ -1,4 +1,4 @@
-import { ref, watch, type Ref } from "vue"
+import { ref, shallowRef, watch, type Ref } from "vue"
 import type {
   Room,
   LocalParticipant,
@@ -47,7 +47,7 @@ export function useBoombox(options: {
   const VOLUME_STORAGE_KEY = "orbital:boombox_volume"
 
   const boomboxVolume = ref(parseFloat(localStorage.getItem(VOLUME_STORAGE_KEY) ?? "") || 0.5)
-  const boomboxTrack = ref<RemoteAudioTrack | null>(null)
+  const boomboxTrack = shallowRef<RemoteAudioTrack | null>(null)
   const playlist = ref<PlaylistEntry[]>([])
 
   const syncBoomboxTrack = () => {

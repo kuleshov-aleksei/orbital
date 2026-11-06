@@ -253,7 +253,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, useTemplateRef } from "vue"
+import { ref, shallowRef, computed, watch, onMounted, onUnmounted, useTemplateRef } from "vue"
 import {
   PhMonitorPlay,
   PhArrowsOut,
@@ -335,7 +335,7 @@ const isLiveKitAttached = ref(false)
 // Self-view stream for non-LiveKit tracks
 const selfViewStream = ref<MediaStream | null>(null)
 // Pending track to attach when element becomes available
-const pendingTrack = ref<typeof props.videoTrack>(null)
+const pendingTrack = shallowRef<typeof props.videoTrack>(null)
 
 // Self-view pauses when not hovered
 const isPausedComputed = computed(() => {

@@ -1,5 +1,5 @@
 import { defineStore } from "pinia"
-import { ref, computed, watch } from "vue"
+import { ref, shallowRef, computed, watch } from "vue"
 import {
   Room,
   RoomEvent,
@@ -98,7 +98,7 @@ export const usePresenceStore = defineStore("presence", () => {
   // State
   const room = ref<Room | null>(null)
   const participants = ref<Map<string, PresenceState>>(new Map())
-  const localParticipant = ref<LocalParticipant | null>(null)
+  const localParticipant = shallowRef<LocalParticipant | null>(null)
   const isConnected = ref(false)
 
   const trackSoundStates = new Map<string, TrackSoundState>()
@@ -180,7 +180,6 @@ export const usePresenceStore = defineStore("presence", () => {
 
     // Initialize local attributes
     const currentUser = userStore.currentUser
-    // @ts-ignore - LiveKit attributes are stored as strings
     await updateLocalAttributes({
       user_id: userStore.userId,
       nickname: currentUser?.nickname ?? userStore.userId,

@@ -81,7 +81,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, useTemplateRef } from "vue"
+import { ref, shallowRef, computed, watch, onMounted, onUnmounted, useTemplateRef } from "vue"
 import { PhArrowsOut, PhArrowsIn, PhPictureInPicture, PhSpinner } from "@phosphor-icons/vue"
 import type { RemoteVideoTrack, LocalVideoTrack } from "livekit-client"
 import UserAvatar from "@/components/UserAvatar.vue"
@@ -136,7 +136,7 @@ const isLiveKitAttached = ref(false)
 // Self-view stream for non-LiveKit tracks
 const selfViewStream = ref<MediaStream | null>(null)
 // Pending track to attach when element becomes available
-const pendingTrack = ref<typeof props.videoTrack>(null)
+const pendingTrack = shallowRef<typeof props.videoTrack>(null)
 
 // Handle video metadata loaded to get actual dimensions
 const handleVideoMetadata = () => {
