@@ -20,9 +20,6 @@
     }
   ],
   "ignorePaths": [
-    "docker/Dockerfile.backend",
-    "docker/Dockerfile.electron",
-    "docker/Dockerfile.frontend",
     ".github/workflows/build-electron.yml",
     ".github/workflows/deploy.yml"
   ],
