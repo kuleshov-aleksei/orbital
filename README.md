@@ -290,6 +290,13 @@ Then set your `LIVEKIT_URL` in `.env`:
 LIVEKIT_URL=wss://your-domain.com/livekit
 ```
 
+### .env configuration for production
+
+It is CORS should allow both electron application and web frontend to fetch API, so 2 CORS origins are required, e.g.
+```
+SERVER_CORS_ORIGINS=https://orb.encamy.com,orbital://app
+```
+
 #### Required Ports
 
 | Port | Protocol | Purpose | Route |
