@@ -16,7 +16,7 @@ RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 # Release quality gate: fail the image build on lint errors.
 # Keep the version in sync with the golangci-lint used locally for `make lint`
-COPY --from=golangci/golangci-lint:v2.14.0-alpine /usr/bin/golangci-lint /usr/bin/golangci-lint
+COPY --from=golangci/golangci-lint:v2.15.0-alpine /usr/bin/golangci-lint /usr/bin/golangci-lint
 
 COPY backend/ .
 RUN --mount=type=cache,target=/go/pkg/mod \
