@@ -25,7 +25,7 @@
             <input
               ref="fileInput"
               type="file"
-              accept="image/png"
+              accept="image/png,image/gif"
               class="hidden"
               data-testid="custom-emoji-file"
               @change="onFileChange" />
@@ -49,9 +49,8 @@
                 <p class="mt-1 text-[11px] text-theme-text-muted truncate">
                   <template v-if="file">{{ file.name }} · {{ formatSize(file.size) }}</template>
                   <template v-else>
-                    PNG up to {{ MAX_UPLOAD_KB }} KB. Scaled to fit {{ MAX_DIMENSION }}×{{
-                      MAX_DIMENSION
-                    }}.
+                    PNG or animated GIF up to {{ MAX_UPLOAD_KB }} KB. Scaled to fit
+                    {{ MAX_DIMENSION }}×{{ MAX_DIMENSION }}.
                   </template>
                 </p>
               </div>
@@ -119,6 +118,7 @@ const MAX_UPLOAD_BYTES = MAX_UPLOAD_KB * 1024
 const MAX_DIMENSION = 128
 const MAX_NAME = 32
 const MAX_ALIASES = 10
+const ACCEPTED_TYPES = ["image/png", "image/gif"]
 
 const customEmojisStore = useCustomEmojisStore()
 
@@ -147,8 +147,8 @@ function onFileChange(event: Event) {
   input.value = ""
   if (!picked) return
   error.value = null
-  if (picked.type !== "image/png") {
-    error.value = "Only PNG images are supported."
+  if (!ACCEPTED_TYPES.includes(picked.type)) {
+    error.value = "Only PNG and GIF images are supported."
     return
   }
   if (picked.size > MAX_UPLOAD_BYTES) {
@@ -161,7 +161,7 @@ function onFileChange(event: Event) {
   // Default the name to the file name, as a starting point.
   if (!name.value.trim()) {
     name.value = picked.name
-      .replace(/\.png$/i, "")
+      .replace(/\.(png|gif)$/i, "")
       .replace(/[_-]+/g, " ")
       .trim()
       .slice(0, MAX_NAME)

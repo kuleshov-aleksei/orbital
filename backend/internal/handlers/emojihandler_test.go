@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"image"
 	"image/color"
+	"image/color/palette"
+	"image/gif"
 	"image/png"
 	"mime/multipart"
 	"net/http"
@@ -29,6 +31,25 @@ func testPNG(t *testing.T, w, h int) []byte {
 	}
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, img); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+// testGIF builds an animated GIF with the given number of frames.
+func testGIF(t *testing.T, w, h, frames int) []byte {
+	t.Helper()
+	g := &gif.GIF{LoopCount: 0}
+	for i := 0; i < frames; i++ {
+		frame := image.NewPaletted(image.Rect(0, 0, w, h), palette.Plan9)
+		for x := 0; x < w; x++ {
+			frame.SetColorIndex(x, (x+i)%h, uint8(i+1))
+		}
+		g.Image = append(g.Image, frame)
+		g.Delay = append(g.Delay, 10)
+	}
+	var buf bytes.Buffer
+	if err := gif.EncodeAll(&buf, g); err != nil {
 		t.Fatal(err)
 	}
 	return buf.Bytes()
@@ -112,6 +133,33 @@ func TestEmojiUploadAndList(t *testing.T) {
 	}
 }
 
+func TestEmojiUploadAnimatedGIF(t *testing.T) {
+	f, h, _, _ := newEmojiFixture(t)
+	rec := uploadEmoji(t, f, h, "owner", testGIF(t, 256, 200, 3), emojiFields())
+	if rec.Code != http.StatusCreated && rec.Code != http.StatusOK {
+		t.Fatalf("upload: %d %s", rec.Code, rec.Body.String())
+	}
+	var emoji models.CustomEmoji
+	_ = json.Unmarshal(rec.Body.Bytes(), &emoji)
+
+	img := f.do(t, "", h.GetEmojiImage, http.MethodGet, map[string]string{"id": emoji.ID}, nil)
+	if img.Code != http.StatusOK || img.Header().Get("Content-Type") != "image/gif" {
+		t.Fatalf("image: %d %q", img.Code, img.Header().Get("Content-Type"))
+	}
+	g, err := gif.DecodeAll(bytes.NewReader(img.Body.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(g.Image) != 3 || g.Config.Width != 128 || g.Config.Height != 100 {
+		t.Fatalf("stored gif = %d frames %dx%d, want 3 frames 128x100", len(g.Image), g.Config.Width, g.Config.Height)
+	}
+	for i, frame := range g.Image {
+		if !frame.Bounds().In(image.Rect(0, 0, 128, 100)) {
+			t.Fatalf("frame %d bounds %v outside the screen", i, frame.Bounds())
+		}
+	}
+}
+
 func TestEmojiUploadDeniedByDefault(t *testing.T) {
 	f, h, _, n := newEmojiFixture(t)
 
@@ -139,6 +187,8 @@ func TestEmojiUploadValidation(t *testing.T) {
 		{"jpeg", append([]byte{0xFF, 0xD8, 0xFF}, make([]byte, 64)...), emojiFields(), http.StatusBadRequest},
 		{"truncated png", testPNG(t, 16, 16)[:20], emojiFields(), http.StatusBadRequest},
 		{"too large", append(testPNG(t, 16, 16), make([]byte, service.MaxEmojiFileSize)...), emojiFields(), http.StatusRequestEntityTooLarge},
+		{"truncated gif", testGIF(t, 16, 16, 2)[:30], emojiFields(), http.StatusBadRequest},
+		{"gif too big", testGIF(t, 600, 16, 1), emojiFields(), http.StatusBadRequest},
 		{"empty name", testPNG(t, 16, 16), map[string]string{"name": "  "}, http.StatusBadRequest},
 		{"bad aliases", testPNG(t, 16, 16), map[string]string{"name": "x", "aliases": "nope"}, http.StatusBadRequest},
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"path/filepath"
 
 	"github.com/gorilla/mux"
 	"github.com/kuleshov-aleksei/orbital/internal/models"
@@ -74,7 +75,11 @@ func (h *EmojiHandler) GetEmojiImage(w http.ResponseWriter, r *http.Request) {
 		writeEmojiError(w, err)
 		return
 	}
-	w.Header().Set("Content-Type", "image/png")
+	contentType := "image/png"
+	if filepath.Ext(filePath) == ".gif" {
+		contentType = "image/gif"
+	}
+	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	// Safe to cache forever: image_url carries the stored filename as a version.
 	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
