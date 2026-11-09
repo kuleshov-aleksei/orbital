@@ -55,6 +55,11 @@ func PublishSourcesFor(p permissions.Permission) []livekit.TrackSource {
 	if p.Has(permissions.Screenshare) {
 		sources = append(sources, livekit.TrackSource_SCREEN_SHARE, livekit.TrackSource_SCREEN_SHARE_AUDIO)
 	}
+	// The boombox publishes its music track with source UNKNOWN (the frontend
+	// uses no other UNKNOWN-source tracks), so this is what gates it server-side.
+	if p.Has(permissions.UseSoundboard) {
+		sources = append(sources, livekit.TrackSource_UNKNOWN)
+	}
 	return sources
 }
 

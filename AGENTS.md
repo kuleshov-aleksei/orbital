@@ -95,6 +95,17 @@ Do not try to explore source code or write scripts to test them. Documentation f
 - Add comments for complex logic
 - Follow language-specific conventions
 
+### ⚠️ CRITICAL: Permissions (RBAC) must be enforced on the backend
+
+Every new feature that can be locked behind a role permission MUST be validated on the backend, not only hidden in the UI. Frontend checks (`usePermissionsStore().can(...)`) are UX hints only.
+
+- Permission bits live in `backend/internal/permissions/permissions.go` (mirror them in `frontend/src/types/permissions.ts`); add a new bit when a feature needs its own gate.
+- **REST**: check with `requireRoomPerm` / `requireCategoryPerm` / `RequirePermission` (`backend/internal/handlers/permissions.go`).
+- **WebSocket**: check with `canInRoom` in `backend/internal/websocket/hub.go` and reply with `sendPermissionDenied`; use `BroadcastRoomScoped` for room events.
+- **LiveKit media**: any new published track needs a source mapped to a permission in `PublishSourcesFor` (`backend/internal/service/livekitservice.go`), otherwise the SFU rejects it with "insufficient permissions" (e.g. the boombox uses source `UNKNOWN` ↔ `use_soundboard`).
+- Changes must apply live: hook into `PermissionService` change notifications (see `Hub.OnPermissionsChanged`).
+- Add backend tests for the denied path (403/404, rejected WS message, missing LiveKit source).
+
 ### ⚠️ CRITICAL: API Naming Convention
 **Backend (Go)** uses **snake_case** for JSON field names (`max_users`)
 **Frontend (TypeScript)** uses **camelCase** for property names (`maxUsers`)

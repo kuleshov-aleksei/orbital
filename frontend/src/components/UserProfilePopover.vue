@@ -167,7 +167,7 @@
                   :key="r.id"
                   class="group/role inline-flex items-center gap-1.5 max-w-full px-2 py-0.5 rounded bg-theme-bg-primary border border-theme-border text-xs text-theme-text-secondary">
                   <button
-                    v-if="canEditRoles && permissionsStore.canManageRole(r)"
+                    v-if="canEditRoles && !r.system_key && permissionsStore.canManageRole(r)"
                     type="button"
                     class="relative w-2.5 h-2.5 rounded-full flex-shrink-0 flex items-center justify-center"
                     :style="{ backgroundColor: r.color || 'var(--color-text-muted, #9ca3af)' }"
@@ -183,7 +183,15 @@
                     v-else
                     class="w-2.5 h-2.5 rounded-full flex-shrink-0"
                     :style="{ backgroundColor: r.color || 'var(--color-text-muted, #9ca3af)' }" />
-                  <span class="truncate">{{ r.name }}</span>
+                  <span
+                    class="truncate"
+                    :title="
+                      r.system_key === 'guest'
+                        ? 'Applied automatically to guest accounts'
+                        : undefined
+                    "
+                    >{{ r.name }}</span
+                  >
                 </span>
                 <button
                   v-if="canEditRoles && addableRoles.length"
@@ -290,22 +298,28 @@ const status = computed(() => (user.value?.is_online ? "online" : "offline"))
 
 const presenceLabel = computed(() => (user.value?.is_online ? "Online" : "Offline"))
 
-// Account kind badge; assigned roles are listed separately below.
-const roleLabel = computed(() => {
-  if (!user.value) return ""
-  if (user.value.role === "super_admin") return "Owner"
-  return user.value.role === "guest" ? "Guest" : ""
-})
+// Owner badge; everything else is in the role list below.
+const roleLabel = computed(() => (user.value?.role === "super_admin" ? "Owner" : ""))
 
 // Assigned roles, highest first (Discord-like role list).
-const userRoles = computed(() => (user.value ? permissionsStore.rolesOf(user.value.id) : []))
+const assignedRoles = computed(() => (user.value ? permissionsStore.rolesOf(user.value.id) : []))
+
+// Shown list: assigned roles plus the implicit Guest system role for guest
+// accounts (it sits right above @everyone, so it goes last). Guest is applied
+// automatically and can't be added or removed here.
+const userRoles = computed(() => {
+  const list = [...assignedRoles.value]
+  const guest = permissionsStore.guestRole
+  if (user.value?.role === "guest" && guest) list.push(guest)
+  return list
+})
 
 // --- Role assignment (manage_roles; the backend enforces the hierarchy)
 const canEditRoles = computed(
   () => !!user.value && permissionsStore.canEditRolesOf(user.value.role === "super_admin"),
 )
 const addableRoles = computed(() => {
-  const held = new Set(userRoles.value.map((r) => r.id))
+  const held = new Set(assignedRoles.value.map((r) => r.id))
   return permissionsStore.customRoles.filter((r) => !held.has(r.id))
 })
 const isRolePickerOpen = ref(false)

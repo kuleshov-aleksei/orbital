@@ -176,8 +176,8 @@ const userStore = useUserStore()
 const callStore = useCallStore()
 const spatialRoomStore = useRoomStore()
 const permissionsStore = usePermissionsStore()
-// Boombox playback rides the LiveKit data channel/attributes, so this is a
-// UI-level gate (the backend cannot inspect those messages).
+// UI gate; the backend enforces it via the LiveKit grant (the boombox track's
+// UNKNOWN source is only allowed with use_soundboard).
 const canUseBoombox = computed(() =>
   permissionsStore.can(Permission.UseSoundboard, { roomId: spatialRoomStore.activeRoomId }),
 )
@@ -267,6 +267,13 @@ const {
   scanRemoteParticipantsForBoombox,
   handleAttributesChanged: handleBoomboxAttributesChanged,
 } = boombox
+
+// Use Boombox revoked mid-play: the SFU drops the track; stop locally too.
+watch(canUseBoombox, (allowed) => {
+  if (!allowed && permissionsStore.loaded && boomboxAmIPlaying()) {
+    void boomboxStop()
+  }
+})
 
 const spatialAudio = useSpatialAudio({
   remoteAudioTracks,

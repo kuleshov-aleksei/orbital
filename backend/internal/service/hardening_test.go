@@ -15,6 +15,7 @@ import (
 	"github.com/kuleshov-aleksei/orbital/internal/permissions"
 	"github.com/kuleshov-aleksei/orbital/internal/repository"
 	"github.com/kuleshov-aleksei/orbital/internal/storage"
+	"github.com/livekit/protocol/livekit"
 )
 
 func TestNormalizeAvatarGUID(t *testing.T) {
@@ -195,5 +196,35 @@ func TestLiveKitTokenMetadataAndTTL(t *testing.T) {
 	}
 	if int64(exp-iat) != int64(LiveKitTokenTTL/time.Second) {
 		t.Fatalf("token ttl = %ds, want %ds", int64(exp-iat), int64(LiveKitTokenTTL/time.Second))
+	}
+}
+
+func TestPublishSourcesFor(t *testing.T) {
+	has := func(sources []livekit.TrackSource, want livekit.TrackSource) bool {
+		for _, s := range sources {
+			if s == want {
+				return true
+			}
+		}
+		return false
+	}
+
+	all := PublishSourcesFor(permissions.DefaultEveryone)
+	for _, src := range []livekit.TrackSource{
+		livekit.TrackSource_MICROPHONE, livekit.TrackSource_CAMERA,
+		livekit.TrackSource_SCREEN_SHARE, livekit.TrackSource_SCREEN_SHARE_AUDIO,
+		livekit.TrackSource_UNKNOWN, // boombox
+	} {
+		if !has(all, src) {
+			t.Errorf("default @everyone sources missing %v: %v", src, all)
+		}
+	}
+
+	noBoombox := PublishSourcesFor(permissions.DefaultEveryone &^ permissions.UseSoundboard)
+	if has(noBoombox, livekit.TrackSource_UNKNOWN) {
+		t.Errorf("UNKNOWN (boombox) allowed without use_soundboard: %v", noBoombox)
+	}
+	if got := PublishSourcesFor(permissions.ViewRoom | permissions.Connect); len(got) != 0 {
+		t.Errorf("expected no publish sources, got %v", got)
 	}
 }
