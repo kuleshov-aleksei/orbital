@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/draw"
 	"image/gif"
+	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
@@ -40,10 +42,9 @@ var (
 	ErrEmojiInvalidType  = errors.New("invalid file type, only PNG and GIF images are allowed")
 	ErrEmojiInvalidImage = fmt.Errorf("invalid image, must be a PNG up to %dx%d or a GIF up to %dx%d with at most %d frames",
 		maxEmojiSourceDimension, maxEmojiSourceDimension, maxGIFSourceDimension, maxGIFSourceDimension, maxGIFFrames)
-	ErrEmojiNotFound     = errors.New("emoji not found")
-	ErrEmojiLibraryFull  = fmt.Errorf("emoji library is full (%d emojis max)", MaxCustomEmojis)
+	ErrEmojiNotFound    = errors.New("emoji not found")
+	ErrEmojiLibraryFull = fmt.Errorf("emoji library is full (%d emojis max)", MaxCustomEmojis)
 )
-
 
 // EmojiService manages the shared custom emoji library. Name and alias rules
 // are shared with the soundboard.
@@ -160,6 +161,7 @@ func scalePaletted(src *image.Paletted, sw, sh, dw, dh int) *image.Paletted {
 func withImageURL(e *models.CustomEmoji) *models.CustomEmoji {
 	version := strings.TrimSuffix(e.Filename, filepath.Ext(e.Filename))
 	e.ImageURL = fmt.Sprintf("/api/emojis/%s/image?v=%s", e.ID, version)
+	e.Animated = filepath.Ext(e.Filename) == ".gif"
 	return e
 }
 
@@ -302,6 +304,42 @@ func (s *EmojiService) ImagePath(id string) (string, error) {
 		return "", ErrEmojiNotFound
 	}
 	return filePath, nil
+}
+
+// StillImage returns the first frame of an animated emoji as a PNG. ok is
+// false for static emojis, which are served as-is.
+func (s *EmojiService) StillImage(id string) (data []byte, ok bool, err error) {
+	filePath, err := s.ImagePath(id)
+	if err != nil {
+		return nil, false, err
+	}
+	if filepath.Ext(filePath) != ".gif" {
+		return nil, false, nil
+	}
+	f, err := os.Open(filePath)
+	if err != nil {
+		return nil, false, ErrEmojiNotFound
+	}
+	defer func() { _ = f.Close() }()
+	// gif.Decode returns the first frame only; place it on the logical screen.
+	cfg, err := gif.DecodeConfig(f)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to read emoji: %w", err)
+	}
+	if _, err := f.Seek(0, 0); err != nil {
+		return nil, false, err
+	}
+	frame, err := gif.Decode(f)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to read emoji: %w", err)
+	}
+	still := image.NewNRGBA(image.Rect(0, 0, cfg.Width, cfg.Height))
+	draw.Draw(still, frame.Bounds(), frame, frame.Bounds().Min, draw.Over)
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, still); err != nil {
+		return nil, false, err
+	}
+	return buf.Bytes(), true, nil
 }
 
 // EmojiExists reports whether a custom emoji id exists (used to validate

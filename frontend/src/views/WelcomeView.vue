@@ -36,7 +36,7 @@
             <li
               v-for="user in idleUsers"
               :key="user.id"
-              class="flex items-center gap-2 max-w-full pl-1 pr-3 py-1 rounded-full bg-theme-bg-secondary border border-theme-border">
+              class="group flex items-center gap-2 max-w-full pl-1 pr-3 py-1 rounded-full bg-theme-bg-secondary border border-theme-border">
               <UserAvatar
                 :user-id="user.id"
                 :nickname="user.nickname"
@@ -55,6 +55,7 @@
                 <EmojiGlyph
                   v-if="user.custom_status_emoji"
                   :emoji-ref="user.custom_status_emoji"
+                  pausable
                   :size="12"
                   class="mr-0.5" />{{ user.custom_status }}
               </span>
@@ -80,7 +81,7 @@
                 class="w-4 h-4 shrink-0 text-theme-text-muted" />
               <span class="min-w-0 flex-1">
                 <span class="block text-sm font-medium text-theme-text-primary truncate">
-                  <EmojiText :text="room.name" />
+                  <EmojiText :text="room.name" pausable />
                 </span>
                 <span
                   v-if="room.category_name || room.category"

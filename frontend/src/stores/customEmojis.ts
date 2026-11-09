@@ -17,12 +17,14 @@ export const CUSTOM_EMOJI_PROVIDER_ID = "custom"
 export function toCustomEmoji(dto: CustomEmojiDto): CustomEmoji {
   const name = dto.name.toLowerCase()
   const keywords = [...new Set([name, ...name.split(/\s+/), ...dto.aliases])].filter(Boolean)
+  const imageUrl = apiService.getCustomEmojiImageUrl(dto)
   return {
     kind: "custom",
     ref: `${CUSTOM_EMOJI_PREFIX}${dto.id}`,
     name: dto.name,
     keywords,
-    imageUrl: apiService.getCustomEmojiImageUrl(dto),
+    imageUrl,
+    ...(dto.animated ? { stillUrl: `${imageUrl}&still=1` } : {}),
   }
 }
 

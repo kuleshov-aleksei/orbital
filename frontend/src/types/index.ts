@@ -657,6 +657,8 @@ export interface CustomEmojiDto {
   uploaded_by?: string
   created_at: string
   image_url: string
+  // GIF; image_url + "&still=1" serves its first frame
+  animated?: boolean
 }
 
 // Payload of the "sound_played" WebSocket event

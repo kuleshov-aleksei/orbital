@@ -43,6 +43,7 @@
           <EmojiGlyph
             v-if="user.custom_status_emoji"
             :emoji-ref="user.custom_status_emoji"
+            pausable
             :size="12"
             class="mr-0.5" />{{ user.custom_status }}
         </span>

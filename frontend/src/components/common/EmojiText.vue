@@ -2,18 +2,21 @@
   <span
     ><template v-for="(segment, i) in segments" :key="i"
       ><template v-if="segment.kind === 'text'">{{ segment.text }}</template
-      ><img
+      ><CustomEmojiImage
         v-else-if="segment.emoji"
-        :src="segment.emoji.imageUrl"
+        :emoji="segment.emoji"
+        :pausable="pausable"
         :alt="`:${segment.shortcode}:`"
-        class="inline-block object-contain align-[-0.2em] h-[1.25em] w-[1.25em]"
-        draggable="false" /><template v-else>:{{ segment.shortcode }}:</template></template
+        class="inline-block object-contain align-[-0.2em] h-[1.25em] w-[1.25em]" /><template v-else
+        >:{{ segment.shortcode }}:</template
+      ></template
     ></span
   >
 </template>
 
 <script setup lang="ts">
 import { computed } from "vue"
+import CustomEmojiImage from "@/components/emoji/CustomEmojiImage.vue"
 import {
   parseEmojiText,
   resolveEmoji,
@@ -23,7 +26,8 @@ import {
 
 // Renders plain text that may contain `<:shortcode:id>` custom emoji tokens
 // (room names). Unknown/deleted emojis fall back to `:shortcode:`.
-const props = defineProps<{ text: string }>()
+// pausable: honour the reduce-motion setting (see CustomEmojiImage).
+const props = defineProps<{ text: string; pausable?: boolean }>()
 
 type Segment = EmojiTextSegment & { emoji?: CustomEmoji | null }
 

@@ -38,6 +38,13 @@ describe("custom emojis store", () => {
     expect(emoji.keywords).toEqual(["party parrot", "party", "parrot", "pp"])
   })
 
+  it("gives animated emojis a still first-frame URL", () => {
+    expect(toCustomEmoji(dto("a", "Blob")).stillUrl).toBeUndefined()
+    expect(toCustomEmoji({ ...dto("g", "Spin"), animated: true }).stillUrl).toBe(
+      "http://backend/api/emojis/g/image?v=1&still=1",
+    )
+  })
+
   it("registers a Server category that the picker can search and resolve", async () => {
     api.getCustomEmojis.mockResolvedValue([dto("a", "Party Parrot", ["pp"]), dto("b", "Blob")])
     const store = useCustomEmojisStore()

@@ -70,19 +70,35 @@ func (h *EmojiHandler) ListEmojis(w http.ResponseWriter, r *http.Request) {
 // Authorization headers; ids are random UUIDs.
 // GET /api/emojis/{id}/image
 func (h *EmojiHandler) GetEmojiImage(w http.ResponseWriter, r *http.Request) {
-	filePath, err := h.emojis.ImagePath(mux.Vars(r)["id"])
+	id := mux.Vars(r)["id"]
+	filePath, err := h.emojis.ImagePath(id)
 	if err != nil {
 		writeEmojiError(w, err)
 		return
 	}
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	// Safe to cache forever: image_url carries the stored filename as a version.
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+
+	// ?still=1: first frame of an animated emoji (reduce-motion setting).
+	if r.URL.Query().Get("still") == "1" {
+		still, ok, err := h.emojis.StillImage(id)
+		if err != nil {
+			writeEmojiError(w, err)
+			return
+		}
+		if ok {
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write(still)
+			return
+		}
+	}
+
 	contentType := "image/png"
 	if filepath.Ext(filePath) == ".gif" {
 		contentType = "image/gif"
 	}
 	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	// Safe to cache forever: image_url carries the stored filename as a version.
-	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	http.ServeFile(w, r, filePath)
 }
 

@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gorilla/mux"
 	"github.com/kuleshov-aleksei/orbital/internal/models"
 	"github.com/kuleshov-aleksei/orbital/internal/repository"
 	"github.com/kuleshov-aleksei/orbital/internal/service"
@@ -158,6 +159,28 @@ func TestEmojiUploadAnimatedGIF(t *testing.T) {
 			t.Fatalf("frame %d bounds %v outside the screen", i, frame.Bounds())
 		}
 	}
+	if !emoji.Animated {
+		t.Fatal("gif emoji must be marked animated")
+	}
+
+	// The still variant is the first frame as a PNG of the same size.
+	still := f.doQuery(t, h.GetEmojiImage, map[string]string{"id": emoji.ID}, "still=1")
+	if still.Code != http.StatusOK || still.Header().Get("Content-Type") != "image/png" {
+		t.Fatalf("still: %d %q", still.Code, still.Header().Get("Content-Type"))
+	}
+	cfg, err := png.DecodeConfig(bytes.NewReader(still.Body.Bytes()))
+	if err != nil || cfg.Width != 128 || cfg.Height != 100 {
+		t.Fatalf("still = %v %dx%d, want 128x100", err, cfg.Width, cfg.Height)
+	}
+}
+
+// doQuery is a public GET with a query string.
+func (f *rbacFixture) doQuery(t *testing.T, handler http.HandlerFunc, vars map[string]string, query string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := mux.SetURLVars(httptest.NewRequest(http.MethodGet, "/?"+query, nil), vars)
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+	return rec
 }
 
 func TestEmojiUploadDeniedByDefault(t *testing.T) {
