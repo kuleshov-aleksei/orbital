@@ -18,6 +18,8 @@ export interface AppSettings {
   closeToTray: boolean
   hasSelectedCloseBehavior: boolean
   hotkeys: HotkeysConfig
+  // Pause animated custom emojis in room/user lists until hovered
+  reduceEmojiMotion: boolean
 }
 
 const DEFAULT_HOTKEYS: HotkeysConfig = {
@@ -30,6 +32,7 @@ const defaultSettings: AppSettings = {
   closeToTray: true,
   hasSelectedCloseBehavior: false,
   hotkeys: DEFAULT_HOTKEYS,
+  reduceEmojiMotion: false,
 }
 
 export const useAppSettingsStore = defineStore("appSettings", () => {
@@ -76,6 +79,12 @@ export const useAppSettingsStore = defineStore("appSettings", () => {
   }
 
   const hotkeys = computed(() => settings.value.hotkeys)
+  const reduceEmojiMotion = computed(() => settings.value.reduceEmojiMotion)
+
+  const setReduceEmojiMotion = (value: boolean): void => {
+    settings.value.reduceEmojiMotion = value
+    saveSettings()
+  }
 
   const setHotkey = (action: keyof HotkeysConfig, setting: HotkeySetting): void => {
     settings.value.hotkeys[action] = setting
@@ -109,6 +118,8 @@ export const useAppSettingsStore = defineStore("appSettings", () => {
     hasSelectedCloseBehavior,
     hotkeys,
     hasCustomHotkeys,
+    reduceEmojiMotion,
+    setReduceEmojiMotion,
     loadSettings,
     saveSettings,
     setCloseToTray,

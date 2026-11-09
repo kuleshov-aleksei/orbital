@@ -8,7 +8,7 @@
       <div class="min-w-0">
         <div class="flex items-center gap-2 text-theme-text-primary">
           <component :is="typeIcon" class="w-4 h-4 shrink-0 text-theme-text-muted" />
-          <h3 class="text-base font-semibold truncate">{{ room.name }}</h3>
+          <h3 class="text-base font-semibold truncate"><EmojiText :text="room.name" pausable /></h3>
         </div>
         <p
           v-if="room.category_name || room.category"
@@ -75,6 +75,7 @@
 </template>
 
 <script setup lang="ts">
+import EmojiText from "@/components/common/EmojiText.vue"
 import { computed } from "vue"
 import {
   PhGlobe,

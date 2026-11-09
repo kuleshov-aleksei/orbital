@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -219,5 +220,36 @@ func TestRoleManagementCannotEscalate(t *testing.T) {
 		map[string]string{"id": f.open.ID, "subject_type": "user", "subject_id": "user"},
 		map[string]interface{}{"allow": uint64(permissions.ManageRoles)}); rec.Code != http.StatusBadRequest {
 		t.Fatalf("overwrite with role-only bit = %d, want 400", rec.Code)
+	}
+}
+
+func TestUpdateRoomNameLimitCountsCharacters(t *testing.T) {
+	f := newRBACFixture(t)
+	vars := map[string]string{"id": f.open.ID}
+	// 100 emojis are 400 bytes but 100 characters: allowed.
+	if rec := f.do(t, "owner", f.room.UpdateRoom, http.MethodPut, vars, map[string]string{"name": strings.Repeat("🎮", 100)}); rec.Code != http.StatusOK {
+		t.Fatalf("100-emoji name = %d, want 200 (%s)", rec.Code, rec.Body.String())
+	}
+	if rec := f.do(t, "owner", f.room.UpdateRoom, http.MethodPut, vars, map[string]string{"name": strings.Repeat("🎮", 101)}); rec.Code != http.StatusBadRequest {
+		t.Fatalf("101-emoji name = %d, want 400", rec.Code)
+	}
+}
+
+func TestRoomNameCustomEmojiTokensCountAsOneCharacter(t *testing.T) {
+	token := "<:party_parrot:0b6f1c1e-3c7a-4d0e-9a52-6c1f0d6f7a11>"
+	if !validRoomNameLength(strings.Repeat(token, 30)) {
+		t.Fatal("30 custom emoji tokens rejected")
+	}
+	if !validRoomNameLength(strings.Repeat("a", 99) + token) {
+		t.Fatal("99 chars + 1 custom emoji rejected")
+	}
+	if validRoomNameLength(strings.Repeat("a", 100) + token) {
+		t.Fatal("101 characters accepted")
+	}
+	if !validRoomNameLength(strings.Repeat(token, 100)) {
+		t.Fatal("100 custom emoji tokens rejected")
+	}
+	if validRoomNameLength(strings.Repeat(token, 101)) {
+		t.Fatal("101 custom emoji tokens accepted")
 	}
 }

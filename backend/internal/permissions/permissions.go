@@ -27,6 +27,10 @@ const (
 	// ManageSoundboard allows renaming/editing/deleting any soundboard clip.
 	// Role-level only.
 	ManageSoundboard Permission = 1 << 5
+	// UploadEmojis allows adding custom emojis. Server-wide, role-level only.
+	UploadEmojis Permission = 1 << 6
+	// ManageEmojis allows renaming/deleting any custom emoji. Role-level only.
+	ManageEmojis Permission = 1 << 7
 
 	// ViewRoom allows seeing a room in lists, events and presence.
 	ViewRoom Permission = 1 << 8
@@ -55,12 +59,13 @@ const (
 
 // All is every defined permission.
 const All = Administrator | ManageRoles | ManageRooms | ManageAudio |
-	UploadSounds | ManageSoundboard |
+	UploadSounds | ManageSoundboard | UploadEmojis | ManageEmojis |
 	ViewRoom | Connect | Speak | Video | Screenshare | SendMessages |
 	UseBoombox | KickMembers | MuteMembers | MoveMembers | UseSoundboard
 
 // RoleOnly are permissions that cannot be set through overwrites.
-const RoleOnly = Administrator | ManageRoles | ManageAudio | UploadSounds | ManageSoundboard
+const RoleOnly = Administrator | ManageRoles | ManageAudio | UploadSounds | ManageSoundboard |
+	UploadEmojis | ManageEmojis
 
 // Overwritable are permissions that may appear in room/category overwrites.
 const Overwritable = All &^ RoleOnly
@@ -80,7 +85,8 @@ const DefaultGuestDeny = Video | Screenshare | UploadSounds
 
 // DefaultAdmin is the seed permission set for the migrated Admin role. It
 // matches exactly what the legacy "admin" global role could do.
-const DefaultAdmin = ManageRooms | KickMembers | ManageAudio | ManageSoundboard
+const DefaultAdmin = ManageRooms | KickMembers | ManageAudio | ManageSoundboard |
+	UploadEmojis | ManageEmojis
 
 // Has reports whether p contains every bit in want.
 func (p Permission) Has(want Permission) bool { return p&want == want }
@@ -105,6 +111,8 @@ var Names = map[string]Permission{
 	"use_soundboard":    UseSoundboard,
 	"upload_sounds":     UploadSounds,
 	"manage_soundboard": ManageSoundboard,
+	"upload_emojis":     UploadEmojis,
+	"manage_emojis":     ManageEmojis,
 }
 
 // Overwrite is an allow/deny pair for one subject on one room or category.

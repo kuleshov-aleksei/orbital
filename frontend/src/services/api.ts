@@ -11,6 +11,7 @@ import {
   DebugLog,
   AudioFile,
   SoundboardSound,
+  CustomEmojiDto,
   StatsStatus,
   AnalyticsReport,
   SecuritySelfCheckReport,
@@ -1068,6 +1069,44 @@ export const apiService = {
       method: "PATCH",
       body: JSON.stringify(patch),
     })
+  },
+
+  // Custom emoji API calls
+  async getCustomEmojis(): Promise<CustomEmojiDto[]> {
+    return apiRequest<CustomEmojiDto[]>("/emojis")
+  },
+
+  async uploadCustomEmoji(input: {
+    file: File
+    name: string
+    aliases: string[]
+  }): Promise<CustomEmojiDto> {
+    const form = new FormData()
+    form.append("image", input.file)
+    form.append("name", input.name)
+    form.append("aliases", JSON.stringify(input.aliases))
+    return apiRequest<CustomEmojiDto>("/emojis", { method: "POST", body: form })
+  },
+
+  async updateCustomEmoji(
+    id: string,
+    patch: { name?: string; aliases?: string[] },
+  ): Promise<CustomEmojiDto> {
+    return apiRequest<CustomEmojiDto>(`/admin/emojis/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    })
+  },
+
+  async deleteCustomEmoji(id: string): Promise<void> {
+    await apiRequest<{ status: string }>(`/admin/emojis/${id}`, { method: "DELETE" })
+  },
+
+  getCustomEmojiImageUrl(emoji: CustomEmojiDto): string {
+    if (emoji.image_url.startsWith("/api/")) {
+      return `${API_BASE}${emoji.image_url.slice("/api".length)}`
+    }
+    return resolveUrl(emoji.image_url)
   },
 
   async deleteSoundboardSound(id: string): Promise<void> {

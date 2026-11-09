@@ -22,6 +22,8 @@ export interface UnicodeEmoji extends EmojiBase {
 export interface CustomEmoji extends EmojiBase {
   kind: "custom"
   imageUrl: string
+  // First frame of an animated emoji, for the reduce-motion setting
+  stillUrl?: string
 }
 
 export type Emoji = UnicodeEmoji | CustomEmoji

@@ -24,11 +24,15 @@ type SoundboardHandler struct {
 	soundboard  *service.SoundboardService
 	permissions *service.PermissionService
 	notifier    SoundboardNotifier
+	emojis      EmojiLookup
 }
 
 func NewSoundboardHandler(s *service.SoundboardService, ps *service.PermissionService, notifier SoundboardNotifier) *SoundboardHandler {
 	return &SoundboardHandler{soundboard: s, permissions: ps, notifier: notifier}
 }
+
+// SetEmojiLookup enables custom emojis on clips.
+func (h *SoundboardHandler) SetEmojiLookup(l EmojiLookup) { h.emojis = l }
 
 func (h *SoundboardHandler) notify() {
 	if h.notifier != nil {
@@ -101,7 +105,7 @@ func (h *SoundboardHandler) UploadSound(w http.ResponseWriter, r *http.Request) 
 	}
 
 	emoji := strings.TrimSpace(r.FormValue("emoji"))
-	if err := validateStatusEmoji(emoji); err != nil {
+	if err := validateEmojiRef(emoji, h.emojis); err != nil {
 		http.Error(w, "Invalid emoji", http.StatusBadRequest)
 		return
 	}
@@ -192,7 +196,7 @@ func (h *SoundboardHandler) UpdateSound(w http.ResponseWriter, r *http.Request) 
 	}
 	if req.Emoji != nil {
 		emoji := strings.TrimSpace(*req.Emoji)
-		if err := validateStatusEmoji(emoji); err != nil {
+		if err := validateEmojiRef(emoji, h.emojis); err != nil {
 			http.Error(w, "Invalid emoji", http.StatusBadRequest)
 			return
 		}

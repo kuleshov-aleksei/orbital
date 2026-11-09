@@ -437,6 +437,38 @@ UPDATE roles SET permissions = permissions | %d WHERE id = 'admin';`,
 			permissions.UploadSounds,
 			permissions.ManageSoundboard),
 	},
+	{
+		Version: 38,
+		Name:    "create_custom_emojis",
+		// aliases is a JSON array of lowercase search aliases. Emojis are
+		// referenced as "custom:<id>" so renames never break references.
+		SQL: `CREATE TABLE IF NOT EXISTS custom_emojis (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			aliases TEXT NOT NULL DEFAULT '[]',
+			filename TEXT NOT NULL,
+			file_size INTEGER NOT NULL DEFAULT 0,
+			uploaded_by TEXT,
+			created_at DATETIME NOT NULL
+		);
+CREATE INDEX IF NOT EXISTS idx_custom_emojis_created ON custom_emojis(created_at);`,
+	},
+	{
+		Version: 39,
+		Name:    "grant_emoji_permissions",
+		// Only admins may upload/manage custom emojis by default.
+		SQL: fmt.Sprintf(`UPDATE roles SET permissions = permissions | %d WHERE id = 'admin';`,
+			permissions.UploadEmojis|permissions.ManageEmojis),
+	},
+	{
+		Version: 40,
+		Name:    "custom_emoji_animated",
+		// Emojis are stored as WebP, so animation can no longer be told from
+		// the file extension. Existing GIFs are animated (or at least served
+		// with a still frame); EmojiService.MigrateToWebP re-checks on convert.
+		SQL: `ALTER TABLE custom_emojis ADD COLUMN animated INTEGER NOT NULL DEFAULT 0;
+UPDATE custom_emojis SET animated = 1 WHERE filename LIKE '%.gif';`,
+	},
 }
 
 // RunMigrationsUpTo applies migrations up to and including maxVersion.

@@ -10,6 +10,7 @@ import {
   useHalloweenStore,
   usePermissionsStore,
   useSoundboardStore,
+  useCustomEmojisStore,
 } from "@/stores"
 import { wsService } from "@/services/websocket"
 import type {
@@ -46,6 +47,7 @@ export function useWebSocketHandlers() {
   const halloweenStore = useHalloweenStore()
   const permissionsStore = usePermissionsStore()
   const soundboardStore = useSoundboardStore()
+  const customEmojisStore = useCustomEmojisStore()
   const hasConnected = ref(false)
 
   const cleanupFns: Array<() => void> = []
@@ -207,6 +209,12 @@ export function useWebSocketHandlers() {
     }
     wsService.onGlobal("soundboard_updated", onSoundboardUpdated)
     onCleanup(() => wsService.offGlobal("soundboard_updated", onSoundboardUpdated))
+
+    const onCustomEmojisUpdated: MessageCallback = () => {
+      customEmojisStore.onLibraryChanged()
+    }
+    wsService.onGlobal("custom_emojis_updated", onCustomEmojisUpdated)
+    onCleanup(() => wsService.offGlobal("custom_emojis_updated", onCustomEmojisUpdated))
 
     const onRoomCreated: MessageCallback = (message) => {
       const newRoom = message.data as Room

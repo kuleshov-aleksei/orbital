@@ -31,14 +31,14 @@
             Room Name
           </label>
 
-          <input
+          <EmojiTextInput
             id="roomName"
             v-model="roomName"
-            type="text"
+            allow-custom
             required
             placeholder="Enter room name"
             data-testid="room-name-input"
-            class="w-full px-3 py-2 bg-theme-bg-tertiary border border-theme-border rounded-lg text-theme-text-primary placeholder-theme-text-muted focus:outline-none focus:border-theme-accent focus:ring-1 focus:ring-theme-accent" />
+            input-class="w-full px-3 py-2 bg-theme-bg-tertiary border border-theme-border rounded-lg text-theme-text-primary placeholder-theme-text-muted focus:outline-none focus:border-theme-accent focus:ring-1 focus:ring-theme-accent" />
 
           <p v-if="roomNameError" class="text-red-400 text-sm mt-1">
             {{ roomNameError }}
@@ -171,6 +171,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue"
 import { PhWaveform, PhGameController } from "@phosphor-icons/vue"
+import EmojiTextInput from "@/components/common/EmojiTextInput.vue"
+import { emojiTextLength } from "@/services/emoji"
 import { useConfigStore } from "@/stores"
 import { AVAILABLE_WORLDS } from "@/config/worlds"
 
@@ -207,7 +209,7 @@ const roomNameError = computed(() => {
   if (!roomName.value.trim()) {
     return "Room name is required"
   }
-  if (roomName.value.length > 100) {
+  if (emojiTextLength(roomName.value) > 100) {
     return "Room name is too long (max 100 characters)"
   }
   return ""
@@ -232,7 +234,7 @@ const maxUsersError = computed(() => {
 const isValid = computed(() => {
   return (
     roomName.value.trim() &&
-    roomName.value.length <= 100 &&
+    emojiTextLength(roomName.value) <= 100 &&
     Array.from(roomCategory.value).length <= 32 &&
     maxUsers.value >= configStore.minUsers &&
     maxUsers.value <= configStore.maxUsers

@@ -93,6 +93,19 @@
           Soundboard
         </button>
         <button
+          v-if="canManageEmojis"
+          type="button"
+          data-testid="admin-tab-emojis"
+          class="px-4 py-2 text-sm font-medium transition-colors"
+          :class="
+            activeTab === 'emojis'
+              ? 'text-white border-b-2 border-indigo-500'
+              : 'text-gray-400 hover:text-gray-200'
+          "
+          @click="activeTab = 'emojis'">
+          Emojis
+        </button>
+        <button
           v-if="isSuperAdmin"
           type="button"
           class="px-4 py-2 text-sm font-medium transition-colors"
@@ -345,6 +358,11 @@
         <SoundboardAdmin />
       </div>
 
+      <!-- Custom Emojis Section (manage_emojis) -->
+      <div v-if="activeTab === 'emojis' && canManageEmojis">
+        <EmojiAdmin />
+      </div>
+
       <!-- Audio Section -->
       <div
         v-if="activeTab === 'audio' && canManageAudio"
@@ -457,7 +475,9 @@
                 @change="onStatsRoomChange">
                 <option value="" disabled>Select a room...</option>
                 <option v-for="room in adminStats.rooms.value" :key="room.id" :value="room.id">
-                  {{ room.name }} ({{ room.user_count }} user{{ room.user_count !== 1 ? "s" : "" }})
+                  <EmojiText :text="room.name" /> ({{ room.user_count }} user{{
+                    room.user_count !== 1 ? "s" : ""
+                  }})
                 </option>
               </select>
             </div>
@@ -667,6 +687,7 @@
 </template>
 
 <script setup lang="ts">
+import EmojiText from "@/components/common/EmojiText.vue"
 import { ref, computed, onMounted, onUnmounted } from "vue"
 import { storeToRefs } from "pinia"
 import Avatar from "vue-boring-avatars"
@@ -674,6 +695,7 @@ import { useUserStore, usePermissionsStore } from "@/stores"
 import { Permission } from "@/types/permissions"
 import RolesAdmin from "@/components/admin/RolesAdmin.vue"
 import SoundboardAdmin from "@/components/admin/SoundboardAdmin.vue"
+import EmojiAdmin from "@/components/admin/EmojiAdmin.vue"
 import { apiService } from "@/services/api"
 import { useAdminStats } from "@/composables/useAdminStats"
 import StatsMap from "@/components/admin/StatsMap.vue"
@@ -691,6 +713,7 @@ const { currentUser, isSuperAdmin } = storeToRefs(userStore)
 const permissionsStore = usePermissionsStore()
 const canManageAudio = computed(() => permissionsStore.can(Permission.ManageAudio))
 const canManageSoundboard = computed(() => permissionsStore.can(Permission.ManageSoundboard))
+const canManageEmojis = computed(() => permissionsStore.can(Permission.ManageEmojis))
 
 const users = ref<User[]>([])
 const logs = ref<DebugLog[]>([])
@@ -708,6 +731,7 @@ const activeTab = ref<
   | "security"
   | "audio"
   | "soundboard"
+  | "emojis"
   | "stats"
   | "analytics"
   | "halloween"
@@ -719,7 +743,9 @@ const activeTab = ref<
       ? "roles"
       : permissionsStore.can(Permission.ManageSoundboard)
         ? "soundboard"
-        : "audio",
+        : permissionsStore.can(Permission.ManageEmojis)
+          ? "emojis"
+          : "audio",
 )
 
 const showDeleteModal = ref(false)

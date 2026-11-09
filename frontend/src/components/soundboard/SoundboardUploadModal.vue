@@ -83,34 +83,12 @@
             <label class="text-xs font-medium text-theme-text-secondary block mb-1.5">
               Aliases <span class="text-theme-text-muted font-normal">(optional, for search)</span>
             </label>
-            <div
-              class="flex flex-wrap items-center gap-1 px-2 py-1.5 bg-theme-bg-tertiary border border-theme-border rounded focus-within:border-theme-accent">
-              <span
-                v-for="alias in aliases"
-                :key="alias"
-                class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-theme-bg-hover text-xs text-theme-text-primary">
-                {{ alias }}
-                <button
-                  type="button"
-                  class="text-theme-text-muted hover:text-theme-text-primary"
-                  :title="`Remove ${alias}`"
-                  @click="removeAlias(alias)">
-                  <PhX class="w-3 h-3" />
-                </button>
-              </span>
-              <input
-                v-if="aliases.length < MAX_ALIASES"
-                v-model="aliasDraft"
-                type="text"
-                :maxlength="MAX_NAME"
-                :placeholder="aliases.length ? '' : 'horn, mlg'"
-                class="flex-1 min-w-[6rem] bg-transparent text-sm focus:outline-none text-theme-text-primary"
-                @keydown="onAliasKeydown"
-                @blur="commitAlias" />
-            </div>
-            <p class="mt-1 text-[11px] text-theme-text-muted">
-              Press Enter or comma to add. Up to {{ MAX_ALIASES }}.
-            </p>
+            <AliasInput
+              ref="aliasInput"
+              v-model="aliases"
+              :max="MAX_ALIASES"
+              :max-length="MAX_NAME"
+              placeholder="horn, mlg" />
           </div>
 
           <p v-if="error" class="text-sm text-red-400">{{ error }}</p>
@@ -138,6 +116,7 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, useTemplateRef } from "vue"
 import { PhSmiley, PhX } from "@phosphor-icons/vue"
+import AliasInput from "@/components/common/AliasInput.vue"
 import EmojiGlyph from "@/components/EmojiGlyph.vue"
 import EmojiPicker from "@/components/EmojiPicker.vue"
 import SoundboardAudioEditor from "@/components/soundboard/SoundboardAudioEditor.vue"
@@ -159,6 +138,7 @@ const soundboardStore = useSoundboardStore()
 
 const fileInput = useTemplateRef<HTMLInputElement>("fileInput")
 const editor = useTemplateRef<InstanceType<typeof SoundboardAudioEditor>>("editor")
+const aliasInput = useTemplateRef<InstanceType<typeof AliasInput>>("aliasInput")
 const sourceName = ref<string | null>(null)
 const decoded = ref<DecodedAudio | null>(null)
 const isDecoding = ref(false)
@@ -167,7 +147,6 @@ const name = ref("")
 const emoji = ref<EmojiRef>("")
 const isPickerOpen = ref(false)
 const aliases = ref<string[]>([])
-const aliasDraft = ref("")
 const error = ref<string | null>(null)
 const isUploading = ref(false)
 
@@ -225,28 +204,8 @@ function selectEmoji(ref: EmojiRef) {
   isPickerOpen.value = false
 }
 
-function commitAlias() {
-  const value = aliasDraft.value.trim().toLowerCase()
-  aliasDraft.value = ""
-  if (!value || aliases.value.includes(value) || aliases.value.length >= MAX_ALIASES) return
-  aliases.value.push(value)
-}
-
-function removeAlias(alias: string) {
-  aliases.value = aliases.value.filter((a) => a !== alias)
-}
-
-function onAliasKeydown(event: KeyboardEvent) {
-  if (event.key === "Enter" || event.key === ",") {
-    event.preventDefault()
-    commitAlias()
-  } else if (event.key === "Backspace" && aliasDraft.value === "" && aliases.value.length) {
-    aliases.value.pop()
-  }
-}
-
 async function submit() {
-  commitAlias()
+  aliasInput.value?.commit()
   if (!canSubmit.value) return
   const wav = editor.value?.exportWav()
   if (!wav) return

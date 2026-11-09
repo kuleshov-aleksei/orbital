@@ -10,7 +10,7 @@
 
           <div class="min-w-0">
             <div class="text-sm font-medium text-theme-text-primary truncate">
-              {{ roomName }}
+              <EmojiText :text="roomName" />
             </div>
 
             <div class="text-xs text-theme-text-muted">
@@ -95,6 +95,7 @@
 </template>
 
 <script setup lang="ts">
+import EmojiText from "@/components/common/EmojiText.vue"
 import { computed } from "vue"
 import UserAvatar from "@/components/UserAvatar.vue"
 import MicMuteButton from "@/components/MicMuteButton.vue"

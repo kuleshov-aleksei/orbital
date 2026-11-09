@@ -44,9 +44,35 @@
       </div>
     </div>
 
+    <div class="flex items-center justify-between gap-4 pt-4 border-t border-theme-border">
+      <div>
+        <label
+          id="reduce-emoji-motion-label"
+          class="text-sm font-medium text-theme-text-primary block">
+          Reduce emoji motion
+        </label>
+        <p class="text-xs text-theme-text-muted mt-0.5">
+          Pause animated emojis in room names and user statuses until you hover over them.
+        </p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        :aria-checked="reduceEmojiMotion"
+        aria-labelledby="reduce-emoji-motion-label"
+        data-testid="reduce-emoji-motion-toggle"
+        class="relative inline-flex h-6 w-12 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-theme-accent focus:ring-offset-2 focus:ring-offset-theme-bg-primary"
+        :class="reduceEmojiMotion ? 'bg-theme-accent' : 'bg-theme-bg-hover'"
+        @click="appSettingsStore.setReduceEmojiMotion(!reduceEmojiMotion)">
+        <span
+          class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+          :class="reduceEmojiMotion ? 'translate-x-7' : 'translate-x-1'" />
+      </button>
+    </div>
+
     <div class="pt-4 border-t border-theme-border">
       <p class="text-xs text-theme-text-muted">
-        Theme preference is saved locally and will persist across sessions.
+        Appearance preferences are saved locally and will persist across sessions.
       </p>
     </div>
   </div>
@@ -55,6 +81,7 @@
 <script setup lang="ts">
 import { computed, h } from "vue"
 import { useThemeStore, type Theme } from "@/stores/theme"
+import { useAppSettingsStore } from "@/stores/appSettings"
 import { PhPalette, PhCheck } from "@phosphor-icons/vue"
 
 defineProps<{
@@ -63,6 +90,9 @@ defineProps<{
 
 const themeStore = useThemeStore()
 const currentTheme = computed(() => themeStore.currentTheme)
+
+const appSettingsStore = useAppSettingsStore()
+const reduceEmojiMotion = computed(() => appSettingsStore.reduceEmojiMotion)
 
 function selectTheme(theme: Theme) {
   themeStore.setTheme(theme)
