@@ -29,11 +29,12 @@ jobs:
         uses: actions/checkout@v7
 
       # internal/service/avatarservice.go uses github.com/h2non/bimg, which is
-      # cgo and needs libvips headers (same requirement as Dockerfile.backend).
-      - name: Install libvips
+      # cgo and needs libvips headers; the soundboard encoder (gopkg.in/hraban/opus.v2)
+      # needs libopus/libopusfile headers (same requirements as Dockerfile.backend).
+      - name: Install libvips and libopus
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libvips-dev pkg-config
+          sudo apt-get install -y --no-install-recommends libvips-dev libopus-dev libopusfile-dev pkg-config
 
       - name: Setup Go
         uses: actions/setup-go@v7

@@ -65,6 +65,9 @@ importers:
       vue-virtual-scroller:
         specifier: ^3.0.5
         version: 3.0.5(vue@3.5.44(typescript@6.0.3))
+      wavesurfer.js:
+        specifier: ^8.0.5
+        version: 8.0.5
     devDependencies:
       '@iconify-json/logos':
         specifier: ^1.2.18
@@ -2763,6 +2766,9 @@ packages:
     peerDependenciesMeta:
       typescript:
         optional: true
+
+  wavesurfer.js@8.0.5:
+    resolution: {integrity: sha512-VRYjNG8vKhpMN9hKGgo6VzqQdnZ+AsDg4yIQppmntUagB+/vKbvirWZYSM+PYT03Z7Ry10f5Uqxadbutx47l/g==}
 
   webcrypto-core@1.9.2:
     resolution: {integrity: sha512-gsXecm82UQNlTBURJGuqOWy1Ww08S3kZUcr3aOJS02Pk0xLtkfeUAVC0u0xhgdonFme80edSJUIJyuvL/7250Q==}
@@ -5617,6 +5623,8 @@ snapshots:
       '@vue/shared': 3.5.44
     optionalDependencies:
       typescript: 6.0.3
+
+  wavesurfer.js@8.0.5: {}
 
   webcrypto-core@1.9.2:
     dependencies:

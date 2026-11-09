@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"mime/multipart"
 	"net/http"
@@ -37,6 +38,16 @@ func newSoundboardFixture(t *testing.T) (*rbacFixture, *SoundboardHandler, *coun
 
 func uploadSound(t *testing.T, f *rbacFixture, h *SoundboardHandler, as string, audio []byte, fields map[string]string) *httptest.ResponseRecorder {
 	t.Helper()
+	return sendMultipart(t, f, h.UploadSound, as, nil, audio, fields)
+}
+
+func replaceAudio(t *testing.T, f *rbacFixture, h *SoundboardHandler, as, id string, audio []byte) *httptest.ResponseRecorder {
+	t.Helper()
+	return sendMultipart(t, f, h.ReplaceSoundAudio, as, map[string]string{"id": id}, audio, nil)
+}
+
+func sendMultipart(t *testing.T, f *rbacFixture, handler http.HandlerFunc, as string, vars map[string]string, audio []byte, fields map[string]string) *httptest.ResponseRecorder {
+	t.Helper()
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
 	if audio != nil {
@@ -47,11 +58,14 @@ func uploadSound(t *testing.T, f *rbacFixture, h *SoundboardHandler, as string, 
 		_ = mw.WriteField(k, v)
 	}
 	_ = mw.Close()
-	req := httptest.NewRequest(http.MethodPost, "/api/soundboard", &buf)
+	req := httptest.NewRequest(http.MethodPost, "/", &buf)
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 	req = req.WithContext(context.WithValue(req.Context(), userContextKey, f.claims[as]))
+	if vars != nil {
+		req = mux.SetURLVars(req, vars)
+	}
 	rec := httptest.NewRecorder()
-	h.UploadSound(rec, req)
+	handler(rec, req)
 	return rec
 }
 
@@ -170,5 +184,102 @@ func TestSoundboardModerationRequiresManageSoundboard(t *testing.T) {
 	h.GetSoundAudio(audio, req)
 	if audio.Code != http.StatusNotFound {
 		t.Fatalf("audio of deleted sound: %d, want 404", audio.Code)
+	}
+}
+
+// silentWAV is a 16-bit mono 48 kHz WAV of the given length.
+func silentWAV(seconds float64) []byte {
+	pcm := make([]byte, int(seconds*48000)*2)
+	var b bytes.Buffer
+	b.WriteString("RIFF")
+	_ = binary.Write(&b, binary.LittleEndian, uint32(36+len(pcm)))
+	b.WriteString("WAVEfmt ")
+	for _, v := range []any{uint32(16), uint16(1), uint16(1), uint32(48000), uint32(96000), uint16(2), uint16(16)} {
+		_ = binary.Write(&b, binary.LittleEndian, v)
+	}
+	b.WriteString("data")
+	_ = binary.Write(&b, binary.LittleEndian, uint32(len(pcm)))
+	b.Write(pcm)
+	return b.Bytes()
+}
+
+func TestSoundboardWAVUploadIsTranscodedToOpus(t *testing.T) {
+	f, h, _ := newSoundboardFixture(t)
+	rec := uploadSound(t, f, h, "user", silentWAV(1), validFields())
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("upload: %d %s", rec.Code, rec.Body.String())
+	}
+	var sound models.SoundboardSound
+	_ = json.Unmarshal(rec.Body.Bytes(), &sound)
+	if sound.Format != "ogg" {
+		t.Fatalf("format = %q, want ogg", sound.Format)
+	}
+
+	req := mux.SetURLVars(httptest.NewRequest(http.MethodGet, "/", nil), map[string]string{"id": sound.ID})
+	audio := httptest.NewRecorder()
+	h.GetSoundAudio(audio, req)
+	if audio.Code != http.StatusOK || !bytes.HasPrefix(audio.Body.Bytes(), []byte("OggS")) {
+		t.Fatalf("stored audio: %d, prefix %q", audio.Code, audio.Body.Bytes()[:min(4, audio.Body.Len())])
+	}
+	if sound.FileSize != int64(audio.Body.Len()) {
+		t.Fatalf("file_size = %d, stored %d bytes", sound.FileSize, audio.Body.Len())
+	}
+}
+
+func TestSoundboardWAVUploadRejectsLongOrUnsupported(t *testing.T) {
+	f, h, _ := newSoundboardFixture(t)
+	long := silentWAV(6)
+	if rec := uploadSound(t, f, h, "user", long, validFields()); rec.Code != http.StatusBadRequest {
+		t.Fatalf("6s WAV: %d, want 400 (%s)", rec.Code, rec.Body.String())
+	}
+	stereo := silentWAV(1)
+	binary.LittleEndian.PutUint16(stereo[22:], 2)
+	if rec := uploadSound(t, f, h, "user", stereo, validFields()); rec.Code != http.StatusBadRequest {
+		t.Fatalf("stereo WAV: %d, want 400 (%s)", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSoundboardReplaceAudio(t *testing.T) {
+	f, h, n := newSoundboardFixture(t)
+	rec := uploadSound(t, f, h, "user", fakeMP3(1024), validFields())
+	var original models.SoundboardSound
+	_ = json.Unmarshal(rec.Body.Bytes(), &original)
+
+	// Uploader, Mod (no manage_soundboard) and guests are denied.
+	for _, as := range []string{"user", "mod", "guest"} {
+		if rec := replaceAudio(t, f, h, as, original.ID, silentWAV(1)); rec.Code != http.StatusForbidden {
+			t.Fatalf("replace as %s: %d, want 403", as, rec.Code)
+		}
+	}
+	if rec := replaceAudio(t, f, h, "owner", "missing", silentWAV(1)); rec.Code != http.StatusNotFound {
+		t.Fatalf("replace missing sound: %d, want 404", rec.Code)
+	}
+	if rec := replaceAudio(t, f, h, "owner", original.ID, silentWAV(6)); rec.Code != http.StatusBadRequest {
+		t.Fatalf("replace with 6s WAV: %d, want 400", rec.Code)
+	}
+
+	before := n.n
+	rec = replaceAudio(t, f, h, "owner", original.ID, silentWAV(1))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("replace as owner: %d %s", rec.Code, rec.Body.String())
+	}
+	var replaced models.SoundboardSound
+	_ = json.Unmarshal(rec.Body.Bytes(), &replaced)
+	if replaced.ID != original.ID || replaced.Name != original.Name || replaced.Format != "ogg" {
+		t.Fatalf("replace changed identity/metadata: %+v", replaced)
+	}
+	// The audio endpoint is cached as immutable, so the URL must change.
+	if replaced.AudioURL == original.AudioURL {
+		t.Fatalf("audio_url did not change: %s", replaced.AudioURL)
+	}
+	if n.n != before+1 {
+		t.Fatalf("expected a soundboard_updated broadcast")
+	}
+
+	req := mux.SetURLVars(httptest.NewRequest(http.MethodGet, "/", nil), map[string]string{"id": original.ID})
+	audio := httptest.NewRecorder()
+	h.GetSoundAudio(audio, req)
+	if !bytes.HasPrefix(audio.Body.Bytes(), []byte("OggS")) {
+		t.Fatalf("served audio is not the replacement")
 	}
 }

@@ -382,6 +382,8 @@ func main() {
 		r.Handle("/api/soundboard", auth(soundUploadHandler)).Methods("POST")
 		r.Handle("/api/admin/soundboard/{id}", auth(http.HandlerFunc(soundboardHandler.UpdateSound))).Methods("PATCH")
 		r.Handle("/api/admin/soundboard/{id}", auth(http.HandlerFunc(soundboardHandler.DeleteSound))).Methods("DELETE")
+		soundReplaceHandler := limiter.Middleware("soundboard-upload", audioUploadLimit, userOrIPKey, http.HandlerFunc(soundboardHandler.ReplaceSoundAudio))
+		r.Handle("/api/admin/soundboard/{id}/audio", auth(soundReplaceHandler)).Methods("PUT")
 	}
 
 	// Shared audio management (manage_audio)

@@ -26,7 +26,7 @@ const (
 
 var (
 	ErrSoundTooLarge     = errors.New("sound file exceeds 1MB limit")
-	ErrSoundInvalidType  = errors.New("invalid file type, only MP3 and OGG files are allowed")
+	ErrSoundInvalidType  = errors.New("invalid file type, only WAV, MP3 and OGG files are allowed")
 	ErrSoundNotFound     = errors.New("sound not found")
 	ErrSoundInvalidName  = fmt.Errorf("name must be 1-%d characters", MaxSoundboardNameRunes)
 	ErrSoundInvalidAlias = fmt.Errorf("up to %d aliases of 1-%d characters each", MaxSoundboardAliases, MaxSoundboardAliasRunes)
@@ -82,19 +82,32 @@ func NormalizeSoundAliases(aliases []string) ([]string, error) {
 	return out, nil
 }
 
-func soundFormat(data []byte) (ext, format string, err error) {
+// soundFormat returns the stored bytes and their format. WAV uploads (from the
+// browser editor) are transcoded to Ogg Opus; MP3/OGG are stored as-is.
+func soundFormat(data []byte) (stored []byte, ext, format string, err error) {
+	if isWAV(data) {
+		encoded, err := encodeWAVToOpus(data)
+		if err != nil {
+			return nil, "", "", err
+		}
+		return encoded, ".ogg", "ogg", nil
+	}
 	t, err := detectAudioType(data)
 	if err != nil {
-		return "", "", ErrSoundInvalidType
+		return nil, "", "", ErrSoundInvalidType
 	}
 	if t.contentType == "audio/ogg" {
-		return ".ogg", "ogg", nil
+		return data, ".ogg", "ogg", nil
 	}
-	return ".mp3", "mp3", nil
+	return data, ".mp3", "mp3", nil
 }
 
+// withAudioURL sets the clip URL. The audio endpoint is cached as immutable,
+// so the URL carries the stored filename as a version: replacing the audio
+// writes a new file and therefore yields a new URL.
 func withAudioURL(sound *models.SoundboardSound) *models.SoundboardSound {
-	sound.AudioURL = fmt.Sprintf("/api/soundboard/%s/audio", sound.ID)
+	version := strings.TrimSuffix(sound.Filename, filepath.Ext(sound.Filename))
+	sound.AudioURL = fmt.Sprintf("/api/soundboard/%s/audio?v=%s", sound.ID, version)
 	return sound
 }
 
@@ -110,16 +123,16 @@ func (s *SoundboardService) Create(userID string, data []byte, name, emoji strin
 	if err != nil {
 		return nil, err
 	}
-	ext, format, err := soundFormat(data)
-	if err != nil {
-		return nil, err
-	}
 	count, err := s.repo.Count()
 	if err != nil {
 		return nil, fmt.Errorf("failed to count sounds: %w", err)
 	}
 	if count >= MaxSoundboardSounds {
 		return nil, ErrSoundLibraryFull
+	}
+	data, ext, format, err := soundFormat(data)
+	if err != nil {
+		return nil, err
 	}
 
 	if err := os.MkdirAll(s.soundDir(), 0755); err != nil {
@@ -189,6 +202,46 @@ func (s *SoundboardService) Update(id string, req models.UpdateSoundboardSoundRe
 	}
 	if err := s.repo.Update(sound); err != nil {
 		return nil, err
+	}
+	return withAudioURL(sound), nil
+}
+
+// ReplaceAudio swaps a clip's audio (from the admin editor), keeping its id
+// and metadata. The new file gets a fresh name so the versioned URL changes.
+func (s *SoundboardService) ReplaceAudio(id string, data []byte) (*models.SoundboardSound, error) {
+	if len(data) > MaxSoundboardFileSize {
+		return nil, ErrSoundTooLarge
+	}
+	sound, err := s.repo.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if sound == nil {
+		return nil, ErrSoundNotFound
+	}
+	data, ext, format, err := soundFormat(data)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := os.MkdirAll(s.soundDir(), 0755); err != nil {
+		return nil, fmt.Errorf("failed to create soundboard directory: %w", err)
+	}
+	filename := uuid.New().String() + ext
+	filePath := filepath.Join(s.soundDir(), filename)
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		return nil, fmt.Errorf("failed to save sound: %w", err)
+	}
+	oldFilename := sound.Filename
+	sound.Filename = filename
+	sound.Format = format
+	sound.FileSize = int64(len(data))
+	if err := s.repo.UpdateAudio(sound); err != nil {
+		_ = os.Remove(filePath)
+		return nil, fmt.Errorf("failed to save sound record: %w", err)
+	}
+	if old, ok := safeSoundFilename(oldFilename); ok && old != filename {
+		_ = os.Remove(filepath.Join(s.soundDir(), old))
 	}
 	return withAudioURL(sound), nil
 }

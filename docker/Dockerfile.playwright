@@ -17,7 +17,7 @@ FROM mcr.microsoft.com/playwright:v1.64.1-noble
 ENV GOTOOLCHAIN=local
 ENV PATH="/usr/local/go/bin:${PATH}"
 
-# build-essential + libvips are required to build the backend (bimg/CGO).
+# build-essential + libvips + libopus are required to build the backend (bimg, hraban/opus; CGO).
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
@@ -25,6 +25,8 @@ RUN apt-get update \
         curl \
         git \
         libvips-dev \
+        libopus-dev \
+        libopusfile-dev \
         pkg-config \
     && rm -rf /var/lib/apt/lists/*
 

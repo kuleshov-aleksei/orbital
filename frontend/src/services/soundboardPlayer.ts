@@ -12,6 +12,8 @@ const MAX_LATE_START_MS = 1000
 type HowlInstance = ReturnType<typeof Howl>
 
 const howls = new Map<string, HowlInstance>()
+/** URL each Howl was created from, to detect replaced audio. */
+const howlUrls = new Map<string, string>()
 let volume = 0.5
 let enabled = true
 
@@ -30,18 +32,30 @@ function createHowl(sound: SoundboardSound): HowlInstance {
   })
 }
 
-/** Preloads new clips and unloads deleted ones. Edits never change audio. */
+/**
+ * Preloads new clips, unloads deleted ones, and reloads clips whose audio was
+ * replaced (their versioned URL changed).
+ */
 export function syncSoundboardLibrary(sounds: SoundboardSound[]): void {
-  const ids = new Set(sounds.map((s) => s.id))
+  const urls = new Map(sounds.map((s) => [s.id, apiService.getSoundboardAudioUrl(s)]))
   howls.forEach((howl, id) => {
-    if (!ids.has(id)) {
+    if (urls.get(id) !== howlUrls.get(id)) {
       howl.unload()
       howls.delete(id)
+      howlUrls.delete(id)
     }
   })
-  for (const sound of sounds) {
-    if (!howls.has(sound.id)) howls.set(sound.id, createHowl(sound))
+  for (const sound of sounds) ensureHowl(sound)
+}
+
+function ensureHowl(sound: SoundboardSound): HowlInstance {
+  let howl = howls.get(sound.id)
+  if (!howl) {
+    howl = createHowl(sound)
+    howls.set(sound.id, howl)
+    howlUrls.set(sound.id, apiService.getSoundboardAudioUrl(sound))
   }
+  return howl
 }
 
 export function setSoundboardVolume(next: number): void {
@@ -73,8 +87,7 @@ export function playSoundboardSound(soundId: string, receivedAt = Date.now()): v
 
 /** Plays a clip for the local user only (upload preview / admin preview). */
 export function previewSoundboardSound(sound: SoundboardSound): void {
-  const howl = howls.get(sound.id) ?? createHowl(sound)
-  howls.set(sound.id, howl)
+  const howl = ensureHowl(sound)
   howl.volume(volume > 0 ? volume : 0.5)
   howl.play()
 }

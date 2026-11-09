@@ -6,7 +6,7 @@
       @keydown.esc="close">
       <div
         data-testid="soundboard-upload-modal"
-        class="bg-theme-bg-secondary border border-theme-border rounded-lg p-5 w-full max-w-md max-h-[90vh] overflow-y-auto">
+        class="bg-theme-bg-secondary border border-theme-border rounded-lg p-5 w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-lg font-semibold text-theme-text-primary">Upload a sound</h2>
           <button
@@ -27,33 +27,30 @@
             <input
               ref="fileInput"
               type="file"
-              accept=".mp3,.ogg,.opus,audio/mpeg,audio/ogg"
+              accept="audio/*,.mp3,.ogg,.opus,.wav,.flac,.m4a"
               class="hidden"
               @change="onFileChange" />
             <div class="flex items-center gap-2">
               <button
                 type="button"
                 class="px-3 py-1.5 text-sm rounded bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-primary"
+                :disabled="isDecoding"
                 @click="fileInput?.click()">
-                {{ file ? "Change file" : "Choose file" }}
+                {{ decoded ? "Change file" : "Choose file" }}
               </button>
-              <span v-if="file" class="text-xs text-theme-text-secondary truncate flex-1">
-                {{ file.name }} · {{ durationLabel }}
+              <span v-if="sourceName" class="text-xs text-theme-text-secondary truncate flex-1">
+                {{ sourceName }}
+                <template v-if="decoded"> · {{ decoded.duration.toFixed(1) }}s</template>
+                <template v-else-if="isDecoding"> · decoding…</template>
               </span>
-              <button
-                v-if="previewUrl"
-                type="button"
-                class="h-8 w-8 rounded flex items-center justify-center bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary"
-                title="Preview"
-                @click="togglePreview">
-                <PhStop v-if="isPreviewing" class="w-4 h-4" />
-                <PhPlay v-else class="w-4 h-4" />
-              </button>
             </div>
-            <p class="mt-1 text-[11px] text-theme-text-muted">
-              MP3 or OGG, up to {{ MAX_DURATION_S }} seconds and 1 MB.
+            <p v-if="!decoded" class="mt-1 text-[11px] text-theme-text-muted">
+              Any audio file up to {{ MAX_SOURCE_S }} seconds. You'll trim it to
+              {{ MAX_DURATION_S }} seconds next.
             </p>
           </div>
+
+          <SoundboardAudioEditor v-if="decoded" ref="editor" :audio="decoded" />
 
           <!-- Emoji + name -->
           <div>
@@ -140,27 +137,31 @@
 
 <script setup lang="ts">
 import { computed, onUnmounted, ref, useTemplateRef } from "vue"
-import { PhPlay, PhSmiley, PhStop, PhX } from "@phosphor-icons/vue"
+import { PhSmiley, PhX } from "@phosphor-icons/vue"
 import EmojiGlyph from "@/components/EmojiGlyph.vue"
 import EmojiPicker from "@/components/EmojiPicker.vue"
+import SoundboardAudioEditor from "@/components/soundboard/SoundboardAudioEditor.vue"
 import type { EmojiRef } from "@/services/emoji"
+import { decodeAudioFile, type DecodedAudio } from "@/services/audioDecode"
 import { useSoundboardStore } from "@/stores"
 
 const emit = defineEmits<{ close: [] }>()
-// Keep in sync with backend/internal/service/soundboardservice.go.
-const MAX_BYTES = 1024 * 1024
+// Keep in sync with backend/internal/service/soundboard{service,opus}.go.
+const MAX_UPLOAD_BYTES = 1024 * 1024
 const MAX_DURATION_S = 5
 const MAX_NAME = 32
 const MAX_ALIASES = 10
+// Limits for the source file; it is trimmed before upload.
+const MAX_SOURCE_BYTES = 10 * 1024 * 1024
+const MAX_SOURCE_S = 30
 
 const soundboardStore = useSoundboardStore()
 
 const fileInput = useTemplateRef<HTMLInputElement>("fileInput")
-const file = ref<File | null>(null)
-const duration = ref<number | null>(null)
-const previewUrl = ref<string | null>(null)
-const isPreviewing = ref(false)
-let previewAudio: HTMLAudioElement | null = null
+const editor = useTemplateRef<InstanceType<typeof SoundboardAudioEditor>>("editor")
+const sourceName = ref<string | null>(null)
+const decoded = ref<DecodedAudio | null>(null)
+const isDecoding = ref(false)
 
 const name = ref("")
 const emoji = ref<EmojiRef>("")
@@ -170,31 +171,17 @@ const aliasDraft = ref("")
 const error = ref<string | null>(null)
 const isUploading = ref(false)
 
-const durationLabel = computed(() =>
-  duration.value === null ? "…" : `${duration.value.toFixed(1)}s`,
-)
 const canSubmit = computed(
-  () => !!file.value && duration.value !== null && name.value.trim() !== "" && !isUploading.value,
+  () =>
+    !!decoded.value &&
+    (editor.value?.hasValidSelection ?? false) &&
+    name.value.trim() !== "" &&
+    !isUploading.value,
 )
-
-// Decodes the file locally to read its real duration; the server only
-// enforces size and format.
-async function readDuration(f: File): Promise<number> {
-  const ctx = new AudioContext()
-  try {
-    const buffer = await ctx.decodeAudioData(await f.arrayBuffer())
-    return buffer.duration
-  } finally {
-    void ctx.close()
-  }
-}
 
 function resetFile() {
-  stopPreview()
-  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
-  previewUrl.value = null
-  file.value = null
-  duration.value = null
+  decoded.value = null
+  sourceName.value = null
 }
 
 async function onFileChange(event: Event) {
@@ -205,46 +192,32 @@ async function onFileChange(event: Event) {
   resetFile()
   error.value = null
 
-  if (picked.size > MAX_BYTES) {
-    error.value = "File is larger than 1 MB."
+  if (picked.size > MAX_SOURCE_BYTES) {
+    error.value = "File is larger than 10 MB."
     return
   }
-  let seconds: number
+  sourceName.value = picked.name
+  isDecoding.value = true
+  let audio: DecodedAudio
   try {
-    seconds = await readDuration(picked)
+    audio = await decodeAudioFile(await picked.arrayBuffer())
   } catch {
-    error.value = "Couldn't read this file. Use an MP3 or OGG audio file."
+    sourceName.value = null
+    error.value = "Couldn't read this file. Use a common audio format (MP3, OGG, WAV, FLAC)."
     return
+  } finally {
+    isDecoding.value = false
   }
-  if (seconds > MAX_DURATION_S + 0.05) {
-    error.value = `Sound is ${seconds.toFixed(1)}s long. Keep it under ${MAX_DURATION_S} seconds.`
+  if (audio.duration > MAX_SOURCE_S) {
+    sourceName.value = null
+    error.value = `File is ${audio.duration.toFixed(0)}s long. Use one under ${MAX_SOURCE_S} seconds.`
     return
   }
 
-  file.value = picked
-  duration.value = seconds
-  previewUrl.value = URL.createObjectURL(picked)
+  decoded.value = audio
   if (!name.value.trim()) {
     name.value = picked.name.replace(/\.[^.]+$/, "").slice(0, MAX_NAME)
   }
-}
-
-function stopPreview() {
-  previewAudio?.pause()
-  previewAudio = null
-  isPreviewing.value = false
-}
-
-function togglePreview() {
-  if (isPreviewing.value) {
-    stopPreview()
-    return
-  }
-  if (!previewUrl.value) return
-  previewAudio = new Audio(previewUrl.value)
-  previewAudio.onended = stopPreview
-  isPreviewing.value = true
-  void previewAudio.play().catch(stopPreview)
 }
 
 function selectEmoji(ref: EmojiRef) {
@@ -274,12 +247,19 @@ function onAliasKeydown(event: KeyboardEvent) {
 
 async function submit() {
   commitAlias()
-  if (!canSubmit.value || !file.value) return
+  if (!canSubmit.value) return
+  const wav = editor.value?.exportWav()
+  if (!wav) return
+  if (wav.byteLength > MAX_UPLOAD_BYTES) {
+    error.value = "Selection is too large to upload."
+    return
+  }
+  const file = new File([wav], `${name.value.trim() || "sound"}.wav`, { type: "audio/wav" })
   isUploading.value = true
   error.value = null
   try {
     await soundboardStore.upload({
-      file: file.value,
+      file,
       name: name.value.trim(),
       emoji: emoji.value,
       aliases: aliases.value,

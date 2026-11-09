@@ -132,6 +132,14 @@
               </button>
               <button
                 type="button"
+                class="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 text-white rounded flex items-center gap-1.5"
+                title="Trim and normalize this clip"
+                @click="audioEditSound = sound">
+                <PhWaveform class="w-4 h-4" />
+                Edit audio
+              </button>
+              <button
+                type="button"
                 class="px-3 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded"
                 @click="confirmDeleteId = sound.id">
                 Delete
@@ -141,6 +149,11 @@
         </div>
       </div>
     </div>
+
+    <SoundboardAudioEditModal
+      v-if="audioEditSound"
+      :sound="audioEditSound"
+      @close="audioEditSound = null" />
 
     <div v-if="sounds.length === 0 && !soundboardStore.isLoading" class="p-8 text-center">
       <PhMusicNotes class="w-12 h-12 text-gray-600 mx-auto mb-4" />
@@ -153,9 +166,10 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue"
-import { PhMusicNotes, PhPlay, PhSmiley, PhSpeakerHigh } from "@phosphor-icons/vue"
+import { PhMusicNotes, PhPlay, PhSmiley, PhSpeakerHigh, PhWaveform } from "@phosphor-icons/vue"
 import EmojiGlyph from "@/components/EmojiGlyph.vue"
 import EmojiPicker from "@/components/EmojiPicker.vue"
+import SoundboardAudioEditModal from "@/components/soundboard/SoundboardAudioEditModal.vue"
 import { useSoundboardStore, useUsersStore } from "@/stores"
 import { previewSoundboardSound } from "@/services/soundboardPlayer"
 import type { EmojiRef } from "@/services/emoji"
@@ -172,6 +186,7 @@ const confirmDeleteId = ref<string | null>(null)
 const busyId = ref<string | null>(null)
 const isPickerOpen = ref(false)
 const error = ref<string | null>(null)
+const audioEditSound = ref<SoundboardSound | null>(null)
 const draft = reactive({ name: "", emoji: "" as EmojiRef, aliases: "" })
 
 const uploaderName = (id?: string) =>

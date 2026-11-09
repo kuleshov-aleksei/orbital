@@ -45,7 +45,8 @@
     "vue-boring-avatars": "^1.4.0",
     "vue-chartjs": "^5.3.4",
     "vue-router": "^5.4.0",
-    "vue-virtual-scroller": "^3.0.5"
+    "vue-virtual-scroller": "^3.0.5",
+    "wavesurfer.js": "^8.0.5"
   },
   "optionalDependencies": {
     "@vencord/venmic": "^7.2.5",

@@ -44,7 +44,9 @@ func writeSoundboardError(w http.ResponseWriter, err error) {
 		http.Error(w, err.Error(), http.StatusRequestEntityTooLarge)
 	case errors.Is(err, service.ErrSoundInvalidType),
 		errors.Is(err, service.ErrSoundInvalidName),
-		errors.Is(err, service.ErrSoundInvalidAlias):
+		errors.Is(err, service.ErrSoundInvalidAlias),
+		errors.Is(err, service.ErrSoundInvalidWAV),
+		errors.Is(err, service.ErrSoundTooLong):
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	case errors.Is(err, service.ErrSoundLibraryFull):
 		http.Error(w, err.Error(), http.StatusConflict)
@@ -75,7 +77,8 @@ func (h *SoundboardHandler) GetSoundAudio(w http.ResponseWriter, r *http.Request
 		return
 	}
 	w.Header().Set("Content-Type", contentType)
-	// Clip contents never change for a given id (edits only touch metadata).
+	// Safe to cache forever: audio_url carries a version that changes when the
+	// audio is replaced (see withAudioURL).
 	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	http.ServeFile(w, r, filePath)
 }
@@ -92,32 +95,8 @@ func (h *SoundboardHandler) UploadSound(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Leave headroom for the other form fields on top of the file itself.
-	const maxBody = service.MaxSoundboardFileSize + 64*1024
-	if r.ContentLength > maxBody {
-		http.Error(w, service.ErrSoundTooLarge.Error(), http.StatusRequestEntityTooLarge)
-		return
-	}
-	r.Body = http.MaxBytesReader(w, r.Body, maxBody)
-	if err := r.ParseMultipartForm(maxBody); err != nil {
-		var tooLarge *http.MaxBytesError
-		if errors.As(err, &tooLarge) {
-			http.Error(w, service.ErrSoundTooLarge.Error(), http.StatusRequestEntityTooLarge)
-			return
-		}
-		http.Error(w, "Failed to parse multipart form", http.StatusBadRequest)
-		return
-	}
-
-	file, _, err := r.FormFile("audio")
-	if err != nil {
-		http.Error(w, "No audio file provided", http.StatusBadRequest)
-		return
-	}
-	defer func() { _ = file.Close() }()
-	data, err := io.ReadAll(io.LimitReader(file, service.MaxSoundboardFileSize+1))
-	if err != nil {
-		http.Error(w, "Failed to read file", http.StatusInternalServerError)
+	data, ok := readSoundUpload(w, r)
+	if !ok {
 		return
 	}
 
@@ -143,6 +122,61 @@ func (h *SoundboardHandler) UploadSound(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	writeJSON(w, sound)
+}
+
+// ReplaceSoundAudio swaps a clip's audio, keeping its id and metadata.
+// Multipart field: audio.
+// PUT /api/admin/soundboard/{id}/audio
+func (h *SoundboardHandler) ReplaceSoundAudio(w http.ResponseWriter, r *http.Request) {
+	if _, ok := requireServerPerm(w, r, h.permissions, permissions.ManageSoundboard); !ok {
+		return
+	}
+	data, ok := readSoundUpload(w, r)
+	if !ok {
+		return
+	}
+	sound, err := h.soundboard.ReplaceAudio(mux.Vars(r)["id"], data)
+	if err != nil {
+		writeSoundboardError(w, err)
+		return
+	}
+	h.notify()
+	w.Header().Set("Content-Type", "application/json")
+	writeJSON(w, sound)
+}
+
+// readSoundUpload parses the multipart form and returns the "audio" file,
+// writing the error response itself when it fails.
+func readSoundUpload(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
+	// Leave headroom for the other form fields on top of the file itself.
+	const maxBody = service.MaxSoundboardFileSize + 64*1024
+	if r.ContentLength > maxBody {
+		http.Error(w, service.ErrSoundTooLarge.Error(), http.StatusRequestEntityTooLarge)
+		return nil, false
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxBody)
+	if err := r.ParseMultipartForm(maxBody); err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			http.Error(w, service.ErrSoundTooLarge.Error(), http.StatusRequestEntityTooLarge)
+			return nil, false
+		}
+		http.Error(w, "Failed to parse multipart form", http.StatusBadRequest)
+		return nil, false
+	}
+
+	file, _, err := r.FormFile("audio")
+	if err != nil {
+		http.Error(w, "No audio file provided", http.StatusBadRequest)
+		return nil, false
+	}
+	defer func() { _ = file.Close() }()
+	data, err := io.ReadAll(io.LimitReader(file, service.MaxSoundboardFileSize+1))
+	if err != nil {
+		http.Error(w, "Failed to read file", http.StatusInternalServerError)
+		return nil, false
+	}
+	return data, true
 }
 
 // UpdateSound edits a clip's name, emoji and/or aliases.

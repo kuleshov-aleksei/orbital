@@ -159,6 +159,11 @@ export const useSoundboardStore = defineStore("soundboard", () => {
     await fetchSounds()
   }
 
+  async function replaceAudio(id: string, file: File): Promise<void> {
+    await apiService.replaceSoundboardAudio(id, file)
+    await fetchSounds()
+  }
+
   async function remove(id: string): Promise<void> {
     await apiService.deleteSoundboardSound(id)
     await fetchSounds()
@@ -182,6 +187,7 @@ export const useSoundboardStore = defineStore("soundboard", () => {
     setEnabled,
     upload,
     update,
+    replaceAudio,
     remove,
   }
 })

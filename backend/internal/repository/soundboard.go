@@ -94,6 +94,13 @@ func (r *SoundboardRepository) Update(s *models.SoundboardSound) error {
 	return err
 }
 
+// UpdateAudio points a sound at a new stored file.
+func (r *SoundboardRepository) UpdateAudio(s *models.SoundboardSound) error {
+	_, err := r.db.Exec(`UPDATE soundboard_sounds SET filename = ?, format = ?, file_size = ? WHERE id = ?`,
+		s.Filename, s.Format, s.FileSize, s.ID)
+	return err
+}
+
 func (r *SoundboardRepository) Delete(id string) error {
 	_, err := r.db.Exec(`DELETE FROM soundboard_sounds WHERE id = ?`, id)
 	return err

@@ -330,7 +330,8 @@ export async function apiRequest<T>(
         throw apiError("Session expired", 401)
       }
       if (response.status === 413) {
-        throw new Error("File too large. Maximum size is 30MB.")
+        // Limits differ per endpoint (e.g. soundboard 1MB); the client checks them first.
+        throw apiError("File too large.", 413)
       }
       const errorText = await response.text()
       throw apiError(errorText || `Upload failed (${response.status})`, response.status)
@@ -1073,9 +1074,23 @@ export const apiService = {
     await apiRequest<{ status: string }>(`/admin/soundboard/${id}`, { method: "DELETE" })
   },
 
-  // audio_url from the backend is "/api/...": resolve it against API_BASE
-  // so it also works in Electron and with a non-default backend origin.
+  async replaceSoundboardAudio(id: string, file: File): Promise<SoundboardSound> {
+    const form = new FormData()
+    form.append("audio", file)
+    return apiRequest<SoundboardSound>(`/admin/soundboard/${id}/audio`, {
+      method: "PUT",
+      body: form,
+    })
+  },
+
+  // audio_url from the backend is "/api/...?v=<version>": resolve it against
+  // API_BASE so it also works in Electron and with a non-default backend
+  // origin. The version changes when the audio is replaced (it is cached as
+  // immutable).
   getSoundboardAudioUrl(sound: SoundboardSound): string {
+    if (sound.audio_url?.startsWith("/api/")) {
+      return `${API_BASE}${sound.audio_url.slice("/api".length)}`
+    }
     return `${API_BASE}/soundboard/${sound.id}/audio`
   },
 
