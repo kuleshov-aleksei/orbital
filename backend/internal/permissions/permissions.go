@@ -34,8 +34,9 @@ const (
 	Screenshare Permission = 1 << 12
 	// SendMessages allows sending room chat messages.
 	SendMessages Permission = 1 << 13
-	// UseSoundboard allows triggering the boombox.
-	UseSoundboard Permission = 1 << 14
+	// UseBoombox allows playing music through the boombox (spatial rooms).
+	// Not the future in-call soundboard, which should get its own bit.
+	UseBoombox Permission = 1 << 14
 	// KickMembers allows disconnecting other members from a room.
 	KickMembers Permission = 1 << 15
 	// MuteMembers is reserved for server-side mute (not implemented yet).
@@ -47,7 +48,7 @@ const (
 // All is every defined permission.
 const All = Administrator | ManageRoles | ManageRooms | ManageAudio |
 	ViewRoom | Connect | Speak | Video | Screenshare | SendMessages |
-	UseSoundboard | KickMembers | MuteMembers | MoveMembers
+	UseBoombox | KickMembers | MuteMembers | MoveMembers
 
 // RoleOnly are permissions that cannot be set through overwrites.
 const RoleOnly = Administrator | ManageRoles | ManageAudio
@@ -59,10 +60,10 @@ const Overwritable = All &^ RoleOnly
 const RoomScoped = Overwritable
 
 // voiceScoped are permissions that are meaningless without Connect.
-const voiceScoped = Speak | Video | Screenshare | UseSoundboard
+const voiceScoped = Speak | Video | Screenshare | UseBoombox
 
 // DefaultEveryone is the seed permission set for the @everyone role.
-const DefaultEveryone = ViewRoom | Connect | Speak | Video | Screenshare | SendMessages | UseSoundboard
+const DefaultEveryone = ViewRoom | Connect | Speak | Video | Screenshare | SendMessages | UseBoombox
 
 // DefaultGuestDeny is the seed deny mask for the Guest system role.
 const DefaultGuestDeny = Video | Screenshare
@@ -87,7 +88,7 @@ var Names = map[string]Permission{
 	"video":          Video,
 	"screenshare":    Screenshare,
 	"send_messages":  SendMessages,
-	"use_soundboard": UseSoundboard,
+	"use_boombox": UseBoombox,
 	"kick_members":   KickMembers,
 	"mute_members":   MuteMembers,
 	"move_members":   MoveMembers,

@@ -12,7 +12,7 @@ export const Permission = {
   Video: 1 << 11,
   Screenshare: 1 << 12,
   SendMessages: 1 << 13,
-  UseSoundboard: 1 << 14,
+  UseBoombox: 1 << 14,
   KickMembers: 1 << 15,
   MuteMembers: 1 << 16,
   MoveMembers: 1 << 17,
@@ -83,7 +83,7 @@ export const PERMISSION_INFO: Array<{
     group: "voice",
   },
   {
-    key: "UseSoundboard",
+    key: "UseBoombox",
     label: "Use Boombox",
     description: "Play music through the boombox",
     group: "voice",

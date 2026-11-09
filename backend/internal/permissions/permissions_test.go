@@ -70,7 +70,7 @@ func TestCompute(t *testing.T) {
 			name:    "no connect clears voice perms",
 			in:      Input{Everyone: DefaultEveryone, EveryoneOverwrite: ow(0, Connect)},
 			want:    ViewRoom | SendMessages,
-			wantNot: Speak | Video | Screenshare | UseSoundboard,
+			wantNot: Speak | Video | Screenshare | UseBoombox,
 		},
 		{
 			name: "overwrites cannot grant role-only bits",

@@ -177,9 +177,9 @@ const callStore = useCallStore()
 const spatialRoomStore = useRoomStore()
 const permissionsStore = usePermissionsStore()
 // UI gate; the backend enforces it via the LiveKit grant (the boombox track's
-// UNKNOWN source is only allowed with use_soundboard).
+// UNKNOWN source is only allowed with use_boombox).
 const canUseBoombox = computed(() =>
-  permissionsStore.can(Permission.UseSoundboard, { roomId: spatialRoomStore.activeRoomId }),
+  permissionsStore.can(Permission.UseBoombox, { roomId: spatialRoomStore.activeRoomId }),
 )
 const selectedCharacter = ref<CharacterKey>(loadCharacter())
 const showCharacterPicker = ref(false)

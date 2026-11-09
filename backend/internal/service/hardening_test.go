@@ -220,9 +220,9 @@ func TestPublishSourcesFor(t *testing.T) {
 		}
 	}
 
-	noBoombox := PublishSourcesFor(permissions.DefaultEveryone &^ permissions.UseSoundboard)
+	noBoombox := PublishSourcesFor(permissions.DefaultEveryone &^ permissions.UseBoombox)
 	if has(noBoombox, livekit.TrackSource_UNKNOWN) {
-		t.Errorf("UNKNOWN (boombox) allowed without use_soundboard: %v", noBoombox)
+		t.Errorf("UNKNOWN (boombox) allowed without use_boombox: %v", noBoombox)
 	}
 	if got := PublishSourcesFor(permissions.ViewRoom | permissions.Connect); len(got) != 0 {
 		t.Errorf("expected no publish sources, got %v", got)
