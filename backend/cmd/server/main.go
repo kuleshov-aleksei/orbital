@@ -220,6 +220,13 @@ func main() {
 	var emojiHandler *handlers.EmojiHandler
 	if emojiService != nil {
 		emojiHandler = handlers.NewEmojiHandler(emojiService, permissionService, wsHub)
+		// One-time conversion of emojis stored before WebP. Their image_url
+		// changes, so tell connected clients to refetch the library.
+		go func() {
+			if emojiService.MigrateToWebP() > 0 {
+				wsHub.BroadcastCustomEmojisUpdated()
+			}
+		}()
 		// Allow "custom:<id>" refs in statuses and soundboard clips.
 		usersHandler.SetEmojiLookup(emojiService)
 		if soundboardHandler != nil {

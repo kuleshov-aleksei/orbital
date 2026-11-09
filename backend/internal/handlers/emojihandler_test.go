@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"image"
 	"image/color"
@@ -12,6 +13,8 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gorilla/mux"
@@ -54,6 +57,40 @@ func testGIF(t *testing.T, w, h, frames int) []byte {
 		t.Fatal(err)
 	}
 	return buf.Bytes()
+}
+
+// webpInfo reads a WebP's canvas size and frame count from its RIFF chunks
+// (VP8X canvas + ANMF frames for animations, VP8L/VP8 for still images).
+func webpInfo(t *testing.T, data []byte) (w, h, frames int) {
+	t.Helper()
+	if len(data) < 12 || string(data[:4]) != "RIFF" || string(data[8:12]) != "WEBP" {
+		t.Fatalf("not a webp: % x", data[:min(len(data), 12)])
+	}
+	for off := 12; off+8 <= len(data); {
+		fourcc := string(data[off : off+4])
+		size := int(binary.LittleEndian.Uint32(data[off+4 : off+8]))
+		p := data[off+8 : min(len(data), off+8+size)]
+		switch fourcc {
+		case "VP8X":
+			w = 1 + (int(p[4]) | int(p[5])<<8 | int(p[6])<<16)
+			h = 1 + (int(p[7]) | int(p[8])<<8 | int(p[9])<<16)
+		case "ANMF":
+			frames++
+		case "VP8L":
+			if w == 0 {
+				bits := binary.LittleEndian.Uint32(p[1:5])
+				w, h = int(bits&0x3FFF)+1, int(bits>>14&0x3FFF)+1
+			}
+			frames = max(frames, 1)
+		case "VP8 ":
+			if w == 0 {
+				w, h = int(binary.LittleEndian.Uint16(p[6:8])&0x3FFF), int(binary.LittleEndian.Uint16(p[8:10])&0x3FFF)
+			}
+			frames = max(frames, 1)
+		}
+		off += 8 + size + size%2
+	}
+	return w, h, frames
 }
 
 func newEmojiFixture(t *testing.T) (*rbacFixture, *EmojiHandler, *service.EmojiService, *countingEmojiNotifier) {
@@ -120,17 +157,21 @@ func TestEmojiUploadAndList(t *testing.T) {
 		t.Fatalf("list = %+v", emojis)
 	}
 
-	// The stored image is re-encoded to fit within 128x128, keeping aspect ratio.
+	// The stored image is re-encoded as WebP to fit within 128x128, keeping
+	// aspect ratio.
 	img := f.do(t, "", h.GetEmojiImage, http.MethodGet, map[string]string{"id": emoji.ID}, nil)
-	if img.Code != http.StatusOK || img.Header().Get("Content-Type") != "image/png" {
+	if img.Code != http.StatusOK || img.Header().Get("Content-Type") != "image/webp" {
 		t.Fatalf("image: %d %q", img.Code, img.Header().Get("Content-Type"))
 	}
-	cfg, err := png.DecodeConfig(bytes.NewReader(img.Body.Bytes()))
-	if err != nil {
-		t.Fatal(err)
+	if w, h, frames := webpInfo(t, img.Body.Bytes()); w != 128 || h != 64 || frames != 1 {
+		t.Fatalf("stored = %dx%d %d frames, want 128x64 still", w, h, frames)
 	}
-	if cfg.Width != 128 || cfg.Height != 64 {
-		t.Fatalf("stored size = %dx%d, want 128x64", cfg.Width, cfg.Height)
+	if emoji.Animated {
+		t.Fatal("png emoji must not be marked animated")
+	}
+	// Static emojis have no still variant; the image itself is served.
+	if still := f.doQuery(t, h.GetEmojiImage, map[string]string{"id": emoji.ID}, "still=1"); still.Header().Get("Content-Type") != "image/webp" {
+		t.Fatalf("still of static emoji: %q", still.Header().Get("Content-Type"))
 	}
 }
 
@@ -144,20 +185,11 @@ func TestEmojiUploadAnimatedGIF(t *testing.T) {
 	_ = json.Unmarshal(rec.Body.Bytes(), &emoji)
 
 	img := f.do(t, "", h.GetEmojiImage, http.MethodGet, map[string]string{"id": emoji.ID}, nil)
-	if img.Code != http.StatusOK || img.Header().Get("Content-Type") != "image/gif" {
+	if img.Code != http.StatusOK || img.Header().Get("Content-Type") != "image/webp" {
 		t.Fatalf("image: %d %q", img.Code, img.Header().Get("Content-Type"))
 	}
-	g, err := gif.DecodeAll(bytes.NewReader(img.Body.Bytes()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(g.Image) != 3 || g.Config.Width != 128 || g.Config.Height != 100 {
-		t.Fatalf("stored gif = %d frames %dx%d, want 3 frames 128x100", len(g.Image), g.Config.Width, g.Config.Height)
-	}
-	for i, frame := range g.Image {
-		if !frame.Bounds().In(image.Rect(0, 0, 128, 100)) {
-			t.Fatalf("frame %d bounds %v outside the screen", i, frame.Bounds())
-		}
+	if w, h, frames := webpInfo(t, img.Body.Bytes()); w != 128 || h != 100 || frames != 3 {
+		t.Fatalf("stored = %dx%d %d frames, want 128x100 with 3 frames", w, h, frames)
 	}
 	if !emoji.Animated {
 		t.Fatal("gif emoji must be marked animated")
@@ -171,6 +203,87 @@ func TestEmojiUploadAnimatedGIF(t *testing.T) {
 	cfg, err := png.DecodeConfig(bytes.NewReader(still.Body.Bytes()))
 	if err != nil || cfg.Width != 128 || cfg.Height != 100 {
 		t.Fatalf("still = %v %dx%d, want 128x100", err, cfg.Width, cfg.Height)
+	}
+}
+
+// Animated WebP uploads are accepted, and a stored animated WebP survives a
+// re-upload round trip with its frames.
+func TestEmojiUploadAnimatedWebP(t *testing.T) {
+	f, h, _, _ := newEmojiFixture(t)
+	rec := uploadEmoji(t, f, h, "owner", testGIF(t, 64, 64, 4), emojiFields())
+	var first models.CustomEmoji
+	_ = json.Unmarshal(rec.Body.Bytes(), &first)
+	webp := f.do(t, "", h.GetEmojiImage, http.MethodGet, map[string]string{"id": first.ID}, nil).Body.Bytes()
+
+	rec = uploadEmoji(t, f, h, "owner", webp, map[string]string{"name": "again"})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("webp upload: %d %s", rec.Code, rec.Body.String())
+	}
+	var emoji models.CustomEmoji
+	_ = json.Unmarshal(rec.Body.Bytes(), &emoji)
+	if !emoji.Animated {
+		t.Fatal("animated webp must be marked animated")
+	}
+	img := f.do(t, "", h.GetEmojiImage, http.MethodGet, map[string]string{"id": emoji.ID}, nil)
+	if w, h, frames := webpInfo(t, img.Body.Bytes()); w != 64 || h != 64 || frames != 4 {
+		t.Fatalf("stored = %dx%d %d frames, want 64x64 with 4 frames", w, h, frames)
+	}
+}
+
+// Emojis stored before WebP are converted at startup and get a new URL.
+func TestEmojiMigrateToWebP(t *testing.T) {
+	f := newRBACFixture(t)
+	dataDir := t.TempDir()
+	repo := repository.NewEmojiRepository(f.db)
+	svc := service.NewEmojiService(repo, dataDir)
+	h := NewEmojiHandler(svc, f.ps, nil)
+
+	dir := filepath.Join(dataDir, "emojis")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	legacy := []struct {
+		id, file string
+		data     []byte
+		animated bool
+	}{
+		{"legacy-png", "legacy-png.png", testPNG(t, 32, 32), false},
+		{"legacy-gif", "legacy-gif.gif", testGIF(t, 32, 32, 2), true},
+	}
+	for _, l := range legacy {
+		if err := os.WriteFile(filepath.Join(dir, l.file), l.data, 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := repo.Create(&models.CustomEmoji{ID: l.id, Name: l.id, Aliases: []string{}, Filename: l.file, Animated: l.animated}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Legacy files are still served while unconverted.
+	if img := f.do(t, "", h.GetEmojiImage, http.MethodGet, map[string]string{"id": "legacy-gif"}, nil); img.Header().Get("Content-Type") != "image/gif" {
+		t.Fatalf("legacy gif served as %q", img.Header().Get("Content-Type"))
+	}
+
+	if n := svc.MigrateToWebP(); n != 2 {
+		t.Fatalf("converted %d, want 2", n)
+	}
+	if n := svc.MigrateToWebP(); n != 0 {
+		t.Fatalf("second run converted %d, want 0", n)
+	}
+	for _, l := range legacy {
+		e, err := repo.GetByID(l.id)
+		if err != nil || e == nil {
+			t.Fatal(err)
+		}
+		if e.Filename != l.id+"-w.webp" || e.Animated != l.animated {
+			t.Fatalf("%s: filename %q animated %v", l.id, e.Filename, e.Animated)
+		}
+		if _, err := os.Stat(filepath.Join(dir, l.file)); !os.IsNotExist(err) {
+			t.Fatalf("%s: old file not removed", l.id)
+		}
+		img := f.do(t, "", h.GetEmojiImage, http.MethodGet, map[string]string{"id": l.id}, nil)
+		if img.Header().Get("Content-Type") != "image/webp" {
+			t.Fatalf("%s served as %q", l.id, img.Header().Get("Content-Type"))
+		}
 	}
 }
 
@@ -211,7 +324,11 @@ func TestEmojiUploadValidation(t *testing.T) {
 		{"truncated png", testPNG(t, 16, 16)[:20], emojiFields(), http.StatusBadRequest},
 		{"too large", append(testPNG(t, 16, 16), make([]byte, service.MaxEmojiFileSize)...), emojiFields(), http.StatusRequestEntityTooLarge},
 		{"truncated gif", testGIF(t, 16, 16, 2)[:30], emojiFields(), http.StatusBadRequest},
-		{"gif too big", testGIF(t, 600, 16, 1), emojiFields(), http.StatusBadRequest},
+		{"animation too big", testGIF(t, 600, 16, 2), emojiFields(), http.StatusBadRequest},
+		{"too many frames", testGIF(t, 2, 2, 301), emojiFields(), http.StatusBadRequest},
+		{"tiff", append([]byte("II*\x00"), make([]byte, 64)...), emojiFields(), http.StatusBadRequest},
+		{"svg", []byte(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"/>`), emojiFields(), http.StatusBadRequest},
+		{"truncated webp", []byte("RIFF\x10\x00\x00\x00WEBPVP8L"), emojiFields(), http.StatusBadRequest},
 		{"empty name", testPNG(t, 16, 16), map[string]string{"name": "  "}, http.StatusBadRequest},
 		{"bad aliases", testPNG(t, 16, 16), map[string]string{"name": "x", "aliases": "nope"}, http.StatusBadRequest},
 	}

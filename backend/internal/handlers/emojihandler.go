@@ -94,8 +94,12 @@ func (h *EmojiHandler) GetEmojiImage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	contentType := "image/png"
-	if filepath.Ext(filePath) == ".gif" {
+	// .png/.gif are emojis stored before WebP (see EmojiService.MigrateToWebP).
+	contentType := "image/webp"
+	switch filepath.Ext(filePath) {
+	case ".png":
+		contentType = "image/png"
+	case ".gif":
 		contentType = "image/gif"
 	}
 	w.Header().Set("Content-Type", contentType)

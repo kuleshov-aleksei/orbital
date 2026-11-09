@@ -4,17 +4,13 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"image"
-	"image/draw"
-	"image/gif"
-	"image/png"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/h2non/bimg"
 	"github.com/kuleshov-aleksei/orbital/internal/models"
 	"github.com/kuleshov-aleksei/orbital/internal/repository"
 )
@@ -26,11 +22,11 @@ const (
 	MaxEmojiDimension = 128
 	// maxEmojiSourceDimension rejects absurd sources (decompression bombs).
 	maxEmojiSourceDimension = 4096
-	// maxGIFSourceDimension is lower than for PNGs: every frame of an
-	// animated GIF is decoded in memory, so this bounds decompression bombs.
-	maxGIFSourceDimension = 512
-	// maxGIFFrames caps animation length.
-	maxGIFFrames = 300
+	// maxAnimatedSourceDimension is lower than for static images: every frame
+	// of an animation is decoded in memory, so this bounds decompression bombs.
+	maxAnimatedSourceDimension = 512
+	// maxEmojiFrames caps animation length.
+	maxEmojiFrames = 300
 	// MaxCustomEmojis caps the library; every client loads the whole list.
 	MaxCustomEmojis = 200
 )
@@ -39,9 +35,9 @@ var gifMagics = [][]byte{[]byte("GIF87a"), []byte("GIF89a")}
 
 var (
 	ErrEmojiTooLarge     = errors.New("emoji image exceeds 256KB limit")
-	ErrEmojiInvalidType  = errors.New("invalid file type, only PNG and GIF images are allowed")
-	ErrEmojiInvalidImage = fmt.Errorf("invalid image, must be a PNG up to %dx%d or a GIF up to %dx%d with at most %d frames",
-		maxEmojiSourceDimension, maxEmojiSourceDimension, maxGIFSourceDimension, maxGIFSourceDimension, maxGIFFrames)
+	ErrEmojiInvalidType  = errors.New("invalid file type, only PNG, GIF and WebP images are allowed")
+	ErrEmojiInvalidImage = fmt.Errorf("invalid image, must be up to %dx%d (animated: up to %dx%d with at most %d frames)",
+		maxEmojiSourceDimension, maxEmojiSourceDimension, maxAnimatedSourceDimension, maxAnimatedSourceDimension, maxEmojiFrames)
 	ErrEmojiNotFound    = errors.New("emoji not found")
 	ErrEmojiLibraryFull = fmt.Errorf("emoji library is full (%d emojis max)", MaxCustomEmojis)
 )
@@ -61,99 +57,30 @@ func (s *EmojiService) emojiDir() string {
 	return filepath.Join(s.dataDir, "emojis")
 }
 
-// fitEmojiSize returns the size that fits w×h within MaxEmojiDimension with
-// the aspect ratio kept (unchanged when it already fits).
-func fitEmojiSize(w, h int) (int, int) {
-	if w <= MaxEmojiDimension && h <= MaxEmojiDimension {
-		return w, h
-	}
-	if w >= h {
-		return MaxEmojiDimension, max(1, h*MaxEmojiDimension/w)
-	}
-	return max(1, w*MaxEmojiDimension/h), MaxEmojiDimension
-}
-
-// processEmojiImage validates a PNG or GIF and re-encodes it to fit within
-// MaxEmojiDimension (aspect ratio, transparency and animation kept, metadata
-// stripped). Re-encoding also drops anything appended to or embedded in the
-// upload. Returns the encoded image and its file extension.
-func processEmojiImage(data []byte) ([]byte, string, error) {
-	if len(data) > MaxEmojiFileSize {
-		return nil, "", ErrEmojiTooLarge
+// isAllowedEmojiType checks the magic bytes. libvips sniffs and loads many
+// more formats (SVG, PDF, TIFF...), so only these reach it.
+func isAllowedEmojiType(data []byte) bool {
+	if bytes.HasPrefix(data, pngMagic) || isWebP(data) {
+		return true
 	}
 	for _, magic := range gifMagics {
 		if bytes.HasPrefix(data, magic) {
-			out, err := processEmojiGIF(data)
-			return out, ".gif", err
+			return true
 		}
 	}
-	if !bytes.HasPrefix(data, pngMagic) || bimg.DetermineImageType(data) != bimg.PNG {
-		return nil, "", ErrEmojiInvalidType
-	}
-	img := bimg.NewImage(data)
-	size, err := img.Size()
-	if err != nil || size.Width <= 0 || size.Height <= 0 ||
-		size.Width > maxEmojiSourceDimension || size.Height > maxEmojiSourceDimension {
-		return nil, "", ErrEmojiInvalidImage
-	}
-
-	opts := bimg.Options{Type: bimg.PNG, StripMetadata: true}
-	if w, h := fitEmojiSize(size.Width, size.Height); w != size.Width || h != size.Height {
-		opts.Width, opts.Height, opts.Force = w, h, true
-	}
-	out, err := img.Process(opts)
-	if err != nil {
-		return nil, "", ErrEmojiInvalidImage
-	}
-	return out, ".png", nil
+	return false
 }
 
-// processEmojiGIF re-encodes a (possibly animated) GIF with the standard
-// library, since libvips/bimg would flatten the animation. Oversized GIFs are
-// scaled with nearest-neighbour sampling, which keeps every frame's palette.
-func processEmojiGIF(data []byte) ([]byte, error) {
-	// Check the logical screen before decoding every frame.
-	cfg, err := gif.DecodeConfig(bytes.NewReader(data))
-	if err != nil || cfg.Width <= 0 || cfg.Height <= 0 ||
-		cfg.Width > maxGIFSourceDimension || cfg.Height > maxGIFSourceDimension {
-		return nil, ErrEmojiInvalidImage
+// processEmojiImage validates a PNG, GIF or WebP and re-encodes it as WebP
+// fitting MaxEmojiDimension (aspect ratio, transparency and animation kept).
+func processEmojiImage(data []byte) (encoded []byte, animated bool, err error) {
+	if len(data) > MaxEmojiFileSize {
+		return nil, false, ErrEmojiTooLarge
 	}
-	g, err := gif.DecodeAll(bytes.NewReader(data))
-	if err != nil || len(g.Image) == 0 || len(g.Image) > maxGIFFrames {
-		return nil, ErrEmojiInvalidImage
+	if !isAllowedEmojiType(data) {
+		return nil, false, ErrEmojiInvalidType
 	}
-
-	if w, h := fitEmojiSize(cfg.Width, cfg.Height); w != cfg.Width || h != cfg.Height {
-		for i, frame := range g.Image {
-			g.Image[i] = scalePaletted(frame, cfg.Width, cfg.Height, w, h)
-		}
-		g.Config.Width, g.Config.Height = w, h
-	}
-
-	var buf bytes.Buffer
-	if err := gif.EncodeAll(&buf, g); err != nil {
-		return nil, ErrEmojiInvalidImage
-	}
-	return buf.Bytes(), nil
-}
-
-// scalePaletted scales one GIF frame (positioned on an sw×sh logical screen)
-// onto a dw×dh screen with nearest-neighbour sampling.
-func scalePaletted(src *image.Paletted, sw, sh, dw, dh int) *image.Paletted {
-	b := src.Bounds()
-	// Floor the start and ceil the end so neighbouring frames leave no gaps.
-	x0, y0 := b.Min.X*dw/sw, b.Min.Y*dh/sh
-	x1 := max(x0+1, min(dw, (b.Max.X*dw+sw-1)/sw))
-	y1 := max(y0+1, min(dh, (b.Max.Y*dh+sh-1)/sh))
-	dst := image.NewPaletted(image.Rect(x0, y0, x1, y1), src.Palette)
-	for y := y0; y < y1; y++ {
-		sy := min(max(y*sh/dh, b.Min.Y), b.Max.Y-1)
-		for x := x0; x < x1; x++ {
-			sx := min(max(x*sw/dw, b.Min.X), b.Max.X-1)
-			dst.SetColorIndex(x, y, src.ColorIndexAt(sx, sy))
-		}
-	}
-	return dst
+	return encodeEmojiWebP(data)
 }
 
 // withImageURL sets the image URL. The image endpoint is cached as immutable;
@@ -161,7 +88,6 @@ func scalePaletted(src *image.Paletted, sw, sh, dw, dh int) *image.Paletted {
 func withImageURL(e *models.CustomEmoji) *models.CustomEmoji {
 	version := strings.TrimSuffix(e.Filename, filepath.Ext(e.Filename))
 	e.ImageURL = fmt.Sprintf("/api/emojis/%s/image?v=%s", e.ID, version)
-	e.Animated = filepath.Ext(e.Filename) == ".gif"
 	return e
 }
 
@@ -184,7 +110,7 @@ func (s *EmojiService) Create(userID string, data []byte, name string, aliases [
 	if count >= MaxCustomEmojis {
 		return nil, ErrEmojiLibraryFull
 	}
-	encoded, ext, err := processEmojiImage(data)
+	encoded, animated, err := processEmojiImage(data)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +119,7 @@ func (s *EmojiService) Create(userID string, data []byte, name string, aliases [
 		return nil, fmt.Errorf("failed to create emoji directory: %w", err)
 	}
 	id := uuid.New().String()
-	filename := id + ext
+	filename := id + ".webp"
 	filePath := filepath.Join(s.emojiDir(), filename)
 	if err := os.WriteFile(filePath, encoded, 0644); err != nil {
 		return nil, fmt.Errorf("failed to save emoji: %w", err)
@@ -205,6 +131,7 @@ func (s *EmojiService) Create(userID string, data []byte, name string, aliases [
 		Aliases:    aliases,
 		Filename:   filename,
 		FileSize:   int64(len(encoded)),
+		Animated:   animated,
 		UploadedBy: userID,
 		CreatedAt:  time.Now(),
 	}
@@ -280,66 +207,119 @@ func safeEmojiFilename(filename string) (string, bool) {
 	if filename == "" || filename == "." || filename == ".." || filename != filepath.Base(filename) {
 		return "", false
 	}
-	if ext := filepath.Ext(filename); ext != ".png" && ext != ".gif" {
+	// .png/.gif are emojis stored before WebP; MigrateToWebP converts them.
+	if ext := filepath.Ext(filename); ext != ".webp" && ext != ".png" && ext != ".gif" {
 		return "", false
 	}
 	return filename, true
 }
 
-// ImagePath returns the on-disk path of an emoji's image.
-func (s *EmojiService) ImagePath(id string) (string, error) {
+// emojiFile returns an emoji and the on-disk path of its image.
+func (s *EmojiService) emojiFile(id string) (*models.CustomEmoji, string, error) {
 	emoji, err := s.repo.GetByID(id)
 	if err != nil {
-		return "", err
+		return nil, "", err
 	}
 	if emoji == nil {
-		return "", ErrEmojiNotFound
+		return nil, "", ErrEmojiNotFound
 	}
 	filename, ok := safeEmojiFilename(emoji.Filename)
 	if !ok {
-		return "", ErrEmojiNotFound
+		return nil, "", ErrEmojiNotFound
 	}
 	filePath := filepath.Join(s.emojiDir(), filename)
 	if _, err := os.Stat(filePath); err != nil {
-		return "", ErrEmojiNotFound
+		return nil, "", ErrEmojiNotFound
 	}
-	return filePath, nil
+	return emoji, filePath, nil
+}
+
+// ImagePath returns the on-disk path of an emoji's image.
+func (s *EmojiService) ImagePath(id string) (string, error) {
+	_, filePath, err := s.emojiFile(id)
+	return filePath, err
 }
 
 // StillImage returns the first frame of an animated emoji as a PNG. ok is
 // false for static emojis, which are served as-is.
 func (s *EmojiService) StillImage(id string) (data []byte, ok bool, err error) {
-	filePath, err := s.ImagePath(id)
+	emoji, filePath, err := s.emojiFile(id)
 	if err != nil {
 		return nil, false, err
 	}
-	if filepath.Ext(filePath) != ".gif" {
+	if !emoji.Animated {
 		return nil, false, nil
 	}
-	f, err := os.Open(filePath)
+	src, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, false, ErrEmojiNotFound
 	}
-	defer func() { _ = f.Close() }()
-	// gif.Decode returns the first frame only; place it on the logical screen.
-	cfg, err := gif.DecodeConfig(f)
+	still, err := emojiStillPNG(src)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to read emoji: %w", err)
 	}
-	if _, err := f.Seek(0, 0); err != nil {
-		return nil, false, err
-	}
-	frame, err := gif.Decode(f)
+	return still, true, nil
+}
+
+// MigrateToWebP re-encodes emojis stored before WebP (.png/.gif) as WebP.
+// The new filename changes image_url, so cached copies are not reused.
+// Failures are logged and skipped; the old file keeps being served. Returns
+// how many emojis were converted.
+func (s *EmojiService) MigrateToWebP() int {
+	emojis, err := s.repo.List()
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to read emoji: %w", err)
+		log.Printf("emoji webp migration: failed to list emojis: %v", err)
+		return 0
 	}
-	still := image.NewNRGBA(image.Rect(0, 0, cfg.Width, cfg.Height))
-	draw.Draw(still, frame.Bounds(), frame, frame.Bounds().Min, draw.Over)
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, still); err != nil {
-		return nil, false, err
+	converted := 0
+	for _, e := range emojis {
+		if filepath.Ext(e.Filename) == ".webp" {
+			continue
+		}
+		if err := s.migrateOneToWebP(e); err != nil {
+			log.Printf("emoji webp migration: %s (%s): %v", e.ID, e.Filename, err)
+			continue
+		}
+		converted++
 	}
-	return buf.Bytes(), true, nil
+	if converted > 0 {
+		log.Printf("emoji webp migration: converted %d emojis", converted)
+	}
+	return converted
+}
+
+func (s *EmojiService) migrateOneToWebP(e *models.CustomEmoji) error {
+	oldName, ok := safeEmojiFilename(e.Filename)
+	if !ok {
+		return errors.New("unsafe filename")
+	}
+	oldPath := filepath.Join(s.emojiDir(), oldName)
+	src, err := os.ReadFile(oldPath)
+	if err != nil {
+		return err
+	}
+	// Stored files were already validated and scaled on upload, so the size
+	// limit does not apply here.
+	if !isAllowedEmojiType(src) {
+		return ErrEmojiInvalidType
+	}
+	encoded, animated, err := encodeEmojiWebP(src)
+	if err != nil {
+		return err
+	}
+	newName := e.ID + "-w.webp"
+	newPath := filepath.Join(s.emojiDir(), newName)
+	if err := os.WriteFile(newPath, encoded, 0644); err != nil {
+		return err
+	}
+	if err := s.repo.UpdateFile(e.ID, newName, int64(len(encoded)), animated); err != nil {
+		_ = os.Remove(newPath)
+		return err
+	}
+	if err := os.Remove(oldPath); err != nil && !os.IsNotExist(err) {
+		log.Printf("emoji webp migration: failed to remove %s: %v", oldName, err)
+	}
+	return nil
 }
 
 // EmojiExists reports whether a custom emoji id exists (used to validate

@@ -12,7 +12,7 @@ type CustomEmoji struct {
 	UploadedBy string    `json:"uploaded_by,omitempty"`
 	CreatedAt  time.Time `json:"created_at"`
 	ImageURL   string    `json:"image_url"`
-	// Animated emojis (GIFs) also serve a still first frame at
+	// Animated emojis also serve a still first frame at
 	// image_url + "&still=1", used by the reduce-motion setting.
 	Animated bool `json:"animated"`
 }

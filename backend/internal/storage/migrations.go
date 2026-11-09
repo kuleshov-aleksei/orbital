@@ -460,6 +460,15 @@ CREATE INDEX IF NOT EXISTS idx_custom_emojis_created ON custom_emojis(created_at
 		SQL: fmt.Sprintf(`UPDATE roles SET permissions = permissions | %d WHERE id = 'admin';`,
 			permissions.UploadEmojis|permissions.ManageEmojis),
 	},
+	{
+		Version: 40,
+		Name:    "custom_emoji_animated",
+		// Emojis are stored as WebP, so animation can no longer be told from
+		// the file extension. Existing GIFs are animated (or at least served
+		// with a still frame); EmojiService.MigrateToWebP re-checks on convert.
+		SQL: `ALTER TABLE custom_emojis ADD COLUMN animated INTEGER NOT NULL DEFAULT 0;
+UPDATE custom_emojis SET animated = 1 WHERE filename LIKE '%.gif';`,
+	},
 }
 
 // RunMigrationsUpTo applies migrations up to and including maxVersion.

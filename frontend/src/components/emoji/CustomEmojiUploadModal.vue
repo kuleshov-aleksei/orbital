@@ -25,7 +25,7 @@
             <input
               ref="fileInput"
               type="file"
-              accept="image/png,image/gif"
+              accept="image/png,image/gif,image/webp"
               class="hidden"
               data-testid="custom-emoji-file"
               @change="onFileChange" />
@@ -49,7 +49,7 @@
                 <p class="mt-1 text-[11px] text-theme-text-muted truncate">
                   <template v-if="file">{{ file.name }} · {{ formatSize(file.size) }}</template>
                   <template v-else>
-                    PNG or animated GIF up to {{ MAX_UPLOAD_KB }} KB. Scaled to fit
+                    PNG, GIF or WebP (animated OK) up to {{ MAX_UPLOAD_KB }} KB. Scaled to fit
                     {{ MAX_DIMENSION }}×{{ MAX_DIMENSION }}.
                   </template>
                 </p>
@@ -118,7 +118,7 @@ const MAX_UPLOAD_BYTES = MAX_UPLOAD_KB * 1024
 const MAX_DIMENSION = 128
 const MAX_NAME = 32
 const MAX_ALIASES = 10
-const ACCEPTED_TYPES = ["image/png", "image/gif"]
+const ACCEPTED_TYPES = ["image/png", "image/gif", "image/webp"]
 
 const customEmojisStore = useCustomEmojisStore()
 
@@ -148,7 +148,7 @@ function onFileChange(event: Event) {
   if (!picked) return
   error.value = null
   if (!ACCEPTED_TYPES.includes(picked.type)) {
-    error.value = "Only PNG and GIF images are supported."
+    error.value = "Only PNG, GIF and WebP images are supported."
     return
   }
   if (picked.size > MAX_UPLOAD_BYTES) {
