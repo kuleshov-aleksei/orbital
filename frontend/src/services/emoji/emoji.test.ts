@@ -40,6 +40,11 @@ describe("emoji registry", () => {
     expect(searchEmojis("   ")).toEqual([])
   })
 
+  it("ranks exact keyword matches above prefix matches", () => {
+    // "cat" is an exact keyword of 🐱; other emojis only match it as a prefix/substring.
+    expect(searchEmojis("cat")[0].ref).toBe("🐱")
+  })
+
   it("resolves curated, unknown unicode, and unknown custom refs", () => {
     expect(resolveEmoji("🎮")).toMatchObject({ kind: "unicode", name: "video game" })
     expect(resolveEmoji("🦖")).toMatchObject({ kind: "unicode", char: "🦖" })

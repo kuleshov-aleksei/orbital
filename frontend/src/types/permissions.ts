@@ -8,6 +8,8 @@ export const Permission = {
   ManageAudio: 1 << 3,
   UploadSounds: 1 << 4,
   ManageSoundboard: 1 << 5,
+  UploadEmojis: 1 << 6,
+  ManageEmojis: 1 << 7,
   ViewRoom: 1 << 8,
   Connect: 1 << 9,
   Speak: 1 << 10,
@@ -29,7 +31,9 @@ export const ROLE_ONLY_PERMISSIONS =
   Permission.ManageRoles |
   Permission.ManageAudio |
   Permission.UploadSounds |
-  Permission.ManageSoundboard
+  Permission.ManageSoundboard |
+  Permission.UploadEmojis |
+  Permission.ManageEmojis
 
 /** Human-readable labels and grouping for permission editors. */
 export const PERMISSION_INFO: Array<{
@@ -66,6 +70,18 @@ export const PERMISSION_INFO: Array<{
     key: "ManageSoundboard",
     label: "Manage Soundboard",
     description: "Rename, edit and delete any soundboard clip",
+    group: "server",
+  },
+  {
+    key: "UploadEmojis",
+    label: "Upload Emojis",
+    description: "Add custom emojis",
+    group: "server",
+  },
+  {
+    key: "ManageEmojis",
+    label: "Manage Emojis",
+    description: "Rename and delete any custom emoji",
     group: "server",
   },
   {

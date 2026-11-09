@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"regexp"
+	"unicode/utf8"
 
 	"github.com/gorilla/mux"
 	"github.com/kuleshov-aleksei/orbital/internal/config"
@@ -12,6 +14,26 @@ import (
 	"github.com/kuleshov-aleksei/orbital/internal/service"
 	"github.com/kuleshov-aleksei/orbital/internal/websocket"
 )
+
+const (
+	maxRoomNameChars = 100
+	// maxRoomNameBytes bounds the raw value: 100 longest custom emoji tokens
+	// ("<:" + 64-rune shortcode + ":" + 36-char id + ">", up to 4 bytes per rune).
+	maxRoomNameBytes = 100 * (2 + 64*4 + 1 + 36 + 1)
+)
+
+// customEmojiTokenRe matches inline custom emojis in room names:
+// "<:shortcode:id>". Keep in sync with frontend/src/services/emoji/inlineText.ts.
+var customEmojiTokenRe = regexp.MustCompile(`<:[\p{L}\p{N}_]{1,64}:[0-9a-f-]{36}>`)
+
+// validRoomNameLength counts characters, not bytes (emojis and non-Latin
+// names are multi-byte), with each custom emoji token counted as one.
+func validRoomNameLength(name string) bool {
+	if len(name) > maxRoomNameBytes {
+		return false
+	}
+	return utf8.RuneCountInString(customEmojiTokenRe.ReplaceAllString(name, "x")) <= maxRoomNameChars
+}
 
 // RoomHandler handles room-related HTTP requests
 type RoomHandler struct {
@@ -44,6 +66,10 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 	// Validate request
 	if req.Name == "" {
 		http.Error(w, "Room name is required", http.StatusBadRequest)
+		return
+	}
+	if !validRoomNameLength(req.Name) {
+		http.Error(w, "Room name too long (max 100 characters)", http.StatusBadRequest)
 		return
 	}
 
@@ -389,7 +415,7 @@ func (h *RoomHandler) UpdateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate request
-	if req.Name != "" && len(req.Name) > 100 {
+	if req.Name != "" && !validRoomNameLength(req.Name) {
 		http.Error(w, "Room name too long (max 100 characters)", http.StatusBadRequest)
 		return
 	}

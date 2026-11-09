@@ -106,6 +106,15 @@ Every new feature that can be locked behind a role permission MUST be validated 
 - Changes must apply live: hook into `PermissionService` change notifications (see `Hub.OnPermissionsChanged`).
 - Add backend tests for the denied path (403/404, rejected WS message, missing LiveKit source).
 
+#### Adding a server-wide (role-only) permission — checklist
+
+Besides the bit itself, a new server permission touches several easy-to-miss places:
+
+1. `backend/internal/permissions/permissions.go`: the bit, `All`, `RoleOnly`, `Names`, and the right `Default*` seed set.
+2. `backend/internal/storage/migrations.go`: a new migration that ORs the bit into existing roles (`UPDATE roles SET permissions = permissions | X WHERE id = '...'`). Changing `Default*` only affects fresh databases — see the soundboard/emoji grant migrations.
+3. `frontend/src/types/permissions.ts`: the bit, `ROLE_ONLY_PERMISSIONS`, and a `PERMISSION_INFO` entry (otherwise it never shows in the roles editor).
+4. If it unlocks an admin panel tab: the tab + default tab in `frontend/src/views/AdminPanel.vue`, the route guard in `frontend/src/router/index.ts` (`requiresAdminPanel`), and `canOpenAdminPanel` in `frontend/src/components/settings/AccountSettings.vue`.
+
 ### ⚠️ CRITICAL: API Naming Convention
 **Backend (Go)** uses **snake_case** for JSON field names (`max_users`)
 **Frontend (TypeScript)** uses **camelCase** for property names (`maxUsers`)
@@ -127,6 +136,18 @@ Types coming FROM backend to frontend should have **snake_case**. Do not follow 
 - Test WebSocket connections
 - Use integration tests for API endpoints
 - Never commit raw debug logs, credentials, or secrets from user reports
+
+### Modals opened from popovers
+
+Popovers such as `UserProfilePopover` close on any `pointerdown` outside themselves. A modal teleported to `<body>` counts as "outside", so a modal mounted inside a popover (or inside an `EmojiPicker` shown in one) is torn down on the first click. Mount such modals at the app root (`frontend/src/App.vue`) and open them through store state — see `customEmojisStore.isUploadOpen` / `CustomEmojiUploadModal`.
+
+### Emoji in plain-text fields
+
+`EmojiRef` values can be `custom:<id>`, which only renders through `EmojiGlyph`. Plain-text fields (room names) embed custom emojis as `<:shortcode:id>` tokens (`frontend/src/services/emoji/inlineText.ts`):
+
+- Edit with `components/common/EmojiTextInput.vue` (`allow-custom`): the input shows `:shortcode:` and the model holds tokens. Without `allow-custom` the picker is unicode-only.
+- Render with `components/common/EmojiText.vue` — never `{{ room.name }}` — or the raw token shows. Use `emojiTextToPlain` for non-HTML sinks (titles, logs).
+- Length: a token counts as one character. Frontend `emojiTextLength`; backend `validRoomNameLength` (`backend/internal/handlers/roomhandler.go`). Otherwise count characters (`Array.from(s).length` / `utf8.RuneCountInString`), never bytes or UTF-16 units.
 
 ### Electron Development
 - Electron desktop app is in the `electron/` directory

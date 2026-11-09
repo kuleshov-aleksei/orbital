@@ -80,7 +80,7 @@
                 class="w-4 h-4 shrink-0 text-theme-text-muted" />
               <span class="min-w-0 flex-1">
                 <span class="block text-sm font-medium text-theme-text-primary truncate">
-                  {{ room.name }}
+                  <EmojiText :text="room.name" />
                 </span>
                 <span
                   v-if="room.category_name || room.category"
@@ -127,6 +127,7 @@
 </template>
 
 <script setup lang="ts">
+import EmojiText from "@/components/common/EmojiText.vue"
 import { computed } from "vue"
 import { storeToRefs } from "pinia"
 import { PhGlobe, PhMicrophone, PhSpeakerHigh } from "@phosphor-icons/vue"

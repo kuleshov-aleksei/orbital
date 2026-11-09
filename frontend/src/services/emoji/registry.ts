@@ -34,7 +34,11 @@ export function resolveEmoji(ref: EmojiRef | null | undefined): Emoji | null {
   return { kind: "unicode", ref, char: ref, name: ref, keywords: [] }
 }
 
-/** Match every query word against an emoji's keywords, best (prefix) matches first. */
+/**
+ * Match every query word against an emoji's keywords: exact keyword matches
+ * first, then prefix, then substring. Custom emojis win ties so a server
+ * emoji's alias beats a unicode emoji with the same keyword.
+ */
 export function searchEmojis(query: string, limit = 80): Emoji[] {
   const words = query.toLowerCase().trim().split(/\s+/).filter(Boolean)
   if (words.length === 0) return []
@@ -46,6 +50,10 @@ export function searchEmojis(query: string, limit = 80): Emoji[] {
       if (seen.has(emoji.ref)) continue
       let score = 0
       const matchesAll = words.every((word) => {
+        if (emoji.keywords.includes(word)) {
+          score += 3
+          return true
+        }
         if (emoji.keywords.some((k) => k.startsWith(word))) {
           score += 2
           return true
@@ -64,7 +72,10 @@ export function searchEmojis(query: string, limit = 80): Emoji[] {
   }
   // Array.prototype.sort is stable, so equal scores keep category order
   return scored
-    .sort((a, b) => b.score - a.score)
+    .sort(
+      (a, b) =>
+        b.score - a.score || Number(b.emoji.kind === "custom") - Number(a.emoji.kind === "custom"),
+    )
     .slice(0, limit)
     .map((s) => s.emoji)
 }

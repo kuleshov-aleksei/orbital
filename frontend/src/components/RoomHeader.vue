@@ -26,7 +26,7 @@
 
         <div v-if="!chatStore.isOpen">
           <h1 class="text-xl font-semibold text-theme-text-primary" data-testid="room-title">
-            {{ roomName || "Voice Room" }}
+            <EmojiText :text="roomName || 'Voice Room'" />
           </h1>
         </div>
       </div>
@@ -80,6 +80,7 @@
 </template>
 
 <script setup lang="ts">
+import EmojiText from "@/components/common/EmojiText.vue"
 import { PhArrowLeft, PhUsers, PhGridFour, PhArrowsOut } from "@phosphor-icons/vue"
 import { useChatStore } from "@/stores"
 

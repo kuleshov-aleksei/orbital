@@ -39,7 +39,7 @@
       <div class="flex-1 min-w-0">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-1.5 min-w-0">
-            <span class="font-medium text-sm truncate">{{ room.name }}</span>
+            <EmojiText :text="room.name" class="font-medium text-sm truncate" />
             <PhLock
               v-if="isLocked"
               class="w-3 h-3 flex-shrink-0"
@@ -111,6 +111,7 @@
 </template>
 
 <script setup lang="ts">
+import EmojiText from "@/components/common/EmojiText.vue"
 import { useTemplateRef } from "vue"
 import {
   PhWaveform,

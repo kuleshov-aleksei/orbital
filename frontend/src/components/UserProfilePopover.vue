@@ -237,7 +237,7 @@
               </div>
               <div class="flex items-center gap-1.5 text-sm text-theme-text-secondary">
                 <PhSpeakerHigh class="w-3.5 h-3.5 text-green-400" />
-                <span class="truncate">{{ voiceRoom.name }}</span>
+                <EmojiText :text="voiceRoom.name" class="truncate" />
               </div>
             </div>
           </div>
@@ -248,6 +248,7 @@
 </template>
 
 <script setup lang="ts">
+import EmojiText from "@/components/common/EmojiText.vue"
 import { ref, computed, watch, nextTick, onUnmounted, useTemplateRef } from "vue"
 import {
   PhChatCircleDots,
