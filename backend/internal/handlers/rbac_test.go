@@ -20,6 +20,7 @@ import (
 )
 
 type rbacFixture struct {
+	db       *storage.DB
 	users    *repository.UserRepository
 	rooms    *service.RoomService
 	cats     *service.CategoryService
@@ -44,7 +45,7 @@ func newRBACFixture(t *testing.T) *rbacFixture {
 	if err := db.RunMigrations(); err != nil {
 		t.Fatal(err)
 	}
-	f := &rbacFixture{users: repository.NewUserRepository(db), claims: map[string]*models.JWTClaims{}}
+	f := &rbacFixture{db: db, users: repository.NewUserRepository(db), claims: map[string]*models.JWTClaims{}}
 	f.cats = service.NewCategoryService(repository.NewCategoryRepository(db))
 	if err := f.cats.LoadFromDB(); err != nil {
 		t.Fatal(err)

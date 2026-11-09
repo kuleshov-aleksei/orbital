@@ -67,6 +67,48 @@
         </div>
       </div>
 
+      <div class="pt-4 border-t border-theme-border" data-testid="soundboard-settings">
+        <div class="flex items-center justify-between">
+          <div>
+            <label class="text-sm font-medium text-theme-text-primary block">
+              Soundboard Sounds
+            </label>
+            <p class="text-xs text-theme-text-muted mt-0.5">
+              Hear soundboard clips played by others in your call
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            :aria-checked="soundboardStore.enabled"
+            class="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-theme-accent focus:ring-offset-2 focus:ring-offset-theme-bg-primary"
+            :class="soundboardStore.enabled ? 'bg-theme-accent' : 'bg-theme-bg-tertiary'"
+            @click="soundboardStore.setEnabled(!soundboardStore.enabled)">
+            <span
+              class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+              :class="soundboardStore.enabled ? 'translate-x-6' : 'translate-x-1'" />
+          </button>
+        </div>
+
+        <div
+          class="flex items-center gap-3 mt-3"
+          :class="{ 'opacity-50': !soundboardStore.enabled }">
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            :value="soundboardStore.volume"
+            :disabled="!soundboardStore.enabled"
+            aria-label="Soundboard volume"
+            class="flex-1 h-2 bg-theme-bg-tertiary rounded-lg appearance-none cursor-pointer accent-theme-accent disabled:cursor-not-allowed"
+            @input="onSoundboardVolumeChange" />
+          <span class="text-sm text-theme-text-secondary w-10 text-right">
+            {{ Math.round(soundboardStore.volume * 100) }}%
+          </span>
+        </div>
+      </div>
+
       <div class="pt-4 border-t border-theme-border">
         <div class="flex items-center justify-between">
           <div>
@@ -158,7 +200,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue"
 import { storeToRefs } from "pinia"
-import { useSoundPackStore, useRoomStore } from "@/stores"
+import { useSoundPackStore, useRoomStore, useSoundboardStore } from "@/stores"
 import SoundPreview from "./SoundPreview.vue"
 import { PhSpeakerHigh, PhX, PhLinkSimple } from "@phosphor-icons/vue"
 import { isElectron, openExternal } from "@/services/electron"
@@ -169,6 +211,7 @@ defineProps<{
 
 const soundPackStore = useSoundPackStore()
 const roomStore = useRoomStore()
+const soundboardStore = useSoundboardStore()
 const { selectedPackId, availablePacks, volume } = storeToRefs(soundPackStore)
 
 const selectedPack = ref(selectedPackId.value)
@@ -188,6 +231,10 @@ const useDefaultForAll = computed(() => {
 
 function onPackChange() {
   soundPackStore.setSelectedPack(selectedPack.value)
+}
+
+function onSoundboardVolumeChange(event: Event) {
+  soundboardStore.setVolume(parseFloat((event.target as HTMLInputElement).value))
 }
 
 function onVolumeChange(event: Event) {

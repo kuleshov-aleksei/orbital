@@ -62,7 +62,8 @@ router.beforeEach(async (to, _from, next) => {
       }
       if (
         !permissionsStore.can(Permission.ManageRoles) &&
-        !permissionsStore.can(Permission.ManageAudio)
+        !permissionsStore.can(Permission.ManageAudio) &&
+        !permissionsStore.can(Permission.ManageSoundboard)
       ) {
         next("/")
         return

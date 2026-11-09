@@ -80,6 +80,19 @@
           Audio
         </button>
         <button
+          v-if="canManageSoundboard"
+          type="button"
+          data-testid="admin-tab-soundboard"
+          class="px-4 py-2 text-sm font-medium transition-colors"
+          :class="
+            activeTab === 'soundboard'
+              ? 'text-white border-b-2 border-indigo-500'
+              : 'text-gray-400 hover:text-gray-200'
+          "
+          @click="activeTab = 'soundboard'">
+          Soundboard
+        </button>
+        <button
           v-if="isSuperAdmin"
           type="button"
           class="px-4 py-2 text-sm font-medium transition-colors"
@@ -325,6 +338,11 @@
 
           <p class="text-gray-400">No debug logs found</p>
         </div>
+      </div>
+
+      <!-- Soundboard Section (manage_soundboard) -->
+      <div v-if="activeTab === 'soundboard' && canManageSoundboard">
+        <SoundboardAdmin />
       </div>
 
       <!-- Audio Section -->
@@ -655,6 +673,7 @@ import Avatar from "vue-boring-avatars"
 import { useUserStore, usePermissionsStore } from "@/stores"
 import { Permission } from "@/types/permissions"
 import RolesAdmin from "@/components/admin/RolesAdmin.vue"
+import SoundboardAdmin from "@/components/admin/SoundboardAdmin.vue"
 import { apiService } from "@/services/api"
 import { useAdminStats } from "@/composables/useAdminStats"
 import StatsMap from "@/components/admin/StatsMap.vue"
@@ -671,6 +690,7 @@ const userStore = useUserStore()
 const { currentUser, isSuperAdmin } = storeToRefs(userStore)
 const permissionsStore = usePermissionsStore()
 const canManageAudio = computed(() => permissionsStore.can(Permission.ManageAudio))
+const canManageSoundboard = computed(() => permissionsStore.can(Permission.ManageSoundboard))
 
 const users = ref<User[]>([])
 const logs = ref<DebugLog[]>([])
@@ -687,11 +707,20 @@ const activeTab = ref<
   | "logs"
   | "security"
   | "audio"
+  | "soundboard"
   | "stats"
   | "analytics"
   | "halloween"
   | "halloween-assets"
->(userStore.isSuperAdmin ? "users" : "roles")
+>(
+  userStore.isSuperAdmin
+    ? "users"
+    : permissionsStore.canManageRoles
+      ? "roles"
+      : permissionsStore.can(Permission.ManageSoundboard)
+        ? "soundboard"
+        : "audio",
+)
 
 const showDeleteModal = ref(false)
 const userToDelete = ref<User | null>(null)

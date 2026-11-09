@@ -10,6 +10,7 @@ import {
   PublicUser,
   DebugLog,
   AudioFile,
+  SoundboardSound,
   StatsStatus,
   AnalyticsReport,
   SecuritySelfCheckReport,
@@ -1037,6 +1038,45 @@ export const apiService = {
 
   getAudioUrl(id: string): string {
     return `${API_BASE}/audio/${id}`
+  },
+
+  // Soundboard API calls
+  async getSoundboardSounds(): Promise<SoundboardSound[]> {
+    return apiRequest<SoundboardSound[]>("/soundboard")
+  },
+
+  async uploadSoundboardSound(input: {
+    file: File
+    name: string
+    emoji: string
+    aliases: string[]
+  }): Promise<SoundboardSound> {
+    const form = new FormData()
+    form.append("audio", input.file)
+    form.append("name", input.name)
+    form.append("emoji", input.emoji)
+    form.append("aliases", JSON.stringify(input.aliases))
+    return apiRequest<SoundboardSound>("/soundboard", { method: "POST", body: form })
+  },
+
+  async updateSoundboardSound(
+    id: string,
+    patch: { name?: string; emoji?: string; aliases?: string[] },
+  ): Promise<SoundboardSound> {
+    return apiRequest<SoundboardSound>(`/admin/soundboard/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    })
+  },
+
+  async deleteSoundboardSound(id: string): Promise<void> {
+    await apiRequest<{ status: string }>(`/admin/soundboard/${id}`, { method: "DELETE" })
+  },
+
+  // audio_url from the backend is "/api/...": resolve it against API_BASE
+  // so it also works in Electron and with a non-default backend origin.
+  getSoundboardAudioUrl(sound: SoundboardSound): string {
+    return `${API_BASE}/soundboard/${sound.id}/audio`
   },
 
   // ===== Remote Stats Collection API (super_admin only) =====

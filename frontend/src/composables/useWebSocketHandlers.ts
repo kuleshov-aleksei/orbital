@@ -9,6 +9,7 @@ import {
   useChatStore,
   useHalloweenStore,
   usePermissionsStore,
+  useSoundboardStore,
 } from "@/stores"
 import { wsService } from "@/services/websocket"
 import type {
@@ -27,6 +28,7 @@ import type {
   ChatMessage,
   MediaStatesMessage,
   UserMediaState,
+  SoundPlayedData,
 } from "@/types"
 
 declare const __APP_VERSION__: string
@@ -43,6 +45,7 @@ export function useWebSocketHandlers() {
   const chatStore = useChatStore()
   const halloweenStore = useHalloweenStore()
   const permissionsStore = usePermissionsStore()
+  const soundboardStore = useSoundboardStore()
   const hasConnected = ref(false)
 
   const cleanupFns: Array<() => void> = []
@@ -189,6 +192,21 @@ export function useWebSocketHandlers() {
     }
     wsService.on("permission_denied", onPermissionDenied)
     onCleanup(() => wsService.off("permission_denied", onPermissionDenied))
+
+    // Soundboard: every client plays the clip locally with its own volume.
+    const onSoundPlayed: MessageCallback = (message) => {
+      const data = message.data as SoundPlayedData
+      if (data.room_id !== roomStore.activeRoomId) return
+      void soundboardStore.onSoundPlayed(data.sound_id)
+    }
+    wsService.on("sound_played", onSoundPlayed)
+    onCleanup(() => wsService.off("sound_played", onSoundPlayed))
+
+    const onSoundboardUpdated: MessageCallback = () => {
+      soundboardStore.onLibraryChanged()
+    }
+    wsService.onGlobal("soundboard_updated", onSoundboardUpdated)
+    onCleanup(() => wsService.offGlobal("soundboard_updated", onSoundboardUpdated))
 
     const onRoomCreated: MessageCallback = (message) => {
       const newRoom = message.data as Room

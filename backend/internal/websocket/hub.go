@@ -41,6 +41,11 @@ type Hub struct {
 	statsAdminSubs    map[string]map[*Client]bool                   // room_id -> admin clients subscribed
 	statsRoomData     map[string]map[string]models.ClientStatsBatch // room_id -> reporter_id -> latest batch
 	pendingAdminSubs  map[string]map[string]bool                    // userID -> roomID -> pending subscription
+
+	// Soundboard (see soundboard.go)
+	soundboard    SoundLookup
+	soundMu       sync.Mutex
+	lastSoundPlay map[string]time.Time // user_id -> last accepted play_sound
 }
 
 // Client represents a WebSocket client
@@ -672,6 +677,8 @@ func (c *Client) handleMessage(message models.WebSocketMessage) {
 		log.Printf("Received room_created broadcast")
 	case "send_message":
 		c.handleSendMessage(message.Data)
+	case "play_sound":
+		c.handlePlaySound(message.Data)
 	case "client_stats_batch":
 		c.handleClientStatsBatch(message.Data)
 	case "request_stats_state":

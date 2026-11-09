@@ -408,6 +408,35 @@ UPDATE users SET role = 'user' WHERE role = 'admin';`,
 		SQL: fmt.Sprintf(`INSERT OR IGNORE INTO roles (id, name, position, permissions, deny_permissions, system_key) VALUES
 			('owner', 'Owner', %d, 0, 0, 'owner');`, models.OwnerRolePosition),
 	},
+	{
+		Version: 36,
+		Name:    "create_soundboard_sounds",
+		// aliases is a JSON array of lowercase search aliases.
+		SQL: `CREATE TABLE IF NOT EXISTS soundboard_sounds (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			emoji TEXT NOT NULL DEFAULT '',
+			aliases TEXT NOT NULL DEFAULT '[]',
+			filename TEXT NOT NULL,
+			format TEXT NOT NULL,
+			file_size INTEGER NOT NULL DEFAULT 0,
+			uploaded_by TEXT,
+			created_at DATETIME NOT NULL
+		);
+CREATE INDEX IF NOT EXISTS idx_soundboard_sounds_created ON soundboard_sounds(created_at);`,
+	},
+	{
+		Version: 37,
+		Name:    "grant_soundboard_permissions",
+		// Migration 34 only seeds defaults once, so existing databases need the
+		// new soundboard bits granted explicitly. OR-ing keeps it idempotent.
+		SQL: fmt.Sprintf(`UPDATE roles SET permissions = permissions | %d WHERE id = 'everyone';
+UPDATE roles SET deny_permissions = deny_permissions | %d WHERE id = 'guest';
+UPDATE roles SET permissions = permissions | %d WHERE id = 'admin';`,
+			permissions.UseSoundboard|permissions.UploadSounds,
+			permissions.UploadSounds,
+			permissions.ManageSoundboard),
+	},
 }
 
 // RunMigrationsUpTo applies migrations up to and including maxVersion.

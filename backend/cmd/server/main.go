@@ -61,6 +61,7 @@ func main() {
 	var userRepo *repository.UserRepository
 	var debugLogService *service.DebugLogService
 	var audioService *service.AudioService
+	var soundboardService *service.SoundboardService
 	var sessionRepo *repository.SessionRepository
 	var qrLoginRepo *repository.QRLoginRepository
 	var analyticsService *service.AnalyticsService
@@ -97,6 +98,7 @@ func main() {
 			log.Printf("Warning: Failed to backfill debug log sizes: %v", err)
 		}
 		audioService = service.NewAudioService(repository.NewAudioRepository(db), "data", cfg.RateLimit.AudioQuotaBytes())
+		soundboardService = service.NewSoundboardService(repository.NewSoundboardRepository(db), "data")
 		analyticsService = service.NewAnalyticsService(sessionRepo)
 		halloweenService = service.NewHalloweenService(repository.NewHalloweenRepository(db))
 		pumpkinAssetService = service.NewPumpkinAssetService("data", "assets")
@@ -183,6 +185,9 @@ func main() {
 	wsHub.SetPermissionService(permissionService)
 	// Apply permission changes live (kick, LiveKit grants, client refresh).
 	permissionService.Subscribe(wsHub.OnPermissionsChanged)
+	if soundboardService != nil {
+		wsHub.SetSoundboard(soundboardService)
+	}
 
 	// Initialize avatar service
 	avatarService := service.NewAvatarService("data")
@@ -203,6 +208,11 @@ func main() {
 	var audioHandler *handlers.AudioHandler
 	if audioService != nil {
 		audioHandler = handlers.NewAudioHandler(audioService)
+	}
+
+	var soundboardHandler *handlers.SoundboardHandler
+	if soundboardService != nil {
+		soundboardHandler = handlers.NewSoundboardHandler(soundboardService, permissionService, wsHub)
 	}
 
 	var halloweenHandler *handlers.HalloweenHandler
@@ -361,6 +371,18 @@ func main() {
 		r.Handle(t.prefix+"/{id}/overwrites/{subject_type}/{subject_id}", auth(rbacHandler.DeleteOverwrite(t.target))).Methods("DELETE")
 	}
 	r.Handle("/api/rooms/{id}/permissions_synced", auth(http.HandlerFunc(rbacHandler.SetRoomSync))).Methods("PUT")
+
+	// Soundboard: listing needs auth, clip files are public (audio loaders
+	// cannot send auth headers). Upload (upload_sounds) and moderation
+	// (manage_soundboard) are authorized inside the handlers.
+	if soundboardHandler != nil {
+		r.Handle("/api/soundboard", auth(http.HandlerFunc(soundboardHandler.ListSounds))).Methods("GET")
+		r.HandleFunc("/api/soundboard/{id}/audio", soundboardHandler.GetSoundAudio).Methods("GET")
+		soundUploadHandler := limiter.Middleware("soundboard-upload", audioUploadLimit, userOrIPKey, http.HandlerFunc(soundboardHandler.UploadSound))
+		r.Handle("/api/soundboard", auth(soundUploadHandler)).Methods("POST")
+		r.Handle("/api/admin/soundboard/{id}", auth(http.HandlerFunc(soundboardHandler.UpdateSound))).Methods("PATCH")
+		r.Handle("/api/admin/soundboard/{id}", auth(http.HandlerFunc(soundboardHandler.DeleteSound))).Methods("DELETE")
+	}
 
 	// Shared audio management (manage_audio)
 	if audioHandler != nil {
