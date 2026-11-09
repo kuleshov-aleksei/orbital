@@ -47,7 +47,9 @@
           <UserAvatar :user-id="item.sender_id" :size="28" :show-status="false" />
           <div class="flex-1 min-w-0">
             <div class="flex items-baseline gap-2">
-              <span class="text-xs font-medium text-theme-text-primary">
+              <span
+                class="text-xs font-medium text-theme-text-primary"
+                :style="permissionsStore.nameStyleOf(item.sender_id)">
                 {{ getSenderName(item.sender_id) }}
               </span>
               <span class="text-[10px] text-theme-text-muted" :title="formatFullTime(item.sent_at)">

@@ -2,6 +2,7 @@ import { defineStore } from "pinia"
 import { ref, computed } from "vue"
 import { apiService } from "@/services/api"
 import { useUserStore } from "./user"
+import { useUsersStore } from "./users"
 import { Permission, hasPermission, type MyPermissions, type Role } from "@/types/permissions"
 
 /**
@@ -10,6 +11,7 @@ import { Permission, hasPermission, type MyPermissions, type Role } from "@/type
  */
 export const usePermissionsStore = defineStore("permissions", () => {
   const userStore = useUserStore()
+  const usersStore = useUsersStore()
 
   const me = ref<MyPermissions | null>(null)
   const roles = ref<Role[]>([])
@@ -32,6 +34,8 @@ export const usePermissionsStore = defineStore("permissions", () => {
 
   const everyoneRole = computed(() => roles.value.find((r) => r.system_key === "everyone"))
   const guestRole = computed(() => roles.value.find((r) => r.system_key === "guest"))
+  /** Held implicitly by the super admin; only its name and colour matter. */
+  const ownerRole = computed(() => roles.value.find((r) => r.system_key === "owner"))
 
   /**
    * Check a permission. Without a scope it checks server-level permissions;
@@ -76,13 +80,36 @@ export const usePermissionsStore = defineStore("permissions", () => {
       .sort((a, b) => b.position - a.position)
   }
 
+  function accountRoleOf(userId: string) {
+    if (userId === userStore.userId) return userStore.role
+    return usersStore.allUsers.find((u) => u.id === userId)?.role
+  }
+
+  /**
+   * Roles to display for a user, highest first: the implicit Owner role for the
+   * super admin, assigned custom roles, then the implicit Guest role for guests.
+   */
+  function displayRolesOf(userId: string): Role[] {
+    const list = rolesOf(userId)
+    const accountRole = accountRoleOf(userId)
+    if (accountRole === "super_admin" && ownerRole.value) list.unshift(ownerRole.value)
+    if (accountRole === "guest" && guestRole.value) list.push(guestRole.value)
+    return list
+  }
+
   function topPositionOf(userId: string): number {
     return rolesOf(userId).reduce((max, r) => Math.max(max, r.position), 0)
   }
 
   /** Highest role colour for name display (empty when none). */
   function colorOf(userId: string): string {
-    return rolesOf(userId).find((r) => r.color)?.color ?? ""
+    return displayRolesOf(userId).find((r) => r.color)?.color ?? ""
+  }
+
+  /** Inline style for a nickname: the highest coloured role, or none (theme default). */
+  function nameStyleOf(userId: string | null | undefined): { color: string } | undefined {
+    const color = userId ? colorOf(userId) : ""
+    return color ? { color } : undefined
   }
 
   const myTopPosition = computed(() =>
@@ -99,6 +126,7 @@ export const usePermissionsStore = defineStore("permissions", () => {
   /** Whether the current user may edit/assign a role (it must be below their top role). */
   function canManageRole(role: Role): boolean {
     if (!canManageRoles.value) return false
+    if (role.system_key === "owner") return isOwner.value
     if (role.system_key) return true
     return role.position < myTopPosition.value
   }
@@ -168,14 +196,17 @@ export const usePermissionsStore = defineStore("permissions", () => {
     customRoles,
     everyoneRole,
     guestRole,
+    ownerRole,
     canManageAnyRooms,
     canManageRoles,
     myTopPosition,
     can,
     roleIdsOf,
     rolesOf,
+    displayRolesOf,
     topPositionOf,
     colorOf,
+    nameStyleOf,
     canTarget,
     canManageRole,
     canEditRolesOf,

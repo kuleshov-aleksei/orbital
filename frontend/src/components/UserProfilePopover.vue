@@ -22,11 +22,6 @@
             :size="72"
             :grayscale="!user.is_online" />
         </div>
-        <span
-          v-if="roleLabel"
-          class="mb-1 px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide bg-theme-bg-tertiary text-theme-text-secondary">
-          {{ roleLabel }}
-        </span>
       </div>
 
       <div class="p-3 pt-2">
@@ -49,13 +44,18 @@
               class="group/name flex items-center gap-1.5 max-w-full text-left"
               title="Edit nickname"
               @click="startEditingNickname">
-              <span class="text-lg font-semibold text-theme-text-primary truncate">
+              <span
+                class="text-lg font-semibold text-theme-text-primary truncate"
+                :style="permissionsStore.nameStyleOf(user.id)">
                 {{ user.nickname }}
               </span>
               <PhPencilSimple
                 class="w-3.5 h-3.5 flex-shrink-0 text-theme-text-muted opacity-0 group-hover/name:opacity-100 transition-opacity" />
             </button>
-            <div v-else class="text-lg font-semibold text-theme-text-primary truncate">
+            <div
+              v-else
+              class="text-lg font-semibold text-theme-text-primary truncate"
+              :style="permissionsStore.nameStyleOf(user.id)">
               {{ user.nickname }}
             </div>
             <div class="text-xs text-theme-text-muted">{{ presenceLabel }}</div>
@@ -188,7 +188,9 @@
                     :title="
                       r.system_key === 'guest'
                         ? 'Applied automatically to guest accounts'
-                        : undefined
+                        : r.system_key === 'owner'
+                          ? 'Server owner'
+                          : undefined
                     "
                     >{{ r.name }}</span
                   >
@@ -298,21 +300,13 @@ const status = computed(() => (user.value?.is_online ? "online" : "offline"))
 
 const presenceLabel = computed(() => (user.value?.is_online ? "Online" : "Offline"))
 
-// Owner badge; everything else is in the role list below.
-const roleLabel = computed(() => (user.value?.role === "super_admin" ? "Owner" : ""))
-
 // Assigned roles, highest first (Discord-like role list).
 const assignedRoles = computed(() => (user.value ? permissionsStore.rolesOf(user.value.id) : []))
 
-// Shown list: assigned roles plus the implicit Guest system role for guest
-// accounts (it sits right above @everyone, so it goes last). Guest is applied
+// Shown list: assigned roles plus the implicit system roles (Owner on top for
+// the super admin, Guest last for guest accounts). Those are applied
 // automatically and can't be added or removed here.
-const userRoles = computed(() => {
-  const list = [...assignedRoles.value]
-  const guest = permissionsStore.guestRole
-  if (user.value?.role === "guest" && guest) list.push(guest)
-  return list
-})
+const userRoles = computed(() => (user.value ? permissionsStore.displayRolesOf(user.value.id) : []))
 
 // --- Role assignment (manage_roles; the backend enforces the hierarchy)
 const canEditRoles = computed(

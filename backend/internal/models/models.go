@@ -240,7 +240,13 @@ type NicknameChangeRequest struct {
 const (
 	SystemRoleEveryone = "everyone"
 	SystemRoleGuest    = "guest"
+	// SystemRoleOwner is held implicitly by the super admin. Only its name and
+	// colour are meaningful; the owner bypasses every permission check.
+	SystemRoleOwner = "owner"
 )
+
+// OwnerRolePosition keeps the Owner role above every custom role.
+const OwnerRolePosition = 1 << 30
 
 // Permission overwrite target/subject types
 const (

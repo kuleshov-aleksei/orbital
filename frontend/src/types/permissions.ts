@@ -100,7 +100,7 @@ export interface Role {
   position: number
   permissions: number
   deny_permissions: number
-  system_key?: "everyone" | "guest"
+  system_key?: "everyone" | "guest" | "owner"
   created_at: string
 }
 

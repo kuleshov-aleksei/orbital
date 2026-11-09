@@ -292,3 +292,65 @@ func TestRoleTriStateFollowsHierarchy(t *testing.T) {
 		t.Fatalf("@everyone deny must be ignored: %v %+v", err, ev)
 	}
 }
+
+func TestOwnerSystemRole(t *testing.T) {
+	f := newPermFixture(t, nil)
+	owner := f.user(t, "owner", models.RoleSuperAdmin, false)
+	admin := f.user(t, "admin", models.RoleUser, false)
+	room, _ := f.rooms.CreateRoom("r", f.cats.GetGeneralCategoryID(), 5, "voice")
+
+	// Seeded by migration, on top of the hierarchy.
+	roles := f.ps.Roles()
+	if len(roles) == 0 || roles[0].SystemKey != models.SystemRoleOwner {
+		t.Fatalf("expected Owner role first, got %+v", roles)
+	}
+
+	// Even a full Administrator cannot edit the Owner role.
+	adminRole, err := f.ps.CreateRole(owner, RoleInput{Name: ptr("Admin2"), Permissions: ptr(uint64(permissions.All))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.ps.SetUserRoles(owner, admin.UserID, []string{adminRole.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.ps.UpdateRole(admin, models.SystemRoleOwner, RoleInput{Color: ptr("#ff0000")}); !errors.Is(err, ErrPermissionDenied) {
+		t.Fatalf("expected forbidden editing Owner role, got %v", err)
+	}
+
+	// The owner may rename and recolour it; permission bits are dropped.
+	updated, err := f.ps.UpdateRole(owner, models.SystemRoleOwner, RoleInput{
+		Name: ptr("Captain"), Color: ptr("#ffaa00"), Permissions: ptr(uint64(permissions.ManageRooms)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Name != "Captain" || updated.Color != "#ffaa00" || updated.Permissions != 0 || updated.DenyPermissions != 0 {
+		t.Fatalf("unexpected Owner role after update: %+v", updated)
+	}
+	if _, err := f.ps.UpdateRole(owner, models.SystemRoleOwner, RoleInput{Color: ptr("red")}); !errors.Is(err, ErrRBACInvalid) {
+		t.Fatalf("expected invalid colour rejected, got %v", err)
+	}
+
+	// Persisted across reloads.
+	if err := f.ps.LoadFromDB(); err != nil {
+		t.Fatal(err)
+	}
+	if r := f.ps.Roles()[0]; r.Name != "Captain" || r.Color != "#ffaa00" {
+		t.Fatalf("Owner role not persisted: %+v", r)
+	}
+
+	// Not assignable, deletable, reorderable, or usable in overwrites.
+	if _, err := f.ps.SetUserRoles(owner, admin.UserID, []string{models.SystemRoleOwner}); !errors.Is(err, ErrRBACInvalid) {
+		t.Fatalf("expected Owner role unassignable, got %v", err)
+	}
+	if err := f.ps.DeleteRole(owner, models.SystemRoleOwner); !errors.Is(err, ErrRBACInvalid) {
+		t.Fatalf("expected Owner role undeletable, got %v", err)
+	}
+	if err := f.ps.ReorderRoles(owner, map[string]int{models.SystemRoleOwner: 1}); !errors.Is(err, ErrRBACInvalid) {
+		t.Fatalf("expected Owner role not reorderable, got %v", err)
+	}
+	if _, err := f.ps.SetOverwrite(owner, models.PermissionOverwrite{TargetType: models.OverwriteTargetRoom, TargetID: room.ID,
+		SubjectType: models.OverwriteSubjectRole, SubjectID: models.SystemRoleOwner, Allow: uint64(permissions.ViewRoom)}); !errors.Is(err, ErrRBACInvalid) {
+		t.Fatalf("expected Owner role overwrite rejected, got %v", err)
+	}
+}

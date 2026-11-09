@@ -113,6 +113,8 @@ func (ps *PermissionService) LoadFromDB() error {
 			Permissions: uint64(permissions.DefaultEveryone), SystemKey: models.SystemRoleEveryone, CreatedAt: now}
 		ps.roles[models.SystemRoleGuest] = &models.Role{ID: models.SystemRoleGuest, Name: "Guest",
 			DenyPermissions: uint64(permissions.DefaultGuestDeny), SystemKey: models.SystemRoleGuest, CreatedAt: now}
+		ps.roles[models.SystemRoleOwner] = &models.Role{ID: models.SystemRoleOwner, Name: "Owner",
+			Position: models.OwnerRolePosition, SystemKey: models.SystemRoleOwner, CreatedAt: now}
 		return nil
 	}
 
@@ -537,7 +539,8 @@ func (ps *PermissionService) CreateRole(actor Subject, in RoleInput) (*models.Ro
 }
 
 // UpdateRole edits name/color/permissions of a role below the actor.
-// @everyone and Guest may be edited by anyone with manage_roles.
+// @everyone and Guest may be edited by anyone with manage_roles. The Owner
+// role may only be edited by the owner, and only its name and colour.
 func (ps *PermissionService) UpdateRole(actor Subject, roleID string, in RoleInput) (*models.Role, error) {
 	ps.mu.Lock()
 	actorPerms, top, err := ps.requireManageRolesLocked(actor)
@@ -554,9 +557,16 @@ func (ps *PermissionService) UpdateRole(actor Subject, roleID string, in RoleInp
 		ps.mu.Unlock()
 		return nil, rbacForbidden("cannot edit a role at or above your highest role")
 	}
+	isOwnerRole := role.SystemKey == models.SystemRoleOwner
+	if isOwnerRole && !actor.IsOwner {
+		ps.mu.Unlock()
+		return nil, rbacForbidden("only the owner can edit the Owner role")
+	}
+	// Customisable roles: custom roles and Owner (name and colour).
+	customisable := role.SystemKey == "" || isOwnerRole
 	updated := *role
 	if in.Name != nil || in.Color != nil {
-		if role.SystemKey != "" && in.Name != nil && *in.Name != role.Name {
+		if !customisable && in.Name != nil && *in.Name != role.Name {
 			ps.mu.Unlock()
 			return nil, rbacInvalid("system roles cannot be renamed")
 		}
@@ -567,7 +577,7 @@ func (ps *PermissionService) UpdateRole(actor Subject, roleID string, in RoleInp
 		if in.Color != nil {
 			color = *in.Color
 		}
-		if role.SystemKey == "" {
+		if customisable {
 			if name, color, err = validateRoleFields(name, color); err != nil {
 				ps.mu.Unlock()
 				return nil, err
@@ -588,6 +598,10 @@ func (ps *PermissionService) UpdateRole(actor Subject, roleID string, in RoleInp
 	if role.SystemKey == models.SystemRoleEveryone {
 		// @everyone is the base layer: there is nothing below it to deny.
 		updated.DenyPermissions = 0
+	}
+	if isOwnerRole {
+		// The owner bypasses permission checks; bits here would be meaningless.
+		updated.Permissions, updated.DenyPermissions = 0, 0
 	}
 	if updated.Permissions&updated.DenyPermissions != 0 {
 		ps.mu.Unlock()
@@ -830,10 +844,13 @@ func (ps *PermissionService) SetOverwrite(actor Subject, o models.PermissionOver
 	switch o.SubjectType {
 	case models.OverwriteSubjectRole:
 		ps.mu.RLock()
-		_, ok := ps.roles[o.SubjectID]
+		r, ok := ps.roles[o.SubjectID]
 		ps.mu.RUnlock()
 		if !ok {
 			return nil, rbacInvalid("unknown role")
+		}
+		if r.SystemKey == models.SystemRoleOwner {
+			return nil, rbacInvalid("the Owner role cannot have overwrites")
 		}
 	case models.OverwriteSubjectUser:
 		if ps.userLookup != nil && ps.userLookup(o.SubjectID) == nil {

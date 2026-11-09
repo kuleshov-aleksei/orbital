@@ -43,7 +43,11 @@
                 :avatar-url="user.avatar_url"
                 :size="24"
                 :show-status="false" />
-              <span class="text-sm text-theme-text-primary truncate">{{ user.nickname }}</span>
+              <span
+                class="text-sm text-theme-text-primary truncate"
+                :style="permissionsStore.nameStyleOf(user.id)"
+                >{{ user.nickname }}</span
+              >
               <span
                 v-if="user.custom_status || user.custom_status_emoji"
                 class="text-xs text-theme-text-muted truncate max-w-48"
@@ -142,7 +146,8 @@ const roomStore = useRoomStore()
 const usersStore = useUsersStore()
 const userStore = useUserStore()
 const { rooms } = storeToRefs(roomStore)
-const { canManageAnyRooms } = storeToRefs(usePermissionsStore())
+const permissionsStore = usePermissionsStore()
+const { canManageAnyRooms } = storeToRefs(permissionsStore)
 
 const lobby = computed(() => partitionRooms(rooms.value ?? []))
 const inVoice = computed(() => inVoiceUserIds(rooms.value ?? []))

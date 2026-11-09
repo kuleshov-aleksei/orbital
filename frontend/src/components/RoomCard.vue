@@ -76,7 +76,9 @@
               class="mr-2 flex-shrink-0" />
 
             <!-- Nickname -->
-            <span class="truncate opacity-90">{{ user.nickname }}</span>
+            <span class="truncate opacity-90" :style="permissionsStore.nameStyleOf(user.id)">{{
+              user.nickname
+            }}</span>
           </div>
 
           <!-- Status Icons (right side) -->
@@ -122,21 +124,14 @@ import {
 } from "@phosphor-icons/vue"
 import UserAvatar from "./UserAvatar.vue"
 import UserContextMenu from "./UserContextMenu.vue"
+import { usePermissionsStore } from "@/stores"
 import type { Room } from "@/types"
-
-interface Props {
-  room: Room
-  isActive: boolean
-  isDragging?: boolean
-  isDraggable?: boolean
-  /** The user can see but not join (no Connect): rendered grayed out with a lock. */
-  isLocked?: boolean
-}
 
 const props = withDefaults(defineProps<Props>(), {
   isDraggable: true,
   isLocked: false,
 })
+
 const emit = defineEmits<{
   click: []
   "show-context-menu": [event: MouseEvent, room: Room]
@@ -147,6 +142,17 @@ const emit = defineEmits<{
   dragenter: [event: DragEvent]
   dragleave: [event: DragEvent]
 }>()
+
+const permissionsStore = usePermissionsStore()
+
+interface Props {
+  room: Room
+  isActive: boolean
+  isDragging?: boolean
+  isDraggable?: boolean
+  /** The user can see but not join (no Connect): rendered grayed out with a lock. */
+  isLocked?: boolean
+}
 
 const showContextMenu = (event: MouseEvent) => {
   emit("show-context-menu", event, props.room)

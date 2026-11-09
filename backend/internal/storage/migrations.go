@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/kuleshov-aleksei/orbital/internal/models"
 	"github.com/kuleshov-aleksei/orbital/internal/permissions"
 )
 
@@ -397,6 +398,15 @@ INSERT INTO roles (id, name, position, permissions, deny_permissions, system_key
 INSERT INTO user_roles (user_id, role_id) SELECT id, 'admin' FROM users WHERE role = 'admin';
 UPDATE users SET role = 'user' WHERE role = 'admin';`,
 			permissions.DefaultEveryone, permissions.DefaultGuestDeny, permissions.DefaultAdmin),
+	},
+	{
+		Version: 35,
+		Name:    "add_owner_system_role",
+		// The super admin implicitly holds this role. It always sits at the
+		// top and carries no permissions (the owner bypasses checks); it exists
+		// so the owner's name/colour can be customised like any other role.
+		SQL: fmt.Sprintf(`INSERT OR IGNORE INTO roles (id, name, position, permissions, deny_permissions, system_key) VALUES
+			('owner', 'Owner', %d, 0, 0, 'owner');`, models.OwnerRolePosition),
 	},
 }
 

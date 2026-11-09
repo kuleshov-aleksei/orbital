@@ -22,7 +22,11 @@
     <div class="flex-1 min-w-0">
       <div
         class="font-medium text-sm truncate"
-        :class="user.is_online ? 'text-theme-text-primary' : 'text-theme-text-muted'">
+        :class="[
+          user.is_online ? 'text-theme-text-primary' : 'text-theme-text-muted',
+          { 'opacity-60': !user.is_online && nameStyle },
+        ]"
+        :style="nameStyle">
         {{ user.nickname }}
       </div>
 
@@ -91,6 +95,7 @@ import { PhMicrophoneSlash, PhSpeakerHigh } from "@phosphor-icons/vue"
 import UserAvatar from "@/components/UserAvatar.vue"
 import EmojiGlyph from "@/components/EmojiGlyph.vue"
 import UserContextMenu from "@/components/UserContextMenu.vue"
+import { usePermissionsStore } from "@/stores"
 import type { UserRole } from "@/types"
 
 interface User {
@@ -122,6 +127,10 @@ const emit = defineEmits<{
 }>()
 
 const contextMenuRef = useTemplateRef<InstanceType<typeof UserContextMenu>>("contextMenuRef")
+
+const permissionsStore = usePermissionsStore()
+// Nickname takes the colour of the user's highest coloured role
+const nameStyle = computed(() => permissionsStore.nameStyleOf(props.user.id))
 
 // Compute user status based on both status field and is_online
 const userStatus = computed(() => {

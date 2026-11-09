@@ -279,7 +279,7 @@ const subjects = computed(() => {
 
 const addableRoles = computed(() =>
   permissionsStore.roles.filter(
-    (r) => r.system_key !== "everyone" && !drafts.value[`role:${r.id}`],
+    (r) => r.system_key !== "everyone" && r.system_key !== "owner" && !drafts.value[`role:${r.id}`],
   ),
 )
 const addableUsers = computed(() =>

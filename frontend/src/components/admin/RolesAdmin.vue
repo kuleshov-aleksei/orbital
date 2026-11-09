@@ -5,8 +5,9 @@
         <h2 class="text-lg font-semibold text-white">Roles</h2>
         <p class="text-sm text-gray-400">
           Roles apply from the bottom up: <em>@everyone</em>, then <em>Guest</em> (guest accounts),
-          then custom roles. Each role can allow (✓), deny (✕) or inherit (/) a permission, and
-          higher roles win. Room and category overrides are set from each room's menu.
+          then custom roles. <em>Owner</em> sits on top and only sets the owner's name and colour.
+          Each role can allow (✓), deny (✕) or inherit (/) a permission, and higher roles win. Room
+          and category overrides are set from each room's menu.
         </p>
       </div>
       <button
@@ -79,10 +80,10 @@
                 data-testid="role-name"
                 type="text"
                 maxlength="32"
-                :disabled="!!selected.system_key || !editable"
+                :disabled="!isCustomisable || !editable"
                 class="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white text-sm disabled:opacity-60" />
             </label>
-            <label v-if="!selected.system_key">
+            <label v-if="isCustomisable">
               <span class="block text-xs font-medium uppercase tracking-wide text-gray-400 mb-1"
                 >Color</span
               >
@@ -93,7 +94,11 @@
             </label>
           </div>
 
-          <p v-if="selected.system_key === 'everyone'" class="text-sm text-gray-400">
+          <p v-if="isOwnerRole" class="text-sm text-gray-400">
+            Held automatically by the server owner and always shown on top. The owner bypasses every
+            permission, so only the name and colour can be changed.
+          </p>
+          <p v-else-if="selected.system_key === 'everyone'" class="text-sm text-gray-400">
             The base layer for every signed-in user, including guests. Other roles inherit from it.
           </p>
           <p v-else-if="selected.system_key === 'guest'" class="text-sm text-gray-400">
@@ -218,9 +223,11 @@ const busy = ref(false)
 const error = ref("")
 const memberToAdd = ref("")
 
-// Custom roles highest first, then Guest, then @everyone (like Discord's list).
+// Owner on top, custom roles highest first, then Guest, then @everyone (like Discord's list).
 const orderedRoles = computed<Role[]>(() => {
-  const list: Role[] = [...permissionsStore.customRoles]
+  const list: Role[] = []
+  if (permissionsStore.ownerRole) list.push(permissionsStore.ownerRole)
+  list.push(...permissionsStore.customRoles)
   if (permissionsStore.guestRole) list.push(permissionsStore.guestRole)
   if (permissionsStore.everyoneRole) list.push(permissionsStore.everyoneRole)
   return list
@@ -229,6 +236,11 @@ const orderedRoles = computed<Role[]>(() => {
 const selected = computed(() => orderedRoles.value.find((r) => r.id === selectedId.value) ?? null)
 const editable = computed(() => !!selected.value && permissionsStore.canManageRole(selected.value))
 const isEveryoneRole = computed(() => selected.value?.system_key === "everyone")
+const isOwnerRole = computed(() => selected.value?.system_key === "owner")
+// Name and colour can be changed on custom roles and on Owner.
+const isCustomisable = computed(
+  () => !!selected.value && (!selected.value.system_key || isOwnerRole.value),
+)
 
 // Every role is tri-state; @everyone is the base layer, so "not allowed" = denied.
 const stateOf = (bit: number): TriState => {
@@ -258,6 +270,8 @@ const groups = computed(() => {
       items: PERMISSION_INFO.filter((p) => p.group === "voice"),
     },
   ]
+  // The owner bypasses permissions; there is nothing to toggle.
+  if (isOwnerRole.value) return []
   if (isEveryoneRole.value) {
     // Giving everyone Administrator is refused by the backend.
     return all.map((g) => ({ ...g, items: g.items.filter((p) => p.key !== "Administrator") }))
@@ -341,10 +355,10 @@ const save = () =>
     if (!selected.value || !draft.value) return
     const role = selected.value
     await apiService.updateRole(role.id, {
-      name: role.system_key ? undefined : draft.value.name,
-      color: role.system_key ? undefined : draft.value.color,
-      permissions: draft.value.permissions,
-      denyPermissions: isEveryoneRole.value ? undefined : draft.value.deny,
+      name: isCustomisable.value ? draft.value.name : undefined,
+      color: isCustomisable.value ? draft.value.color : undefined,
+      permissions: isOwnerRole.value ? undefined : draft.value.permissions,
+      denyPermissions: isEveryoneRole.value || isOwnerRole.value ? undefined : draft.value.deny,
     })
   })
 
