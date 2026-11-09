@@ -1,15 +1,28 @@
-import { useCallStore, useUserStore, useRoomStore } from "@/stores"
+import { useCallStore, useUserStore, useRoomStore, usePermissionsStore } from "@/stores"
+import { Permission } from "@/types/permissions"
 import { useSounds } from "@/services/sounds"
 
 export function useMuteDeafenToggle() {
   const callStore = useCallStore()
   const userStore = useUserStore()
   const roomStore = useRoomStore()
+  const permissionsStore = usePermissionsStore()
   const { playMute, playUnmute, playDeafen, playUndeafen } = useSounds()
 
   function toggleMute(forcedValue?: boolean) {
     const newValue = forcedValue ?? !callStore.isMuted
     const wasDeafened = callStore.isDeafened
+
+    // No Speak permission in the active room: unmuting is not allowed.
+    const roomId = roomStore.activeRoomId
+    if (
+      !newValue &&
+      roomId &&
+      permissionsStore.loaded &&
+      !permissionsStore.can(Permission.Speak, { roomId })
+    ) {
+      return
+    }
 
     // Play sound locally (remote users hear it via presence.ts)
     if (newValue) {

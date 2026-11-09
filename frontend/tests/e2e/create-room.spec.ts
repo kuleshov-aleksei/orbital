@@ -31,7 +31,9 @@ test("create room via UI and leave", async ({ page, request }) => {
   await expect(page.getByTestId("welcome-view")).toBeVisible()
 
   // Clean up the created room
-  const roomsRes = await request.get("http://127.0.0.1:8080/api/rooms")
+  const roomsRes = await request.get("http://127.0.0.1:8080/api/rooms", {
+    headers: { Authorization: `Bearer ${admin.token}` },
+  })
   const rooms = (await roomsRes.json()) as Array<{ id: string; name: string }>
   const room = rooms.find((r) => r.name === "E2E Room")
   if (room) {

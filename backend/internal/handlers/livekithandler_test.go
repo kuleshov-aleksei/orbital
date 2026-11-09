@@ -25,7 +25,11 @@ func newTestLiveKitHandler(t *testing.T) (*LiveKitHandler, *service.RoomService)
 		t.Fatalf("NewLiveKitService: %v", err)
 	}
 	roomService := service.NewRoomService(nil, nil)
-	return NewLiveKitHandler(livekitService, roomService), roomService
+	ps := service.NewPermissionService(nil, roomService, nil, nil)
+	if err := ps.LoadFromDB(); err != nil {
+		t.Fatalf("LoadFromDB: %v", err)
+	}
+	return NewLiveKitHandler(livekitService, roomService, ps), roomService
 }
 
 func TestGenerateTokenRejectsMissingRoom(t *testing.T) {

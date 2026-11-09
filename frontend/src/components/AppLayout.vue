@@ -79,7 +79,8 @@ import ModalManager from "@/components/ModalManager.vue"
 import ScreenShareQualityModal from "@/components/ScreenShareQualityModal.vue"
 import UpdateNotification from "@/components/UpdateNotification.vue"
 import AuthView from "@/views/AuthView.vue"
-import { useRoomStore, useUserStore, useAppStore } from "@/stores"
+import type { VenmicSource } from "@/types"
+import { useRoomStore, useUserStore, useAppStore, usePermissionsStore } from "@/stores"
 import {
   useUserSession,
   useRoomManager,
@@ -95,6 +96,7 @@ useUserSession()
 
 // Get stores and managers
 const userStore = useUserStore()
+const permissionsStore = usePermissionsStore()
 const roomStore = useRoomStore()
 const appStore = useAppStore()
 const roomManager = useRoomManager()
@@ -188,7 +190,7 @@ const handleElectronSourceSelected = async (
   quality: string,
   sourceId: string,
   audio: boolean,
-  audioSources?: any[],
+  audioSources?: VenmicSource[],
 ) => {
   showScreenShareQualityModal.value = false
 
@@ -198,7 +200,7 @@ const handleElectronSourceSelected = async (
           quality: string,
           audio: boolean,
           sourceId: string,
-          audioSources?: any[],
+          audioSources?: VenmicSource[],
         ) => Promise<void>
       }
     | undefined
@@ -210,6 +212,7 @@ const handleElectronSourceSelected = async (
 // Initialize data on mount (only if authenticated)
 onMounted(async () => {
   if (userStore.hasCompletedAuth) {
+    await permissionsStore.refresh()
     await roomManager.loadRooms()
     await categoryManager.loadCategories()
   }
@@ -231,8 +234,11 @@ watch(
   () => userStore.hasCompletedAuth,
   async (hasCompleted) => {
     if (hasCompleted) {
+      await permissionsStore.refresh()
       await roomManager.loadRooms()
       await categoryManager.loadCategories()
+    } else {
+      permissionsStore.reset()
     }
   },
 )

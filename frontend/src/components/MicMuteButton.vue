@@ -5,25 +5,38 @@
     class="control-button relative"
     :class="[
       sizeClasses,
-      isMuted
-        ? 'bg-red-600 hover:bg-red-700 text-white'
-        : 'bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary',
+      isLocked
+        ? 'bg-theme-bg-tertiary text-theme-text-muted cursor-not-allowed'
+        : isMuted
+          ? 'bg-red-600 hover:bg-red-700 text-white'
+          : 'bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary',
     ]"
     :title="buttonTitle"
+    :aria-disabled="isLocked"
+    :data-locked="isLocked || undefined"
     @click="handleToggleMute">
     <Transition name="icon-toggle" mode="out-in">
-      <PhMicrophoneSlash v-if="isMuted" key="muted" :class="iconClasses" />
+      <PhMicrophoneSlash v-if="isMuted || isLocked" key="muted" :class="iconClasses" />
 
       <PhMicrophone v-else key="unmuted" :class="iconClasses" />
     </Transition>
+
+    <!-- Lock overlay when the room doesn't allow speaking -->
+    <span
+      v-if="isLocked"
+      class="absolute bottom-0.5 right-0.5 bg-theme-bg-secondary rounded-full p-0.5 border border-theme-border">
+      <PhLock class="w-2.5 h-2.5 text-theme-text-muted" />
+    </span>
   </button>
 </template>
 
 <script setup lang="ts">
 import { computed } from "vue"
-import { PhMicrophone, PhMicrophoneSlash } from "@phosphor-icons/vue"
+import { PhLock, PhMicrophone, PhMicrophoneSlash } from "@phosphor-icons/vue"
 import { useMuteDeafenToggle } from "@/composables/useMuteDeafenToggle"
 import { isElectron } from "@/services/electron"
+import { useRoomStore, usePermissionsStore } from "@/stores"
+import { Permission } from "@/types/permissions"
 
 interface Props {
   modelValue: boolean
@@ -54,7 +67,21 @@ const isMuted = computed({
 // Show hotkey hint (M) only in web browser mode
 const showHotkey = !isElectron()
 
+// Without speak permission the SFU rejects the microphone track; keep the UI muted.
+const roomStore = useRoomStore()
+const permissionsStore = usePermissionsStore()
+const canSpeak = computed(
+  () =>
+    !roomStore.activeRoomId ||
+    !permissionsStore.loaded ||
+    permissionsStore.can(Permission.Speak, { roomId: roomStore.activeRoomId }),
+)
+
+// Locked: the mic is forced muted (see VoiceCallView) and can't be unmuted.
+const isLocked = computed(() => !canSpeak.value)
+
 const buttonTitle = computed(() => {
+  if (isLocked.value) return "You don't have permission to speak in this room"
   const base = isMuted.value ? "Unmute" : "Mute"
   return showHotkey ? `${base} (M)` : base
 })
@@ -99,6 +126,7 @@ const iconClasses = computed(() => {
 
 // Toggle mute - presence store will sync with LiveKit
 const handleToggleMute = () => {
+  if (isLocked.value) return
   const newValue = !isMuted.value
   // Emit v-model for immediate UI update (parent applies mute state)
   isMuted.value = newValue

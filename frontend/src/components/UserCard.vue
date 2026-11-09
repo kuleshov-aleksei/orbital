@@ -91,6 +91,7 @@ import { PhMicrophoneSlash, PhSpeakerHigh } from "@phosphor-icons/vue"
 import UserAvatar from "@/components/UserAvatar.vue"
 import EmojiGlyph from "@/components/EmojiGlyph.vue"
 import UserContextMenu from "@/components/UserContextMenu.vue"
+import type { UserRole } from "@/types"
 
 interface User {
   id: string
@@ -101,7 +102,7 @@ interface User {
   is_deafened?: boolean
   is_online?: boolean
   status?: "online" | "away" | "dnd"
-  role?: "guest" | "user" | "admin" | "super_admin"
+  role?: UserRole
   custom_status?: string
   custom_status_emoji?: string
 }

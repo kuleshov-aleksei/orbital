@@ -9,6 +9,7 @@ import (
 
 	"github.com/kuleshov-aleksei/orbital/internal/config"
 	"github.com/kuleshov-aleksei/orbital/internal/models"
+	"github.com/kuleshov-aleksei/orbital/internal/permissions"
 	"github.com/livekit/protocol/auth"
 	livekit "github.com/livekit/protocol/livekit"
 	lksdk "github.com/livekit/server-sdk-go/v2"
@@ -18,10 +19,11 @@ import (
 // connected participants, so this does not limit long calls.
 const LiveKitTokenTTL = 10 * time.Minute
 
+// participantMetadata is public to every room participant. Authorization data
+// (roles) is deliberately not included: the client could rewrite it.
 type participantMetadata struct {
 	Nickname string `json:"nickname"`
 	Avatar   string `json:"avatar"`
-	Role     string `json:"role"`
 }
 
 // LiveKitService wraps LiveKit server SDK operations
@@ -35,8 +37,45 @@ type LiveKitTokenData struct {
 	UserID   string
 	Nickname string
 	Avatar   string
-	Role     string
 	RoomID   string
+	// Permissions are the user's effective permissions in RoomID; they decide
+	// which track sources the token may publish.
+	Permissions permissions.Permission
+}
+
+// PublishSourcesFor maps room permissions to LiveKit track sources.
+func PublishSourcesFor(p permissions.Permission) []livekit.TrackSource {
+	var sources []livekit.TrackSource
+	if p.Has(permissions.Speak) {
+		sources = append(sources, livekit.TrackSource_MICROPHONE)
+	}
+	if p.Has(permissions.Video) {
+		sources = append(sources, livekit.TrackSource_CAMERA)
+	}
+	if p.Has(permissions.Screenshare) {
+		sources = append(sources, livekit.TrackSource_SCREEN_SHARE, livekit.TrackSource_SCREEN_SHARE_AUDIO)
+	}
+	return sources
+}
+
+// buildVideoGrant creates the LiveKit grant for a user's room permissions.
+func buildVideoGrant(roomID string, p permissions.Permission) *auth.VideoGrant {
+	// Needed for setAttributes (boombox state, presence).
+	canUpdateMetadata := true
+	grant := &auth.VideoGrant{
+		RoomJoin:             true,
+		Room:                 roomID,
+		CanUpdateOwnMetadata: &canUpdateMetadata,
+	}
+	sources := PublishSourcesFor(p)
+	grant.SetCanPublish(len(sources) > 0)
+	grant.SetCanSubscribe(true)
+	// Data channel carries spatial positions and boombox sync for everyone.
+	grant.SetCanPublishData(true)
+	if len(sources) > 0 {
+		grant.SetCanPublishSources(sources)
+	}
+	return grant
 }
 
 // NewLiveKitService creates a new LiveKit service
@@ -66,19 +105,12 @@ func (s *LiveKitService) GenerateAccessToken(data LiveKitTokenData) (string, err
 	// Create access token
 	at := auth.NewAccessToken(s.config.APIKey, s.config.APISecret)
 
-	// Set video grant with room join permission
-	canUpdateMetadata := true
-	grant := &auth.VideoGrant{
-		RoomJoin:             true,
-		Room:                 data.RoomID,
-		CanUpdateOwnMetadata: &canUpdateMetadata,
-	}
+	grant := buildVideoGrant(data.RoomID, data.Permissions)
 
 	// Set user metadata. Marshal it so nicknames/avatars cannot inject JSON.
 	metadataBytes, err := json.Marshal(participantMetadata{
 		Nickname: data.Nickname,
 		Avatar:   data.Avatar,
-		Role:     data.Role,
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal participant metadata: %w", err)
@@ -216,18 +248,6 @@ func (s *LiveKitService) RemoveParticipant(roomID, participantID string) error {
 	return nil
 }
 
-// GenerateTokenFromUser generates a LiveKit token from a user model
-func (s *LiveKitService) GenerateTokenFromUser(user *models.User, roomID string) (string, error) {
-	data := LiveKitTokenData{
-		UserID:   user.ID,
-		Nickname: user.Nickname,
-		Avatar:   user.AvatarURL,
-		Role:     user.Role,
-		RoomID:   roomID,
-	}
-	return s.GenerateAccessToken(data)
-}
-
 // IsHealthy checks if the LiveKit service is properly configured
 func (s *LiveKitService) IsHealthy() bool {
 	return s.config != nil && s.config.IsConfigured() && s.roomClient != nil
@@ -239,13 +259,56 @@ func (s *LiveKitService) GetConfig() *config.LiveKitConfig {
 }
 
 // GenerateTokenFromJWTClaims generates a LiveKit token from JWT claims
-func (s *LiveKitService) GenerateTokenFromJWTClaims(claims *models.JWTClaims, roomID string) (string, error) {
+func (s *LiveKitService) GenerateTokenFromJWTClaims(claims *models.JWTClaims, roomID string, perms permissions.Permission) (string, error) {
 	data := LiveKitTokenData{
-		UserID:   claims.UserID,
-		Nickname: claims.Nickname,
-		Avatar:   claims.AvatarURL,
-		Role:     claims.Role,
-		RoomID:   roomID,
+		UserID:      claims.UserID,
+		Nickname:    claims.Nickname,
+		Avatar:      claims.AvatarURL,
+		RoomID:      roomID,
+		Permissions: perms,
 	}
 	return s.GenerateAccessToken(data)
+}
+
+// UpdateParticipantPermissions applies new room permissions to a connected
+// participant and mutes any published track whose source is no longer allowed
+// (LiveKit only guarantees unpublishing when CanPublish is fully revoked).
+func (s *LiveKitService) UpdateParticipantPermissions(roomID, identity string, p permissions.Permission) error {
+	if s.roomClient == nil {
+		return fmt.Errorf("livekit room client not initialized")
+	}
+	sources := PublishSourcesFor(p)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	info, err := s.roomClient.UpdateParticipant(ctx, &livekit.UpdateParticipantRequest{
+		Room:     roomID,
+		Identity: identity,
+		Permission: &livekit.ParticipantPermission{
+			CanSubscribe:      true,
+			CanPublish:        len(sources) > 0,
+			CanPublishData:    true,
+			CanPublishSources: sources,
+			CanUpdateMetadata: true,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update participant permissions: %w", err)
+	}
+
+	allowed := make(map[livekit.TrackSource]bool, len(sources))
+	for _, src := range sources {
+		allowed[src] = true
+	}
+	for _, track := range info.GetTracks() {
+		if allowed[track.GetSource()] || track.GetMuted() {
+			continue
+		}
+		if _, err := s.roomClient.MutePublishedTrack(ctx, &livekit.MuteRoomTrackRequest{
+			Room: roomID, Identity: identity, TrackSid: track.GetSid(), Muted: true,
+		}); err != nil {
+			log.Printf("[LiveKit] Failed to mute disallowed track %s of %s: %v", track.GetSid(), identity, err)
+		}
+	}
+	return nil
 }

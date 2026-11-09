@@ -10,6 +10,7 @@ export interface Room {
   sort_order: number // Order within category for drag-and-drop
   world: string // World ID for spatial_audio rooms
   users?: RoomPreviewUser[]
+  permissions_synced?: boolean // Inherits the category's permission overrides
 }
 
 // Room preview user interface
@@ -26,11 +27,15 @@ export interface RoomPreviewUser {
 }
 
 // PublicUser interface - limited user data for global user list
+// Account kind from users.role. Everything beyond "is the owner" comes from
+// RBAC roles/permissions (see types/permissions.ts).
+export type UserRole = "guest" | "user" | "super_admin"
+
 export interface PublicUser {
   id: string
   nickname: string
   avatar_url?: string
-  role: "guest" | "user" | "admin" | "super_admin"
+  role: UserRole
   is_online: boolean
   sound_pack?: string
   custom_status?: string // User-set status text, omitted when empty
@@ -68,7 +73,7 @@ export interface User {
   avatar_url?: string
   created_at?: string
   last_seen?: string
-  role: "guest" | "user" | "admin" | "super_admin"
+  role: UserRole
   sound_pack?: string
 }
 

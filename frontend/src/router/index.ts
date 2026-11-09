@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory, createWebHashHistory } from "vue-router"
-import { useUserStore } from "@/stores"
+import { useUserStore, usePermissionsStore } from "@/stores"
+import { Permission } from "@/types/permissions"
 
 const isElectron = window.location.protocol === "orbital:" || window.location.protocol === "file:"
 const routerHistory = isElectron ? createWebHashHistory() : createWebHistory()
@@ -21,7 +22,9 @@ const router = createRouter({
       path: "/admin",
       name: "admin",
       component: () => import("@/views/AdminPanel.vue"),
-      meta: { requiresSuperAdmin: true },
+      // Owner, or anyone with a permission managed there (roles / shared audio).
+      // The backend authorizes every admin API call independently.
+      meta: { requiresAdminPanel: true },
     },
     {
       path: "/auth/callback",
@@ -44,15 +47,26 @@ const router = createRouter({
 })
 
 // Navigation guard to protect admin routes
-router.beforeEach((to, _from, next) => {
+router.beforeEach(async (to, _from, next) => {
   const userStore = useUserStore()
 
-  // Check if route requires super admin access
-  if (to.meta.requiresSuperAdmin) {
-    // Redirect if not authenticated or not a super admin
-    if (!userStore.isAuthenticated || !userStore.isSuperAdmin) {
+  if (to.meta.requiresAdminPanel) {
+    if (!userStore.isAuthenticated) {
       next("/")
       return
+    }
+    if (!userStore.isSuperAdmin) {
+      const permissionsStore = usePermissionsStore()
+      if (!permissionsStore.loaded) {
+        await permissionsStore.loadMine()
+      }
+      if (
+        !permissionsStore.can(Permission.ManageRoles) &&
+        !permissionsStore.can(Permission.ManageAudio)
+      ) {
+        next("/")
+        return
+      }
     }
   }
 

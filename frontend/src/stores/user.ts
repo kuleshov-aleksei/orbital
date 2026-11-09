@@ -8,6 +8,7 @@ import {
   type ApiError,
 } from "@/services/api"
 import { setUserSoundPack } from "@/services/sounds"
+import type { UserRole } from "@/types"
 
 export type AuthProvider = "guest" | "discord" | "google" | "password"
 
@@ -18,7 +19,7 @@ export interface UserSession {
   email?: string
   avatarUrl?: string
   isGuest: boolean
-  role: "guest" | "user" | "admin" | "super_admin"
+  role: UserRole
 }
 
 export const useUserStore = defineStore("user", () => {
@@ -42,7 +43,6 @@ export const useUserStore = defineStore("user", () => {
   const email = computed(() => currentUser.value?.email)
   const avatarUrl = computed(() => currentUser.value?.avatarUrl)
   const role = computed(() => currentUser.value?.role || "guest")
-  const isAdmin = computed(() => role.value === "admin" || role.value === "super_admin")
   const isSuperAdmin = computed(() => role.value === "super_admin")
 
   function setUser(user: UserSession, authToken?: string, expiresAt?: string) {
@@ -351,7 +351,6 @@ export const useUserStore = defineStore("user", () => {
     isLoggedIn,
     isGuest,
     role,
-    isAdmin,
     isSuperAdmin,
     hasCompletedAuth,
     sessionExpired,

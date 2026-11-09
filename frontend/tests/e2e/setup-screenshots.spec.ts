@@ -33,7 +33,7 @@ test("setup: create categories, rooms and 7 regular users @screenshot", async ({
   const adminUser = { user: loginData.user, token: loginData.token }
 
   const userRole = loginData.user.role
-  if (userRole !== "admin" && userRole !== "super_admin") {
+  if (userRole !== "super_admin") {
     console.log(`AdminUser has role '${userRole}', not admin. Grant admin rights, then re-run.`)
     return
   }
@@ -41,10 +41,15 @@ test("setup: create categories, rooms and 7 regular users @screenshot", async ({
   console.log(`Admin user OK (role: ${userRole})`)
 
   // Check if categories and rooms exist
-  const categoriesResponse = await request.get("http://127.0.0.1:8080/api/categories")
+  const authHeaders = { Authorization: `Bearer ${adminUser.token}` }
+  const categoriesResponse = await request.get("http://127.0.0.1:8080/api/categories", {
+    headers: authHeaders,
+  })
   const existingCategories = (await categoriesResponse.json()) as Array<{ name: string }>
 
-  const roomsResponse = await request.get("http://127.0.0.1:8080/api/rooms")
+  const roomsResponse = await request.get("http://127.0.0.1:8080/api/rooms", {
+    headers: authHeaders,
+  })
   const existingRooms = (await roomsResponse.json()) as Array<{
     name: string
     category_name: string

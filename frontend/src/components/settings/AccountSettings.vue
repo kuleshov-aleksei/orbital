@@ -173,8 +173,8 @@
       </div>
     </div>
 
-    <!-- Admin Panel Button - Only for super admins -->
-    <div v-if="userStore.isSuperAdmin" class="pt-2 border-t border-theme-border mt-4">
+    <!-- Admin Panel Button - owner, or users who can manage roles/audio -->
+    <div v-if="canOpenAdminPanel" class="pt-2 border-t border-theme-border mt-4">
       <router-link v-slot="{ navigate }" to="/admin" custom>
         <button
           type="button"
@@ -194,7 +194,7 @@
     <div
       v-if="!userStore.isGuest"
       class="pt-2"
-      :class="userStore.isSuperAdmin ? 'mt-4' : 'border-t border-theme-border mt-4'">
+      :class="canOpenAdminPanel ? 'mt-4' : 'border-t border-theme-border mt-4'">
       <button
         type="button"
         class="w-full flex items-center justify-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors duration-200 text-sm font-medium"
@@ -218,8 +218,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, useTemplateRef } from "vue"
-import { useUserStore } from "@/stores"
+import { ref, computed, nextTick, useTemplateRef } from "vue"
+import { useUserStore, usePermissionsStore } from "@/stores"
+import { Permission } from "@/types/permissions"
 import UserAvatar from "@/components/UserAvatar.vue"
 import AvatarCropModal from "@/components/AvatarCropModal.vue"
 import {
@@ -243,6 +244,13 @@ const emit = defineEmits<{
 }>()
 
 const userStore = useUserStore()
+const permissionsStore = usePermissionsStore()
+const canOpenAdminPanel = computed(
+  () =>
+    userStore.isSuperAdmin ||
+    permissionsStore.can(Permission.ManageRoles) ||
+    permissionsStore.can(Permission.ManageAudio),
+)
 
 // Nickname editing state
 const isEditingNickname = ref(false)

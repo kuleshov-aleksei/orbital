@@ -8,6 +8,7 @@ import {
   useSoundPackStore,
   useChatStore,
   useHalloweenStore,
+  usePermissionsStore,
 } from "@/stores"
 import { wsService } from "@/services/websocket"
 import type {
@@ -41,6 +42,7 @@ export function useWebSocketHandlers() {
   const soundPackStore = useSoundPackStore()
   const chatStore = useChatStore()
   const halloweenStore = useHalloweenStore()
+  const permissionsStore = usePermissionsStore()
   const hasConnected = ref(false)
 
   const cleanupFns: Array<() => void> = []
@@ -153,6 +155,41 @@ export function useWebSocketHandlers() {
   }
 
   const setupGlobalWebSocketListeners = () => {
+    // RBAC changed somewhere: refetch our permissions and the (filtered)
+    // room/category lists. The backend has already enforced the change.
+    let permissionsRefresh: Promise<void> | null = null
+    const onPermissionsUpdated: MessageCallback = () => {
+      if (permissionsRefresh) return
+      permissionsRefresh = (async () => {
+        try {
+          await permissionsStore.refresh()
+          const [rooms, categories] = await Promise.all([
+            apiService.getRooms(true),
+            apiService.getCategories(),
+          ])
+          roomStore.setRooms(rooms)
+          categoryStore.setCategories(categories)
+        } catch (error) {
+          debugError("[WebSocket] Failed to refresh after permissions_updated:", error)
+        } finally {
+          permissionsRefresh = null
+        }
+      })()
+    }
+    wsService.onGlobal("permissions_updated", onPermissionsUpdated)
+    onCleanup(() => wsService.offGlobal("permissions_updated", onPermissionsUpdated))
+
+    const onPermissionDenied: MessageCallback = (message) => {
+      const data = message.data as { action?: string } | undefined
+      appStore.setError(
+        data?.action === "join_room"
+          ? "You don't have permission to join this room."
+          : "You don't have permission to do that.",
+      )
+    }
+    wsService.on("permission_denied", onPermissionDenied)
+    onCleanup(() => wsService.off("permission_denied", onPermissionDenied))
+
     const onRoomCreated: MessageCallback = (message) => {
       const newRoom = message.data as Room
       debugLog("Received room_created event:", newRoom)

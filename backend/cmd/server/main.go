@@ -11,6 +11,8 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/kuleshov-aleksei/orbital/internal/config"
 	"github.com/kuleshov-aleksei/orbital/internal/handlers"
+	"github.com/kuleshov-aleksei/orbital/internal/models"
+	"github.com/kuleshov-aleksei/orbital/internal/permissions"
 	"github.com/kuleshov-aleksei/orbital/internal/ratelimit"
 	"github.com/kuleshov-aleksei/orbital/internal/repository"
 	"github.com/kuleshov-aleksei/orbital/internal/service"
@@ -64,6 +66,7 @@ func main() {
 	var analyticsService *service.AnalyticsService
 	var halloweenService *service.HalloweenService
 	var pumpkinAssetService *service.PumpkinAssetService
+	var rbacRepo *repository.RBACRepository
 
 	if cfg.Database.Path != "" {
 		db, err := storage.NewDB(cfg.Database.Path)
@@ -84,6 +87,7 @@ func main() {
 		debugLogRepo := repository.NewDebugLogRepository(db)
 		sessionRepo = repository.NewSessionRepository(db)
 		qrLoginRepo = repository.NewQRLoginRepository(db)
+		rbacRepo = repository.NewRBACRepository(db)
 
 		// Initialize services with repositories
 		categoryService = service.NewCategoryService(categoryRepo)
@@ -127,6 +131,24 @@ func main() {
 
 	roomService.SetCategoryService(categoryService)
 
+	// RBAC: roles, assignments and permission overwrites
+	userLookup := func(userID string) *models.User {
+		if userRepo != nil {
+			user, err := userRepo.GetByID(userID)
+			if err != nil {
+				log.Printf("permission lookup for user %s failed: %v", userID, err)
+				return nil
+			}
+			return user
+		}
+		user, _ := roomService.GetUserByID(userID)
+		return user
+	}
+	permissionService := service.NewPermissionService(rbacRepo, roomService, categoryService, userLookup)
+	if err := permissionService.LoadFromDB(); err != nil {
+		log.Fatalf("Failed to load permissions: %v", err)
+	}
+
 	// Initialize auth service and role service
 	authService := service.NewAuthService(cfg.GetAuthConfig(), userRepo)
 	roleService := service.NewRoleService(userRepo)
@@ -158,18 +180,23 @@ func main() {
 	}
 
 	wsHub := websocket.NewHub(roomService, authService, livekitService, service.NewChatService(), sessionRepo, cfg)
+	wsHub.SetPermissionService(permissionService)
+	// Apply permission changes live (kick, LiveKit grants, client refresh).
+	permissionService.Subscribe(wsHub.OnPermissionsChanged)
 
 	// Initialize avatar service
 	avatarService := service.NewAvatarService("data")
 
 	// Initialize handlers with config
-	roomHandler := handlers.NewRoomHandler(roomService, categoryService, livekitService, wsHub)
-	categoryHandler := handlers.NewCategoryHandler(categoryService, roomService, wsHub)
+	roomHandler := handlers.NewRoomHandler(roomService, categoryService, livekitService, permissionService, wsHub)
+	categoryHandler := handlers.NewCategoryHandler(categoryService, roomService, livekitService, permissionService, wsHub)
 	authHandler := handlers.NewAuthHandler(authService, roleService, cfg.Server.ExternalURL, cfg.Server.ElectronRedirectURL)
 	adminHandler := handlers.NewAdminHandlerWithHub(roleService, userRepo, debugLogService, analyticsService, halloweenService, wsHub)
+	adminHandler.SetPermissionService(permissionService)
 	securityHandler := handlers.NewSecurityHandler(cfg)
 	usersHandler := handlers.NewUsersHandler(userRepo, wsHub)
-	livekitHandler := handlers.NewLiveKitHandler(livekitService, roomService)
+	livekitHandler := handlers.NewLiveKitHandler(livekitService, roomService, permissionService)
+	rbacHandler := handlers.NewRBACHandler(permissionService)
 	avatarHandler := handlers.NewAvatarHandler(avatarService, userRepo)
 	releaseHandler := handlers.NewReleaseHandler(cfg.GetReleasesURL())
 
@@ -291,43 +318,54 @@ func main() {
 	r.Handle("/api/livekit/token", authHandler.AuthMiddleware(http.HandlerFunc(livekitHandler.GenerateToken))).Methods("POST")
 	r.HandleFunc("/api/livekit/health", livekitHandler.HealthCheck).Methods("GET")
 
-	// Public room routes (no auth required)
-	r.HandleFunc("/api/rooms", roomHandler.GetRooms).Methods("GET")
-	r.HandleFunc("/api/rooms/{id}", roomHandler.GetRoom).Methods("GET")
-	r.HandleFunc("/api/rooms/{id}/users", roomHandler.GetRoomUsers).Methods("GET")
-	// Join/leave mutate membership: authenticated users only (identity from JWT)
-	r.Handle("/api/rooms/{id}/join", authHandler.AuthMiddleware(http.HandlerFunc(roomHandler.JoinRoom))).Methods("POST")
-	r.Handle("/api/rooms/{id}/leave", authHandler.AuthMiddleware(http.HandlerFunc(roomHandler.LeaveRoom))).Methods("POST")
+	// Room routes: every route is authenticated and authorized per room via
+	// RBAC (view_room / connect / manage_rooms / kick_members) in the handlers.
+	auth := authHandler.AuthMiddleware
+	requirePerm := func(p permissions.Permission, h http.HandlerFunc) http.Handler {
+		return auth(handlers.RequirePermission(permissionService, p)(h))
+	}
+	r.Handle("/api/rooms", auth(http.HandlerFunc(roomHandler.GetRooms))).Methods("GET")
+	r.Handle("/api/rooms", auth(http.HandlerFunc(roomHandler.CreateRoom))).Methods("POST")
+	r.Handle("/api/rooms/order", requirePerm(permissions.ManageRooms, roomHandler.UpdateRoomOrder)).Methods("PUT")
+	r.Handle("/api/rooms/{id}", auth(http.HandlerFunc(roomHandler.GetRoom))).Methods("GET")
+	r.Handle("/api/rooms/{id}", auth(http.HandlerFunc(roomHandler.UpdateRoom))).Methods("PUT")
+	r.Handle("/api/rooms/{id}", auth(http.HandlerFunc(roomHandler.DeleteRoom))).Methods("DELETE")
+	r.Handle("/api/rooms/{id}/users", auth(http.HandlerFunc(roomHandler.GetRoomUsers))).Methods("GET")
+	r.Handle("/api/rooms/{id}/join", auth(http.HandlerFunc(roomHandler.JoinRoom))).Methods("POST")
+	r.Handle("/api/rooms/{id}/leave", auth(http.HandlerFunc(roomHandler.LeaveRoom))).Methods("POST")
+	r.Handle("/api/rooms/{room_id}/kick/{user_id}", auth(http.HandlerFunc(roomHandler.KickUser))).Methods("POST")
 
-	// Admin-only room routes
-	adminRoomRouter := r.PathPrefix("/api").Subrouter()
-	adminRoomRouter.Use(authHandler.AuthMiddleware)
-	adminRoomRouter.Use(authHandler.RequireAdmin)
-	adminRoomRouter.HandleFunc("/rooms", roomHandler.CreateRoom).Methods("POST")
-	adminRoomRouter.HandleFunc("/rooms/order", roomHandler.UpdateRoomOrder).Methods("PUT")
-	adminRoomRouter.HandleFunc("/rooms/{id}", roomHandler.UpdateRoom).Methods("PUT")
-	adminRoomRouter.HandleFunc("/rooms/{id}", roomHandler.DeleteRoom).Methods("DELETE")
-	adminRoomRouter.HandleFunc("/rooms/{room_id}/kick/{user_id}", roomHandler.KickUser).Methods("POST")
+	// Category routes
+	r.Handle("/api/categories", auth(http.HandlerFunc(categoryHandler.GetCategories))).Methods("GET")
+	r.Handle("/api/categories", requirePerm(permissions.ManageRooms, categoryHandler.CreateCategory)).Methods("POST")
+	r.Handle("/api/categories/reorder", requirePerm(permissions.ManageRooms, categoryHandler.UpdateCategoryOrder)).Methods("PUT")
+	r.Handle("/api/categories/{id}", auth(http.HandlerFunc(categoryHandler.RenameCategory))).Methods("PUT")
+	r.Handle("/api/categories/{id}", auth(http.HandlerFunc(categoryHandler.DeleteCategory))).Methods("DELETE")
 
-	// Public category routes
-	r.HandleFunc("/api/categories", categoryHandler.GetCategories).Methods("GET")
+	// RBAC: permissions, roles, assignments, overwrites. Mutations are
+	// authorized inside PermissionService (manage_roles + hierarchy).
+	r.HandleFunc("/api/permissions/catalog", rbacHandler.GetCatalog).Methods("GET")
+	r.Handle("/api/me/permissions", auth(http.HandlerFunc(rbacHandler.GetMyPermissions))).Methods("GET")
+	r.Handle("/api/roles", auth(http.HandlerFunc(rbacHandler.ListRoles))).Methods("GET")
+	r.Handle("/api/roles", auth(http.HandlerFunc(rbacHandler.CreateRole))).Methods("POST")
+	r.Handle("/api/roles/order", auth(http.HandlerFunc(rbacHandler.ReorderRoles))).Methods("PUT")
+	r.Handle("/api/roles/{id}", auth(http.HandlerFunc(rbacHandler.UpdateRole))).Methods("PUT")
+	r.Handle("/api/roles/{id}", auth(http.HandlerFunc(rbacHandler.DeleteRole))).Methods("DELETE")
+	r.Handle("/api/users/{id}/roles", auth(http.HandlerFunc(rbacHandler.SetUserRoles))).Methods("PUT")
+	for _, t := range []struct{ prefix, target string }{
+		{"/api/rooms", models.OverwriteTargetRoom},
+		{"/api/categories", models.OverwriteTargetCategory},
+	} {
+		r.Handle(t.prefix+"/{id}/overwrites", auth(rbacHandler.ListOverwrites(t.target))).Methods("GET")
+		r.Handle(t.prefix+"/{id}/overwrites/{subject_type}/{subject_id}", auth(rbacHandler.PutOverwrite(t.target))).Methods("PUT")
+		r.Handle(t.prefix+"/{id}/overwrites/{subject_type}/{subject_id}", auth(rbacHandler.DeleteOverwrite(t.target))).Methods("DELETE")
+	}
+	r.Handle("/api/rooms/{id}/permissions_synced", auth(http.HandlerFunc(rbacHandler.SetRoomSync))).Methods("PUT")
 
-	// Admin-only category routes
-	adminCategoryRouter := r.PathPrefix("/api").Subrouter()
-	adminCategoryRouter.Use(authHandler.AuthMiddleware)
-	adminCategoryRouter.Use(authHandler.RequireAdmin)
-	adminCategoryRouter.HandleFunc("/categories", categoryHandler.CreateCategory).Methods("POST")
-	adminCategoryRouter.HandleFunc("/categories/reorder", categoryHandler.UpdateCategoryOrder).Methods("PUT")
-	adminCategoryRouter.HandleFunc("/categories/{id}", categoryHandler.RenameCategory).Methods("PUT")
-	adminCategoryRouter.HandleFunc("/categories/{id}", categoryHandler.DeleteCategory).Methods("DELETE")
-
-	// Admin audio management routes (admin+)
+	// Shared audio management (manage_audio)
 	if audioHandler != nil {
-		adminAudioRouter := r.PathPrefix("/api/admin/audio").Subrouter()
-		adminAudioRouter.Use(authHandler.AuthMiddleware)
-		adminAudioRouter.Use(authHandler.RequireAdmin)
-		adminAudioRouter.HandleFunc("/{id}", audioHandler.DeleteAudio).Methods("DELETE")
-		adminAudioRouter.HandleFunc("/{id}", audioHandler.RenameAudio).Methods("PATCH")
+		r.Handle("/api/admin/audio/{id}", requirePerm(permissions.ManageAudio, audioHandler.DeleteAudio)).Methods("DELETE")
+		r.Handle("/api/admin/audio/{id}", requirePerm(permissions.ManageAudio, audioHandler.RenameAudio)).Methods("PATCH")
 	}
 
 	// Admin management routes (super_admin only)
@@ -338,8 +376,6 @@ func main() {
 	superAdminRouter.HandleFunc("/users", adminHandler.ListUsers).Methods("GET")
 	superAdminRouter.HandleFunc("/users/guests", adminHandler.DeleteAllGuests).Methods("DELETE")
 	superAdminRouter.HandleFunc("/users/{id}/role", adminHandler.GetUserRole).Methods("GET")
-	superAdminRouter.HandleFunc("/users/{id}/promote", adminHandler.PromoteUser).Methods("POST")
-	superAdminRouter.HandleFunc("/users/{id}/demote", adminHandler.DemoteUser).Methods("POST")
 	superAdminRouter.HandleFunc("/users/{id}", adminHandler.DeleteUser).Methods("DELETE")
 	superAdminRouter.HandleFunc("/logs", adminHandler.ListDebugLogs).Methods("GET")
 	superAdminRouter.HandleFunc("/logs/{id}", adminHandler.GetDebugLog).Methods("GET")

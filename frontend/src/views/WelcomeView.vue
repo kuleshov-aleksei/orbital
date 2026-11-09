@@ -61,7 +61,7 @@
         </p>
 
         <button
-          v-if="isAdmin"
+          v-if="canManageAnyRooms"
           type="button"
           data-testid="create-room-empty"
           class="px-6 py-3 bg-theme-accent hover:bg-theme-accent-hover text-theme-text-on-accent rounded-lg transition-colors duration-200 font-medium"
@@ -77,7 +77,7 @@
 
 <script setup lang="ts">
 import { storeToRefs } from "pinia"
-import { useRoomStore, useUserStore } from "@/stores"
+import { useRoomStore, usePermissionsStore } from "@/stores"
 import { PhMicrophone, PhFolderSimpleUser } from "@phosphor-icons/vue"
 
 defineEmits<{
@@ -86,7 +86,7 @@ defineEmits<{
 }>()
 // Use store directly for reactivity
 const roomStore = useRoomStore()
-const userStore = useUserStore()
+const permissionsStore = usePermissionsStore()
 const { rooms } = storeToRefs(roomStore)
-const { isAdmin } = storeToRefs(userStore)
+const { canManageAnyRooms } = storeToRefs(permissionsStore)
 </script>

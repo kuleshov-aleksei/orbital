@@ -204,14 +204,14 @@ func TestAuthMiddlewareUsesFreshDatabaseRole(t *testing.T) {
 
 	userRepo := repository.NewUserRepository(db)
 	user := &models.User{
-		ID:               "admin-1",
-		Nickname:         "Admin",
-		OriginalNickname: "Admin",
+		ID:               "owner-1",
+		Nickname:         "Owner",
+		OriginalNickname: "Owner",
 		CreatedAt:        time.Now(),
 		LastSeen:         time.Now(),
 		AuthProvider:     models.AuthProviderPassword,
 		IsGuest:          false,
-		Role:             models.RoleAdmin,
+		Role:             models.RoleSuperAdmin,
 	}
 	if err := userRepo.Create(user); err != nil {
 		t.Fatalf("Create user: %v", err)

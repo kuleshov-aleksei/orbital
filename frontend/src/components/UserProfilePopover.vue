@@ -157,6 +157,70 @@
                 {{ memberSince }}
               </div>
             </div>
+            <div v-if="userRoles.length || canEditRoles" data-testid="profile-roles">
+              <div class="text-[11px] font-semibold uppercase tracking-wide text-theme-text-muted">
+                Roles
+              </div>
+              <div class="mt-1 flex flex-wrap gap-1">
+                <span
+                  v-for="r in userRoles"
+                  :key="r.id"
+                  class="group/role inline-flex items-center gap-1.5 max-w-full px-2 py-0.5 rounded bg-theme-bg-primary border border-theme-border text-xs text-theme-text-secondary">
+                  <button
+                    v-if="canEditRoles && permissionsStore.canManageRole(r)"
+                    type="button"
+                    class="relative w-2.5 h-2.5 rounded-full flex-shrink-0 flex items-center justify-center"
+                    :style="{ backgroundColor: r.color || 'var(--color-text-muted, #9ca3af)' }"
+                    :title="`Remove ${r.name}`"
+                    :aria-label="`Remove role ${r.name}`"
+                    :disabled="savingRoles"
+                    :data-testid="`profile-role-remove-${r.id}`"
+                    @click="toggleRole(r.id)">
+                    <PhX
+                      class="w-2.5 h-2.5 text-white opacity-0 group-hover/role:opacity-100 transition-opacity" />
+                  </button>
+                  <span
+                    v-else
+                    class="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                    :style="{ backgroundColor: r.color || 'var(--color-text-muted, #9ca3af)' }" />
+                  <span class="truncate">{{ r.name }}</span>
+                </span>
+                <button
+                  v-if="canEditRoles && addableRoles.length"
+                  type="button"
+                  class="inline-flex items-center justify-center w-6 h-[22px] rounded bg-theme-bg-primary border border-theme-border text-theme-text-muted hover:text-theme-text-primary hover:bg-theme-bg-hover transition-colors"
+                  title="Add role"
+                  aria-label="Add role"
+                  :aria-expanded="isRolePickerOpen"
+                  data-testid="profile-role-add"
+                  @click="toggleRolePicker">
+                  <PhPlus class="w-3 h-3" />
+                </button>
+              </div>
+              <div
+                v-if="isRolePickerOpen"
+                class="mt-1.5 max-h-40 overflow-y-auto rounded border border-theme-border bg-theme-bg-primary py-1"
+                data-testid="profile-role-picker">
+                <button
+                  v-for="r in addableRoles"
+                  :key="r.id"
+                  type="button"
+                  class="w-full px-2 py-1 flex items-center gap-2 text-left text-xs text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                  :disabled="savingRoles || !permissionsStore.canManageRole(r)"
+                  :title="
+                    permissionsStore.canManageRole(r)
+                      ? undefined
+                      : 'This role is above your highest role'
+                  "
+                  @click="addRole(r.id)">
+                  <span
+                    class="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                    :style="{ backgroundColor: r.color || 'var(--color-text-muted, #9ca3af)' }" />
+                  <span class="truncate">{{ r.name }}</span>
+                </button>
+              </div>
+              <div v-if="rolesError" class="mt-1 text-[11px] text-red-400">{{ rolesError }}</div>
+            </div>
             <div v-if="voiceRoom">
               <div class="text-[11px] font-semibold uppercase tracking-wide text-theme-text-muted">
                 In voice
@@ -175,12 +239,19 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onUnmounted, useTemplateRef } from "vue"
-import { PhChatCircleDots, PhPencilSimple, PhSmiley, PhSpeakerHigh, PhX } from "@phosphor-icons/vue"
+import {
+  PhChatCircleDots,
+  PhPencilSimple,
+  PhPlus,
+  PhSmiley,
+  PhSpeakerHigh,
+  PhX,
+} from "@phosphor-icons/vue"
 import UserAvatar from "@/components/UserAvatar.vue"
 import EmojiGlyph from "@/components/EmojiGlyph.vue"
 import EmojiPicker from "@/components/EmojiPicker.vue"
 import type { EmojiRef } from "@/services/emoji"
-import { useUserStore, useUsersStore, useRoomStore } from "@/stores"
+import { useUserStore, useUsersStore, useRoomStore, usePermissionsStore } from "@/stores"
 import type { PublicUser } from "@/types"
 
 const props = defineProps<{
@@ -196,6 +267,7 @@ const VIEWPORT_MARGIN = 8
 
 const userStore = useUserStore()
 const usersStore = useUsersStore()
+const permissionsStore = usePermissionsStore()
 const roomStore = useRoomStore()
 
 const popoverRef = useTemplateRef<HTMLElement>("popoverRef")
@@ -218,18 +290,53 @@ const status = computed(() => (user.value?.is_online ? "online" : "offline"))
 
 const presenceLabel = computed(() => (user.value?.is_online ? "Online" : "Offline"))
 
+// Account kind badge; assigned roles are listed separately below.
 const roleLabel = computed(() => {
-  switch (user.value?.role) {
-    case "super_admin":
-      return "Owner"
-    case "admin":
-      return "Admin"
-    case "guest":
-      return "Guest"
-    default:
-      return ""
-  }
+  if (!user.value) return ""
+  if (user.value.role === "super_admin") return "Owner"
+  return user.value.role === "guest" ? "Guest" : ""
 })
+
+// Assigned roles, highest first (Discord-like role list).
+const userRoles = computed(() => (user.value ? permissionsStore.rolesOf(user.value.id) : []))
+
+// --- Role assignment (manage_roles; the backend enforces the hierarchy)
+const canEditRoles = computed(
+  () => !!user.value && permissionsStore.canEditRolesOf(user.value.role === "super_admin"),
+)
+const addableRoles = computed(() => {
+  const held = new Set(userRoles.value.map((r) => r.id))
+  return permissionsStore.customRoles.filter((r) => !held.has(r.id))
+})
+const isRolePickerOpen = ref(false)
+const savingRoles = ref(false)
+const rolesError = ref("")
+
+const toggleRolePicker = async () => {
+  isRolePickerOpen.value = !isRolePickerOpen.value
+  await nextTick()
+  updatePosition()
+}
+
+const toggleRole = async (roleId: string) => {
+  if (!user.value) return
+  savingRoles.value = true
+  rolesError.value = ""
+  try {
+    await permissionsStore.toggleUserRole(user.value.id, roleId)
+  } catch (error) {
+    rolesError.value = (error as Error).message || "Failed to update roles"
+  } finally {
+    savingRoles.value = false
+  }
+}
+
+const addRole = async (roleId: string) => {
+  await toggleRole(roleId)
+  if (!rolesError.value) isRolePickerOpen.value = false
+  await nextTick()
+  updatePosition()
+}
 
 const createdAt = computed(() => {
   const raw = user.value?.created_at
@@ -414,6 +521,8 @@ watch(
   () => [props.userId, props.anchor] as const,
   ([userId, anchorEl]) => {
     resetEditing()
+    isRolePickerOpen.value = false
+    rolesError.value = ""
     removeListeners()
     if (userId && anchorEl) {
       addListeners()

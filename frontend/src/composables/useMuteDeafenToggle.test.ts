@@ -5,6 +5,8 @@ import { useCallStore } from "@/stores/call"
 import { useRoomStore } from "@/stores/room"
 import { useMuteDeafenToggle } from "./useMuteDeafenToggle"
 
+const perms = vi.hoisted(() => ({ loaded: true, canSpeak: true }))
+
 const sounds = vi.hoisted(() => ({
   playMute: vi.fn(),
   playUnmute: vi.fn(),
@@ -28,6 +30,12 @@ vi.mock("@/stores", async () => {
     useCallStore: useCall,
     useRoomStore: useRoom,
     useUserStore: () => ({ userId: "u1" }),
+    usePermissionsStore: () => ({
+      get loaded() {
+        return perms.loaded
+      },
+      can: () => perms.canSpeak,
+    }),
   }
 })
 
@@ -47,12 +55,30 @@ function makeUser(id: string): User {
 
 beforeEach(() => {
   setActivePinia(createPinia())
+  perms.loaded = true
+  perms.canSpeak = true
+  Object.values(sounds).forEach((fn) => fn.mockClear())
   const room = useRoomStore()
   room.setActiveRoom("room-1")
   room.setCurrentRoomUsers([makeUser("u1")])
 })
 
 describe("toggleMute", () => {
+  it("refuses to unmute without speak permission but still allows muting", () => {
+    const call = useCallStore()
+    const { toggleMute } = useMuteDeafenToggle()
+    call.setMuted(true)
+    perms.canSpeak = false
+
+    toggleMute(false)
+    expect(call.isMuted).toBe(true)
+    expect(sounds.playUnmute).not.toHaveBeenCalled()
+
+    call.setMuted(false)
+    toggleMute(true)
+    expect(call.isMuted).toBe(true)
+  })
+
   it("mutes locally, plays the mute sound, and updates the local room entry", () => {
     const call = useCallStore()
     const room = useRoomStore()

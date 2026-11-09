@@ -8,6 +8,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/kuleshov-aleksei/orbital/internal/config"
 	"github.com/kuleshov-aleksei/orbital/internal/models"
+	"github.com/kuleshov-aleksei/orbital/internal/permissions"
 	"github.com/kuleshov-aleksei/orbital/internal/service"
 	"github.com/kuleshov-aleksei/orbital/internal/websocket"
 )
@@ -17,15 +18,17 @@ type RoomHandler struct {
 	roomService     *service.RoomService
 	categoryService *service.CategoryService
 	livekitService  *service.LiveKitService
+	permissions     *service.PermissionService
 	wsHub           *websocket.Hub
 }
 
 // NewRoomHandler creates a new RoomHandler
-func NewRoomHandler(roomService *service.RoomService, categoryService *service.CategoryService, livekitService *service.LiveKitService, wsHub *websocket.Hub) *RoomHandler {
+func NewRoomHandler(roomService *service.RoomService, categoryService *service.CategoryService, livekitService *service.LiveKitService, permissionService *service.PermissionService, wsHub *websocket.Hub) *RoomHandler {
 	return &RoomHandler{
 		roomService:     roomService,
 		categoryService: categoryService,
 		livekitService:  livekitService,
+		permissions:     permissionService,
 		wsHub:           wsHub,
 	}
 }
@@ -56,6 +59,12 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 		req.Type = "voice"
 	}
 
+	sub, ok := subjectFromRequest(r)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	// Check if category exists, if not create it
 	categoryExists := false
 	categoryID := ""
@@ -66,6 +75,18 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 			categoryID = cat.ID
 			break
 		}
+	}
+
+	// Creating in an existing category needs manage_rooms there; auto-creating
+	// a category needs manage_rooms server-wide.
+	if categoryExists {
+		if !h.permissions.CategoryPerms(sub, categoryID).Has(permissions.ManageRooms) {
+			http.Error(w, "Missing permission", http.StatusForbidden)
+			return
+		}
+	} else if !h.permissions.CanServer(sub, permissions.ManageRooms) {
+		http.Error(w, "Missing permission", http.StatusForbidden)
+		return
 	}
 
 	if !categoryExists {
@@ -115,15 +136,19 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 		"category_name": categoryName,
 		"sort_order":    room.SortOrder,
 		"world":         room.World,
+
+		"permissions_synced": room.PermissionsSynced,
 	}
 
-	// Broadcast room creation to all connected clients
+	// Broadcast room creation to clients that can see it
 	if h.wsHub != nil {
 		roomCreatedMessage := map[string]interface{}{
 			"type": "room_created",
 			"data": roomResponse,
 		}
-		h.wsHub.BroadcastToAll(roomCreatedMessage)
+		h.wsHub.BroadcastRoomScoped(room.ID, roomCreatedMessage)
+		// Per-room permission maps changed for everyone.
+		h.wsHub.BroadcastPermissionsUpdated("room_created")
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -132,14 +157,33 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 
 // GetRooms handles GET /api/rooms
 func (h *RoomHandler) GetRooms(w http.ResponseWriter, r *http.Request) {
+	sub, ok := subjectFromRequest(r)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	// Check if preview is requested
 	includePreview := r.URL.Query().Get("preview") == "true"
 
+	// Only rooms the user can see (VIEW_ROOM)
 	var rooms interface{}
 	if includePreview {
-		rooms = h.roomService.GetRoomsWithPreview()
+		visible := make([]models.RoomPreview, 0)
+		for _, room := range h.roomService.GetRoomsWithPreview() {
+			if h.permissions.CanInRoom(sub, room.ID, permissions.ViewRoom) {
+				visible = append(visible, room)
+			}
+		}
+		rooms = visible
 	} else {
-		rooms = h.roomService.GetRooms()
+		visible := make([]models.Room, 0)
+		for _, room := range h.roomService.GetRooms() {
+			if h.permissions.CanInRoom(sub, room.ID, permissions.ViewRoom) {
+				visible = append(visible, room)
+			}
+		}
+		rooms = visible
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -151,6 +195,9 @@ func (h *RoomHandler) GetRoom(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	roomID := vars["id"]
 
+	if _, ok := requireRoomPerm(w, r, h.permissions, roomID, permissions.ViewRoom); !ok {
+		return
+	}
 	room, exists := h.roomService.GetRoom(roomID)
 	if !exists {
 		http.Error(w, "Room not found", http.StatusNotFound)
@@ -166,6 +213,9 @@ func (h *RoomHandler) GetRoomUsers(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	roomID := vars["id"]
 
+	if _, ok := requireRoomPerm(w, r, h.permissions, roomID, permissions.ViewRoom); !ok {
+		return
+	}
 	users := h.roomService.GetRoomUsers(roomID)
 
 	w.Header().Set("Content-Type", "application/json")
@@ -198,6 +248,11 @@ func (h *RoomHandler) JoinRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.UserID = claims.UserID
+
+	if _, ok := requireRoomPerm(w, r, h.permissions, roomID, permissions.ViewRoom|permissions.Connect); !ok {
+		return
+	}
+
 	if req.Nickname == "" {
 		if len(req.UserID) >= 8 {
 			req.Nickname = "User-" + req.UserID[:8]
@@ -221,7 +276,7 @@ func (h *RoomHandler) JoinRoom(w http.ResponseWriter, r *http.Request) {
 				"user":    previewUser,
 			},
 		}
-		h.wsHub.BroadcastToAll(roomUserJoinedMessage)
+		h.wsHub.BroadcastRoomScoped(roomID, roomUserJoinedMessage)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -264,7 +319,7 @@ func (h *RoomHandler) LeaveRoom(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Broadcast room user left event to all clients
+	// Broadcast room user left event to clients that can see the room
 	if h.wsHub != nil && leftUser != nil {
 		roomUserLeftMessage := map[string]interface{}{
 			"type": "room_user_left",
@@ -273,7 +328,7 @@ func (h *RoomHandler) LeaveRoom(w http.ResponseWriter, r *http.Request) {
 				"user":    leftUser,
 			},
 		}
-		h.wsHub.BroadcastToAll(roomUserLeftMessage)
+		h.wsHub.BroadcastRoomScoped(roomID, roomUserLeftMessage)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -281,34 +336,36 @@ func (h *RoomHandler) LeaveRoom(w http.ResponseWriter, r *http.Request) {
 }
 
 // KickUser handles POST /api/rooms/{room_id}/kick/{user_id}
+// Requires kick_members in the room and outranking the target.
 func (h *RoomHandler) KickUser(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	roomID := vars["room_id"]
 	userID := vars["user_id"]
 
-	kickedUser := h.roomService.KickUser(roomID, userID)
-	if kickedUser == nil {
-		http.Error(w, "User not found in room", http.StatusNotFound)
+	actor, ok := requireRoomPerm(w, r, h.permissions, roomID, permissions.KickMembers)
+	if !ok {
+		return
+	}
+	if !h.permissions.CanTarget(actor, h.permissions.SubjectByID(userID)) {
+		http.Error(w, "Cannot kick a user with an equal or higher role", http.StatusForbidden)
 		return
 	}
 
-	// Remove from LiveKit
-	if h.livekitService != nil {
-		if err := h.livekitService.RemoveParticipant(roomID, userID); err != nil {
-			log.Printf("Failed to remove user %s from LiveKit room %s: %v", userID, roomID, err)
-		}
-	}
-
-	// Broadcast room user left event to all clients
 	if h.wsHub != nil {
-		roomUserLeftMessage := map[string]interface{}{
-			"type": "room_user_left",
-			"data": map[string]interface{}{
-				"room_id": roomID,
-				"user":    kickedUser,
-			},
+		if !h.wsHub.RemoveUserFromRoom(roomID, userID, "kicked") {
+			http.Error(w, "User not found in room", http.StatusNotFound)
+			return
 		}
-		h.wsHub.BroadcastToAll(roomUserLeftMessage)
+	} else {
+		if h.roomService.KickUser(roomID, userID) == nil {
+			http.Error(w, "User not found in room", http.StatusNotFound)
+			return
+		}
+		if h.livekitService != nil {
+			if err := h.livekitService.RemoveParticipant(roomID, userID); err != nil {
+				log.Printf("Failed to remove user %s from LiveKit room %s: %v", userID, roomID, err)
+			}
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -319,6 +376,11 @@ func (h *RoomHandler) KickUser(w http.ResponseWriter, r *http.Request) {
 func (h *RoomHandler) UpdateRoom(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	roomID := vars["id"]
+
+	sub, ok := requireRoomPerm(w, r, h.permissions, roomID, permissions.ManageRooms)
+	if !ok {
+		return
+	}
 
 	var req models.UpdateRoomRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -360,6 +422,11 @@ func (h *RoomHandler) UpdateRoom(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Category not found", http.StatusBadRequest)
 			return
 		}
+		// Moving into another category needs manage_rooms there too.
+		if categoryID != currentRoom.Category && !h.permissions.CategoryPerms(sub, categoryID).Has(permissions.ManageRooms) {
+			http.Error(w, "Missing permission in target category", http.StatusForbidden)
+			return
+		}
 	}
 
 	room, err := h.roomService.UpdateRoom(roomID, req.Name, req.MaxUsers, categoryID, req.Type, req.World)
@@ -368,7 +435,7 @@ func (h *RoomHandler) UpdateRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Broadcast room update to all connected clients
+	// Broadcast room update to clients that can see the room
 	if h.wsHub != nil {
 		roomUpdatedMessage := map[string]interface{}{
 			"type": "room_updated",
@@ -378,7 +445,11 @@ func (h *RoomHandler) UpdateRoom(w http.ResponseWriter, r *http.Request) {
 				"old_category": currentRoom.Category,
 			},
 		}
-		h.wsHub.BroadcastToAll(roomUpdatedMessage)
+		h.wsHub.BroadcastRoomScoped(roomID, roomUpdatedMessage)
+	}
+	// A synced room that changed category inherits different overwrites.
+	if room.Category != currentRoom.Category {
+		h.permissions.Notify("room_category_changed")
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -389,6 +460,10 @@ func (h *RoomHandler) UpdateRoom(w http.ResponseWriter, r *http.Request) {
 func (h *RoomHandler) DeleteRoom(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	roomID := vars["id"]
+
+	if _, ok := requireRoomPerm(w, r, h.permissions, roomID, permissions.ManageRooms); !ok {
+		return
+	}
 
 	// Get room info before deletion for the broadcast
 	room, exists := h.roomService.GetRoom(roomID)
@@ -401,6 +476,13 @@ func (h *RoomHandler) DeleteRoom(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	h.permissions.ForgetTarget(models.OverwriteTargetRoom, roomID)
+	// Disconnect anyone still in the LiveKit room.
+	if h.livekitService != nil {
+		if err := h.livekitService.DeleteRoom(roomID); err != nil {
+			log.Printf("Failed to delete LiveKit room %s: %v", roomID, err)
+		}
 	}
 
 	// Broadcast room deletion to all connected clients
@@ -442,13 +524,7 @@ func (h *RoomHandler) UpdateRoomOrder(w http.ResponseWriter, r *http.Request) {
 
 	// Broadcast room order update to all connected clients
 	if h.wsHub != nil {
-		roomOrderUpdatedMessage := map[string]interface{}{
-			"type": "room_order_updated",
-			"data": map[string]interface{}{
-				"orders": req.Orders,
-			},
-		}
-		h.wsHub.BroadcastToAll(roomOrderUpdatedMessage)
+		h.wsHub.BroadcastRoomOrder(req.Orders)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

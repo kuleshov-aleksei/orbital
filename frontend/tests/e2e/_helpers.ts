@@ -81,7 +81,7 @@ async function register(
 
 // The register endpoint stamps `role` into the JWT before the first-user
 // super_admin promotion runs, so the register token never carries the admin
-// role. Log back in to obtain a token that actually passes RequireAdmin.
+// role. Log back in to obtain a token for the owner (bypasses all RBAC checks).
 export async function ensureAdmin(request: APIRequestContext): Promise<TestUser> {
   const registered = await register(request, ADMIN_EMAIL, ADMIN_NICKNAME, TEST_PASSWORD)
   if (registered) {

@@ -30,6 +30,14 @@ import type {
   UpsertBaseSocketsRequest,
   HalloweenPackageResult,
 } from "@/halloween/types"
+import type {
+  MyPermissions,
+  PermissionOverwrite,
+  OverwriteTargetType,
+  OverwriteSubjectType,
+  Role,
+  RolesResponse,
+} from "@/types/permissions"
 import { isElectron, openExternal, oauthAuthenticate } from "./electron"
 
 const API_BASE = typeof __BACKEND_URL__ !== "undefined" ? `${__BACKEND_URL__}/api` : "/api"
@@ -755,15 +763,95 @@ export const apiService = {
     return apiRequest<{ role: string }>(`/admin/users/${userId}/role`)
   },
 
-  async promoteUser(userId: string): Promise<{ status: string; message: string }> {
-    return apiRequest<{ status: string; message: string }>(`/admin/users/${userId}/promote`, {
-      method: "POST",
+  // RBAC: permissions, roles, assignments and overwrites
+  async getMyPermissions(): Promise<MyPermissions> {
+    return apiRequest<MyPermissions>("/me/permissions")
+  },
+
+  async getRoles(): Promise<RolesResponse> {
+    return apiRequest<RolesResponse>("/roles")
+  },
+
+  async createRole(data: { name: string; color?: string; permissions?: number }): Promise<Role> {
+    return apiRequest<Role>("/roles", { method: "POST", body: JSON.stringify(data) })
+  },
+
+  async updateRole(
+    roleId: string,
+    data: { name?: string; color?: string; permissions?: number; denyPermissions?: number },
+  ): Promise<Role> {
+    const body: Record<string, unknown> = {}
+    if (data.name !== undefined) body.name = data.name
+    if (data.color !== undefined) body.color = data.color
+    if (data.permissions !== undefined) body.permissions = data.permissions
+    if (data.denyPermissions !== undefined) body.deny_permissions = data.denyPermissions
+    return apiRequest<Role>(`/roles/${roleId}`, { method: "PUT", body: JSON.stringify(body) })
+  },
+
+  async deleteRole(roleId: string): Promise<{ status: string }> {
+    return apiRequest<{ status: string }>(`/roles/${roleId}`, { method: "DELETE" })
+  },
+
+  async reorderRoles(positions: Record<string, number>): Promise<{ status: string }> {
+    return apiRequest<{ status: string }>("/roles/order", {
+      method: "PUT",
+      body: JSON.stringify({ positions }),
     })
   },
 
-  async demoteUser(userId: string): Promise<{ status: string; message: string }> {
-    return apiRequest<{ status: string; message: string }>(`/admin/users/${userId}/demote`, {
-      method: "POST",
+  async setUserRoles(
+    userId: string,
+    roleIds: string[],
+  ): Promise<{ user_id: string; role_ids: string[] }> {
+    return apiRequest<{ user_id: string; role_ids: string[] }>(`/users/${userId}/roles`, {
+      method: "PUT",
+      body: JSON.stringify({ role_ids: roleIds }),
+    })
+  },
+
+  async getOverwrites(
+    targetType: OverwriteTargetType,
+    targetId: string,
+  ): Promise<PermissionOverwrite[]> {
+    const prefix = targetType === "room" ? "rooms" : "categories"
+    return apiRequest<PermissionOverwrite[]>(`/${prefix}/${targetId}/overwrites`)
+  },
+
+  async setOverwrite(
+    targetType: OverwriteTargetType,
+    targetId: string,
+    subjectType: OverwriteSubjectType,
+    subjectId: string,
+    allow: number,
+    deny: number,
+  ): Promise<PermissionOverwrite> {
+    const prefix = targetType === "room" ? "rooms" : "categories"
+    return apiRequest<PermissionOverwrite>(
+      `/${prefix}/${targetId}/overwrites/${subjectType}/${subjectId}`,
+      { method: "PUT", body: JSON.stringify({ allow, deny }) },
+    )
+  },
+
+  async deleteOverwrite(
+    targetType: OverwriteTargetType,
+    targetId: string,
+    subjectType: OverwriteSubjectType,
+    subjectId: string,
+  ): Promise<{ status: string }> {
+    const prefix = targetType === "room" ? "rooms" : "categories"
+    return apiRequest<{ status: string }>(
+      `/${prefix}/${targetId}/overwrites/${subjectType}/${subjectId}`,
+      { method: "DELETE" },
+    )
+  },
+
+  async setRoomPermissionsSynced(
+    roomId: string,
+    permissionsSynced: boolean,
+  ): Promise<{ status: string }> {
+    return apiRequest<{ status: string }>(`/rooms/${roomId}/permissions_synced`, {
+      method: "PUT",
+      body: JSON.stringify({ permissions_synced: permissionsSynced }),
     })
   },
 

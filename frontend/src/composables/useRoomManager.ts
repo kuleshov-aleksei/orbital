@@ -1,6 +1,13 @@
-import { useRoomStore, useUserStore, useAppStore, useCallStore } from "@/stores"
+import {
+  useRoomStore,
+  useUserStore,
+  useAppStore,
+  useCallStore,
+  usePermissionsStore,
+} from "@/stores"
+import { Permission } from "@/types/permissions"
 import { wsService } from "@/services/websocket"
-import { apiService, generateNickname } from "@/services/api"
+import { apiService, generateNickname, type ApiError } from "@/services/api"
 import { collectSystemInfo } from "@/services/systemInfo"
 import type { CreateRoomData, UpdateRoomData } from "@/types"
 import { loadWorld } from "@/world/WorldData"
@@ -14,6 +21,9 @@ export function useRoomManager() {
   const userStore = useUserStore()
   const appStore = useAppStore()
   const callStore = useCallStore()
+  const permissionsStore = usePermissionsStore()
+
+  const NO_JOIN_PERMISSION = "You don't have permission to join this room."
 
   // Send ping to room WebSocket to keep connection alive
   const sendRoomPing = () => {
@@ -116,15 +126,23 @@ export function useRoomManager() {
     }
   }
 
-  const handleRoomSelected = async (roomId: string) => {
+  /** Returns whether the room was joined (or already active). */
+  const handleRoomSelected = async (roomId: string): Promise<boolean> => {
     if (roomStore.activeRoomId === roomId) {
-      return
+      return true
     }
 
     // Eagerly start world data fetch for spatial_audio rooms
     const pendingRoom = roomStore.rooms.find((r) => r.id === roomId)
     if (pendingRoom?.type === "spatial_audio" && pendingRoom.world) {
       loadWorld(pendingRoom.world).catch(() => {})
+    }
+
+    // Check before leaving the current room, so a locked room doesn't kick you
+    // out of the one you're in. The backend re-checks on join.
+    if (permissionsStore.loaded && !permissionsStore.can(Permission.Connect, { roomId })) {
+      appStore.setError(NO_JOIN_PERMISSION)
+      return false
     }
 
     try {
@@ -140,9 +158,18 @@ export function useRoomManager() {
       }
 
       await joinRoom(roomId)
+      return true
     } catch (error) {
       console.error("Failed to switch room:", error)
-      appStore.setError("Failed to switch room. Please try again.")
+      const status = (error as ApiError).status
+      appStore.setError(
+        status === 403
+          ? NO_JOIN_PERMISSION
+          : status === 404
+            ? "This room is no longer available."
+            : "Failed to switch room. Please try again.",
+      )
+      return false
     } finally {
       appStore.setLoading(false)
     }
@@ -165,8 +192,9 @@ export function useRoomManager() {
   }
 
   const handleRoomSelectedMobile = async (roomId: string) => {
-    await handleRoomSelected(roomId)
-    appStore.showRoomView()
+    if (await handleRoomSelected(roomId)) {
+      appStore.showRoomView()
+    }
   }
 
   const createRoom = async (

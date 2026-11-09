@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+
+	"github.com/kuleshov-aleksei/orbital/internal/permissions"
 )
 
 // Migration represents a database migration
@@ -355,6 +357,67 @@ CREATE INDEX IF NOT EXISTS idx_users_token_version ON users(token_version);`,
 		Name:    "add_custom_status_emoji_to_users",
 		SQL:     `ALTER TABLE users ADD COLUMN custom_status_emoji TEXT NOT NULL DEFAULT '';`,
 	},
+	{
+		Version: 34,
+		Name:    "create_rbac_tables",
+		// Discord-style RBAC. Seeds @everyone / Guest system roles and an
+		// "Admin" role that reproduces the legacy global admin capabilities,
+		// then migrates legacy admins onto it. super_admin stays in users.role
+		// as the single owner.
+		SQL: fmt.Sprintf(`CREATE TABLE IF NOT EXISTS roles (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			color TEXT NOT NULL DEFAULT '',
+			position INTEGER NOT NULL DEFAULT 0,
+			permissions INTEGER NOT NULL DEFAULT 0,
+			deny_permissions INTEGER NOT NULL DEFAULT 0,
+			system_key TEXT UNIQUE,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);
+CREATE TABLE IF NOT EXISTS user_roles (
+			user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			role_id TEXT NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+			PRIMARY KEY (user_id, role_id)
+		);
+CREATE INDEX IF NOT EXISTS idx_user_roles_role ON user_roles(role_id);
+CREATE TABLE IF NOT EXISTS permission_overwrites (
+			target_type TEXT NOT NULL,
+			target_id TEXT NOT NULL,
+			subject_type TEXT NOT NULL,
+			subject_id TEXT NOT NULL,
+			allow INTEGER NOT NULL DEFAULT 0,
+			deny INTEGER NOT NULL DEFAULT 0,
+			PRIMARY KEY (target_type, target_id, subject_type, subject_id)
+		);
+ALTER TABLE rooms ADD COLUMN permissions_synced INTEGER NOT NULL DEFAULT 1;
+INSERT INTO roles (id, name, position, permissions, deny_permissions, system_key) VALUES
+			('everyone', '@everyone', 0, %d, 0, 'everyone'),
+			('guest', 'Guest', 0, 0, %d, 'guest'),
+			('admin', 'Admin', 1, %d, 0, NULL);
+INSERT INTO user_roles (user_id, role_id) SELECT id, 'admin' FROM users WHERE role = 'admin';
+UPDATE users SET role = 'user' WHERE role = 'admin';`,
+			permissions.DefaultEveryone, permissions.DefaultGuestDeny, permissions.DefaultAdmin),
+	},
+}
+
+// RunMigrationsUpTo applies migrations up to and including maxVersion.
+// Intended for tests that need to simulate an older schema.
+func RunMigrationsUpTo(db *DB, maxVersion int) error {
+	if err := db.createMigrationsTable(); err != nil {
+		return err
+	}
+	current, err := db.getCurrentVersion()
+	if err != nil {
+		return err
+	}
+	for _, m := range migrations {
+		if m.Version > current && m.Version <= maxVersion {
+			if err := db.runMigration(m); err != nil {
+				return fmt.Errorf("failed to run migration %d (%s): %w", m.Version, m.Name, err)
+			}
+		}
+	}
+	return nil
 }
 
 func (db *DB) RunMigrations() error {

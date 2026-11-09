@@ -29,7 +29,6 @@ export const useUsersStore = defineStore("users", () => {
     const grouped: Record<string, PublicUser[]> = {
       guest: [],
       user: [],
-      admin: [],
       super_admin: [],
     }
 

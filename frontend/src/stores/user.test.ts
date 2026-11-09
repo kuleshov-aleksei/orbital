@@ -61,11 +61,10 @@ describe("setUser", () => {
 })
 
 describe("role derivation", () => {
-  it("maps backend roles to admin / guest flags", () => {
+  it("maps backend roles to owner / guest flags", () => {
     const user = useUserStore()
 
     user.setUser(session({ role: "super_admin" }))
-    expect(user.isAdmin).toBe(true)
     expect(user.isSuperAdmin).toBe(true)
     expect(user.isGuest).toBe(false)
     expect(user.isLoggedIn).toBe(true)
@@ -73,7 +72,7 @@ describe("role derivation", () => {
     user.setUser(session({ authProvider: "guest", isGuest: true, role: "guest" }))
     expect(user.isGuest).toBe(true)
     expect(user.isLoggedIn).toBe(false)
-    expect(user.isAdmin).toBe(false)
+    expect(user.isSuperAdmin).toBe(false)
   })
 })
 
@@ -92,7 +91,7 @@ describe("loadUserFromStorage", () => {
       nickname: "Fresh Name",
       email: "fresh@example.com",
       avatar_url: "https://cdn.example.com/avatar.png",
-      role: "admin",
+      role: "super_admin",
       sound_pack: "minecraft",
     } as unknown as User)
 
@@ -101,8 +100,8 @@ describe("loadUserFromStorage", () => {
 
     expect(loaded?.nickname).toBe("Fresh Name")
     expect(user.currentUser?.nickname).toBe("Fresh Name")
-    expect(user.isAdmin).toBe(true)
-    expect(localStorage.getItem("orbital_user_role")).toBe("admin")
+    expect(user.isSuperAdmin).toBe(true)
+    expect(localStorage.getItem("orbital_user_role")).toBe("super_admin")
   })
 
   it("drops an expired session but keeps it through a transient failure", async () => {
