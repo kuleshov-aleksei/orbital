@@ -29,7 +29,9 @@
   --color-theme-backdrop: var(--color-backdrop);
 }
 
-:root {
+/* [data-theme="default"] lets a subtree (e.g. a theme preview) opt back into the default palette */
+:root,
+[data-theme="default"] {
   --ease-out-smooth: cubic-bezier(0.25, 1, 0.5, 1);
   --ease-out-snappy: cubic-bezier(0.22, 1, 0.36, 1);
 

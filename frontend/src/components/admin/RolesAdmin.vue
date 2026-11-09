@@ -94,6 +94,11 @@
             </label>
           </div>
 
+          <NicknameColorPreview
+            v-if="isCustomisable"
+            :color="draft.color"
+            :nickname="previewNickname" />
+
           <p v-if="isOwnerRole" class="text-sm text-gray-400">
             Held automatically by the server owner and always shown on top. The owner bypasses every
             permission, so only the name and colour can be changed.
@@ -209,13 +214,15 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from "vue"
 import { PhLock, PhCaretUp, PhCaretDown } from "@phosphor-icons/vue"
-import { usePermissionsStore, useUsersStore } from "@/stores"
+import { usePermissionsStore, useUsersStore, useUserStore } from "@/stores"
 import PermissionTriState, { type TriState } from "@/components/PermissionTriState.vue"
+import NicknameColorPreview from "@/components/admin/NicknameColorPreview.vue"
 import { apiService } from "@/services/api"
 import { Permission, PERMISSION_INFO, hasPermission, type Role } from "@/types/permissions"
 
 const permissionsStore = usePermissionsStore()
 const usersStore = useUsersStore()
+const userStore = useUserStore()
 
 const selectedId = ref<string | null>(null)
 const draft = ref<{ name: string; color: string; permissions: number; deny: number } | null>(null)
@@ -299,6 +306,12 @@ const members = computed(() => {
   const id = selected.value.id
   return usersStore.allUsers.filter((u) => permissionsStore.roleIdsOf(u.id).includes(id))
 })
+
+// Preview with a real member's name when there is one, else your own
+// (the Owner role has no explicit members; the owner is the one editing it).
+const previewNickname = computed(
+  () => members.value[0]?.nickname || userStore.nickname || "Nickname",
+)
 
 const nonMembers = computed(() => {
   const memberIds = new Set(members.value.map((m) => m.id))

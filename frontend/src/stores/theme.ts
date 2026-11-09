@@ -3,6 +3,15 @@ import { ref } from "vue"
 
 export type Theme = "default" | "true-black" | "retrowave" | "catppuccin" | "solarized"
 
+/** Every theme with its display name (keep in sync with style.css and AppearanceSettings). */
+export const THEMES: { id: Theme; name: string }[] = [
+  { id: "default", name: "Default" },
+  { id: "true-black", name: "True Black" },
+  { id: "retrowave", name: "Retrowave" },
+  { id: "catppuccin", name: "Catppuccin" },
+  { id: "solarized", name: "Solarized" },
+]
+
 const THEME_STORAGE_KEY = "orbital_theme"
 
 function applyTheme(theme: Theme): void {
