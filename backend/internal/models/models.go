@@ -14,12 +14,13 @@ const (
 	AuthProviderPassword AuthProvider = "password"
 )
 
-// Role constants for user roles
+// Account kind constants stored in users.role. Authorization beyond "is the
+// owner" uses RBAC roles (see internal/permissions and PermissionService).
+// The legacy "admin" value was migrated to the "Admin" RBAC role in v34.
 const (
 	RoleGuest      = "guest"
 	RoleUser       = "user"
-	RoleAdmin      = "admin"
-	RoleSuperAdmin = "super_admin"
+	RoleSuperAdmin = "super_admin" // the single owner; bypasses all permissions
 )
 
 // User represents a user in the system
@@ -41,7 +42,7 @@ type User struct {
 	Email             string       `json:"email,omitempty"`
 	AvatarURL         string       `json:"avatar_url,omitempty"`
 	IsGuest           bool         `json:"is_guest"`
-	Role              string       `json:"role"` // guest, user, admin, super_admin
+	Role              string       `json:"role"` // guest, user, super_admin (owner)
 	PasswordHash      string       `json:"-"`    // Never exposed to frontend
 	TokenVersion      int64        `json:"-"`    // Bumped to revoke all issued tokens
 }
@@ -92,6 +93,9 @@ type Room struct {
 	Category  string    `json:"category"`
 	SortOrder int       `json:"sort_order"`
 	World     string    `json:"world"`
+	// PermissionsSynced means the room inherits its category's permission
+	// overwrites instead of using its own (Discord "sync permissions").
+	PermissionsSynced bool `json:"permissions_synced"`
 }
 
 // RoomMember represents a user in a room
@@ -209,6 +213,8 @@ type RoomPreview struct {
 	SortOrder    int               `json:"sort_order"`
 	World        string            `json:"world"`
 	Users        []RoomPreviewUser `json:"users"`
+	// PermissionsSynced mirrors Room.PermissionsSynced.
+	PermissionsSynced bool `json:"permissions_synced"`
 }
 
 // RoomPreviewUser represents limited user information for room preview
@@ -228,6 +234,51 @@ type RoomPreviewUser struct {
 type NicknameChangeRequest struct {
 	UserID   string `json:"user_id"`
 	Nickname string `json:"nickname"`
+}
+
+// System role keys
+const (
+	SystemRoleEveryone = "everyone"
+	SystemRoleGuest    = "guest"
+	// SystemRoleOwner is held implicitly by the super admin. Only its name and
+	// colour are meaningful; the owner bypasses every permission check.
+	SystemRoleOwner = "owner"
+)
+
+// OwnerRolePosition keeps the Owner role above every custom role.
+const OwnerRolePosition = 1 << 30
+
+// Permission overwrite target/subject types
+const (
+	OverwriteTargetRoom     = "room"
+	OverwriteTargetCategory = "category"
+	OverwriteSubjectRole    = "role"
+	OverwriteSubjectUser    = "user"
+)
+
+// Role is a Discord-style role with a permission bitfield.
+type Role struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Color       string `json:"color"`
+	Position    int    `json:"position"`
+	Permissions uint64 `json:"permissions"`
+	// DenyPermissions revokes bits granted by lower roles. Roles apply from
+	// lowest to highest position (Guest right above @everyone), so a higher
+	// role's allow/deny wins. Always 0 for @everyone.
+	DenyPermissions uint64    `json:"deny_permissions"`
+	SystemKey       string    `json:"system_key,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+// PermissionOverwrite is an allow/deny pair for a role or user on a room or category.
+type PermissionOverwrite struct {
+	TargetType  string `json:"target_type"`
+	TargetID    string `json:"target_id"`
+	SubjectType string `json:"subject_type"`
+	SubjectID   string `json:"subject_id"`
+	Allow       uint64 `json:"allow"`
+	Deny        uint64 `json:"deny"`
 }
 
 // Category represents a room category

@@ -175,7 +175,10 @@ import {
   useChatStore,
   useUsersStore,
   useSoundPackStore,
+  usePermissionsStore,
 } from "@/stores"
+import { Permission } from "@/types/permissions"
+import { useMuteDeafenToggle } from "@/composables/useMuteDeafenToggle"
 import { storeToRefs } from "pinia"
 import type { User, ScreenShareQuality, VenmicSource } from "@/types"
 import { playRemoteMessage } from "@/services/sounds"
@@ -229,6 +232,8 @@ const chatStore = useChatStore()
 const usersStore = useUsersStore()
 const userStore = useUserStore()
 const soundPackStore = useSoundPackStore()
+const permissionsStore = usePermissionsStore()
+const { toggleMute: setMutedWithSound } = useMuteDeafenToggle()
 
 const currentUserId = computed(() => userStore.userId)
 
@@ -645,6 +650,48 @@ watch(
       }
     }
   },
+)
+
+// Permissions revoked mid-call: the backend already updated our LiveKit grant
+// (and muted disallowed tracks); stop the local tracks so UI and state match.
+const activeRoomPerms = computed(() => ({
+  speak: permissionsStore.can(Permission.Speak, { roomId: props.roomId }),
+  video: permissionsStore.can(Permission.Video, { roomId: props.roomId }),
+  screenshare: permissionsStore.can(Permission.Screenshare, { roomId: props.roomId }),
+}))
+// Also re-checked whenever the mic gets unmuted (hotkey, undeafen restore, ...)
+// and on mount, so a user without Speak joins muted instead of seeing a
+// voice-activity ring nobody can hear.
+watch(
+  [activeRoomPerms, () => callStore.isMuted],
+  async ([perms], previous) => {
+    if (!permissionsStore.loaded) return
+    try {
+      if (!perms.screenshare && isScreenSharing.value) {
+        await stopScreenShare()
+      }
+      if (!perms.video && isCameraEnabled.value) {
+        await stopCamera()
+        callStore.setCameraEnabled(false)
+      }
+      if (!perms.speak && !callStore.isMuted) {
+        // Audible feedback only when Speak is revoked mid-call; on join stay quiet.
+        if (previous?.[0]?.speak) {
+          setMutedWithSound(true)
+        } else {
+          callStore.setMuted(true)
+          roomStore.updateUserStatus(
+            userStore.userId,
+            { is_muted: true, is_deafened: callStore.isDeafened },
+            props.roomId,
+          )
+        }
+      }
+    } catch (error) {
+      console.error("[VoiceCallView] Failed to apply revoked permissions:", error)
+    }
+  },
+  { immediate: true },
 )
 
 // Event handlers

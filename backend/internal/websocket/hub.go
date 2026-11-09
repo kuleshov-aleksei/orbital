@@ -12,6 +12,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/kuleshov-aleksei/orbital/internal/config"
 	"github.com/kuleshov-aleksei/orbital/internal/models"
+	"github.com/kuleshov-aleksei/orbital/internal/permissions"
 	"github.com/kuleshov-aleksei/orbital/internal/repository"
 	"github.com/kuleshov-aleksei/orbital/internal/service"
 )
@@ -28,6 +29,9 @@ type Hub struct {
 	livekitService *service.LiveKitService
 	chatService    *service.ChatService
 	sessionRepo    *repository.SessionRepository
+	permissions    *service.PermissionService // nil only in unit tests
+	grantsMu       sync.Mutex
+	appliedGrants  map[string]permissions.Permission // "room|user" -> perms last pushed to LiveKit
 	cfg            *config.Config
 	upgrader       websocket.Upgrader
 	mu             sync.RWMutex
@@ -37,6 +41,11 @@ type Hub struct {
 	statsAdminSubs    map[string]map[*Client]bool                   // room_id -> admin clients subscribed
 	statsRoomData     map[string]map[string]models.ClientStatsBatch // room_id -> reporter_id -> latest batch
 	pendingAdminSubs  map[string]map[string]bool                    // userID -> roomID -> pending subscription
+
+	// Soundboard (see soundboard.go)
+	soundboard    SoundLookup
+	soundMu       sync.Mutex
+	lastSoundPlay map[string]time.Time // user_id -> last accepted play_sound
 }
 
 // Client represents a WebSocket client
@@ -46,6 +55,7 @@ type Client struct {
 	send              chan []byte
 	roomID            string
 	userID            string
+	subject           service.Subject // RBAC identity, resolved at connect
 	lastPingTime      time.Time
 	firstPingReceived bool
 	mu                sync.RWMutex
@@ -198,6 +208,7 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 	}
 	client.mu.Lock()
 	client.userID = claims.UserID
+	client.subject = service.SubjectFromUser(user)
 	client.mu.Unlock()
 	userID := claims.UserID
 	log.Printf("WebSocket client authenticated with userID: %s", userID)
@@ -532,7 +543,14 @@ func (h *Hub) GetOnlineUsers() []string {
 // sendMediaStatesToClient sends the media state (mute/deafen/screen share/camera)
 // of every room member to a client. Room members are the single source of truth.
 func (h *Hub) sendMediaStatesToClient(client *Client) {
-	states := h.roomService.GetAllMediaStates()
+	all := h.roomService.GetAllMediaStates()
+	ps := h.permissionService()
+	states := make([]models.UserMediaState, 0, len(all))
+	for _, st := range all {
+		if h.canInRoom(ps, client, st.RoomID, permissions.ViewRoom) {
+			states = append(states, st)
+		}
+	}
 
 	message := models.WebSocketMessage{
 		Type: "media_states",
@@ -659,6 +677,8 @@ func (c *Client) handleMessage(message models.WebSocketMessage) {
 		log.Printf("Received room_created broadcast")
 	case "send_message":
 		c.handleSendMessage(message.Data)
+	case "play_sound":
+		c.handlePlaySound(message.Data)
 	case "client_stats_batch":
 		c.handleClientStatsBatch(message.Data)
 	case "request_stats_state":
@@ -693,6 +713,12 @@ func (c *Client) handleJoinRoom(data interface{}) {
 	}
 	if req.UserID != "" && req.UserID != userID {
 		log.Printf("[WebSocket] Rejecting join_room: user_id mismatch (authenticated=%s, requested=%s)", userID, req.UserID)
+		return
+	}
+
+	if !c.hub.canInRoom(c.hub.permissionService(), c, c.roomID, permissions.ViewRoom|permissions.Connect) {
+		log.Printf("[WebSocket] Rejecting join_room for user %s in room %s: missing connect permission", userID, c.roomID)
+		sendPermissionDenied(c, "join_room", c.roomID)
 		return
 	}
 
@@ -735,6 +761,7 @@ func (c *Client) handleJoinRoom(data interface{}) {
 	if req.MediaState != nil {
 		state := *req.MediaState
 		state.RoomID = c.roomID
+		c.hub.coerceMediaState(c, &state)
 		if _, ok := c.hub.roomService.UpdateUserMediaState(c.roomID, userID, state); ok && previewUser != nil {
 			previewUser.IsMuted = state.IsMuted
 			previewUser.IsDeafened = state.IsDeafened
@@ -757,7 +784,7 @@ func (c *Client) handleJoinRoom(data interface{}) {
 				"user":    previewUser,
 			},
 		}
-		c.hub.BroadcastToAll(roomUserJoinedMessage)
+		c.hub.BroadcastRoomScoped(c.roomID, roomUserJoinedMessage)
 	}
 
 	// Send current room users to the joining user
@@ -954,6 +981,7 @@ func (c *Client) applyMediaState(req models.UpdateMediaStateRequest) {
 		return
 	}
 
+	c.hub.coerceMediaState(c, &req)
 	changed, ok := c.hub.roomService.UpdateUserMediaState(req.RoomID, userID, req)
 	if !ok {
 		log.Printf("[WebSocket] Rejecting media state for user %s: not a member of room %s", userID, req.RoomID)
@@ -966,7 +994,7 @@ func (c *Client) applyMediaState(req models.UpdateMediaStateRequest) {
 	log.Printf("[WebSocket] Media state: userID=%q roomID=%q muted=%v deafened=%v screen=%v camera=%v",
 		userID, req.RoomID, req.IsMuted, req.IsDeafened, req.IsScreenSharing, req.IsCameraEnabled)
 
-	c.hub.BroadcastToAll(models.WebSocketMessage{
+	c.hub.BroadcastRoomScoped(req.RoomID, models.WebSocketMessage{
 		Type: "user_media_state",
 		Data: models.UserMediaState{
 			UserID:          userID,
@@ -1265,9 +1293,9 @@ func (h *Hub) disconnectUserDueToTimeout(roomID, userID string) {
 			"room_id": roomID,
 		},
 	}
-	h.BroadcastToAll(leaveMessage)
+	h.BroadcastRoomScoped(roomID, leaveMessage)
 
-	// Broadcast room_user_left message globally (for room list updates)
+	// Broadcast room_user_left message to everyone who can see the room (for room list updates)
 	if leftUser != nil {
 		roomUserLeftMessage := models.WebSocketMessage{
 			Type: "room_user_left",
@@ -1276,7 +1304,7 @@ func (h *Hub) disconnectUserDueToTimeout(roomID, userID string) {
 				"user":    leftUser,
 			},
 		}
-		h.BroadcastToAll(roomUserLeftMessage)
+		h.BroadcastRoomScoped(roomID, roomUserLeftMessage)
 	}
 
 	// Broadcast updated room users to the room
@@ -1318,6 +1346,12 @@ func (c *Client) handleSendMessage(data interface{}) {
 			Type: "error",
 			Data: map[string]string{"message": "You are not in this room"},
 		})
+		return
+	}
+
+	if !c.hub.canInRoom(c.hub.permissionService(), c, roomID, permissions.SendMessages) {
+		log.Printf("[Chat] Rejecting message from user %s in room %s: missing send_messages", userID, roomID)
+		sendPermissionDenied(c, "send_message", roomID)
 		return
 	}
 

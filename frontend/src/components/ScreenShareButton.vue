@@ -8,7 +8,7 @@
         sizeClasses,
         isScreenSharing
           ? 'bg-theme-accent hover:bg-theme-accent-hover text-theme-text-on-accent'
-          : isGuest
+          : isLocked
             ? 'bg-theme-bg-tertiary text-theme-text-muted cursor-not-allowed'
             : 'bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary',
       ]"
@@ -17,9 +17,9 @@
       <PhMonitorPlay :class="iconClasses" />
     </button>
 
-    <!-- Lock Icon Overlay for Guests -->
+    <!-- Lock Icon Overlay when not permitted -->
     <div
-      v-if="isGuest"
+      v-if="isLocked"
       class="absolute bottom-1 right-1 bg-theme-bg-secondary rounded-full p-0.5 border border-theme-border">
       <PhLock class="w-3 h-3 text-theme-text-muted" />
     </div>
@@ -29,7 +29,8 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { PhMonitorPlay, PhLock } from "@phosphor-icons/vue"
-import { useCallStore, useUserStore } from "@/stores"
+import { useCallStore, useUserStore, useRoomStore, usePermissionsStore } from "@/stores"
+import { Permission } from "@/types/permissions"
 import { useScreenShareSupport } from "@/composables/useScreenShareSupport"
 import { useSounds } from "@/services/sounds"
 
@@ -57,11 +58,21 @@ const { isScreenShareSupported } = useScreenShareSupport()
 const { playScreenShareStart, playScreenShareStop } = useSounds()
 
 // Computed properties
-const isGuest = computed(() => userStore.isGuest)
+const roomStore = useRoomStore()
+const permissionsStore = usePermissionsStore()
+// UI hint only: the backend LiveKit grant is what actually blocks publishing.
+// Turning it off is always allowed.
+const isLocked = computed(
+  () =>
+    !isScreenSharing.value &&
+    !permissionsStore.can(Permission.Screenshare, { roomId: roomStore.activeRoomId }),
+)
 
 const buttonTitle = computed(() => {
-  if (isGuest.value) {
-    return "Sign in to share your screen"
+  if (isLocked.value) {
+    return userStore.isGuest
+      ? "Sign in to share your screen"
+      : "You don't have permission to share your screen here"
   }
   return isScreenSharing.value ? "Stop Sharing" : "Share Screen"
 })
@@ -102,9 +113,11 @@ const iconClasses = computed(() => {
 
 // Handle button click
 const handleClick = () => {
-  // If user is a guest, emit auth-required event
-  if (isGuest.value) {
-    emit("auth-required")
+  // Not allowed here: guests are prompted to sign in, others just can't
+  if (isLocked.value) {
+    if (userStore.isGuest) {
+      emit("auth-required")
+    }
     return
   }
 

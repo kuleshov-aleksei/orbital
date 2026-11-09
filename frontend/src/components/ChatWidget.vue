@@ -47,7 +47,9 @@
           <UserAvatar :user-id="item.sender_id" :size="28" :show-status="false" />
           <div class="flex-1 min-w-0">
             <div class="flex items-baseline gap-2">
-              <span class="text-xs font-medium text-theme-text-primary">
+              <span
+                class="text-xs font-medium text-theme-text-primary"
+                :style="permissionsStore.nameStyleOf(item.sender_id)">
                 {{ getSenderName(item.sender_id) }}
               </span>
               <span class="text-[10px] text-theme-text-muted" :title="formatFullTime(item.sent_at)">
@@ -106,6 +108,7 @@
             v-model="messageInput"
             class="chat-input w-full bg-theme-bg-secondary text-theme-text-primary text-sm px-4 py-3 pr-12 rounded-xl border border-theme-border focus:border-theme-accent focus:outline-none placeholder-theme-text-muted resize-none"
             :placeholder="inputPlaceholder"
+            :disabled="!canChat"
             :maxlength="2000"
             @keydown.enter="handleEnter"
             @keydown="handleKeydown"
@@ -132,7 +135,14 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, useTemplateRef } from "vue"
 import { PhChatDots, PhChatCircle, PhPaperPlaneRight, PhX } from "@phosphor-icons/vue"
-import { useChatStore, useUserStore, useRoomStore, useUsersStore } from "@/stores"
+import {
+  useChatStore,
+  useUserStore,
+  useRoomStore,
+  useUsersStore,
+  usePermissionsStore,
+} from "@/stores"
+import { Permission } from "@/types/permissions"
 import { wsService } from "@/services/websocket"
 import { renderMarkdown } from "@/utils/markdown"
 import UserAvatar from "@/components/UserAvatar.vue"
@@ -145,6 +155,11 @@ const chatStore = useChatStore()
 const userStore = useUserStore()
 const roomStore = useRoomStore()
 const usersStore = useUsersStore()
+const permissionsStore = usePermissionsStore()
+// UI hint; the backend rejects send_message without send_messages.
+const canChat = computed(() =>
+  permissionsStore.can(Permission.SendMessages, { roomId: roomStore.activeRoomId }),
+)
 
 const messageInput = ref("")
 const inputRef = useTemplateRef<HTMLTextAreaElement>("inputRef")
@@ -193,11 +208,12 @@ const currentMessages = computed(() => {
 })
 
 const canSend = computed(() => {
-  return messageInput.value.trim().length > 0 && roomStore.activeRoomId !== null
+  return messageInput.value.trim().length > 0 && roomStore.activeRoomId !== null && canChat.value
 })
 
 const inputPlaceholder = computed(() => {
   if (!roomStore.activeRoomId) return "Join a room to chat"
+  if (!canChat.value) return "You can't send messages in this room"
   return "Message..."
 })
 
@@ -230,7 +246,7 @@ const formatFullTime = (dateString: string) => {
 
 const sendMessage = () => {
   const content = messageInput.value.trim()
-  if (!content || !roomStore.activeRoomId) return
+  if (!content || !roomStore.activeRoomId || !canChat.value) return
 
   wsService.sendChatMessage(content)
   messageInput.value = ""

@@ -156,7 +156,13 @@ type AdminHandler struct {
 	debugLogService  *service.DebugLogService
 	analyticsService *service.AnalyticsService
 	halloweenService *service.HalloweenService
+	permissions      *service.PermissionService
 	wsHub            *websocket.Hub
+}
+
+// SetPermissionService lets user deletion drop cached role assignments.
+func (h *AdminHandler) SetPermissionService(ps *service.PermissionService) {
+	h.permissions = ps
 }
 
 // NewAdminHandler creates a new admin handler
@@ -187,66 +193,6 @@ func NewAdminHandlerWithHub(roleService *service.RoleService, userRepo *reposito
 		halloweenService: halloweenService,
 		wsHub:            wsHub,
 	}
-}
-
-// PromoteUser promotes a user to admin (super_admin only)
-func (h *AdminHandler) PromoteUser(w http.ResponseWriter, r *http.Request) {
-	// Get current user (super_admin) from context
-	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
-	if !ok || claims == nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	// Get target user ID from URL
-	vars := mux.Vars(r)
-	targetUserID := vars["id"]
-	if targetUserID == "" {
-		http.Error(w, "Missing user ID", http.StatusBadRequest)
-		return
-	}
-
-	// Promote user
-	if err := h.roleService.PromoteToAdmin(claims.UserID, targetUserID); err != nil {
-		http.Error(w, err.Error(), http.StatusForbidden)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	writeJSON(w, map[string]string{
-		"status":  "success",
-		"message": "User promoted to admin",
-	})
-}
-
-// DemoteUser demotes an admin to regular user (super_admin only)
-func (h *AdminHandler) DemoteUser(w http.ResponseWriter, r *http.Request) {
-	// Get current user (super_admin) from context
-	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
-	if !ok || claims == nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	// Get target user ID from URL
-	vars := mux.Vars(r)
-	targetUserID := vars["id"]
-	if targetUserID == "" {
-		http.Error(w, "Missing user ID", http.StatusBadRequest)
-		return
-	}
-
-	// Demote user
-	if err := h.roleService.DemoteToUser(claims.UserID, targetUserID); err != nil {
-		http.Error(w, err.Error(), http.StatusForbidden)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	writeJSON(w, map[string]string{
-		"status":  "success",
-		"message": "User demoted to regular user",
-	})
 }
 
 // ListUsers returns all users with their roles (admin+)
@@ -322,6 +268,10 @@ func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.permissions != nil {
+		h.permissions.ForgetUser(targetUserID)
+	}
+
 	if h.halloweenService != nil {
 		if err := h.halloweenService.PurgeUser(targetUserID); err != nil {
 			log.Printf("Failed to purge halloween data for deleted user %s: %v", targetUserID, err)
@@ -353,6 +303,12 @@ func (h *AdminHandler) DeleteAllGuests(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "Failed to delete guests: "+err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	if h.permissions != nil {
+		for _, id := range guestIDs {
+			h.permissions.ForgetUser(id)
+		}
 	}
 
 	if h.halloweenService != nil {

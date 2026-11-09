@@ -12,8 +12,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/kuleshov-aleksei/orbital/internal/config"
 	"github.com/kuleshov-aleksei/orbital/internal/models"
+	"github.com/kuleshov-aleksei/orbital/internal/permissions"
 	"github.com/kuleshov-aleksei/orbital/internal/repository"
 	"github.com/kuleshov-aleksei/orbital/internal/storage"
+	"github.com/livekit/protocol/livekit"
 )
 
 func TestNormalizeAvatarGUID(t *testing.T) {
@@ -131,8 +133,9 @@ func TestLiveKitTokenMetadataAndTTL(t *testing.T) {
 		UserID:   "user-1",
 		Nickname: `Alice "Admin" \`,
 		Avatar:   "http://example/avatar.jpg",
-		Role:     "user",
 		RoomID:   "room-1",
+		// Guest-like permissions: may speak, may not use camera/screen.
+		Permissions: permissions.DefaultEveryone &^ permissions.DefaultGuestDeny,
 	})
 	if err != nil {
 		t.Fatalf("GenerateAccessToken: %v", err)
@@ -166,6 +169,22 @@ func TestLiveKitTokenMetadataAndTTL(t *testing.T) {
 	if md.Nickname != `Alice "Admin" \` {
 		t.Fatalf("metadata nickname = %q", md.Nickname)
 	}
+	if md.Role != "" {
+		t.Fatalf("metadata must not carry the role (client-writable), got %q", md.Role)
+	}
+
+	video, ok := claims["video"].(map[string]interface{})
+	if !ok {
+		t.Fatal("video grant missing")
+	}
+	sources, _ := video["canPublishSources"].([]interface{})
+	got := make(map[string]bool)
+	for _, src := range sources {
+		got[src.(string)] = true
+	}
+	if !got["microphone"] || got["camera"] || got["screen_share"] || got["screen_share_audio"] {
+		t.Fatalf("unexpected canPublishSources: %v", sources)
+	}
 
 	exp, ok := claims["exp"].(float64)
 	if !ok {
@@ -177,5 +196,35 @@ func TestLiveKitTokenMetadataAndTTL(t *testing.T) {
 	}
 	if int64(exp-iat) != int64(LiveKitTokenTTL/time.Second) {
 		t.Fatalf("token ttl = %ds, want %ds", int64(exp-iat), int64(LiveKitTokenTTL/time.Second))
+	}
+}
+
+func TestPublishSourcesFor(t *testing.T) {
+	has := func(sources []livekit.TrackSource, want livekit.TrackSource) bool {
+		for _, s := range sources {
+			if s == want {
+				return true
+			}
+		}
+		return false
+	}
+
+	all := PublishSourcesFor(permissions.DefaultEveryone)
+	for _, src := range []livekit.TrackSource{
+		livekit.TrackSource_MICROPHONE, livekit.TrackSource_CAMERA,
+		livekit.TrackSource_SCREEN_SHARE, livekit.TrackSource_SCREEN_SHARE_AUDIO,
+		livekit.TrackSource_UNKNOWN, // boombox
+	} {
+		if !has(all, src) {
+			t.Errorf("default @everyone sources missing %v: %v", src, all)
+		}
+	}
+
+	noBoombox := PublishSourcesFor(permissions.DefaultEveryone &^ permissions.UseBoombox)
+	if has(noBoombox, livekit.TrackSource_UNKNOWN) {
+		t.Errorf("UNKNOWN (boombox) allowed without use_boombox: %v", noBoombox)
+	}
+	if got := PublishSourcesFor(permissions.ViewRoom | permissions.Connect); len(got) != 0 {
+		t.Errorf("expected no publish sources, got %v", got)
 	}
 }

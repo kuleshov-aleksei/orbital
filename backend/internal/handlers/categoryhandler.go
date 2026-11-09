@@ -7,6 +7,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/kuleshov-aleksei/orbital/internal/models"
+	"github.com/kuleshov-aleksei/orbital/internal/permissions"
 	"github.com/kuleshov-aleksei/orbital/internal/service"
 	"github.com/kuleshov-aleksei/orbital/internal/websocket"
 )
@@ -15,21 +16,37 @@ import (
 type CategoryHandler struct {
 	categoryService *service.CategoryService
 	roomService     *service.RoomService
+	livekitService  *service.LiveKitService
+	permissions     *service.PermissionService
 	wsHub           *websocket.Hub
 }
 
 // NewCategoryHandler creates a new CategoryHandler
-func NewCategoryHandler(categoryService *service.CategoryService, roomService *service.RoomService, wsHub *websocket.Hub) *CategoryHandler {
+func NewCategoryHandler(categoryService *service.CategoryService, roomService *service.RoomService, livekitService *service.LiveKitService, permissionService *service.PermissionService, wsHub *websocket.Hub) *CategoryHandler {
 	return &CategoryHandler{
 		categoryService: categoryService,
 		roomService:     roomService,
+		livekitService:  livekitService,
+		permissions:     permissionService,
 		wsHub:           wsHub,
 	}
 }
 
 // GetCategories handles GET /api/categories
 func (h *CategoryHandler) GetCategories(w http.ResponseWriter, r *http.Request) {
-	categories := h.categoryService.GetCategories()
+	sub, ok := subjectFromRequest(r)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Hide categories without any visible room unless the user can manage them.
+	categories := make([]models.Category, 0)
+	for _, c := range h.categoryService.GetCategories() {
+		if h.permissions.CanSeeCategory(sub, c.ID) {
+			categories = append(categories, c)
+		}
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	writeJSON(w, categories)
@@ -68,6 +85,10 @@ func (h *CategoryHandler) RenameCategory(w http.ResponseWriter, r *http.Request)
 	vars := mux.Vars(r)
 	categoryID := vars["id"]
 
+	if _, ok := requireCategoryPerm(w, r, h.permissions, categoryID, permissions.ManageRooms); !ok {
+		return
+	}
+
 	var req models.RenameCategoryRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -102,6 +123,10 @@ func (h *CategoryHandler) DeleteCategory(w http.ResponseWriter, r *http.Request)
 	vars := mux.Vars(r)
 	categoryID := vars["id"]
 
+	if _, ok := requireCategoryPerm(w, r, h.permissions, categoryID, permissions.ManageRooms); !ok {
+		return
+	}
+
 	var req models.DeleteCategoryRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		// If no body provided, use defaults (migrate to general)
@@ -135,13 +160,13 @@ func (h *CategoryHandler) DeleteCategory(w http.ResponseWriter, r *http.Request)
 			err := h.roomService.UpdateRoomCategory(room.ID, targetCategoryID)
 			if err == nil {
 				migratedRooms = append(migratedRooms, room.ID)
-				// Broadcast room update to all clients
+				// Broadcast room update to clients that can see it
 				if h.wsHub != nil {
 					roomUpdateMessage := map[string]interface{}{
 						"type": "room_updated",
 						"data": room,
 					}
-					h.wsHub.BroadcastToAll(roomUpdateMessage)
+					h.wsHub.BroadcastRoomScoped(room.ID, roomUpdateMessage)
 				}
 			}
 		}
@@ -159,6 +184,12 @@ func (h *CategoryHandler) DeleteCategory(w http.ResponseWriter, r *http.Request)
 				log.Printf("Failed to delete room %s: %v", room.ID, err)
 				continue
 			}
+			h.permissions.ForgetTarget(models.OverwriteTargetRoom, room.ID)
+			if h.livekitService != nil {
+				if err := h.livekitService.DeleteRoom(room.ID); err != nil {
+					log.Printf("Failed to delete LiveKit room %s: %v", room.ID, err)
+				}
+			}
 			// Broadcast room deletion to all clients
 			if h.wsHub != nil {
 				roomDeletedMessage := map[string]interface{}{
@@ -171,6 +202,10 @@ func (h *CategoryHandler) DeleteCategory(w http.ResponseWriter, r *http.Request)
 			}
 		}
 	}
+
+	h.permissions.ForgetTarget(models.OverwriteTargetCategory, categoryID)
+	// Migrated (synced) rooms now inherit the target category's overwrites.
+	h.permissions.Notify("category_deleted")
 
 	// Broadcast category deletion to all connected clients
 	if h.wsHub != nil {

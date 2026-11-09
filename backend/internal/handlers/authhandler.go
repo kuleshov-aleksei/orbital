@@ -434,25 +434,6 @@ func (h *AuthHandler) AuthMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// RequireAdmin creates a middleware that requires admin or super_admin role
-func (h *AuthHandler) RequireAdmin(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
-		if !ok || claims == nil {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		// Check if user is admin or super_admin
-		if claims.Role != models.RoleAdmin && claims.Role != models.RoleSuperAdmin {
-			http.Error(w, "Admin access required", http.StatusForbidden)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
-}
-
 // RequireSuperAdmin creates a middleware that requires super_admin role
 func (h *AuthHandler) RequireSuperAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

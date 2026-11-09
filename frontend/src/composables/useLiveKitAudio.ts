@@ -1,6 +1,9 @@
 import { ref } from "vue"
 import { useAudioSettingsStore } from "@/stores/audioSettings"
 import { useCallStore } from "@/stores/call"
+import { useRoomStore } from "@/stores/room"
+import { usePermissionsStore } from "@/stores/permissions"
+import { Permission } from "@/types/permissions"
 import { getLiveKitAudioConstraints } from "@/services/livekit-audio-processors"
 import { getTrackProcessor, isWasmAlgorithm } from "@/services/audio"
 import { createLocalAudioTrack } from "livekit-client"
@@ -23,6 +26,17 @@ function getPublicationSid(publication: LocalTrackPublication | null): string {
 
 export function useLiveKitAudio(state: LiveKitState) {
   const audioSettingsStore = useAudioSettingsStore()
+  const roomStore = useRoomStore()
+  const permissionsStore = usePermissionsStore()
+
+  // Without Speak the SFU rejects the microphone track, so don't try to publish
+  // it (avoids a "missing permission" error). If Speak is granted later, the
+  // track is published on the next unmute (see applyMuteState).
+  const canPublishMicrophone = (): boolean => {
+    const roomId = roomStore.activeRoomId
+    if (!permissionsStore.loaded || !roomId) return true
+    return permissionsStore.can(Permission.Speak, { roomId })
+  }
   const activeWasmAlgorithm = ref<"rnnoise" | "speex" | null>(null)
 
   const ensureLocalStream = async (): Promise<MediaStream | null> => {
@@ -149,6 +163,10 @@ export function useLiveKitAudio(state: LiveKitState) {
       debugWarn(`[LiveKit][WARN]: 'Cannot publish audio: room or track not ready'}`)
       return
     }
+    if (!canPublishMicrophone()) {
+      debugLog(`[LiveKit][INFO]: No speak permission in this room, not publishing microphone`)
+      return
+    }
 
     try {
       debugLog(`[LiveKit][INFO]: 'Publishing audio track...'`)
@@ -233,6 +251,10 @@ export function useLiveKitAudio(state: LiveKitState) {
 
     try {
       if (state.localAudioTrack.value) {
+        // Speak may have been granted after joining: publish the track now.
+        if (!muted && !state.localAudioPublication.value) {
+          await publishAudioTrack()
+        }
         debugLog(`[LiveKit][INFO]: Applying mute: ${muted}, using stored track`)
         if (muted) {
           await state.localAudioTrack.value.mute()

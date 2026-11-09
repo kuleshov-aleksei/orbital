@@ -10,7 +10,7 @@
 
           <div class="min-w-0">
             <div class="text-sm font-medium text-theme-text-primary truncate">
-              {{ roomName }}
+              <EmojiText :text="roomName" />
             </div>
 
             <div class="text-xs text-theme-text-muted">
@@ -60,7 +60,9 @@
           <UserAvatar :user-id="userId" status="online" :size="36" class="mr-3 flex-shrink-0" />
 
           <div class="min-w-0">
-            <div class="font-medium text-sm text-theme-text-primary truncate">
+            <div
+              class="font-medium text-sm text-theme-text-primary truncate"
+              :style="permissionsStore.nameStyleOf(userId)">
               {{ userStore.nickname }}
             </div>
 
@@ -93,12 +95,19 @@
 </template>
 
 <script setup lang="ts">
+import EmojiText from "@/components/common/EmojiText.vue"
 import { computed } from "vue"
 import UserAvatar from "@/components/UserAvatar.vue"
 import MicMuteButton from "@/components/MicMuteButton.vue"
 import AudioDeafenButton from "@/components/AudioDeafenButton.vue"
 import ScreenShareButton from "@/components/ScreenShareButton.vue"
-import { useModalStore, useUserStore, useCallStore, useRoomStore } from "@/stores"
+import {
+  useModalStore,
+  useUserStore,
+  useCallStore,
+  useRoomStore,
+  usePermissionsStore,
+} from "@/stores"
 import { PhSignOut, PhGearSix, PhImageBroken } from "@phosphor-icons/vue"
 
 interface Props {
@@ -138,6 +147,7 @@ const modalStore = useModalStore()
 const userStore = useUserStore()
 const callStore = useCallStore()
 const roomStore = useRoomStore()
+const permissionsStore = usePermissionsStore()
 
 // Computed properties for v-model support - parent controls all state
 const localMuted = computed({

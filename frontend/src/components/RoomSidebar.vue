@@ -85,6 +85,7 @@
                 :is-active="room.id === props.activeRoomId"
                 :is-dragging="draggedRoom?.id === room.id"
                 :is-draggable="isDraggable"
+                :is-locked="isRoomLocked(room)"
                 @click="handleRoomClick(room)"
                 @show-context-menu="showRoomContextMenu"
                 @dragstart="handleDragStart($event, room, category.id)"
@@ -148,8 +149,8 @@
         @drop="handleCategoryDropZoneDrop($event, categorizedRooms.length)" />
     </div>
 
-    <!-- Create Room Button - Only for admins -->
-    <div v-if="isAdmin" class="p-3 border-t border-theme-border">
+    <!-- Create Room Button - only with manage_rooms somewhere -->
+    <div v-if="canCreateRooms" class="p-3 border-t border-theme-border">
       <button
         type="button"
         data-testid="create-room-sidebar"
@@ -168,7 +169,7 @@
       :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"
       @click.stop>
       <button
-        v-if="isAdmin"
+        v-if="canManageContextCategory"
         type="button"
         class="w-full px-4 py-2 text-left text-sm text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary transition-colors"
         @click="handleCreateRoomInCategory">
@@ -180,7 +181,7 @@
       </button>
 
       <button
-        v-if="isAdmin"
+        v-if="canManageContextCategory"
         type="button"
         class="w-full px-4 py-2 text-left text-sm text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary transition-colors"
         @click="handleRenameCategory">
@@ -191,10 +192,23 @@
         </div>
       </button>
 
-      <div v-if="isAdmin" class="border-t border-theme-border my-1"></div>
+      <button
+        v-if="canEditContextCategoryPermissions"
+        type="button"
+        data-testid="context-category-permissions"
+        class="w-full px-4 py-2 text-left text-sm text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary transition-colors"
+        @click="handleCategoryPermissions">
+        <div class="flex items-center gap-2">
+          <PhShieldCheck class="w-4 h-4" />
+
+          <span>Permissions</span>
+        </div>
+      </button>
+
+      <div v-if="canManageContextCategory" class="border-t border-theme-border my-1"></div>
 
       <button
-        v-if="isAdmin"
+        v-if="canManageContextCategory"
         type="button"
         class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-theme-bg-hover hover:text-red-300 transition-colors"
         @click="handleDeleteCategory">
@@ -205,7 +219,7 @@
         </div>
       </button>
 
-      <div v-if="!isAdmin" class="px-4 py-2 text-sm text-theme-text-muted">
+      <div v-if="!canManageContextCategory" class="px-4 py-2 text-sm text-theme-text-muted">
         No actions available
       </div>
     </div>
@@ -216,8 +230,8 @@
       class="fixed bg-theme-bg-secondary border border-theme-border rounded-lg shadow-xl z-[9999] py-1 min-w-[200px]"
       :style="{ top: roomContextMenu.y + 'px', left: roomContextMenu.x + 'px' }"
       @click.stop>
-      <!-- Move to Category - With Submenu (admin only) -->
-      <div v-if="isAdmin" class="relative group">
+      <!-- Move to Category - With Submenu (manage_rooms) -->
+      <div v-if="canManageContextRoom" class="relative group">
         <button
           type="button"
           class="w-full px-4 py-2 text-left text-sm text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary transition-colors flex items-center justify-between"
@@ -263,7 +277,7 @@
       </div>
 
       <button
-        v-if="isAdmin"
+        v-if="canManageContextRoom"
         type="button"
         class="w-full px-4 py-2 text-left text-sm text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary transition-colors"
         @click="handleEditRoom">
@@ -274,10 +288,23 @@
         </div>
       </button>
 
-      <div v-if="isAdmin" class="border-t border-theme-border my-1"></div>
+      <button
+        v-if="canEditContextRoomPermissions"
+        type="button"
+        data-testid="context-room-permissions"
+        class="w-full px-4 py-2 text-left text-sm text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary transition-colors"
+        @click="handleRoomPermissions">
+        <div class="flex items-center gap-2">
+          <PhShieldCheck class="w-4 h-4" />
+
+          <span>Permissions</span>
+        </div>
+      </button>
+
+      <div v-if="canManageContextRoom" class="border-t border-theme-border my-1"></div>
 
       <button
-        v-if="isAdmin"
+        v-if="canManageContextRoom"
         type="button"
         class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-theme-bg-hover hover:text-red-300 transition-colors"
         @click="handleDeleteRoom">
@@ -288,7 +315,7 @@
         </div>
       </button>
 
-      <div v-if="!isAdmin" class="px-4 py-2 text-sm text-theme-text-muted">
+      <div v-if="!canManageContextRoom" class="px-4 py-2 text-sm text-theme-text-muted">
         No actions available
       </div>
     </div>
@@ -299,6 +326,14 @@
       class="fixed inset-0 z-40"
       @click="closeAllContextMenus"
       @contextmenu.prevent="closeAllContextMenus"></div>
+
+    <PermissionsModal
+      v-if="permissionsTarget"
+      :target-type="permissionsTarget.type"
+      :target-id="permissionsTarget.id"
+      :target-name="permissionsTarget.name"
+      :category-id="permissionsTarget.categoryId"
+      @close="permissionsTarget = null" />
   </div>
 </template>
 
@@ -306,15 +341,18 @@
 import { ref, computed } from "vue"
 import { storeToRefs } from "pinia"
 import RoomCard from "@/components/RoomCard.vue"
+import PermissionsModal from "@/components/PermissionsModal.vue"
 import {
   PhCaretDown,
   PhPlus,
   PhDotsThree,
   PhPencil,
   PhTrash,
+  PhShieldCheck,
   PhArrowsLeftRight,
 } from "@phosphor-icons/vue"
-import { useRoomStore, useCategoryStore, useUserStore } from "@/stores"
+import { useRoomStore, useCategoryStore, usePermissionsStore } from "@/stores"
+import { Permission } from "@/types/permissions"
 import { useUserContextMenu } from "@/composables/useUserContextMenu"
 import { apiService } from "@/services/api"
 import type { Room, Category } from "@/types"
@@ -349,19 +387,27 @@ const emit = defineEmits<{
 // Use stores directly for reactivity
 const roomStore = useRoomStore()
 const categoryStore = useCategoryStore()
-const userStore = useUserStore()
+const permissionsStore = usePermissionsStore()
 const { rooms } = storeToRefs(roomStore)
 const { categories } = storeToRefs(categoryStore)
-const { isAdmin } = storeToRefs(userStore)
 const { isUserContextMenuOpen } = useUserContextMenu()
 
-const isDraggable = computed(() => isAdmin.value && !isUserContextMenuOpen.value)
+// UI gating mirrors backend RBAC; the backend re-checks every action.
+const canCreateRooms = computed(() => permissionsStore.canManageAnyRooms)
+// Reordering is a server-wide action (PUT /rooms/order, /categories/reorder).
+const isDraggable = computed(
+  () => permissionsStore.can(Permission.ManageRooms) && !isUserContextMenuOpen.value,
+)
 
 const isHidden = computed(() => {
   return !rooms.value || rooms.value.length === 0
 })
 
 const expandedCategories = ref(new Set<string>())
+
+// Visible (the backend only sends rooms we can view) but not joinable.
+const isRoomLocked = (room: Room) =>
+  permissionsStore.loaded && !permissionsStore.can(Permission.Connect, { roomId: room.id })
 
 const handleRoomClick = (room: Room) => {
   if (room.id !== props.activeRoomId) {
@@ -398,10 +444,11 @@ const categorizedRooms = computed(() => {
     expandedCategories.value.add(categoryData.name)
   })
 
-  // Also add empty categories from the categories list
+  // Also add empty categories from the categories list (only for users who
+  // can manage them; others shouldn't see categories with no visible rooms)
   categories.value?.forEach((category) => {
     const exists = result.some((c) => c.id === category.id)
-    if (!exists) {
+    if (!exists && permissionsStore.can(Permission.ManageRooms, { categoryId: category.id })) {
       result.push({ id: category.id, name: category.name, rooms: [] })
       expandedCategories.value.add(category.name)
     }
@@ -432,6 +479,10 @@ const contextMenu = ref({
   y: 0,
   category: null as CategorizedRoom | null,
 })
+
+const canManageContextCategory = computed(() =>
+  permissionsStore.can(Permission.ManageRooms, { categoryId: contextMenu.value.category?.id }),
+)
 
 const showContextMenu = (event: MouseEvent, category: CategorizedRoom) => {
   contextMenu.value = {
@@ -495,9 +546,16 @@ let submenuHideTimeout: ReturnType<typeof setTimeout> | null = null
 
 // Get available categories for moving (exclude current room's category)
 const availableCategoriesForMove = computed(() => {
-  if (!roomContextMenu.value.room) return categories.value || []
-  return (categories.value || []).filter((cat) => cat.id !== roomContextMenu.value.room?.category)
+  const movable = (categories.value || []).filter((cat) =>
+    permissionsStore.can(Permission.ManageRooms, { categoryId: cat.id }),
+  )
+  if (!roomContextMenu.value.room) return movable
+  return movable.filter((cat) => cat.id !== roomContextMenu.value.room?.category)
 })
+
+const canManageContextRoom = computed(() =>
+  permissionsStore.can(Permission.ManageRooms, { roomId: roomContextMenu.value.room?.id }),
+)
 
 const showRoomContextMenu = (event: MouseEvent, room: Room) => {
   // Close category menu if open
@@ -602,6 +660,42 @@ const handleMoveRoom = (targetCategoryId: string) => {
     })
   }
   closeRoomContextMenu()
+}
+
+// Editing overrides needs manage_roles plus manage_rooms in the target.
+const canEditContextRoomPermissions = computed(
+  () => permissionsStore.canManageRoles && canManageContextRoom.value,
+)
+const canEditContextCategoryPermissions = computed(
+  () => permissionsStore.canManageRoles && canManageContextCategory.value,
+)
+
+const permissionsTarget = ref<{
+  type: "room" | "category"
+  id: string
+  name: string
+  categoryId?: string
+} | null>(null)
+
+const handleRoomPermissions = () => {
+  const room = roomContextMenu.value.room
+  if (room) {
+    permissionsTarget.value = {
+      type: "room",
+      id: room.id,
+      name: room.name,
+      categoryId: room.category,
+    }
+  }
+  closeRoomContextMenu()
+}
+
+const handleCategoryPermissions = () => {
+  const category = contextMenu.value.category
+  if (category) {
+    permissionsTarget.value = { type: "category", id: category.id, name: category.name }
+  }
+  closeContextMenu()
 }
 
 const handleEditRoom = () => {

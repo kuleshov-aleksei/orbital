@@ -25,20 +25,6 @@ test("join rooms: 5 users join Room A, 2 users join Room B @screenshot", async (
     )
   }
 
-  // Get rooms
-  const roomsRes = await request.get("http://127.0.0.1:8080/api/rooms")
-  const rooms = (await roomsRes.json()) as Array<{ id: string; name: string }>
-
-  const roomA = rooms.find((r) => r.name === "🌠 Late Night Chill")
-  const roomB = rooms.find((r) => r.name === "⛏️ ARC Gaiders")
-
-  if (!roomA || !roomB) {
-    throw new Error("Rooms not found. Run setup-screenshots.spec.ts first.")
-  }
-
-  console.log(`Room A: ${roomA.name} (${roomA.id})`)
-  console.log(`Room B: ${roomB.name} (${roomB.id})`)
-
   // Login as each user and get tokens
   const userTokens: { id: string; nickname: string; token: string }[] = []
 
@@ -58,6 +44,21 @@ test("join rooms: 5 users join Room A, 2 users join Room B @screenshot", async (
       token: loginData.token,
     })
   }
+
+  // Get rooms (room lists require auth and are filtered by view_room)
+  const authHeaders = { Authorization: `Bearer ${userTokens[0].token}` }
+  const roomsRes = await request.get("http://127.0.0.1:8080/api/rooms", { headers: authHeaders })
+  const rooms = (await roomsRes.json()) as Array<{ id: string; name: string }>
+
+  const roomA = rooms.find((r) => r.name === "🌠 Late Night Chill")
+  const roomB = rooms.find((r) => r.name === "⛏️ ARC Gaiders")
+
+  if (!roomA || !roomB) {
+    throw new Error("Rooms not found. Run setup-screenshots.spec.ts first.")
+  }
+
+  console.log(`Room A: ${roomA.name} (${roomA.id})`)
+  console.log(`Room B: ${roomB.name} (${roomB.id})`)
 
   // Create 7 browser contexts (one per user)
   const contexts = await Promise.all(userTokens.map((user) => browser.newContext()))
@@ -131,11 +132,15 @@ test("join rooms: 5 users join Room A, 2 users join Room B @screenshot", async (
   await expect(validPages[6].getByTestId("room-title")).toHaveText("League Lounge")
 
   // Verify user counts
-  const roomAUsersRes = await request.get(`http://127.0.0.1:8080/api/rooms/${roomA.id}/users`)
+  const roomAUsersRes = await request.get(`http://127.0.0.1:8080/api/rooms/${roomA.id}/users`, {
+    headers: authHeaders,
+  })
   const roomAUsers = (await roomAUsersRes.json()) as Array<{ id: string }>
   console.log(`Room A has ${roomAUsers.length} users`)
 
-  const roomBUsersRes = await request.get(`http://127.0.0.1:8080/api/rooms/${roomB.id}/users`)
+  const roomBUsersRes = await request.get(`http://127.0.0.1:8080/api/rooms/${roomB.id}/users`, {
+    headers: authHeaders,
+  })
   const roomBUsers = (await roomBUsersRes.json()) as Array<{ id: string }>
   console.log(`Room B has ${roomBUsers.length} users`)
 

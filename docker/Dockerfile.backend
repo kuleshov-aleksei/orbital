@@ -1,10 +1,12 @@
 # Backend Dockerfile
 FROM golang:1.27-alpine AS builder
 
-# Install build dependencies for libvips and CGO
+# Install build dependencies for libvips, libopus (soundboard encoding) and CGO
 RUN apk add --no-cache \
     build-base \
     vips-dev \
+    opus-dev \
+    opusfile-dev \
     pkgconfig
 
 # Accept version as build argument
@@ -28,10 +30,12 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 FROM alpine:latest
 
-# Install runtime dependencies (libvips and ca-certificates)
+# Install runtime dependencies (libvips, libopus and ca-certificates)
 RUN apk --no-cache add \
     ca-certificates \
-    vips
+    vips \
+    opus \
+    opusfile
 
 WORKDIR /root/
 

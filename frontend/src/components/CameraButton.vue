@@ -8,7 +8,7 @@
         sizeClasses,
         isCameraEnabled
           ? 'bg-theme-accent hover:bg-theme-accent-hover text-theme-text-on-accent'
-          : isGuest
+          : isLocked
             ? 'bg-theme-bg-tertiary text-theme-text-muted cursor-not-allowed'
             : 'bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary',
       ]"
@@ -17,9 +17,9 @@
       <PhCamera :class="iconClasses" />
     </button>
 
-    <!-- Lock Icon Overlay for Guests -->
+    <!-- Lock Icon Overlay when not permitted -->
     <div
-      v-if="isGuest"
+      v-if="isLocked"
       class="absolute bottom-1 right-1 bg-theme-bg-secondary rounded-full p-0.5 border border-theme-border">
       <PhLock class="w-3 h-3 text-theme-text-muted" />
     </div>
@@ -29,7 +29,8 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { PhCamera, PhLock } from "@phosphor-icons/vue"
-import { useCallStore, useUserStore } from "@/stores"
+import { useCallStore, useUserStore, useRoomStore, usePermissionsStore } from "@/stores"
+import { Permission } from "@/types/permissions"
 import { useSounds } from "@/services/sounds"
 
 interface Props {
@@ -57,11 +58,21 @@ const userStore = useUserStore()
 const { playCameraStart, playCameraStop } = useSounds()
 
 // Computed properties
-const isGuest = computed(() => userStore.isGuest)
+const roomStore = useRoomStore()
+const permissionsStore = usePermissionsStore()
+// UI hint only: the backend LiveKit grant is what actually blocks publishing.
+// Turning it off is always allowed.
+const isLocked = computed(
+  () =>
+    !isCameraEnabled.value &&
+    !permissionsStore.can(Permission.Video, { roomId: roomStore.activeRoomId }),
+)
 
 const buttonTitle = computed(() => {
-  if (isGuest.value) {
-    return "Login required for camera"
+  if (isLocked.value) {
+    return userStore.isGuest
+      ? "Login required for camera"
+      : "You don't have permission to use the camera here"
   }
   return isCameraEnabled.value ? "Turn Off Camera" : "Turn On Camera"
 })
@@ -114,9 +125,11 @@ const iconClasses = computed(() => {
 
 // Handle button click
 const handleClick = () => {
-  // If user is a guest, emit auth-required event
-  if (isGuest.value) {
-    emit("auth-required")
+  // Not allowed here: guests are prompted to sign in, others just can't
+  if (isLocked.value) {
+    if (userStore.isGuest) {
+      emit("auth-required")
+    }
     return
   }
 

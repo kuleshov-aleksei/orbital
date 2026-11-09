@@ -347,7 +347,8 @@
               :show-status="false" />
 
             <span
-              class="text-theme-text-primary text-sm font-medium bg-theme-bg-primary/70 px-3 py-1 rounded-lg max-w-[140px] truncate">
+              class="text-theme-text-primary text-sm font-medium bg-theme-bg-primary/70 px-3 py-1 rounded-lg max-w-[140px] truncate"
+              :style="nameStyle">
               {{ userNickname.length > 12 ? userNickname.slice(0, 12) + "..." : userNickname }}
             </span>
             <!-- Mute/Deafen indicators -->
@@ -382,7 +383,8 @@
       <!-- Nickname at bottom center -->
       <div class="absolute bottom-2 left-0 right-0 flex justify-center items-center gap-1">
         <span
-          class="text-theme-text-primary font-medium text-sm bg-theme-bg-primary/70 px-3 py-1 rounded-lg max-w-[140px] truncate">
+          class="text-theme-text-primary font-medium text-sm bg-theme-bg-primary/70 px-3 py-1 rounded-lg max-w-[140px] truncate"
+          :style="nameStyle">
           {{ userNickname.length > 12 ? userNickname.slice(0, 12) + "..." : userNickname }}
         </span>
         <!-- Mute/Deafen indicators -->
@@ -446,7 +448,7 @@ import {
   PhMonitor,
   PhPlay,
 } from "@phosphor-icons/vue"
-import { useRoomStore, usePresenceStore, useCallStore } from "@/stores"
+import { useRoomStore, usePresenceStore, useCallStore, usePermissionsStore } from "@/stores"
 import UserAvatar from "@/components/UserAvatar.vue"
 import UserContextMenu from "@/components/UserContextMenu.vue"
 import { useUserContextMenu } from "@/composables/useUserContextMenu"
@@ -508,6 +510,9 @@ const emit = defineEmits<{
 const roomStore = useRoomStore()
 const presenceStore = usePresenceStore()
 const callStore = useCallStore()
+const permissionsStore = usePermissionsStore()
+// Nickname takes the colour of the user's highest coloured role
+const nameStyle = computed(() => permissionsStore.nameStyleOf(props.userId))
 
 // Refs
 const screenVideoElement = useTemplateRef<HTMLVideoElement>("screenVideoElement")

@@ -109,6 +109,8 @@ func (rs *RoomService) CreateRoom(name, category string, maxUsers int, roomType 
 		Category:  category,
 		SortOrder: maxSortOrder + 1,
 		World:     worldValue,
+		// New rooms inherit their category's permissions until customised.
+		PermissionsSynced: true,
 	}
 
 	// Save to database first
@@ -159,6 +161,8 @@ func (rs *RoomService) GetRoomsWithPreview() []models.RoomPreview {
 			SortOrder: room.SortOrder,
 			World:     room.World,
 			Users:     rs.getRoomPreviewUsers(room.ID),
+
+			PermissionsSynced: room.PermissionsSynced,
 		}
 
 		// Resolve category name if category service is available
@@ -712,6 +716,9 @@ func (rs *RoomService) UpdateRoomCategory(roomID string, categoryID string) erro
 	}
 
 	room.Category = categoryID
+	if rs.roomRepo != nil {
+		return rs.roomRepo.Update(room)
+	}
 	return nil
 }
 
@@ -833,6 +840,52 @@ func (rs *RoomService) DeleteRoom(roomID string) error {
 
 	log.Printf("Deleted room: %s", roomID)
 	return nil
+}
+
+// SetPermissionsSynced toggles whether a room inherits its category's
+// permission overwrites.
+func (rs *RoomService) SetPermissionsSynced(roomID string, synced bool) error {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+
+	room, exists := rs.rooms[roomID]
+	if !exists {
+		return &RoomError{Message: "Room not found"}
+	}
+	prev := room.PermissionsSynced
+	room.PermissionsSynced = synced
+	if rs.roomRepo != nil {
+		if err := rs.roomRepo.Update(room); err != nil {
+			room.PermissionsSynced = prev
+			return err
+		}
+	}
+	return nil
+}
+
+// GetRoomMemberIDs returns the IDs of users currently in a room.
+func (rs *RoomService) GetRoomMemberIDs(roomID string) []string {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+
+	ids := make([]string, 0, len(rs.members[roomID]))
+	for userID := range rs.members[roomID] {
+		ids = append(ids, userID)
+	}
+	return ids
+}
+
+// GetUserRoomID returns the room the user is currently in, if any.
+func (rs *RoomService) GetUserRoomID(userID string) (string, bool) {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+
+	for roomID, members := range rs.members {
+		if _, ok := members[userID]; ok {
+			return roomID, true
+		}
+	}
+	return "", false
 }
 
 // Helper methods

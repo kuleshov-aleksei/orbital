@@ -10,6 +10,8 @@ import {
   PublicUser,
   DebugLog,
   AudioFile,
+  SoundboardSound,
+  CustomEmojiDto,
   StatsStatus,
   AnalyticsReport,
   SecuritySelfCheckReport,
@@ -30,6 +32,14 @@ import type {
   UpsertBaseSocketsRequest,
   HalloweenPackageResult,
 } from "@/halloween/types"
+import type {
+  MyPermissions,
+  PermissionOverwrite,
+  OverwriteTargetType,
+  OverwriteSubjectType,
+  Role,
+  RolesResponse,
+} from "@/types/permissions"
 import { isElectron, openExternal, oauthAuthenticate } from "./electron"
 
 const API_BASE = typeof __BACKEND_URL__ !== "undefined" ? `${__BACKEND_URL__}/api` : "/api"
@@ -321,7 +331,8 @@ export async function apiRequest<T>(
         throw apiError("Session expired", 401)
       }
       if (response.status === 413) {
-        throw new Error("File too large. Maximum size is 30MB.")
+        // Limits differ per endpoint (e.g. soundboard 1MB); the client checks them first.
+        throw apiError("File too large.", 413)
       }
       const errorText = await response.text()
       throw apiError(errorText || `Upload failed (${response.status})`, response.status)
@@ -755,15 +766,95 @@ export const apiService = {
     return apiRequest<{ role: string }>(`/admin/users/${userId}/role`)
   },
 
-  async promoteUser(userId: string): Promise<{ status: string; message: string }> {
-    return apiRequest<{ status: string; message: string }>(`/admin/users/${userId}/promote`, {
-      method: "POST",
+  // RBAC: permissions, roles, assignments and overwrites
+  async getMyPermissions(): Promise<MyPermissions> {
+    return apiRequest<MyPermissions>("/me/permissions")
+  },
+
+  async getRoles(): Promise<RolesResponse> {
+    return apiRequest<RolesResponse>("/roles")
+  },
+
+  async createRole(data: { name: string; color?: string; permissions?: number }): Promise<Role> {
+    return apiRequest<Role>("/roles", { method: "POST", body: JSON.stringify(data) })
+  },
+
+  async updateRole(
+    roleId: string,
+    data: { name?: string; color?: string; permissions?: number; denyPermissions?: number },
+  ): Promise<Role> {
+    const body: Record<string, unknown> = {}
+    if (data.name !== undefined) body.name = data.name
+    if (data.color !== undefined) body.color = data.color
+    if (data.permissions !== undefined) body.permissions = data.permissions
+    if (data.denyPermissions !== undefined) body.deny_permissions = data.denyPermissions
+    return apiRequest<Role>(`/roles/${roleId}`, { method: "PUT", body: JSON.stringify(body) })
+  },
+
+  async deleteRole(roleId: string): Promise<{ status: string }> {
+    return apiRequest<{ status: string }>(`/roles/${roleId}`, { method: "DELETE" })
+  },
+
+  async reorderRoles(positions: Record<string, number>): Promise<{ status: string }> {
+    return apiRequest<{ status: string }>("/roles/order", {
+      method: "PUT",
+      body: JSON.stringify({ positions }),
     })
   },
 
-  async demoteUser(userId: string): Promise<{ status: string; message: string }> {
-    return apiRequest<{ status: string; message: string }>(`/admin/users/${userId}/demote`, {
-      method: "POST",
+  async setUserRoles(
+    userId: string,
+    roleIds: string[],
+  ): Promise<{ user_id: string; role_ids: string[] }> {
+    return apiRequest<{ user_id: string; role_ids: string[] }>(`/users/${userId}/roles`, {
+      method: "PUT",
+      body: JSON.stringify({ role_ids: roleIds }),
+    })
+  },
+
+  async getOverwrites(
+    targetType: OverwriteTargetType,
+    targetId: string,
+  ): Promise<PermissionOverwrite[]> {
+    const prefix = targetType === "room" ? "rooms" : "categories"
+    return apiRequest<PermissionOverwrite[]>(`/${prefix}/${targetId}/overwrites`)
+  },
+
+  async setOverwrite(
+    targetType: OverwriteTargetType,
+    targetId: string,
+    subjectType: OverwriteSubjectType,
+    subjectId: string,
+    allow: number,
+    deny: number,
+  ): Promise<PermissionOverwrite> {
+    const prefix = targetType === "room" ? "rooms" : "categories"
+    return apiRequest<PermissionOverwrite>(
+      `/${prefix}/${targetId}/overwrites/${subjectType}/${subjectId}`,
+      { method: "PUT", body: JSON.stringify({ allow, deny }) },
+    )
+  },
+
+  async deleteOverwrite(
+    targetType: OverwriteTargetType,
+    targetId: string,
+    subjectType: OverwriteSubjectType,
+    subjectId: string,
+  ): Promise<{ status: string }> {
+    const prefix = targetType === "room" ? "rooms" : "categories"
+    return apiRequest<{ status: string }>(
+      `/${prefix}/${targetId}/overwrites/${subjectType}/${subjectId}`,
+      { method: "DELETE" },
+    )
+  },
+
+  async setRoomPermissionsSynced(
+    roomId: string,
+    permissionsSynced: boolean,
+  ): Promise<{ status: string }> {
+    return apiRequest<{ status: string }>(`/rooms/${roomId}/permissions_synced`, {
+      method: "PUT",
+      body: JSON.stringify({ permissions_synced: permissionsSynced }),
     })
   },
 
@@ -949,6 +1040,97 @@ export const apiService = {
 
   getAudioUrl(id: string): string {
     return `${API_BASE}/audio/${id}`
+  },
+
+  // Soundboard API calls
+  async getSoundboardSounds(): Promise<SoundboardSound[]> {
+    return apiRequest<SoundboardSound[]>("/soundboard")
+  },
+
+  async uploadSoundboardSound(input: {
+    file: File
+    name: string
+    emoji: string
+    aliases: string[]
+  }): Promise<SoundboardSound> {
+    const form = new FormData()
+    form.append("audio", input.file)
+    form.append("name", input.name)
+    form.append("emoji", input.emoji)
+    form.append("aliases", JSON.stringify(input.aliases))
+    return apiRequest<SoundboardSound>("/soundboard", { method: "POST", body: form })
+  },
+
+  async updateSoundboardSound(
+    id: string,
+    patch: { name?: string; emoji?: string; aliases?: string[] },
+  ): Promise<SoundboardSound> {
+    return apiRequest<SoundboardSound>(`/admin/soundboard/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    })
+  },
+
+  // Custom emoji API calls
+  async getCustomEmojis(): Promise<CustomEmojiDto[]> {
+    return apiRequest<CustomEmojiDto[]>("/emojis")
+  },
+
+  async uploadCustomEmoji(input: {
+    file: File
+    name: string
+    aliases: string[]
+  }): Promise<CustomEmojiDto> {
+    const form = new FormData()
+    form.append("image", input.file)
+    form.append("name", input.name)
+    form.append("aliases", JSON.stringify(input.aliases))
+    return apiRequest<CustomEmojiDto>("/emojis", { method: "POST", body: form })
+  },
+
+  async updateCustomEmoji(
+    id: string,
+    patch: { name?: string; aliases?: string[] },
+  ): Promise<CustomEmojiDto> {
+    return apiRequest<CustomEmojiDto>(`/admin/emojis/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    })
+  },
+
+  async deleteCustomEmoji(id: string): Promise<void> {
+    await apiRequest<{ status: string }>(`/admin/emojis/${id}`, { method: "DELETE" })
+  },
+
+  getCustomEmojiImageUrl(emoji: CustomEmojiDto): string {
+    if (emoji.image_url.startsWith("/api/")) {
+      return `${API_BASE}${emoji.image_url.slice("/api".length)}`
+    }
+    return resolveUrl(emoji.image_url)
+  },
+
+  async deleteSoundboardSound(id: string): Promise<void> {
+    await apiRequest<{ status: string }>(`/admin/soundboard/${id}`, { method: "DELETE" })
+  },
+
+  async replaceSoundboardAudio(id: string, file: File): Promise<SoundboardSound> {
+    const form = new FormData()
+    form.append("audio", file)
+    return apiRequest<SoundboardSound>(`/admin/soundboard/${id}/audio`, {
+      method: "PUT",
+      body: form,
+    })
+  },
+
+  // audio_url from the backend is "/api/...?v=<version>": resolve it against
+  // API_BASE so it also works in Electron and with a non-default backend
+  // origin. The version changes when the audio is replaced (it is cached as
+  // immutable).
+  getSoundboardAudioUrl(sound: SoundboardSound): string {
+    if (sound.audio_url?.startsWith("/api/")) {
+      return `${API_BASE}${sound.audio_url.slice("/api".length)}`
+    }
+    return `${API_BASE}/soundboard/${sound.id}/audio`
   },
 
   // ===== Remote Stats Collection API (super_admin only) =====

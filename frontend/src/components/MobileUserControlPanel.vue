@@ -11,7 +11,9 @@
           class="mr-3 flex-shrink-0" />
 
         <div class="min-w-0">
-          <div class="font-medium text-sm text-theme-text-primary truncate">
+          <div
+            class="font-medium text-sm text-theme-text-primary truncate"
+            :style="permissionsStore.nameStyleOf(userStore.userId)">
             {{ userStore.nickname }}
           </div>
 
@@ -36,12 +38,13 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import UserAvatar from "@/components/UserAvatar.vue"
-import { useModalStore, useUserStore, useCallStore } from "@/stores"
+import { useModalStore, useUserStore, useCallStore, usePermissionsStore } from "@/stores"
 import { PhGearSix } from "@phosphor-icons/vue"
 
 // Stores
 const modalStore = useModalStore()
 const userStore = useUserStore()
+const permissionsStore = usePermissionsStore()
 const callStore = useCallStore()
 
 // Status text

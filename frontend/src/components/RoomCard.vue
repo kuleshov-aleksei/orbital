@@ -4,9 +4,13 @@
     :class="{
       'bg-theme-accent text-theme-text-on-accent': isActive,
       'bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary':
-        !isActive,
+        !isActive && !isLocked,
+      'bg-theme-bg-tertiary text-theme-text-muted opacity-60 cursor-not-allowed':
+        isLocked && !isActive,
       'opacity-50': isDragging,
     }"
+    :title="isLocked ? 'You don\'t have permission to join this room' : undefined"
+    :data-locked="isLocked || undefined"
     v-bind="isDraggable ? { draggable: true } : {}"
     @click="$emit('click')"
     @contextmenu.prevent="showContextMenu"
@@ -35,7 +39,11 @@
       <div class="flex-1 min-w-0">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-1.5 min-w-0">
-            <span class="font-medium text-sm truncate">{{ room.name }}</span>
+            <EmojiText :text="room.name" pausable class="font-medium text-sm truncate" />
+            <PhLock
+              v-if="isLocked"
+              class="w-3 h-3 flex-shrink-0"
+              aria-label="No permission to join" />
             <span
               v-if="room.type === 'spatial_audio'"
               class="text-[10px] px-1.5 py-0.5 rounded-full bg-theme-accent/20 text-theme-accent font-medium flex-shrink-0">
@@ -68,7 +76,9 @@
               class="mr-2 flex-shrink-0" />
 
             <!-- Nickname -->
-            <span class="truncate opacity-90">{{ user.nickname }}</span>
+            <span class="truncate opacity-90" :style="permissionsStore.nameStyleOf(user.id)">{{
+              user.nickname
+            }}</span>
           </div>
 
           <!-- Status Icons (right side) -->
@@ -101,6 +111,7 @@
 </template>
 
 <script setup lang="ts">
+import EmojiText from "@/components/common/EmojiText.vue"
 import { useTemplateRef } from "vue"
 import {
   PhWaveform,
@@ -110,21 +121,18 @@ import {
   PhMicrophoneSlash,
   PhMonitor,
   PhVideoCamera,
+  PhLock,
 } from "@phosphor-icons/vue"
 import UserAvatar from "./UserAvatar.vue"
 import UserContextMenu from "./UserContextMenu.vue"
+import { usePermissionsStore } from "@/stores"
 import type { Room } from "@/types"
-
-interface Props {
-  room: Room
-  isActive: boolean
-  isDragging?: boolean
-  isDraggable?: boolean
-}
 
 const props = withDefaults(defineProps<Props>(), {
   isDraggable: true,
+  isLocked: false,
 })
+
 const emit = defineEmits<{
   click: []
   "show-context-menu": [event: MouseEvent, room: Room]
@@ -135,6 +143,17 @@ const emit = defineEmits<{
   dragenter: [event: DragEvent]
   dragleave: [event: DragEvent]
 }>()
+
+const permissionsStore = usePermissionsStore()
+
+interface Props {
+  room: Room
+  isActive: boolean
+  isDragging?: boolean
+  isDraggable?: boolean
+  /** The user can see but not join (no Connect): rendered grayed out with a lock. */
+  isLocked?: boolean
+}
 
 const showContextMenu = (event: MouseEvent) => {
   emit("show-context-menu", event, props.room)

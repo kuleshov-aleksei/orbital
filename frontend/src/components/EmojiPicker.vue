@@ -3,15 +3,25 @@
     class="w-full rounded-lg border border-theme-border bg-theme-bg-primary shadow-lg flex flex-col"
     data-testid="emoji-picker"
     @keydown.escape.stop="emit('close')">
-    <div class="p-2 border-b border-theme-border">
+    <div class="p-2 border-b border-theme-border flex items-center gap-1.5">
       <input
         ref="searchInput"
         v-model="query"
         type="text"
         placeholder="Search emoji"
-        class="w-full px-2 py-1 text-sm bg-theme-bg-tertiary border border-theme-border rounded focus:outline-none focus:border-theme-accent text-theme-text-primary"
+        class="flex-1 min-w-0 px-2 py-1 text-sm bg-theme-bg-tertiary border border-theme-border rounded focus:outline-none focus:border-theme-accent text-theme-text-primary"
         data-testid="emoji-search"
         @keydown.enter.prevent="pickFirstResult" />
+      <button
+        v-if="canUpload"
+        type="button"
+        class="h-7 w-7 shrink-0 rounded flex items-center justify-center text-theme-text-secondary hover:text-theme-text-primary hover:bg-theme-bg-hover"
+        title="Upload a custom emoji"
+        aria-label="Upload a custom emoji"
+        data-testid="emoji-upload-button"
+        @click="openUpload">
+        <PhPlus class="w-4 h-4" />
+      </button>
     </div>
 
     <!-- Category tabs -->
@@ -32,7 +42,7 @@
         <PhClockCounterClockwise
           v-if="tab.id === RECENT_ID"
           class="w-4 h-4 text-theme-text-secondary" />
-        <span v-else class="text-base leading-none">{{ tab.icon }}</span>
+        <EmojiGlyph v-else :emoji-ref="tab.icon" :size="16" />
       </button>
     </div>
 
@@ -85,8 +95,10 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, useTemplateRef } from "vue"
-import { PhClockCounterClockwise } from "@phosphor-icons/vue"
+import { PhClockCounterClockwise, PhPlus } from "@phosphor-icons/vue"
 import EmojiGlyph from "@/components/EmojiGlyph.vue"
+import { useCustomEmojisStore, usePermissionsStore, useUserStore } from "@/stores"
+import { Permission } from "@/types/permissions"
 import {
   addRecentEmoji,
   getEmojiCategories,
@@ -97,12 +109,31 @@ import {
   type EmojiRef,
 } from "@/services/emoji"
 
+// unicodeOnly: for plain-text fields (e.g. room names) where a "custom:<id>"
+// ref cannot be rendered; hides custom emojis and the upload button.
+const props = withDefaults(defineProps<{ unicodeOnly?: boolean }>(), { unicodeOnly: false })
+
 const emit = defineEmits<{
   select: [ref: EmojiRef]
   close: []
 }>()
 
 const RECENT_ID = "__recent"
+
+const customEmojisStore = useCustomEmojisStore()
+const permissionsStore = usePermissionsStore()
+const userStore = useUserStore()
+
+const canUpload = computed(
+  () => !props.unicodeOnly && !userStore.isGuest && permissionsStore.can(Permission.UploadEmojis),
+)
+
+const isAllowed = (emoji: Emoji) => !props.unicodeOnly || emoji.kind === "unicode"
+
+// Opens the app-level upload modal; the picker (and its host popover) may close.
+const openUpload = () => {
+  customEmojisStore.isUploadOpen = true
+}
 
 const searchInput = useTemplateRef<HTMLInputElement>("searchInput")
 const scrollArea = useTemplateRef<HTMLElement>("scrollArea")
@@ -112,7 +143,7 @@ const recent = ref<EmojiRef[]>(getRecentEmojis())
 const activeTab = ref<string>("")
 
 const isSearching = computed(() => query.value.trim().length > 0)
-const searchResults = computed(() => searchEmojis(query.value))
+const searchResults = computed(() => searchEmojis(query.value).filter(isAllowed))
 
 interface Section {
   id: string
@@ -124,8 +155,10 @@ interface Section {
 const sections = computed<Section[]>(() => {
   const recentEmojis = recent.value
     .map((r) => resolveEmoji(r))
-    .filter((e): e is Emoji => e !== null)
+    .filter((e): e is Emoji => e !== null && isAllowed(e))
   const categories: Section[] = getEmojiCategories()
+    .map((c) => ({ ...c, emojis: c.emojis.filter(isAllowed) }))
+    .filter((c) => c.emojis.length > 0)
   return recentEmojis.length > 0
     ? [{ id: RECENT_ID, label: "Recently used", icon: "", emojis: recentEmojis }, ...categories]
     : categories
@@ -165,6 +198,7 @@ const onScroll = () => {
 }
 
 onMounted(() => {
+  void customEmojisStore.ensureLoaded()
   activeTab.value = sections.value[0]?.id ?? ""
   searchInput.value?.focus()
 })

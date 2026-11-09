@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/kuleshov-aleksei/orbital/internal/models"
+	"github.com/kuleshov-aleksei/orbital/internal/permissions"
 	"github.com/kuleshov-aleksei/orbital/internal/service"
 )
 
@@ -13,13 +14,15 @@ import (
 type LiveKitHandler struct {
 	livekitService *service.LiveKitService
 	roomService    *service.RoomService
+	permissions    *service.PermissionService
 }
 
 // NewLiveKitHandler creates a new LiveKit handler
-func NewLiveKitHandler(livekitService *service.LiveKitService, roomService *service.RoomService) *LiveKitHandler {
+func NewLiveKitHandler(livekitService *service.LiveKitService, roomService *service.RoomService, permissionService *service.PermissionService) *LiveKitHandler {
 	return &LiveKitHandler{
 		livekitService: livekitService,
 		roomService:    roomService,
+		permissions:    permissionService,
 	}
 }
 
@@ -76,8 +79,18 @@ func (h *LiveKitHandler) GenerateToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate token using JWT claims
-	token, err := h.livekitService.GenerateTokenFromJWTClaims(claims, req.RoomID)
+	// The token encodes what the user may publish; the SFU enforces it.
+	perms := h.permissions.RoomPerms(service.SubjectFromClaims(claims), req.RoomID)
+	if !perms.Has(permissions.ViewRoom) {
+		h.sendError(w, "Room not found", http.StatusNotFound)
+		return
+	}
+	if !perms.Has(permissions.Connect) {
+		h.sendError(w, "Missing connect permission", http.StatusForbidden)
+		return
+	}
+
+	token, err := h.livekitService.GenerateTokenFromJWTClaims(claims, req.RoomID, perms)
 	if err != nil {
 		log.Printf("[LiveKitHandler] Failed to generate token: %v", err)
 		h.sendError(w, "Failed to generate token", http.StatusInternalServerError)

@@ -95,7 +95,14 @@ import { useLiveKit, useBoombox } from "@/composables"
 import { useSpatialPosition } from "@/composables/useSpatialPosition"
 import { useSpatialAudio } from "@/composables/useSpatialAudio"
 import { useGameInput } from "@/composables/useGameInput"
-import { useUserStore, useCallStore, useWorldLoadingStore } from "@/stores"
+import {
+  useUserStore,
+  useCallStore,
+  useWorldLoadingStore,
+  useRoomStore,
+  usePermissionsStore,
+} from "@/stores"
+import { Permission } from "@/types/permissions"
 import { createWorldRenderer } from "@/world/WorldRenderer"
 import { createCharacterSprite } from "@/world/CharacterSprite"
 import { getAnimations } from "@/world/ResourceManager"
@@ -167,6 +174,13 @@ const worldConfig = computed(() => getWorldConfig(props.worldId))
 
 const userStore = useUserStore()
 const callStore = useCallStore()
+const spatialRoomStore = useRoomStore()
+const permissionsStore = usePermissionsStore()
+// UI gate; the backend enforces it via the LiveKit grant (the boombox track's
+// UNKNOWN source is only allowed with use_boombox).
+const canUseBoombox = computed(() =>
+  permissionsStore.can(Permission.UseBoombox, { roomId: spatialRoomStore.activeRoomId }),
+)
 const selectedCharacter = ref<CharacterKey>(loadCharacter())
 const showCharacterPicker = ref(false)
 
@@ -253,6 +267,13 @@ const {
   scanRemoteParticipantsForBoombox,
   handleAttributesChanged: handleBoomboxAttributesChanged,
 } = boombox
+
+// Use Boombox revoked mid-play: the SFU drops the track; stop locally too.
+watch(canUseBoombox, (allowed) => {
+  if (!allowed && permissionsStore.loaded && boomboxAmIPlaying()) {
+    void boomboxStop()
+  }
+})
 
 const spatialAudio = useSpatialAudio({
   remoteAudioTracks,
@@ -558,7 +579,7 @@ function gameTick(delta: number) {
   const dx = localPosition.value.x - bx.x
   const dy = localPosition.value.y - bx.y
   const distToBoombox = Math.sqrt(dx * dx + dy * dy)
-  showBoomboxModal.value = distToBoombox < BOOMBOX_INTERACT_DISTANCE
+  showBoomboxModal.value = distToBoombox < BOOMBOX_INTERACT_DISTANCE && canUseBoombox.value
 
   if (boomboxSprite && boomboxIsPlaying.value) {
     const pulse = 2.0 + Math.sin(performance.now() / 300) * 0.08

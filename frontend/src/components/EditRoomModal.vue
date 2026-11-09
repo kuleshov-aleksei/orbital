@@ -27,14 +27,14 @@
             Room Name
           </label>
 
-          <input
+          <EmojiTextInput
             id="roomName"
             v-model="roomName"
-            type="text"
+            allow-custom
             required
             placeholder="Enter room name"
-            maxlength="100"
-            class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" />
+            data-testid="edit-room-name-input"
+            input-class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" />
 
           <div class="flex justify-between mt-1">
             <p v-if="roomNameError" class="text-red-500 text-sm">
@@ -104,6 +104,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue"
+import EmojiTextInput from "@/components/common/EmojiTextInput.vue"
+import { emojiTextLength } from "@/services/emoji"
 import { useConfigStore } from "@/stores"
 import { AVAILABLE_WORLDS } from "@/config/worlds"
 
@@ -141,8 +143,8 @@ onMounted(() => {
 
 // Character count
 const roomNameCharCount = computed(() => {
-  // Count actual Unicode characters, not bytes
-  return Array.from(roomName.value).length
+  // Count actual Unicode characters (a custom emoji counts as one), not bytes
+  return emojiTextLength(roomName.value)
 })
 
 // Validation errors

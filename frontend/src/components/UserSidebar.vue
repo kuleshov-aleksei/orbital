@@ -6,7 +6,7 @@
     <!-- Mobile Close Button -->
     <div class="lg:hidden flex items-center justify-between p-4 border-b border-theme-border">
       <h2 class="text-sm font-semibold text-theme-text-secondary uppercase tracking-wider">
-        Users — {{ userCount }}
+        Users
       </h2>
 
       <button
@@ -24,7 +24,7 @@
       <h2
         v-if="!isCollapsed"
         class="text-sm font-semibold text-theme-text-secondary uppercase tracking-wider">
-        Users — {{ userCount }}
+        Users
       </h2>
 
       <!-- Toggle Button - Integrated into header -->
@@ -38,16 +38,26 @@
       </button>
     </div>
 
-    <!-- User List (hidden when collapsed) -->
+    <!-- User List grouped by online status (hidden when collapsed) -->
     <div v-if="!isCollapsed" class="flex-1 overflow-y-auto p-2" data-testid="user-list">
-      <UserCard
-        v-for="user in usersWithCurrentNickname"
-        :key="user.id"
-        :user="user"
-        :room-id="props.roomId"
-        :initial-volume="getInitialVolume(user.id)"
-        @volume-change="handleVolumeChange"
-        @open-profile="toggleProfile" />
+      <section
+        v-for="group in userGroups"
+        :key="group.key"
+        class="mb-3 last:mb-0"
+        :data-testid="`user-group-${group.key}`">
+        <h3
+          class="px-2 pt-2 pb-1 text-xs font-semibold text-theme-text-muted uppercase tracking-wider">
+          {{ group.label }} — {{ group.users.length }}
+        </h3>
+        <UserCard
+          v-for="user in group.users"
+          :key="user.id"
+          :user="user"
+          :room-id="props.roomId"
+          :initial-volume="getInitialVolume(user.id)"
+          @volume-change="handleVolumeChange"
+          @open-profile="toggleProfile" />
+      </section>
     </div>
 
     <!-- Collapsed state - show compact user avatars -->
@@ -145,6 +155,16 @@ const usersWithCurrentNickname = computed(() => {
     }
     return user
   })
+})
+
+// Users split into online / offline sections; empty sections are hidden
+const userGroups = computed(() => {
+  const online = usersWithCurrentNickname.value.filter((user) => user.is_online)
+  const offline = usersWithCurrentNickname.value.filter((user) => !user.is_online)
+  return [
+    { key: "online", label: "Online", users: online },
+    { key: "offline", label: "Offline", users: offline },
+  ].filter((group) => group.users.length > 0)
 })
 
 // Visibility logic:
