@@ -240,6 +240,8 @@ backend/data/avatars
 backend/data/logs
 backend/data/audio
 backend/data/halloween
+backend/data/soundboard
+backend/data/emojis
 
 docker/docker-data/data/*
 !docker/docker-data/data/.gitkeep

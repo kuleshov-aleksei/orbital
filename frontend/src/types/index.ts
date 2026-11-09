@@ -105,6 +105,7 @@ export type WebSocketMessageType =
   | "room_stats"
   | "request_logs"
   | "halloween_pumpkin_state"
+  | "play_sound"
 
 export interface WebSocketMessage {
   type: WebSocketMessageType
@@ -632,6 +633,39 @@ export interface AudioFile {
   duration?: number
   is_system: boolean
   created_at: string
+}
+
+// Soundboard clip (shared library)
+export interface SoundboardSound {
+  id: string
+  name: string
+  emoji: string
+  aliases: string[]
+  format: "mp3" | "ogg"
+  file_size: number
+  uploaded_by?: string
+  created_at: string
+  audio_url: string
+}
+
+// Custom emoji (shared library), referenced as "custom:<id>"
+export interface CustomEmojiDto {
+  id: string
+  name: string
+  aliases: string[]
+  file_size: number
+  uploaded_by?: string
+  created_at: string
+  image_url: string
+  // GIF; image_url + "&still=1" serves its first frame
+  animated?: boolean
+}
+
+// Payload of the "sound_played" WebSocket event
+export interface SoundPlayedData {
+  room_id: string
+  sound_id: string
+  user_id: string
 }
 
 // ==================== Remote Stats Collection Types ====================

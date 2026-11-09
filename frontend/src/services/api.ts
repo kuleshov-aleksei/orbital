@@ -10,6 +10,8 @@ import {
   PublicUser,
   DebugLog,
   AudioFile,
+  SoundboardSound,
+  CustomEmojiDto,
   StatsStatus,
   AnalyticsReport,
   SecuritySelfCheckReport,
@@ -329,7 +331,8 @@ export async function apiRequest<T>(
         throw apiError("Session expired", 401)
       }
       if (response.status === 413) {
-        throw new Error("File too large. Maximum size is 30MB.")
+        // Limits differ per endpoint (e.g. soundboard 1MB); the client checks them first.
+        throw apiError("File too large.", 413)
       }
       const errorText = await response.text()
       throw apiError(errorText || `Upload failed (${response.status})`, response.status)
@@ -1037,6 +1040,97 @@ export const apiService = {
 
   getAudioUrl(id: string): string {
     return `${API_BASE}/audio/${id}`
+  },
+
+  // Soundboard API calls
+  async getSoundboardSounds(): Promise<SoundboardSound[]> {
+    return apiRequest<SoundboardSound[]>("/soundboard")
+  },
+
+  async uploadSoundboardSound(input: {
+    file: File
+    name: string
+    emoji: string
+    aliases: string[]
+  }): Promise<SoundboardSound> {
+    const form = new FormData()
+    form.append("audio", input.file)
+    form.append("name", input.name)
+    form.append("emoji", input.emoji)
+    form.append("aliases", JSON.stringify(input.aliases))
+    return apiRequest<SoundboardSound>("/soundboard", { method: "POST", body: form })
+  },
+
+  async updateSoundboardSound(
+    id: string,
+    patch: { name?: string; emoji?: string; aliases?: string[] },
+  ): Promise<SoundboardSound> {
+    return apiRequest<SoundboardSound>(`/admin/soundboard/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    })
+  },
+
+  // Custom emoji API calls
+  async getCustomEmojis(): Promise<CustomEmojiDto[]> {
+    return apiRequest<CustomEmojiDto[]>("/emojis")
+  },
+
+  async uploadCustomEmoji(input: {
+    file: File
+    name: string
+    aliases: string[]
+  }): Promise<CustomEmojiDto> {
+    const form = new FormData()
+    form.append("image", input.file)
+    form.append("name", input.name)
+    form.append("aliases", JSON.stringify(input.aliases))
+    return apiRequest<CustomEmojiDto>("/emojis", { method: "POST", body: form })
+  },
+
+  async updateCustomEmoji(
+    id: string,
+    patch: { name?: string; aliases?: string[] },
+  ): Promise<CustomEmojiDto> {
+    return apiRequest<CustomEmojiDto>(`/admin/emojis/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    })
+  },
+
+  async deleteCustomEmoji(id: string): Promise<void> {
+    await apiRequest<{ status: string }>(`/admin/emojis/${id}`, { method: "DELETE" })
+  },
+
+  getCustomEmojiImageUrl(emoji: CustomEmojiDto): string {
+    if (emoji.image_url.startsWith("/api/")) {
+      return `${API_BASE}${emoji.image_url.slice("/api".length)}`
+    }
+    return resolveUrl(emoji.image_url)
+  },
+
+  async deleteSoundboardSound(id: string): Promise<void> {
+    await apiRequest<{ status: string }>(`/admin/soundboard/${id}`, { method: "DELETE" })
+  },
+
+  async replaceSoundboardAudio(id: string, file: File): Promise<SoundboardSound> {
+    const form = new FormData()
+    form.append("audio", file)
+    return apiRequest<SoundboardSound>(`/admin/soundboard/${id}/audio`, {
+      method: "PUT",
+      body: form,
+    })
+  },
+
+  // audio_url from the backend is "/api/...?v=<version>": resolve it against
+  // API_BASE so it also works in Electron and with a non-default backend
+  // origin. The version changes when the audio is replaced (it is cached as
+  // immutable).
+  getSoundboardAudioUrl(sound: SoundboardSound): string {
+    if (sound.audio_url?.startsWith("/api/")) {
+      return `${API_BASE}${sound.audio_url.slice("/api".length)}`
+    }
+    return `${API_BASE}/soundboard/${sound.id}/audio`
   },
 
   // ===== Remote Stats Collection API (super_admin only) =====

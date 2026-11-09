@@ -21,6 +21,16 @@ const (
 	ManageRooms Permission = 1 << 2
 	// ManageAudio allows deleting/editing shared audio files. Role-level only.
 	ManageAudio Permission = 1 << 3
+	// UploadSounds allows adding clips to the shared soundboard library.
+	// Server-wide, role-level only.
+	UploadSounds Permission = 1 << 4
+	// ManageSoundboard allows renaming/editing/deleting any soundboard clip.
+	// Role-level only.
+	ManageSoundboard Permission = 1 << 5
+	// UploadEmojis allows adding custom emojis. Server-wide, role-level only.
+	UploadEmojis Permission = 1 << 6
+	// ManageEmojis allows renaming/deleting any custom emoji. Role-level only.
+	ManageEmojis Permission = 1 << 7
 
 	// ViewRoom allows seeing a room in lists, events and presence.
 	ViewRoom Permission = 1 << 8
@@ -35,7 +45,7 @@ const (
 	// SendMessages allows sending room chat messages.
 	SendMessages Permission = 1 << 13
 	// UseBoombox allows playing music through the boombox (spatial rooms).
-	// Not the future in-call soundboard, which should get its own bit.
+	// Not the in-call soundboard, which is UseSoundboard.
 	UseBoombox Permission = 1 << 14
 	// KickMembers allows disconnecting other members from a room.
 	KickMembers Permission = 1 << 15
@@ -43,15 +53,19 @@ const (
 	MuteMembers Permission = 1 << 16
 	// MoveMembers is reserved for moving members between rooms (not implemented yet).
 	MoveMembers Permission = 1 << 17
+	// UseSoundboard allows playing soundboard clips to everyone in a room.
+	UseSoundboard Permission = 1 << 18
 )
 
 // All is every defined permission.
 const All = Administrator | ManageRoles | ManageRooms | ManageAudio |
+	UploadSounds | ManageSoundboard | UploadEmojis | ManageEmojis |
 	ViewRoom | Connect | Speak | Video | Screenshare | SendMessages |
-	UseBoombox | KickMembers | MuteMembers | MoveMembers
+	UseBoombox | KickMembers | MuteMembers | MoveMembers | UseSoundboard
 
 // RoleOnly are permissions that cannot be set through overwrites.
-const RoleOnly = Administrator | ManageRoles | ManageAudio
+const RoleOnly = Administrator | ManageRoles | ManageAudio | UploadSounds | ManageSoundboard |
+	UploadEmojis | ManageEmojis
 
 // Overwritable are permissions that may appear in room/category overwrites.
 const Overwritable = All &^ RoleOnly
@@ -60,17 +74,19 @@ const Overwritable = All &^ RoleOnly
 const RoomScoped = Overwritable
 
 // voiceScoped are permissions that are meaningless without Connect.
-const voiceScoped = Speak | Video | Screenshare | UseBoombox
+const voiceScoped = Speak | Video | Screenshare | UseBoombox | UseSoundboard
 
 // DefaultEveryone is the seed permission set for the @everyone role.
-const DefaultEveryone = ViewRoom | Connect | Speak | Video | Screenshare | SendMessages | UseBoombox
+const DefaultEveryone = ViewRoom | Connect | Speak | Video | Screenshare | SendMessages | UseBoombox |
+	UseSoundboard | UploadSounds
 
 // DefaultGuestDeny is the seed deny mask for the Guest system role.
-const DefaultGuestDeny = Video | Screenshare
+const DefaultGuestDeny = Video | Screenshare | UploadSounds
 
 // DefaultAdmin is the seed permission set for the migrated Admin role. It
 // matches exactly what the legacy "admin" global role could do.
-const DefaultAdmin = ManageRooms | KickMembers | ManageAudio
+const DefaultAdmin = ManageRooms | KickMembers | ManageAudio | ManageSoundboard |
+	UploadEmojis | ManageEmojis
 
 // Has reports whether p contains every bit in want.
 func (p Permission) Has(want Permission) bool { return p&want == want }
@@ -78,20 +94,25 @@ func (p Permission) Has(want Permission) bool { return p&want == want }
 // Names maps the wire name of each permission to its bit. Used by the catalog
 // endpoint so the frontend can render permission editors.
 var Names = map[string]Permission{
-	"administrator":  Administrator,
-	"manage_roles":   ManageRoles,
-	"manage_rooms":   ManageRooms,
-	"manage_audio":   ManageAudio,
-	"view_room":      ViewRoom,
-	"connect":        Connect,
-	"speak":          Speak,
-	"video":          Video,
-	"screenshare":    Screenshare,
-	"send_messages":  SendMessages,
-	"use_boombox": UseBoombox,
-	"kick_members":   KickMembers,
-	"mute_members":   MuteMembers,
-	"move_members":   MoveMembers,
+	"administrator":     Administrator,
+	"manage_roles":      ManageRoles,
+	"manage_rooms":      ManageRooms,
+	"manage_audio":      ManageAudio,
+	"view_room":         ViewRoom,
+	"connect":           Connect,
+	"speak":             Speak,
+	"video":             Video,
+	"screenshare":       Screenshare,
+	"send_messages":     SendMessages,
+	"use_boombox":       UseBoombox,
+	"kick_members":      KickMembers,
+	"mute_members":      MuteMembers,
+	"move_members":      MoveMembers,
+	"use_soundboard":    UseSoundboard,
+	"upload_sounds":     UploadSounds,
+	"manage_soundboard": ManageSoundboard,
+	"upload_emojis":     UploadEmojis,
+	"manage_emojis":     ManageEmojis,
 }
 
 // Overwrite is an allow/deny pair for one subject on one room or category.

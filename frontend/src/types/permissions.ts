@@ -6,6 +6,10 @@ export const Permission = {
   ManageRoles: 1 << 1,
   ManageRooms: 1 << 2,
   ManageAudio: 1 << 3,
+  UploadSounds: 1 << 4,
+  ManageSoundboard: 1 << 5,
+  UploadEmojis: 1 << 6,
+  ManageEmojis: 1 << 7,
   ViewRoom: 1 << 8,
   Connect: 1 << 9,
   Speak: 1 << 10,
@@ -16,13 +20,20 @@ export const Permission = {
   KickMembers: 1 << 15,
   MuteMembers: 1 << 16,
   MoveMembers: 1 << 17,
+  UseSoundboard: 1 << 18,
 } as const
 
 export type PermissionName = keyof typeof Permission
 
 /** Permissions that can only be granted through roles (never overwrites). */
 export const ROLE_ONLY_PERMISSIONS =
-  Permission.Administrator | Permission.ManageRoles | Permission.ManageAudio
+  Permission.Administrator |
+  Permission.ManageRoles |
+  Permission.ManageAudio |
+  Permission.UploadSounds |
+  Permission.ManageSoundboard |
+  Permission.UploadEmojis |
+  Permission.ManageEmojis
 
 /** Human-readable labels and grouping for permission editors. */
 export const PERMISSION_INFO: Array<{
@@ -47,6 +58,30 @@ export const PERMISSION_INFO: Array<{
     key: "ManageAudio",
     label: "Manage Audio",
     description: "Rename and delete shared audio files",
+    group: "server",
+  },
+  {
+    key: "UploadSounds",
+    label: "Upload Sounds",
+    description: "Add clips to the soundboard",
+    group: "server",
+  },
+  {
+    key: "ManageSoundboard",
+    label: "Manage Soundboard",
+    description: "Rename, edit and delete any soundboard clip",
+    group: "server",
+  },
+  {
+    key: "UploadEmojis",
+    label: "Upload Emojis",
+    description: "Add custom emojis",
+    group: "server",
+  },
+  {
+    key: "ManageEmojis",
+    label: "Manage Emojis",
+    description: "Rename and delete any custom emoji",
     group: "server",
   },
   {
@@ -86,6 +121,12 @@ export const PERMISSION_INFO: Array<{
     key: "UseBoombox",
     label: "Use Boombox",
     description: "Play music through the boombox",
+    group: "voice",
+  },
+  {
+    key: "UseSoundboard",
+    label: "Use Soundboard",
+    description: "Play soundboard clips to everyone in the room",
     group: "voice",
   },
 ]

@@ -354,3 +354,40 @@ func TestOwnerSystemRole(t *testing.T) {
 		t.Fatalf("expected Owner role overwrite rejected, got %v", err)
 	}
 }
+
+func TestMigrationGrantsSoundboardPermissionsToExistingRoles(t *testing.T) {
+	// A database created before the soundboard existed: role rows lack the bits.
+	db, err := storage.NewDB(filepath.Join(t.TempDir(), "pre-soundboard.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err := storage.RunMigrationsUpTo(db, 35); err != nil {
+		t.Fatal(err)
+	}
+	soundBits := permissions.UseSoundboard | permissions.UploadSounds | permissions.ManageSoundboard
+	if _, err := db.Exec(`UPDATE roles SET permissions = permissions & ?, deny_permissions = deny_permissions & ?`,
+		int64(^soundBits&permissions.All), int64(^soundBits&permissions.All)); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.RunMigrations(); err != nil {
+		t.Fatal(err)
+	}
+
+	read := func(id string) (allow, deny permissions.Permission) {
+		t.Helper()
+		if err := db.QueryRow(`SELECT permissions, deny_permissions FROM roles WHERE id = ?`, id).Scan(&allow, &deny); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	if allow, _ := read("everyone"); !allow.Has(permissions.UseSoundboard | permissions.UploadSounds) {
+		t.Fatalf("@everyone missing soundboard bits: %b", allow)
+	}
+	if _, deny := read("guest"); !deny.Has(permissions.UploadSounds) {
+		t.Fatalf("guest role should deny upload_sounds: %b", deny)
+	}
+	if allow, _ := read("admin"); !allow.Has(permissions.ManageSoundboard) {
+		t.Fatalf("admin missing manage_soundboard: %b", allow)
+	}
+}

@@ -249,7 +249,9 @@ const canOpenAdminPanel = computed(
   () =>
     userStore.isSuperAdmin ||
     permissionsStore.can(Permission.ManageRoles) ||
-    permissionsStore.can(Permission.ManageAudio),
+    permissionsStore.can(Permission.ManageAudio) ||
+    permissionsStore.can(Permission.ManageSoundboard) ||
+    permissionsStore.can(Permission.ManageEmojis),
 )
 
 // Nickname editing state

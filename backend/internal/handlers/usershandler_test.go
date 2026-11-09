@@ -122,6 +122,25 @@ func TestUpdateCustomStatusRejectsBadEmoji(t *testing.T) {
 	}
 }
 
+type fakeEmojiLookup map[string]bool
+
+func (f fakeEmojiLookup) EmojiExists(id string) bool { return f[id] }
+
+func TestUpdateCustomStatusAcceptsKnownCustomEmoji(t *testing.T) {
+	h, repo := newUsersHandlerForTest(t)
+	now := time.Now()
+	if err := repo.Create(&models.User{ID: "u1", Nickname: "alice", CreatedAt: now, LastSeen: now, Role: models.RoleUser}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	h.SetEmojiLookup(fakeEmojiLookup{"party": true})
+	if rec := patchCustomStatus(h, "u1", `{"custom_status":"hi","custom_status_emoji":"custom:party"}`); rec.Code != http.StatusOK {
+		t.Fatalf("known custom emoji: %d %s", rec.Code, rec.Body.String())
+	}
+	if rec := patchCustomStatus(h, "u1", `{"custom_status":"hi","custom_status_emoji":"custom:nope"}`); rec.Code != http.StatusBadRequest {
+		t.Fatalf("unknown custom emoji: %d, want 400", rec.Code)
+	}
+}
+
 func TestValidateStatusEmojiAcceptsCommonForms(t *testing.T) {
 	valid := []string{
 		"",

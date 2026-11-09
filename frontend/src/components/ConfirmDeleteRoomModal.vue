@@ -22,7 +22,7 @@
       <!-- Warning Message -->
       <div class="mb-6 p-4 bg-red-900 bg-opacity-30 border border-red-800 rounded-lg">
         <p class="text-red-400 text-sm">
-          <strong>Delete "{{ roomName }}"?</strong>
+          <strong>Delete "<EmojiText :text="roomName" />"?</strong>
           {{
             userCount > 0
               ? ` This room has ${userCount} user${userCount !== 1 ? "s" : ""} in it.`
@@ -54,6 +54,7 @@
 </template>
 
 <script setup lang="ts">
+import EmojiText from "@/components/common/EmojiText.vue"
 interface Props {
   roomId: string
   roomName: string

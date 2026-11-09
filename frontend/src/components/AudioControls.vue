@@ -48,6 +48,11 @@
       </button>
     </div>
 
+    <!-- Group: Soundboard -->
+    <div class="flex items-center gap-1.5 p-1.5 rounded-xl bg-theme-bg-secondary">
+      <SoundboardButton />
+    </div>
+
     <!-- Stop Watching -->
     <button
       v-if="callStore.watchingUserIds.size > 0"
@@ -78,6 +83,7 @@ import AudioDeafenButton from "@/components/AudioDeafenButton.vue"
 import ScreenShareButton from "@/components/ScreenShareButton.vue"
 import CameraButton from "@/components/CameraButton.vue"
 import AudioControlsDropdown from "@/components/AudioControlsDropdown.vue"
+import SoundboardButton from "@/components/soundboard/SoundboardButton.vue"
 import { useModalStore, useCallStore, useRoomStore, useVideoSettingsStore } from "@/stores"
 
 interface Props {

@@ -46,6 +46,20 @@ func RequirePermission(ps *service.PermissionService, perm permissions.Permissio
 	}
 }
 
+// requireServerPerm is the in-handler form of RequirePermission.
+func requireServerPerm(w http.ResponseWriter, r *http.Request, ps *service.PermissionService, perm permissions.Permission) (service.Subject, bool) {
+	sub, ok := subjectFromRequest(r)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return sub, false
+	}
+	if !ps.CanServer(sub, perm) {
+		http.Error(w, "Missing permission", http.StatusForbidden)
+		return sub, false
+	}
+	return sub, true
+}
+
 // requireRoomPerm checks a room-scoped permission. Rooms the subject cannot
 // see are reported as 404 so their existence is not leaked.
 func requireRoomPerm(w http.ResponseWriter, r *http.Request, ps *service.PermissionService, roomID string, perm permissions.Permission) (service.Subject, bool) {

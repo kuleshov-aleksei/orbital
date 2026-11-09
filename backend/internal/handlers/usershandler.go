@@ -17,6 +17,7 @@ import (
 type UsersHandler struct {
 	userRepo *repository.UserRepository
 	hub      *websocket.Hub
+	emojis   EmojiLookup
 }
 
 // NewUsersHandler creates a new users handler
@@ -26,6 +27,9 @@ func NewUsersHandler(userRepo *repository.UserRepository, hub *websocket.Hub) *U
 		hub:      hub,
 	}
 }
+
+// SetEmojiLookup enables "custom:<id>" status emojis.
+func (h *UsersHandler) SetEmojiLookup(l EmojiLookup) { h.emojis = l }
 
 // GetAllUsers returns a list of all users with public information only
 // GET /api/users
@@ -115,7 +119,7 @@ func (h *UsersHandler) UpdateCustomStatus(w http.ResponseWriter, r *http.Request
 	}
 
 	emoji := strings.TrimSpace(req.CustomStatusEmoji)
-	if err := validateStatusEmoji(emoji); err != nil {
+	if err := validateEmojiRef(emoji, h.emojis); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -140,7 +144,7 @@ func (h *UsersHandler) UpdateCustomStatus(w http.ResponseWriter, r *http.Request
 
 // Emoji references are stored as opaque strings so new kinds can be added later:
 //   - unicode emoji: the emoji itself, e.g. "🎮" or "👍🏽"
-//   - custom emoji:  "custom:<id>" (reserved; rejected until custom emojis exist)
+//   - custom emoji:  "custom:<id>" where id is a row in custom_emojis
 const (
 	customEmojiPrefix    = "custom:"
 	maxStatusEmojiBytes  = 32 // fits long ZWJ sequences (families, flags with tags)
@@ -150,17 +154,37 @@ const (
 	regionalIndicatorMax = '\U0001F1FF'
 )
 
-var errUnsupportedEmoji = errors.New("unsupported status emoji")
+var (
+	errUnsupportedEmoji = errors.New("unsupported status emoji")
+	errUnknownEmoji     = errors.New("unknown custom emoji")
+)
+
+// EmojiLookup is the part of the custom emoji library needed to validate refs.
+type EmojiLookup interface {
+	EmojiExists(id string) bool
+}
+
+// validateEmojiRef accepts an empty string, a single unicode emoji, or
+// "custom:<id>" when id exists in lookup (a nil lookup rejects custom refs).
+func validateEmojiRef(emoji string, lookup EmojiLookup) error {
+	if id, ok := strings.CutPrefix(emoji, customEmojiPrefix); ok {
+		if lookup == nil || id == "" || !lookup.EmojiExists(id) {
+			return errUnknownEmoji
+		}
+		return nil
+	}
+	return validateStatusEmoji(emoji)
+}
 
 // validateStatusEmoji accepts an empty string (no emoji) or a single unicode emoji.
 // It is deliberately loose: it rejects plain text/whitespace, not every non-emoji symbol.
+// Custom refs are rejected here; use validateEmojiRef.
 func validateStatusEmoji(emoji string) error {
 	if emoji == "" {
 		return nil
 	}
 	if strings.HasPrefix(emoji, customEmojiPrefix) {
-		// Extension point: look the id up in a custom emoji repository here.
-		return errors.New("custom emojis are not supported yet")
+		return errUnknownEmoji
 	}
 	if len(emoji) > maxStatusEmojiBytes || utf8.RuneCountInString(emoji) > maxStatusEmojiRunes {
 		return errUnsupportedEmoji

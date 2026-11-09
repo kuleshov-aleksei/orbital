@@ -4,13 +4,23 @@
     :data-theme="themeStore.currentTheme"
     class="h-dvh bg-theme-bg-primary text-theme-text-primary">
     <router-view />
+    <CustomEmojiUploadModal
+      v-if="customEmojisStore.isUploadOpen"
+      @close="customEmojisStore.isUploadOpen = false" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, onUnmounted, watch } from "vue"
 import { useRouter } from "vue-router"
-import { useAppStore, useRoomStore, useThemeStore, useUserStore } from "@/stores"
+import {
+  useAppStore,
+  useCustomEmojisStore,
+  useRoomStore,
+  useThemeStore,
+  useUserStore,
+} from "@/stores"
+import CustomEmojiUploadModal from "@/components/emoji/CustomEmojiUploadModal.vue"
 import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts"
 import { useThumbarButtons, useWebSocketHandlers } from "@/composables"
 import { isElectron, onDeepLink, onOAuthToken, setupMainProcessLogRelay } from "@/services/electron"
@@ -28,6 +38,7 @@ const appStore = useAppStore()
 const roomStore = useRoomStore()
 const themeStore = useThemeStore()
 const userStore = useUserStore()
+const customEmojisStore = useCustomEmojisStore()
 
 useKeyboardShortcuts()
 useThumbarButtons()
