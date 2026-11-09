@@ -1,92 +1,158 @@
 <template>
   <div
-    class="welcome-view flex-1 flex flex-col p-4 lg:p-8 overflow-y-auto"
+    class="welcome-view flex-1 flex flex-col px-4 py-6 lg:p-8 overflow-y-auto"
     data-testid="welcome-view">
-    <!-- Room Browser -->
-    <div class="w-full max-w-4xl flex-1">
-      <div class="flex items-center justify-between mb-6">
-        <h2 class="text-2xl font-semibold text-theme-text-primary">Available Rooms</h2>
-      </div>
+    <div class="w-full max-w-5xl mx-auto">
+      <!-- Header -->
+      <header class="mb-6">
+        <h2 class="text-2xl font-semibold text-theme-text-primary">
+          Hey, {{ userStore.nickname }}
+        </h2>
+        <p class="text-sm text-theme-text-muted mt-1">{{ subtitle }}</p>
+      </header>
 
-      <!-- Room Grid -->
-      <div v-if="rooms?.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div
-          v-for="room in rooms"
-          :key="room.id"
-          :data-testid="`room-card-${room.id}`"
-          class="room-browser-card bg-theme-bg-secondary rounded-lg p-4 hover:bg-theme-bg-hover transition-all duration-200 cursor-pointer border border-theme-border hover:border-theme-accent"
-          @click="$emit('room-selected', room.id)">
-          <div class="flex items-center justify-between mb-3">
-            <div class="w-10 h-10 bg-theme-accent rounded-full flex items-center justify-center">
-              <PhFolderSimpleUser class="w-5 h-5 text-theme-text-on-accent" />
-            </div>
-
-            <div class="text-right">
-              <div class="text-xs text-theme-text-muted">
-                {{ room.category_name || room.category }}
-              </div>
-            </div>
-          </div>
-
-          <h3 class="text-base font-semibold text-theme-text-primary mb-2">
-            {{ room.name }}
+      <div class="space-y-8">
+        <!-- Active now -->
+        <section v-if="lobby.active.length > 0" data-testid="lobby-active">
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-theme-text-secondary mb-3">
+            Active now
           </h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <ActiveRoomCard
+              v-for="room in lobby.active"
+              :key="room.id"
+              :room="room"
+              @select="$emit('room-selected', $event)" />
+          </div>
+        </section>
 
-          <div class="flex items-center justify-between text-sm">
-            <div class="flex items-center text-theme-text-muted text-xs">
-              <PhFolderSimpleUser class="w-3 h-3 mr-1" />
-              {{ room.user_count }}/{{ room.max_users }}
-            </div>
+        <!-- Online, not in voice -->
+        <section v-if="idleUsers.length > 0" data-testid="lobby-online">
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-theme-text-secondary mb-3">
+            Online, not in voice
+            <span class="text-theme-text-muted font-normal">— {{ idleUsers.length }}</span>
+          </h3>
+          <ul class="flex flex-wrap gap-2">
+            <li
+              v-for="user in idleUsers"
+              :key="user.id"
+              class="flex items-center gap-2 max-w-full pl-1 pr-3 py-1 rounded-full bg-theme-bg-secondary border border-theme-border">
+              <UserAvatar
+                :user-id="user.id"
+                :nickname="user.nickname"
+                :avatar-url="user.avatar_url"
+                :size="24"
+                :show-status="false" />
+              <span class="text-sm text-theme-text-primary truncate">{{ user.nickname }}</span>
+              <span
+                v-if="user.custom_status || user.custom_status_emoji"
+                class="text-xs text-theme-text-muted truncate max-w-48"
+                :title="user.custom_status">
+                <EmojiGlyph
+                  v-if="user.custom_status_emoji"
+                  :emoji-ref="user.custom_status_emoji"
+                  :size="12"
+                  class="mr-0.5" />{{ user.custom_status }}
+              </span>
+            </li>
+          </ul>
+        </section>
 
+        <!-- Remaining (empty) rooms -->
+        <section v-if="lobby.idle.length > 0" data-testid="lobby-rooms">
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-theme-text-secondary mb-3">
+            {{ lobby.active.length > 0 ? "Other rooms" : "Rooms" }}
+          </h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
             <button
+              v-for="room in lobby.idle"
+              :key="room.id"
               type="button"
-              class="text-theme-accent hover:text-theme-accent-hover font-medium text-sm">
-              Join →
+              :data-testid="`room-card-${room.id}`"
+              class="group flex items-center gap-3 px-3 py-2.5 rounded-lg bg-theme-bg-secondary border border-theme-border hover:border-theme-accent hover:bg-theme-bg-hover transition-colors text-left cursor-pointer"
+              @click="$emit('room-selected', room.id)">
+              <component
+                :is="room.type === 'spatial_audio' ? PhGlobe : PhSpeakerHigh"
+                class="w-4 h-4 shrink-0 text-theme-text-muted" />
+              <span class="min-w-0 flex-1">
+                <span class="block text-sm font-medium text-theme-text-primary truncate">
+                  {{ room.name }}
+                </span>
+                <span
+                  v-if="room.category_name || room.category"
+                  class="block text-xs text-theme-text-muted truncate">
+                  {{ room.category_name || room.category }}
+                </span>
+              </span>
+              <span
+                class="text-xs font-medium text-theme-accent opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity">
+                Join
+              </span>
             </button>
           </div>
-        </div>
-      </div>
+        </section>
 
-      <!-- Empty State -->
-      <div v-else class="flex flex-col items-center justify-center py-16 px-4">
+        <!-- No rooms at all -->
         <div
-          class="w-20 h-20 bg-theme-bg-secondary rounded-full flex items-center justify-center mb-6">
-          <PhMicrophone class="w-10 h-10 text-theme-text-muted" />
+          v-if="rooms.length === 0"
+          class="flex flex-col items-center justify-center py-16 px-4 rounded-xl border border-dashed border-theme-border">
+          <div
+            class="w-16 h-16 bg-theme-bg-secondary rounded-full flex items-center justify-center mb-5">
+            <PhMicrophone class="w-8 h-8 text-theme-text-muted" />
+          </div>
+          <h3 class="text-lg font-semibold text-theme-text-primary mb-2">No rooms yet</h3>
+          <p class="text-theme-text-muted text-center max-w-sm mb-6 text-sm">
+            Create a room to start talking with your squad.
+          </p>
+          <button
+            v-if="canManageAnyRooms"
+            type="button"
+            data-testid="create-room-empty"
+            class="px-5 py-2.5 bg-theme-accent hover:bg-theme-accent-hover text-theme-text-on-accent rounded-lg transition-colors duration-200 font-medium cursor-pointer"
+            @click="$emit('create-room')">
+            Create First Room
+          </button>
+          <p v-else class="text-theme-text-muted text-sm">Ask an admin to create a room</p>
         </div>
 
-        <h3 class="text-xl font-semibold text-theme-text-primary mb-2">No rooms yet</h3>
-
-        <p class="text-theme-text-muted text-center max-w-sm mb-8">
-          Create a room to start chatting with your squad. Voice chat for 5-10 people made simple.
-        </p>
-
-        <button
-          v-if="canManageAnyRooms"
-          type="button"
-          data-testid="create-room-empty"
-          class="px-6 py-3 bg-theme-accent hover:bg-theme-accent-hover text-theme-text-on-accent rounded-lg transition-colors duration-200 font-medium"
-          @click="$emit('create-room')">
-          Create First Room
-        </button>
-
-        <p v-else class="text-theme-text-muted text-sm">Ask an admin to create a room</p>
+        <!-- Mic check -->
+        <MicCheckCard />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue"
 import { storeToRefs } from "pinia"
-import { useRoomStore, usePermissionsStore } from "@/stores"
-import { PhMicrophone, PhFolderSimpleUser } from "@phosphor-icons/vue"
+import { PhGlobe, PhMicrophone, PhSpeakerHigh } from "@phosphor-icons/vue"
+import { useRoomStore, usePermissionsStore, useUsersStore, useUserStore } from "@/stores"
+import UserAvatar from "@/components/UserAvatar.vue"
+import EmojiGlyph from "@/components/EmojiGlyph.vue"
+import ActiveRoomCard from "@/components/lobby/ActiveRoomCard.vue"
+import MicCheckCard from "@/components/lobby/MicCheckCard.vue"
+import { inVoiceUserIds, onlineIdleUsers, partitionRooms } from "@/components/lobby/lobby"
 
 defineEmits<{
   "room-selected": [roomId: string]
   "create-room": []
 }>()
-// Use store directly for reactivity
+
 const roomStore = useRoomStore()
-const permissionsStore = usePermissionsStore()
+const usersStore = useUsersStore()
+const userStore = useUserStore()
 const { rooms } = storeToRefs(roomStore)
-const { canManageAnyRooms } = storeToRefs(permissionsStore)
+const { canManageAnyRooms } = storeToRefs(usePermissionsStore())
+
+const lobby = computed(() => partitionRooms(rooms.value ?? []))
+const inVoice = computed(() => inVoiceUserIds(rooms.value ?? []))
+const idleUsers = computed(() =>
+  onlineIdleUsers(usersStore.sortedUsers, inVoice.value, userStore.userId),
+)
+
+const subtitle = computed(() => {
+  const n = inVoice.value.size
+  if (n === 0) return "It's quiet right now. Start a conversation."
+  return n === 1 ? "1 person is in voice." : `${n} people are in voice.`
+})
 </script>
