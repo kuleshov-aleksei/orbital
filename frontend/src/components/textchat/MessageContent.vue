@@ -16,12 +16,21 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import MessageNodes from "./MessageNodes.vue"
-import { emojiOnlyCount, JUMBO_EMOJI_MAX, parseMessage } from "@/utils/messageMarkup"
+import {
+  applyHighlights,
+  emojiOnlyCount,
+  JUMBO_EMOJI_MAX,
+  parseMessage,
+} from "@/utils/messageMarkup"
 import { formatFullTime } from "@/utils/messageGrouping"
 
-const props = defineProps<{ content: string; editedAt?: number | null }>()
+// highlight: content is a search snippet with match markers.
+const props = defineProps<{ content: string; editedAt?: number | null; highlight?: boolean }>()
 
-const nodes = computed(() => parseMessage(props.content))
+const nodes = computed(() => {
+  const parsed = parseMessage(props.content)
+  return props.highlight ? applyHighlights(parsed) : parsed
+})
 // Emoji-only messages render large, as in Discord.
 const jumbo = computed(() => {
   const n = emojiOnlyCount(nodes.value)

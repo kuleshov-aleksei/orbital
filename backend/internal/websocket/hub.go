@@ -699,6 +699,12 @@ func (c *Client) handleMessage(message models.WebSocketMessage) {
 		c.handleTextMessageDelete(message.Data)
 	case "text_channel_read":
 		c.handleTextChannelRead(message.Data)
+	case "text_reaction_toggle":
+		c.handleTextReactionToggle(message.Data)
+	case "text_pin":
+		c.handleTextPin(message.Data)
+	case "text_typing":
+		c.handleTextTyping(message.Data)
 	default:
 		log.Printf("Unknown message type: %s", message.Type)
 	}

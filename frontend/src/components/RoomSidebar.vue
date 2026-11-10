@@ -84,6 +84,8 @@
                 :room="room"
                 :is-active="isRoomActive(room)"
                 :is-unread="room.type === 'text' && textChatStore.isUnread(room.id)"
+                :notify-mode="room.type === 'text' ? textNotifyStore.modeOf(room.id) : 'all'"
+                :mention-count="room.type === 'text' ? textNotifyStore.mentionCount(room.id) : 0"
                 :is-dragging="draggedRoom?.id === room.id"
                 :is-draggable="isDraggable"
                 :is-locked="isRoomLocked(room)"
@@ -231,6 +233,69 @@
       class="fixed bg-theme-bg-secondary border border-theme-border rounded-lg shadow-xl z-[9999] py-1 min-w-[200px]"
       :style="{ top: roomContextMenu.y + 'px', left: roomContextMenu.x + 'px' }"
       @click.stop>
+      <!-- Text channel: read state and notifications (any viewer) -->
+      <template v-if="contextTextRoomId">
+        <button
+          v-if="textChatStore.isUnread(contextTextRoomId)"
+          type="button"
+          class="w-full px-4 py-2 text-left text-sm text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary transition-colors"
+          data-testid="context-mark-read"
+          @click="markContextRoomRead">
+          <div class="flex items-center gap-2">
+            <PhChecks class="w-4 h-4" />
+            <span>Mark as read</span>
+          </div>
+        </button>
+        <button
+          v-if="textNotifyStore.isMuted(contextTextRoomId)"
+          type="button"
+          class="w-full px-4 py-2 text-left text-sm text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary transition-colors"
+          data-testid="context-unmute"
+          @click="setContextNotify('all')">
+          <div class="flex items-center gap-2">
+            <PhBell class="w-4 h-4" />
+            <span class="flex flex-col">
+              <span>Unmute channel</span>
+              <span class="text-[11px] text-theme-text-muted">{{ contextMuteLabel }}</span>
+            </span>
+          </div>
+        </button>
+        <button
+          v-else
+          type="button"
+          class="w-full px-4 py-2 text-left text-sm text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary transition-colors"
+          data-testid="context-mute"
+          @click="openContextMute">
+          <div class="flex items-center gap-2">
+            <PhBellSlash class="w-4 h-4" />
+            <span>Mute channel…</span>
+          </div>
+        </button>
+        <button
+          v-if="textNotifyStore.modeOf(contextTextRoomId) === 'no_mentions'"
+          type="button"
+          class="w-full px-4 py-2 text-left text-sm text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary transition-colors"
+          data-testid="context-notify-all"
+          @click="setContextNotify('all')">
+          <div class="flex items-center gap-2">
+            <PhBell class="w-4 h-4" />
+            <span>Notify me about mentions</span>
+          </div>
+        </button>
+        <button
+          v-else-if="!textNotifyStore.isMuted(contextTextRoomId)"
+          type="button"
+          class="w-full px-4 py-2 text-left text-sm text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary transition-colors"
+          data-testid="context-no-mentions"
+          @click="setContextNotify('no_mentions')">
+          <div class="flex items-center gap-2">
+            <PhBellSimpleSlash class="w-4 h-4" />
+            <span>Disable mentions</span>
+          </div>
+        </button>
+        <div v-if="canManageContextRoom" class="border-t border-theme-border my-1"></div>
+      </template>
+
       <!-- Move to Category - With Submenu (manage_rooms) -->
       <div v-if="canManageContextRoom" class="relative group">
         <button
@@ -316,7 +381,9 @@
         </div>
       </button>
 
-      <div v-if="!canManageContextRoom" class="px-4 py-2 text-sm text-theme-text-muted">
+      <div
+        v-if="!canManageContextRoom && !contextTextRoomId"
+        class="px-4 py-2 text-sm text-theme-text-muted">
         No actions available
       </div>
     </div>
@@ -351,8 +418,20 @@ import {
   PhTrash,
   PhShieldCheck,
   PhArrowsLeftRight,
+  PhBell,
+  PhBellSimpleSlash,
+  PhBellSlash,
+  PhChecks,
 } from "@phosphor-icons/vue"
-import { useRoomStore, useCategoryStore, usePermissionsStore, useTextChatStore } from "@/stores"
+import {
+  useRoomStore,
+  useCategoryStore,
+  usePermissionsStore,
+  useTextChatStore,
+  useTextNotifyStore,
+} from "@/stores"
+import { describeMute } from "@/stores/textNotify"
+import type { TextNotifyMode } from "@/types/textChat"
 import { Permission } from "@/types/permissions"
 import { useUserContextMenu } from "@/composables/useUserContextMenu"
 import { apiService } from "@/services/api"
@@ -390,6 +469,7 @@ const roomStore = useRoomStore()
 const categoryStore = useCategoryStore()
 const permissionsStore = usePermissionsStore()
 const textChatStore = useTextChatStore()
+const textNotifyStore = useTextNotifyStore()
 const { rooms } = storeToRefs(roomStore)
 const { categories } = storeToRefs(categoryStore)
 const { isUserContextMenuOpen } = useUserContextMenu()
@@ -567,6 +647,35 @@ const availableCategoriesForMove = computed(() => {
 const canManageContextRoom = computed(() =>
   permissionsStore.can(Permission.ManageRooms, { roomId: roomContextMenu.value.room?.id }),
 )
+
+const contextTextRoomId = computed(() =>
+  roomContextMenu.value.room?.type === "text" ? roomContextMenu.value.room.id : null,
+)
+const contextMuteLabel = computed(() =>
+  contextTextRoomId.value ? describeMute(textNotifyStore.settingOf(contextTextRoomId.value)) : "",
+)
+
+function markContextRoomRead() {
+  if (contextTextRoomId.value) textChatStore.markChannelRead(contextTextRoomId.value)
+  closeRoomContextMenu()
+}
+
+function setContextNotify(mode: TextNotifyMode) {
+  const roomId = contextTextRoomId.value
+  closeRoomContextMenu()
+  if (roomId) {
+    textNotifyStore.setMode(roomId, mode).catch(() => {
+      textChatStore.lastError = "Failed to change notification settings."
+    })
+  }
+}
+
+function openContextMute() {
+  const roomId = contextTextRoomId.value
+  closeRoomContextMenu()
+  // Mounted at the app root (the context menu is a popover).
+  if (roomId) textNotifyStore.openMuteModal(roomId)
+}
 
 const showRoomContextMenu = (event: MouseEvent, room: Room) => {
   // Close category menu if open

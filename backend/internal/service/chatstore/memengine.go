@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -225,4 +226,136 @@ func sortBySeq(msgs []*Message, asc bool) {
 		}
 		return msgs[i].Seq > msgs[j].Seq
 	})
+}
+
+func (e *MemoryEngine) all() ([]*Message, error) {
+	if err := e.check(); err != nil {
+		return nil, err
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	out := make([]*Message, 0, len(e.docs))
+	for _, d := range e.docs {
+		out = append(out, d.clone())
+	}
+	return out, nil
+}
+
+func (e *MemoryEngine) Pins(_ context.Context, roomID string, limit int) ([]*Message, error) {
+	docs, err := e.all()
+	if err != nil {
+		return nil, err
+	}
+	var out []*Message
+	for _, d := range docs {
+		if d.RoomID == roomID && d.Pinned && !d.IsDeleted {
+			out = append(out, d)
+		}
+	}
+	sortByPinned(out)
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+// Search is a naive case-insensitive word match (every query word must be a
+// substring of content_search); good enough to test filters and plumbing.
+func (e *MemoryEngine) Search(_ context.Context, req SearchRequest) (*SearchResult, error) {
+	docs, err := e.all()
+	if err != nil {
+		return nil, err
+	}
+	words := strings.Fields(strings.ToLower(strings.ReplaceAll(req.Text, `"`, "")))
+	var matched []*Message
+	for _, d := range docs {
+		if d.IsDeleted || !contains(req.RoomIDs, d.RoomID) {
+			continue
+		}
+		if len(req.SenderIDs) > 0 && !contains(req.SenderIDs, d.SenderID) {
+			continue
+		}
+		if len(req.MentionUserIDs) > 0 && !anyIn(req.MentionUserIDs, d.MentionUserIDs) {
+			continue
+		}
+		if (req.FromTS > 0 && d.CreatedAtTS < req.FromTS) || (req.ToTS > 0 && d.CreatedAtTS >= req.ToTS) {
+			continue
+		}
+		if req.Pinned != nil && d.Pinned != *req.Pinned {
+			continue
+		}
+		text := strings.ToLower(d.ContentSearch)
+		ok := true
+		for _, w := range words {
+			if !strings.Contains(text, w) {
+				ok = false
+				break
+			}
+		}
+		if ok {
+			matched = append(matched, d)
+		}
+	}
+	sortBySeq(matched, false)
+	res := &SearchResult{Total: len(matched), Hits: []SearchHit{}}
+	for i := req.Offset; i < len(matched) && i < req.Offset+req.Limit; i++ {
+		hit := SearchHit{Message: matched[i]}
+		if len(words) > 0 {
+			hit.Snippet = highlightWords(matched[i].ContentSearch, words)
+		}
+		res.Hits = append(res.Hits, hit)
+	}
+	return res, nil
+}
+
+func highlightWords(text string, words []string) string {
+	lower := strings.ToLower(text)
+	if len(lower) != len(text) {
+		return text // case mapping changed byte offsets; skip highlighting
+	}
+	var b strings.Builder
+	for i := 0; i < len(text); {
+		hit := ""
+		for _, w := range words {
+			if strings.HasPrefix(lower[i:], w) && len(w) > len(hit) {
+				hit = w
+			}
+		}
+		if hit == "" {
+			b.WriteByte(text[i])
+			i++
+			continue
+		}
+		b.WriteString(HighlightPre + text[i:i+len(hit)] + HighlightPost)
+		i += len(hit)
+	}
+	return b.String()
+}
+
+func anyIn(want, have []string) bool {
+	for _, w := range want {
+		if contains(have, w) {
+			return true
+		}
+	}
+	return false
+}
+
+func (e *MemoryEngine) CountMentions(_ context.Context, qs []MentionCountQuery) ([]int, error) {
+	docs, err := e.all()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]int, len(qs))
+	for i, q := range qs {
+		for _, d := range docs {
+			if d.RoomID != q.RoomID || d.IsDeleted || d.Seq <= q.AfterSeq || d.SenderID == q.UserID {
+				continue
+			}
+			if contains(d.MentionUserIDs, q.UserID) || anyIn(q.RoleIDs, d.MentionRoleIDs) {
+				out[i]++
+			}
+		}
+	}
+	return out, nil
 }

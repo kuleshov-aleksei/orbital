@@ -5,6 +5,7 @@
       compact ? 'py-0.5' : 'pt-2 pb-0.5 mt-2',
       highlighted ? 'message-flash' : 'hover:bg-theme-bg-secondary/60',
       pendingStatus === 'sending' ? 'opacity-60' : '',
+      mentionsMe ? 'mention-me' : '',
     ]"
     :data-message-id="message.id"
     data-testid="text-message">
@@ -55,6 +56,12 @@
             :title="formatFullTime(message.created_at_ts)"
             >{{ formatMessageTime(message.created_at_ts) }}</span
           >
+          <PhPushPin
+            v-if="message.pinned"
+            class="w-3 h-3 text-theme-text-muted self-center flex-shrink-0"
+            weight="fill"
+            aria-label="Pinned"
+            data-testid="pinned-marker" />
         </div>
 
         <!-- Inline edit -->
@@ -85,6 +92,14 @@
         </div>
         <MessageContent v-else :content="message.content" :edited-at="message.edited_at_ts" />
 
+        <ReactionBar
+          v-if="message.reactions.length && !pendingStatus"
+          :reactions="message.reactions"
+          :my-user-id="myUserId"
+          :can-react="canReply"
+          @toggle="(emoji) => $emit('react', emoji)"
+          @add="(e) => $emit('add-reaction', e)" />
+
         <div v-if="pendingStatus === 'failed'" class="text-xs text-red-400 mt-0.5 flex gap-2">
           <span>{{ pendingError || "Not delivered." }}</span>
           <button
@@ -111,6 +126,16 @@
         v-if="canReply"
         type="button"
         :class="toolbarBtn"
+        title="Add reaction"
+        aria-label="Add reaction"
+        data-testid="add-reaction"
+        @click="$emit('add-reaction', $event)">
+        <PhSmileyWink class="w-4 h-4" />
+      </button>
+      <button
+        v-if="canReply"
+        type="button"
+        :class="toolbarBtn"
         title="Reply"
         aria-label="Reply"
         data-testid="reply-message"
@@ -126,6 +151,17 @@
         data-testid="edit-message"
         @click="$emit('edit')">
         <PhPencilSimple class="w-4 h-4" />
+      </button>
+      <button
+        v-if="canManage"
+        type="button"
+        :class="toolbarBtn"
+        :title="message.pinned ? 'Unpin' : 'Pin'"
+        :aria-label="message.pinned ? 'Unpin' : 'Pin'"
+        data-testid="pin-message"
+        @click="$emit('pin', !message.pinned)">
+        <PhPushPinSlash v-if="message.pinned" class="w-4 h-4" />
+        <PhPushPin v-else class="w-4 h-4" />
       </button>
       <button
         type="button"
@@ -151,12 +187,22 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, useTemplateRef, watch } from "vue"
-import { PhArrowBendUpLeft, PhCopy, PhPencilSimple, PhTrash } from "@phosphor-icons/vue"
+import {
+  PhArrowBendUpLeft,
+  PhCopy,
+  PhPencilSimple,
+  PhPushPin,
+  PhPushPinSlash,
+  PhSmileyWink,
+  PhTrash,
+} from "@phosphor-icons/vue"
 import UserAvatar from "@/components/UserAvatar.vue"
 import MessageContent from "./MessageContent.vue"
+import ReactionBar from "./ReactionBar.vue"
 import { useCustomEmojisStore, usePermissionsStore, useUsersStore } from "@/stores"
 import { emojiTextToPlain, encodeShortcodes } from "@/services/emoji"
 import { markupToPlain, parseMessage } from "@/utils/messageMarkup"
+import { decodeMentions, encodeMentions, type MentionMap } from "@/utils/mentionText"
 import { formatFullTime, formatMessageTime, formatShortTime } from "@/utils/messageGrouping"
 import type { TextMessage } from "@/types/textChat"
 
@@ -173,6 +219,7 @@ const props = withDefaults(
     editing?: boolean
     pendingStatus?: "sending" | "failed" | null
     pendingError?: string
+    myUserId?: string
   }>(),
   {
     compact: false,
@@ -184,6 +231,7 @@ const props = withDefaults(
     editing: false,
     pendingStatus: null,
     pendingError: "",
+    myUserId: "",
   },
 )
 
@@ -196,6 +244,9 @@ const emit = defineEmits<{
   "cancel-edit": []
   retry: []
   discard: []
+  react: [emoji: string]
+  "add-reaction": [event: MouseEvent]
+  pin: [pinned: boolean]
 }>()
 
 const toolbarBtn =
@@ -209,10 +260,23 @@ function nameOf(userId: string): string {
   return usersStore.allUsers.find((u) => u.id === userId)?.nickname ?? "Unknown user"
 }
 
+// Highlighted when it mentions you directly or through one of your roles.
+const mentionsMe = computed(() => {
+  const me = props.myUserId
+  if (!me || props.message.sender_id === me) return false
+  if (props.message.mention_user_ids.includes(me)) return true
+  const mine = permissionsStore.roleIdsOf(me)
+  return props.message.mention_role_ids.some((id) => mine.includes(id))
+})
+
+function roleName(id: string): string | undefined {
+  return permissionsStore.roles.find((r) => r.id === id)?.name
+}
+
 const replyPreview = computed(() =>
   props.replied
     ? markupToPlain(parseMessage(props.replied.content), (kind, id) =>
-        kind === "user" ? nameOf(id) : id,
+        kind === "user" ? nameOf(id) : (roleName(id) ?? "unknown-role"),
       ).slice(0, 200)
     : "",
 )
@@ -221,6 +285,7 @@ const replyPreview = computed(() =>
 // The textarea shows custom emojis as :shortcode: and saves tokens.
 const draft = ref("")
 const editError = ref("")
+let editMentions: MentionMap = new Map()
 const editInput = useTemplateRef<HTMLTextAreaElement>("editInput")
 
 function autosize() {
@@ -234,7 +299,13 @@ watch(
   () => props.editing,
   async (editing) => {
     if (!editing) return
-    draft.value = emojiTextToPlain(props.message.content)
+    const decoded = decodeMentions(
+      props.message.content,
+      (id) => usersStore.allUsers.find((u) => u.id === id)?.nickname,
+      roleName,
+    )
+    editMentions = decoded.map
+    draft.value = emojiTextToPlain(decoded.text)
     editError.value = ""
     await nextTick()
     autosize()
@@ -246,8 +317,9 @@ watch(
 )
 
 function saveEdit() {
-  const content = encodeShortcodes(draft.value.trim(), (code) =>
-    customEmojisStore.idForShortcode(code),
+  const content = encodeMentions(
+    encodeShortcodes(draft.value.trim(), (code) => customEmojisStore.idForShortcode(code)),
+    editMentions,
   )
   if (!content) {
     editError.value = "A message can't be empty. Delete it instead."
@@ -282,6 +354,11 @@ function copyText() {
   100% {
     background-color: transparent;
   }
+}
+
+.mention-me {
+  background-color: color-mix(in srgb, #f0b232 9%, transparent);
+  box-shadow: inset 2px 0 0 #f0b232;
 }
 
 @media (prefers-reduced-motion: reduce) {

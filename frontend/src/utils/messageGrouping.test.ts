@@ -61,4 +61,19 @@ describe("buildTimeline", () => {
     expect(buildTimeline([a, b], b.seq).some((i) => i.kind === "new")).toBe(false)
     expect(buildTimeline([a, b], a.seq - 1).some((i) => i.kind === "new")).toBe(false)
   })
+
+  it("places system lines by time and breaks the group", () => {
+    const a = msg("a", 0)
+    const b = msg("a", 2000)
+    const items = buildTimeline([a, b], null, [
+      { key: "old", ts: base - 1000 },
+      { key: "mid", ts: base + 1000 },
+      { key: "late", ts: base + 5000 },
+    ])
+    expect(
+      items.map((i) =>
+        i.kind === "message" ? `${i.message.id}:${i.compact}` : i.kind === "line" ? i.key : i.kind,
+      ),
+    ).toEqual(["day", `${a.id}:false`, "mid", `${b.id}:false`, "late"])
+  })
 })

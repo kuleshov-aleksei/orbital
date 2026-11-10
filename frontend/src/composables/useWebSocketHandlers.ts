@@ -12,6 +12,7 @@ import {
   useSoundboardStore,
   useCustomEmojisStore,
   useTextChatStore,
+  useTextNotifyStore,
   useConfigStore,
 } from "@/stores"
 import { wsService } from "@/services/websocket"
@@ -40,6 +41,9 @@ import type {
   TextMessageNewEvent,
   TextMessageUpdatedEvent,
   TextReadStateEvent,
+  TextMentionEvent,
+  TextNotifySettingsEvent,
+  TextTypingEvent,
 } from "@/types/textChat"
 
 declare const __APP_VERSION__: string
@@ -59,6 +63,7 @@ export function useWebSocketHandlers() {
   const soundboardStore = useSoundboardStore()
   const customEmojisStore = useCustomEmojisStore()
   const textChatStore = useTextChatStore()
+  const textNotifyStore = useTextNotifyStore()
   const configStore = useConfigStore()
   const hasConnected = ref(false)
 
@@ -357,6 +362,12 @@ export function useWebSocketHandlers() {
       ],
       ["text_read_state", (m) => textChatStore.onReadState(m.data as TextReadStateEvent)],
       ["text_error", (m) => textChatStore.onError(m.data as TextErrorEvent)],
+      ["text_typing", (m) => textChatStore.onTyping(m.data as TextTypingEvent)],
+      ["text_mention", (m) => textNotifyStore.onMention(m.data as TextMentionEvent)],
+      [
+        "text_notify_settings",
+        (m) => textNotifyStore.onSettings(m.data as TextNotifySettingsEvent),
+      ],
     ]
     for (const [type, handler] of textHandlers) {
       wsService.onGlobal(type, handler)

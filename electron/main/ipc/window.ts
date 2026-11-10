@@ -16,6 +16,14 @@ export function registerWindowIpc() {
     }
   })
 
+  // Taskbar attention for text channel mentions; stops when focused.
+  ipcMain.handle("flash-window", () => {
+    const mainWindow = getMainWindow()
+    if (!mainWindow || mainWindow.isFocused()) return
+    mainWindow.flashFrame(true)
+    mainWindow.once("focus", () => mainWindow.flashFrame(false))
+  })
+
   ipcMain.handle("close-window", () => {
     getMainWindow()?.hide()
   })

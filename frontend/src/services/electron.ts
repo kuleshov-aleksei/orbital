@@ -112,6 +112,13 @@ export function minimizeWindow(): void {
   }
 }
 
+/** Flashes the taskbar entry until the window is focused (older builds: no-op). */
+export function flashWindow(): void {
+  if (isElectron()) {
+    window.electronAPI?.flashWindow?.()
+  }
+}
+
 export function maximizeWindow(): void {
   if (isElectron()) {
     window.electronAPI!.maximizeWindow()

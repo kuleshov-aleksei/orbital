@@ -20,6 +20,11 @@ export interface AppSettings {
   hotkeys: HotkeysConfig
   // Pause animated custom emojis in room/user lists until hovered
   reduceEmojiMotion: boolean
+  // Text channel mention ping sound (docs/specs/CHAT_SYSTEM.md §7.4)
+  mentionSound: boolean
+  mentionSoundVolume: number // 0..1
+  // Desktop app: flash the taskbar entry on a text channel mention
+  mentionTaskbarFlash: boolean
 }
 
 const DEFAULT_HOTKEYS: HotkeysConfig = {
@@ -33,6 +38,9 @@ const defaultSettings: AppSettings = {
   hasSelectedCloseBehavior: false,
   hotkeys: DEFAULT_HOTKEYS,
   reduceEmojiMotion: false,
+  mentionSound: true,
+  mentionSoundVolume: 0.6,
+  mentionTaskbarFlash: true,
 }
 
 export const useAppSettingsStore = defineStore("appSettings", () => {
@@ -86,6 +94,26 @@ export const useAppSettingsStore = defineStore("appSettings", () => {
     saveSettings()
   }
 
+  const mentionSound = computed(() => settings.value.mentionSound)
+  const mentionSoundVolume = computed(() => settings.value.mentionSoundVolume)
+
+  const setMentionSound = (value: boolean): void => {
+    settings.value.mentionSound = value
+    saveSettings()
+  }
+
+  const mentionTaskbarFlash = computed(() => settings.value.mentionTaskbarFlash)
+
+  const setMentionTaskbarFlash = (value: boolean): void => {
+    settings.value.mentionTaskbarFlash = value
+    saveSettings()
+  }
+
+  const setMentionSoundVolume = (value: number): void => {
+    settings.value.mentionSoundVolume = Math.min(1, Math.max(0, value))
+    saveSettings()
+  }
+
   const setHotkey = (action: keyof HotkeysConfig, setting: HotkeySetting): void => {
     settings.value.hotkeys[action] = setting
     saveSettings()
@@ -120,6 +148,12 @@ export const useAppSettingsStore = defineStore("appSettings", () => {
     hasCustomHotkeys,
     reduceEmojiMotion,
     setReduceEmojiMotion,
+    mentionSound,
+    mentionSoundVolume,
+    setMentionSound,
+    setMentionSoundVolume,
+    mentionTaskbarFlash,
+    setMentionTaskbarFlash,
     loadSettings,
     saveSettings,
     setCloseToTray,

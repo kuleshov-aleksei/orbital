@@ -541,6 +541,11 @@ func (h *RoomHandler) DeleteRoom(w http.ResponseWriter, r *http.Request) {
 		if err := h.textChat.ReadState.DeleteRoom(roomID); err != nil {
 			log.Printf("Failed to delete read state of text channel %s: %v", roomID, err)
 		}
+		if h.textChat.Notify != nil {
+			if err := h.textChat.Notify.DeleteRoom(roomID); err != nil {
+				log.Printf("Failed to delete notification settings of text channel %s: %v", roomID, err)
+			}
+		}
 	}
 	// Disconnect anyone still in the LiveKit room.
 	if !room.IsText() && h.livekitService != nil {

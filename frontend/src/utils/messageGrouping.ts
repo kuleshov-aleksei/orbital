@@ -14,10 +14,17 @@ export interface GroupableMessage {
   reply_to_id: string | null
 }
 
-export type TimelineItem<M extends GroupableMessage> =
+/** A client-rendered line placed by time (e.g. "X pinned a message"). */
+export interface TimelineLine {
+  key: string
+  ts: number
+}
+
+export type TimelineItem<M extends GroupableMessage, L extends TimelineLine = TimelineLine> =
   | { kind: "day"; key: string; ts: number }
   | { kind: "new"; key: string }
   | { kind: "message"; key: string; message: M; compact: boolean }
+  | { kind: "line"; key: string; line: L }
 
 export function isSameLocalDay(a: number, b: number): boolean {
   const da = new Date(a)
@@ -46,16 +53,29 @@ export function isCompact(prev: GroupableMessage | undefined, cur: GroupableMess
  * Builds the rendered timeline from messages sorted oldest first.
  * `lastReadSeq` places the "New messages" divider above the first message
  * newer than it (null = no divider). The divider also breaks a group.
+ * `lines` are placed before the first message created after them (or at the
+ * end); lines older than the first message are left out. They break groups.
  */
-export function buildTimeline<M extends GroupableMessage>(
+export function buildTimeline<M extends GroupableMessage, L extends TimelineLine = TimelineLine>(
   messages: M[],
   lastReadSeq: number | null = null,
-): TimelineItem<M>[] {
-  const items: TimelineItem<M>[] = []
+  lines: L[] = [],
+): TimelineItem<M, L>[] {
+  const items: TimelineItem<M, L>[] = []
+  const pendingLines = [...lines].sort((a, b) => a.ts - b.ts)
+  let li = 0
+  if (messages.length) {
+    while (li < pendingLines.length && pendingLines[li].ts < messages[0].created_at_ts) li++
+  }
   let prev: M | undefined
   let dividerPlaced = lastReadSeq === null
   for (const message of messages) {
     let breakGroup = false
+    while (li < pendingLines.length && pendingLines[li].ts <= message.created_at_ts && prev) {
+      const line = pendingLines[li++]
+      items.push({ kind: "line", key: line.key, line })
+      breakGroup = true
+    }
     if (!prev || !isSameLocalDay(prev.created_at_ts, message.created_at_ts)) {
       items.push({ kind: "day", key: `day-${message.id}`, ts: message.created_at_ts })
       breakGroup = true
@@ -75,6 +95,9 @@ export function buildTimeline<M extends GroupableMessage>(
       compact: !breakGroup && isCompact(prev, message),
     })
     prev = message
+  }
+  for (; li < pendingLines.length; li++) {
+    items.push({ kind: "line", key: pendingLines[li].key, line: pendingLines[li] })
   }
   return items
 }

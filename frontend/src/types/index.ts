@@ -112,6 +112,9 @@ export type WebSocketMessageType =
   | "text_message_edit"
   | "text_message_delete"
   | "text_channel_read"
+  | "text_reaction_toggle"
+  | "text_pin"
+  | "text_typing"
 
 export interface WebSocketMessage {
   type: WebSocketMessageType
@@ -571,6 +574,7 @@ export interface ElectronAPI {
   getPlatform: () => Promise<NodeJS.Platform>
   getSystemInfo: () => Promise<ElectronSystemInfoData>
   minimizeWindow: () => void
+  flashWindow?: () => void
   maximizeWindow: () => void
   closeWindow: () => void
   onDeepLink: (callback: (url: string) => void) => void

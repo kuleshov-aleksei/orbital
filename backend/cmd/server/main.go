@@ -72,6 +72,7 @@ func main() {
 	var pumpkinAssetService *service.PumpkinAssetService
 	var rbacRepo *repository.RBACRepository
 	var textReadState chatstore.ReadStateStore
+	var textNotify chatstore.NotifyStore
 
 	if cfg.Database.Path != "" {
 		db, err := storage.NewDB(cfg.Database.Path)
@@ -94,6 +95,7 @@ func main() {
 		qrLoginRepo = repository.NewQRLoginRepository(db)
 		rbacRepo = repository.NewRBACRepository(db)
 		textReadState = repository.NewTextReadStateRepository(db)
+		textNotify = repository.NewTextNotifyRepository(db)
 
 		// Initialize services with repositories
 		categoryService = service.NewCategoryService(categoryRepo)
@@ -211,8 +213,12 @@ func main() {
 			}
 			return ids
 		})
-		textChat = &websocket.TextChat{Store: store, ReadState: textReadState}
+		textChat = &websocket.TextChat{
+			Store: store, ReadState: textReadState, Notify: textNotify,
+			UserExists: func(id string) bool { return userLookup(id) != nil },
+		}
 		wsHub.SetTextChat(textChat)
+		wsHub.StartMuteExpiry(context.Background())
 		log.Printf("Text channels enabled (Meilisearch at %s, index %s)", cfg.Chat.MeiliURL, cfg.Chat.MeiliIndex)
 	} else {
 		log.Println("MEILI_URL is not set, text channels are disabled")
@@ -396,10 +402,26 @@ func main() {
 
 	// Text channels: reads over REST (VIEW_ROOM checked per request), writes over WebSocket.
 	if textChat != nil {
-		textChatHandler := handlers.NewTextChatHandler(textChat.Store, textChat.ReadState, roomService, permissionService)
+		textChatHandler := handlers.NewTextChatHandler(handlers.TextChatDeps{
+			Store: textChat.Store, ReadState: textChat.ReadState, Notify: textChat.Notify,
+			RoomService: roomService, Permissions: permissionService, Events: wsHub,
+			Users: func() []*models.User {
+				if userRepo == nil {
+					return nil
+				}
+				users, err := userRepo.GetAll()
+				if err != nil {
+					log.Printf("[TextChat] Failed to list users for search: %v", err)
+				}
+				return users
+			},
+		})
 		r.Handle("/api/rooms/{id}/messages", auth(http.HandlerFunc(textChatHandler.GetMessages))).Methods("GET")
 		r.Handle("/api/messages/{id}/context", auth(http.HandlerFunc(textChatHandler.GetMessageContext))).Methods("GET")
 		r.Handle("/api/chat/unread", auth(http.HandlerFunc(textChatHandler.GetUnread))).Methods("GET")
+		r.Handle("/api/chat/search", auth(http.HandlerFunc(textChatHandler.Search))).Methods("GET")
+		r.Handle("/api/rooms/{id}/pins", auth(http.HandlerFunc(textChatHandler.GetPins))).Methods("GET")
+		r.Handle("/api/rooms/{id}/notify", auth(http.HandlerFunc(textChatHandler.SetNotify))).Methods("PUT")
 	}
 
 	// Category routes

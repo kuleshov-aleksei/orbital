@@ -42,6 +42,24 @@
           <div class="flex-1 h-px bg-red-500/70" />
           <span>New messages</span>
         </div>
+        <div
+          v-else-if="item.kind === 'line'"
+          class="flex items-center gap-2 px-4 py-1 ml-[52px] text-xs text-theme-text-muted"
+          data-testid="pin-system-line">
+          <PhPushPin class="w-3.5 h-3.5 flex-shrink-0" weight="fill" />
+          <span>
+            <span class="font-semibold" :style="permissionsStore.nameStyleOf(item.line.user_id)">{{
+              nameOf(item.line.user_id)
+            }}</span>
+            pinned
+            <button
+              type="button"
+              class="font-semibold text-theme-text-secondary hover:underline"
+              @click="textChatStore.jumpToMessage(roomId, item.line.message_id)">
+              a message</button
+            >.
+          </span>
+        </div>
         <MessageItem
           v-else
           :message="item.message"
@@ -54,6 +72,10 @@
           :editing="textChatStore.editingId === item.message.id"
           :pending-status="pendingById.get(item.message.id)?.status ?? null"
           :pending-error="pendingById.get(item.message.id)?.error"
+          :my-user-id="myUserId"
+          @react="(emoji) => textChatStore.toggleReaction(item.message.id, emoji)"
+          @add-reaction="(e) => openReactionPicker(item.message.id, e)"
+          @pin="(pinned) => textChatStore.setPinned(item.message.id, pinned)"
           @reply="textChatStore.startReply(item.message)"
           @edit="textChatStore.startEdit(item.message.id)"
           @delete="(skip) => requestDelete(item.message, skip)"
@@ -93,6 +115,15 @@
       <PhArrowDown class="w-3.5 h-3.5" />
     </button>
 
+    <Teleport v-if="reactionPicker" to="body">
+      <div class="fixed inset-0 z-40" @pointerdown="closeReactionPicker" />
+      <div
+        class="fixed z-50 w-[320px]"
+        :style="{ top: `${reactionPicker.top}px`, left: `${reactionPicker.left}px` }">
+        <EmojiPicker @select="pickReaction" @close="closeReactionPicker" />
+      </div>
+    </Teleport>
+
     <DeleteMessageModal
       v-if="deleting"
       :message="deleting"
@@ -103,8 +134,10 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from "vue"
-import { PhArrowDown, PhHash, PhSpinner } from "@phosphor-icons/vue"
+import { PhArrowDown, PhHash, PhPushPin, PhSpinner } from "@phosphor-icons/vue"
 import EmojiText from "@/components/common/EmojiText.vue"
+import EmojiPicker from "@/components/EmojiPicker.vue"
+import { usePermissionsStore, useUsersStore } from "@/stores"
 import MessageItem from "./MessageItem.vue"
 import DeleteMessageModal from "./DeleteMessageModal.vue"
 import { useTextChatStore, type ChannelView, type PendingTextMessage } from "@/stores/textChat"
@@ -122,6 +155,12 @@ const props = defineProps<{
 }>()
 
 const textChatStore = useTextChatStore()
+const permissionsStore = usePermissionsStore()
+const usersStore = useUsersStore()
+
+function nameOf(userId: string): string {
+  return usersStore.allUsers.find((u) => u.id === userId)?.nickname ?? "Unknown user"
+}
 const scroller = useTemplateRef<HTMLDivElement>("scroller")
 const divider = useTemplateRef<HTMLDivElement[]>("divider")
 
@@ -152,8 +191,17 @@ const pendingAsMessages = computed<TextMessage[]>(() =>
 )
 const pendingById = computed(() => new Map(props.pending.map((p) => [p.nonce, p])))
 
+// Pin lines only make sense next to the newest messages.
+const systemLines = computed(() =>
+  props.view.hasMoreAfter ? [] : (textChatStore.systemLines[props.roomId] ?? []),
+)
+
 const timeline = computed(() =>
-  buildTimeline([...props.view.messages, ...pendingAsMessages.value], props.view.dividerSeq),
+  buildTimeline(
+    [...props.view.messages, ...pendingAsMessages.value],
+    props.view.dividerSeq,
+    systemLines.value,
+  ),
 )
 
 function repliedOf(id: string): TextMessage | undefined {
@@ -283,6 +331,7 @@ watch(
     props.view.messages.length,
     props.pending.length,
     props.view.messages[props.view.messages.length - 1]?.id,
+    systemLines.value.length,
   ],
   async () => {
     const stick = props.view.atBottom
@@ -308,6 +357,32 @@ onBeforeUnmount(() => {
 
 function jumpToPresent() {
   void textChatStore.jumpToPresent(props.roomId)
+}
+
+// --- Reactions -------------------------------------------------------------
+
+const PICKER_W = 320
+const PICKER_H = 380
+const reactionPicker = ref<{ messageId: string; top: number; left: number } | null>(null)
+
+function openReactionPicker(messageId: string, event: MouseEvent) {
+  const rect = (event.currentTarget as HTMLElement | null)?.getBoundingClientRect()
+  const x = rect ? rect.right - PICKER_W : event.clientX - PICKER_W
+  const y = rect ? rect.bottom + 4 : event.clientY
+  reactionPicker.value = {
+    messageId,
+    left: Math.max(8, Math.min(x, window.innerWidth - PICKER_W - 8)),
+    top: y + PICKER_H > window.innerHeight - 8 ? Math.max(8, (rect?.top ?? y) - PICKER_H - 4) : y,
+  }
+}
+
+function closeReactionPicker() {
+  reactionPicker.value = null
+}
+
+function pickReaction(emoji: string) {
+  if (reactionPicker.value) textChatStore.toggleReaction(reactionPicker.value.messageId, emoji)
+  closeReactionPicker()
 }
 
 // --- Delete ----------------------------------------------------------------

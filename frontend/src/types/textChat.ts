@@ -44,12 +44,43 @@ export interface TextHistoryCursor {
   limit?: number
 }
 
+export type TextNotifyMode = "all" | "no_mentions" | "muted"
+export type TextMuteDuration = "1h" | "4h" | "1d" | "1w" | "forever"
+
+/** muted_until is unix ms; null with mode "muted" means forever. */
+export interface TextNotifySetting {
+  mode: TextNotifyMode
+  muted_until: number | null
+}
+
 export interface TextUnreadChannel {
   room_id: string
   last_read_seq: number
   newest_seq: number
   mention_count: number
+  notify_mode: TextNotifyMode
+  muted_until: number | null
 }
+
+export interface TextPinsResponse {
+  messages: TextMessage[]
+}
+
+export interface TextSearchHit {
+  message: TextMessage
+  /** content_search with U+0001/U+0002 around matches; empty without free text. */
+  snippet: string
+}
+
+export interface TextSearchResponse {
+  hits: TextSearchHit[]
+  /** An estimate. */
+  total: number
+  hints: string[]
+  took_ms: number
+}
+
+export type TextSearchSort = "relevance" | "newest"
 
 export interface TextUnreadResponse {
   channels: TextUnreadChannel[]
@@ -78,6 +109,21 @@ export interface TextMessageDeletedEvent {
 export interface TextReadStateEvent {
   room_id: string
   last_read_seq: number
+}
+
+export interface TextMentionEvent {
+  room_id: string
+  message_id: string
+  sender_id: string
+}
+
+export interface TextNotifySettingsEvent extends TextNotifySetting {
+  room_id: string
+}
+
+export interface TextTypingEvent {
+  room_id: string
+  user_id: string
 }
 
 export type TextErrorCode =

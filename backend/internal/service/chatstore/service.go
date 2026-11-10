@@ -55,8 +55,12 @@ type Service struct {
 	newestMu sync.RWMutex
 	newest   map[string]int64
 
-	revertMu sync.RWMutex
-	onRevert func(Revert)
+	revertMu        sync.RWMutex
+	onRevert        func(Revert)
+	resolveMentions MentionResolver
+
+	// pinMu serializes pin changes so the per-channel limit holds.
+	pinMu sync.Mutex
 }
 
 // New creates a Service. Call Start to bootstrap it in the background.
@@ -221,7 +225,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*Message, error) 
 		return nil, err
 	}
 	var replyTo *string
-	mentions := []string{}
+	var replyPing []string
 	if in.ReplyToID != "" {
 		parent, err := s.lookup(ctx, in.ReplyToID)
 		if err != nil {
@@ -233,9 +237,10 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*Message, error) 
 		id := parent.ID
 		replyTo = &id
 		if in.ReplyPing && parent.SenderID != in.SenderID {
-			mentions = append(mentions, parent.SenderID)
+			replyPing = append(replyPing, parent.SenderID)
 		}
 	}
+	mentionUsers, mentionRoles := s.mentionsFor(in.RoomID, content, replyPing)
 
 	// Serialize creates so seq order equals enqueue order.
 	s.createMu.Lock()
@@ -254,7 +259,8 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*Message, error) 
 		ContentSearch:  SearchText(content),
 		CreatedAtTS:    now.UnixMilli(),
 		ReplyToID:      replyTo,
-		MentionUserIDs: mentions,
+		MentionUserIDs: mentionUsers,
+		MentionRoleIDs: mentionRoles,
 	}
 	msg.normalize()
 	task, err := s.eng.Add(ctx, msg)
@@ -316,10 +322,16 @@ func (s *Service) Edit(ctx context.Context, id, actorID, content string) (*Messa
 			return nil, nil
 		}
 		now := s.opts.Now().UnixMilli()
+		// Mentions follow the new text; a reply ping stays. Edits never ping.
+		users, roles := s.mentionsFor(m.RoomID, text, replyPinged(m))
 		m.Content = text
 		m.ContentSearch = SearchText(text)
 		m.EditedAtTS = &now
-		return map[string]any{"content": m.Content, "content_search": m.ContentSearch, "edited_at_ts": now}, nil
+		m.MentionUserIDs, m.MentionRoleIDs = users, roles
+		return map[string]any{
+			"content": m.Content, "content_search": m.ContentSearch, "edited_at_ts": now,
+			"mention_user_ids": users, "mention_role_ids": roles,
+		}, nil
 	})
 }
 

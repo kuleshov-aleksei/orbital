@@ -7,6 +7,10 @@
     <CustomEmojiUploadModal
       v-if="customEmojisStore.isUploadOpen"
       @close="customEmojisStore.isUploadOpen = false" />
+    <MuteChannelModal
+      v-if="textNotifyStore.muteModalRoomId"
+      :room-id="textNotifyStore.muteModalRoomId"
+      @close="textNotifyStore.closeMuteModal()" />
   </div>
 </template>
 
@@ -17,10 +21,12 @@ import {
   useAppStore,
   useCustomEmojisStore,
   useRoomStore,
+  useTextNotifyStore,
   useThemeStore,
   useUserStore,
 } from "@/stores"
 import CustomEmojiUploadModal from "@/components/emoji/CustomEmojiUploadModal.vue"
+import MuteChannelModal from "@/components/textchat/MuteChannelModal.vue"
 import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts"
 import { useThumbarButtons, useWebSocketHandlers } from "@/composables"
 import { isElectron, onDeepLink, onOAuthToken, setupMainProcessLogRelay } from "@/services/electron"
@@ -38,6 +44,7 @@ const appStore = useAppStore()
 const roomStore = useRoomStore()
 const themeStore = useThemeStore()
 const userStore = useUserStore()
+const textNotifyStore = useTextNotifyStore()
 const customEmojisStore = useCustomEmojisStore()
 
 useKeyboardShortcuts()

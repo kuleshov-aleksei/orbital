@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest"
-import { emojiOnlyCount, markupToPlain, parseMessage, type MarkupNode } from "./messageMarkup"
+import {
+  applyHighlights,
+  emojiOnlyCount,
+  markupToPlain,
+  parseMessage,
+  type MarkupNode,
+} from "./messageMarkup"
 
 /** Compact form for assertions: text as-is, containers as type(children). */
 function show(nodes: MarkupNode[]): string {
@@ -16,6 +22,8 @@ function show(nodes: MarkupNode[]): string {
           return `emoji(${n.shortcode})`
         case "mention":
           return `${n.kind}(${n.id})`
+        case "highlight":
+          return `[${n.text}]`
         default:
           return `${n.type}(${show(n.children)})`
       }
@@ -86,5 +94,44 @@ describe("emojiOnlyCount", () => {
     ["", 0],
   ])("%s -> %d", (input, expected) => {
     expect(emojiOnlyCount(parseMessage(input))).toBe(expected)
+  })
+})
+
+describe("applyHighlights", () => {
+  it("splits search markers into highlight nodes across formatting", () => {
+    const nodes = applyHighlights(
+      parseMessage("say \u0001hel\u0002lo **bo\u0001ld\u0002** \u0001x"),
+    )
+    expect(nodes).toEqual([
+      { type: "text", text: "say " },
+      { type: "highlight", text: "hel" },
+      { type: "text", text: "lo " },
+      {
+        type: "bold",
+        children: [
+          { type: "text", text: "bo" },
+          { type: "highlight", text: "ld" },
+        ],
+      },
+      { type: "text", text: " " },
+      { type: "highlight", text: "x" },
+    ])
+  })
+
+  it("strips markers from links", () => {
+    const nodes = applyHighlights(parseMessage("see https://x.io/\u0001doc\u0002 ok"))
+    expect(markupToPlain(nodes)).toBe("see https://x.io/doc ok")
+    const link = nodes.find((n) => n.type === "link")
+    expect(link && link.type === "link" && link.href).toBe("https://x.io/doc")
+  })
+})
+
+describe("mention tokens with real ids", () => {
+  it("parses padded base64 user ids", () => {
+    expect(parseMessage("hi <@qkUrdzLDoqslx8EEy2cM7Q==>!")).toEqual([
+      { type: "text", text: "hi " },
+      { type: "mention", kind: "user", id: "qkUrdzLDoqslx8EEy2cM7Q==" },
+      { type: "text", text: "!" },
+    ])
   })
 })

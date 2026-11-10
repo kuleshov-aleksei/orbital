@@ -70,5 +70,13 @@ type Engine interface {
 	// MaxSeq returns the highest seq ever stored, deleted messages included.
 	MaxSeq(ctx context.Context) (int64, error)
 
+	// Pins lists pinned, non-deleted messages of a room, newest pin first.
+	Pins(ctx context.Context, roomID string, limit int) ([]*Message, error)
+	// Search runs a search over non-deleted messages of req.RoomIDs.
+	Search(ctx context.Context, req SearchRequest) (*SearchResult, error)
+	// CountMentions counts non-deleted messages after AfterSeq that mention
+	// the user directly or through one of RoleIDs, per query.
+	CountMentions(ctx context.Context, qs []MentionCountQuery) ([]int, error)
+
 	Tasks(ctx context.Context, uids []int64) (map[int64]TaskStatus, error)
 }

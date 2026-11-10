@@ -145,8 +145,13 @@ func nonNilAttachments(a []map[string]any) []map[string]any {
 // frontend/src/services/emoji/inlineText.ts and handlers/roomhandler.go.
 var customEmojiTokenRe = regexp.MustCompile(`<:([\p{L}\p{N}_]{1,64}):[0-9a-f-]{36}>`)
 
-// mentionTokenRe matches "<@user_id>" and "<@&role_id>" (phase 2).
-var mentionTokenRe = regexp.MustCompile(`<@&?[A-Za-z0-9_-]{1,64}>`)
+// mentionIDChars are the characters of user and role ids in mention tokens:
+// user ids are padded URL-safe base64 ("…Wg=="); standard base64 is allowed
+// too. Keep in sync with frontend/src/utils/messageMarkup.ts MENTION_ID.
+const mentionIDChars = `[A-Za-z0-9_=+/-]{1,64}`
+
+// mentionTokenRe matches "<@user_id>" and "<@&role_id>".
+var mentionTokenRe = regexp.MustCompile(`<@&?` + mentionIDChars + `>`)
 
 // SearchText derives content_search: custom emoji become ":shortcode:" so
 // they can be searched, mention tokens are removed.

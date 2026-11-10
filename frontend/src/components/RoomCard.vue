@@ -44,9 +44,19 @@
               :text="room.name"
               pausable
               class="text-sm truncate"
-              :class="
-                isUnread && !isActive ? 'font-bold text-theme-text-primary' : 'font-medium'
-              " />
+              :class="[
+                isUnread && !isActive ? 'font-bold text-theme-text-primary' : 'font-medium',
+                notifyMode === 'muted' && !isActive ? 'opacity-50' : '',
+              ]" />
+            <PhBellSlash
+              v-if="notifyMode === 'muted'"
+              class="w-3 h-3 flex-shrink-0 opacity-70"
+              aria-label="Muted"
+              data-testid="text-channel-muted" />
+            <PhBellSimpleSlash
+              v-else-if="notifyMode === 'no_mentions'"
+              class="w-3 h-3 flex-shrink-0 opacity-70"
+              aria-label="Mentions off" />
             <PhLock
               v-if="isLocked"
               class="w-3 h-3 flex-shrink-0"
@@ -59,7 +69,14 @@
           </div>
 
           <span
-            v-if="room.type === 'text'"
+            v-if="room.type === 'text' && mentionCount > 0"
+            class="ml-2 min-w-[1.25rem] h-5 px-1.5 rounded-full bg-red-500 text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0"
+            data-testid="text-channel-mentions"
+            :aria-label="`${mentionCount} unread ${mentionCount === 1 ? 'mention' : 'mentions'}`"
+            >{{ mentionCount > 99 ? "99+" : mentionCount }}</span
+          >
+          <span
+            v-else-if="room.type === 'text'"
             v-show="isUnread && !isActive"
             class="ml-2 w-2 h-2 rounded-full bg-theme-text-primary flex-shrink-0"
             data-testid="text-channel-unread"
@@ -136,6 +153,8 @@ import {
   PhVideoCamera,
   PhLock,
   PhHash,
+  PhBellSlash,
+  PhBellSimpleSlash,
 } from "@phosphor-icons/vue"
 import UserAvatar from "./UserAvatar.vue"
 import UserContextMenu from "./UserContextMenu.vue"
@@ -146,6 +165,8 @@ const props = withDefaults(defineProps<Props>(), {
   isDraggable: true,
   isLocked: false,
   isUnread: false,
+  notifyMode: "all",
+  mentionCount: 0,
 })
 
 const emit = defineEmits<{
@@ -170,6 +191,8 @@ interface Props {
   isLocked?: boolean
   /** Text channel with messages newer than the read position. */
   isUnread?: boolean
+  notifyMode?: "all" | "no_mentions" | "muted"
+  mentionCount?: number
 }
 
 const showContextMenu = (event: MouseEvent) => {

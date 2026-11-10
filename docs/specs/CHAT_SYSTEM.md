@@ -1,6 +1,6 @@
 # Chat System Spec: Text Channels
 
-Status: **Phase 1 implemented** (2026-11-10); phases 2–4 pending. See §13 for what shipped.
+Status: **Phases 1–2 implemented** (2026-11-10); phases 3–4 pending. See §13 for what shipped.
 Date: 2026-11-10
 Prototype: `experiments/chat-search/` (its README covers how to run it and the raw numbers)
 Related: `docs/specs/MEILI_RELEASE_BACKUP.md` (backups as a deploy step, a separate piece of work)
@@ -601,13 +601,27 @@ Original plan:
   - optimistic send.
 - Tests: §9 denied paths, seq monotonicity, overlay merge, edit vs reaction concurrency, `kill -9` durability, and grouping rule unit tests.
 
-**Phase 2: mentions, reactions, pins, search**
-- Mention tokens, autocomplete, pings and the mention sound, mention badges.
-- Reactions.
-- Pins (ManageMessages) and the pins panel.
-- Notification settings: modes, mute-duration modal, server-side suppression, expiry push.
-- Search parser and endpoint, search UI with chips and the results panel, jump to a result.
-- Typing indicator (optional).
+**Phase 2: mentions, reactions, pins, search** — implemented, including the typing indicator. Notes:
+- Backend:
+  - `chatstore`: `mentions.go` (`ParseMentions`, `MentionResolver`, cap 20, the reply ping survives edits), `reactions.go` (`ToggleReaction`, `SetPinned`, `Pins`), `query.go` (`ParseQuery`, `TimeBounds`), `search.go` (`Search`, `MentionCounts`), `notify.go` (`NotifyStore`, lazy expiry).
+  - `repository/textnotify.go` with migration 43 (`text_notify_settings`).
+  - `websocket/textchat_*.go`, one file per role (`textchat.go` holds the wiring and shared helpers): `textchat_messages.go` (send/edit/delete/read), `textchat_mentions.go` (mention fan-out, `mentionTargets`), `textchat_reactions.go` (`text_reaction_toggle`), `textchat_pins.go` (`text_pin`), `textchat_typing.go` (`text_typing`), `textchat_notify.go` (`StartMuteExpiry`, a 10 s ticker that deletes expired mutes and pushes `text_notify_settings`).
+  - `handlers/textchat*.go`, also one file per role: `textchathandler.go` (type, deps, shared helpers), `textchatmessages.go` (history, context, pins), `textchatunread.go`, `textchatnotify.go`, `textchatsearch.go`.
+- **Mention token ids are padded URL-safe base64** (`…Wg==`), so the token charset is `[A-Za-z0-9_=+/-]` (`chatstore.mentionIDChars`, frontend `MENTION_ID`). Unit tests with short ids did not catch this; the live check did.
+- `has:` returns no results plus a hint until phase 3.
+- Pin system lines are client-rendered: the client derives them from `text_message_updated` when `pinned_at_ts` is fresh (< 60 s).
+- Mention badges: the client counts live `text_mention` events exactly. The count loaded from `/api/chat/unread` is dropped as soon as the read position moves, and the next unread fetch recounts.
+- The mention sound is synthesized with Web Audio (`playMention` in `services/sounds.ts`), so it needs no asset and is independent of the sound pack. The toggle and volume are under Settings → Sounds. Electron flashes the taskbar through the new `flash-window` IPC (older desktop builds ignore it); it can be turned off under Settings → Application → "Flash taskbar on mentions".
+- Frontend:
+  - stores `textNotify.ts` and `textSearch.ts`;
+  - `components/textchat/*`: ReactionBar, ComposerSuggestions (`@` and `:` autocomplete), ChannelNotifyMenu/Options, MuteChannelModal (mounted in `App.vue`), PinsPanel, SearchBox, SearchPanel, TypingIndicator;
+  - `utils/mentionText.ts` (the textarea shows `@Name`, the model holds tokens);
+  - `applyHighlights` in `utils/messageMarkup.ts`.
+- Live check: `make e2e-textchat` (`scripts/e2e-textchat.sh` + `.mjs`; throwaway backend, database and index).
+- Tests:
+  - tests sit next to the file they cover (`chatstore/{mentions,reactions,query,search,notify}_test.go`, `websocket/textchat_*_test.go`, `handlers/textchat*_test.go`): the §9 denied paths for search, pins, react, pin, system roles, hidden-channel mentions, mute suppression and expiry;
+  - the integration test covers search (prefix, typo, filters), pins and mention counts against real Meilisearch;
+  - frontend: `mentionText.test.ts`, `textNotify.test.ts`, plus highlight and system-line cases.
 
 **Phase 3: attachments**
 - S3 client (needs approval), bucket, upload endpoint, sniffing, thumbnails, presigned delivery, garbage collection, quotas.

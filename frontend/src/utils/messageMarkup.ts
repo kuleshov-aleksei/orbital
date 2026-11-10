@@ -17,6 +17,8 @@ export type MarkupNode =
   | { type: "link"; href: string; text: string }
   | { type: "emoji"; id: string; shortcode: string }
   | { type: "mention"; kind: "user" | "role"; id: string }
+  /** A search match (see applyHighlights). */
+  | { type: "highlight"; text: string }
 
 type Container = "bold" | "italic" | "strike" | "spoiler"
 
@@ -30,7 +32,13 @@ const MARKERS: Array<{ marker: string; type: Container }> = [
 
 const ESCAPABLE = new Set(["*", "_", "~", "|", "\\", "<"])
 const EMOJI_RE = /^<:([\p{L}\p{N}_]{1,64}):([0-9a-f-]{36})>/u
-const MENTION_RE = /^<@(&?)([A-Za-z0-9_-]{1,64})>/
+/**
+ * Characters of user/role ids in mention tokens. User ids are padded
+ * URL-safe base64 ("…Wg=="). Keep in sync with the backend
+ * chatstore.mentionIDChars.
+ */
+export const MENTION_ID = "[A-Za-z0-9_=+/-]{1,64}"
+const MENTION_RE = new RegExp(`^<@(&?)(${MENTION_ID})>`)
 const URL_RE = /^https?:\/\/[^\s<>]+/i
 // Trailing punctuation is usually sentence punctuation, not part of the URL.
 const URL_TRAILING_RE = /[.,:;!?'")\]}*~|]+$/
@@ -182,6 +190,7 @@ export function markupToPlain(
         out += " "
         break
       case "link":
+      case "highlight":
         out += n.text
         break
       case "emoji":
@@ -245,4 +254,58 @@ function countGraphemes(s: string): number {
     return Array.from(new Segmenter(undefined, { granularity: "grapheme" }).segment(s)).length
   }
   return Array.from(s).length
+}
+
+/** Search snippet markers (backend chatstore.HighlightPre/Post). */
+export const HIGHLIGHT_PRE = "\u0001"
+export const HIGHLIGHT_POST = "\u0002"
+
+function stripMarkers(text: string): string {
+  return text.split(HIGHLIGHT_PRE).join("").split(HIGHLIGHT_POST).join("")
+}
+
+/**
+ * Turns search snippet markers into highlight nodes, after parsing (so the
+ * markers never interact with formatting). A match may span formatting:
+ * the open/closed state carries across nodes.
+ */
+export function applyHighlights(nodes: MarkupNode[]): MarkupNode[] {
+  let open = false
+  const walk = (list: MarkupNode[]): MarkupNode[] => {
+    const out: MarkupNode[] = []
+    for (const n of list) {
+      if (n.type === "text") {
+        let buf = ""
+        const flush = () => {
+          if (buf) out.push(open ? { type: "highlight", text: buf } : { type: "text", text: buf })
+          buf = ""
+        }
+        for (const ch of n.text) {
+          if (ch === HIGHLIGHT_PRE || ch === HIGHLIGHT_POST) {
+            flush()
+            open = ch === HIGHLIGHT_PRE
+          } else {
+            buf += ch
+          }
+        }
+        flush()
+      } else if (n.type === "link") {
+        // Links are not split; the marker state continues after them.
+        const lastPre = n.text.lastIndexOf(HIGHLIGHT_PRE)
+        const lastPost = n.text.lastIndexOf(HIGHLIGHT_POST)
+        if (lastPre !== lastPost) open = lastPre > lastPost
+        out.push({
+          type: "link",
+          href: stripMarkers(n.href),
+          text: stripMarkers(n.text),
+        })
+      } else if ("children" in n) {
+        out.push({ ...n, children: walk(n.children) })
+      } else {
+        out.push(n)
+      }
+    }
+    return out
+  }
+  return walk(nodes)
 }

@@ -1,4 +1,4 @@
-.PHONY: help install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-backend test-integration meili-up meili-down test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all balance-drift balance-check
+.PHONY: help install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-backend test-integration e2e-textchat meili-up meili-down test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all balance-drift balance-check
 
 # Default target
 help:
@@ -14,6 +14,7 @@ help:
 	@echo "  test-unit         - Run frontend unit tests (Vitest)"
 	@echo "  test-backend      - Run backend Go unit tests (hermetic, what PR CI runs)"
 	@echo "  test-integration  - Run backend integration tests against Meilisearch (starts it)"
+	@echo "  e2e-textchat      - Live text channel check on a throwaway backend + index (starts Meilisearch)"
 	@echo "  meili-up          - Start the dev Meilisearch container (text channels)"
 	@echo "  meili-down        - Stop the dev Meilisearch container"
 	@echo "  test-e2e-docker   - Run Playwright e2e tests in Docker"
@@ -192,6 +193,12 @@ test-integration: meili-up
 	@echo "Running backend integration tests..."
 	cd backend && MEILI_TEST_URL=$(MEILI_TEST_URL) MEILI_TEST_KEY=$(MEILI_TEST_KEY) \
 		go test -count=1 -tags integration -run Integration ./...
+
+# Live text channel check: throwaway backend (own DB + index) driven over
+# REST/WS by scripts/e2e-textchat.mjs. Run it after chatstore or text chat
+# WebSocket/handler changes; it is not part of PR CI.
+e2e-textchat: meili-up
+	@MEILI_URL=$(MEILI_TEST_URL) MEILI_KEY=$(MEILI_TEST_KEY) bash scripts/e2e-textchat.sh
 
 # Run frontend unit tests
 test-unit:

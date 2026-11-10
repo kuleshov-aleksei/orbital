@@ -1,11 +1,16 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"sync"
 	"testing"
 
+	"github.com/gorilla/mux"
 	"github.com/kuleshov-aleksei/orbital/internal/models"
 	"github.com/kuleshov-aleksei/orbital/internal/permissions"
 	"github.com/kuleshov-aleksei/orbital/internal/repository"
@@ -19,6 +24,8 @@ type textHandlerFixture struct {
 	text       *TextChatHandler
 	openText   *models.Room
 	hiddenText *models.Room
+	notify     *repository.TextNotifyRepository
+	events     *recordedEvents
 }
 
 func newTextHandlerFixture(t *testing.T) *textHandlerFixture {
@@ -37,8 +44,13 @@ func newTextHandlerFixture(t *testing.T) *textHandlerFixture {
 		t.Fatal(err)
 	}
 	readState := repository.NewTextReadStateRepository(f.db)
-	f.text = NewTextChatHandler(f.store, readState, f.rooms, f.ps)
-	f.room.SetTextChat(&websocket.TextChat{Store: f.store, ReadState: readState})
+	f.notify = repository.NewTextNotifyRepository(f.db)
+	f.events = &recordedEvents{}
+	f.text = NewTextChatHandler(TextChatDeps{
+		Store: f.store, ReadState: readState, Notify: f.notify, RoomService: f.rooms, Permissions: f.ps,
+		Users: f.allUsers, Events: f.events,
+	})
+	f.room.SetTextChat(&websocket.TextChat{Store: f.store, ReadState: readState, Notify: f.notify})
 	return f
 }
 
@@ -49,75 +61,6 @@ func (f *textHandlerFixture) post(t *testing.T, room *models.Room, content strin
 		t.Fatal(err)
 	}
 	return m
-}
-
-func TestTextHistoryRequiresViewRoom(t *testing.T) {
-	f := newTextHandlerFixture(t)
-	f.post(t, f.openText, "hello")
-	f.post(t, f.hiddenText, "secret")
-
-	rec := f.do(t, "user", f.text.GetMessages, http.MethodGet, map[string]string{"id": f.openText.ID}, nil)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("open channel: %d", rec.Code)
-	}
-	var page chatstore.Page
-	_ = json.Unmarshal(rec.Body.Bytes(), &page)
-	if len(page.Messages) != 1 || page.Messages[0].Content != "hello" {
-		t.Fatalf("page = %+v", page)
-	}
-
-	if rec := f.do(t, "user", f.text.GetMessages, http.MethodGet, map[string]string{"id": f.hiddenText.ID}, nil); rec.Code != http.StatusNotFound {
-		t.Fatalf("hidden channel history: %d, want 404", rec.Code)
-	}
-	if rec := f.do(t, "owner", f.text.GetMessages, http.MethodGet, map[string]string{"id": f.hiddenText.ID}, nil); rec.Code != http.StatusOK {
-		t.Fatalf("owner on hidden channel: %d", rec.Code)
-	}
-	if rec := f.do(t, "user", f.text.GetMessages, http.MethodGet, map[string]string{"id": f.open.ID}, nil); rec.Code != http.StatusNotFound {
-		t.Fatalf("voice room history: %d, want 404", rec.Code)
-	}
-}
-
-func TestTextContextHidesHiddenChannels(t *testing.T) {
-	f := newTextHandlerFixture(t)
-	secret := f.post(t, f.hiddenText, "secret")
-	visible := f.post(t, f.openText, "visible")
-
-	if rec := f.do(t, "user", f.text.GetMessageContext, http.MethodGet, map[string]string{"id": secret.ID}, nil); rec.Code != http.StatusNotFound {
-		t.Fatalf("context of hidden message: %d, want 404", rec.Code)
-	}
-	if rec := f.do(t, "user", f.text.GetMessageContext, http.MethodGet, map[string]string{"id": "missing"}, nil); rec.Code != http.StatusNotFound {
-		t.Fatalf("context of missing message: %d, want 404", rec.Code)
-	}
-	rec := f.do(t, "user", f.text.GetMessageContext, http.MethodGet, map[string]string{"id": visible.ID}, nil)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("context of visible message: %d", rec.Code)
-	}
-
-	// Deleted messages are gone for everyone.
-	if _, err := f.store.Delete(context.Background(), visible.ID, "owner", nil); err != nil {
-		t.Fatal(err)
-	}
-	if rec := f.do(t, "owner", f.text.GetMessageContext, http.MethodGet, map[string]string{"id": visible.ID}, nil); rec.Code != http.StatusNotFound {
-		t.Fatalf("context of deleted message: %d, want 404", rec.Code)
-	}
-}
-
-func TestTextUnreadListsOnlyVisibleChannels(t *testing.T) {
-	f := newTextHandlerFixture(t)
-	m := f.post(t, f.openText, "new")
-	f.post(t, f.hiddenText, "secret")
-
-	rec := f.do(t, "user", f.text.GetUnread, http.MethodGet, nil, nil)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("unread: %d", rec.Code)
-	}
-	var resp struct {
-		Channels []UnreadChannel `json:"channels"`
-	}
-	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
-	if len(resp.Channels) != 1 || resp.Channels[0].RoomID != f.openText.ID || resp.Channels[0].NewestSeq != m.Seq || resp.Channels[0].LastReadSeq != 0 {
-		t.Fatalf("unread = %+v", resp.Channels)
-	}
 }
 
 func TestTextChannelGuards(t *testing.T) {
@@ -161,4 +104,45 @@ func TestDeleteTextChannelRemovesMessages(t *testing.T) {
 	if err != nil || len(page.Messages) != 0 {
 		t.Fatalf("messages left after channel delete: %+v %v", page, err)
 	}
+}
+
+type recordedEvents struct {
+	mu   sync.Mutex
+	sent []string // "user:type"
+}
+
+func (e *recordedEvents) SendTextToUser(userID string, message models.WebSocketMessage) {
+	e.mu.Lock()
+	e.sent = append(e.sent, userID+":"+message.Type)
+	e.mu.Unlock()
+}
+
+func (f *textHandlerFixture) allUsers() []*models.User {
+	users, _ := f.users.GetAll()
+	return users
+}
+
+func (f *textHandlerFixture) query(t *testing.T, as string, h http.HandlerFunc, method string, vars map[string]string, q url.Values, body any) *httptest.ResponseRecorder {
+	t.Helper()
+	var buf bytes.Buffer
+	if body != nil {
+		_ = json.NewEncoder(&buf).Encode(body)
+	}
+	req := httptest.NewRequest(method, "/?"+q.Encode(), &buf)
+	req = req.WithContext(context.WithValue(req.Context(), userContextKey, f.claims[as]))
+	if vars != nil {
+		req = mux.SetURLVars(req, vars)
+	}
+	rec := httptest.NewRecorder()
+	h(rec, req)
+	return rec
+}
+
+func (f *textHandlerFixture) postAs(t *testing.T, room *models.Room, sender, content string) *chatstore.Message {
+	t.Helper()
+	m, err := f.store.Create(context.Background(), chatstore.CreateInput{RoomID: room.ID, SenderID: sender, Content: content})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return m
 }

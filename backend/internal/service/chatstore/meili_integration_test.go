@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -66,14 +67,7 @@ func TestMeiliEngineIntegration(t *testing.T) {
 		t.Fatalf("history via overlay = %s", got)
 	}
 
-	deadline := time.Now().Add(10 * time.Second)
-	for s.PendingCount() > 0 {
-		if time.Now().After(deadline) {
-			t.Fatal("tasks did not finish")
-		}
-		time.Sleep(50 * time.Millisecond)
-		s.Flush(ctx)
-	}
+	waitFlushed(t, s)
 
 	page, err = s.History(ctx, HistoryQuery{RoomID: "r"})
 	if err != nil {
@@ -108,10 +102,59 @@ func TestMeiliEngineIntegration(t *testing.T) {
 		t.Fatalf("around = %+v, %v", around, err)
 	}
 
+	// Phase 2: reactions, pins, search, mention counts against real filters.
+	if _, err := s.ToggleReaction(ctx, parent.ID, "bob", "👍"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.SetPinned(ctx, parent.ID, "mod", true); err != nil {
+		t.Fatal(err)
+	}
+	mention, err := s.Create(ctx, CreateInput{RoomID: "r", SenderID: "bob", Content: "hey <@alice> and <@&mods> look at the квитанция"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFlushed(t, s)
+	pins, err := s.Pins(ctx, "r")
+	if err != nil || len(pins) != 1 || pins[0].ID != parent.ID || len(pins[0].Reactions) != 1 {
+		t.Fatalf("pins = %+v, %v", pins, err)
+	}
+	res, err := s.Search(ctx, SearchRequest{Text: "квитанци", RoomIDs: []string{"r", "other"}})
+	if err != nil || len(res.Hits) != 1 || res.Hits[0].Message.ID != mention.ID {
+		t.Fatalf("prefix search = %+v, %v", res, err)
+	}
+	if !strings.Contains(res.Hits[0].Snippet, HighlightPre) {
+		t.Fatalf("snippet without highlight: %q", res.Hits[0].Snippet)
+	}
+	res, err = s.Search(ctx, SearchRequest{Text: "квитонция", RoomIDs: []string{"r"}})
+	if err != nil || len(res.Hits) != 1 {
+		t.Fatalf("typo search = %+v, %v", res, err)
+	}
+	res, err = s.Search(ctx, SearchRequest{RoomIDs: []string{"r"}, SenderIDs: []string{"alice"}, Pinned: boolPtr(true)})
+	if err != nil || len(res.Hits) != 1 || res.Hits[0].Message.ID != parent.ID || res.Hits[0].Snippet != "" {
+		t.Fatalf("filter-only search = %+v, %v", res, err)
+	}
+	res, err = s.Search(ctx, SearchRequest{Text: "oops", RoomIDs: []string{"r"}})
+	if err != nil || len(res.Hits) != 0 {
+		t.Fatalf("deleted message found: %+v, %v", res, err)
+	}
+	res, err = s.Search(ctx, SearchRequest{Text: "квитанция", RoomIDs: []string{"other"}})
+	if err != nil || len(res.Hits) != 0 {
+		t.Fatalf("room filter leaked: %+v, %v", res, err)
+	}
+	counts, err := s.MentionCounts(ctx, []MentionCountQuery{
+		{RoomID: "r", UserID: "alice"},                                 // reply ping + direct
+		{RoomID: "r", AfterSeq: reply.Seq, UserID: "alice"},            // direct only
+		{RoomID: "r", UserID: "carol", RoleIDs: []string{"mods", "x"}}, // via role
+		{RoomID: "r", UserID: "bob", RoleIDs: []string{"mods"}},        // own messages excluded
+	})
+	if err != nil || fmt.Sprint(counts) != "[2 1 1 0]" {
+		t.Fatalf("mention counts = %v, %v", counts, err)
+	}
+
 	if err := s.DeleteRoom(ctx, "r"); err != nil {
 		t.Fatal(err)
 	}
-	deadline = time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(10 * time.Second)
 	for {
 		page, err = s.History(ctx, HistoryQuery{RoomID: "r"})
 		if err == nil && len(page.Messages) == 0 {
@@ -123,3 +166,17 @@ func TestMeiliEngineIntegration(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 	}
 }
+
+func waitFlushed(t *testing.T, s *Service) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for s.PendingCount() > 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("tasks did not finish")
+		}
+		time.Sleep(50 * time.Millisecond)
+		s.Flush(context.Background())
+	}
+}
+
+func boolPtr(b bool) *bool { return &b }

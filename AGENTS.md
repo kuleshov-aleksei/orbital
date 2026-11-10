@@ -91,6 +91,7 @@ Do not try to explore source code or write scripts to test them. Documentation f
 ### Code Quality
 - Run `make lint` before committing
 - `make lint` covers changed and untracked files; use `make lint-full` to lint all frontend sources
+- `make lint` runs ESLint with `--fix`, so it can rewrite (reformat) the files it checks. Re-read a file after linting before editing it again, or the next edit may not match.
 - Use meaningful variable and function names
 - Add comments for complex logic
 - Follow language-specific conventions
@@ -132,6 +133,7 @@ Types coming FROM backend to frontend should have **snake_case**. Do not follow 
 
 ### Testing
 - Write unit tests for business logic
+- **Use realistic IDs in tests.** User IDs are padded URL-safe base64 (`qkUrdzLDoqslx8EEy2cM7Q==`, from `generateUserID` in `backend/internal/service/authservice.go`); room IDs look like `20261110145113MiTbtB`. Fixtures such as `"alice"` hide parsing bugs: a mention token pattern of `[A-Za-z0-9_-]` passed every unit test and dropped every real mention. Any pattern or validator that accepts IDs must allow `=` (and `+`/`/` for standard base64).
 - Test LiveKit functionality in browsers
 - Test WebSocket connections
 - Use integration tests for API endpoints
@@ -157,6 +159,7 @@ Spec and decisions: [`docs/specs/CHAT_SYSTEM.md`](./docs/specs/CHAT_SYSTEM.md). 
 - Text channel WS events (`text_*`) go to the global socket only; listen with `wsService.onGlobal`.
 - **Never unmount the call view** (`VoiceCallView` / `SpatialWorldView`) to show something else: `useLiveKit` disconnects from LiveKit in `onUnmounted`. `MainContent.vue` keeps it mounted and hides it with `v-show` while a text channel is open.
 - Tests that need Meilisearch use the `integration` build tag and run with `make test-integration`; PR CI runs only `go test ./...` (unit tests).
+- `make e2e-textchat` runs a live REST/WebSocket check (`scripts/e2e-textchat.mjs`) against a throwaway backend with its own database and index, then cleans up. Run it after changes to `chatstore`, `websocket/textchat.go` or the text chat handlers.
 
 ### Electron Development
 - Electron desktop app is in the `electron/` directory
@@ -185,6 +188,7 @@ The project uses a Makefile for common operations:
 - `make test` - Run full test suite (Playwright e2e in Docker)
 - `make test-backend` - Run backend Go unit tests (what PR CI runs)
 - `make test-integration` - Run backend integration tests (starts Meilisearch via `make meili-up`)
+- `make e2e-textchat` - Live text channel check on a throwaway backend + Meilisearch index
 - `make test-headed` - Run tests in headed mode
 - `make docker-build` - Build Docker images
 - `make docker-up` - Run with Docker Compose

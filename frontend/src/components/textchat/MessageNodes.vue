@@ -2,6 +2,11 @@
   <template v-for="(node, i) in nodes" :key="i">
     <template v-if="node.type === 'text'">{{ node.text }}</template>
     <br v-else-if="node.type === 'br'" />
+    <mark
+      v-else-if="node.type === 'highlight'"
+      class="rounded-sm px-px bg-amber-400/30 text-theme-text-primary"
+      >{{ node.text }}</mark
+    >
     <strong v-else-if="node.type === 'bold'" class="font-semibold"
       ><MessageNodes :nodes="node.children" :emoji-size="emojiSize"
     /></strong>
@@ -32,6 +37,7 @@
     <span
       v-else-if="node.type === 'mention'"
       class="rounded px-0.5 bg-theme-accent/20 text-theme-accent font-medium"
+      :style="mentionStyle(node.kind, node.id)"
       >@{{ mentionName(node.kind, node.id) }}</span
     >
   </template>
@@ -55,6 +61,14 @@ function mentionName(kind: "user" | "role", id: string): string {
     return usersStore.allUsers.find((u) => u.id === id)?.nickname ?? "unknown-user"
   }
   return permissionsStore.roles.find((r) => r.id === id)?.name ?? "unknown-role"
+}
+
+// Role pills take the role colour (users keep the accent).
+function mentionStyle(kind: "user" | "role", id: string) {
+  if (kind !== "role") return undefined
+  const color = permissionsStore.roles.find((r) => r.id === id)?.color
+  if (!color) return undefined
+  return { color, backgroundColor: `color-mix(in srgb, ${color} 18%, transparent)` }
 }
 
 function openLink(event: MouseEvent, href: string) {

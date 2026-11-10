@@ -4,6 +4,7 @@ import { apiService } from "@/services/api"
 import { wsService } from "@/services/websocket"
 import { useRoomStore } from "./room"
 import { useUserStore } from "./user"
+import { useTextNotifyStore } from "./textNotify"
 import type {
   TextErrorEvent,
   TextHistoryPage,
@@ -12,6 +13,7 @@ import type {
   TextMessageNewEvent,
   TextMessageUpdatedEvent,
   TextReadStateEvent,
+  TextTypingEvent,
 } from "@/types/textChat"
 
 /** Messages kept in memory per channel; the far end is trimmed beyond this. */
@@ -19,6 +21,20 @@ export const MAX_MESSAGES_IN_MEMORY = 300
 const PAGE_SIZE = 50
 const READ_DEBOUNCE_MS = 1000
 const SEND_TIMEOUT_MS = 15000
+/** Client throttle for text_typing (the server allows one per 3 s). */
+const TYPING_SEND_MS = 3000
+/** How long "X is typing" shows without a new event. */
+const TYPING_SHOW_MS = 6000
+
+/** A client-rendered line such as "X pinned a message" (not stored). */
+export interface TextSystemLine {
+  key: string
+  kind: "pin"
+  room_id: string
+  user_id: string
+  message_id: string
+  ts: number
+}
 
 /** An optimistic message: shown dimmed until the server echoes its nonce. */
 export interface PendingTextMessage {
@@ -102,6 +118,14 @@ export const useTextChatStore = defineStore("textChat", () => {
   const replyTarget = ref<TextMessage | null>(null)
   const editingId = ref<string | null>(null)
   const lastError = ref<string | null>(null)
+  /** Pinned messages per channel, loaded when the pins panel opens. */
+  const pins = ref<Record<string, TextMessage[]>>({})
+  const pinsLoading = ref(false)
+  /** Right-side panel of the channel view. */
+  const sidePanel = ref<"pins" | "search" | null>(null)
+  const systemLines = ref<Record<string, TextSystemLine[]>>({})
+  /** room -> user -> time the indicator expires. */
+  const typing = ref<Record<string, Record<string, number>>>({})
 
   const activeChannel = computed(
     () => roomStore.rooms.find((r) => r.id === activeChannelId.value && r.type === "text") ?? null,
@@ -121,6 +145,7 @@ export const useTextChatStore = defineStore("textChat", () => {
   // --- Unread state -------------------------------------------------------
 
   function isUnread(roomId: string): boolean {
+    if (useTextNotifyStore().isMuted(roomId)) return false
     const s = readState.value[roomId]
     return !!s && s.newestSeq > s.lastReadSeq
   }
@@ -138,6 +163,7 @@ export const useTextChatStore = defineStore("textChat", () => {
         }
       }
       readState.value = next
+      useTextNotifyStore().applyUnread(resp.channels)
     } catch (error) {
       // 404 when text channels are disabled on the server: nothing to track.
       console.warn("[TextChat] Failed to load unread state:", error)
@@ -151,6 +177,7 @@ export const useTextChatStore = defineStore("textChat", () => {
     const s = readState.value[roomId] ?? { lastReadSeq: 0, newestSeq: seq }
     if (seq <= s.lastReadSeq) return
     readState.value[roomId] = { ...s, lastReadSeq: seq, newestSeq: Math.max(s.newestSeq, seq) }
+    useTextNotifyStore().onRead(roomId, seq)
     const existing = readTimers.get(roomId)
     if (existing) clearTimeout(existing)
     readTimers.set(
@@ -234,10 +261,21 @@ export const useTextChatStore = defineStore("textChat", () => {
     }
   }
 
+  /** Opens a channel scrolled to one message (search results, pins). */
+  async function openChannelAt(roomId: string, messageId: string) {
+    if (activeChannelId.value !== roomId) {
+      replyTarget.value = null
+      editingId.value = null
+    }
+    activeChannelId.value = roomId
+    await jumpToMessage(roomId, messageId)
+  }
+
   function closeChannel() {
     activeChannelId.value = null
     replyTarget.value = null
     editingId.value = null
+    sidePanel.value = null
   }
 
   async function loadOlder(roomId: string) {
@@ -415,6 +453,86 @@ export const useTextChatStore = defineStore("textChat", () => {
     wsService.sendGlobalMessage("text_message_delete", { message_id: messageId })
   }
 
+  function toggleReaction(messageId: string, emoji: string) {
+    wsService.sendGlobalMessage("text_reaction_toggle", { message_id: messageId, emoji })
+  }
+
+  function setPinned(messageId: string, pinned: boolean) {
+    wsService.sendGlobalMessage("text_pin", { message_id: messageId, pinned })
+  }
+
+  async function loadPins(roomId: string) {
+    pinsLoading.value = true
+    try {
+      const resp = await apiService.getTextPins(roomId)
+      pins.value[roomId] = resp.messages
+    } catch (error) {
+      console.warn("[TextChat] Failed to load pins:", error)
+      lastError.value = "Failed to load pinned messages."
+    } finally {
+      pinsLoading.value = false
+    }
+  }
+
+  function toggleSidePanel(panel: "pins" | "search") {
+    sidePanel.value = sidePanel.value === panel ? null : panel
+    const roomId = activeChannelId.value
+    if (sidePanel.value === "pins" && roomId) void loadPins(roomId)
+  }
+
+  function closeSidePanel() {
+    sidePanel.value = null
+  }
+
+  const lastTypingSent = new Map<string, number>()
+
+  /** Called on composer input; throttled. */
+  function notifyTyping(roomId: string) {
+    const now = Date.now()
+    if (now - (lastTypingSent.get(roomId) ?? 0) < TYPING_SEND_MS) return
+    lastTypingSent.set(roomId, now)
+    wsService.sendGlobalMessage("text_typing", { room_id: roomId })
+  }
+
+  const typingNow = ref(Date.now())
+  let typingTicker: ReturnType<typeof setInterval> | null = null
+
+  function ensureTypingTicker() {
+    if (typingTicker) return
+    typingTicker = setInterval(() => {
+      typingNow.value = Date.now()
+      let any = false
+      for (const [room, users] of Object.entries(typing.value)) {
+        for (const [user, until] of Object.entries(users)) {
+          if (until <= typingNow.value) delete typing.value[room][user]
+          else any = true
+        }
+        if (!Object.keys(typing.value[room]).length) delete typing.value[room]
+      }
+      if (!any && typingTicker) {
+        clearInterval(typingTicker)
+        typingTicker = null
+      }
+    }, 1000)
+  }
+
+  function onTyping(data: TextTypingEvent) {
+    if (data.user_id === userStore.userId) return
+    typing.value[data.room_id] = {
+      ...(typing.value[data.room_id] ?? {}),
+      [data.user_id]: Date.now() + TYPING_SHOW_MS,
+    }
+    ensureTypingTicker()
+  }
+
+  function typingUsers(roomId: string): string[] {
+    const users = typing.value[roomId]
+    if (!users) return []
+    return Object.entries(users)
+      .filter(([, until]) => until > typingNow.value)
+      .map(([id]) => id)
+  }
+
   const replyPing = ref(true)
 
   function startReply(message: TextMessage) {
@@ -449,6 +567,7 @@ export const useTextChatStore = defineStore("textChat", () => {
     }
     const s = readState.value[msg.room_id] ?? { lastReadSeq: 0, newestSeq: 0 }
     readState.value[msg.room_id] = { ...s, newestSeq: Math.max(s.newestSeq, msg.seq) }
+    if (typing.value[msg.room_id]?.[msg.sender_id]) delete typing.value[msg.room_id][msg.sender_id]
     if (msg.sender_id === userStore.userId) {
       // Your own message means you have read the channel up to it.
       markRead(msg.room_id, msg.seq)
@@ -465,11 +584,41 @@ export const useTextChatStore = defineStore("textChat", () => {
   }
 
   function onMessageUpdated(data: TextMessageUpdatedEvent) {
+    const msg = data.message
     forEachView((view) => {
       const i = view.messages.findIndex((m) => m.id === data.id)
-      if (i !== -1) view.messages[i] = data.message
-      if (view.replied[data.id]) view.replied[data.id] = data.message
+      if (i !== -1) view.messages[i] = msg
+      if (view.replied[data.id]) view.replied[data.id] = msg
     })
+    updatePins(msg)
+  }
+
+  function updatePins(msg: TextMessage) {
+    const list = pins.value[msg.room_id]
+    const wasPinned = list?.some((m) => m.id === msg.id) ?? false
+    if (list) {
+      const rest = list.filter((m) => m.id !== msg.id)
+      pins.value[msg.room_id] = msg.pinned
+        ? [msg, ...rest].sort((a, b) => (b.pinned_at_ts ?? 0) - (a.pinned_at_ts ?? 0))
+        : rest
+    }
+    // "X pinned a message": only for fresh pins, once per pin.
+    if (!msg.pinned || !msg.pinned_by || !msg.pinned_at_ts || wasPinned) return
+    if (Date.now() - msg.pinned_at_ts > 60_000) return
+    const key = `pin:${msg.id}:${msg.pinned_at_ts}`
+    const lines = systemLines.value[msg.room_id] ?? []
+    if (lines.some((l) => l.key === key)) return
+    systemLines.value[msg.room_id] = [
+      ...lines.slice(-19),
+      {
+        key,
+        kind: "pin",
+        room_id: msg.room_id,
+        user_id: msg.pinned_by,
+        message_id: msg.id,
+        ts: msg.pinned_at_ts,
+      },
+    ]
   }
 
   function onMessageDeleted(data: TextMessageDeletedEvent) {
@@ -478,6 +627,8 @@ export const useTextChatStore = defineStore("textChat", () => {
       delete view.replied[data.id]
       if (view.highlightId === data.id) view.highlightId = null
     })
+    const list = pins.value[data.room_id]
+    if (list) pins.value[data.room_id] = list.filter((m) => m.id !== data.id)
     if (replyTarget.value?.id === data.id) replyTarget.value = null
     if (editingId.value === data.id) editingId.value = null
   }
@@ -486,6 +637,7 @@ export const useTextChatStore = defineStore("textChat", () => {
     const s = readState.value[data.room_id] ?? { lastReadSeq: 0, newestSeq: data.last_read_seq }
     if (data.last_read_seq > s.lastReadSeq) {
       readState.value[data.room_id] = { ...s, lastReadSeq: data.last_read_seq }
+      useTextNotifyStore().onRead(data.room_id, data.last_read_seq)
     }
   }
 
@@ -526,7 +678,12 @@ export const useTextChatStore = defineStore("textChat", () => {
         if (!ids.has(id)) delete views.value[id]
       }
       for (const id of Object.keys(readState.value)) {
-        if (!ids.has(id)) delete readState.value[id]
+        if (!ids.has(id)) {
+          delete readState.value[id]
+          delete pins.value[id]
+          delete systemLines.value[id]
+          useTextNotifyStore().forgetRoom(id)
+        }
       }
       if (activeChannelId.value && !ids.has(activeChannelId.value) && roomStore.rooms.length) {
         closeChannel()
@@ -557,6 +714,10 @@ export const useTextChatStore = defineStore("textChat", () => {
     for (const t of sendTimers.values()) clearTimeout(t)
     sendTimers.clear()
     pending.value = []
+    pins.value = {}
+    systemLines.value = {}
+    typing.value = {}
+    useTextNotifyStore().reset()
   }
 
   return {
@@ -572,11 +733,17 @@ export const useTextChatStore = defineStore("textChat", () => {
     replyPing,
     editingId,
     lastError,
+    pins,
+    pinsLoading,
+    sidePanel,
+    systemLines,
+    typing,
     isUnread,
     loadUnread,
     markRead,
     markChannelRead,
     openChannel,
+    openChannelAt,
     closeChannel,
     loadOlder,
     loadNewer,
@@ -591,6 +758,14 @@ export const useTextChatStore = defineStore("textChat", () => {
     cancelReply,
     startEdit,
     cancelEdit,
+    toggleReaction,
+    setPinned,
+    loadPins,
+    toggleSidePanel,
+    closeSidePanel,
+    notifyTyping,
+    typingUsers,
+    onTyping,
     onMessageNew,
     onMessageUpdated,
     onMessageDeleted,

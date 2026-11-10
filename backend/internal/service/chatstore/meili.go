@@ -340,3 +340,121 @@ func (m *Meili) Tasks(ctx context.Context, uids []int64) (map[int64]TaskStatus, 
 func quote(s string) string {
 	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(s) + `"`
 }
+
+func (m *Meili) Pins(ctx context.Context, roomID string, limit int) ([]*Message, error) {
+	var resp searchResp
+	err := m.do(ctx, http.MethodPost, m.indexPath("/search"), map[string]any{
+		"q": "", "limit": limit, "sort": []string{"pinned_at_ts:desc"},
+		"filter": []string{"room_id = " + quote(roomID), "is_deleted = false", "pinned = true"},
+	}, &resp)
+	for _, msg := range resp.Hits {
+		msg.normalize()
+	}
+	return resp.Hits, err
+}
+
+func quoteList(ids []string) string {
+	parts := make([]string, len(ids))
+	for i, id := range ids {
+		parts[i] = quote(id)
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
+}
+
+// searchFilter builds the filter of a search; room and deletion filters are
+// always present.
+func searchFilter(req SearchRequest) []any {
+	f := []any{"room_id IN " + quoteList(req.RoomIDs), "is_deleted = false"}
+	if len(req.SenderIDs) > 0 {
+		f = append(f, "sender_id IN "+quoteList(req.SenderIDs))
+	}
+	if len(req.MentionUserIDs) > 0 {
+		f = append(f, "mention_user_ids IN "+quoteList(req.MentionUserIDs))
+	}
+	if req.FromTS > 0 {
+		f = append(f, fmt.Sprintf("created_at_ts >= %d", req.FromTS))
+	}
+	if req.ToTS > 0 {
+		f = append(f, fmt.Sprintf("created_at_ts < %d", req.ToTS))
+	}
+	if req.Pinned != nil {
+		f = append(f, fmt.Sprintf("pinned = %t", *req.Pinned))
+	}
+	return f
+}
+
+func (m *Meili) Search(ctx context.Context, req SearchRequest) (*SearchResult, error) {
+	body := map[string]any{
+		"q": req.Text, "filter": searchFilter(req), "limit": req.Limit, "offset": req.Offset,
+		"matchingStrategy": "all",
+	}
+	if req.Text != "" {
+		body["attributesToCrop"] = []string{"content_search"}
+		body["cropLength"] = 40
+		body["attributesToHighlight"] = []string{"content_search"}
+		body["highlightPreTag"] = HighlightPre
+		body["highlightPostTag"] = HighlightPost
+	}
+	if req.SortNewest || req.Text == "" {
+		body["sort"] = []string{"seq:desc"}
+	}
+	var resp struct {
+		Hits []struct {
+			Message
+			Formatted *struct {
+				ContentSearch string `json:"content_search"`
+			} `json:"_formatted"`
+		} `json:"hits"`
+		EstimatedTotalHits int `json:"estimatedTotalHits"`
+	}
+	if err := m.do(ctx, http.MethodPost, m.indexPath("/search"), body, &resp); err != nil {
+		return nil, err
+	}
+	out := &SearchResult{Total: resp.EstimatedTotalHits, Hits: make([]SearchHit, 0, len(resp.Hits))}
+	for i := range resp.Hits {
+		h := &resp.Hits[i]
+		msg := h.Message
+		msg.normalize()
+		hit := SearchHit{Message: &msg}
+		if h.Formatted != nil && req.Text != "" {
+			hit.Snippet = h.Formatted.ContentSearch
+		}
+		out.Hits = append(out.Hits, hit)
+	}
+	return out, nil
+}
+
+func (m *Meili) CountMentions(ctx context.Context, qs []MentionCountQuery) ([]int, error) {
+	out := make([]int, len(qs))
+	if len(qs) == 0 {
+		return out, nil
+	}
+	queries := make([]map[string]any, len(qs))
+	for i, q := range qs {
+		target := "mention_user_ids = " + quote(q.UserID)
+		if len(q.RoleIDs) > 0 {
+			target = "(" + target + " OR mention_role_ids IN " + quoteList(q.RoleIDs) + ")"
+		}
+		queries[i] = map[string]any{
+			"indexUid": m.index, "q": "", "limit": 0,
+			"filter": []string{
+				"room_id = " + quote(q.RoomID), "is_deleted = false",
+				fmt.Sprintf("seq > %d", q.AfterSeq), "sender_id != " + quote(q.UserID), target,
+			},
+		}
+	}
+	var resp struct {
+		Results []struct {
+			EstimatedTotalHits int `json:"estimatedTotalHits"`
+		} `json:"results"`
+	}
+	if err := m.do(ctx, http.MethodPost, "/multi-search", map[string]any{"queries": queries}, &resp); err != nil {
+		return nil, err
+	}
+	for i, r := range resp.Results {
+		if i < len(out) {
+			out[i] = r.EstimatedTotalHits
+		}
+	}
+	return out, nil
+}

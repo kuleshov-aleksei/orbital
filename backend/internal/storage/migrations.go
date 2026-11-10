@@ -495,6 +495,22 @@ UPDATE roles SET permissions = permissions | %d WHERE id = 'admin';`,
 			permissions.AttachFiles,
 			permissions.ManageMessages),
 	},
+	{
+		Version: 43,
+		Name:    "create_text_notify_settings",
+		// Per-user notification mode per text channel; no row = 'all'.
+		// muted_until is unix ms, NULL with mode 'muted' = forever.
+		SQL: `CREATE TABLE IF NOT EXISTS text_notify_settings (
+			user_id TEXT NOT NULL,
+			room_id TEXT NOT NULL,
+			mode TEXT NOT NULL CHECK (mode IN ('all','no_mentions','muted')),
+			muted_until INTEGER,
+			updated_at INTEGER NOT NULL,
+			PRIMARY KEY (user_id, room_id)
+		);
+CREATE INDEX IF NOT EXISTS idx_text_notify_settings_room ON text_notify_settings(room_id);
+CREATE INDEX IF NOT EXISTS idx_text_notify_settings_until ON text_notify_settings(muted_until) WHERE muted_until IS NOT NULL;`,
+	},
 }
 
 // RunMigrationsUpTo applies migrations up to and including maxVersion.

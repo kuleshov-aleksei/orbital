@@ -21,6 +21,12 @@ import type {
   TextHistoryPage,
   TextContextPage,
   TextUnreadResponse,
+  TextPinsResponse,
+  TextSearchResponse,
+  TextSearchSort,
+  TextNotifyMode,
+  TextMuteDuration,
+  TextNotifySetting,
 } from "@/types/textChat"
 import type {
   HalloweenGameConfig,
@@ -457,6 +463,32 @@ export const apiService = {
 
   async getTextUnread(): Promise<TextUnreadResponse> {
     return apiRequest<TextUnreadResponse>("/chat/unread")
+  },
+
+  async getTextPins(roomId: string): Promise<TextPinsResponse> {
+    return apiRequest<TextPinsResponse>(`/rooms/${encodeURIComponent(roomId)}/pins`)
+  },
+
+  async searchTextMessages(
+    q: string,
+    opts: { sort?: TextSearchSort; offset?: number; limit?: number; signal?: AbortSignal } = {},
+  ): Promise<TextSearchResponse> {
+    const params = new URLSearchParams({ q, tz: Intl.DateTimeFormat().resolvedOptions().timeZone })
+    if (opts.sort) params.set("sort", opts.sort)
+    if (opts.offset) params.set("offset", String(opts.offset))
+    if (opts.limit) params.set("limit", String(opts.limit))
+    return apiRequest<TextSearchResponse>(`/chat/search?${params}`, { signal: opts.signal })
+  },
+
+  async setTextNotify(
+    roomId: string,
+    mode: TextNotifyMode,
+    muteDuration?: TextMuteDuration,
+  ): Promise<TextNotifySetting> {
+    return apiRequest<TextNotifySetting>(`/rooms/${encodeURIComponent(roomId)}/notify`, {
+      method: "PUT",
+      body: JSON.stringify(mode === "muted" ? { mode, mute_duration: muteDuration } : { mode }),
+    })
   },
 
   // Get the latest desktop release (version + artifact URLs), resolved by
