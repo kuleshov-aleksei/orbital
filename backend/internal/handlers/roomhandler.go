@@ -42,6 +42,13 @@ type RoomHandler struct {
 	livekitService  *service.LiveKitService
 	permissions     *service.PermissionService
 	wsHub           *websocket.Hub
+	textChat        *websocket.TextChat // nil when text channels are disabled
+}
+
+// SetTextChat enables creating text channels and cleans up their messages
+// when they are deleted.
+func (h *RoomHandler) SetTextChat(tc *websocket.TextChat) {
+	h.textChat = tc
 }
 
 // NewRoomHandler creates a new RoomHandler
@@ -82,7 +89,15 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Type == "" {
-		req.Type = "voice"
+		req.Type = models.RoomTypeVoice
+	}
+	if !models.ValidRoomType(req.Type) {
+		http.Error(w, "Unknown room type", http.StatusBadRequest)
+		return
+	}
+	if req.Type == models.RoomTypeText && h.textChat == nil {
+		http.Error(w, "Text channels are not enabled on this server", http.StatusBadRequest)
+		return
 	}
 
 	sub, ok := subjectFromRequest(r)
@@ -278,6 +293,10 @@ func (h *RoomHandler) JoinRoom(w http.ResponseWriter, r *http.Request) {
 	if _, ok := requireRoomPerm(w, r, h.permissions, roomID, permissions.ViewRoom|permissions.Connect); !ok {
 		return
 	}
+	if room, exists := h.roomService.GetRoom(roomID); exists && room.IsText() {
+		http.Error(w, "Text channels cannot be joined", http.StatusBadRequest)
+		return
+	}
 
 	if req.Nickname == "" {
 		if len(req.UserID) >= 8 {
@@ -431,6 +450,17 @@ func (h *RoomHandler) UpdateRoom(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Room not found", http.StatusNotFound)
 		return
 	}
+	if req.Type != "" && req.Type != currentRoom.Type {
+		if !models.ValidRoomType(req.Type) {
+			http.Error(w, "Unknown room type", http.StatusBadRequest)
+			return
+		}
+		// Text history would be orphaned (or appear) on a type switch.
+		if req.Type == models.RoomTypeText || currentRoom.IsText() {
+			http.Error(w, "Cannot convert between text and voice channels", http.StatusBadRequest)
+			return
+		}
+	}
 
 	// Resolve category ID if category name is provided
 	categoryID := req.Category
@@ -504,8 +534,16 @@ func (h *RoomHandler) DeleteRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.permissions.ForgetTarget(models.OverwriteTargetRoom, roomID)
+	if room.IsText() && h.textChat != nil {
+		if err := h.textChat.Store.DeleteRoom(r.Context(), roomID); err != nil {
+			log.Printf("Failed to delete messages of text channel %s: %v", roomID, err)
+		}
+		if err := h.textChat.ReadState.DeleteRoom(roomID); err != nil {
+			log.Printf("Failed to delete read state of text channel %s: %v", roomID, err)
+		}
+	}
 	// Disconnect anyone still in the LiveKit room.
-	if h.livekitService != nil {
+	if !room.IsText() && h.livekitService != nil {
 		if err := h.livekitService.DeleteRoom(roomID); err != nil {
 			log.Printf("Failed to delete LiveKit room %s: %v", roomID, err)
 		}
@@ -567,6 +605,8 @@ type RoomConfigResponse struct {
 // AppConfigResponse represents the general application configuration response
 type AppConfigResponse struct {
 	Room RoomConfigResponse `json:"room"`
+	// TextChannels reports whether text channels can be created (Meilisearch configured).
+	TextChannels bool `json:"text_channels"`
 }
 
 // GetConfig handles GET /api/config
@@ -577,6 +617,7 @@ func (h *RoomHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
 			MaxUsers:        config.RoomConfig.MaxUsers,
 			DefaultMaxUsers: config.RoomConfig.DefaultMaxUsers,
 		},
+		TextChannels: h.textChat != nil,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

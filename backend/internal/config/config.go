@@ -26,7 +26,36 @@ type Config struct {
 	WebSocket WebSocketConfig `yaml:"websocket"`
 	LiveKit   LiveKitConfig   `yaml:"livekit"`
 	RateLimit RateLimitConfig `yaml:"rate_limit"`
+	Chat      ChatConfig      `yaml:"chat"`
 }
+
+// ChatConfig configures persistent text channels. Messages are stored in
+// Meilisearch; with an empty MeiliURL text channels are disabled.
+type ChatConfig struct {
+	MeiliURL    string `yaml:"meili_url"`
+	MeiliAPIKey string `yaml:"meili_api_key"`
+	MeiliIndex  string `yaml:"meili_index"`
+}
+
+// Development defaults match the meilisearch service in docker-compose.dev.yml,
+// so `make meili-up` plus `make dev` works without extra .env entries. Production must set MEILI_URL.
+const (
+	devMeiliURL = "http://localhost:7700"
+	devMeiliKey = "orbital-dev-meili-key"
+)
+
+func (c *Config) applyDevChatDefaults() {
+	if !c.IsDevelopment() || c.Chat.MeiliURL != "" {
+		return
+	}
+	c.Chat.MeiliURL = devMeiliURL
+	if c.Chat.MeiliAPIKey == "" {
+		c.Chat.MeiliAPIKey = devMeiliKey
+	}
+}
+
+// TextChannelsEnabled reports whether a Meilisearch backend is configured.
+func (c ChatConfig) TextChannelsEnabled() bool { return c.MeiliURL != "" }
 
 type RateLimitConfig struct {
 	AuthPerMinute        int `yaml:"auth_per_minute"`
@@ -131,6 +160,9 @@ func DefaultConfig() *Config {
 			PingCheckInterval: 10 * time.Second,
 		},
 		LiveKit: DefaultLiveKitConfig(),
+		Chat: ChatConfig{
+			MeiliIndex: "text_messages",
+		},
 		RateLimit: RateLimitConfig{
 			AuthPerMinute:        10,
 			GuestPerHour:         10,
@@ -163,6 +195,7 @@ func Load(configPath string) (*Config, error) {
 
 	// Apply environment variable overrides
 	cfg.loadFromEnv()
+	cfg.applyDevChatDefaults()
 
 	return cfg, nil
 }
@@ -282,6 +315,20 @@ func (c *Config) loadFromEnv() {
 
 	// LiveKit config
 	c.LiveKit.LoadFromEnv()
+
+	// Text channels (Meilisearch). MEILI_MASTER_KEY is accepted as a fallback
+	// so a single key in .env serves both the Meilisearch container and us.
+	if v := os.Getenv("MEILI_URL"); v != "" {
+		c.Chat.MeiliURL = v
+	}
+	if v := os.Getenv("MEILI_API_KEY"); v != "" {
+		c.Chat.MeiliAPIKey = v
+	} else if v := os.Getenv("MEILI_MASTER_KEY"); v != "" && c.Chat.MeiliAPIKey == "" {
+		c.Chat.MeiliAPIKey = v
+	}
+	if v := os.Getenv("MEILI_INDEX"); v != "" {
+		c.Chat.MeiliIndex = v
+	}
 
 	// Rate limit and quota config
 	if v, ok := getEnvInt("RATE_LIMIT_AUTH_PER_MINUTE"); ok {

@@ -21,6 +21,8 @@ export const Permission = {
   MuteMembers: 1 << 16,
   MoveMembers: 1 << 17,
   UseSoundboard: 1 << 18,
+  ManageMessages: 1 << 19,
+  AttachFiles: 1 << 20,
 } as const
 
 export type PermissionName = keyof typeof Permission
@@ -100,6 +102,18 @@ export const PERMISSION_INFO: Array<{
     key: "SendMessages",
     label: "Send Messages",
     description: "Write in the room chat",
+    group: "room",
+  },
+  {
+    key: "ManageMessages",
+    label: "Manage Messages",
+    description: "Delete other members' messages and pin messages in text channels",
+    group: "room",
+  },
+  {
+    key: "AttachFiles",
+    label: "Attach Files",
+    description: "Upload images, audio and video in text channels",
     group: "room",
   },
   {

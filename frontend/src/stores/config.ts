@@ -7,6 +7,8 @@ export const useConfigStore = defineStore("config", () => {
   const minUsers = ref(2)
   const maxUsers = ref(10)
   const defaultMaxUsers = ref(10)
+  // Text channels need Meilisearch on the backend.
+  const textChannelsEnabled = ref(false)
   const isLoaded = ref(false)
   const isLoading = ref(false)
 
@@ -29,6 +31,7 @@ export const useConfigStore = defineStore("config", () => {
       minUsers.value = config.room.min_users
       maxUsers.value = config.room.max_users
       defaultMaxUsers.value = config.room.default_max_users
+      textChannelsEnabled.value = config.text_channels === true
       isLoaded.value = true
     } catch (error) {
       console.error("Failed to load config:", error)
@@ -42,6 +45,7 @@ export const useConfigStore = defineStore("config", () => {
     minUsers,
     maxUsers,
     defaultMaxUsers,
+    textChannelsEnabled,
     isLoaded,
     isLoading,
     roomConfig,

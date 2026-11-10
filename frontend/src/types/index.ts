@@ -1,10 +1,12 @@
 // Room interface
+export type RoomType = "voice" | "spatial_audio" | "text"
+
 export interface Room {
   id: string
   name: string
   user_count: number
   max_users: number
-  type: "voice" | "spatial_audio"
+  type: RoomType
   category: string // Category ID
   category_name?: string // Category name for display
   sort_order: number // Order within category for drag-and-drop
@@ -106,6 +108,10 @@ export type WebSocketMessageType =
   | "request_logs"
   | "halloween_pumpkin_state"
   | "play_sound"
+  | "text_message_send"
+  | "text_message_edit"
+  | "text_message_delete"
+  | "text_channel_read"
 
 export interface WebSocketMessage {
   type: WebSocketMessageType
@@ -138,7 +144,7 @@ export interface CreateRoomData {
   name: string
   category: string
   max_users: number
-  type: "voice" | "spatial_audio"
+  type: RoomType
   world?: string
 }
 

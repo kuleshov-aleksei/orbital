@@ -148,6 +148,22 @@ For Docker Compose (internal communication):
 LIVEKIT_URL=ws://livekit:7880
 ```
 
+## Text Channels (Meilisearch)
+
+Text channel messages are stored only in Meilisearch (`docs/specs/CHAT_SYSTEM.md`). Without `MEILI_URL`, text channels are disabled: the "Text" room type is hidden and creating one is rejected.
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MEILI_URL` | Meilisearch base URL | development: `http://localhost:7700`; production: unset (disabled); deploy compose sets `http://meilisearch:7700` |
+| `MEILI_API_KEY` | API key the backend uses. Falls back to `MEILI_MASTER_KEY` | development: `orbital-dev-meili-key` |
+| `MEILI_MASTER_KEY` | Meilisearch master key (read by the Meilisearch container; production needs at least 16 bytes) | dev compose: `orbital-dev-meili-key` |
+| `MEILI_INDEX` | Index name for messages | `text_messages` |
+| `MEILI_MAX_INDEXING_MEMORY` | Indexing memory cap for the deploy container | `1Gb` |
+
+Local development: `make meili-up` (starts the `meilisearch` service of `docker-compose.dev.yml`), then `make dev`; the development defaults match that container. Data lives in `./data/meilisearch`.
+
+**The Meilisearch volume holds primary data.** Back it up before every release (`docs/specs/MEILI_RELEASE_BACKUP.md`). The deploy compose takes a daily snapshot (`MEILI_SCHEDULE_SNAPSHOT=86400`). `/api/health` reports `text_channels: ok | unavailable | disabled`; Meilisearch being down degrades text channels only.
+
 ## Usage
 
 ### Running with Default Config

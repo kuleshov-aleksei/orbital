@@ -82,7 +82,8 @@
             <template v-for="(room, index) in category.rooms" :key="room.id">
               <RoomCard
                 :room="room"
-                :is-active="room.id === props.activeRoomId"
+                :is-active="isRoomActive(room)"
+                :is-unread="room.type === 'text' && textChatStore.isUnread(room.id)"
                 :is-dragging="draggedRoom?.id === room.id"
                 :is-draggable="isDraggable"
                 :is-locked="isRoomLocked(room)"
@@ -351,7 +352,7 @@ import {
   PhShieldCheck,
   PhArrowsLeftRight,
 } from "@phosphor-icons/vue"
-import { useRoomStore, useCategoryStore, usePermissionsStore } from "@/stores"
+import { useRoomStore, useCategoryStore, usePermissionsStore, useTextChatStore } from "@/stores"
 import { Permission } from "@/types/permissions"
 import { useUserContextMenu } from "@/composables/useUserContextMenu"
 import { apiService } from "@/services/api"
@@ -388,6 +389,7 @@ const emit = defineEmits<{
 const roomStore = useRoomStore()
 const categoryStore = useCategoryStore()
 const permissionsStore = usePermissionsStore()
+const textChatStore = useTextChatStore()
 const { rooms } = storeToRefs(roomStore)
 const { categories } = storeToRefs(categoryStore)
 const { isUserContextMenuOpen } = useUserContextMenu()
@@ -406,11 +408,20 @@ const isHidden = computed(() => {
 const expandedCategories = ref(new Set<string>())
 
 // Visible (the backend only sends rooms we can view) but not joinable.
+// Text channels need no Connect: anyone who sees them can read.
 const isRoomLocked = (room: Room) =>
-  permissionsStore.loaded && !permissionsStore.can(Permission.Connect, { roomId: room.id })
+  room.type !== "text" &&
+  permissionsStore.loaded &&
+  !permissionsStore.can(Permission.Connect, { roomId: room.id })
+
+// The open text channel is highlighted instead of the call while it is shown.
+const isRoomActive = (room: Room) =>
+  textChatStore.activeChannelId
+    ? room.id === textChatStore.activeChannelId
+    : room.id === props.activeRoomId
 
 const handleRoomClick = (room: Room) => {
-  if (room.id !== props.activeRoomId) {
+  if (!isRoomActive(room)) {
     emit("room-selected", room.id)
   }
 }

@@ -1,0 +1,90 @@
+import { describe, expect, it } from "vitest"
+import { emojiOnlyCount, markupToPlain, parseMessage, type MarkupNode } from "./messageMarkup"
+
+/** Compact form for assertions: text as-is, containers as type(children). */
+function show(nodes: MarkupNode[]): string {
+  return nodes
+    .map((n) => {
+      switch (n.type) {
+        case "text":
+          return n.text
+        case "br":
+          return "⏎"
+        case "link":
+          return `link(${n.href})`
+        case "emoji":
+          return `emoji(${n.shortcode})`
+        case "mention":
+          return `${n.kind}(${n.id})`
+        default:
+          return `${n.type}(${show(n.children)})`
+      }
+    })
+    .join("")
+}
+
+const EMOJI_ID = "0b6e6c1e-8a0f-4f3e-9b9a-2b1f6f2e3c4d"
+
+describe("parseMessage", () => {
+  it.each([
+    ["plain text", "plain text"],
+    ["**bold** and *it* and _it_", "bold(bold) and italic(it) and italic(it)"],
+    ["~~gone~~ ||secret||", "strike(gone) spoiler(secret)"],
+    ["**bold *italic***", "bold(bold italic(italic))"],
+    ["***both***", "bold(italic(both))"],
+    ["||**loud** secret||", "spoiler(bold(loud) secret)"],
+    ["snake_case_name stays", "snake_case_name stays"],
+    ["2 * 3 * 4", "2 * 3 * 4"],
+    ["**unclosed", "**unclosed"],
+    ["** spaced **", "** spaced **"],
+    ["\\*not italic\\*", "*not italic*"],
+    ["a\\\\b", "a\\b"],
+    ["line one\nline two", "line one⏎line two"],
+    ["see https://example.com/a?b=1.", "see link(https://example.com/a?b=1)."],
+    ["(https://example.com)", "(link(https://example.com))"],
+    ["**https://x.io**", "bold(link(https://x.io))"],
+    ["javascript:alert(1)", "javascript:alert(1)"],
+    [`hi <:wave:${EMOJI_ID}>!`, "hi emoji(wave)!"],
+    ["<@user_1> and <@&mods>", "user(user_1) and role(mods)"],
+    ["<b>html</b>", "<b>html</b>"],
+  ])("%s", (input, expected) => {
+    expect(show(parseMessage(input))).toBe(expected)
+  })
+
+  it("never produces links for non-http schemes", () => {
+    const nodes = parseMessage("ftp://a data:text/html,x javascript://x")
+    expect(nodes.every((n) => n.type !== "link")).toBe(true)
+  })
+
+  it("handles long adversarial input quickly", () => {
+    const input = "*_~|".repeat(500)
+    const start = performance.now()
+    parseMessage(input)
+    expect(performance.now() - start).toBeLessThan(500)
+  })
+})
+
+describe("markupToPlain", () => {
+  it("flattens formatting and hides spoilers", () => {
+    const nodes = parseMessage(`**hi** ||secret|| <:wave:${EMOJI_ID}> <@u1>`)
+    expect(markupToPlain(nodes, (_, id) => (id === "u1" ? "Alice" : id))).toBe(
+      "hi ▒▒▒ :wave: @Alice",
+    )
+  })
+})
+
+describe("emojiOnlyCount", () => {
+  it.each([
+    ["😀", 1],
+    ["😀 🎉👍🏽", 3],
+    [`<:wave:${EMOJI_ID}> 🎉`, 2],
+    ["👨‍👩‍👧", 1],
+    ["🇫🇷", 1],
+    ["hi 😀", 0],
+    ["**😀**", 0],
+    ["123", 0],
+    ["", 0],
+  ])("%s -> %d", (input, expected) => {
+    expect(emojiOnlyCount(parseMessage(input))).toBe(expected)
+  })
+})

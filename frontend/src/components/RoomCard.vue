@@ -30,7 +30,8 @@
             'bg-theme-accent/80': isActive,
             'bg-theme-bg-hover group-hover:bg-theme-border': !isActive,
           }">
-          <PhWaveform v-if="room.type !== 'spatial_audio'" class="w-4 h-4" />
+          <PhHash v-if="room.type === 'text'" class="w-4 h-4" />
+          <PhWaveform v-else-if="room.type !== 'spatial_audio'" class="w-4 h-4" />
           <PhGameController v-else class="w-4 h-4" />
         </div>
       </div>
@@ -39,7 +40,13 @@
       <div class="flex-1 min-w-0">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-1.5 min-w-0">
-            <EmojiText :text="room.name" pausable class="font-medium text-sm truncate" />
+            <EmojiText
+              :text="room.name"
+              pausable
+              class="text-sm truncate"
+              :class="
+                isUnread && !isActive ? 'font-bold text-theme-text-primary' : 'font-medium'
+              " />
             <PhLock
               v-if="isLocked"
               class="w-3 h-3 flex-shrink-0"
@@ -51,7 +58,13 @@
             </span>
           </div>
 
-          <div class="text-xs opacity-70 ml-2 flex-shrink-0">
+          <span
+            v-if="room.type === 'text'"
+            v-show="isUnread && !isActive"
+            class="ml-2 w-2 h-2 rounded-full bg-theme-text-primary flex-shrink-0"
+            data-testid="text-channel-unread"
+            aria-label="Unread messages" />
+          <div v-else class="text-xs opacity-70 ml-2 flex-shrink-0">
             {{ room.user_count }}/{{ room.max_users }}
           </div>
         </div>
@@ -122,6 +135,7 @@ import {
   PhMonitor,
   PhVideoCamera,
   PhLock,
+  PhHash,
 } from "@phosphor-icons/vue"
 import UserAvatar from "./UserAvatar.vue"
 import UserContextMenu from "./UserContextMenu.vue"
@@ -131,6 +145,7 @@ import type { Room } from "@/types"
 const props = withDefaults(defineProps<Props>(), {
   isDraggable: true,
   isLocked: false,
+  isUnread: false,
 })
 
 const emit = defineEmits<{
@@ -153,6 +168,8 @@ interface Props {
   isDraggable?: boolean
   /** The user can see but not join (no Connect): rendered grayed out with a lock. */
   isLocked?: boolean
+  /** Text channel with messages newer than the read position. */
+  isUnread?: boolean
 }
 
 const showContextMenu = (event: MouseEvent) => {

@@ -17,6 +17,12 @@ import {
   SecuritySelfCheckReport,
 } from "@/types"
 import type {
+  TextHistoryCursor,
+  TextHistoryPage,
+  TextContextPage,
+  TextUnreadResponse,
+} from "@/types/textChat"
+import type {
   HalloweenGameConfig,
   HalloweenStateResponse,
   PumpkinStatesResponse,
@@ -223,6 +229,7 @@ export interface RoomConfig {
 // General application configuration
 export interface AppConfig {
   room: RoomConfig
+  text_channels?: boolean
 }
 
 // Latest desktop release, resolved by the backend from the update feed
@@ -429,6 +436,27 @@ export const apiService = {
   // Get general application configuration
   async getConfig(): Promise<AppConfig> {
     return apiRequest<AppConfig>("/config")
+  },
+
+  // Text channels (history over REST; writes go over the global WebSocket)
+  async getTextMessages(roomId: string, cursor: TextHistoryCursor = {}): Promise<TextHistoryPage> {
+    const params = new URLSearchParams()
+    if (cursor.beforeSeq) params.set("before_seq", String(cursor.beforeSeq))
+    if (cursor.afterSeq) params.set("after_seq", String(cursor.afterSeq))
+    if (cursor.aroundSeq) params.set("around_seq", String(cursor.aroundSeq))
+    if (cursor.limit) params.set("limit", String(cursor.limit))
+    const query = params.toString()
+    return apiRequest<TextHistoryPage>(
+      `/rooms/${encodeURIComponent(roomId)}/messages${query ? `?${query}` : ""}`,
+    )
+  },
+
+  async getTextMessageContext(messageId: string, n = 25): Promise<TextContextPage> {
+    return apiRequest<TextContextPage>(`/messages/${encodeURIComponent(messageId)}/context?n=${n}`)
+  },
+
+  async getTextUnread(): Promise<TextUnreadResponse> {
+    return apiRequest<TextUnreadResponse>("/chat/unread")
   },
 
   // Get the latest desktop release (version + artifact URLs), resolved by

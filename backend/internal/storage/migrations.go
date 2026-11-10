@@ -469,6 +469,32 @@ CREATE INDEX IF NOT EXISTS idx_custom_emojis_created ON custom_emojis(created_at
 		SQL: `ALTER TABLE custom_emojis ADD COLUMN animated INTEGER NOT NULL DEFAULT 0;
 UPDATE custom_emojis SET animated = 1 WHERE filename LIKE '%.gif';`,
 	},
+	{
+		Version: 41,
+		Name:    "create_text_read_state",
+		// Per-user read position in text channels (messages themselves live
+		// in Meilisearch, see docs/specs/CHAT_SYSTEM.md).
+		SQL: `CREATE TABLE IF NOT EXISTS text_read_state (
+			user_id TEXT NOT NULL,
+			room_id TEXT NOT NULL,
+			last_read_seq INTEGER NOT NULL DEFAULT 0,
+			updated_at INTEGER NOT NULL,
+			PRIMARY KEY (user_id, room_id)
+		);
+CREATE INDEX IF NOT EXISTS idx_text_read_state_room ON text_read_state(room_id);`,
+	},
+	{
+		Version: 42,
+		Name:    "grant_text_channel_permissions",
+		// Attach Files is on for @everyone and denied to guests; Manage
+		// Messages goes to the admin role. OR-ing keeps it idempotent.
+		SQL: fmt.Sprintf(`UPDATE roles SET permissions = permissions | %d WHERE id = 'everyone';
+UPDATE roles SET deny_permissions = deny_permissions | %d WHERE id = 'guest';
+UPDATE roles SET permissions = permissions | %d WHERE id = 'admin';`,
+			permissions.AttachFiles,
+			permissions.AttachFiles,
+			permissions.ManageMessages),
+	},
 }
 
 // RunMigrationsUpTo applies migrations up to and including maxVersion.

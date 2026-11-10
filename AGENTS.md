@@ -149,6 +149,15 @@ Popovers such as `UserProfilePopover` close on any `pointerdown` outside themsel
 - Render with `components/common/EmojiText.vue` — never `{{ room.name }}` — or the raw token shows. Use `emojiTextToPlain` for non-HTML sinks (titles, logs).
 - Length: a token counts as one character. Frontend `emojiTextLength`; backend `validRoomNameLength` (`backend/internal/handlers/roomhandler.go`). Otherwise count characters (`Array.from(s).length` / `utf8.RuneCountInString`), never bytes or UTF-16 units.
 
+### Text channels (persistent chat)
+
+Spec and decisions: [`docs/specs/CHAT_SYSTEM.md`](./docs/specs/CHAT_SYSTEM.md). Text channels are rooms with `type: "text"`; their messages live **only in Meilisearch** (`backend/internal/service/chatstore/`), never in SQLite. The in-call chat (`ChatService`, `send_message`) is a separate, ephemeral feature.
+
+- Local Meilisearch: `make meili-up` (the backend's development defaults point at it).
+- Text channel WS events (`text_*`) go to the global socket only; listen with `wsService.onGlobal`.
+- **Never unmount the call view** (`VoiceCallView` / `SpatialWorldView`) to show something else: `useLiveKit` disconnects from LiveKit in `onUnmounted`. `MainContent.vue` keeps it mounted and hides it with `v-show` while a text channel is open.
+- Tests that need Meilisearch use the `integration` build tag and run with `make test-integration`; PR CI runs only `go test ./...` (unit tests).
+
 ### Electron Development
 - Electron desktop app is in the `electron/` directory
 - Release/update changes must follow `docs/notes/MIGRATION_TO_S3.md` and the `orbital-release-ops` skill
@@ -174,7 +183,8 @@ The project uses a Makefile for common operations:
 - `make dev-electron` - Run Electron in development mode
 - `make lint` - Run code quality checks
 - `make test` - Run full test suite (Playwright e2e in Docker)
-- `make test-backend` - Run backend Go tests
+- `make test-backend` - Run backend Go unit tests (what PR CI runs)
+- `make test-integration` - Run backend integration tests (starts Meilisearch via `make meili-up`)
 - `make test-headed` - Run tests in headed mode
 - `make docker-build` - Build Docker images
 - `make docker-up` - Run with Docker Compose

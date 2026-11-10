@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"log"
@@ -16,6 +17,7 @@ import (
 	"github.com/kuleshov-aleksei/orbital/internal/ratelimit"
 	"github.com/kuleshov-aleksei/orbital/internal/repository"
 	"github.com/kuleshov-aleksei/orbital/internal/service"
+	"github.com/kuleshov-aleksei/orbital/internal/service/chatstore"
 	"github.com/kuleshov-aleksei/orbital/internal/storage"
 	"github.com/kuleshov-aleksei/orbital/internal/version"
 	"github.com/kuleshov-aleksei/orbital/internal/websocket"
@@ -69,6 +71,7 @@ func main() {
 	var halloweenService *service.HalloweenService
 	var pumpkinAssetService *service.PumpkinAssetService
 	var rbacRepo *repository.RBACRepository
+	var textReadState chatstore.ReadStateStore
 
 	if cfg.Database.Path != "" {
 		db, err := storage.NewDB(cfg.Database.Path)
@@ -90,6 +93,7 @@ func main() {
 		sessionRepo = repository.NewSessionRepository(db)
 		qrLoginRepo = repository.NewQRLoginRepository(db)
 		rbacRepo = repository.NewRBACRepository(db)
+		textReadState = repository.NewTextReadStateRepository(db)
 
 		// Initialize services with repositories
 		categoryService = service.NewCategoryService(categoryRepo)
@@ -191,11 +195,37 @@ func main() {
 		wsHub.SetSoundboard(soundboardService)
 	}
 
+	// Text channels: messages live in Meilisearch (docs/specs/CHAT_SYSTEM.md).
+	var textChat *websocket.TextChat
+	if cfg.Chat.TextChannelsEnabled() {
+		if textReadState == nil {
+			textReadState = chatstore.NewMemoryReadState()
+		}
+		store := chatstore.New(chatstore.NewMeili(cfg.Chat.MeiliURL, cfg.Chat.MeiliAPIKey, cfg.Chat.MeiliIndex), chatstore.Options{})
+		store.Start(context.Background(), func() []string {
+			var ids []string
+			for _, room := range roomService.GetRooms() {
+				if room.IsText() {
+					ids = append(ids, room.ID)
+				}
+			}
+			return ids
+		})
+		textChat = &websocket.TextChat{Store: store, ReadState: textReadState}
+		wsHub.SetTextChat(textChat)
+		log.Printf("Text channels enabled (Meilisearch at %s, index %s)", cfg.Chat.MeiliURL, cfg.Chat.MeiliIndex)
+	} else {
+		log.Println("MEILI_URL is not set, text channels are disabled")
+	}
+
 	// Initialize avatar service
 	avatarService := service.NewAvatarService("data")
 
 	// Initialize handlers with config
 	roomHandler := handlers.NewRoomHandler(roomService, categoryService, livekitService, permissionService, wsHub)
+	if textChat != nil {
+		roomHandler.SetTextChat(textChat)
+	}
 	categoryHandler := handlers.NewCategoryHandler(categoryService, roomService, livekitService, permissionService, wsHub)
 	authHandler := handlers.NewAuthHandler(authService, roleService, cfg.Server.ExternalURL, cfg.Server.ElectronRedirectURL)
 	adminHandler := handlers.NewAdminHandlerWithHub(roleService, userRepo, debugLogService, analyticsService, halloweenService, wsHub)
@@ -268,7 +298,7 @@ func main() {
 	}
 
 	// API routes
-	r.HandleFunc("/api/health", healthHandler).Methods("GET")
+	r.HandleFunc("/api/health", healthHandler(textChat)).Methods("GET")
 	r.HandleFunc("/api/version", versionHandler).Methods("GET")
 
 	// Auth routes
@@ -363,6 +393,14 @@ func main() {
 	r.Handle("/api/rooms/{id}/join", auth(http.HandlerFunc(roomHandler.JoinRoom))).Methods("POST")
 	r.Handle("/api/rooms/{id}/leave", auth(http.HandlerFunc(roomHandler.LeaveRoom))).Methods("POST")
 	r.Handle("/api/rooms/{room_id}/kick/{user_id}", auth(http.HandlerFunc(roomHandler.KickUser))).Methods("POST")
+
+	// Text channels: reads over REST (VIEW_ROOM checked per request), writes over WebSocket.
+	if textChat != nil {
+		textChatHandler := handlers.NewTextChatHandler(textChat.Store, textChat.ReadState, roomService, permissionService)
+		r.Handle("/api/rooms/{id}/messages", auth(http.HandlerFunc(textChatHandler.GetMessages))).Methods("GET")
+		r.Handle("/api/messages/{id}/context", auth(http.HandlerFunc(textChatHandler.GetMessageContext))).Methods("GET")
+		r.Handle("/api/chat/unread", auth(http.HandlerFunc(textChatHandler.GetUnread))).Methods("GET")
+	}
 
 	// Category routes
 	r.Handle("/api/categories", auth(http.HandlerFunc(categoryHandler.GetCategories))).Methods("GET")
@@ -501,14 +539,26 @@ func writeJSON(w http.ResponseWriter, v interface{}) {
 	}
 }
 
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	writeJSON(w, map[string]string{
-		"status":  "ok",
-		"service": "orbital-backend",
-		"version": version.GetVersion(),
-	})
+// healthHandler reports backend health. Meilisearch being down degrades
+// text channels only, so it is reported but does not fail the check.
+func healthHandler(textChat *websocket.TextChat) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		textChannels := "disabled"
+		if textChat != nil {
+			textChannels = "ok"
+			if !textChat.Store.Ready() || textChat.Store.Health(r.Context()) != nil {
+				textChannels = "unavailable"
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		writeJSON(w, map[string]string{
+			"status":        "ok",
+			"service":       "orbital-backend",
+			"version":       version.GetVersion(),
+			"text_channels": textChannels,
+		})
+	}
 }
 
 func versionHandler(w http.ResponseWriter, r *http.Request) {

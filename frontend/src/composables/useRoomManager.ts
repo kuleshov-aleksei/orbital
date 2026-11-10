@@ -4,12 +4,13 @@ import {
   useAppStore,
   useCallStore,
   usePermissionsStore,
+  useTextChatStore,
 } from "@/stores"
 import { Permission } from "@/types/permissions"
 import { wsService } from "@/services/websocket"
 import { apiService, generateNickname, type ApiError } from "@/services/api"
 import { collectSystemInfo } from "@/services/systemInfo"
-import type { CreateRoomData, UpdateRoomData } from "@/types"
+import type { CreateRoomData, UpdateRoomData, RoomType } from "@/types"
 import { loadWorld } from "@/world/WorldData"
 
 // Room ping interval (20 seconds - must be less than backend timeout of 30s)
@@ -22,6 +23,7 @@ export function useRoomManager() {
   const appStore = useAppStore()
   const callStore = useCallStore()
   const permissionsStore = usePermissionsStore()
+  const textChatStore = useTextChatStore()
 
   const NO_JOIN_PERMISSION = "You don't have permission to join this room."
 
@@ -128,6 +130,15 @@ export function useRoomManager() {
 
   /** Returns whether the room was joined (or already active). */
   const handleRoomSelected = async (roomId: string): Promise<boolean> => {
+    // Text channels open next to the call: no join, no leaving voice.
+    const selected = roomStore.rooms.find((r) => r.id === roomId)
+    if (selected?.type === "text") {
+      void textChatStore.openChannel(roomId)
+      return true
+    }
+    // Picking a voice room closes the text channel view.
+    textChatStore.closeChannel()
+
     if (roomStore.activeRoomId === roomId) {
       return true
     }
@@ -212,7 +223,7 @@ export function useRoomManager() {
         name: roomName,
         category,
         max_users: maxUsers,
-        type: roomType as "voice" | "spatial_audio",
+        type: roomType as RoomType,
         world: roomType === "spatial_audio" ? world : undefined,
       }
 

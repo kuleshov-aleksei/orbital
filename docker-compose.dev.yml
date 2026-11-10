@@ -22,3 +22,19 @@ services:
       retries: 3
       start_period: 10s
 
+  # Text channel message store (docs/specs/CHAT_SYSTEM.md). The backend's
+  # development defaults (MEILI_URL=http://localhost:7700, key below) match it.
+  meilisearch:
+    image: getmeili/meilisearch:v1.56.2
+    container_name: orbital-meilisearch
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:7700:7700"
+    environment:
+      MEILI_ENV: development
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-orbital-dev-meili-key}
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_MAX_INDEXING_MEMORY: 1Gb
+    volumes:
+      # Primary data: text channel messages exist only here.
+      - ./data/meilisearch:/meili_data

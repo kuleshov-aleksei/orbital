@@ -26,10 +26,36 @@ services:
       - ROOM_MIN_USERS=2
       - ROOM_MAX_USERS=20
       - ROOM_DEFAULT_MAX_USERS=10
+      # Text channels. The key comes from .env (MEILI_API_KEY, or MEILI_MASTER_KEY as a fallback).
+      - MEILI_URL=${MEILI_URL:-http://meilisearch:7700}
     volumes:
       - ./data/backend/:/root/data/
     depends_on:
       - livekit
+      - meilisearch
+    networks:
+      - orbital-network
+
+  # Text channel message store. Its volume holds PRIMARY data (messages exist
+  # only here): back it up before every release, see
+  # docs/specs/MEILI_RELEASE_BACKUP.md. Upgrades: snapshot + dump first, then
+  # start once with MEILI_UPGRADE_DB=true (dumpless upgrades are not atomic).
+  meilisearch:
+    image: getmeili/meilisearch:v1.56.2
+    restart: unless-stopped
+    environment:
+      - MEILI_ENV=production
+      - MEILI_MASTER_KEY=${MEILI_MASTER_KEY:?set MEILI_MASTER_KEY in .env (at least 16 bytes)}
+      - MEILI_NO_ANALYTICS=true
+      - MEILI_MAX_INDEXING_MEMORY=${MEILI_MAX_INDEXING_MEMORY:-1Gb}
+      - MEILI_SCHEDULE_SNAPSHOT=86400
+      # Keep snapshots and their staging copy on the data volume, not in /tmp.
+      - MEILI_SNAPSHOT_DIR=/meili_data/snapshots
+      - MEILI_DUMP_DIR=/meili_data/dumps
+      - TMPDIR=/meili_data/tmp
+    volumes:
+      - ./data/meilisearch:/meili_data
+    # Internal network only: no published port.
     networks:
       - orbital-network
 

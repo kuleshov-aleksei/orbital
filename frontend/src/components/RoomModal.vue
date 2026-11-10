@@ -77,7 +77,26 @@
               <PhGameController class="w-4 h-4" />
               <span class="text-sm font-medium">Spatial</span>
             </button>
+
+            <button
+              v-if="configStore.textChannelsEnabled"
+              type="button"
+              data-testid="room-type-text"
+              :class="[
+                'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border transition-colors duration-200',
+                roomType === 'text'
+                  ? 'bg-theme-accent border-theme-accent text-theme-text-on-accent'
+                  : 'bg-theme-bg-tertiary border-theme-border text-theme-text-secondary hover:bg-theme-bg-hover',
+              ]"
+              @click="roomType = 'text'">
+              <PhHash class="w-4 h-4" />
+              <span class="text-sm font-medium">Text</span>
+            </button>
           </div>
+
+          <p v-if="roomType === 'text'" class="text-theme-text-muted text-xs mt-1">
+            A persistent, searchable chat channel. No voice.
+          </p>
 
           <p v-if="roomType === 'spatial_audio'" class="text-theme-text-muted text-xs mt-1">
             Move your character with WASD. Voice audio changes based on distance.
@@ -125,8 +144,8 @@
           </p>
         </div>
 
-        <!-- Max Users -->
-        <div class="mb-6">
+        <!-- Max Users (voice rooms only) -->
+        <div v-if="roomType !== 'text'" class="mb-6">
           <label for="maxUsers" class="block text-sm font-medium text-theme-text-secondary mb-2">
             Max Users ({{ configStore.minUsers }} - {{ configStore.maxUsers }})
           </label>
@@ -170,7 +189,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue"
-import { PhWaveform, PhGameController } from "@phosphor-icons/vue"
+import { PhWaveform, PhGameController, PhHash } from "@phosphor-icons/vue"
+import type { RoomType } from "@/types"
 import EmojiTextInput from "@/components/common/EmojiTextInput.vue"
 import { emojiTextLength } from "@/services/emoji"
 import { useConfigStore } from "@/stores"
@@ -192,7 +212,7 @@ const configStore = useConfigStore()
 // Form data
 const roomName = ref("")
 const roomCategory = ref("")
-const roomType = ref<"voice" | "spatial_audio">("voice")
+const roomType = ref<RoomType>("voice")
 const roomWorld = ref(AVAILABLE_WORLDS[0]?.id ?? "default")
 const maxUsers = ref(10)
 

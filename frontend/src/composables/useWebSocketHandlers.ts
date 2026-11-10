@@ -11,6 +11,8 @@ import {
   usePermissionsStore,
   useSoundboardStore,
   useCustomEmojisStore,
+  useTextChatStore,
+  useConfigStore,
 } from "@/stores"
 import { wsService } from "@/services/websocket"
 import type {
@@ -32,6 +34,14 @@ import type {
   SoundPlayedData,
 } from "@/types"
 
+import type {
+  TextErrorEvent,
+  TextMessageDeletedEvent,
+  TextMessageNewEvent,
+  TextMessageUpdatedEvent,
+  TextReadStateEvent,
+} from "@/types/textChat"
+
 declare const __APP_VERSION__: string
 
 const appVersion = __APP_VERSION__
@@ -48,6 +58,8 @@ export function useWebSocketHandlers() {
   const permissionsStore = usePermissionsStore()
   const soundboardStore = useSoundboardStore()
   const customEmojisStore = useCustomEmojisStore()
+  const textChatStore = useTextChatStore()
+  const configStore = useConfigStore()
   const hasConnected = ref(false)
 
   const cleanupFns: Array<() => void> = []
@@ -332,11 +344,31 @@ export function useWebSocketHandlers() {
     wsService.onGlobal("room_deleted", onRoomDeleted)
     onCleanup(() => wsService.offGlobal("room_deleted", onRoomDeleted))
 
+    // Text channels: events arrive on the global socket only.
+    const textHandlers: Array<[string, MessageCallback]> = [
+      ["text_message_new", (m) => textChatStore.onMessageNew(m.data as TextMessageNewEvent)],
+      [
+        "text_message_updated",
+        (m) => textChatStore.onMessageUpdated(m.data as TextMessageUpdatedEvent),
+      ],
+      [
+        "text_message_deleted",
+        (m) => textChatStore.onMessageDeleted(m.data as TextMessageDeletedEvent),
+      ],
+      ["text_read_state", (m) => textChatStore.onReadState(m.data as TextReadStateEvent)],
+      ["text_error", (m) => textChatStore.onError(m.data as TextErrorEvent)],
+    ]
+    for (const [type, handler] of textHandlers) {
+      wsService.onGlobal(type, handler)
+      onCleanup(() => wsService.offGlobal(type, handler))
+    }
+
     const onGlobalConnected: ConnectionCallback = () => {
       debugLog("Global WebSocket connected")
       startGlobalPing()
       void usersStore.fetchAllUsers()
       void syncRoomsData()
+      if (configStore.textChannelsEnabled) void textChatStore.resync()
     }
     wsService.onGlobalConnection(onGlobalConnected)
     onCleanup(() => wsService.removeGlobalConnectionCallback(onGlobalConnected))

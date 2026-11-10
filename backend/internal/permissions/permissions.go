@@ -55,13 +55,20 @@ const (
 	MoveMembers Permission = 1 << 17
 	// UseSoundboard allows playing soundboard clips to everyone in a room.
 	UseSoundboard Permission = 1 << 18
+	// ManageMessages allows deleting other members' text channel messages and
+	// pinning/unpinning messages. Overwritable per room/category.
+	ManageMessages Permission = 1 << 19
+	// AttachFiles allows uploading attachments to text channel messages.
+	// Overwritable per room/category.
+	AttachFiles Permission = 1 << 20
 )
 
 // All is every defined permission.
 const All = Administrator | ManageRoles | ManageRooms | ManageAudio |
 	UploadSounds | ManageSoundboard | UploadEmojis | ManageEmojis |
 	ViewRoom | Connect | Speak | Video | Screenshare | SendMessages |
-	UseBoombox | KickMembers | MuteMembers | MoveMembers | UseSoundboard
+	UseBoombox | KickMembers | MuteMembers | MoveMembers | UseSoundboard |
+	ManageMessages | AttachFiles
 
 // RoleOnly are permissions that cannot be set through overwrites.
 const RoleOnly = Administrator | ManageRoles | ManageAudio | UploadSounds | ManageSoundboard |
@@ -78,15 +85,15 @@ const voiceScoped = Speak | Video | Screenshare | UseBoombox | UseSoundboard
 
 // DefaultEveryone is the seed permission set for the @everyone role.
 const DefaultEveryone = ViewRoom | Connect | Speak | Video | Screenshare | SendMessages | UseBoombox |
-	UseSoundboard | UploadSounds
+	UseSoundboard | UploadSounds | AttachFiles
 
 // DefaultGuestDeny is the seed deny mask for the Guest system role.
-const DefaultGuestDeny = Video | Screenshare | UploadSounds
+const DefaultGuestDeny = Video | Screenshare | UploadSounds | AttachFiles
 
 // DefaultAdmin is the seed permission set for the migrated Admin role. It
 // matches exactly what the legacy "admin" global role could do.
 const DefaultAdmin = ManageRooms | KickMembers | ManageAudio | ManageSoundboard |
-	UploadEmojis | ManageEmojis
+	UploadEmojis | ManageEmojis | ManageMessages
 
 // Has reports whether p contains every bit in want.
 func (p Permission) Has(want Permission) bool { return p&want == want }
@@ -113,6 +120,8 @@ var Names = map[string]Permission{
 	"manage_soundboard": ManageSoundboard,
 	"upload_emojis":     UploadEmojis,
 	"manage_emojis":     ManageEmojis,
+	"manage_messages":   ManageMessages,
+	"attach_files":      AttachFiles,
 }
 
 // Overwrite is an allow/deny pair for one subject on one room or category.

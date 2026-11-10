@@ -82,6 +82,18 @@ func NewPublicUser(user *User, isOnline bool) PublicUser {
 }
 
 // Room represents a voice room
+// Room types. Text channels are persistent chat (no voice, no join).
+const (
+	RoomTypeVoice   = "voice"
+	RoomTypeSpatial = "spatial_audio"
+	RoomTypeText    = "text"
+)
+
+// ValidRoomType reports whether t is a known room type.
+func ValidRoomType(t string) bool {
+	return t == RoomTypeVoice || t == RoomTypeSpatial || t == RoomTypeText
+}
+
 type Room struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
@@ -97,6 +109,9 @@ type Room struct {
 	// overwrites instead of using its own (Discord "sync permissions").
 	PermissionsSynced bool `json:"permissions_synced"`
 }
+
+// IsText reports whether the room is a text channel.
+func (r *Room) IsText() bool { return r != nil && r.Type == RoomTypeText }
 
 // RoomMember represents a user in a room
 type RoomMember struct {

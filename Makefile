@@ -1,4 +1,4 @@
-.PHONY: help install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-backend test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all balance-drift balance-check
+.PHONY: help install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-backend test-integration meili-up meili-down test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all balance-drift balance-check
 
 # Default target
 help:
@@ -12,7 +12,10 @@ help:
 	@echo "  check             - Release quality gate: frontend typecheck + full backend lint"
 	@echo "  test              - Run tests (Playwright e2e in Docker)"
 	@echo "  test-unit         - Run frontend unit tests (Vitest)"
-	@echo "  test-backend      - Run backend Go tests"
+	@echo "  test-backend      - Run backend Go unit tests (hermetic, what PR CI runs)"
+	@echo "  test-integration  - Run backend integration tests against Meilisearch (starts it)"
+	@echo "  meili-up          - Start the dev Meilisearch container (text channels)"
+	@echo "  meili-down        - Stop the dev Meilisearch container"
 	@echo "  test-e2e-docker   - Run Playwright e2e tests in Docker"
 	@echo "  test-headed       - Run tests in headed mode (local browser required)"
 	@echo "  docker-build-test - Build the Playwright test Docker image"
@@ -162,10 +165,33 @@ test-e2e-docker: docker-build-test
 test: docker-build-test
 	@PLAYWRIGHT_TEST_IMAGE=$(PLAYWRIGHT_TEST_IMAGE) PLAYWRIGHT_TEST_ARGS="$(PLAYWRIGHT_TEST_ARGS)" bash scripts/run-tests.sh all
 
-# Run backend unit tests
+# Run backend unit tests (no external services; integration tests are excluded
+# by build tag, see test-integration)
 test-backend:
 	@echo "Running backend tests..."
 	cd backend && go test ./...
+
+# Dev Meilisearch (text channel store, docs/specs/CHAT_SYSTEM.md). The backend's
+# development defaults point at it, so `make meili-up && make dev` just works.
+MEILI_TEST_URL ?= http://127.0.0.1:7700
+MEILI_TEST_KEY ?= $(or $(MEILI_MASTER_KEY),orbital-dev-meili-key)
+
+meili-up:
+	docker-compose -f docker-compose.dev.yml up -d meilisearch
+	@for i in $$(seq 1 60); do \
+		curl -fsS $(MEILI_TEST_URL)/health >/dev/null 2>&1 && echo "Meilisearch is up at $(MEILI_TEST_URL)" && exit 0; \
+		sleep 0.5; \
+	done; echo "Meilisearch did not become healthy" >&2; exit 1
+
+meili-down:
+	docker-compose -f docker-compose.dev.yml stop meilisearch
+
+# Backend integration tests (build tag `integration`), e.g. the Meilisearch
+# engine. Not part of PR CI; each test uses its own throwaway index.
+test-integration: meili-up
+	@echo "Running backend integration tests..."
+	cd backend && MEILI_TEST_URL=$(MEILI_TEST_URL) MEILI_TEST_KEY=$(MEILI_TEST_KEY) \
+		go test -count=1 -tags integration -run Integration ./...
 
 # Run frontend unit tests
 test-unit:
