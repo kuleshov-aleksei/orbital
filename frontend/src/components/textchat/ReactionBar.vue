@@ -56,9 +56,7 @@ function mine(r: TextReaction): boolean {
 }
 
 function whoReacted(r: TextReaction): string {
-  const names = r.user_ids
-    .slice(0, 10)
-    .map((id) => usersStore.allUsers.find((u) => u.id === id)?.nickname ?? "Unknown user")
+  const names = r.user_ids.slice(0, 10).map((id) => usersStore.displayName(id))
   const more = r.user_ids.length - names.length
   return more > 0 ? `${names.join(", ")} and ${more} more` : names.join(", ")
 }

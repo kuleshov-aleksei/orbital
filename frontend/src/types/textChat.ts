@@ -190,6 +190,8 @@ export interface TextMessageUpdatedEvent {
 export interface TextMessageDeletedEvent {
   room_id: string
   id: string
+  /** The channel's newest seq after the delete (absent from older servers). */
+  newest_seq?: number
 }
 
 export interface TextReadStateEvent {

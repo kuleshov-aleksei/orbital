@@ -65,6 +65,17 @@ describe("users store custom status", () => {
     expect(store.allUsers[0].created_at).toBe("2025-03-14T12:00:00Z")
   })
 
+  it("names users missing from the loaded list as deleted", () => {
+    const store = useUsersStore()
+    const deletedId = "qkUrdzLDoqslx8EEy2cM7Q=="
+    // Before the list loads nobody is known, which says nothing about deletion.
+    expect(store.displayName(deletedId)).toBe("Unknown user")
+
+    store.setUsers([publicUser({ id: "Zm9vYmFyYmF6cXV4MTIzNA==", nickname: "Nova" })])
+    expect(store.displayName("Zm9vYmFyYmF6cXV4MTIzNA==")).toBe("Nova")
+    expect(store.displayName(deletedId)).toBe("Deleted user")
+  })
+
   it("keeps the old status when saving fails", async () => {
     vi.mocked(apiService.updateCustomStatus).mockRejectedValue(new Error("boom"))
     const store = useUsersStore()

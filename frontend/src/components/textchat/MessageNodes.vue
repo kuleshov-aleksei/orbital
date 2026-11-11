@@ -58,7 +58,7 @@ const permissionsStore = usePermissionsStore()
 // Mentions always show the current name (renames never touch stored text).
 function mentionName(kind: "user" | "role", id: string): string {
   if (kind === "user") {
-    return usersStore.allUsers.find((u) => u.id === id)?.nickname ?? "unknown-user"
+    return usersStore.displayName(id)
   }
   return permissionsStore.roles.find((r) => r.id === id)?.name ?? "unknown-role"
 }

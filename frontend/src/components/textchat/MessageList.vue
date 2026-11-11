@@ -160,7 +160,7 @@ const permissionsStore = usePermissionsStore()
 const usersStore = useUsersStore()
 
 function nameOf(userId: string): string {
-  return usersStore.allUsers.find((u) => u.id === userId)?.nickname ?? "Unknown user"
+  return usersStore.displayName(userId)
 }
 const scroller = useTemplateRef<HTMLDivElement>("scroller")
 const divider = useTemplateRef<HTMLDivElement[]>("divider")

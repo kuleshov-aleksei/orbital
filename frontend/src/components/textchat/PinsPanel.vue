@@ -79,6 +79,6 @@ const usersStore = useUsersStore()
 const permissionsStore = usePermissionsStore()
 
 function nameOf(userId: string): string {
-  return usersStore.allUsers.find((u) => u.id === userId)?.nickname ?? "Unknown user"
+  return usersStore.displayName(userId)
 }
 </script>

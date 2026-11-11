@@ -297,7 +297,7 @@ const encode = (text: string) =>
 const charCount = computed(() => emojiTextLength(encode(draft.value)))
 
 function nameOf(userId: string): string {
-  return usersStore.allUsers.find((u) => u.id === userId)?.nickname ?? "Unknown user"
+  return usersStore.displayName(userId)
 }
 
 function autosize() {

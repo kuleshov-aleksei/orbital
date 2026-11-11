@@ -227,6 +227,7 @@ import MessageAttachments from "./attachments/MessageAttachments.vue"
 import { useCustomEmojisStore, usePermissionsStore, useUsersStore } from "@/stores"
 import {
   emojiShortcode,
+  emojiTextLength,
   emojiTextToPlain,
   encodeShortcodes,
   recentReactions,
@@ -288,7 +289,7 @@ const permissionsStore = usePermissionsStore()
 const customEmojisStore = useCustomEmojisStore()
 
 function nameOf(userId: string): string {
-  return usersStore.allUsers.find((u) => u.id === userId)?.nickname ?? "Unknown user"
+  return usersStore.displayName(userId)
 }
 
 // Highlighted when it mentions you directly or through one of your roles.
@@ -363,7 +364,7 @@ function saveEdit() {
     editError.value = "A message can't be empty. Delete it instead."
     return
   }
-  if (Array.from(content).length > 2000) {
+  if (emojiTextLength(content) > 2000) {
     editError.value = "Messages are limited to 2000 characters."
     return
   }
