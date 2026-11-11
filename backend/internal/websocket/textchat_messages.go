@@ -7,15 +7,17 @@ import (
 
 	"github.com/kuleshov-aleksei/orbital/internal/models"
 	"github.com/kuleshov-aleksei/orbital/internal/permissions"
+	"github.com/kuleshov-aleksei/orbital/internal/service/chatmedia"
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatstore"
 )
 
 type textSendRequest struct {
-	RoomID    string `json:"room_id"`
-	Content   string `json:"content"`
-	ReplyToID string `json:"reply_to_id"`
-	ReplyPing *bool  `json:"reply_ping"`
-	Nonce     string `json:"nonce"`
+	RoomID    string   `json:"room_id"`
+	Content   string   `json:"content"`
+	ReplyToID string   `json:"reply_to_id"`
+	ReplyPing *bool    `json:"reply_ping"`
+	UploadIDs []string `json:"upload_ids"`
+	Nonce     string   `json:"nonce"`
 }
 
 func (c *Client) handleTextMessageSend(data interface{}) {
@@ -47,10 +49,44 @@ func (c *Client) handleTextMessageSend(data interface{}) {
 	}
 
 	replyPing := req.ReplyPing == nil || *req.ReplyPing
-	msg, err := tc.Store.Create(context.Background(), chatstore.CreateInput{
+	in := chatstore.CreateInput{
 		RoomID: req.RoomID, SenderID: userID, Content: req.Content,
 		ReplyToID: req.ReplyToID, ReplyPing: replyPing,
-	})
+	}
+	var msg *chatstore.Message
+	var err error
+	if len(req.UploadIDs) == 0 {
+		msg, err = tc.Store.Create(context.Background(), in)
+	} else {
+		if tc.Media == nil {
+			c.sendTextError(textErrUnavailable, "Attachments are disabled", req.Nonce, "")
+			return
+		}
+		if !c.hub.canInRoom(c.hub.permissionService(), c, req.RoomID, permissions.AttachFiles) {
+			sendPermissionDenied(c, "text_message_send", req.RoomID)
+			c.sendTextError(textErrForbidden, "You don't have permission to attach files here", req.Nonce, "")
+			return
+		}
+		err = tc.Media.Attach(context.Background(), userID, req.RoomID, req.UploadIDs,
+			func(atts []chatstore.Attachment) (string, error) {
+				in.Attachments = atts
+				m, err := tc.Store.Create(context.Background(), in)
+				if err != nil {
+					return "", err
+				}
+				msg = m
+				return m.ID, nil
+			})
+		if errors.Is(err, chatmedia.ErrInvalid) {
+			c.sendTextError(textErrInvalid, err.Error(), req.Nonce, "")
+			return
+		}
+		if err != nil && msg != nil {
+			// The message exists; only the bookkeeping update failed.
+			log.Printf("[TextChat] Failed to mark uploads attached to %s: %v", msg.ID, err)
+			err = nil
+		}
+	}
 	if err != nil {
 		c.sendStoreError(err, req.Nonce, "")
 		return
@@ -142,6 +178,11 @@ func (c *Client) handleTextMessageDelete(data interface{}) {
 		Type: "text_message_deleted",
 		Data: map[string]any{"room_id": msg.RoomID, "id": msg.ID},
 	})
+	if tc.Media != nil && len(msg.Attachments) > 0 {
+		if err := tc.Media.RemoveForMessage(msg.ID); err != nil {
+			log.Printf("[TextChat] Failed to remove attachments of deleted message %s: %v", msg.ID, err)
+		}
+	}
 }
 
 type textReadRequest struct {

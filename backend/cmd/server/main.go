@@ -17,6 +17,7 @@ import (
 	"github.com/kuleshov-aleksei/orbital/internal/ratelimit"
 	"github.com/kuleshov-aleksei/orbital/internal/repository"
 	"github.com/kuleshov-aleksei/orbital/internal/service"
+	"github.com/kuleshov-aleksei/orbital/internal/service/chatmedia"
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatstore"
 	"github.com/kuleshov-aleksei/orbital/internal/storage"
 	"github.com/kuleshov-aleksei/orbital/internal/version"
@@ -73,6 +74,7 @@ func main() {
 	var rbacRepo *repository.RBACRepository
 	var textReadState chatstore.ReadStateStore
 	var textNotify chatstore.NotifyStore
+	var appDB *storage.DB
 
 	if cfg.Database.Path != "" {
 		db, err := storage.NewDB(cfg.Database.Path)
@@ -80,6 +82,7 @@ func main() {
 			log.Fatalf("Failed to initialize database: %v", err)
 		}
 		defer func() { _ = db.Close() }()
+		appDB = db
 
 		// Run migrations
 		if err := db.RunMigrations(); err != nil {
@@ -216,6 +219,7 @@ func main() {
 		textChat = &websocket.TextChat{
 			Store: store, ReadState: textReadState, Notify: textNotify,
 			UserExists: func(id string) bool { return userLookup(id) != nil },
+			Media:      newChatMedia(cfg, appDB),
 		}
 		wsHub.SetTextChat(textChat)
 		wsHub.StartMuteExpiry(context.Background())
@@ -405,6 +409,7 @@ func main() {
 		textChatHandler := handlers.NewTextChatHandler(handlers.TextChatDeps{
 			Store: textChat.Store, ReadState: textChat.ReadState, Notify: textChat.Notify,
 			RoomService: roomService, Permissions: permissionService, Events: wsHub,
+			Media: textChat.Media,
 			Users: func() []*models.User {
 				if userRepo == nil {
 					return nil
@@ -422,6 +427,19 @@ func main() {
 		r.Handle("/api/chat/search", auth(http.HandlerFunc(textChatHandler.Search))).Methods("GET")
 		r.Handle("/api/rooms/{id}/pins", auth(http.HandlerFunc(textChatHandler.GetPins))).Methods("GET")
 		r.Handle("/api/rooms/{id}/notify", auth(http.HandlerFunc(textChatHandler.SetNotify))).Methods("PUT")
+
+		// Attachments (docs/specs/CHAT_SYSTEM.md §7.12): RBAC per request in the handlers.
+		if textChat.Media != nil {
+			chatUploadLimit := ratelimit.Every(cfg.ChatMedia.UploadsPerHour, time.Hour)
+			uploadHandler := limiter.Middleware("chat-upload", chatUploadLimit, userOrIPKey, http.HandlerFunc(textChatHandler.UploadAttachment))
+			r.Handle("/api/rooms/{id}/attachments", auth(uploadHandler)).Methods("POST")
+			r.Handle("/api/attachments/urls", auth(http.HandlerFunc(textChatHandler.AttachmentURLs))).Methods("POST")
+			r.Handle("/api/attachments/{id}", auth(http.HandlerFunc(textChatHandler.UpdateAttachment))).Methods("PATCH")
+			r.Handle("/api/attachments/{id}", auth(http.HandlerFunc(textChatHandler.DeleteAttachment))).Methods("DELETE")
+			r.Handle("/api/me/attachments", auth(http.HandlerFunc(textChatHandler.ListMyAttachments))).Methods("GET")
+			r.Handle("/api/me/attachments/usage", auth(http.HandlerFunc(textChatHandler.MyAttachmentUsage))).Methods("GET")
+			r.Handle("/api/me/attachments/bulk", auth(http.HandlerFunc(textChatHandler.BulkMyAttachments))).Methods("POST")
+		}
 	}
 
 	// Category routes
@@ -631,4 +649,30 @@ func requestLoggingMiddleware(next http.Handler) http.Handler {
 		duration := time.Since(start)
 		log.Printf("[%s] %s %s - %v", r.Method, r.URL.Path, r.RemoteAddr, duration)
 	})
+}
+
+// newChatMedia sets up text channel attachments, or returns nil (disabled)
+// without S3 config or a database.
+func newChatMedia(cfg *config.Config, db *storage.DB) *chatmedia.Service {
+	mc := cfg.ChatMedia
+	if !mc.Enabled() || db == nil {
+		log.Println("CHAT_MEDIA_S3_* is not set (or no database), text channel attachments are disabled")
+		return nil
+	}
+	store, err := chatmedia.NewS3Store(chatmedia.S3Config{
+		Endpoint: mc.S3Endpoint, PublicEndpoint: mc.PublicEndpoint(), Bucket: mc.Bucket, Region: mc.Region,
+		AccessKey: mc.AccessKey, SecretKey: mc.SecretKey,
+	})
+	if err != nil {
+		log.Printf("Text channel attachments are disabled: %v", err)
+		return nil
+	}
+	const mb = 1024 * 1024
+	svc := chatmedia.New(db, store, chatmedia.Limits{
+		MaxImageBytes: int64(mc.MaxImageMB) * mb, MaxAudioBytes: int64(mc.MaxAudioMB) * mb,
+		MaxVideoBytes: int64(mc.MaxVideoMB) * mb, QuotaBytes: mc.QuotaBytes(),
+	})
+	svc.Start(context.Background())
+	log.Printf("Text channel attachments enabled (S3 %s, bucket %s, quota %d MB)", mc.S3Endpoint, mc.Bucket, mc.QuotaMB)
+	return svc
 }

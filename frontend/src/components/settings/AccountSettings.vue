@@ -173,6 +173,23 @@
       </div>
     </div>
 
+    <!-- Attachment storage page (opens in a new tab) -->
+    <div
+      v-if="configStore.attachments && !userStore.isGuest"
+      class="pt-2 border-t border-theme-border mt-4">
+      <button
+        type="button"
+        class="w-full flex items-center justify-center px-4 py-2 bg-theme-bg-tertiary hover:bg-theme-bg-hover border border-theme-border text-theme-text-primary rounded-lg transition-colors duration-200 text-sm font-medium"
+        data-testid="open-my-files"
+        @click="openStoragePage()">
+        <PhHardDrives class="w-4 h-4 mr-2" />
+        My files
+      </button>
+      <p class="text-xs text-theme-text-muted mt-2 text-center">
+        See and manage the files you attached in text channels.
+      </p>
+    </div>
+
     <!-- Admin Panel Button - owner, or users who can manage roles/audio -->
     <div v-if="canOpenAdminPanel" class="pt-2 border-t border-theme-border mt-4">
       <router-link v-slot="{ navigate }" to="/admin" custom>
@@ -219,7 +236,8 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, useTemplateRef } from "vue"
-import { useUserStore, usePermissionsStore } from "@/stores"
+import { useConfigStore, useUserStore, usePermissionsStore } from "@/stores"
+import { openStoragePage } from "@/services/attachments/urls"
 import { Permission } from "@/types/permissions"
 import UserAvatar from "@/components/UserAvatar.vue"
 import AvatarCropModal from "@/components/AvatarCropModal.vue"
@@ -229,6 +247,7 @@ import {
   PhCheckCircle,
   PhPencil,
   PhShield,
+  PhHardDrives,
   PhCamera,
   PhSpinner,
 } from "@phosphor-icons/vue"
@@ -244,6 +263,7 @@ const emit = defineEmits<{
 }>()
 
 const userStore = useUserStore()
+const configStore = useConfigStore()
 const permissionsStore = usePermissionsStore()
 const canOpenAdminPanel = computed(
   () =>

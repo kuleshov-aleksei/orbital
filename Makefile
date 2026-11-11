@@ -1,4 +1,4 @@
-.PHONY: help install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-backend test-integration e2e-textchat meili-up meili-down garage-up garage-downtest-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all balance-drift balance-check
+.PHONY: help install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-backend test-integration e2e-textchat meili-up meili-down garage-up garage-down test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all balance-drift balance-check
 
 # Default target
 help:
@@ -13,8 +13,8 @@ help:
 	@echo "  test              - Run tests (Playwright e2e in Docker)"
 	@echo "  test-unit         - Run frontend unit tests (Vitest)"
 	@echo "  test-backend      - Run backend Go unit tests (hermetic, what PR CI runs)"
-	@echo "  test-integration  - Run backend integration tests against Meilisearch (starts it)"
-	@echo "  e2e-textchat      - Live text channel check on a throwaway backend + index (starts Meilisearch)"
+	@echo "  test-integration  - Run backend integration tests against Meilisearch + Garage (starts them)"
+	@echo "  e2e-textchat      - Live text channel check on a throwaway backend + index (starts Meilisearch + Garage)"
 	@echo "  meili-up          - Start the dev Meilisearch container (text channels)"
 	@echo "  meili-down        - Stop the dev Meilisearch container"
 	@echo "  garage-up         - Start the dev Garage S3 container (chat attachments)"
@@ -206,15 +206,17 @@ garage-down:
 
 # Backend integration tests (build tag `integration`), e.g. the Meilisearch
 # engine. Not part of PR CI; each test uses its own throwaway index.
-test-integration: meili-up
+test-integration: meili-up garage-up
 	@echo "Running backend integration tests..."
-	cd backend && MEILI_TEST_URL=$(MEILI_TEST_URL) MEILI_TEST_KEY=$(MEILI_TEST_KEY) \
+	@# The S3 test uses the dev Garage key from .env (skips without it).
+	@cd backend && export $$(grep -E '^GARAGE_DEFAULT_(ACCESS_KEY|SECRET_KEY|BUCKET)=' ../.env 2>/dev/null | tr -d '"' | xargs) && \
+		MEILI_TEST_URL=$(MEILI_TEST_URL) MEILI_TEST_KEY=$(MEILI_TEST_KEY) \
 		go test -count=1 -tags integration -run Integration ./...
 
 # Live text channel check: throwaway backend (own DB + index) driven over
 # REST/WS by scripts/e2e-textchat.mjs. Run it after chatstore or text chat
 # WebSocket/handler changes; it is not part of PR CI.
-e2e-textchat: meili-up
+e2e-textchat: meili-up garage-up
 	@MEILI_URL=$(MEILI_TEST_URL) MEILI_KEY=$(MEILI_TEST_KEY) bash scripts/e2e-textchat.sh
 
 # Run frontend unit tests

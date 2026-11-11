@@ -4,7 +4,7 @@
 # scripts/e2e-textchat.mjs against it, then removes everything it created.
 # The dev database and the dev index are never touched.
 #
-# Needs: Meilisearch up (make meili-up), node >= 22 (global WebSocket), sqlite3.
+# Needs: Meilisearch up (make meili-up), Garage for attachments (make garage-up), node >= 22 (global WebSocket), sqlite3.
 # Env: E2E_PORT (default 8091), MEILI_URL, MEILI_KEY.
 set -euo pipefail
 
@@ -38,6 +38,19 @@ cleanup() {
   esac
 }
 trap cleanup EXIT INT TERM
+
+# Attachments: pass the dev Garage key (make garage-up) from .env through.
+# Without it the backend runs with attachments off and those checks skip.
+if [ -f "$ROOT/.env" ]; then
+  while IFS='=' read -r key value; do
+    case "$key" in
+      GARAGE_DEFAULT_ACCESS_KEY | GARAGE_DEFAULT_SECRET_KEY | GARAGE_DEFAULT_BUCKET)
+        value="${value%\"}"
+        export "$key=${value#\"}"
+        ;;
+    esac
+  done <"$ROOT/.env"
+fi
 
 echo "Starting throwaway backend on :$PORT (index $INDEX)..."
 (

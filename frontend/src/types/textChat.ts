@@ -21,7 +21,93 @@ export interface TextMessage {
   pinned: boolean
   pinned_at_ts: number | null
   pinned_by: string | null
-  attachments: Record<string, unknown>[]
+  attachments: TextAttachment[]
+}
+
+export type AttachmentKind = "image" | "video" | "audio"
+export type AttachmentRemovedReason = "quota" | "owner" | "moderator"
+
+/** Display copy of a file in a message (docs/specs/CHAT_SYSTEM.md §7.12). */
+export interface TextAttachment {
+  id: string
+  kind: AttachmentKind
+  mime: string
+  size: number
+  filename: string
+  width?: number
+  height?: number
+  duration_ms?: number
+  has_thumb: boolean
+  /** Audio waveform: up to 200 values in 0..255. */
+  peaks?: number[]
+  protected: boolean
+  /** Set once the file is gone; the message shows a tombstone. */
+  removed?: AttachmentRemovedReason
+}
+
+export type AttachmentVariant = "original" | "thumb" | "download"
+
+export interface AttachmentUsage {
+  quota_bytes: number
+  used_bytes: number
+  protected_bytes: number
+  pending_bytes: number
+  count: number
+}
+
+export interface EvictedAttachment {
+  id: string
+  filename: string
+  stored_bytes: number
+}
+
+export interface AttachmentUploadResponse {
+  upload_id: string
+  attachment: TextAttachment
+  evicted: EvictedAttachment[]
+  usage: AttachmentUsage
+}
+
+export interface AttachmentUrlsResponse {
+  /** Keyed by "<id>:<variant>"; expires_at is unix ms. */
+  urls: Record<string, { url: string; expires_at: number }>
+  gone: string[]
+}
+
+/** A row of the storage page (GET /api/me/attachments). */
+export interface MyAttachment extends TextAttachment {
+  room_id: string
+  room_name: string
+  message_id?: string
+  status: "pending" | "attached"
+  stored_bytes: number
+  created_at: number
+  can_view: boolean
+  removal_next: boolean
+}
+
+export interface MyAttachmentsPage {
+  items: MyAttachment[]
+  next_cursor: string | null
+}
+
+export type MyAttachmentsSort = "oldest" | "newest" | "largest"
+
+export interface MyAttachmentsQuery {
+  kind?: AttachmentKind | ""
+  roomId?: string
+  sort?: MyAttachmentsSort
+  q?: string
+  protectedOnly?: boolean
+  cursor?: string | null
+  limit?: number
+}
+
+export type AttachmentBulkAction = "delete" | "protect" | "unprotect"
+
+export interface AttachmentBulkResponse {
+  results: Record<string, string>
+  usage: AttachmentUsage
 }
 
 export interface TextHistoryPage {

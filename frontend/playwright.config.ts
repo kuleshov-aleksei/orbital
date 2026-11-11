@@ -51,8 +51,14 @@ export default defineConfig({
       // E2E uses a dedicated SQLite DB that is wiped before each run so the
       // first registered user deterministically becomes super_admin (needed
       // for admin-gated room create/delete) and real dev data stays untouched.
+      // Text channels and attachments: only the Meilisearch and Garage keys
+      // come from ../.env (when present), and messages go to their own index,
+      // never the dev one. Without them those specs skip.
       command:
-        "sh -c 'rm -f data/orbital-e2e.db data/orbital-e2e.db-* && DATABASE_PATH=data/orbital-e2e.db " +
+        "sh -c 'rm -f data/orbital-e2e.db data/orbital-e2e.db-* && " +
+        'KEYS=$(grep -E "^(MEILI_MASTER_KEY|MEILI_API_KEY|GARAGE_DEFAULT_ACCESS_KEY|GARAGE_DEFAULT_SECRET_KEY|GARAGE_DEFAULT_BUCKET)=" ../.env 2>/dev/null | tr -d "\\"" | xargs); ' +
+        'if [ -n "$KEYS" ]; then export $KEYS; fi; ' +
+        "MEILI_INDEX=text_messages_playwright DATABASE_PATH=data/orbital-e2e.db " +
         "RATE_LIMIT_AUTH_PER_MINUTE=1000 RATE_LIMIT_GUEST_PER_HOUR=1000 " +
         "RATE_LIMIT_OAUTH_PER_MINUTE=1000 RATE_LIMIT_GUEST_UPLOAD_PER_HOUR=1000 " +
         "RATE_LIMIT_USER_UPLOAD_PER_HOUR=1000 RATE_LIMIT_DEBUG_LOG_PER_MINUTE=1000 " +

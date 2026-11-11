@@ -511,6 +511,40 @@ UPDATE roles SET permissions = permissions | %d WHERE id = 'admin';`,
 CREATE INDEX IF NOT EXISTS idx_text_notify_settings_room ON text_notify_settings(room_id);
 CREATE INDEX IF NOT EXISTS idx_text_notify_settings_until ON text_notify_settings(muted_until) WHERE muted_until IS NOT NULL;`,
 	},
+	{
+		Version: 44,
+		Name:    "create_chat_attachments",
+		// Text channel attachments from upload to purge (docs/specs/CHAT_SYSTEM.md
+		// §7.12): ownership, quota usage and protection. Times are unix ms.
+		SQL: `CREATE TABLE IF NOT EXISTS chat_attachments (
+			id TEXT PRIMARY KEY,
+			room_id TEXT NOT NULL,
+			uploader_id TEXT NOT NULL,
+			message_id TEXT,
+			kind TEXT NOT NULL,
+			mime TEXT NOT NULL,
+			ext TEXT NOT NULL,
+			filename TEXT NOT NULL,
+			size_bytes INTEGER NOT NULL,
+			stored_bytes INTEGER NOT NULL,
+			width INTEGER,
+			height INTEGER,
+			duration_ms INTEGER,
+			has_thumb INTEGER NOT NULL DEFAULT 0,
+			peaks TEXT,
+			status TEXT NOT NULL CHECK (status IN ('pending','attached','removed')),
+			protected INTEGER NOT NULL DEFAULT 0,
+			removed_reason TEXT,
+			created_at INTEGER NOT NULL,
+			attached_at INTEGER,
+			removed_at INTEGER,
+			purged_at INTEGER
+		);
+CREATE INDEX IF NOT EXISTS idx_chat_att_owner ON chat_attachments(uploader_id, status, protected, created_at);
+CREATE INDEX IF NOT EXISTS idx_chat_att_message ON chat_attachments(message_id);
+CREATE INDEX IF NOT EXISTS idx_chat_att_room ON chat_attachments(room_id);
+CREATE INDEX IF NOT EXISTS idx_chat_att_purge ON chat_attachments(status, purged_at);`,
+	},
 }
 
 // RunMigrationsUpTo applies migrations up to and including maxVersion.

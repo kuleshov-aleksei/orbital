@@ -28,6 +28,8 @@ services:
       - ROOM_DEFAULT_MAX_USERS=10
       # Text channels. The key comes from .env (MEILI_API_KEY, or MEILI_MASTER_KEY as a fallback).
       - MEILI_URL=${MEILI_URL:-http://meilisearch:7700}
+      # Attachments use an external Garage: set CHAT_MEDIA_S3_* in .env (env_file
+      # above); without them attachments are disabled (docs/specs/CHAT_SYSTEM.md §11).
     volumes:
       - ./data/backend/:/root/data/
     depends_on:

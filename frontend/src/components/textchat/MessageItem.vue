@@ -90,7 +90,16 @@
             <span v-if="editError" class="text-red-400 ml-2">{{ editError }}</span>
           </p>
         </div>
-        <MessageContent v-else :content="message.content" :edited-at="message.edited_at_ts" />
+        <MessageContent
+          v-else-if="message.content || message.edited_at_ts"
+          :content="message.content"
+          :edited-at="message.edited_at_ts" />
+        <MessageAttachments
+          v-if="message.attachments.length"
+          :attachments="message.attachments"
+          :is-own="isOwn"
+          :can-manage="canManage"
+          :pending="!!pendingStatus" />
 
         <ReactionBar
           v-if="message.reactions.length && !pendingStatus"
@@ -214,6 +223,7 @@ import UserAvatar from "@/components/UserAvatar.vue"
 import EmojiGlyph from "@/components/EmojiGlyph.vue"
 import MessageContent from "./MessageContent.vue"
 import ReactionBar from "./ReactionBar.vue"
+import MessageAttachments from "./attachments/MessageAttachments.vue"
 import { useCustomEmojisStore, usePermissionsStore, useUsersStore } from "@/stores"
 import {
   emojiShortcode,
@@ -299,13 +309,15 @@ function roleName(id: string): string | undefined {
   return permissionsStore.roles.find((r) => r.id === id)?.name
 }
 
-const replyPreview = computed(() =>
-  props.replied
-    ? markupToPlain(parseMessage(props.replied.content), (kind, id) =>
-        kind === "user" ? nameOf(id) : (roleName(id) ?? "unknown-role"),
-      ).slice(0, 200)
-    : "",
-)
+const replyPreview = computed(() => {
+  if (!props.replied) return ""
+  const text = markupToPlain(parseMessage(props.replied.content), (kind, id) =>
+    kind === "user" ? nameOf(id) : (roleName(id) ?? "unknown-role"),
+  ).slice(0, 200)
+  if (text) return text
+  const n = props.replied.attachments.length
+  return n ? `📎 ${n === 1 ? props.replied.attachments[0].filename : `${n} files`}` : ""
+})
 
 // --- Inline edit -------------------------------------------------------
 // The textarea shows custom emojis as :shortcode: and saves tokens.
@@ -347,7 +359,7 @@ function saveEdit() {
     encodeShortcodes(draft.value.trim(), (code) => customEmojisStore.idForShortcode(code)),
     editMentions,
   )
-  if (!content) {
+  if (!content && !props.message.attachments.some((a) => !a.removed)) {
     editError.value = "A message can't be empty. Delete it instead."
     return
   }

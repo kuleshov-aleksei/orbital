@@ -27,6 +27,7 @@ type Config struct {
 	LiveKit   LiveKitConfig   `yaml:"livekit"`
 	RateLimit RateLimitConfig `yaml:"rate_limit"`
 	Chat      ChatConfig      `yaml:"chat"`
+	ChatMedia ChatMediaConfig `yaml:"chat_media"`
 }
 
 // ChatConfig configures persistent text channels. Messages are stored in
@@ -56,6 +57,61 @@ func (c *Config) applyDevChatDefaults() {
 
 // TextChannelsEnabled reports whether a Meilisearch backend is configured.
 func (c ChatConfig) TextChannelsEnabled() bool { return c.MeiliURL != "" }
+
+// ChatMediaConfig configures text channel attachments on S3 (Garage), see
+// docs/specs/CHAT_SYSTEM.md §7.12. Without endpoint, bucket and keys,
+// attachments are disabled.
+type ChatMediaConfig struct {
+	S3Endpoint string `yaml:"s3_endpoint"`
+	// S3PublicEndpoint is signed into presigned URLs; defaults to S3Endpoint.
+	S3PublicEndpoint string `yaml:"s3_public_endpoint"`
+	Bucket           string `yaml:"bucket"`
+	AccessKey        string `yaml:"access_key"`
+	SecretKey        string `yaml:"secret_key"`
+	Region           string `yaml:"region"`
+	MaxImageMB       int    `yaml:"max_image_mb"`
+	MaxAudioMB       int    `yaml:"max_audio_mb"`
+	MaxVideoMB       int    `yaml:"max_video_mb"`
+	// QuotaMB is the per-user attachment storage.
+	QuotaMB int `yaml:"quota_mb"`
+	// UploadsPerHour is the per-user upload rate.
+	UploadsPerHour int `yaml:"uploads_per_hour"`
+}
+
+// Enabled reports whether S3 is configured.
+func (c ChatMediaConfig) Enabled() bool {
+	return c.S3Endpoint != "" && c.Bucket != "" && c.AccessKey != "" && c.SecretKey != ""
+}
+
+// PublicEndpoint is the host for presigned URLs.
+func (c ChatMediaConfig) PublicEndpoint() string {
+	if c.S3PublicEndpoint != "" {
+		return c.S3PublicEndpoint
+	}
+	return c.S3Endpoint
+}
+
+func (c ChatMediaConfig) QuotaBytes() int64 { return int64(c.QuotaMB) * 1024 * 1024 }
+
+// Development default matches the garage service in docker-compose.dev.yml;
+// its key comes from GARAGE_DEFAULT_ACCESS_KEY/SECRET_KEY in .env.
+const devChatMediaEndpoint = "http://localhost:3900"
+
+func (c *Config) applyDevChatMediaDefaults() {
+	if !c.IsDevelopment() || c.ChatMedia.S3Endpoint != "" {
+		return
+	}
+	c.ChatMedia.S3Endpoint = devChatMediaEndpoint
+	if c.ChatMedia.AccessKey == "" {
+		c.ChatMedia.AccessKey = os.Getenv("GARAGE_DEFAULT_ACCESS_KEY")
+	}
+	if c.ChatMedia.SecretKey == "" {
+		c.ChatMedia.SecretKey = os.Getenv("GARAGE_DEFAULT_SECRET_KEY")
+	}
+	if v := os.Getenv("GARAGE_DEFAULT_BUCKET"); v != "" && os.Getenv("CHAT_MEDIA_S3_BUCKET") == "" {
+		c.ChatMedia.Bucket = v
+	}
+}
 
 type RateLimitConfig struct {
 	AuthPerMinute        int `yaml:"auth_per_minute"`
@@ -163,6 +219,15 @@ func DefaultConfig() *Config {
 		Chat: ChatConfig{
 			MeiliIndex: "text_messages",
 		},
+		ChatMedia: ChatMediaConfig{
+			Bucket:         "orbital-chat-media",
+			Region:         "garage",
+			MaxImageMB:     20,
+			MaxAudioMB:     25,
+			MaxVideoMB:     100,
+			QuotaMB:        5120,
+			UploadsPerHour: 120,
+		},
 		RateLimit: RateLimitConfig{
 			AuthPerMinute:        10,
 			GuestPerHour:         10,
@@ -196,6 +261,7 @@ func Load(configPath string) (*Config, error) {
 	// Apply environment variable overrides
 	cfg.loadFromEnv()
 	cfg.applyDevChatDefaults()
+	cfg.applyDevChatMediaDefaults()
 
 	return cfg, nil
 }
@@ -330,6 +396,31 @@ func (c *Config) loadFromEnv() {
 		c.Chat.MeiliIndex = v
 	}
 
+	// Text channel attachments (S3)
+	for key, dst := range map[string]*string{
+		"CHAT_MEDIA_S3_ENDPOINT":        &c.ChatMedia.S3Endpoint,
+		"CHAT_MEDIA_S3_PUBLIC_ENDPOINT": &c.ChatMedia.S3PublicEndpoint,
+		"CHAT_MEDIA_S3_BUCKET":          &c.ChatMedia.Bucket,
+		"CHAT_MEDIA_S3_ACCESS_KEY":      &c.ChatMedia.AccessKey,
+		"CHAT_MEDIA_S3_SECRET_KEY":      &c.ChatMedia.SecretKey,
+		"CHAT_MEDIA_S3_REGION":          &c.ChatMedia.Region,
+	} {
+		if v := os.Getenv(key); v != "" {
+			*dst = v
+		}
+	}
+	for key, dst := range map[string]*int{
+		"CHAT_MEDIA_MAX_IMAGE_MB":         &c.ChatMedia.MaxImageMB,
+		"CHAT_MEDIA_MAX_AUDIO_MB":         &c.ChatMedia.MaxAudioMB,
+		"CHAT_MEDIA_MAX_VIDEO_MB":         &c.ChatMedia.MaxVideoMB,
+		"CHAT_MEDIA_QUOTA_MB":             &c.ChatMedia.QuotaMB,
+		"RATE_LIMIT_CHAT_UPLOAD_PER_HOUR": &c.ChatMedia.UploadsPerHour,
+	} {
+		if v, ok := getEnvInt(key); ok {
+			*dst = v
+		}
+	}
+
 	// Rate limit and quota config
 	if v, ok := getEnvInt("RATE_LIMIT_AUTH_PER_MINUTE"); ok {
 		c.RateLimit.AuthPerMinute = v
@@ -440,6 +531,17 @@ func (c *Config) Validate() error {
 	}
 	if err := c.LiveKit.Validate(); err != nil {
 		return fmt.Errorf("livekit configuration: %w", err)
+	}
+	for name, value := range map[string]int{
+		"CHAT_MEDIA_MAX_IMAGE_MB":         c.ChatMedia.MaxImageMB,
+		"CHAT_MEDIA_MAX_AUDIO_MB":         c.ChatMedia.MaxAudioMB,
+		"CHAT_MEDIA_MAX_VIDEO_MB":         c.ChatMedia.MaxVideoMB,
+		"CHAT_MEDIA_QUOTA_MB":             c.ChatMedia.QuotaMB,
+		"RATE_LIMIT_CHAT_UPLOAD_PER_HOUR": c.ChatMedia.UploadsPerHour,
+	} {
+		if value <= 0 {
+			return fmt.Errorf("%s must be positive", name)
+		}
 	}
 	return nil
 }

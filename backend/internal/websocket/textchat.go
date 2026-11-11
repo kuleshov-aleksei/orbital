@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
@@ -9,6 +10,7 @@ import (
 	"github.com/kuleshov-aleksei/orbital/internal/models"
 	"github.com/kuleshov-aleksei/orbital/internal/permissions"
 	"github.com/kuleshov-aleksei/orbital/internal/ratelimit"
+	"github.com/kuleshov-aleksei/orbital/internal/service/chatmedia"
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatstore"
 )
 
@@ -30,6 +32,8 @@ type TextChat struct {
 	Notify    chatstore.NotifyStore
 	// UserExists filters mentions of unknown users; nil accepts every id.
 	UserExists func(userID string) bool
+	// Media stores attachments; nil when S3 is not configured.
+	Media *chatmedia.Service
 }
 
 // SetTextChat enables text channel messaging over WebSocket.
@@ -48,6 +52,18 @@ func (h *Hub) SetTextChat(tc *TextChat) {
 	}
 	if tc != nil && tc.Notify == nil {
 		tc.Notify = chatstore.NewMemoryNotify()
+	}
+	if tc != nil && tc.Media != nil && tc.Store != nil {
+		tc.Media.SetMessageHook(func(ctx context.Context, rec *chatmedia.Record, apply func(a *chatstore.Attachment) bool) {
+			msg, err := tc.Store.SetAttachmentState(ctx, rec.MessageID, rec.ID, apply)
+			if err != nil {
+				if !errors.Is(err, chatstore.ErrNotFound) {
+					log.Printf("[TextChat] Failed to update attachment %s in message %s: %v", rec.ID, rec.MessageID, err)
+				}
+				return
+			}
+			h.broadcastUpdated(msg)
+		})
 	}
 }
 

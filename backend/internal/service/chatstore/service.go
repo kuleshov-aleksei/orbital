@@ -211,6 +211,9 @@ type CreateInput struct {
 	ReplyToID string
 	// ReplyPing adds the replied-to author to mention_user_ids.
 	ReplyPing bool
+	// Attachments are validated uploads (service/chatmedia); with any,
+	// the content may be empty.
+	Attachments []Attachment
 }
 
 // Create stores a message and returns it once Meilisearch accepted the write.
@@ -220,7 +223,10 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*Message, error) 
 	if err != nil {
 		return nil, err
 	}
-	content, err := NormalizeContent(in.Content, false)
+	if len(in.Attachments) > MaxAttachmentsPerMessage {
+		return nil, invalid("too many attachments")
+	}
+	content, err := NormalizeContent(in.Content, len(in.Attachments) > 0)
 	if err != nil {
 		return nil, err
 	}
@@ -261,7 +267,9 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*Message, error) 
 		ReplyToID:      replyTo,
 		MentionUserIDs: mentionUsers,
 		MentionRoleIDs: mentionRoles,
+		Attachments:    in.Attachments,
 	}
+	msg.AttachmentKinds, msg.AttachmentNames = attachmentIndexFields(in.Attachments)
 	msg.normalize()
 	task, err := s.eng.Add(ctx, msg)
 	if err != nil {

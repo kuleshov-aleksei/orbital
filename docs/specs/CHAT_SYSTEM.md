@@ -466,19 +466,21 @@ Removal reasons:
 - Protection is set from the attachment context menu (§7.12.7) or from the storage page (§7.12.8).
 
 #### 7.12.6 Delivery
-- `GET /api/attachments/{id}?variant=original|thumb|download`. It looks up the `chat_attachments` row first:
-  - `removed` → `410 Gone`;
+- `POST /api/attachments/urls {items: [{id, variant}]}` (≤100 items) returns `{urls: {"<id>:<variant>": {url, expires_at}}, gone: [ids]}`. The API authenticates with a Bearer header that `<img>`/`<video>`/`<audio>` cannot send, so clients fetch presigned URLs in batches (one request per rendered page) and cache them until shortly before `expires_at` (15 min TTL). An element whose URL fails is refetched once.
+- Per file:
+  - `removed` (or unknown) → listed in `gone`; clients render the tombstone;
   - the **uploader** can always fetch their own files, even after losing `ViewRoom`, because the storage page lists them;
-  - anyone else needs `ViewRoom` on the channel, and the message must not be deleted.
-- It then 302-redirects to a presigned URL with a 5–15 min TTL. Presigned URLs are cached client-side until they expire.
-- `download` presigns with `ResponseContentDisposition: attachment; filename*=UTF-8''<filename>`.
+  - anyone else needs `ViewRoom` on the channel and an `attached` file (deleted messages purge their files, so no message lookup is needed).
+- Variants: `original`, `thumb` (falls back to the original without a thumbnail), and `download`, which presigns with `ResponseContentDisposition: attachment; filename*=UTF-8''<filename>`.
+- `PATCH`/`DELETE /api/attachments/{id}` return `410 Gone` for removed files and `404` for files the caller cannot see.
+- In Electron, opening or downloading a presigned URL goes to the system browser (the main window sends every external `window.open`/navigation there).
 
 #### 7.12.7 Rendering
 - **Layouts per kind:**
   - images in a grid; a click opens a lightbox. GIFs honor the existing reduce-motion setting;
   - `<video preload="metadata">` (first frame, no server poster), in a box sized from `width`/`height`;
   - audio in a compact wavesurfer player (already a dependency):
-    - `WaveSurfer.create({ container, media: audioEl, peaks: [peaks.map(p => p / 255)], duration: duration_ms / 1000, barWidth: 2, … })`, where `audioEl` is `<audio preload="none" src="/api/attachments/{id}">`;
+    - `WaveSurfer.create({ container, media: audioEl, peaks: [peaks.map(p => p / 255)], duration: duration_ms / 1000, barWidth: 2, … })`, where `audioEl` is `<audio preload="none">` with the presigned `original` URL;
     - with `media`, `peaks` and `duration` given, wavesurfer draws the stored waveform **without fetching or decoding the audio**. Playback streams through the media element, so history shows waveforms instantly and no audio bytes load until play;
     - without peaks, it shows a plain seek bar, and the duration appears from the metadata once loaded;
   - a filename and size row for each.
@@ -497,7 +499,8 @@ Removal reasons:
     - "My files" in Account settings, next to the Admin Panel button;
     - "Manage my storage" in the attachment context menu;
     - the eviction toast.
-  - Electron: check what `window.open` does there. If it doesn't open an app window with the same session and preload, add a `setWindowOpenHandler` that opens a child `BrowserWindow` for same-origin `/files`.
+  - Electron: the main window's `setWindowOpenHandler` opens app URLs (`#/files`) as a child app window with the same preload and session; external URLs still go to the system browser.
+- "Jump to message" is relayed over a `BroadcastChannel` to an open app tab (`services/attachments/jumps.ts`); without one, a new app tab opens with `?open_message=<room>:<message>`.
 - **Header:**
   - a usage bar ("3.2 GB of 5 GB") with protected and pending segments;
   - one line explaining that the oldest unprotected files are removed automatically when storage is full.
@@ -586,7 +589,7 @@ REST
 | `GET /api/chat/unread` | Per channel: `last_read_seq`, `newest_seq`, `mention_count`, `notify_mode`, `muted_until` (for the sidebar on load) |
 | `PUT /api/rooms/{id}/notify` `{mode, mute_duration: "1h"\|"4h"\|"1d"\|"1w"\|"forever"}` | Change the notification setting (`mute_duration` only with `mode: "muted"`); requires `ViewRoom` |
 | `POST /api/rooms/{id}/attachments` (phase 3) | Upload (multipart; audio adds `peaks`, `duration_ms`; video adds `width`, `height`, `duration_ms`). Returns `upload_id`, `meta`, `evicted`, `usage`. 413 `file_exceeds_quota` / `quota_protected_full`. |
-| `GET /api/attachments/{id}?variant=original\|thumb\|download` (phase 3) | Presigned redirect; 410 once removed |
+| `POST /api/attachments/urls` `{items: [{id, variant}]}` (phase 3) | Batched presigned URLs (`original`, `thumb`, `download`); removed or invisible files in `gone` |
 | `PATCH /api/attachments/{id}` `{protected}` (phase 3) | Protect / unprotect; uploader only |
 | `DELETE /api/attachments/{id}` (phase 3) | Remove one file; uploader or `ManageMessages` |
 | `GET /api/me/attachments?kind=&room_id=&sort=&q=&cursor=&limit=` (phase 3) | Caller's own files for the storage page |
@@ -769,6 +772,7 @@ Original plan:
 
 **Phase 3: attachments**
 - Dependency, installed by the developer (agents can't install packages): `go get github.com/aws/aws-sdk-go-v2/aws github.com/aws/aws-sdk-go-v2/credentials github.com/aws/aws-sdk-go-v2/service/s3`.
+  - Installed 2026-11-11; the S3 client is `service/chatmedia/s3store.go`.
 - Dev Garage (`make garage-up`, done); `CHAT_MEDIA_*` config with dev defaults; deploy compose passthrough.
 - `MediaStore` (S3) wrapper, `chat_attachments` migration, upload endpoint, sniffing, thumbnails, client-side audio peaks, presigned delivery.
 - Quota reservation and auto-removal, protection, single-file and bulk delete, the removal/purge path with the janitor and pending GC, purge on message and channel delete.

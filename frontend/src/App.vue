@@ -21,12 +21,14 @@ import {
   useAppStore,
   useCustomEmojisStore,
   useRoomStore,
+  useTextChatStore,
   useTextNotifyStore,
   useThemeStore,
   useUserStore,
 } from "@/stores"
 import CustomEmojiUploadModal from "@/components/emoji/CustomEmojiUploadModal.vue"
 import MuteChannelModal from "@/components/textchat/MuteChannelModal.vue"
+import { listenForMessageJumps } from "@/services/attachments/jumps"
 import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts"
 import { useThumbarButtons, useWebSocketHandlers } from "@/composables"
 import { isElectron, onDeepLink, onOAuthToken, setupMainProcessLogRelay } from "@/services/electron"
@@ -46,6 +48,7 @@ const themeStore = useThemeStore()
 const userStore = useUserStore()
 const textNotifyStore = useTextNotifyStore()
 const customEmojisStore = useCustomEmojisStore()
+const textChatStore = useTextChatStore()
 
 useKeyboardShortcuts()
 useThumbarButtons()
@@ -131,8 +134,18 @@ watch(
   },
 )
 
+let stopMessageJumps: (() => void) | null = null
+
 onMounted(() => {
   checkMobile()
+  // "Jump to message" from the storage page (/files) in another tab.
+  stopMessageJumps = listenForMessageJumps(
+    (roomId, messageId) => {
+      if (router.currentRoute.value.query.open_message) void router.replace({ query: {} })
+      void textChatStore.openChannelAt(roomId, messageId)
+    },
+    () => userStore.isAuthenticated && router.currentRoute.value.path === "/",
+  )
   window.addEventListener("resize", checkMobile)
   window.addEventListener("beforeunload", handleBeforeUnload)
   window.addEventListener("unload", cleanupOnUnload)
@@ -190,6 +203,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  stopMessageJumps?.()
   window.removeEventListener("resize", checkMobile)
   window.removeEventListener("beforeunload", handleBeforeUnload)
   window.removeEventListener("unload", cleanupOnUnload)

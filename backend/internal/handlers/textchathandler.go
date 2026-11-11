@@ -9,6 +9,7 @@ import (
 	"github.com/kuleshov-aleksei/orbital/internal/models"
 	"github.com/kuleshov-aleksei/orbital/internal/permissions"
 	"github.com/kuleshov-aleksei/orbital/internal/service"
+	"github.com/kuleshov-aleksei/orbital/internal/service/chatmedia"
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatstore"
 )
 
@@ -22,6 +23,7 @@ type TextChatHandler struct {
 	permissions *service.PermissionService
 	users       func() []*models.User
 	events      TextEventSender
+	media       *chatmedia.Service
 }
 
 // TextEventSender pushes text channel events to one user's sessions.
@@ -39,6 +41,8 @@ type TextChatDeps struct {
 	Permissions *service.PermissionService
 	Users       func() []*models.User
 	Events      TextEventSender
+	// Media serves attachments; nil when S3 is not configured.
+	Media *chatmedia.Service
 }
 
 func NewTextChatHandler(d TextChatDeps) *TextChatHandler {
@@ -50,7 +54,7 @@ func NewTextChatHandler(d TextChatDeps) *TextChatHandler {
 	}
 	return &TextChatHandler{
 		store: d.Store, readState: d.ReadState, notify: d.Notify, roomService: d.RoomService,
-		permissions: d.Permissions, users: d.Users, events: d.Events,
+		permissions: d.Permissions, users: d.Users, events: d.Events, media: d.Media,
 	}
 }
 

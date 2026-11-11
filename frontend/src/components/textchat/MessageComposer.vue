@@ -1,5 +1,46 @@
 <template>
-  <div class="px-4 pb-4 pt-1 flex-shrink-0">
+  <div
+    class="px-4 pb-4 pt-1 flex-shrink-0"
+    @dragover="onDragOver"
+    @dragleave="dragging = false"
+    @drop="onDrop">
+    <!-- Auto-removal after an upload (docs/specs/CHAT_SYSTEM.md §7.12.3) -->
+    <div
+      v-if="attachmentsStore.evictionNotice"
+      class="flex items-center gap-2 mb-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200"
+      role="status"
+      data-testid="eviction-notice">
+      <PhInfo class="w-4 h-4 flex-shrink-0" />
+      <span class="flex-1" :title="attachmentsStore.evictionNotice.files.join(', ')">
+        Removed {{ attachmentsStore.evictionNotice.count }} oldest
+        {{ attachmentsStore.evictionNotice.count === 1 ? "file" : "files" }}
+        ({{ formatBytes(attachmentsStore.evictionNotice.bytes) }}) to make room.
+        <button type="button" class="underline font-medium" @click="openStoragePage()">
+          Manage storage
+        </button>
+      </span>
+      <button
+        type="button"
+        class="w-5 h-5 flex items-center justify-center rounded hover:bg-white/10"
+        aria-label="Dismiss"
+        @click="attachmentsStore.dismissEviction()">
+        <PhX class="w-3.5 h-3.5" />
+      </button>
+    </div>
+    <div
+      v-if="attachmentsStore.composerError"
+      class="flex items-center gap-2 mb-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/30 text-xs text-red-300"
+      role="alert">
+      <span class="flex-1">{{ attachmentsStore.composerError }}</span>
+      <button
+        type="button"
+        class="w-5 h-5 flex items-center justify-center rounded hover:bg-white/10"
+        aria-label="Dismiss"
+        @click="attachmentsStore.composerError = null">
+        <PhX class="w-3.5 h-3.5" />
+      </button>
+    </div>
+
     <!-- Reply bar -->
     <div
       v-if="replyTarget"
@@ -32,77 +73,109 @@
     </div>
 
     <div
-      ref="box"
-      class="relative flex items-end gap-2 bg-theme-bg-tertiary border border-theme-border px-3 py-2 focus-within:border-theme-accent transition-colors"
-      :class="replyTarget ? 'rounded-b-lg' : 'rounded-lg'">
-      <textarea
-        ref="input"
-        v-model="draft"
-        rows="1"
-        :disabled="!canSend"
-        :placeholder="
-          canSend
-            ? `Message #${plainChannelName}`
-            : 'You do not have permission to send messages in this channel'
-        "
-        :maxlength="MAX_CHARS * 2"
-        class="composer-input flex-1 resize-none bg-transparent text-sm text-theme-text-primary placeholder-theme-text-muted focus:outline-none py-1 max-h-[50vh] disabled:cursor-not-allowed"
-        data-testid="text-composer"
-        aria-label="Message"
-        @input="onInput"
-        @click="updateSuggestions"
-        @keydown="onKeydown"
-        @mouseup="updateFormatBar"
-        @keyup="updateFormatBar"
-        @blur="onBlur" />
-      <span
-        v-if="charCount > MAX_CHARS - 200"
-        class="text-[11px] self-center"
-        :class="charCount > MAX_CHARS ? 'text-red-400' : 'text-theme-text-muted'"
-        >{{ MAX_CHARS - charCount }}</span
-      >
-      <button
-        type="button"
-        class="w-8 h-8 flex items-center justify-center rounded text-theme-text-muted hover:text-theme-text-primary hover:bg-theme-bg-hover transition-colors"
-        :class="{ 'text-theme-text-primary bg-theme-bg-hover': isPickerOpen }"
-        title="Emoji"
-        aria-label="Insert emoji"
-        :aria-expanded="isPickerOpen"
-        :disabled="!canSend"
-        @mousedown.prevent
-        @click="isPickerOpen = !isPickerOpen">
-        <PhSmiley class="w-5 h-5" />
-      </button>
-      <ComposerSuggestions
-        v-if="suggestions.length"
-        :items="suggestions"
-        :active="activeSuggestion"
-        :title="suggestionTitle"
-        @hover="(i) => (activeSuggestion = i)"
-        @pick="applySuggestion" />
-      <div v-if="isPickerOpen" class="absolute bottom-full right-0 mb-2 z-20 w-[320px]">
-        <EmojiPicker @select="insertEmoji" @close="closePicker" />
-      </div>
-      <!-- Formatting for the selected text -->
-      <div
-        v-if="formatBarLeft !== null"
-        class="absolute bottom-full mb-2 z-20 flex items-center gap-0.5 p-1 rounded-lg border border-theme-border bg-theme-bg-secondary shadow-lg"
-        :style="{ left: `${formatBarLeft}px` }"
-        role="toolbar"
-        aria-label="Format selection"
-        data-testid="format-toolbar">
+      class="bg-theme-bg-tertiary border transition-colors focus-within:border-theme-accent"
+      :class="[
+        replyTarget ? 'rounded-b-lg' : 'rounded-lg',
+        dragging ? 'border-theme-accent border-dashed' : 'border-theme-border',
+      ]">
+      <ComposerUploads v-if="roomUploads.length" :uploads="roomUploads" />
+      <div ref="box" class="relative flex items-end gap-2 px-3 py-2">
         <button
-          v-for="f in FORMATS"
-          :key="f.marker"
+          v-if="canAttach"
           type="button"
-          class="w-7 h-7 flex items-center justify-center rounded text-theme-text-secondary hover:text-theme-text-primary hover:bg-theme-bg-hover transition-colors"
-          :title="f.title"
-          :aria-label="f.label"
-          :data-testid="`format-${f.label.toLowerCase()}`"
-          @mousedown.prevent
-          @click="applyFormat(f.marker)">
-          <component :is="f.icon" class="w-4 h-4" weight="bold" />
+          class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded text-theme-text-muted hover:text-theme-text-primary hover:bg-theme-bg-hover transition-colors"
+          title="Attach files (images, audio, mp4 video)"
+          aria-label="Attach files"
+          data-testid="attach-button"
+          @click="fileInput?.click()">
+          <PhPlusCircle class="w-5 h-5" />
         </button>
+        <input
+          ref="fileInput"
+          type="file"
+          multiple
+          class="hidden"
+          :accept="ACCEPT"
+          data-testid="attach-input"
+          @change="onPick" />
+        <textarea
+          ref="input"
+          v-model="draft"
+          rows="1"
+          :disabled="!canSend"
+          :placeholder="
+            canSend
+              ? `Message #${plainChannelName}`
+              : 'You do not have permission to send messages in this channel'
+          "
+          :maxlength="MAX_CHARS * 2"
+          class="composer-input flex-1 resize-none bg-transparent text-sm text-theme-text-primary placeholder-theme-text-muted focus:outline-none py-1 max-h-[50vh] disabled:cursor-not-allowed"
+          data-testid="text-composer"
+          aria-label="Message"
+          @input="onInput"
+          @click="updateSuggestions"
+          @keydown="onKeydown"
+          @mouseup="updateFormatBar"
+          @keyup="updateFormatBar"
+          @paste="onPaste"
+          @blur="onBlur" />
+        <span
+          v-if="quotaWarning"
+          class="self-center flex-shrink-0 text-[11px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 cursor-pointer"
+          :title="`Storage ${Math.round(attachmentsStore.usageRatio * 100)}% full: your oldest unprotected files are removed automatically.`"
+          data-testid="quota-warning"
+          @click="openStoragePage()"
+          >{{ Math.round(attachmentsStore.usageRatio * 100) }}% storage</span
+        >
+        <span
+          v-if="charCount > MAX_CHARS - 200"
+          class="text-[11px] self-center"
+          :class="charCount > MAX_CHARS ? 'text-red-400' : 'text-theme-text-muted'"
+          >{{ MAX_CHARS - charCount }}</span
+        >
+        <button
+          type="button"
+          class="w-8 h-8 flex items-center justify-center rounded text-theme-text-muted hover:text-theme-text-primary hover:bg-theme-bg-hover transition-colors"
+          :class="{ 'text-theme-text-primary bg-theme-bg-hover': isPickerOpen }"
+          title="Emoji"
+          aria-label="Insert emoji"
+          :aria-expanded="isPickerOpen"
+          :disabled="!canSend"
+          @mousedown.prevent
+          @click="isPickerOpen = !isPickerOpen">
+          <PhSmiley class="w-5 h-5" />
+        </button>
+        <ComposerSuggestions
+          v-if="suggestions.length"
+          :items="suggestions"
+          :active="activeSuggestion"
+          :title="suggestionTitle"
+          @hover="(i) => (activeSuggestion = i)"
+          @pick="applySuggestion" />
+        <div v-if="isPickerOpen" class="absolute bottom-full right-0 mb-2 z-20 w-[320px]">
+          <EmojiPicker @select="insertEmoji" @close="closePicker" />
+        </div>
+        <!-- Formatting for the selected text -->
+        <div
+          v-if="formatBarLeft !== null"
+          class="absolute bottom-full mb-2 z-20 flex items-center gap-0.5 p-1 rounded-lg border border-theme-border bg-theme-bg-secondary shadow-lg"
+          :style="{ left: `${formatBarLeft}px` }"
+          role="toolbar"
+          aria-label="Format selection"
+          data-testid="format-toolbar">
+          <button
+            v-for="f in FORMATS"
+            :key="f.marker"
+            type="button"
+            class="w-7 h-7 flex items-center justify-center rounded text-theme-text-secondary hover:text-theme-text-primary hover:bg-theme-bg-hover transition-colors"
+            :title="f.title"
+            :aria-label="f.label"
+            :data-testid="`format-${f.label.toLowerCase()}`"
+            @mousedown.prevent
+            @click="applyFormat(f.marker)">
+            <component :is="f.icon" class="w-4 h-4" weight="bold" />
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -112,6 +185,8 @@
 import { computed, nextTick, ref, useTemplateRef, watch } from "vue"
 import {
   PhEyeSlash,
+  PhInfo,
+  PhPlusCircle,
   PhSmiley,
   PhTextB,
   PhTextItalic,
@@ -120,6 +195,10 @@ import {
 } from "@phosphor-icons/vue"
 import EmojiPicker from "@/components/EmojiPicker.vue"
 import ComposerSuggestions, { type Suggestion } from "./ComposerSuggestions.vue"
+import ComposerUploads from "./ComposerUploads.vue"
+import { openStoragePage } from "@/services/attachments/urls"
+import { formatBytes } from "@/utils/formatBytes"
+import { Permission } from "@/types/permissions"
 import {
   activeEmojiQuery,
   activeMentionQuery,
@@ -140,6 +219,7 @@ import {
   type EmojiRef,
 } from "@/services/emoji"
 import {
+  useAttachmentsStore,
   useCustomEmojisStore,
   usePermissionsStore,
   useTextChatStore,
@@ -166,6 +246,7 @@ const textChatStore = useTextChatStore()
 const customEmojisStore = useCustomEmojisStore()
 const usersStore = useUsersStore()
 const permissionsStore = usePermissionsStore()
+const attachmentsStore = useAttachmentsStore()
 
 const input = useTemplateRef<HTMLTextAreaElement>("input")
 const box = useTemplateRef<HTMLDivElement>("box")
@@ -232,13 +313,80 @@ function focus() {
 
 function send() {
   const content = encode(draft.value.trim())
-  if (!content || charCount.value > MAX_CHARS || !props.canSend) return
-  textChatStore.sendMessage(props.roomId, content)
+  if (charCount.value > MAX_CHARS || !props.canSend) return
+  if (attachmentsStore.busy(props.roomId)) {
+    attachmentsStore.composerError = "Wait for the uploads to finish."
+    return
+  }
+  const hasFiles = roomUploads.value.some((u) => u.status === "done")
+  if (!content && !hasFiles) return
+  const files = attachmentsStore.takeReady(props.roomId)
+  attachmentsStore.composerError = null
+  textChatStore.sendMessage(props.roomId, content, files)
   draft.value = ""
   mentionMap().clear()
   closeSuggestions()
   formatBarLeft.value = null
   void nextTick(autosize)
+}
+
+// --- Attachments ---------------------------------------------------------
+
+const ACCEPT =
+  "image/png,image/jpeg,image/gif,image/webp,audio/mpeg,audio/wav,audio/ogg,video/mp4,.mp3,.wav,.ogg,.mp4"
+const fileInput = useTemplateRef<HTMLInputElement>("fileInput")
+const dragging = ref(false)
+const roomUploads = computed(() => attachmentsStore.forRoom(props.roomId))
+// UX hint only; the backend checks AttachFiles on upload and send.
+const canAttach = computed(
+  () =>
+    props.canSend &&
+    attachmentsStore.enabled &&
+    permissionsStore.can(Permission.AttachFiles, { roomId: props.roomId }),
+)
+const quotaWarning = computed(() => canAttach.value && attachmentsStore.usageRatio >= 0.9)
+watch(canAttach, (can) => can && void attachmentsStore.loadUsage(), { immediate: true })
+
+function addFiles(files: File[]) {
+  if (!files.length) return
+  if (!canAttach.value) {
+    attachmentsStore.composerError = attachmentsStore.enabled
+      ? "You don't have permission to attach files in this channel."
+      : "Attachments are disabled on this server."
+    return
+  }
+  attachmentsStore.addFiles(props.roomId, files)
+  focus()
+}
+
+function onPick(e: Event) {
+  const el = e.target as HTMLInputElement
+  addFiles(Array.from(el.files ?? []))
+  el.value = ""
+}
+
+function onPaste(e: ClipboardEvent) {
+  const files = Array.from(e.clipboardData?.files ?? [])
+  if (!files.length) return
+  e.preventDefault()
+  addFiles(files)
+}
+
+function hasFiles(e: DragEvent): boolean {
+  return Array.from(e.dataTransfer?.types ?? []).includes("Files")
+}
+
+function onDragOver(e: DragEvent) {
+  if (!hasFiles(e)) return
+  e.preventDefault()
+  dragging.value = true
+}
+
+function onDrop(e: DragEvent) {
+  if (!hasFiles(e)) return
+  e.preventDefault()
+  dragging.value = false
+  addFiles(Array.from(e.dataTransfer?.files ?? []))
 }
 
 function onInput() {

@@ -27,6 +27,15 @@ import type {
   TextNotifyMode,
   TextMuteDuration,
   TextNotifySetting,
+  AttachmentBulkAction,
+  AttachmentBulkResponse,
+  AttachmentUploadResponse,
+  AttachmentUrlsResponse,
+  AttachmentUsage,
+  AttachmentVariant,
+  MyAttachmentsPage,
+  MyAttachmentsQuery,
+  TextAttachment,
 } from "@/types/textChat"
 import type {
   HalloweenGameConfig,
@@ -236,6 +245,94 @@ export interface RoomConfig {
 export interface AppConfig {
   room: RoomConfig
   text_channels?: boolean
+  /** Present when text channel attachments are enabled (S3 configured). */
+  attachments?: AttachmentsConfig
+}
+
+export interface AttachmentsConfig {
+  max_image_bytes: number
+  max_audio_bytes: number
+  max_video_bytes: number
+  quota_bytes: number
+  max_per_message: number
+}
+
+/** Client-measured display metadata sent with an upload. */
+export interface AttachmentUploadMeta {
+  peaks?: number[]
+  durationMs?: number
+  width?: number
+  height?: number
+}
+
+/** A failed attachment upload; code is the backend error code. */
+export class AttachmentUploadError extends Error {
+  constructor(
+    public code: string,
+    public status: number,
+  ) {
+    super(code)
+    this.name = "AttachmentUploadError"
+  }
+}
+
+function sendUpload(
+  url: string,
+  form: FormData,
+  onProgress: (fraction: number) => void,
+  signal?: AbortSignal,
+): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open("POST", url)
+    const token = getAuthToken()
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`)
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(e.loaded / e.total)
+    }
+    xhr.onload = () => resolve({ status: xhr.status, body: xhr.responseText })
+    xhr.onerror = () => reject(new AttachmentUploadError("network_error", 0))
+    xhr.onabort = () => reject(new DOMException("Upload aborted", "AbortError"))
+    signal?.addEventListener("abort", () => xhr.abort(), { once: true })
+    xhr.send(form)
+  })
+}
+
+/**
+ * Upload one file to a text channel (XHR for progress). Resolves with the
+ * pending upload; the message is sent later with its upload_id.
+ */
+export async function uploadTextAttachment(
+  roomId: string,
+  file: File,
+  meta: AttachmentUploadMeta,
+  onProgress: (fraction: number) => void,
+  signal?: AbortSignal,
+): Promise<AttachmentUploadResponse> {
+  const form = new FormData()
+  if (meta.peaks?.length) form.append("peaks", JSON.stringify(meta.peaks))
+  if (meta.durationMs) form.append("duration_ms", String(Math.round(meta.durationMs)))
+  if (meta.width) form.append("width", String(meta.width))
+  if (meta.height) form.append("height", String(meta.height))
+  form.append("file", file, file.name)
+  const url = `${API_BASE}/rooms/${encodeURIComponent(roomId)}/attachments`
+  let res = await sendUpload(url, form, onProgress, signal)
+  if (res.status === 401 && !isTokenExpired() && (await refreshAuthToken())) {
+    res = await sendUpload(url, form, onProgress, signal)
+  }
+  if (res.status === 401) notifySessionExpired()
+  if (res.status < 200 || res.status >= 300) {
+    let code = res.status === 429 ? "rate_limited" : "upload_failed"
+    try {
+      code = (JSON.parse(res.body) as { error?: string }).error ?? code
+    } catch {
+      if (res.status === 403) code = "forbidden"
+      else if (res.status === 404) code = "not_found"
+      else if (res.status === 413) code = "file_too_large"
+    }
+    throw new AttachmentUploadError(code, res.status)
+  }
+  return JSON.parse(res.body) as AttachmentUploadResponse
 }
 
 // Latest desktop release, resolved by the backend from the update feed
@@ -351,6 +448,7 @@ export async function apiRequest<T>(
       throw apiError(errorText || `Upload failed (${response.status})`, response.status)
     }
 
+    if (response.status === 204) return undefined as T
     return (await response.json()) as T
   } catch (error) {
     console.error(`API request failed to ${endpoint}:`, error)
@@ -488,6 +586,57 @@ export const apiService = {
     return apiRequest<TextNotifySetting>(`/rooms/${encodeURIComponent(roomId)}/notify`, {
       method: "PUT",
       body: JSON.stringify(mode === "muted" ? { mode, mute_duration: muteDuration } : { mode }),
+    })
+  },
+
+  // --- Text channel attachments (docs/specs/CHAT_SYSTEM.md §7.12) ---
+
+  /** Presigned URLs for files (img/video cannot send the auth header). */
+  async getAttachmentUrls(
+    items: { id: string; variant: AttachmentVariant }[],
+  ): Promise<AttachmentUrlsResponse> {
+    return apiRequest<AttachmentUrlsResponse>("/attachments/urls", {
+      method: "POST",
+      body: JSON.stringify({ items }),
+    })
+  },
+
+  async setAttachmentProtected(id: string, isProtected: boolean): Promise<TextAttachment> {
+    const res = await apiRequest<{ attachment: TextAttachment }>(
+      `/attachments/${encodeURIComponent(id)}`,
+      { method: "PATCH", body: JSON.stringify({ protected: isProtected }) },
+    )
+    return res.attachment
+  },
+
+  async deleteAttachment(id: string): Promise<void> {
+    await apiRequest<void>(`/attachments/${encodeURIComponent(id)}`, { method: "DELETE" })
+  },
+
+  async listMyAttachments(query: MyAttachmentsQuery = {}): Promise<MyAttachmentsPage> {
+    const params = new URLSearchParams()
+    if (query.kind) params.set("kind", query.kind)
+    if (query.roomId) params.set("room_id", query.roomId)
+    if (query.sort) params.set("sort", query.sort)
+    if (query.q) params.set("q", query.q)
+    if (query.protectedOnly) params.set("protected", "1")
+    if (query.cursor) params.set("cursor", query.cursor)
+    if (query.limit) params.set("limit", String(query.limit))
+    const qs = params.toString()
+    return apiRequest<MyAttachmentsPage>(`/me/attachments${qs ? `?${qs}` : ""}`)
+  },
+
+  async getMyAttachmentUsage(): Promise<AttachmentUsage> {
+    return apiRequest<AttachmentUsage>("/me/attachments/usage")
+  },
+
+  async bulkMyAttachments(
+    ids: string[],
+    action: AttachmentBulkAction,
+  ): Promise<AttachmentBulkResponse> {
+    return apiRequest<AttachmentBulkResponse>("/me/attachments/bulk", {
+      method: "POST",
+      body: JSON.stringify({ ids, action }),
     })
   },
 

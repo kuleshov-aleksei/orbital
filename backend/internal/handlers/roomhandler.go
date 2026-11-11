@@ -12,6 +12,7 @@ import (
 	"github.com/kuleshov-aleksei/orbital/internal/models"
 	"github.com/kuleshov-aleksei/orbital/internal/permissions"
 	"github.com/kuleshov-aleksei/orbital/internal/service"
+	"github.com/kuleshov-aleksei/orbital/internal/service/chatstore"
 	"github.com/kuleshov-aleksei/orbital/internal/websocket"
 )
 
@@ -546,6 +547,11 @@ func (h *RoomHandler) DeleteRoom(w http.ResponseWriter, r *http.Request) {
 				log.Printf("Failed to delete notification settings of text channel %s: %v", roomID, err)
 			}
 		}
+		if h.textChat.Media != nil {
+			if err := h.textChat.Media.RemoveRoom(roomID); err != nil {
+				log.Printf("Failed to remove attachments of text channel %s: %v", roomID, err)
+			}
+		}
 	}
 	// Disconnect anyone still in the LiveKit room.
 	if !room.IsText() && h.livekitService != nil {
@@ -612,6 +618,17 @@ type AppConfigResponse struct {
 	Room RoomConfigResponse `json:"room"`
 	// TextChannels reports whether text channels can be created (Meilisearch configured).
 	TextChannels bool `json:"text_channels"`
+	// Attachments reports whether text channel attachments are enabled (S3 configured).
+	Attachments *AttachmentsConfig `json:"attachments,omitempty"`
+}
+
+// AttachmentsConfig is the client view of the attachment limits.
+type AttachmentsConfig struct {
+	MaxImageBytes int64 `json:"max_image_bytes"`
+	MaxAudioBytes int64 `json:"max_audio_bytes"`
+	MaxVideoBytes int64 `json:"max_video_bytes"`
+	QuotaBytes    int64 `json:"quota_bytes"`
+	MaxPerMessage int   `json:"max_per_message"`
 }
 
 // GetConfig handles GET /api/config
@@ -623,6 +640,13 @@ func (h *RoomHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
 			DefaultMaxUsers: config.RoomConfig.DefaultMaxUsers,
 		},
 		TextChannels: h.textChat != nil,
+	}
+	if h.textChat != nil && h.textChat.Media != nil {
+		l := h.textChat.Media.Limits()
+		cfg.Attachments = &AttachmentsConfig{
+			MaxImageBytes: l.MaxImageBytes, MaxAudioBytes: l.MaxAudioBytes, MaxVideoBytes: l.MaxVideoBytes,
+			QuotaBytes: l.QuotaBytes, MaxPerMessage: chatstore.MaxAttachmentsPerMessage,
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -58,30 +58,31 @@ type Message struct {
 	IsDeleted      bool       `json:"is_deleted"`
 	DeletedAtTS    *int64     `json:"deleted_at_ts"`
 	DeletedBy      *string    `json:"deleted_by"`
-	// Phase 3/4 (attachments); present but empty until then.
-	Attachments     []map[string]any `json:"attachments"`
-	AttachmentKinds []string         `json:"attachment_kinds"`
-	AttachmentNames []string         `json:"attachment_names"`
-	AttachmentText  string           `json:"attachment_text"`
+	// Attachments (phase 3): a display copy; chat_attachments in SQLite is
+	// the source of truth (docs/specs/CHAT_SYSTEM.md §7.12).
+	Attachments     []Attachment `json:"attachments"`
+	AttachmentKinds []string     `json:"attachment_kinds"`
+	AttachmentNames []string     `json:"attachment_names"`
+	AttachmentText  string       `json:"attachment_text"`
 }
 
 // PublicMessage is what clients receive: no search-only or moderation fields.
 type PublicMessage struct {
-	ID             string           `json:"id"`
-	Seq            int64            `json:"seq"`
-	RoomID         string           `json:"room_id"`
-	SenderID       string           `json:"sender_id"`
-	Content        string           `json:"content"`
-	CreatedAtTS    int64            `json:"created_at_ts"`
-	EditedAtTS     *int64           `json:"edited_at_ts"`
-	ReplyToID      *string          `json:"reply_to_id"`
-	MentionUserIDs []string         `json:"mention_user_ids"`
-	MentionRoleIDs []string         `json:"mention_role_ids"`
-	Reactions      []Reaction       `json:"reactions"`
-	Pinned         bool             `json:"pinned"`
-	PinnedAtTS     *int64           `json:"pinned_at_ts"`
-	PinnedBy       *string          `json:"pinned_by"`
-	Attachments    []map[string]any `json:"attachments"`
+	ID             string       `json:"id"`
+	Seq            int64        `json:"seq"`
+	RoomID         string       `json:"room_id"`
+	SenderID       string       `json:"sender_id"`
+	Content        string       `json:"content"`
+	CreatedAtTS    int64        `json:"created_at_ts"`
+	EditedAtTS     *int64       `json:"edited_at_ts"`
+	ReplyToID      *string      `json:"reply_to_id"`
+	MentionUserIDs []string     `json:"mention_user_ids"`
+	MentionRoleIDs []string     `json:"mention_role_ids"`
+	Reactions      []Reaction   `json:"reactions"`
+	Pinned         bool         `json:"pinned"`
+	PinnedAtTS     *int64       `json:"pinned_at_ts"`
+	PinnedBy       *string      `json:"pinned_by"`
+	Attachments    []Attachment `json:"attachments"`
 }
 
 // Public converts a stored message to its client representation.
@@ -113,7 +114,10 @@ func (m *Message) clone() *Message {
 	for i, r := range m.Reactions {
 		c.Reactions[i] = Reaction{Emoji: r.Emoji, UserIDs: append([]string(nil), r.UserIDs...)}
 	}
-	c.Attachments = append([]map[string]any(nil), m.Attachments...)
+	c.Attachments = make([]Attachment, len(m.Attachments))
+	for i, a := range m.Attachments {
+		c.Attachments[i] = a.clone()
+	}
 	c.AttachmentKinds = append([]string(nil), m.AttachmentKinds...)
 	c.AttachmentNames = append([]string(nil), m.AttachmentNames...)
 	c.normalize()
@@ -134,9 +138,9 @@ func nonNilReactions(r []Reaction) []Reaction {
 	return r
 }
 
-func nonNilAttachments(a []map[string]any) []map[string]any {
+func nonNilAttachments(a []Attachment) []Attachment {
 	if a == nil {
-		return []map[string]any{}
+		return []Attachment{}
 	}
 	return a
 }

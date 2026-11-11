@@ -74,6 +74,111 @@ function socket(token) {
   }
 }
 
+// 1x1 PNG: real image bytes for the sniffer and the thumbnailer.
+const PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64",
+)
+
+async function upload(token, bytes, filename) {
+  const form = new FormData()
+  form.append("file", new Blob([bytes]), filename)
+  const res = await fetch(`${BASE}/api/rooms/${roomId}/attachments`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  })
+  const text = await res.text()
+  let json = null
+  try {
+    json = JSON.parse(text)
+  } catch {
+    // plain error text
+  }
+  return { status: res.status, json, text }
+}
+
+/** Attachments against real S3 (dev Garage); skipped when the backend has them off. */
+async function attachmentChecks() {
+  const cfg = await api("GET", "/api/config", alice.token)
+  if (!cfg.json?.attachments) {
+    console.log("SKIP attachments — disabled on the backend (make garage-up, GARAGE_DEFAULT_* in .env)")
+    return
+  }
+  const up = await upload(alice.token, PNG, "dot.png")
+  check(
+    "upload image",
+    up.status === 201 && up.json?.attachment?.kind === "image" && !!up.json?.upload_id,
+    up.text,
+  )
+  const fake = await upload(bob.token, Buffer.from("not an image at all"), "fake.png")
+  check("upload sniffs content, not the name", fake.status === 415, fake.text)
+
+  const uploadId = up.json.upload_id
+  wsBob.take("text_message_new")
+  wsBob.take("text_error")
+  wsBob.send("text_message_send", { room_id: roomId, content: "", upload_ids: [uploadId], nonce: "a0" })
+  await sleep(300)
+  check(
+    "send someone else's upload rejected",
+    wsBob.take("text_error").some((m) => m.data.code === "invalid") &&
+      wsBob.take("text_message_new").length === 0,
+  )
+  wsAlice.send("text_message_send", { room_id: roomId, content: "", upload_ids: [uploadId], nonce: "a1" })
+  await sleep(400)
+  const msg = wsAlice.take("text_message_new").pop()?.data?.message
+  wsBob.take("text_message_new")
+  check("attachment-only message", msg?.attachments?.[0]?.id === uploadId, JSON.stringify(msg))
+
+  const urls = await api("POST", "/api/attachments/urls", bob.token, {
+    items: [{ id: uploadId, variant: "original" }],
+  })
+  const signed = urls.json?.urls?.[`${uploadId}:original`]?.url
+  const body = signed ? Buffer.from(await (await fetch(signed)).arrayBuffer()) : Buffer.alloc(0)
+  check("presigned original served by S3", body.subarray(1, 4).toString() === "PNG", urls.text)
+
+  const bobProtect = await api("PATCH", `/api/attachments/${uploadId}`, bob.token, { protected: true })
+  check("protect by non-uploader rejected", bobProtect.status === 403, bobProtect.text)
+  const protect = await api("PATCH", `/api/attachments/${uploadId}`, alice.token, { protected: true })
+  await sleep(300)
+  const updated = wsBob.take("text_message_updated").pop()?.data?.message
+  check(
+    "uploader protects, lock broadcast",
+    protect.status === 200 && updated?.attachments?.[0]?.protected === true,
+    protect.text,
+  )
+
+  const mine = await api("GET", "/api/me/attachments", alice.token)
+  const theirs = await api("GET", "/api/me/attachments", bob.token)
+  const usage = await api("GET", "/api/me/attachments/usage", alice.token)
+  check(
+    "storage page lists own files only",
+    mine.json?.items?.some((i) => i.id === uploadId) && !theirs.json?.items?.some((i) => i.id === uploadId),
+    mine.text,
+  )
+  check(
+    "usage counts the file",
+    usage.json?.count === 1 && usage.json?.protected_bytes === usage.json?.used_bytes,
+    usage.text,
+  )
+
+  // Deleting the message purges its files: URLs go, the S3 object goes.
+  wsAlice.send("text_message_delete", { message_id: msg.id })
+  await sleep(400)
+  const after = await api("POST", "/api/attachments/urls", bob.token, {
+    items: [{ id: uploadId, variant: "original" }],
+  })
+  check("deleted message: file gone", after.json?.gone?.includes(uploadId), after.text)
+  let purged = false
+  for (let i = 0; i < 20 && !purged; i++) {
+    purged = (await fetch(signed)).status === 404
+    if (!purged) await sleep(250)
+  }
+  check("S3 object purged", purged)
+  const freed = await api("GET", "/api/me/attachments/usage", alice.token)
+  check("quota freed", freed.json?.used_bytes === 0, freed.text)
+}
+
 const owner = await user("owner")
 const alice = await user("alice")
 const bob = await user("bob")
@@ -185,6 +290,8 @@ try {
     "delete by non-author rejected",
     wsBob.take("text_error").some((m) => m.data.code === "forbidden"),
   )
+
+  await attachmentChecks()
 } finally {
   for (const s of sockets) s.ws.close()
   await api("DELETE", `/api/rooms/${roomId}`, owner.token)

@@ -7,6 +7,7 @@ import { useRoomStore } from "./room"
 import { useUserStore } from "./user"
 import { useTextNotifyStore } from "./textNotify"
 import type {
+  TextAttachment,
   TextErrorEvent,
   TextHistoryPage,
   TextMessage,
@@ -44,6 +45,9 @@ export interface PendingTextMessage {
   content: string
   reply_to_id: string | null
   reply_ping: boolean
+  /** Pending upload ids and their display copies (shown while sending). */
+  upload_ids: string[]
+  attachments: TextAttachment[]
   created_at_ts: number
   status: "sending" | "failed"
   error?: string
@@ -384,6 +388,7 @@ export const useTextChatStore = defineStore("textChat", () => {
       room_id: p.room_id,
       content: p.content,
       nonce: p.nonce,
+      ...(p.upload_ids.length ? { upload_ids: p.upload_ids } : {}),
       ...(p.reply_to_id ? { reply_to_id: p.reply_to_id, reply_ping: p.reply_ping } : {}),
     })
     const timer = setTimeout(() => {
@@ -393,9 +398,13 @@ export const useTextChatStore = defineStore("textChat", () => {
     sendTimers.set(p.nonce, timer)
   }
 
-  function sendMessage(roomId: string, content: string) {
+  function sendMessage(
+    roomId: string,
+    content: string,
+    files: { ids: string[]; attachments: TextAttachment[] } = { ids: [], attachments: [] },
+  ) {
     const text = content.trim()
-    if (!text) return
+    if (!text && !files.ids.length) return
     const reply = replyTarget.value?.room_id === roomId ? replyTarget.value : null
     const p: PendingTextMessage = {
       nonce: makeNonce(),
@@ -403,6 +412,8 @@ export const useTextChatStore = defineStore("textChat", () => {
       content: text,
       reply_to_id: reply?.id ?? null,
       reply_ping: replyPing.value,
+      upload_ids: files.ids,
+      attachments: files.attachments,
       created_at_ts: Date.now(),
       status: "sending",
     }
