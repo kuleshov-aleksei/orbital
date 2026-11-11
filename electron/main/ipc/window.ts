@@ -1,6 +1,9 @@
-import { ipcMain } from "electron"
+import { ipcMain, type BrowserWindow } from "electron"
 import { getMainWindow } from "../state"
 import { updateThumbarButtons, showCloseDialog } from "../features/window"
+
+/** The window that is flashing and has a focus listener waiting to stop it. */
+let flashingWindow: BrowserWindow | null = null
 
 export function registerWindowIpc() {
   ipcMain.handle("minimize-window", () => {
@@ -21,7 +24,13 @@ export function registerWindowIpc() {
     const mainWindow = getMainWindow()
     if (!mainWindow || mainWindow.isFocused()) return
     mainWindow.flashFrame(true)
-    mainWindow.once("focus", () => mainWindow.flashFrame(false))
+    // One pending listener is enough however many mentions arrive.
+    if (flashingWindow === mainWindow) return
+    flashingWindow = mainWindow
+    mainWindow.once("focus", () => {
+      flashingWindow = null
+      mainWindow.flashFrame(false)
+    })
   })
 
   ipcMain.handle("close-window", () => {
