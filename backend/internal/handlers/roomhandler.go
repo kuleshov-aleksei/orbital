@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"regexp"
-	"unicode/utf8"
 
 	"github.com/gorilla/mux"
 	"github.com/kuleshov-aleksei/orbital/internal/config"
@@ -23,17 +21,13 @@ const (
 	maxRoomNameBytes = 100 * (2 + 64*4 + 1 + 36 + 1)
 )
 
-// customEmojiTokenRe matches inline custom emojis in room names:
-// "<:shortcode:id>". Keep in sync with frontend/src/services/emoji/inlineText.ts.
-var customEmojiTokenRe = regexp.MustCompile(`<:[\p{L}\p{N}_]{1,64}:[0-9a-f-]{36}>`)
-
 // validRoomNameLength counts characters, not bytes (emojis and non-Latin
 // names are multi-byte), with each custom emoji token counted as one.
 func validRoomNameLength(name string) bool {
 	if len(name) > maxRoomNameBytes {
 		return false
 	}
-	return utf8.RuneCountInString(customEmojiTokenRe.ReplaceAllString(name, "x")) <= maxRoomNameChars
+	return chatstore.EmojiTextLength(name) <= maxRoomNameChars
 }
 
 // RoomHandler handles room-related HTTP requests
