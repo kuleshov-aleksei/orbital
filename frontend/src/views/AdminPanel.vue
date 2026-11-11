@@ -3,10 +3,21 @@
     <div class="max-w-4xl mx-auto">
       <!-- Header -->
       <div class="flex items-center justify-between mb-8">
-        <div>
-          <h1 class="text-2xl font-bold text-white">Admin Panel</h1>
+        <div class="flex items-center gap-3 min-w-0">
+          <button
+            type="button"
+            class="flex items-center justify-center w-9 h-9 rounded-md bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-muted hover:text-theme-text-primary transition-colors flex-shrink-0"
+            title="Back to app"
+            aria-label="Back to app"
+            data-testid="admin-back"
+            @click="goBack">
+            <PhArrowLeft class="w-5 h-5" />
+          </button>
+          <div class="min-w-0">
+            <h1 class="text-2xl font-bold text-white">Admin Panel</h1>
 
-          <p class="text-gray-400 mt-1">Manage users and system settings</p>
+            <p class="text-gray-400 mt-1">Manage users and system settings</p>
+          </div>
         </div>
 
         <div class="flex items-center gap-2">
@@ -689,6 +700,7 @@
 <script setup lang="ts">
 import EmojiText from "@/components/common/EmojiText.vue"
 import { ref, computed, onMounted, onUnmounted } from "vue"
+import { useRouter } from "vue-router"
 import { storeToRefs } from "pinia"
 import Avatar from "vue-boring-avatars"
 import { useUserStore, usePermissionsStore } from "@/stores"
@@ -706,7 +718,7 @@ import HalloweenPumpkinStudio from "@/components/admin/HalloweenPumpkinStudio.vu
 import { wsService } from "@/services/websocket"
 import type { RoomStatsMessage } from "@/types"
 import type { User, DebugLog, AudioFile } from "@/types"
-import { PhUsers, PhFileText, PhMusicNote, PhX } from "@phosphor-icons/vue"
+import { PhArrowLeft, PhUsers, PhFileText, PhMusicNote, PhX } from "@phosphor-icons/vue"
 
 const userStore = useUserStore()
 const { currentUser, isSuperAdmin } = storeToRefs(userStore)
@@ -1007,6 +1019,14 @@ const deleteLog = async () => {
     deletingLogId.value = null
     logToDelete.value = null
   }
+}
+
+// Back to where the user came from in the app; after a reload or a directly
+// opened /admin there is no in-app history entry, so go to the root.
+const router = useRouter()
+function goBack() {
+  if (window.history.state?.back) router.back()
+  else void router.push("/")
 }
 
 onMounted(() => {
