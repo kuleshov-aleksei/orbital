@@ -81,7 +81,7 @@
         data-testid="search-hit"
         @click="$emit('jump', hit.message)">
         <div class="flex items-center gap-1.5 text-[11px] text-theme-text-muted mb-1">
-          <PhHash class="w-3 h-3" />
+          <TextChannelIcon :room-id="hit.message.room_id" class="w-3 h-3 flex-shrink-0" />
           <EmojiText :text="channelName(hit.message.room_id)" class="truncate" />
         </div>
         <div class="flex items-center gap-2 mb-1">
@@ -118,7 +118,8 @@
 </template>
 
 <script setup lang="ts">
-import { PhHash, PhSpinner, PhX } from "@phosphor-icons/vue"
+import { PhSpinner, PhX } from "@phosphor-icons/vue"
+import TextChannelIcon from "@/components/textchat/TextChannelIcon.vue"
 import EmojiText from "@/components/common/EmojiText.vue"
 import UserAvatar from "@/components/UserAvatar.vue"
 import MessageContent from "./MessageContent.vue"

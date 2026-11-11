@@ -14,7 +14,7 @@
         @click="backToList">
         <PhArrowLeft class="w-5 h-5" />
       </button>
-      <PhHash class="w-5 h-5 text-theme-text-muted flex-shrink-0" />
+      <TextChannelIcon :room-id="channel.id" class="w-5 h-5 text-theme-text-muted flex-shrink-0" />
       <h1
         class="font-semibold text-theme-text-primary truncate min-w-0"
         data-testid="text-channel-title">
@@ -118,14 +118,8 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, useTemplateRef, watch } from "vue"
-import {
-  PhArrowLeft,
-  PhHash,
-  PhMagnifyingGlass,
-  PhPushPin,
-  PhUsers,
-  PhX,
-} from "@phosphor-icons/vue"
+import { PhArrowLeft, PhMagnifyingGlass, PhPushPin, PhUsers, PhX } from "@phosphor-icons/vue"
+import TextChannelIcon from "@/components/textchat/TextChannelIcon.vue"
 import EmojiText from "@/components/common/EmojiText.vue"
 import MessageList from "@/components/textchat/MessageList.vue"
 import MessageComposer from "@/components/textchat/MessageComposer.vue"

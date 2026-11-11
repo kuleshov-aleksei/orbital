@@ -12,7 +12,7 @@
         data-testid="channel-start">
         <div
           class="w-16 h-16 rounded-full bg-theme-bg-tertiary flex items-center justify-center mb-3">
-          <PhHash class="w-9 h-9 text-theme-text-secondary" />
+          <TextChannelIcon :room-id="roomId" class="w-9 h-9 text-theme-text-secondary" />
         </div>
         <h2 class="text-2xl font-bold text-theme-text-primary">
           Welcome to #<EmojiText :text="channelName" />
@@ -134,7 +134,8 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from "vue"
-import { PhArrowDown, PhHash, PhPushPin, PhSpinner } from "@phosphor-icons/vue"
+import { PhArrowDown, PhPushPin, PhSpinner } from "@phosphor-icons/vue"
+import TextChannelIcon from "@/components/textchat/TextChannelIcon.vue"
 import EmojiText from "@/components/common/EmojiText.vue"
 import EmojiPicker from "@/components/EmojiPicker.vue"
 import { usePermissionsStore, useUsersStore } from "@/stores"

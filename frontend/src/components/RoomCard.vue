@@ -30,7 +30,7 @@
             'bg-theme-accent/80': isActive,
             'bg-theme-bg-hover group-hover:bg-theme-border': !isActive,
           }">
-          <PhHash v-if="room.type === 'text'" class="w-4 h-4" />
+          <TextChannelIcon v-if="room.type === 'text'" :room-id="room.id" class="w-4 h-4" />
           <PhWaveform v-else-if="room.type !== 'spatial_audio'" class="w-4 h-4" />
           <PhGameController v-else class="w-4 h-4" />
         </div>
@@ -141,6 +141,7 @@
 </template>
 
 <script setup lang="ts">
+import TextChannelIcon from "@/components/textchat/TextChannelIcon.vue"
 import EmojiText from "@/components/common/EmojiText.vue"
 import { useTemplateRef } from "vue"
 import {
@@ -152,7 +153,6 @@ import {
   PhMonitor,
   PhVideoCamera,
   PhLock,
-  PhHash,
   PhBellSlash,
   PhBellSimpleSlash,
 } from "@phosphor-icons/vue"

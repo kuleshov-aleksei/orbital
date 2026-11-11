@@ -69,6 +69,12 @@ export const usePermissionsStore = defineStore("permissions", () => {
 
   const canManageRoles = computed(() => can(Permission.ManageRoles))
 
+  const privateRooms = computed(() => new Set(me.value?.private_rooms ?? []))
+  /** The room's permissions are customized (its own or its category's overwrites). */
+  function isPrivateRoom(roomId: string): boolean {
+    return privateRooms.value.has(roomId)
+  }
+
   function roleIdsOf(userId: string): string[] {
     return userRoles.value[userId] ?? []
   }
@@ -212,6 +218,7 @@ export const usePermissionsStore = defineStore("permissions", () => {
     canEditRolesOf,
     toggleUserRole,
     grantable,
+    isPrivateRoom,
     loadMine,
     loadRoles,
     refresh,

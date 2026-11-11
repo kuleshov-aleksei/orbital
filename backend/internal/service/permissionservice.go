@@ -66,6 +66,9 @@ type MyPermissions struct {
 	Categories map[string]uint64 `json:"categories"`
 	RoleIDs    []string          `json:"role_ids"`
 	TopPos     int               `json:"top_position"`
+	// PrivateRooms lists the visible rooms whose permissions are customized
+	// (room overwrites, or the category's when synced); the UI marks them.
+	PrivateRooms []string `json:"private_rooms"`
 }
 
 // PermissionService caches roles, assignments and overwrites in memory and
@@ -260,6 +263,20 @@ func roomOverwriteTarget(room *models.Room) (string, string) {
 	return models.OverwriteTargetRoom, room.ID
 }
 
+// hasCustomPermissions reports whether any overwrite governing the room
+// changes something (an overwrite with no allow and no deny bits does not).
+func (ps *PermissionService) hasCustomPermissions(room *models.Room) bool {
+	tt, tid := roomOverwriteTarget(room)
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+	for _, o := range ps.overwrites[targetKey(tt, tid)] {
+		if o.Allow|o.Deny != 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // RoomPerms returns effective permissions in a room (0 if the room is unknown).
 func (ps *PermissionService) RoomPerms(sub Subject, roomID string) permissions.Permission {
 	room, ok := ps.roomService.GetRoom(roomID)
@@ -346,13 +363,21 @@ func (ps *PermissionService) Me(sub Subject) MyPermissions {
 		Categories: make(map[string]uint64),
 		RoleIDs:    ps.UserRoleIDs(sub.UserID),
 		TopPos:     ps.TopPosition(sub),
+
+		PrivateRooms: []string{},
 	}
 	if out.TopPos == math.MaxInt {
 		out.TopPos = math.MaxInt32
 	}
 	for _, room := range ps.roomService.GetRooms() {
-		out.Rooms[room.ID] = uint64(ps.RoomPerms(sub, room.ID))
+		perms := ps.RoomPerms(sub, room.ID)
+		out.Rooms[room.ID] = uint64(perms)
+		// Only rooms the subject can see: hidden rooms stay unlisted.
+		if perms.Has(permissions.ViewRoom) && ps.hasCustomPermissions(&room) {
+			out.PrivateRooms = append(out.PrivateRooms, room.ID)
+		}
 	}
+	sort.Strings(out.PrivateRooms)
 	if ps.categoryService != nil {
 		for _, c := range ps.categoryService.GetCategories() {
 			out.Categories[c.ID] = uint64(ps.CategoryPerms(sub, c.ID))

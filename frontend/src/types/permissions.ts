@@ -183,4 +183,6 @@ export interface MyPermissions {
   categories: Record<string, number>
   role_ids: string[]
   top_position: number
+  /** Visible rooms with customized permissions (shown as private). */
+  private_rooms?: string[]
 }
