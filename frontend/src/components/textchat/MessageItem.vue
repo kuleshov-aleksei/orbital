@@ -70,7 +70,7 @@
             ref="editInput"
             v-model="draft"
             rows="1"
-            class="w-full resize-none rounded-md bg-theme-bg-tertiary border border-theme-border px-3 py-2 text-sm text-theme-text-primary focus:outline-none focus-visible:outline-none focus:border-theme-accent"
+            class="edit-input w-full resize-none rounded-md bg-theme-bg-tertiary border border-theme-border px-3 py-2 text-sm text-theme-text-primary focus:outline-none focus:border-theme-accent"
             data-testid="edit-message-input"
             @input="autosize"
             @keydown.enter.exact.prevent="saveEdit"
@@ -368,6 +368,11 @@ function copyText() {
 </script>
 
 <style scoped>
+/* The global *:focus-visible outline (style.css) is unlayered, so it beats
+   Tailwind's layered outline utilities; the surrounding box shows focus. */
+.edit-input:focus-visible {
+  outline: none;
+}
 .message-flash {
   animation: message-flash 2s ease-out;
 }

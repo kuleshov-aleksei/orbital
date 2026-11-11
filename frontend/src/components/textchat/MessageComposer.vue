@@ -46,7 +46,7 @@
             : 'You do not have permission to send messages in this channel'
         "
         :maxlength="MAX_CHARS * 2"
-        class="flex-1 resize-none bg-transparent text-sm text-theme-text-primary placeholder-theme-text-muted focus:outline-none focus-visible:outline-none py-1 max-h-[50vh] disabled:cursor-not-allowed"
+        class="composer-input flex-1 resize-none bg-transparent text-sm text-theme-text-primary placeholder-theme-text-muted focus:outline-none py-1 max-h-[50vh] disabled:cursor-not-allowed"
         data-testid="text-composer"
         aria-label="Message"
         @input="onInput"
@@ -491,3 +491,11 @@ function draftStore() {
   return sessionDrafts
 }
 </script>
+
+<style scoped>
+/* The global *:focus-visible outline (style.css) is unlayered, so it beats
+   Tailwind's layered outline utilities; the surrounding box shows focus. */
+.composer-input:focus-visible {
+  outline: none;
+}
+</style>
