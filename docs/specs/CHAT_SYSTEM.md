@@ -512,7 +512,7 @@ Removal reasons:
   - a "Protected only" toggle.
 - **Rows:**
   - thumbnail or kind icon, filename, size, channel, upload date;
-  - badges: 🔒 protected, and "removed next" on the oldest unprotected files that together add up to about 10 % of the quota;
+  - badges: 🔒 protected, and "removed next" on the oldest unprotected files that together add up to about 10 % of the quota (the tooltip says so);
   - actions:
     - jump to message: opens the `around_seq` deep link, in the opener tab when one exists. Disabled without `ViewRoom`;
     - download;

@@ -144,7 +144,8 @@
         <!-- Files -->
         <div class="rounded-lg border border-theme-border overflow-hidden">
           <div
-            class="hidden sm:grid grid-cols-[28px_56px_1fr_90px_140px_110px_auto] gap-3 px-3 py-2 text-xs font-medium text-theme-text-muted bg-theme-bg-secondary border-b border-theme-border">
+            :class="COLUMNS"
+            class="hidden sm:grid gap-3 items-center px-3 py-2 text-xs font-medium text-theme-text-muted bg-theme-bg-secondary border-b border-theme-border">
             <input
               type="checkbox"
               :checked="allSelected"
@@ -162,7 +163,8 @@
           <div
             v-for="f in items"
             :key="f.id"
-            class="grid grid-cols-[28px_56px_1fr_auto] sm:grid-cols-[28px_56px_1fr_90px_140px_110px_auto] gap-3 items-center px-3 py-2 border-b border-theme-border/60 last:border-b-0 hover:bg-theme-bg-secondary/60"
+            :class="COLUMNS"
+            class="grid gap-3 items-center px-3 py-2 border-b border-theme-border/60 last:border-b-0 hover:bg-theme-bg-secondary/60"
             data-testid="my-file-row">
             <input
               type="checkbox"
@@ -181,8 +183,8 @@
                 </span>
                 <span
                   v-if="f.removal_next"
-                  class="badge bg-amber-500/15 text-amber-300"
-                  title="Removed first when storage is full">
+                  class="badge bg-amber-500/15 text-amber-300 cursor-help"
+                  :title="removalNextHint">
                   Removed next
                 </span>
                 <span
@@ -304,6 +306,11 @@ const KINDS: { value: AttachmentKind | ""; label: string }[] = [
   { value: "video", label: "Video" },
   { value: "audio", label: "Audio" },
 ]
+// Header and rows are separate grids, so every column needs a fixed width:
+// an "auto" column sizes to its own content and the columns drift apart.
+// Actions: 4 buttons of 32px + 3 gaps of 2px.
+const COLUMNS =
+  "grid-cols-[28px_56px_minmax(0,1fr)_134px] sm:grid-cols-[28px_56px_minmax(0,1fr)_90px_140px_110px_134px]"
 const field =
   "px-2.5 py-1.5 rounded-md text-sm bg-theme-bg-tertiary border border-theme-border text-theme-text-primary focus:border-theme-accent"
 const smallBtn =
@@ -347,6 +354,18 @@ const unprotectedBytes = computed(() =>
 const allSelected = computed(
   () => items.value.length > 0 && items.value.every((f) => selected.value.has(f.id)),
 )
+
+// The backend marks the oldest unprotected files adding up to a tenth of the
+// quota (chatmedia.nextRemovalShare).
+const removalNextHint = computed(() => {
+  const share = usage.value?.quota_bytes
+    ? ` (about ${formatBytes(usage.value.quota_bytes / 10)})`
+    : ""
+  return (
+    `Among your oldest unprotected files that make up 10% of your storage${share}. ` +
+    "When storage is full, these are removed first, oldest first. Protect a file to keep it."
+  )
+})
 
 function pct(bytes: number): string {
   return usage.value?.quota_bytes
