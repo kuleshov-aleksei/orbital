@@ -4,7 +4,7 @@
     data-testid="text-channel-view"
     @keydown.escape="onEscape">
     <header
-      class="flex items-center gap-3 px-4 h-14 flex-shrink-0 border-b border-theme-border bg-theme-bg-secondary">
+      class="flex items-center gap-3 px-4 h-16 flex-shrink-0 border-b border-theme-border bg-theme-bg-secondary">
       <button
         v-if="appStore.isMobile"
         type="button"
@@ -96,7 +96,7 @@
           :can-send="canSend"
           :my-user-id="userStore.userId ?? ''"
           @edit-last="editLast"
-          @escape="textChatStore.markChannelRead(channel.id)" />
+          @escape="leaveChannel" />
         <TypingIndicator :room-id="channel.id" />
       </div>
 
@@ -164,7 +164,15 @@ function editLast() {
 function onEscape(event: KeyboardEvent) {
   // Inner handlers (edit box, picker, reply bar, search) prevent first.
   if (event.defaultPrevented) return
+  leaveChannel()
+}
+
+// Escape with nothing else to close: mark read and go back to the welcome
+// screen (or the call view, which stays mounted while a call is active).
+function leaveChannel() {
   textChatStore.markChannelRead(props.channel.id)
+  textChatStore.closeChannel()
+  if (appStore.isMobile) appStore.showRoomsView()
 }
 
 function backToList() {
