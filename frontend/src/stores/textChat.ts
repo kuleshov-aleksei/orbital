@@ -155,7 +155,12 @@ export const useTextChatStore = defineStore("textChat", () => {
     return !!s && s.newestSeq > s.lastReadSeq
   }
 
+  /** Channels that got a live message while loadUnread was in flight. */
+  let liveDuringUnread: Set<string> | null = null
+
   async function loadUnread() {
+    const live = new Set<string>()
+    liveDuringUnread = live
     try {
       const resp = await apiService.getTextUnread()
       available.value = resp.available
@@ -163,8 +168,13 @@ export const useTextChatStore = defineStore("textChat", () => {
       for (const ch of resp.channels) {
         const known = readState.value[ch.room_id]
         next[ch.room_id] = {
+          // A local read may not have been reported yet (it is debounced).
           lastReadSeq: Math.max(ch.last_read_seq, known?.lastReadSeq ?? 0),
-          newestSeq: Math.max(ch.newest_seq, known?.newestSeq ?? 0),
+          // The server's newest message wins: it can be lower than ours after
+          // a delete. Only a message newer than the response keeps our value.
+          newestSeq: live.has(ch.room_id)
+            ? Math.max(ch.newest_seq, known?.newestSeq ?? 0)
+            : ch.newest_seq,
         }
       }
       readState.value = next
@@ -172,6 +182,8 @@ export const useTextChatStore = defineStore("textChat", () => {
     } catch (error) {
       // 404 when text channels are disabled on the server: nothing to track.
       console.warn("[TextChat] Failed to load unread state:", error)
+    } finally {
+      if (liveDuringUnread === live) liveDuringUnread = null
     }
   }
 
@@ -212,6 +224,31 @@ export const useTextChatStore = defineStore("textChat", () => {
     view.hasMoreAfter = page.has_more_after
   }
 
+  /** Live messages that arrived while a channel's page was loading. */
+  const missedWhileLoading = new Map<string, TextMessageNewEvent[]>()
+
+  /** Appends a live message to a view that shows the newest messages. */
+  function appendLive(view: ChannelView, data: TextMessageNewEvent) {
+    const msg = data.message
+    const last = view.messages[view.messages.length - 1]
+    if (last && msg.seq <= last.seq) return
+    if (view.messages.some((m) => m.id === msg.id)) return
+    view.messages.push(msg)
+    if (data.replied) Object.assign(view.replied, data.replied)
+  }
+
+  /**
+   * Ends a page load. The page may have been read before a message that was
+   * announced during the load, so those messages are appended now.
+   */
+  function finishLoading(roomId: string, view: ChannelView) {
+    view.loading = false
+    const missed = missedWhileLoading.get(roomId)
+    missedWhileLoading.delete(roomId)
+    if (!missed || view.hasMoreAfter) return
+    for (const data of missed) appendLive(view, data)
+  }
+
   async function loadLatest(roomId: string, scroll: ScrollRequest | null = { kind: "bottom" }) {
     const view = viewFor(roomId)
     view.loading = true
@@ -223,7 +260,7 @@ export const useTextChatStore = defineStore("textChat", () => {
     } catch (error) {
       view.error = describeLoadError(error)
     } finally {
-      view.loading = false
+      finishLoading(roomId, view)
     }
   }
 
@@ -238,7 +275,7 @@ export const useTextChatStore = defineStore("textChat", () => {
     } catch (error) {
       view.error = describeLoadError(error)
     } finally {
-      view.loading = false
+      finishLoading(roomId, view)
     }
   }
 
@@ -375,7 +412,7 @@ export const useTextChatStore = defineStore("textChat", () => {
       lastError.value =
         status === 404 ? "That message was deleted." : "Failed to jump to the message."
     } finally {
-      view.loading = false
+      finishLoading(roomId, view)
     }
   }
 
@@ -587,6 +624,7 @@ export const useTextChatStore = defineStore("textChat", () => {
     }
     const s = readState.value[msg.room_id] ?? { lastReadSeq: 0, newestSeq: 0 }
     readState.value[msg.room_id] = { ...s, newestSeq: Math.max(s.newestSeq, msg.seq) }
+    liveDuringUnread?.add(msg.room_id)
     if (typing.value[msg.room_id]?.[msg.sender_id]) delete typing.value[msg.room_id][msg.sender_id]
     if (msg.sender_id === userStore.userId) {
       // Your own message means you have read the channel up to it.
@@ -596,10 +634,16 @@ export const useTextChatStore = defineStore("textChat", () => {
     const view = views.value[msg.room_id]
     // Only append when the view shows the newest messages; otherwise the
     // message is fetched when the user scrolls down or jumps to present.
-    if (!view || view.hasMoreAfter || view.loading) return
-    if (view.messages.some((m) => m.id === msg.id)) return
-    view.messages.push(msg)
-    if (data.replied) Object.assign(view.replied, data.replied)
+    if (!view) return
+    if (view.loading) {
+      // The page being loaded may or may not contain it: decide afterwards.
+      const missed = missedWhileLoading.get(msg.room_id) ?? []
+      missed.push(data)
+      missedWhileLoading.set(msg.room_id, missed)
+      return
+    }
+    if (view.hasMoreAfter) return
+    appendLive(view, data)
     if (view.atBottom) trimOldest(view)
   }
 
@@ -651,6 +695,20 @@ export const useTextChatStore = defineStore("textChat", () => {
     if (list) pins.value[data.room_id] = list.filter((m) => m.id !== data.id)
     if (replyTarget.value?.id === data.id) replyTarget.value = null
     if (editingId.value === data.id) editingId.value = null
+    // A message deleted during a page load must not be appended afterwards.
+    const missed = missedWhileLoading.get(data.room_id)
+    if (missed) {
+      missedWhileLoading.set(
+        data.room_id,
+        missed.filter((e) => e.message.id !== data.id),
+      )
+    }
+    // Deleting the newest message lowers the channel's newest seq; without
+    // this the channel stays unread with nothing left to read.
+    const s = readState.value[data.room_id]
+    if (s && data.newest_seq !== undefined && data.newest_seq < s.newestSeq) {
+      readState.value[data.room_id] = { ...s, newestSeq: data.newest_seq }
+    }
   }
 
   function onReadState(data: TextReadStateEvent) {
