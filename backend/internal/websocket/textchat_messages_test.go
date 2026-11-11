@@ -90,6 +90,51 @@ func TestTextEditOnlyByAuthor(t *testing.T) {
 	}
 }
 
+func TestTextEditRequiresSendMessages(t *testing.T) {
+	f := newTextFixture(t)
+	id := f.postAs(t, f.bob, "before the mute")
+	drain(f.alice)
+	drain(f.bob)
+
+	f.overwrite(f.text.ID, models.OverwriteSubjectUser, "bob", 0, permissions.SendMessages)
+	f.bob.handleTextMessageEdit(map[string]interface{}{"message_id": id, "content": "after the mute"})
+	msgs := []string{}
+	for {
+		msg, ok := nextMessage(t, f.bob)
+		if !ok {
+			break
+		}
+		msgs = append(msgs, msg.Type)
+	}
+	if len(msgs) != 2 || msgs[0] != "permission_denied" || msgs[1] != "text_error" {
+		t.Fatalf("edit without send_messages got %v", msgs)
+	}
+	if got := messagesOfType(t, f.alice, "text_message_updated"); len(got) != 0 {
+		t.Fatal("denied edit was broadcast")
+	}
+	m, err := f.store.Get(context.Background(), id)
+	if err != nil || m.Content != "before the mute" {
+		t.Fatalf("content after denied edit: %+v, %v", m, err)
+	}
+}
+
+func TestTextDeleteReportsNewestSeq(t *testing.T) {
+	f := newTextFixture(t)
+	first := f.postAs(t, f.alice, "stays")
+	second := f.postAs(t, f.alice, "goes")
+	drain(f.bob)
+	kept, _ := f.store.Get(context.Background(), first)
+
+	f.alice.handleTextMessageDelete(map[string]interface{}{"message_id": second})
+	got := messagesOfType(t, f.bob, "text_message_deleted")
+	if len(got) != 1 {
+		t.Fatalf("delete broadcast: %+v", got)
+	}
+	if seq := int64(got[0].Data.(map[string]interface{})["newest_seq"].(float64)); seq != kept.Seq {
+		t.Fatalf("newest_seq = %d, want %d", seq, kept.Seq)
+	}
+}
+
 func TestTextDeleteRequiresManageMessagesForOthers(t *testing.T) {
 	f := newTextFixture(t)
 	id := f.postAs(t, f.alice, "bob will try to delete this")

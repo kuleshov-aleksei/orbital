@@ -253,7 +253,7 @@ New package `backend/internal/service/chatstore/`: the Meilisearch client (port 
   - Sets `is_deleted`, `deleted_at_ts`, `deleted_by`, and unpins the message.
   - **Deleted messages are hidden from everyone** (including the author) in history, search, pins and reply previews. The data stays in the index for a possible future moderation or audit view.
   - **Attachments are not kept:** they are removed with reason `message_deleted` and purged from S3, which frees the uploader's quota (§7.12.4).
-  - Broadcasts `text_message_deleted {room_id, id}`. Clients remove the message; replies to it show "Original message was deleted".
+  - Broadcasts `text_message_deleted {room_id, id, newest_seq}`. Clients remove the message; replies to it show "Original message was deleted". `newest_seq` is the channel's newest seq after the delete, so deleting the newest message clears the unread badge it caused.
 - **UX:**
   - Hover toolbar: react, reply, edit (own), more → pin, copy text, copy link, delete.
   - ↑ in an empty composer edits your last message; Esc cancels.
@@ -609,7 +609,7 @@ WebSocket. Client → server:
 Server → client:
 - `text_message_new {room_id, message, replied?, nonce?}` (`replied` carries the parent preview of a reply)
 - `text_message_updated {room_id, id, message}` (the full public message, simpler for clients than a field diff)
-- `text_message_deleted {room_id, id}`
+- `text_message_deleted {room_id, id, newest_seq}`
 - `text_mention {room_id, message_id, sender_id}`
 - `text_read_state {room_id, last_read_seq}`
 - `text_notify_settings {room_id, mode, muted_until}` (to the user's own sessions; also sent when a mute expires)

@@ -188,10 +188,11 @@ func (c *Client) textRoom(roomID string) (*models.Room, bool) {
 // onTextRevert tells clients about a write Meilisearch failed to apply.
 func (h *Hub) onTextRevert(rv chatstore.Revert) {
 	if rv.Message == nil {
-		h.broadcastText(rv.RoomID, models.WebSocketMessage{
-			Type: "text_message_deleted",
-			Data: map[string]any{"room_id": rv.RoomID, "id": rv.ID},
-		})
+		data := map[string]any{"room_id": rv.RoomID, "id": rv.ID}
+		if tc := h.textChatService(); tc != nil {
+			data["newest_seq"] = tc.Store.NewestSeq(rv.RoomID)
+		}
+		h.broadcastText(rv.RoomID, models.WebSocketMessage{Type: "text_message_deleted", Data: data})
 	} else {
 		h.broadcastText(rv.RoomID, models.WebSocketMessage{
 			Type: "text_message_updated",

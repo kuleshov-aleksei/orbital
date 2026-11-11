@@ -132,8 +132,15 @@ func (c *Client) handleTextMessageEdit(data interface{}) {
 		c.sendTextError(textErrUnavailable, "Text channels are disabled", "", req.MessageID)
 		return
 	}
-	if _, err := c.visibleMessage(tc, req.MessageID); err != nil {
+	current, err := c.visibleMessage(tc, req.MessageID)
+	if err != nil {
 		c.sendStoreError(err, "", req.MessageID)
+		return
+	}
+	// An edit publishes new text, so it needs the same permission as a send.
+	if !c.hub.canInRoom(c.hub.permissionService(), c, current.RoomID, permissions.SendMessages) {
+		sendPermissionDenied(c, "text_message_edit", current.RoomID)
+		c.sendTextError(textErrForbidden, "You don't have permission to send messages here", "", req.MessageID)
 		return
 	}
 	msg, err := tc.Store.Edit(context.Background(), req.MessageID, userID, req.Content)
@@ -176,7 +183,7 @@ func (c *Client) handleTextMessageDelete(data interface{}) {
 	}
 	c.hub.broadcastText(msg.RoomID, models.WebSocketMessage{
 		Type: "text_message_deleted",
-		Data: map[string]any{"room_id": msg.RoomID, "id": msg.ID},
+		Data: map[string]any{"room_id": msg.RoomID, "id": msg.ID, "newest_seq": tc.Store.NewestSeq(msg.RoomID)},
 	})
 	if tc.Media != nil && len(msg.Attachments) > 0 {
 		if err := tc.Media.RemoveForMessage(msg.ID); err != nil {
