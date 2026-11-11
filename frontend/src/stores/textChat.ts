@@ -2,6 +2,7 @@ import { defineStore } from "pinia"
 import { computed, ref, watch } from "vue"
 import { apiService } from "@/services/api"
 import { wsService } from "@/services/websocket"
+import { addRecentReaction } from "@/services/emoji"
 import { useRoomStore } from "./room"
 import { useUserStore } from "./user"
 import { useTextNotifyStore } from "./textNotify"
@@ -454,6 +455,14 @@ export const useTextChatStore = defineStore("textChat", () => {
   }
 
   function toggleReaction(messageId: string, emoji: string) {
+    // Adding (not removing) a reaction moves it to the front of the quick reactions.
+    let adding = true
+    forEachView((view) => {
+      const msg = view.messages.find((m) => m.id === messageId)
+      const r = msg?.reactions.find((x) => x.emoji === emoji)
+      if (r?.user_ids.includes(userStore.userId)) adding = false
+    })
+    if (adding) addRecentReaction(emoji)
     wsService.sendGlobalMessage("text_reaction_toggle", { message_id: messageId, emoji })
   }
 

@@ -102,10 +102,22 @@ export function buildTimeline<M extends GroupableMessage, L extends TimelineLine
   return items
 }
 
+/** Message times are always 24-hour ("16:33"), whatever the locale. */
+const TIME_24H: Intl.DateTimeFormatOptions = {
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+}
+
+/** "16:33" */
+export function formatTime24(ts: number): string {
+  return new Date(ts).toLocaleTimeString(undefined, TIME_24H)
+}
+
 /** "Today at 21:04", "Yesterday at 09:10" or a full date and time. */
 export function formatMessageTime(ts: number, now = Date.now()): string {
   const d = new Date(ts)
-  const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+  const time = formatTime24(ts)
   if (isSameLocalDay(ts, now)) return `Today at ${time}`
   if (isSameLocalDay(ts, now - 24 * 60 * 60 * 1000)) return `Yesterday at ${time}`
   return `${d.toLocaleDateString()} ${time}`
@@ -113,12 +125,16 @@ export function formatMessageTime(ts: number, now = Date.now()): string {
 
 /** Short time for the gutter of compact messages. */
 export function formatShortTime(ts: number): string {
-  return new Date(ts).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+  return formatTime24(ts)
 }
 
 /** Full timestamp for tooltips. */
 export function formatFullTime(ts: number): string {
-  return new Date(ts).toLocaleString(undefined, { dateStyle: "full", timeStyle: "short" })
+  return new Date(ts).toLocaleString(undefined, {
+    dateStyle: "full",
+    timeStyle: "short",
+    hourCycle: "h23",
+  })
 }
 
 /** Day separator label. */

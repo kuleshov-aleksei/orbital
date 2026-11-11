@@ -32,6 +32,7 @@
     </div>
 
     <div
+      ref="box"
       class="relative flex items-end gap-2 bg-theme-bg-tertiary border border-theme-border px-3 py-2 focus-within:border-theme-accent transition-colors"
       :class="replyTarget ? 'rounded-b-lg' : 'rounded-lg'">
       <textarea
@@ -45,13 +46,15 @@
             : 'You do not have permission to send messages in this channel'
         "
         :maxlength="MAX_CHARS * 2"
-        class="flex-1 resize-none bg-transparent text-sm text-theme-text-primary placeholder-theme-text-muted focus:outline-none py-1 max-h-[50vh] disabled:cursor-not-allowed"
+        class="flex-1 resize-none bg-transparent text-sm text-theme-text-primary placeholder-theme-text-muted focus:outline-none focus-visible:outline-none py-1 max-h-[50vh] disabled:cursor-not-allowed"
         data-testid="text-composer"
         aria-label="Message"
         @input="onInput"
         @click="updateSuggestions"
         @keydown="onKeydown"
-        @blur="closeSuggestions" />
+        @mouseup="updateFormatBar"
+        @keyup="updateFormatBar"
+        @blur="onBlur" />
       <span
         v-if="charCount > MAX_CHARS - 200"
         class="text-[11px] self-center"
@@ -77,18 +80,44 @@
         :title="suggestionTitle"
         @hover="(i) => (activeSuggestion = i)"
         @pick="applySuggestion" />
-      <EmojiPicker
-        v-if="isPickerOpen"
-        class="absolute bottom-full right-0 mb-2 z-20"
-        @select="insertEmoji"
-        @close="closePicker" />
+      <div v-if="isPickerOpen" class="absolute bottom-full right-0 mb-2 z-20 w-[320px]">
+        <EmojiPicker @select="insertEmoji" @close="closePicker" />
+      </div>
+      <!-- Formatting for the selected text -->
+      <div
+        v-if="formatBarLeft !== null"
+        class="absolute bottom-full mb-2 z-20 flex items-center gap-0.5 p-1 rounded-lg border border-theme-border bg-theme-bg-secondary shadow-lg"
+        :style="{ left: `${formatBarLeft}px` }"
+        role="toolbar"
+        aria-label="Format selection"
+        data-testid="format-toolbar">
+        <button
+          v-for="f in FORMATS"
+          :key="f.marker"
+          type="button"
+          class="w-7 h-7 flex items-center justify-center rounded text-theme-text-secondary hover:text-theme-text-primary hover:bg-theme-bg-hover transition-colors"
+          :title="f.title"
+          :aria-label="f.label"
+          :data-testid="`format-${f.label.toLowerCase()}`"
+          @mousedown.prevent
+          @click="applyFormat(f.marker)">
+          <component :is="f.icon" class="w-4 h-4" weight="bold" />
+        </button>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, ref, useTemplateRef, watch } from "vue"
-import { PhSmiley, PhX } from "@phosphor-icons/vue"
+import {
+  PhEyeSlash,
+  PhSmiley,
+  PhTextB,
+  PhTextItalic,
+  PhTextStrikethrough,
+  PhX,
+} from "@phosphor-icons/vue"
 import EmojiPicker from "@/components/EmojiPicker.vue"
 import ComposerSuggestions, { type Suggestion } from "./ComposerSuggestions.vue"
 import {
@@ -99,6 +128,7 @@ import {
   userMentionToken,
   type MentionMap,
 } from "@/utils/mentionText"
+import { wrapSelection } from "@/utils/wrapSelection"
 import {
   CUSTOM_EMOJI_PREFIX,
   emojiShortcode,
@@ -138,6 +168,7 @@ const usersStore = useUsersStore()
 const permissionsStore = usePermissionsStore()
 
 const input = useTemplateRef<HTMLTextAreaElement>("input")
+const box = useTemplateRef<HTMLDivElement>("box")
 const isPickerOpen = ref(false)
 
 // Drafts survive switching channels (kept for this app session).
@@ -206,6 +237,7 @@ function send() {
   draft.value = ""
   mentionMap().clear()
   closeSuggestions()
+  formatBarLeft.value = null
   void nextTick(autosize)
 }
 
@@ -341,6 +373,7 @@ function onSuggestionKey(event: KeyboardEvent): boolean {
 function onKeydown(event: KeyboardEvent) {
   if (event.isComposing) return
   if (onSuggestionKey(event)) return
+  if (onFormatKey(event)) return
   if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
     void nextTick(updateSuggestions)
   }
@@ -355,12 +388,70 @@ function onKeydown(event: KeyboardEvent) {
     event.preventDefault()
     if (isPickerOpen.value) {
       isPickerOpen.value = false
+    } else if (formatBarLeft.value !== null) {
+      formatBarLeft.value = null
     } else if (replyTarget.value) {
       textChatStore.cancelReply()
     } else {
       emit("escape")
     }
   }
+}
+
+// --- Formatting toolbar (selected text) --------------------------------
+
+const FORMATS = [
+  { marker: "**", label: "Bold", title: "Bold (Ctrl+B)", icon: PhTextB },
+  { marker: "*", label: "Italic", title: "Italic (Ctrl+I)", icon: PhTextItalic },
+  {
+    marker: "~~",
+    label: "Strikethrough",
+    title: "Strikethrough (Ctrl+Shift+X)",
+    icon: PhTextStrikethrough,
+  },
+  { marker: "||", label: "Spoiler", title: "Spoiler (Ctrl+Shift+S)", icon: PhEyeSlash },
+]
+/** Toolbar x offset inside the composer box; null while hidden. */
+const formatBarLeft = ref<number | null>(null)
+const FORMAT_BAR_WIDTH = 132
+
+function updateFormatBar(event?: MouseEvent | KeyboardEvent) {
+  const el = input.value
+  const rect = box.value?.getBoundingClientRect()
+  if (!el || !rect || el.selectionStart === el.selectionEnd) {
+    formatBarLeft.value = null
+    return
+  }
+  // Follow the pointer for mouse selections; keyboard selections anchor left.
+  const x = event instanceof MouseEvent ? event.clientX - rect.left - FORMAT_BAR_WIDTH / 2 : 8
+  formatBarLeft.value = Math.max(0, Math.min(x, rect.width - FORMAT_BAR_WIDTH))
+}
+
+async function applyFormat(marker: string) {
+  const el = input.value
+  if (!el) return
+  const res = wrapSelection(draft.value, el.selectionStart, el.selectionEnd, marker)
+  draft.value = res.value
+  await nextTick()
+  el.focus()
+  el.setSelectionRange(res.start, res.end)
+  autosize()
+  updateFormatBar()
+}
+
+function onFormatKey(event: KeyboardEvent): boolean {
+  if (!(event.ctrlKey || event.metaKey) || event.altKey) return false
+  const key = event.key.toLowerCase()
+  const marker = event.shiftKey ? { x: "~~", s: "||" }[key] : { b: "**", i: "*" }[key]
+  if (!marker) return false
+  event.preventDefault()
+  void applyFormat(marker)
+  return true
+}
+
+function onBlur() {
+  closeSuggestions()
+  formatBarLeft.value = null
 }
 
 function textFor(ref: EmojiRef): string {

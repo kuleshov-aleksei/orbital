@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest"
-import { buildTimeline, isCompact, GROUP_WINDOW_MS, type GroupableMessage } from "./messageGrouping"
+import {
+  buildTimeline,
+  formatMessageTime,
+  formatShortTime,
+  isCompact,
+  GROUP_WINDOW_MS,
+  type GroupableMessage,
+} from "./messageGrouping"
 
 const base = new Date(2026, 10, 10, 12, 0, 0).getTime()
 let seq = 0
@@ -75,5 +82,14 @@ describe("buildTimeline", () => {
         i.kind === "message" ? `${i.message.id}:${i.compact}` : i.kind === "line" ? i.key : i.kind,
       ),
     ).toEqual(["day", `${a.id}:false`, "mid", `${b.id}:false`, "late"])
+  })
+})
+
+describe("message times", () => {
+  it("uses the 24-hour clock", () => {
+    const afternoon = new Date(2026, 10, 10, 16, 33).getTime()
+    expect(formatShortTime(afternoon)).toMatch(/^16:33$/)
+    expect(formatMessageTime(afternoon, afternoon)).toBe("Today at 16:33")
+    expect(formatShortTime(new Date(2026, 10, 10, 0, 5).getTime())).toBe("00:05")
   })
 })

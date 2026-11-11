@@ -38,7 +38,7 @@
         <UserAvatar v-if="!compact" :user-id="message.sender_id" :size="40" :show-status="false" />
         <span
           v-else
-          class="block text-[10px] leading-6 text-right text-theme-text-muted opacity-0 group-hover:opacity-100 select-none"
+          class="block whitespace-nowrap text-[10px] leading-5 tabular-nums text-right text-theme-text-muted opacity-0 group-hover:opacity-100 select-none"
           :title="formatFullTime(message.created_at_ts)"
           >{{ formatShortTime(message.created_at_ts) }}</span
         >
@@ -70,7 +70,7 @@
             ref="editInput"
             v-model="draft"
             rows="1"
-            class="w-full resize-none rounded-md bg-theme-bg-tertiary border border-theme-border px-3 py-2 text-sm text-theme-text-primary focus:outline-none focus:border-theme-accent"
+            class="w-full resize-none rounded-md bg-theme-bg-tertiary border border-theme-border px-3 py-2 text-sm text-theme-text-primary focus:outline-none focus-visible:outline-none focus:border-theme-accent"
             data-testid="edit-message-input"
             @input="autosize"
             @keydown.enter.exact.prevent="saveEdit"
@@ -122,6 +122,20 @@
       class="message-toolbar absolute -top-3 right-4 hidden group-hover:flex group-focus-within:flex items-center rounded-md border border-theme-border bg-theme-bg-secondary shadow-md"
       role="toolbar"
       aria-label="Message actions">
+      <template v-if="canReply">
+        <button
+          v-for="emoji in recentReactions"
+          :key="emoji"
+          type="button"
+          :class="toolbarBtn"
+          :title="`React with ${emojiLabel(emoji)}`"
+          :aria-label="`React with ${emojiLabel(emoji)}`"
+          data-testid="quick-reaction"
+          @click="$emit('react', emoji)">
+          <EmojiGlyph :emoji-ref="emoji" :size="18" />
+        </button>
+        <span class="w-px h-5 bg-theme-border mx-0.5" aria-hidden="true" />
+      </template>
       <button
         v-if="canReply"
         type="button"
@@ -197,10 +211,17 @@ import {
   PhTrash,
 } from "@phosphor-icons/vue"
 import UserAvatar from "@/components/UserAvatar.vue"
+import EmojiGlyph from "@/components/EmojiGlyph.vue"
 import MessageContent from "./MessageContent.vue"
 import ReactionBar from "./ReactionBar.vue"
 import { useCustomEmojisStore, usePermissionsStore, useUsersStore } from "@/stores"
-import { emojiTextToPlain, encodeShortcodes } from "@/services/emoji"
+import {
+  emojiShortcode,
+  emojiTextToPlain,
+  encodeShortcodes,
+  recentReactions,
+  resolveEmoji,
+} from "@/services/emoji"
 import { markupToPlain, parseMessage } from "@/utils/messageMarkup"
 import { decodeMentions, encodeMentions, type MentionMap } from "@/utils/mentionText"
 import { formatFullTime, formatMessageTime, formatShortTime } from "@/utils/messageGrouping"
@@ -268,6 +289,11 @@ const mentionsMe = computed(() => {
   const mine = permissionsStore.roleIdsOf(me)
   return props.message.mention_role_ids.some((id) => mine.includes(id))
 })
+
+function emojiLabel(ref: string): string {
+  const emoji = resolveEmoji(ref)
+  return emoji ? `:${emojiShortcode(emoji.name)}:` : ref
+}
 
 function roleName(id: string): string | undefined {
   return permissionsStore.roles.find((r) => r.id === id)?.name

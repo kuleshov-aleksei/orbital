@@ -3,6 +3,7 @@ import { ref } from "vue"
 import { apiService } from "@/services/api"
 import { playMention } from "@/services/sounds"
 import { flashWindow } from "@/services/electron"
+import { formatTime24 } from "@/utils/messageGrouping"
 import { useAppSettingsStore } from "./appSettings"
 import { useTextChatStore } from "./textChat"
 import type {
@@ -184,7 +185,7 @@ export function describeMute(s: TextNotifySetting): string {
   if (s.mode !== "muted") return ""
   if (s.muted_until === null) return "Muted forever"
   const d = new Date(s.muted_until)
-  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  const time = formatTime24(s.muted_until)
   const sameDay = new Date().toDateString() === d.toDateString()
   return sameDay
     ? `Muted until ${time}`

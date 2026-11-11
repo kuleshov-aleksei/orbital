@@ -7,6 +7,7 @@ export {
   searchEmojis,
 } from "./registry"
 export { getRecentEmojis, addRecentEmoji } from "./recent"
+export { recentReactions, addRecentReaction } from "./recentReactions"
 export {
   emojiShortcode,
   parseEmojiText,
