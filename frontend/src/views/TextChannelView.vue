@@ -27,8 +27,9 @@
       </span>
 
       <div class="ml-auto flex items-center gap-1 flex-shrink-0">
-        <ChannelNotifyMenu :room-id="channel.id" />
+        <ChannelNotifyMenu v-if="!mobileSearchOpen" :room-id="channel.id" />
         <button
+          v-if="!mobileSearchOpen"
           type="button"
           :class="[headerBtn, textChatStore.sidePanel === 'pins' ? headerBtnActive : '']"
           title="Pinned messages"
@@ -146,6 +147,8 @@ const composer = useTemplateRef<InstanceType<typeof MessageComposer>>("composer"
 const searchBox = useTemplateRef<InstanceType<typeof SearchBox>>("searchBox")
 
 const view = computed(() => textChatStore.views[props.channel.id] ?? null)
+// On a phone the open search box needs the header's width for itself.
+const mobileSearchOpen = computed(() => appStore.isMobile && textChatStore.sidePanel === "search")
 
 // UX hints only; the backend checks every send/delete/pin.
 const canSend = computed(() =>

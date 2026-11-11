@@ -1,10 +1,10 @@
 <template>
-  <div class="mt-1 flex flex-col gap-1.5 items-start" data-testid="message-attachments">
+  <div class="mt-1 flex flex-col gap-1.5 items-start max-w-full" data-testid="message-attachments">
     <!-- Images: one sized by aspect ratio, several in a grid -->
     <div
       v-if="images.length"
-      :class="images.length === 1 ? '' : 'grid grid-cols-2 gap-1 w-full max-w-[400px]'">
-      <div v-for="(img, i) in images" :key="img.id" class="relative group/att">
+      :class="images.length === 1 ? 'max-w-full' : 'grid grid-cols-2 gap-1 w-full max-w-[400px]'">
+      <div v-for="(img, i) in images" :key="img.id" class="relative group/att max-w-full">
         <AttachmentImageTile
           :attachment="img"
           :single="images.length === 1"
@@ -36,7 +36,7 @@
         @download="openAttachment(att.id, 'download')" />
       <AttachmentAudio v-else :attachment="att" @menu="(e) => openMenu(att, e)" />
       <!-- File row -->
-      <div class="flex items-center gap-2 text-xs text-theme-text-muted max-w-[420px] -mt-1">
+      <div class="flex items-center gap-2 text-xs text-theme-text-muted max-w-full -mt-1">
         <PhLock v-if="att.protected" class="w-3.5 h-3.5" weight="fill" aria-label="Protected" />
         <span v-if="att.kind === 'video'" class="truncate">{{ att.filename }}</span>
         <span>{{ formatBytes(att.size) }}</span>
@@ -67,7 +67,7 @@
       class="flex items-center gap-1.5 text-xs italic text-theme-text-muted"
       data-testid="attachment-tombstone">
       <PhPaperclip class="w-3.5 h-3.5" />
-      <span class="truncate max-w-[280px]">{{ att.filename }}</span>
+      <span class="truncate max-w-[min(280px,50vw)]">{{ att.filename }}</span>
       <span>— removed ({{ removedLabel(att) }})</span>
     </div>
 

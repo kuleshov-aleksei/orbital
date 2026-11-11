@@ -1,7 +1,7 @@
 <template>
   <div ref="root" class="relative">
     <div
-      class="flex items-center gap-1 h-8 px-2 rounded-md bg-theme-bg-tertiary border border-transparent focus-within:border-theme-accent transition-[width] w-44 focus-within:w-72 lg:w-56 lg:focus-within:w-80"
+      class="flex items-center gap-1 h-8 px-2 rounded-md bg-theme-bg-tertiary border border-transparent focus-within:border-theme-accent transition-[width] w-44 focus-within:w-72 lg:w-56 lg:focus-within:w-80 max-w-[calc(100vw-10rem)] lg:max-w-none"
       :class="{ '!w-72 lg:!w-80': chips.length || text }"
       @click="focus">
       <span
@@ -49,7 +49,7 @@
 
     <div
       v-if="suggestions.length"
-      class="absolute right-0 top-full mt-1 w-72 z-30 rounded-lg border border-theme-border bg-theme-bg-secondary shadow-lg py-1"
+      class="absolute right-0 top-full mt-1 w-72 max-w-[calc(100vw-2rem)] z-30 rounded-lg border border-theme-border bg-theme-bg-secondary shadow-lg py-1"
       role="listbox"
       data-testid="search-suggestions">
       <div

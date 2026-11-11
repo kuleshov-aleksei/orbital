@@ -1,7 +1,7 @@
 <template>
   <main
     v-if="!appStore.isMobile || appStore.mobileView === 'room'"
-    class="flex-1 flex flex-col min-h-0 bg-theme-bg-primary">
+    class="flex-1 flex flex-col min-h-0 min-w-0 bg-theme-bg-primary">
     <!-- An open text channel is shown instead of the call view. The call view
          stays mounted (hidden): unmounting it would disconnect from LiveKit. -->
     <TextChannelView v-if="textChatStore.activeChannel" :channel="textChatStore.activeChannel" />

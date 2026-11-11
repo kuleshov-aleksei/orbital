@@ -109,7 +109,7 @@
               : 'You do not have permission to send messages in this channel'
           "
           :maxlength="MAX_CHARS * 2"
-          class="composer-input flex-1 resize-none bg-transparent text-sm text-theme-text-primary placeholder-theme-text-muted focus:outline-none py-1 max-h-[50vh] disabled:cursor-not-allowed"
+          class="composer-input flex-1 min-w-0 resize-none bg-transparent text-sm text-theme-text-primary placeholder-theme-text-muted focus:outline-none py-1 max-h-[50vh] disabled:cursor-not-allowed"
           data-testid="text-composer"
           aria-label="Message"
           @input="onInput"
