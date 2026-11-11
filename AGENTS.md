@@ -156,6 +156,7 @@ Popovers such as `UserProfilePopover` close on any `pointerdown` outside themsel
 Spec and decisions: [`docs/specs/CHAT_SYSTEM.md`](./docs/specs/CHAT_SYSTEM.md). Text channels are rooms with `type: "text"`; their messages live **only in Meilisearch** (`backend/internal/service/chatstore/`), never in SQLite. The in-call chat (`ChatService`, `send_message`) is a separate, ephemeral feature.
 
 - Local Meilisearch: `make meili-up` (the backend's development defaults point at it).
+- Attachments (phase 3, spec §7.12): files live in S3 (dev Garage: `make garage-up`, single-node mode creates the dev key and bucket; production uses an external Garage). Ownership, sizes, protection and the per-user quota live in SQLite `chat_attachments`, not in the message document. Every removal (quota, owner, moderator, message/channel delete) goes through one removal path, and the S3 deletes happen in a background janitor.
 - Text channel WS events (`text_*`) go to the global socket only; listen with `wsService.onGlobal`.
 - **Never unmount the call view** (`VoiceCallView` / `SpatialWorldView`) to show something else: `useLiveKit` disconnects from LiveKit in `onUnmounted`. `MainContent.vue` keeps it mounted and hides it with `v-show` while a text channel is open.
 - Tests that need Meilisearch use the `integration` build tag and run with `make test-integration`; PR CI runs only `go test ./...` (unit tests).
