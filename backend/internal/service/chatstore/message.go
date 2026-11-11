@@ -172,8 +172,18 @@ func NormalizeContent(content string, allowEmpty bool) (string, error) {
 	if content == "" && !allowEmpty {
 		return "", invalid("message content cannot be empty")
 	}
-	if utf8.RuneCountInString(content) > MaxContentRunes {
+	if len(content) > maxContentBytes || EmojiTextLength(content) > MaxContentRunes {
 		return "", invalid("message content exceeds 2000 characters")
 	}
 	return content, nil
+}
+
+// maxContentBytes bounds the stored text: custom emoji tokens count as one
+// character each but are ~50 bytes long.
+const maxContentBytes = 32 * 1024
+
+// EmojiTextLength counts characters (not bytes), with each custom emoji
+// token counted as one, as the frontend emojiTextLength does.
+func EmojiTextLength(s string) int {
+	return utf8.RuneCountInString(customEmojiTokenRe.ReplaceAllString(s, "x"))
 }

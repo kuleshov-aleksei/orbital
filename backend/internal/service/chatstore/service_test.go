@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -116,6 +117,24 @@ func TestContentValidation(t *testing.T) {
 	}
 	if _, err := s.Create(context.Background(), CreateInput{RoomID: "r", SenderID: "u", Content: string(long) + "x"}); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("2001 runes accepted: %v", err)
+	}
+
+	// A custom emoji token counts as one character, as in the composer.
+	const token = "<:party_parrot:0b6e6c1e-8a0f-4f3e-9b9a-2b1f6f2e3c4d>"
+	emojis := strings.Repeat(token, 60)
+	m, err := s.Create(context.Background(), CreateInput{RoomID: "r", SenderID: "u", Content: emojis + string(long[:MaxContentRunes-60])})
+	if err != nil {
+		t.Fatalf("60 emoji + 1940 characters rejected: %v", err)
+	}
+	if _, err := s.Create(context.Background(), CreateInput{RoomID: "r", SenderID: "u", Content: emojis + string(long[:MaxContentRunes-59])}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("60 emoji + 1941 characters accepted: %v", err)
+	}
+	if _, err := s.Edit(context.Background(), m.ID, "u", emojis+"edited"); err != nil {
+		t.Fatalf("edit with emoji tokens rejected: %v", err)
+	}
+	// The raw size stays bounded however the characters are counted.
+	if _, err := s.Create(context.Background(), CreateInput{RoomID: "r", SenderID: "u", Content: strings.Repeat(token, MaxContentRunes)}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("2000 emoji tokens (over the byte cap) accepted: %v", err)
 	}
 }
 
