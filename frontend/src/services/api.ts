@@ -976,6 +976,11 @@ export const apiService = {
   },
 
   // RBAC: permissions, roles, assignments and overwrites
+  /** IDs of the users who can see a room (404 unless the caller can see it). */
+  async getRoomViewers(roomId: string): Promise<{ user_ids: string[] }> {
+    return apiRequest<{ user_ids: string[] }>(`/rooms/${encodeURIComponent(roomId)}/viewers`)
+  },
+
   async getMyPermissions(): Promise<MyPermissions> {
     return apiRequest<MyPermissions>("/me/permissions")
   },

@@ -242,6 +242,7 @@ func main() {
 	adminHandler.SetPermissionService(permissionService)
 	securityHandler := handlers.NewSecurityHandler(cfg)
 	usersHandler := handlers.NewUsersHandler(userRepo, wsHub)
+	usersHandler.SetPermissionService(permissionService)
 	livekitHandler := handlers.NewLiveKitHandler(livekitService, roomService, permissionService)
 	rbacHandler := handlers.NewRBACHandler(permissionService)
 	avatarHandler := handlers.NewAvatarHandler(avatarService, userRepo)
@@ -468,6 +469,7 @@ func main() {
 		r.Handle(t.prefix+"/{id}/overwrites/{subject_type}/{subject_id}", auth(rbacHandler.DeleteOverwrite(t.target))).Methods("DELETE")
 	}
 	r.Handle("/api/rooms/{id}/permissions_synced", auth(http.HandlerFunc(rbacHandler.SetRoomSync))).Methods("PUT")
+	r.Handle("/api/rooms/{id}/viewers", auth(http.HandlerFunc(usersHandler.GetRoomViewers))).Methods("GET")
 
 	// Soundboard: listing needs auth, clip files are public (audio loaders
 	// cannot send auth headers). Upload (upload_sounds) and moderation

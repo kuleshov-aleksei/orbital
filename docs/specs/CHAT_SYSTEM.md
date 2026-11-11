@@ -585,6 +585,7 @@ REST
 | `GET /api/rooms/{id}/messages?before_seq=\|after_seq=\|around_seq=\|before_ts=&limit=` | History page with `messages`, `replied` (parent previews), `has_more_before`, `has_more_after` |
 | `GET /api/messages/{id}/context?n=25` | Window around a message (search jump, reply jump) |
 | `GET /api/rooms/{id}/pins` | Pinned messages |
+| `GET /api/rooms/{id}/viewers` | `user_ids` of everyone with `ViewRoom` (404 unless the caller has it). The user list shows only them while the channel is open and refetches on `permissions_updated`. |
 | `GET /api/chat/search?q=&tz=&sort=&limit=&offset=` | Search; `q` contains the inline filters (§7.11). Returns `hits`, `total`, `hints`, `took_ms`. |
 | `GET /api/chat/unread` | Per channel: `last_read_seq`, `newest_seq`, `mention_count`, `notify_mode`, `muted_until` (for the sidebar on load) |
 | `PUT /api/rooms/{id}/notify` `{mode, mute_duration: "1h"\|"4h"\|"1d"\|"1w"\|"forever"}` | Change the notification setting (`mute_duration` only with `mode: "muted"`); requires `ViewRoom` |

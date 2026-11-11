@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -251,5 +253,34 @@ func TestRoomNameCustomEmojiTokensCountAsOneCharacter(t *testing.T) {
 	}
 	if validRoomNameLength(strings.Repeat(token, 101)) {
 		t.Fatal("101 custom emoji tokens accepted")
+	}
+}
+
+func TestGetRoomViewers(t *testing.T) {
+	f := newRBACFixture(t)
+	h := NewUsersHandler(f.users, nil)
+	h.SetPermissionService(f.ps)
+	viewers := func(as string, room *models.Room) (int, []string) {
+		rec := f.do(t, as, h.GetRoomViewers, http.MethodGet, map[string]string{"id": room.ID}, nil)
+		var body struct {
+			UserIDs []string `json:"user_ids"`
+		}
+		_ = json.Unmarshal(rec.Body.Bytes(), &body)
+		sort.Strings(body.UserIDs)
+		return rec.Code, body.UserIDs
+	}
+
+	// A room the caller cannot see is a 404, not a member list.
+	if code, _ := viewers("user", f.hidden); code != http.StatusNotFound {
+		t.Fatalf("hidden room as user: %d", code)
+	}
+	if code, ids := viewers("owner", f.hidden); code != http.StatusOK || fmt.Sprint(ids) != "[owner]" {
+		t.Fatalf("hidden room as owner: %d %v", code, ids)
+	}
+	if code, ids := viewers("guest", f.open); code != http.StatusOK || fmt.Sprint(ids) != "[guest mod owner user]" {
+		t.Fatalf("open room: %d %v", code, ids)
+	}
+	if code, _ := viewers("user", &models.Room{ID: "20261112001809GkOs6B"}); code != http.StatusNotFound {
+		t.Fatalf("unknown room: %d", code)
 	}
 }

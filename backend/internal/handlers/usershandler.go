@@ -8,8 +8,11 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/gorilla/mux"
 	"github.com/kuleshov-aleksei/orbital/internal/models"
+	"github.com/kuleshov-aleksei/orbital/internal/permissions"
 	"github.com/kuleshov-aleksei/orbital/internal/repository"
+	"github.com/kuleshov-aleksei/orbital/internal/service"
 	"github.com/kuleshov-aleksei/orbital/internal/websocket"
 )
 
@@ -18,6 +21,7 @@ type UsersHandler struct {
 	userRepo *repository.UserRepository
 	hub      *websocket.Hub
 	emojis   EmojiLookup
+	perms    *service.PermissionService
 }
 
 // NewUsersHandler creates a new users handler
@@ -30,6 +34,25 @@ func NewUsersHandler(userRepo *repository.UserRepository, hub *websocket.Hub) *U
 
 // SetEmojiLookup enables "custom:<id>" status emojis.
 func (h *UsersHandler) SetEmojiLookup(l EmojiLookup) { h.emojis = l }
+
+// SetPermissionService enables GET /api/rooms/{id}/viewers.
+func (h *UsersHandler) SetPermissionService(ps *service.PermissionService) { h.perms = ps }
+
+// GetRoomViewers returns the IDs of the users who can see a room; the user
+// list shows only them while a text channel is open.
+// GET /api/rooms/{id}/viewers (auth; 404 unless the caller can see the room)
+func (h *UsersHandler) GetRoomViewers(w http.ResponseWriter, r *http.Request) {
+	roomID := mux.Vars(r)["id"]
+	if _, ok := requireRoomPerm(w, r, h.perms, roomID, permissions.ViewRoom); !ok {
+		return
+	}
+	users, err := h.userRepo.GetAll()
+	if err != nil {
+		http.Error(w, "Failed to fetch users", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, map[string]interface{}{"user_ids": h.perms.RoomViewers(roomID, users)})
+}
 
 // GetAllUsers returns a list of all users with public information only
 // GET /api/users

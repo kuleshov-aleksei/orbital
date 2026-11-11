@@ -296,6 +296,25 @@ func (ps *PermissionService) CategoryPerms(sub Subject, categoryID string) permi
 	return ps.computeWithTargetLocked(sub, models.OverwriteTargetCategory, categoryID)
 }
 
+// RoomViewers returns the IDs of the users who can see a room (ViewRoom),
+// in input order. Unknown rooms have no viewers.
+func (ps *PermissionService) RoomViewers(roomID string, users []*models.User) []string {
+	out := []string{}
+	room, ok := ps.roomService.GetRoom(roomID)
+	if !ok {
+		return out
+	}
+	tt, tid := roomOverwriteTarget(room)
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+	for _, u := range users {
+		if ps.computeWithTargetLocked(SubjectFromUser(u), tt, tid).Has(permissions.ViewRoom) {
+			out = append(out, u.ID)
+		}
+	}
+	return out
+}
+
 // CanInRoom reports whether the subject holds every bit of want in a room.
 func (ps *PermissionService) CanInRoom(sub Subject, roomID string, want permissions.Permission) bool {
 	return ps.RoomPerms(sub, roomID).Has(want)
