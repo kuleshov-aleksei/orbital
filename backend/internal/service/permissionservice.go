@@ -83,6 +83,7 @@ type PermissionService struct {
 	roles      map[string]*models.Role
 	userRoles  map[string][]string                               // user_id -> role IDs (no system roles)
 	overwrites map[string]map[string]*models.PermissionOverwrite // "type:id" -> "subjectType:subjectID" -> overwrite
+	colorRoles map[string]string                                 // user_id -> role picked to color their nickname
 
 	listenersMu sync.RWMutex
 	listeners   []func(PermissionChange)
@@ -98,6 +99,7 @@ func NewPermissionService(repo *repository.RBACRepository, roomService *RoomServ
 		roles:           make(map[string]*models.Role),
 		userRoles:       make(map[string][]string),
 		overwrites:      make(map[string]map[string]*models.PermissionOverwrite),
+		colorRoles:      make(map[string]string),
 	}
 }
 
@@ -109,6 +111,7 @@ func (ps *PermissionService) LoadFromDB() error {
 	ps.roles = make(map[string]*models.Role)
 	ps.userRoles = make(map[string][]string)
 	ps.overwrites = make(map[string]map[string]*models.PermissionOverwrite)
+	ps.colorRoles = make(map[string]string)
 
 	if ps.repo == nil {
 		now := time.Now()
@@ -133,6 +136,11 @@ func (ps *PermissionService) LoadFromDB() error {
 		return err
 	}
 	ps.userRoles = userRoles
+	colorRoles, err := ps.repo.GetColorRoles()
+	if err != nil {
+		return err
+	}
+	ps.colorRoles = colorRoles
 	overwrites, err := ps.repo.GetOverwrites()
 	if err != nil {
 		return err
@@ -444,6 +452,88 @@ func (ps *PermissionService) AllUserRoleIDs() map[string][]string {
 	return out
 }
 
+// ColorRoles returns a snapshot of user_id -> role picked to color their nickname.
+func (ps *PermissionService) ColorRoles() map[string]string {
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+	out := make(map[string]string, len(ps.colorRoles))
+	for k, v := range ps.colorRoles {
+		out[k] = v
+	}
+	return out
+}
+
+// SetColorRole picks which of the user's own roles colors their nickname.
+// An empty roleID means automatic (the highest colored role). The role must
+// be colored and held by the user: assigned to them, or the implicit Owner
+// role for the super admin.
+func (ps *PermissionService) SetColorRole(sub Subject, roleID string) error {
+	if sub.IsGuest {
+		return rbacForbidden("guests cannot pick a name color")
+	}
+	ps.mu.Lock()
+	if roleID != "" {
+		role, ok := ps.roles[roleID]
+		if !ok {
+			ps.mu.Unlock()
+			return ErrRBACNotFound
+		}
+		if role.Color == "" {
+			ps.mu.Unlock()
+			return rbacInvalid("role has no color")
+		}
+		held := role.SystemKey == models.SystemRoleOwner && sub.IsOwner
+		if role.SystemKey == "" {
+			for _, id := range ps.userRoles[sub.UserID] {
+				if id == roleID {
+					held = true
+					break
+				}
+			}
+		}
+		if !held {
+			ps.mu.Unlock()
+			return rbacForbidden("you do not have this role")
+		}
+	}
+	if ps.repo != nil {
+		if err := ps.repo.SetColorRole(sub.UserID, roleID); err != nil {
+			ps.mu.Unlock()
+			return err
+		}
+	}
+	if roleID == "" {
+		delete(ps.colorRoles, sub.UserID)
+	} else {
+		ps.colorRoles[sub.UserID] = roleID
+	}
+	ps.mu.Unlock()
+	return nil
+}
+
+// dropColorRoleLocked clears a user's color pick if it is no longer held.
+func (ps *PermissionService) dropColorRoleLocked(userID string, held []string) {
+	picked, ok := ps.colorRoles[userID]
+	if !ok {
+		return
+	}
+	if r, exists := ps.roles[picked]; exists && r.SystemKey == models.SystemRoleOwner {
+		return // the Owner role is implicit, never assigned
+	}
+	for _, id := range held {
+		if id == picked {
+			return
+		}
+	}
+	if ps.repo != nil {
+		if err := ps.repo.SetColorRole(userID, ""); err != nil {
+			log.Printf("Failed to clear color role of %s: %v", userID, err)
+			return
+		}
+	}
+	delete(ps.colorRoles, userID)
+}
+
 // Overwrites returns the overwrites stored directly on a room or category.
 func (ps *PermissionService) Overwrites(targetType, targetID string) []models.PermissionOverwrite {
 	ps.mu.RLock()
@@ -702,6 +792,11 @@ func (ps *PermissionService) DeleteRole(actor Subject, roleID string) error {
 	for uid, ids := range ps.userRoles {
 		ps.userRoles[uid] = removeString(ids, roleID)
 	}
+	for uid, picked := range ps.colorRoles {
+		if picked == roleID {
+			delete(ps.colorRoles, uid) // the DB row went with the role
+		}
+	}
 	for _, set := range ps.overwrites {
 		delete(set, subjectKey(models.OverwriteSubjectRole, roleID))
 	}
@@ -755,8 +850,15 @@ func (ps *PermissionService) ReorderRoles(actor Subject, positions map[string]in
 // SetUserRoles replaces a user's custom roles. Every role added or removed
 // must be below the actor's highest role.
 func (ps *PermissionService) SetUserRoles(actor Subject, targetUserID string, roleIDs []string) ([]string, error) {
-	if ps.userLookup != nil && ps.userLookup(targetUserID) == nil {
-		return nil, ErrRBACNotFound
+	if ps.userLookup != nil {
+		target := ps.userLookup(targetUserID)
+		if target == nil {
+			return nil, ErrRBACNotFound
+		}
+		// Only the owner may change the owner's roles (e.g. for a name colour).
+		if target.Role == models.RoleSuperAdmin && !actor.IsOwner {
+			return nil, rbacForbidden("only the owner can change the owner's roles")
+		}
 	}
 	ps.mu.Lock()
 	_, top, err := ps.requireManageRolesLocked(actor)
@@ -811,6 +913,7 @@ func (ps *PermissionService) SetUserRoles(actor Subject, targetUserID string, ro
 	} else {
 		ps.userRoles[targetUserID] = final
 	}
+	ps.dropColorRoleLocked(targetUserID, final)
 	ps.mu.Unlock()
 	ps.Notify("user_roles_updated")
 	return final, nil
@@ -1045,6 +1148,7 @@ func (ps *PermissionService) ForgetTarget(targetType, targetID string) {
 func (ps *PermissionService) ForgetUser(userID string) {
 	ps.mu.Lock()
 	delete(ps.userRoles, userID)
+	delete(ps.colorRoles, userID)
 	for _, set := range ps.overwrites {
 		delete(set, subjectKey(models.OverwriteSubjectUser, userID))
 	}

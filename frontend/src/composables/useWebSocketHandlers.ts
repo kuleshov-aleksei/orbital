@@ -201,6 +201,14 @@ export function useWebSocketHandlers() {
     wsService.onGlobal("permissions_updated", onPermissionsUpdated)
     onCleanup(() => wsService.offGlobal("permissions_updated", onPermissionsUpdated))
 
+    // Someone picked which of their roles colors their name (cosmetic only).
+    const onColorRoleUpdated: MessageCallback = (message) => {
+      const data = message.data as { user_id?: string; role_id?: string } | undefined
+      if (data?.user_id) permissionsStore.applyColorRole(data.user_id, data.role_id || null)
+    }
+    wsService.onGlobal("color_role_updated", onColorRoleUpdated)
+    onCleanup(() => wsService.offGlobal("color_role_updated", onColorRoleUpdated))
+
     const onPermissionDenied: MessageCallback = (message) => {
       const data = message.data as { action?: string } | undefined
       appStore.setError(

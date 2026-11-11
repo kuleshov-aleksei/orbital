@@ -16,6 +16,8 @@ export const usePermissionsStore = defineStore("permissions", () => {
   const me = ref<MyPermissions | null>(null)
   const roles = ref<Role[]>([])
   const userRoles = ref<Record<string, string[]>>({})
+  /** user_id -> role picked to color their nickname (absent = automatic). */
+  const colorRoles = ref<Record<string, string>>({})
   const loaded = ref(false)
 
   const isOwner = computed(() => me.value?.is_owner ?? userStore.isSuperAdmin)
@@ -107,9 +109,50 @@ export const usePermissionsStore = defineStore("permissions", () => {
     return rolesOf(userId).reduce((max, r) => Math.max(max, r.position), 0)
   }
 
-  /** Highest role colour for name display (empty when none). */
+  /** Roles that can color a user's name: their coloured display roles, minus Guest. */
+  function colorableRolesOf(userId: string): Role[] {
+    return displayRolesOf(userId).filter((r) => r.color && r.system_key !== "guest")
+  }
+
+  /** The role a user picked for their name colour, or "" for automatic. */
+  function colorRoleOf(userId: string): string {
+    return colorRoles.value[userId] ?? ""
+  }
+
+  /**
+   * Name colour: the role the user picked if they still hold it, otherwise
+   * the highest coloured role (empty when none).
+   */
   function colorOf(userId: string): string {
-    return displayRolesOf(userId).find((r) => r.color)?.color ?? ""
+    const roles = displayRolesOf(userId)
+    const picked = colorRoles.value[userId]
+    if (picked) {
+      const role = roles.find((r) => r.id === picked && r.color)
+      if (role) return role.color
+    }
+    return roles.find((r) => r.color)?.color ?? ""
+  }
+
+  /** Applies a name colour pick (ours or another user's, from WebSocket). */
+  function applyColorRole(userId: string, roleId: string | null) {
+    const next = { ...colorRoles.value }
+    if (roleId) next[userId] = roleId
+    else delete next[userId]
+    colorRoles.value = next
+  }
+
+  /** Picks which of my roles colors my name; null = automatic. Optimistic. */
+  async function setMyColorRole(roleId: string | null) {
+    const userId = userStore.userId
+    if (!userId) return
+    const previous = colorRoles.value[userId] ?? null
+    applyColorRole(userId, roleId)
+    try {
+      await apiService.setMyColorRole(roleId)
+    } catch (error) {
+      applyColorRole(userId, previous)
+      throw error
+    }
   }
 
   /** Inline style for a nickname: the highest coloured role, or none (theme default). */
@@ -160,6 +203,7 @@ export const usePermissionsStore = defineStore("permissions", () => {
       const res = await apiService.getRoles()
       roles.value = res.roles
       userRoles.value = res.user_roles ?? {}
+      colorRoles.value = res.color_roles ?? {}
     } catch (error) {
       console.error("Failed to load roles:", error)
     }
@@ -169,9 +213,12 @@ export const usePermissionsStore = defineStore("permissions", () => {
     await Promise.all([loadMine(), loadRoles()])
   }
 
-  /** Whether the current user can edit another user's role assignments at all. */
+  /**
+   * Whether the current user can edit a user's role assignments at all. The
+   * owner's roles are only editable by the owner (e.g. for a name colour).
+   */
   function canEditRolesOf(targetIsOwner: boolean): boolean {
-    return canManageRoles.value && !targetIsOwner
+    return canManageRoles.value && (!targetIsOwner || isOwner.value)
   }
 
   /** Adds or removes one role for a user. The backend enforces the hierarchy. */
@@ -189,6 +236,7 @@ export const usePermissionsStore = defineStore("permissions", () => {
     me.value = null
     roles.value = []
     userRoles.value = {}
+    colorRoles.value = {}
     loaded.value = false
   }
 
@@ -196,6 +244,7 @@ export const usePermissionsStore = defineStore("permissions", () => {
     me,
     roles,
     userRoles,
+    colorRoles,
     loaded,
     isOwner,
     serverPerms,
@@ -212,6 +261,10 @@ export const usePermissionsStore = defineStore("permissions", () => {
     displayRolesOf,
     topPositionOf,
     colorOf,
+    colorRoleOf,
+    colorableRolesOf,
+    applyColorRole,
+    setMyColorRole,
     nameStyleOf,
     canTarget,
     canManageRole,

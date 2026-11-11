@@ -545,6 +545,17 @@ CREATE INDEX IF NOT EXISTS idx_chat_att_message ON chat_attachments(message_id);
 CREATE INDEX IF NOT EXISTS idx_chat_att_room ON chat_attachments(room_id);
 CREATE INDEX IF NOT EXISTS idx_chat_att_purge ON chat_attachments(status, purged_at);`,
 	},
+	{
+		Version: 45,
+		Name:    "create_user_color_roles",
+		// The role a user picked to color their nickname; no row = the
+		// highest colored role. role_id may be the implicit 'owner' role.
+		SQL: `CREATE TABLE IF NOT EXISTS user_color_roles (
+			user_id TEXT PRIMARY KEY,
+			role_id TEXT NOT NULL
+		);
+CREATE INDEX IF NOT EXISTS idx_user_color_roles_role ON user_color_roles(role_id);`,
+	},
 }
 
 // RunMigrationsUpTo applies migrations up to and including maxVersion.

@@ -989,6 +989,14 @@ export const apiService = {
     return apiRequest<RolesResponse>("/roles")
   },
 
+  /** Picks which of my roles colors my nickname; null = automatic (highest). */
+  async setMyColorRole(roleId: string | null): Promise<{ role_id: string }> {
+    return apiRequest<{ role_id: string }>("/me/color-role", {
+      method: "PUT",
+      body: JSON.stringify({ role_id: roleId ?? "" }),
+    })
+  },
+
   async createRole(data: { name: string; color?: string; permissions?: number }): Promise<Role> {
     return apiRequest<Role>("/roles", { method: "POST", body: JSON.stringify(data) })
   },

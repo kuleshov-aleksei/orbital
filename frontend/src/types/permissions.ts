@@ -162,6 +162,8 @@ export interface Role {
 export interface RolesResponse {
   roles: Role[]
   user_roles: Record<string, string[]>
+  /** user_id -> role picked to color their nickname (absent = highest colored role). */
+  color_roles?: Record<string, string>
 }
 
 export type OverwriteTargetType = "room" | "category"

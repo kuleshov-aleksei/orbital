@@ -245,6 +245,7 @@ func main() {
 	usersHandler.SetPermissionService(permissionService)
 	livekitHandler := handlers.NewLiveKitHandler(livekitService, roomService, permissionService)
 	rbacHandler := handlers.NewRBACHandler(permissionService)
+	rbacHandler.SetBroadcaster(wsHub.BroadcastToAll)
 	avatarHandler := handlers.NewAvatarHandler(avatarService, userRepo)
 	releaseHandler := handlers.NewReleaseHandler(cfg.GetReleasesURL())
 
@@ -454,6 +455,7 @@ func main() {
 	// authorized inside PermissionService (manage_roles + hierarchy).
 	r.HandleFunc("/api/permissions/catalog", rbacHandler.GetCatalog).Methods("GET")
 	r.Handle("/api/me/permissions", auth(http.HandlerFunc(rbacHandler.GetMyPermissions))).Methods("GET")
+	r.Handle("/api/me/color-role", auth(http.HandlerFunc(rbacHandler.SetMyColorRole))).Methods("PUT")
 	r.Handle("/api/roles", auth(http.HandlerFunc(rbacHandler.ListRoles))).Methods("GET")
 	r.Handle("/api/roles", auth(http.HandlerFunc(rbacHandler.CreateRole))).Methods("POST")
 	r.Handle("/api/roles/order", auth(http.HandlerFunc(rbacHandler.ReorderRoles))).Methods("PUT")

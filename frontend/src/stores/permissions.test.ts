@@ -14,6 +14,7 @@ vi.mock("@/services/api", async (importOriginal) => {
       getMyPermissions: vi.fn(),
       getRoles: vi.fn(),
       setUserRoles: vi.fn(),
+      setMyColorRole: vi.fn(),
     },
   }
 })
@@ -135,8 +136,87 @@ describe("permissions store", () => {
     expect(apiService.setUserRoles).toHaveBeenLastCalledWith("peer", ["mod"])
     expect(store.roleIdsOf("peer")).toEqual(["mod"])
 
+    // The owner may edit their own roles too.
+    expect(store.canEditRolesOf(false)).toBe(true)
+    expect(store.canEditRolesOf(true)).toBe(true)
+  })
+
+  it("keeps the owner's roles locked for non-owners", async () => {
+    vi.mocked(apiService.getMyPermissions).mockResolvedValue(
+      mine({ server: Permission.ManageRoles }),
+    )
+    vi.mocked(apiService.getRoles).mockResolvedValue({ roles: [], user_roles: {} })
+    const store = usePermissionsStore()
+    await store.refresh()
+
     expect(store.canEditRolesOf(false)).toBe(true)
     expect(store.canEditRolesOf(true)).toBe(false)
+  })
+
+  describe("name colour", () => {
+    const meId = "qkUrdzLDoqslx8EEy2cM7Q=="
+    const peerId = "Zm9vYmFyYmF6cXV4MTIzNA=="
+
+    async function setup(colorRoles?: Record<string, string>) {
+      useUserStore().setUser({
+        id: meId,
+        nickname: "Me",
+        authProvider: "password",
+        isGuest: false,
+        role: "user",
+      })
+      vi.mocked(apiService.getMyPermissions).mockResolvedValue(mine())
+      vi.mocked(apiService.getRoles).mockResolvedValue({
+        roles: [
+          role("high", 3, { color: "#ff0000" }),
+          role("mid", 2),
+          role("low", 1, { color: "#0000ff" }),
+        ],
+        user_roles: { [meId]: ["high", "mid", "low"], [peerId]: ["high"] },
+        color_roles: colorRoles,
+      })
+      const store = usePermissionsStore()
+      await store.refresh()
+      return store
+    }
+
+    it("defaults to the highest coloured role", async () => {
+      const store = await setup()
+      expect(store.colorOf(meId)).toBe("#ff0000")
+      expect(store.colorRoleOf(meId)).toBe("")
+      expect(store.colorableRolesOf(meId).map((r) => r.id)).toEqual(["high", "low"])
+    })
+
+    it("uses the picked role", async () => {
+      const store = await setup({ [meId]: "low" })
+      expect(store.colorOf(meId)).toBe("#0000ff")
+      expect(store.nameStyleOf(meId)).toEqual({ color: "#0000ff" })
+    })
+
+    it("falls back when the picked role is no longer held", async () => {
+      const store = await setup({ [peerId]: "low" })
+      expect(store.colorOf(peerId)).toBe("#ff0000")
+    })
+
+    it("sets my pick optimistically and reverts on failure", async () => {
+      const store = await setup()
+      vi.mocked(apiService.setMyColorRole).mockResolvedValue({ role_id: "low" })
+      await store.setMyColorRole("low")
+      expect(apiService.setMyColorRole).toHaveBeenLastCalledWith("low")
+      expect(store.colorOf(meId)).toBe("#0000ff")
+
+      vi.mocked(apiService.setMyColorRole).mockRejectedValue(new Error("403"))
+      await expect(store.setMyColorRole(null)).rejects.toThrow()
+      expect(store.colorRoleOf(meId)).toBe("low")
+    })
+
+    it("applies picks broadcast for other users", async () => {
+      const store = await setup()
+      store.applyColorRole(peerId, "high")
+      expect(store.colorRoleOf(peerId)).toBe("high")
+      store.applyColorRole(peerId, null)
+      expect(store.colorRoleOf(peerId)).toBe("")
+    })
   })
 
   it("denies everything before permissions load", () => {

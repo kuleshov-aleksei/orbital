@@ -19,6 +19,7 @@
           </button>
           <h2 class="text-lg font-semibold text-theme-text-primary flex items-center gap-2">
             <PhGearSix v-if="!currentTab" class="w-5 h-5 text-theme-accent" />
+            <PhUserCircle v-else-if="currentTab === 'profile'" class="w-5 h-5 text-theme-accent" />
             <PhUser v-else-if="currentTab === 'account'" class="w-5 h-5 text-theme-accent" />
             <PhShieldCheck
               v-else-if="currentTab === 'security'"
@@ -47,6 +48,17 @@
           <button
             type="button"
             class="w-full flex items-center justify-between px-3 py-3 rounded-lg text-left transition-colors duration-200 bg-theme-accent text-theme-text-on-accent"
+            @click="currentTab = 'profile'">
+            <div class="flex items-center gap-3">
+              <PhUserCircle class="w-5 h-5" />
+              <span class="font-medium">Profile</span>
+            </div>
+            <PhCaretRight class="w-5 h-5" />
+          </button>
+
+          <button
+            type="button"
+            class="w-full flex items-center justify-between px-3 py-3 rounded-lg text-left transition-colors duration-200 text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary"
             @click="currentTab = 'account'">
             <div class="flex items-center gap-3">
               <PhUser class="w-5 h-5" />
@@ -135,8 +147,14 @@
 
         <!-- Settings Content View -->
         <div v-else class="space-y-4 pb-4">
+          <!-- Profile Settings Tab -->
+          <ProfileSettings v-if="currentTab === 'profile'" :hide-header="true" />
+
           <!-- Account Settings Tab -->
-          <AccountSettings v-if="currentTab === 'account'" :hide-header="true" @logout="close" />
+          <AccountSettings
+            v-else-if="currentTab === 'account'"
+            :hide-header="true"
+            @logout="close" />
 
           <!-- Security Settings Tab -->
           <SecuritySettings v-else-if="currentTab === 'security'" :hide-header="true" />
@@ -172,6 +190,7 @@ import VideoSettings from "./VideoSettings.vue"
 import SoundPackSettings from "./SoundPackSettings.vue"
 import AppearanceSettings from "./AppearanceSettings.vue"
 import AccountSettings from "./AccountSettings.vue"
+import ProfileSettings from "./ProfileSettings.vue"
 import SecuritySettings from "./SecuritySettings.vue"
 import DebugSettings from "./DebugSettings.vue"
 import AboutSettings from "./AboutSettings.vue"
@@ -181,6 +200,7 @@ import {
   PhMusicNotes,
   PhPalette,
   PhUser,
+  PhUserCircle,
   PhShieldCheck,
   PhBug,
   PhX,
@@ -196,6 +216,7 @@ const currentTab = ref<
   | "video"
   | "sounds"
   | "appearance"
+  | "profile"
   | "account"
   | "security"
   | "debug"
@@ -204,6 +225,7 @@ const currentTab = ref<
 >(undefined)
 
 const tabLabels: Record<string, string> = {
+  profile: "Profile",
   account: "Account",
   security: "Security",
   audio: "Audio",
