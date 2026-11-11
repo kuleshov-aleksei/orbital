@@ -221,10 +221,11 @@ body {
   }
 }
 
-video::-webkit-media-controls {
+/* Call streams have no native controls; attachment videos (controls) keep them. */
+video:not([controls])::-webkit-media-controls {
   display: none !important;
 }
 
-video::-webkit-media-controls-enclosure {
+video:not([controls])::-webkit-media-controls-enclosure {
   display: none !important;
 }

@@ -28,8 +28,12 @@ type SearchRequest struct {
 	MentionUserIDs []string
 	FromTS, ToTS   int64 // created_at_ts >= FromTS, < ToTS; 0 = unbounded
 	Pinned         *bool
-	SortNewest     bool
-	Limit, Offset  int
+	// HasKinds: every listed attachment kind must be present (has:image).
+	HasKinds []string
+	// HasAttachment: at least one attachment of any kind (has:file).
+	HasAttachment bool
+	SortNewest    bool
+	Limit, Offset int
 }
 
 // SearchHit is one result: the message plus a highlighted snippet of

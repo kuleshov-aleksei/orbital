@@ -355,7 +355,7 @@ New package `backend/internal/service/chatstore/`: the Meilisearch client (port 
 | `in:<channel>` / `in:#channel` | Text channel by plain name (emoji tokens stripped, as `emojiTextToPlain` does). Only channels the user can view. Can be repeated. |
 | `during:<date>` | A whole day (`2026-11-10`), month (`2026-11`), `today`, or `yesterday` |
 | `after:<date>` / `before:<date>` | Exclusive bounds, as in Discord. They combine with each other and with `during:`. |
-| `has:image\|video\|audio\|file\|link` | Phase 3 |
+| `has:photo\|video\|audio\|file` | Attachment kind (`image`/`picture` and `sound`/`voice` are aliases; `file`/`attachment` means any). Repeated tokens must all match (`has:image has:audio`). Filters `attachment_kinds`; removed files no longer match. Other values (`link`) return no results plus a hint. |
 | `mentions:@user`, `pinned:true` | Optional extras (cheap; the filters already exist) |
 | anything else | Free text, fuzzy (typo-tolerant, last word treated as a prefix) |
 
@@ -755,7 +755,7 @@ Original plan:
   - `websocket/textchat_*.go`, one file per role (`textchat.go` holds the wiring and shared helpers): `textchat_messages.go` (send/edit/delete/read), `textchat_mentions.go` (mention fan-out, `mentionTargets`), `textchat_reactions.go` (`text_reaction_toggle`), `textchat_pins.go` (`text_pin`), `textchat_typing.go` (`text_typing`), `textchat_notify.go` (`StartMuteExpiry`, a 10 s ticker that deletes expired mutes and pushes `text_notify_settings`).
   - `handlers/textchat*.go`, also one file per role: `textchathandler.go` (type, deps, shared helpers), `textchatmessages.go` (history, context, pins), `textchatunread.go`, `textchatnotify.go`, `textchatsearch.go`.
 - **Mention token ids are padded URL-safe base64** (`…Wg==`), so the token charset is `[A-Za-z0-9_=+/-]` (`chatstore.mentionIDChars`, frontend `MENTION_ID`). Unit tests with short ids did not catch this; the live check did.
-- `has:` returns no results plus a hint until phase 3.
+- `has:` returned no results plus a hint until phase 3.
 - Pin system lines are client-rendered: the client derives them from `text_message_updated` when `pinned_at_ts` is fresh (< 60 s).
 - Mention badges: the client counts live `text_mention` events exactly. The count loaded from `/api/chat/unread` is dropped as soon as the read position moves, and the next unread fetch recounts.
 - The mention sound is synthesized with Web Audio (`playMention` in `services/sounds.ts`), so it needs no asset and is independent of the sound pack. The toggle and volume are under Settings → Sounds. Electron flashes the taskbar through the new `flash-window` IPC (older desktop builds ignore it); it can be turned off under Settings → Application → "Flash taskbar on mentions".
@@ -779,7 +779,7 @@ Original plan:
 - Rendering (image grid, lightbox, video, wavesurfer audio player from stored peaks, tombstones), the attachment context menu, the eviction toast and quota warning chip.
 - Storage page `/files` (new tab) and the `/api/me/attachments*` endpoints.
 - Tests (fake `MediaStore`): eviction order; protected and pending rows are never evicted; `file_exceeds_quota` and `quota_protected_full`; concurrent reservations by one user; message and channel delete purge and free quota; the janitor retries failed S3 deletes; uploader-only protect; moderator delete; `/api/me/attachments` isolation; 410 on removed files; the uploader can fetch a file without `ViewRoom`. Integration (`integration` tag, Garage): PUT, presign and delete.
-- `has:` filters.
+- `has:` filters (`ParsedQuery.HasFilter`, `SearchRequest.HasKinds`/`HasAttachment`; `has:` autocomplete in `SearchBox.vue`).
 - The extraction queue and worker with no extractors yet.
 
 **Phase 4: content search (ML)**

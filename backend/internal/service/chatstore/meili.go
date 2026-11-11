@@ -380,6 +380,13 @@ func searchFilter(req SearchRequest) []any {
 	if req.Pinned != nil {
 		f = append(f, fmt.Sprintf("pinned = %t", *req.Pinned))
 	}
+	for _, k := range req.HasKinds {
+		f = append(f, "attachment_kinds = "+quote(k))
+	}
+	if req.HasAttachment {
+		// IN, not IS NOT EMPTY: older documents may lack the field.
+		f = append(f, `attachment_kinds IN ["image", "video", "audio"]`)
+	}
 	return f
 }
 

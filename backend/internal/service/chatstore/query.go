@@ -172,3 +172,29 @@ func (q ParsedQuery) TimeBounds(loc *time.Location, now time.Time) (fromTS, toTS
 	}
 	return fromTS, toTS, hints
 }
+
+// hasValues maps has: values to attachment kinds; "" means any attachment.
+var hasValues = map[string]string{
+	"image": "image", "images": "image", "photo": "image", "photos": "image", "picture": "image",
+	"video": "video", "videos": "video",
+	"audio": "audio", "sound": "audio", "voice": "audio", "music": "audio",
+	"file": "", "files": "", "attachment": "", "attachments": "",
+}
+
+// HasFilter resolves the has: values to required attachment kinds (each must
+// be present) and whether any attachment is required. Unknown values become
+// hints.
+func (q ParsedQuery) HasFilter() (kinds []string, anyAttachment bool, hints []string) {
+	for _, v := range q.Has {
+		kind, ok := hasValues[v]
+		switch {
+		case !ok:
+			hints = append(hints, fmt.Sprintf("unknown has:%s (use photo, video, audio or file)", v))
+		case kind == "":
+			anyAttachment = true
+		case !contains(kinds, kind):
+			kinds = append(kinds, kind)
+		}
+	}
+	return kinds, anyAttachment, hints
+}

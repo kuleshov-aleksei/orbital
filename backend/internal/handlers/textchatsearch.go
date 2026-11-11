@@ -166,10 +166,10 @@ func (h *TextChatHandler) Search(w http.ResponseWriter, r *http.Request) {
 	if len(parsed.Mentions) > 0 {
 		req.MentionUserIDs, okMentions = resolveUsers(parsed.Mentions)
 	}
-	if len(parsed.Has) > 0 {
-		hints = append(hints, "has: filters are not available yet")
-	}
-	if !okFrom || !okMentions || len(parsed.Has) > 0 || len(req.RoomIDs) == 0 {
+	var hasHints []string
+	req.HasKinds, req.HasAttachment, hasHints = parsed.HasFilter()
+	hints = append(hints, hasHints...)
+	if !okFrom || !okMentions || len(hasHints) > 0 || len(req.RoomIDs) == 0 {
 		respond([]SearchHit{}, 0)
 		return
 	}

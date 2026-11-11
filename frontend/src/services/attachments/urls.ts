@@ -100,7 +100,11 @@ export async function openAttachment(id: string, variant: "original" | "download
 
 /** The storage page (/files), always in a new tab or app window. */
 export function openStoragePage() {
-  const url = isElectron()
+  // Match the router's history mode, not isElectron(): the Electron dev build
+  // loads the Vite server (path routing); only orbital:/file: use hash routes.
+  const hashRouting =
+    window.location.protocol === "orbital:" || window.location.protocol === "file:"
+  const url = hashRouting
     ? `${window.location.href.split("#")[0]}#/files`
     : `${window.location.origin}/files`
   window.open(url, "_blank")

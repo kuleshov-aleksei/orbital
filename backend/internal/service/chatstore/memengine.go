@@ -284,6 +284,9 @@ func (e *MemoryEngine) Search(_ context.Context, req SearchRequest) (*SearchResu
 		if req.Pinned != nil && d.Pinned != *req.Pinned {
 			continue
 		}
+		if !hasAll(d.AttachmentKinds, req.HasKinds) || (req.HasAttachment && len(d.AttachmentKinds) == 0) {
+			continue
+		}
 		text := strings.ToLower(d.ContentSearch)
 		ok := true
 		for _, w := range words {
@@ -358,4 +361,14 @@ func (e *MemoryEngine) CountMentions(_ context.Context, qs []MentionCountQuery) 
 		}
 	}
 	return out, nil
+}
+
+// hasAll reports whether every value of want is in have.
+func hasAll(have, want []string) bool {
+	for _, w := range want {
+		if !contains(have, w) {
+			return false
+		}
+	}
+	return true
 }

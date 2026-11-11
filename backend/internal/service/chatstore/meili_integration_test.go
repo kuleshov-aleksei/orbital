@@ -113,7 +113,25 @@ func TestMeiliEngineIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	photo, err := s.Create(ctx, CreateInput{RoomID: "r", SenderID: "carol", Attachments: []Attachment{
+		{ID: "20261111120000attimg01", Kind: "image", Mime: "image/png", Size: 10, Filename: "cat.png"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	waitFlushed(t, s)
+	for _, req := range []SearchRequest{
+		{RoomIDs: []string{"r"}, HasKinds: []string{"image"}},
+		{RoomIDs: []string{"r"}, HasAttachment: true},
+	} {
+		res, err := s.Search(ctx, req)
+		if err != nil || len(res.Hits) != 1 || res.Hits[0].Message.ID != photo.ID {
+			t.Fatalf("has filter %+v = %+v, %v", req, res, err)
+		}
+	}
+	if res, err := s.Search(ctx, SearchRequest{RoomIDs: []string{"r"}, HasKinds: []string{"image", "video"}}); err != nil || len(res.Hits) != 0 {
+		t.Fatalf("has:image has:video = %+v, %v", res, err)
+	}
 	pins, err := s.Pins(ctx, "r")
 	if err != nil || len(pins) != 1 || pins[0].ID != parent.ID || len(pins[0].Reactions) != 1 {
 		t.Fatalf("pins = %+v, %v", pins, err)

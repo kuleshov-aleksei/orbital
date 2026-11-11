@@ -104,7 +104,14 @@ const KEYS: { key: string; hint: string }[] = [
   { key: "during:", hint: "day or month" },
   { key: "before:", hint: "date" },
   { key: "after:", hint: "date" },
+  { key: "has:", hint: "photo, video, audio or file" },
   { key: "pinned:", hint: "true" },
+]
+const HAS_VALUES: { value: string; label: string }[] = [
+  { value: "photo", label: "Photo" },
+  { value: "video", label: "Video" },
+  { value: "audio", label: "Audio" },
+  { value: "file", label: "Any attachment" },
 ]
 const FILTER_RE = /^(from|in|mentions|during|before|after|pinned|has):(.+)$/i
 
@@ -202,6 +209,16 @@ function refreshSuggestions() {
   } else if (key === "during:" || key === "before:" || key === "after:") {
     suggestions.value = dateSuggestions(key, partial)
     suggestionTitle.value = "Date"
+  } else if (key === "has:") {
+    suggestions.value = HAS_VALUES.filter(
+      (h) => h.value.startsWith(partial) || h.label.toLowerCase().includes(partial),
+    ).map((h) => ({
+      value: `has:${h.value}`,
+      label: `has:${h.value}`,
+      hint: h.label,
+      complete: true,
+    }))
+    suggestionTitle.value = "Has"
   } else if (key === "pinned:") {
     suggestions.value = [{ value: "pinned:true", label: "pinned:true", complete: true }]
     suggestionTitle.value = "Pinned"
