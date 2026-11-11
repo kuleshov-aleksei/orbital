@@ -53,6 +53,8 @@ interface ParseResult {
 }
 
 class Parser {
+  private readonly inner = new Map<string, ParseResult>()
+
   constructor(private readonly src: string) {}
 
   parse(): MarkupNode[] {
@@ -138,6 +140,22 @@ class Parser {
     return { nodes, end: i, closed: false }
   }
 
+  /**
+   * parseUntil for a container body, memoised. The result depends only on
+   * the position and the marker, and an opener that never closes is retried
+   * from every enclosing attempt: without the memo, text such as "*a *a *a …"
+   * takes exponential time.
+   */
+  private parseInner(pos: number, closer: { marker: string; type: Container }): ParseResult {
+    const key = `${pos}${closer.marker}`
+    let result = this.inner.get(key)
+    if (!result) {
+      result = this.parseUntil(pos, closer)
+      this.inner.set(key, result)
+    }
+    return result
+  }
+
   private isCloser(i: number, closer: { marker: string; type: Container }): boolean {
     const { marker } = closer
     if (!this.src.startsWith(marker, i)) return false
@@ -162,7 +180,7 @@ class Parser {
       if (m.marker === "_" && isWordChar(src[i - 1])) continue
       // Skip quickly when no closer exists at all.
       if (src.indexOf(m.marker, i + m.marker.length + 1) === -1) continue
-      const inner = this.parseUntil(i + m.marker.length, m)
+      const inner = this.parseInner(i + m.marker.length, m)
       if (!inner.closed || inner.nodes.length === 0) continue
       return { node: { type: m.type, children: inner.nodes }, end: inner.end }
     }

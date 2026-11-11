@@ -70,6 +70,19 @@ describe("parseMessage", () => {
     parseMessage(input)
     expect(performance.now() - start).toBeLessThan(500)
   })
+
+  it("does not backtrack exponentially on openers that never close", () => {
+    // Every marker opens (followed by content) and none closes (preceded by
+    // a space): 30 repeats took seconds before the parse results were memoised.
+    for (const unit of ["*a ", "_a ", "**a ", "~~a ||b *c _d "]) {
+      const input = unit.repeat(Math.floor(2000 / unit.length))
+      const start = performance.now()
+      parseMessage(input)
+      expect(performance.now() - start).toBeLessThan(1000)
+    }
+    const literal = "*a ".repeat(600)
+    expect(show(parseMessage(literal))).toBe(literal)
+  })
 })
 
 describe("markupToPlain", () => {
