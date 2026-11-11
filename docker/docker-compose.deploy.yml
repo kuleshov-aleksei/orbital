@@ -40,7 +40,8 @@ services:
 
   # Text channel message store. Its volume holds PRIMARY data (messages exist
   # only here): back it up before every release, see
-  # docs/specs/MEILI_RELEASE_BACKUP.md. Upgrades: snapshot + dump first, then
+  # docs/specs/MEILI_RELEASE_BACKUP.md (done by scripts/backup-release.sh in the
+  # deploy workflow; restore: docs/notes/BACKUP_RESTORE.md). Upgrades: snapshot + dump first, then
   # start once with MEILI_UPGRADE_DB=true (dumpless upgrades are not atomic).
   meilisearch:
     image: getmeili/meilisearch:v1.56.2

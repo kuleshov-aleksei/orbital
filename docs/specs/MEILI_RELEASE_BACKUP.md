@@ -1,6 +1,6 @@
 # Spec: Meilisearch Backup as a Release/Deploy Step
 
-Status: **Planned, out of scope for the chat work.** Written down so it isn't forgotten.
+Status: **Implemented** (2026-11-12) in `scripts/backup-release.sh`, run by `.github/workflows/deploy.yml`. Runbook: `docs/notes/BACKUP_RESTORE.md`.
 Date: 2026-11-10
 Related: `docs/specs/CHAT_SYSTEM.md` §9, `docs/notes/MIGRATION_TO_S3.md`, skill `orbital-release-ops`
 
@@ -12,8 +12,8 @@ Text channel messages live **only** in Meilisearch (see the chat spec). Its data
    - create a **snapshot** (fast restore, same Meilisearch version only);
    - create a **dump** (portable across versions, needed whenever the release bumps the Meilisearch image).
 2. Both must succeed. Check the task status through `GET /tasks/{uid}`, since a failure only shows up as a failed task, not an HTTP error. **Abort the deploy if they fail.**
-3. Upload the artifacts off the host to a dedicated S3/Garage bucket, e.g. `orbital-backups`. It must be separate from the release and chat-media buckets, with object keys like `meili/<release-version>/<timestamp>.{snapshot,dump}`.
-4. Retention: keep the last N releases (e.g. 10), plus anything newer than 30 days. Reuse the pruning approach from `scripts/prune-s3-releases.sh`.
+3. Upload the artifacts off the host to a dedicated S3/Garage bucket, `orbital-backups`, separate from the release and chat-media buckets. **Decision (2026-11-12):** a single copy, `meili/meili.snapshot` + `meili/meili.dump` + `meili/manifest.txt`, overwritten on every deploy, only after both tasks succeeded.
+4. Retention: none for Meilisearch, since there is one copy (decision above). The daily host snapshot (req. 5) is the only older restore point. The SQLite DB backup is versioned instead (`db/<version>/<ts>/`, last 3 versions, `scripts/prune-s3-backups.sh`).
 5. Keep the daily scheduled snapshot (`MEILI_SCHEDULE_SNAPSHOT=86400`) as a second safety net between releases. Copying it off the host is optional.
 6. Document and rehearse a restore runbook in `docs/notes/` at least once:
    - same-version restore with `--import-snapshot`;
@@ -32,4 +32,7 @@ Text channel messages live **only** in Meilisearch (see the chat spec). Its data
 
 ## Open
 - The size budget for a backups bucket on Garage.
-- Whether a dump is needed on every release, or only when the Meilisearch image version changes. Dumps take longer, since restoring one re-indexes everything.
+
+## Resolved
+- Dump on every release (2026-11-12): the data is small, and it always gives a cross-version restore point.
+- Skipped, not failed, when Meilisearch is not deployed or running (first deploy, or migrating from a compose file without it).
