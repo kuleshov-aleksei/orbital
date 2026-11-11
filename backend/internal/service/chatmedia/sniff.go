@@ -33,14 +33,23 @@ func sniff(head []byte) (fileType, bool) {
 	case bytes.HasPrefix(head, []byte("ID3")), mp3FrameSync(head):
 		return fileType{KindAudio, "audio/mpeg", "mp3"}, true
 	case len(head) >= 12 && bytes.Equal(head[4:8], []byte("ftyp")):
-		// ISO base media: only video MP4 brands (no audio-only M4A, no QuickTime).
-		switch string(head[8:12]) {
-		case "M4A ", "M4B ", "M4P ", "qt  ":
-			return fileType{}, false
+		// ISO base media is a container family: only video MP4 brands are
+		// accepted. HEIC/AVIF images, 3GP, audio-only M4A and QuickTime are not.
+		if mp4VideoBrands[string(head[8:12])] {
+			return fileType{KindVideo, "video/mp4", "mp4"}, true
 		}
-		return fileType{KindVideo, "video/mp4", "mp4"}, true
 	}
 	return fileType{}, false
+}
+
+// mp4VideoBrands are the ftyp major brands of MP4 video files.
+var mp4VideoBrands = map[string]bool{
+	"isom": true, "iso2": true, "iso3": true, "iso4": true, "iso5": true,
+	"iso6": true, "iso7": true, "iso8": true, "iso9": true,
+	"mp41": true, "mp42": true, "mp71": true,
+	"avc1": true, "hvc1": true, "hev1": true, "av01": true,
+	"M4V ": true, "M4VH": true, "M4VP": true,
+	"dash": true, "msdh": true, "mmp4": true, "MSNV": true, "f4v ": true,
 }
 
 func riff(head []byte, form string) bool {

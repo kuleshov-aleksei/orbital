@@ -370,6 +370,9 @@ func TestSniff(t *testing.T) {
 		"ID3\x04":                      "audio/mpeg",
 		"\xFF\xFB\x90\x00":             "audio/mpeg",
 		"\x00\x00\x00\x18ftypisom":     "video/mp4",
+		"\x00\x00\x00\x18ftypmp42":     "video/mp4",
+		"\x00\x00\x00\x1cftypavc1":     "video/mp4",
+		"\x00\x00\x00\x20ftypM4V ":     "video/mp4",
 	}
 	for head, want := range cases {
 		ft, ok := sniff([]byte(head))
@@ -377,7 +380,14 @@ func TestSniff(t *testing.T) {
 			t.Errorf("sniff(%q) = %v %v, want %s", head, ft, ok, want)
 		}
 	}
-	for _, head := range []string{"%PDF-1.7", "\x00\x00\x00\x14ftypqt  ", "PK\x03\x04", "\xFF\xFF\xFF"} {
+	rejected := []string{
+		"%PDF-1.7", "PK\x03\x04", "\xFF\xFF\xFF",
+		// ISO base media that is not MP4 video: QuickTime, audio, images, 3GP.
+		"\x00\x00\x00\x14ftypqt  ", "\x00\x00\x00\x20ftypM4A ",
+		"\x00\x00\x00\x18ftypheic", "\x00\x00\x00\x18ftypheix", "\x00\x00\x00\x18ftypmif1",
+		"\x00\x00\x00\x1cftypavif", "\x00\x00\x00\x18ftyp3gp4",
+	}
+	for _, head := range rejected {
 		if ft, ok := sniff([]byte(head)); ok {
 			t.Errorf("sniff(%q) = %v, want rejected", head, ft)
 		}
