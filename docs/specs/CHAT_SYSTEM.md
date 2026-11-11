@@ -13,11 +13,12 @@ Add a new **text channel** room type (`type: "text"`). It gives persistent, sear
 - unicode and custom emoji;
 - soft delete and moderation;
 - read position tracking;
-- attachments (architecture only for now).
+- attachments with a per-user storage quota (phase 3).
 
 Storage:
 - **Messages live only in Meilisearch.** History, context, search, reactions, pins and soft-delete state are all fields of the message document.
-- **SQLite holds only non-message state:** channel metadata (the existing `rooms` table), per-user read position, and pending attachment uploads.
+- **SQLite holds only non-message state:** channel metadata (the existing `rooms` table), per-user read position, and **attachment bookkeeping** (`chat_attachments`: owner, size, protection, lifecycle; the source of truth for quotas). The message document carries only a display copy of each attachment in `attachments[]`.
+- **Attachment files live in S3** (Garage): a dev container locally, an external instance in production (§7.12).
 
 The existing **in-call chat stays as it is** (ephemeral, in memory, `ChatService`).
 
@@ -38,7 +39,8 @@ The existing **in-call chat stays as it is** (ephemeral, in memory, `ChatService
 | F11 | New permission **Manage Messages**: delete other users' messages, pin and unpin | 1 |
 | F15 | Per-channel notification settings: everything (default) / mentions off / muted, where muting asks for a duration | 2 |
 | F12 | Fuzzy text search with `in:` `from:` `during:` `after:` `before:` filters | 2 |
-| F13 | Attachments: audio (mp3, wav, ogg), images (png, webp, gif, jpeg), video (mp4), stored in a new S3 bucket; new permission **Attach Files** (on by default, denied to guests) | 3 (architecture now) |
+| F13 | Attachments: audio (mp3, wav, ogg), images (png, webp, gif, jpeg), video (mp4), stored in a new S3 bucket; new permission **Attach Files** (on by default, denied to guests) | 3 |
+| F16 | Per-user attachment quota (5 GB): uploads over it auto-remove the uploader's oldest unprotected files; the uploader can protect files and manage them on a storage page | 3 |
 | F14 | Search by attachment contents: pipeline and index fields now, ML later | 4 (architecture now) |
 
 Non-functional
@@ -58,7 +60,7 @@ Out of scope: voice messages, video "circles", DMs and threads, edit history, an
 | Custom emoji | `service/emojiservice.go` (local disk under `dataDir/emojis`, `/api/emojis/{id}/image`), frontend `EmojiGlyph`, `EmojiText`, `EmojiTextInput`, `services/emoji/inlineText.ts` | Reuse the token format `<:shortcode:id>` |
 | Markdown | `frontend/src/utils/markdown.ts` (`marked` + `DOMPurify`) | Full markdown. Text channels get a restricted renderer (§7.6). |
 | Sounds | `frontend/src/services/sounds.ts` (sprite `/assets/sounds/sprite/default/*`) | Add a `mention` sound |
-| S3 | Releases only (Garage, public bucket, `aws` CLI scripts, `docs/notes/MIGRATION_TO_S3.md`) | **No S3 client in the Go backend yet.** Uploads will need one (§7.12). |
+| S3 | Releases only (Garage, public bucket, `aws` CLI scripts, `docs/notes/MIGRATION_TO_S3.md`) | **No S3 client in the Go backend yet.** Phase 3 adds `aws-sdk-go-v2` (§7.12). Dev Garage: `make garage-up`. |
 | Image processing | `h2non/bimg` (libvips), used by `emojivips.go` | Reuse for thumbnails and EXIF stripping |
 
 ## 4. Decision record
@@ -113,7 +115,8 @@ The production prototype writes only to Meilisearch. The dual writes in `experim
   "pinned": false, "pinned_at_ts": null, "pinned_by": null,
   "is_deleted": false, "deleted_at_ts": null, "deleted_by": null,
   // phase 3/4 (attachments), present but empty until then:
-  "attachments": [],                 // see §7.12
+  "attachments": [],                 // see §7.12: {id, kind, mime, size, filename, width, height,
+                                     //   duration_ms, has_thumb, peaks, protected, removed?}
   "attachment_kinds": [],            // ["image","video","audio"] for has: filters
   "attachment_names": [],            // original filenames (searchable)
   "attachment_text": ""              // OCR / transcripts (searchable, filled by extractors §7.13)
@@ -150,14 +153,26 @@ CREATE TABLE text_notify_settings (
   updated_at  INTEGER NOT NULL,
   PRIMARY KEY (user_id, room_id)
 );
--- phase 3: uploads that are not (yet) attached to a message; GC'd after 24h
-CREATE TABLE chat_uploads (
+-- phase 3: every attachment, from upload to purge (§7.12). Source of truth for
+-- ownership, quota usage and protection; the message doc holds a display copy.
+CREATE TABLE chat_attachments (
   id TEXT PRIMARY KEY, room_id TEXT NOT NULL, uploader_id TEXT NOT NULL,
-  kind TEXT NOT NULL, mime TEXT NOT NULL, size INTEGER NOT NULL,
-  meta TEXT NOT NULL,              -- JSON: width/height/duration/filename/keys
-  status TEXT NOT NULL,            -- 'pending' | 'attached'
-  created_at INTEGER NOT NULL
+  message_id   TEXT,               -- NULL while pending
+  kind TEXT NOT NULL, mime TEXT NOT NULL, ext TEXT NOT NULL, filename TEXT NOT NULL,
+  size_bytes   INTEGER NOT NULL,   -- original
+  stored_bytes INTEGER NOT NULL,   -- original + thumb: what the quota counts
+  width INTEGER, height INTEGER, duration_ms INTEGER,
+  has_thumb    INTEGER NOT NULL DEFAULT 0,
+  peaks        TEXT,               -- audio only: JSON [0..255] x <=200, client-computed
+  status       TEXT NOT NULL CHECK (status IN ('pending','attached','removed')),
+  protected    INTEGER NOT NULL DEFAULT 0,
+  removed_reason TEXT,             -- quota | owner | moderator | message_deleted | channel_deleted | pending_expired
+  created_at INTEGER NOT NULL, attached_at INTEGER, removed_at INTEGER,
+  purged_at    INTEGER             -- S3 objects deleted; removed + NULL = janitor work left
 );
+CREATE INDEX idx_chat_att_owner   ON chat_attachments(uploader_id, status, protected, created_at);
+CREATE INDEX idx_chat_att_message ON chat_attachments(message_id);
+CREATE INDEX idx_chat_att_purge   ON chat_attachments(status, purged_at);
 -- phase 4: content extraction queue
 CREATE TABLE attachment_jobs (
   attachment_id TEXT NOT NULL, message_id TEXT NOT NULL, extractor TEXT NOT NULL,
@@ -207,7 +222,7 @@ New package `backend/internal/service/chatstore/`: the Meilisearch client (port 
   - The `TaskWatcher` polls tasks about every 100 ms while the overlay is non-empty.
   - On a failed task it logs, reverts with a broadcast (`text_message_deleted` for a lost add, a corrected `text_message_updated` for a lost mutation), and notifies the author.
   - Losing the overlay in a crash is harmless, because anything acknowledged is already in Meilisearch's queue.
-- **Channel deletion.** Delete by filter (`POST /documents/delete`, `room_id = X`), delete the S3 prefix (phase 3), and delete the read state.
+- **Channel deletion.** Delete by filter (`POST /documents/delete`, `room_id = X`), mark the channel's attachments `removed` (reason `channel_deleted`, which frees the uploaders' quota; the janitor deletes the S3 prefix, phase 3), and delete the read state.
 - **Durability test.** `kill -9` Meilisearch right after a 202; the write must still be present after restart.
 
 ### 6.3 Reads
@@ -237,6 +252,7 @@ New package `backend/internal/service/chatstore/`: the Meilisearch client (port 
 - **Soft delete:** by the author, or by anyone with `ManageMessages` on that channel.
   - Sets `is_deleted`, `deleted_at_ts`, `deleted_by`, and unpins the message.
   - **Deleted messages are hidden from everyone** (including the author) in history, search, pins and reply previews. The data stays in the index for a possible future moderation or audit view.
+  - **Attachments are not kept:** they are removed with reason `message_deleted` and purged from S3, which frees the uploader's quota (§7.12.4).
   - Broadcasts `text_message_deleted {room_id, id}`. Clients remove the message; replies to it show "Original message was deleted".
 - **UX:**
   - Hover toolbar: react, reply, edit (own), more → pin, copy text, copy link, delete.
@@ -357,41 +373,154 @@ New package `backend/internal/service/chatstore/`: the Meilisearch client (port 
 - Clicking a result jumps to the message in context (`around_seq`, with a highlight).
 - `Ctrl/Cmd+F` focuses the search box.
 
-### 7.12 Attachments (F13): architecture now, implementation in phase 3
-- **Bucket:** a new private bucket `orbital-chat-media` on the existing Garage S3. Configure it with `CHAT_MEDIA_S3_*` env vars (endpoint, bucket, key, secret, region). Object keys:
-  - `rooms/{room_id}/{attachment_id}/original.{ext}`
-  - derived variant `thumb.webp` (images and GIF first frame). A `poster.webp` for video is reserved for later, if server-side probing is ever added.
-- **Upload flow:**
-  1. `POST /api/rooms/{id}/attachments` (multipart, one file per request, with a progress bar on the client).
-  2. RBAC: `SendMessages` **and** `AttachFiles` on the channel. Without `AttachFiles`, the composer hides the attachment button and paste/drop of files is rejected with a hint.
-  3. Size limits (configurable): images 20 MB, audio 25 MB, video 100 MB.
-  4. Content sniffing on magic bytes against an allowlist (png, webp, gif, jpeg, mp3, wav, ogg, mp4). The extension and the client-sent MIME type are not trusted.
-  5. Images: strip EXIF and render a thumbnail with bimg/libvips (as `emojivips.go` does). Record width and height.
-  6. Audio and video: **no server-side probing** (no ffprobe).
-     - The client reads `duration_ms` (and `width`/`height` for video) from a local media element before uploading and sends them with the upload. The server clamps and sanity-checks them; they are used for display only (player length, a reserved video box so the layout doesn't jump).
-     - If the values are missing or wrong, the player still works and just reads the real values when it loads.
-     - There is no server-generated video poster in v1; the `<video>` element shows its first frame (`preload="metadata"`).
-     - Known limitation: an `.mp4` with a codec the browser can't play (e.g. HEVC) is accepted, and the player falls back to a download link. Server-side probing (ffprobe in the backend image) could later add trusted metadata, codec checks and posters if this becomes a real problem.
-  7. Upload to S3 and insert a `chat_uploads` row with `status 'pending'`.
-  8. Return `{upload_id, kind, meta}`.
+### 7.12 Attachments (F13): phase 3
+
+#### 7.12.1 Storage backend
+- **Bucket:** a private bucket `orbital-chat-media` on Garage S3. It is never public, and no CORS is needed (media elements and `<img>` follow redirects without it, and audio waveforms come from stored peaks, §7.12.2).
+  - Object keys: `rooms/{room_id}/{attachment_id}/original.{ext}`, plus the derived `thumb.webp` (images, and the first frame of a GIF). A `poster.webp` for video is reserved for later, if server-side probing is ever added.
+- **Environments:**
+  - Development: `make garage-up` starts `dxflrs/garage:v2.5.0` from `docker-compose.dev.yml` in single-node mode. On first start it creates the layout, a fixed dev key and the bucket (`garage/garage-dev.toml`). The backend's development defaults match it, following the Meilisearch precedent.
+  - Production: an external Garage instance. It needs the bucket and a read/write key, and its public endpoint must be HTTPS.
+- **Client:** `aws-sdk-go-v2` (`aws`, `credentials`, `service/s3`), wrapped behind a small `MediaStore` interface (`Put`, `Delete`, `DeleteMany`, `PresignGet`) so tests can use a fake.
+  - Garage settings: `UsePathStyle = true`, region `garage`, `RequestChecksumCalculation` / `ResponseChecksumValidation = WhenRequired`.
+  - Two endpoints:
+    - `CHAT_MEDIA_S3_ENDPOINT` is how the backend reaches Garage; it may be internal.
+    - `CHAT_MEDIA_S3_PUBLIC_ENDPOINT` is the host signed into presigned URLs. It must be reachable by browsers and Electron, and defaults to the internal endpoint.
+    - Presigning is offline, using a second client configured with the public endpoint.
+- **Disabled mode:** without S3 config, attachments are off. The client config exposes `attachments_enabled: false`, and the composer hides the attachment button.
+
+#### 7.12.2 Upload flow
+1. `POST /api/rooms/{id}/attachments` (multipart, one file per request, with a progress bar on the client).
+2. RBAC: `SendMessages` **and** `AttachFiles` on the channel. Without `AttachFiles`, the composer hides the attachment button, and paste or drop of files is rejected with a hint. Rate limit: `RATE_LIMIT_CHAT_UPLOAD_PER_HOUR` per user.
+3. The file part is spooled to a temp file. Size limits (configurable) are enforced while reading: images 20 MB, audio 25 MB, video 100 MB.
+4. Content sniffing on magic bytes against an allowlist (png, webp, gif, jpeg, mp3, wav, ogg, mp4). The extension and the client-sent MIME type are not trusted.
+5. Per kind:
+   - **Images:** strip EXIF and render a thumbnail with bimg/libvips (as `emojivips.go` does). Record width and height.
+   - **Audio:** stored as-is, with no transcoding and no server-side probing. A waveform is precomputed on the client:
+     - Before uploading, the client decodes the picked file locally (`file.arrayBuffer()`, then `AudioContext.decodeAudioData`). It downsamples to **200 peaks** (the max of `|sample|` per bucket, mono, normalized, quantized to 0–255) and takes `duration_ms` from the decoded buffer.
+     - Both are sent as multipart fields next to the file (`peaks` as a JSON int array). If decoding fails (unsupported codec, out of memory), the file is uploaded without them.
+     - The server drops `peaks` unless it has at most 200 integers in 0–255, and clamps `duration_ms` to 1 ms–6 h. The values are for display only.
+   - **Video:** no server-side probing (no ffprobe).
+     - The client reads `duration_ms`, `width` and `height` from a local media element and sends them with the upload. The server clamps and sanity-checks them. They are used to reserve a correctly sized box so the layout doesn't jump.
+     - There is no server-generated poster in v1; `<video preload="metadata">` shows the first frame.
+     - Known limitation: an `.mp4` with a codec the browser can't play (e.g. HEVC) is accepted, and the player falls back to a download link. Server-side probing (ffprobe in the backend image) could later add trusted metadata, codec checks and posters.
+6. **Reserve quota** (§7.12.3) under a per-user mutex. This may evict old files. Then insert the `chat_attachments` row with `status 'pending'`.
+7. PUT the original (and thumb) to S3. If that fails, delete the row; the reservation is released.
+8. Return `{upload_id, kind, meta, evicted: [{id, filename, stored_bytes}], usage}`. `usage` has the same shape as `GET /api/me/attachments/usage`.
+
 - **Send:** `text_message_send {…, upload_ids: [≤10]}` (requires `AttachFiles` when `upload_ids` is non-empty). The server:
   - validates that the uploads belong to the sender, are in the same room and are still pending;
-  - embeds the metadata into `attachments[]` (`{id, kind, mime, size, filename, width, height, duration_ms, has_thumb}`);
+  - embeds the metadata into `attachments[]` (`{id, kind, mime, size, filename, width, height, duration_ms, has_thumb, peaks, protected}`);
   - sets `attachment_kinds` and `attachment_names`;
-  - marks the uploads `attached`.
-- **Garbage collection:** pending uploads older than 24 h are deleted from S3 and SQLite.
-- **Delivery:** `GET /api/attachments/{id}?variant=original|thumb`.
-  - Checks `ViewRoom` on the channel and that the message is not deleted, then 302-redirects to a **presigned URL** (5–15 min TTL).
-  - The bucket is never public.
-  - Presigned URLs are cached client-side until they expire.
-- **Rendering:**
-  - images in a grid (click opens a lightbox), with GIFs honoring the existing reduce-motion setting;
-  - `<video preload="metadata">` (first frame, no server poster);
-  - audio through a compact player (`wavesurfer.js` is already a dependency);
+  - marks the rows `attached` (`message_id`, `attached_at`).
+- **Pending GC:** pending rows older than 24 h are removed (reason `pending_expired`) and purged like any other removal (§7.12.4).
+
+#### 7.12.3 Quota and auto-removal
+- **Quota:** each user gets `CHAT_MEDIA_QUOTA_MB` (default **5120**, i.e. 5 GB). It is enforced on the backend only.
+- **Usage:** `SUM(stored_bytes)` over the user's `pending` and `attached` rows, so thumbnails count too.
+- **Reservation** for a new upload of `need = stored_bytes`. It runs under a per-user mutex, so concurrent uploads can't both pass:
+  1. If `need > quota`, reject with `413 file_exceeds_quota`.
+  2. If `need > quota − protected_bytes − pending_bytes`, reject with `413 quota_protected_full` ("Your protected files fill your storage — unprotect or delete some files").
+  3. Otherwise, evict the user's `attached`, unprotected rows, **oldest `created_at` first**, until `used + need ≤ quota`. This happens in the same transaction that inserts the new pending row.
+- **What is never evicted:**
+  - Pending rows: they are files sitting in a composer right now.
+  - Protected rows.
+  - Other users' files. Only a user's own uploads can evict that user's files.
+- **Effect:** evicted rows become `removed` with reason `quota`, which frees the quota immediately. S3 deletes and document updates follow asynchronously (§7.12.4), so a slow or failing S3 never blocks the upload.
+- **Quota changes:** lowering `CHAT_MEDIA_QUOTA_MB` takes effect on the user's next upload. If protected files alone exceed the new quota, uploads are rejected until the user frees space.
+- **Client feedback:**
+  - After an upload that evicted files, a toast says "Removed 2 oldest files (340 MB) to make room · Manage storage".
+  - Once usage is ≥ 90 %, the composer shows a warning chip.
+
+#### 7.12.4 Removal and purge
+Every removal reason goes through one path:
+1. Mark the row `removed` with `removed_reason` and `removed_at`.
+2. If the attachment was attached to a message, update the message document through the §6.2 mutation path:
+   - set `attachments[i].removed = <reason>`;
+   - drop the attachment from `attachment_kinds`, `attachment_names` and `attachment_text`;
+   - broadcast `text_message_updated`.
+   Messages that are themselves deleted skip this step.
+3. **Janitor:** a background loop, shared with the pending GC, deletes the S3 objects of rows with `status = 'removed' AND purged_at IS NULL`, then sets `purged_at`. Failures are retried on the next pass.
+
+Removed rows stay as small tombstones (for the message tombstone and audits) and are pruned 90 days after `purged_at`.
+
+Removal reasons:
+
+| Reason | Trigger |
+|---|---|
+| `quota` | Auto-removal during an upload by the same user (§7.12.3) |
+| `owner` | The uploader deletes the file (context menu or storage page) |
+| `moderator` | A user with `ManageMessages` on the channel deletes the file |
+| `message_deleted` | The message is deleted, by its author or a moderator. Files are **purged** and the space is freed (they are not kept with the soft-deleted message). |
+| `channel_deleted` | The channel is deleted |
+| `pending_expired` | An upload was never sent within 24 h |
+
+- **Single-file delete:** `DELETE /api/attachments/{id}`. Allowed for the uploader, or for a user with `ManageMessages` on the room. The message stays and shows a tombstone in place of the file.
+
+#### 7.12.5 Protection
+- A protected file is never auto-removed. It still counts toward the uploader's quota.
+- `PATCH /api/attachments/{id} {protected: bool}`:
+  - **uploader only**: others get `403`, or `404` without `ViewRoom`;
+  - only for `attached` rows.
+  - The value is mirrored to `attachments[i].protected` through a document mutation plus `text_message_updated`, so everyone sees a small lock badge.
+- Protection is set from the attachment context menu (§7.12.7) or from the storage page (§7.12.8).
+
+#### 7.12.6 Delivery
+- `GET /api/attachments/{id}?variant=original|thumb|download`. It looks up the `chat_attachments` row first:
+  - `removed` → `410 Gone`;
+  - the **uploader** can always fetch their own files, even after losing `ViewRoom`, because the storage page lists them;
+  - anyone else needs `ViewRoom` on the channel, and the message must not be deleted.
+- It then 302-redirects to a presigned URL with a 5–15 min TTL. Presigned URLs are cached client-side until they expire.
+- `download` presigns with `ResponseContentDisposition: attachment; filename*=UTF-8''<filename>`.
+
+#### 7.12.7 Rendering
+- **Layouts per kind:**
+  - images in a grid; a click opens a lightbox. GIFs honor the existing reduce-motion setting;
+  - `<video preload="metadata">` (first frame, no server poster), in a box sized from `width`/`height`;
+  - audio in a compact wavesurfer player (already a dependency):
+    - `WaveSurfer.create({ container, media: audioEl, peaks: [peaks.map(p => p / 255)], duration: duration_ms / 1000, barWidth: 2, … })`, where `audioEl` is `<audio preload="none" src="/api/attachments/{id}">`;
+    - with `media`, `peaks` and `duration` given, wavesurfer draws the stored waveform **without fetching or decoding the audio**. Playback streams through the media element, so history shows waveforms instantly and no audio bytes load until play;
+    - without peaks, it shows a plain seek bar, and the duration appears from the metadata once loaded;
   - a filename and size row for each.
-- **Quotas:** a per-user storage quota, following the existing `RATE_LIMIT_*_QUOTA_MB` pattern, plus a per-user upload rate limit.
-- **Deleting a message:** attachments become inaccessible (delivery checks `is_deleted`). Objects are kept, matching the soft-delete policy. A physical purge is a later admin tool.
-- **Dependency:** the Go backend has no S3 client yet. Adding one (e.g. `minio-go` or `aws-sdk-go-v2`) needs developer approval, since agents may not install packages. A minimal SigV4 client for PUT, DELETE and presign is the alternative.
+- **Attachment context menu:** opened by right-click, a `⋯` button on hover, or long-press on mobile.
+  - Everyone: Open, Download.
+  - The uploader:
+    - "Protect from auto-removal" / "Allow auto-removal";
+    - Delete file;
+    - Manage my storage.
+  - `ManageMessages`: Delete file.
+- **Tombstone:** a removed file renders as a compact row: "📎 filename — removed (storage limit | by uploader | by moderator)".
+
+#### 7.12.8 Storage page (`/files`)
+- **Page:** a standalone route `/files` (`views/MyFilesView.vue`, for signed-in non-guests), built like `/admin`. It always opens in a **new tab** (`window.open("/files", "_blank")`), so an ongoing call in the main tab is never touched.
+  - Entry points:
+    - "My files" in Account settings, next to the Admin Panel button;
+    - "Manage my storage" in the attachment context menu;
+    - the eviction toast.
+  - Electron: check what `window.open` does there. If it doesn't open an app window with the same session and preload, add a `setWindowOpenHandler` that opens a child `BrowserWindow` for same-origin `/files`.
+- **Header:**
+  - a usage bar ("3.2 GB of 5 GB") with protected and pending segments;
+  - one line explaining that the oldest unprotected files are removed automatically when storage is full.
+- **Toolbar:**
+  - kind filter: All / Images / Video / Audio;
+  - channel filter;
+  - sort: Oldest (default, which is the removal order), Newest, Largest;
+  - filename search;
+  - a "Protected only" toggle.
+- **Rows:**
+  - thumbnail or kind icon, filename, size, channel, upload date;
+  - badges: 🔒 protected, and "removed next" on the oldest unprotected files that together add up to about 10 % of the quota;
+  - actions:
+    - jump to message: opens the `around_seq` deep link, in the opener tab when one exists. Disabled without `ViewRoom`;
+    - download;
+    - protect toggle;
+    - delete, with a confirmation.
+- **Bulk:** multi-select for delete, protect and unprotect.
+- **Freshness:** there is no live socket. The page refetches when opened, when its tab regains focus, and after each action.
+- **API:**
+  - `GET /api/me/attachments?kind=&room_id=&sort=oldest|newest|largest&q=&cursor=&limit=50` returns `{items, next_cursor}`: only the caller's own `pending` and `attached` rows, each with its room name.
+  - `GET /api/me/attachments/usage` returns `{quota_bytes, used_bytes, protected_bytes, pending_bytes, count}`.
+  - `POST /api/me/attachments/bulk {ids: [≤100], action: "delete"|"protect"|"unprotect"}`. Each id is checked as in the single-item endpoints, and the response reports per-id results.
 
 ### 7.13 Search by attachment contents (F14): architecture now, ML later
 - **Index fields** (§5.1):
@@ -456,8 +585,13 @@ REST
 | `GET /api/chat/search?q=&tz=&sort=&limit=&offset=` | Search; `q` contains the inline filters (§7.11). Returns `hits`, `total`, `hints`, `took_ms`. |
 | `GET /api/chat/unread` | Per channel: `last_read_seq`, `newest_seq`, `mention_count`, `notify_mode`, `muted_until` (for the sidebar on load) |
 | `PUT /api/rooms/{id}/notify` `{mode, mute_duration: "1h"\|"4h"\|"1d"\|"1w"\|"forever"}` | Change the notification setting (`mute_duration` only with `mode: "muted"`); requires `ViewRoom` |
-| `POST /api/rooms/{id}/attachments` (phase 3) | Upload |
-| `GET /api/attachments/{id}?variant=` (phase 3) | Presigned redirect |
+| `POST /api/rooms/{id}/attachments` (phase 3) | Upload (multipart; audio adds `peaks`, `duration_ms`; video adds `width`, `height`, `duration_ms`). Returns `upload_id`, `meta`, `evicted`, `usage`. 413 `file_exceeds_quota` / `quota_protected_full`. |
+| `GET /api/attachments/{id}?variant=original\|thumb\|download` (phase 3) | Presigned redirect; 410 once removed |
+| `PATCH /api/attachments/{id}` `{protected}` (phase 3) | Protect / unprotect; uploader only |
+| `DELETE /api/attachments/{id}` (phase 3) | Remove one file; uploader or `ManageMessages` |
+| `GET /api/me/attachments?kind=&room_id=&sort=&q=&cursor=&limit=` (phase 3) | Caller's own files for the storage page |
+| `GET /api/me/attachments/usage` (phase 3) | `quota_bytes`, `used_bytes`, `protected_bytes`, `pending_bytes`, `count` |
+| `POST /api/me/attachments/bulk` `{ids, action}` (phase 3) | Bulk delete / protect / unprotect of own files (≤100) |
 
 WebSocket. Client → server:
 - `text_message_send {room_id, content, reply_to_id?, reply_ping?, upload_ids?, nonce}`. The `nonce` lets the client match its optimistic message to the ack.
@@ -491,6 +625,9 @@ Room events go to **global sockets only** (`/ws`, not the per-call `/ws/{room}`)
 | Delete own | author |
 | Delete others' | **`ManageMessages`** (new) |
 | Upload attachments, send messages with attachments (phase 3) | `SendMessages` + **`AttachFiles`** (new) |
+| Protect / unprotect a file (phase 3) | uploader only |
+| Delete a single file (phase 3) | uploader, or **`ManageMessages`** |
+| List and manage own files on the storage page (phase 3) | signed-in non-guest; own files only, even in channels no longer visible |
 | Change own notification setting | `ViewRoom` |
 | Create, rename or delete text channels | `ManageRooms` (existing) |
 
@@ -513,6 +650,8 @@ Denied-path tests:
 - history, context and pins return 403/404 for hidden channels;
 - send and react without `SendMessages` are rejected; pin/unpin without `ManageMessages` is rejected;
 - uploads, and sends with `upload_ids`, without `AttachFiles` are rejected (including for Guests by default);
+- protecting someone else's file is rejected; deleting someone else's file needs `ManageMessages`;
+- `/api/me/attachments` never lists another user's files; a removed file returns 410 to everyone;
 - `<@&everyone>` / `<@&guest>` tokens are dropped and ping nobody;
 - no `text_mention` for users with `no_mentions` or an active mute; the mute expires correctly at `muted_until`;
 - editing someone else's message is rejected;
@@ -544,8 +683,13 @@ Denied-path tests:
 | `MEILI_URL` | `http://meilisearch:7700` | If empty, text channels are disabled and the UI hides the type |
 | `MEILI_API_KEY` | none | Scoped key (`documents.*`, `search`, `tasks.get`, `indexes.*`, `settings.*`), not the master key |
 | `MEILI_INDEX` | `text_messages` | |
-| `CHAT_MEDIA_S3_ENDPOINT/BUCKET/ACCESS_KEY/SECRET_KEY/REGION` | none | Phase 3 |
+| `CHAT_MEDIA_S3_ENDPOINT/BUCKET/ACCESS_KEY/SECRET_KEY/REGION` | dev: `http://localhost:3900`, `orbital-chat-media`, the dev key from `docker-compose.dev.yml`, `garage`; prod: none | Phase 3. If unset outside development, attachments are disabled. |
+| `CHAT_MEDIA_S3_PUBLIC_ENDPOINT` | `CHAT_MEDIA_S3_ENDPOINT` | Phase 3. Host signed into presigned URLs; must be browser-reachable (HTTPS in production). |
 | `CHAT_MEDIA_MAX_IMAGE_MB/AUDIO_MB/VIDEO_MB` | 20/25/100 | Phase 3 |
+| `CHAT_MEDIA_QUOTA_MB` | 5120 | Phase 3. Per-user attachment storage (§7.12.3) |
+| `RATE_LIMIT_CHAT_UPLOAD_PER_HOUR` | 120 | Phase 3. Per-user upload rate |
+
+Garage S3 (phase 3): development uses the `garage` service in `docker-compose.dev.yml` (`make garage-up`; single-node mode creates the dev key and bucket). Production uses an **external** Garage instance: create the `orbital-chat-media` bucket and a read/write key there, and pass the `CHAT_MEDIA_*` variables to the backend in `docker/docker-compose.deploy.yml`. No bucket CORS and no website access are needed.
 
 Compose service `meilisearch` (in `docker/docker-compose.deploy.yml` and `docker-compose.dev.yml`):
 - Pin the image (`getmeili/meilisearch:v1.56.2`).
@@ -624,8 +768,13 @@ Original plan:
   - frontend: `mentionText.test.ts`, `textNotify.test.ts`, plus highlight and system-line cases.
 
 **Phase 3: attachments**
-- S3 client (needs approval), bucket, upload endpoint, sniffing, thumbnails, presigned delivery, garbage collection, quotas.
-- Rendering (image grid, lightbox, video, audio player).
+- Dependency, installed by the developer (agents can't install packages): `go get github.com/aws/aws-sdk-go-v2/aws github.com/aws/aws-sdk-go-v2/credentials github.com/aws/aws-sdk-go-v2/service/s3`.
+- Dev Garage (`make garage-up`, done); `CHAT_MEDIA_*` config with dev defaults; deploy compose passthrough.
+- `MediaStore` (S3) wrapper, `chat_attachments` migration, upload endpoint, sniffing, thumbnails, client-side audio peaks, presigned delivery.
+- Quota reservation and auto-removal, protection, single-file and bulk delete, the removal/purge path with the janitor and pending GC, purge on message and channel delete.
+- Rendering (image grid, lightbox, video, wavesurfer audio player from stored peaks, tombstones), the attachment context menu, the eviction toast and quota warning chip.
+- Storage page `/files` (new tab) and the `/api/me/attachments*` endpoints.
+- Tests (fake `MediaStore`): eviction order; protected and pending rows are never evicted; `file_exceeds_quota` and `quota_protected_full`; concurrent reservations by one user; message and channel delete purge and free quota; the janitor retries failed S3 deletes; uploader-only protect; moderator delete; `/api/me/attachments` isolation; 410 on removed files; the uploader can fetch a file without `ViewRoom`. Integration (`integration` tag, Garage): PUT, presign and delete.
 - `has:` filters.
 - The extraction queue and worker with no extractors yet.
 
@@ -641,6 +790,14 @@ None at the moment. Resolved on 2026-11-10:
 - every role is mentionable and there is no `@everyone` / `@here`;
 - no ffprobe: video and audio metadata comes from the client, for display only;
 - per-channel notification settings with timed mute.
+
+Resolved on 2026-11-11 (phase 3):
+- S3 client: `aws-sdk-go-v2`;
+- 5 GB per-user quota; uploads over it auto-remove the uploader's oldest unprotected files;
+- only the uploader can protect a file;
+- deleting a message purges its files and frees the quota;
+- the storage page is a standalone `/files` page opened in a new tab;
+- audio waveforms are computed by the client at upload and stored as 200 peaks.
 
 ## 15. Lessons from the prototype (gotchas)
 

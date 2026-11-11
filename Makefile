@@ -1,4 +1,4 @@
-.PHONY: help install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-backend test-integration e2e-textchat meili-up meili-down test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all balance-drift balance-check
+.PHONY: help install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-backend test-integration e2e-textchat meili-up meili-down garage-up garage-downtest-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all balance-drift balance-check
 
 # Default target
 help:
@@ -17,6 +17,8 @@ help:
 	@echo "  e2e-textchat      - Live text channel check on a throwaway backend + index (starts Meilisearch)"
 	@echo "  meili-up          - Start the dev Meilisearch container (text channels)"
 	@echo "  meili-down        - Stop the dev Meilisearch container"
+	@echo "  garage-up         - Start the dev Garage S3 container (chat attachments)"
+	@echo "  garage-down       - Stop the dev Garage S3 container"
 	@echo "  test-e2e-docker   - Run Playwright e2e tests in Docker"
 	@echo "  test-headed       - Run tests in headed mode (local browser required)"
 	@echo "  docker-build-test - Build the Playwright test Docker image"
@@ -186,6 +188,21 @@ meili-up:
 
 meili-down:
 	docker-compose -f docker-compose.dev.yml stop meilisearch
+
+# Dev Garage S3 (text channel attachments, docs/specs/CHAT_SYSTEM.md §7.12).
+# Single-node mode creates the layout, dev key and bucket on first start.
+GARAGE_TEST_BUCKET ?= orbital-chat-media
+
+garage-up:
+	docker-compose -f docker-compose.dev.yml up -d garage
+	@for i in $$(seq 1 60); do \
+		docker exec orbital-garage /garage bucket info $(GARAGE_TEST_BUCKET) >/dev/null 2>&1 && \
+			echo "Garage is up at http://127.0.0.1:3900 (bucket $(GARAGE_TEST_BUCKET))" && exit 0; \
+		sleep 0.5; \
+	done; echo "Garage did not become ready" >&2; exit 1
+
+garage-down:
+	docker-compose -f docker-compose.dev.yml stop garage
 
 # Backend integration tests (build tag `integration`), e.g. the Meilisearch
 # engine. Not part of PR CI; each test uses its own throwaway index.
