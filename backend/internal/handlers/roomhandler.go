@@ -4,14 +4,13 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"regexp"
-	"unicode/utf8"
 
 	"github.com/gorilla/mux"
 	"github.com/kuleshov-aleksei/orbital/internal/config"
 	"github.com/kuleshov-aleksei/orbital/internal/models"
 	"github.com/kuleshov-aleksei/orbital/internal/permissions"
 	"github.com/kuleshov-aleksei/orbital/internal/service"
+	"github.com/kuleshov-aleksei/orbital/internal/service/chatstore"
 	"github.com/kuleshov-aleksei/orbital/internal/websocket"
 )
 
@@ -22,17 +21,13 @@ const (
 	maxRoomNameBytes = 100 * (2 + 64*4 + 1 + 36 + 1)
 )
 
-// customEmojiTokenRe matches inline custom emojis in room names:
-// "<:shortcode:id>". Keep in sync with frontend/src/services/emoji/inlineText.ts.
-var customEmojiTokenRe = regexp.MustCompile(`<:[\p{L}\p{N}_]{1,64}:[0-9a-f-]{36}>`)
-
 // validRoomNameLength counts characters, not bytes (emojis and non-Latin
 // names are multi-byte), with each custom emoji token counted as one.
 func validRoomNameLength(name string) bool {
 	if len(name) > maxRoomNameBytes {
 		return false
 	}
-	return utf8.RuneCountInString(customEmojiTokenRe.ReplaceAllString(name, "x")) <= maxRoomNameChars
+	return chatstore.EmojiTextLength(name) <= maxRoomNameChars
 }
 
 // RoomHandler handles room-related HTTP requests
@@ -42,6 +37,13 @@ type RoomHandler struct {
 	livekitService  *service.LiveKitService
 	permissions     *service.PermissionService
 	wsHub           *websocket.Hub
+	textChat        *websocket.TextChat // nil when text channels are disabled
+}
+
+// SetTextChat enables creating text channels and cleans up their messages
+// when they are deleted.
+func (h *RoomHandler) SetTextChat(tc *websocket.TextChat) {
+	h.textChat = tc
 }
 
 // NewRoomHandler creates a new RoomHandler
@@ -82,7 +84,15 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Type == "" {
-		req.Type = "voice"
+		req.Type = models.RoomTypeVoice
+	}
+	if !models.ValidRoomType(req.Type) {
+		http.Error(w, "Unknown room type", http.StatusBadRequest)
+		return
+	}
+	if req.Type == models.RoomTypeText && h.textChat == nil {
+		http.Error(w, "Text channels are not enabled on this server", http.StatusBadRequest)
+		return
 	}
 
 	sub, ok := subjectFromRequest(r)
@@ -278,6 +288,10 @@ func (h *RoomHandler) JoinRoom(w http.ResponseWriter, r *http.Request) {
 	if _, ok := requireRoomPerm(w, r, h.permissions, roomID, permissions.ViewRoom|permissions.Connect); !ok {
 		return
 	}
+	if room, exists := h.roomService.GetRoom(roomID); exists && room.IsText() {
+		http.Error(w, "Text channels cannot be joined", http.StatusBadRequest)
+		return
+	}
 
 	if req.Nickname == "" {
 		if len(req.UserID) >= 8 {
@@ -431,6 +445,17 @@ func (h *RoomHandler) UpdateRoom(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Room not found", http.StatusNotFound)
 		return
 	}
+	if req.Type != "" && req.Type != currentRoom.Type {
+		if !models.ValidRoomType(req.Type) {
+			http.Error(w, "Unknown room type", http.StatusBadRequest)
+			return
+		}
+		// Text history would be orphaned (or appear) on a type switch.
+		if req.Type == models.RoomTypeText || currentRoom.IsText() {
+			http.Error(w, "Cannot convert between text and voice channels", http.StatusBadRequest)
+			return
+		}
+	}
 
 	// Resolve category ID if category name is provided
 	categoryID := req.Category
@@ -504,8 +529,26 @@ func (h *RoomHandler) DeleteRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.permissions.ForgetTarget(models.OverwriteTargetRoom, roomID)
+	if room.IsText() && h.textChat != nil {
+		if err := h.textChat.Store.DeleteRoom(r.Context(), roomID); err != nil {
+			log.Printf("Failed to delete messages of text channel %s: %v", roomID, err)
+		}
+		if err := h.textChat.ReadState.DeleteRoom(roomID); err != nil {
+			log.Printf("Failed to delete read state of text channel %s: %v", roomID, err)
+		}
+		if h.textChat.Notify != nil {
+			if err := h.textChat.Notify.DeleteRoom(roomID); err != nil {
+				log.Printf("Failed to delete notification settings of text channel %s: %v", roomID, err)
+			}
+		}
+		if h.textChat.Media != nil {
+			if err := h.textChat.Media.RemoveRoom(roomID); err != nil {
+				log.Printf("Failed to remove attachments of text channel %s: %v", roomID, err)
+			}
+		}
+	}
 	// Disconnect anyone still in the LiveKit room.
-	if h.livekitService != nil {
+	if !room.IsText() && h.livekitService != nil {
 		if err := h.livekitService.DeleteRoom(roomID); err != nil {
 			log.Printf("Failed to delete LiveKit room %s: %v", roomID, err)
 		}
@@ -567,6 +610,21 @@ type RoomConfigResponse struct {
 // AppConfigResponse represents the general application configuration response
 type AppConfigResponse struct {
 	Room RoomConfigResponse `json:"room"`
+	// TextChannels reports whether text channels can be created (Meilisearch configured).
+	TextChannels bool `json:"text_channels"`
+	// Attachments reports whether text channel attachments are enabled (S3 configured).
+	Attachments *AttachmentsConfig `json:"attachments,omitempty"`
+}
+
+// AttachmentsConfig is the client view of the attachment limits.
+type AttachmentsConfig struct {
+	MaxImageBytes int64 `json:"max_image_bytes"`
+	MaxAudioBytes int64 `json:"max_audio_bytes"`
+	MaxVideoBytes int64 `json:"max_video_bytes"`
+	QuotaBytes    int64 `json:"quota_bytes"`
+	MaxPerMessage int   `json:"max_per_message"`
+	// ContentSearch: images are read by OCR/CLIP (CHAT_ML_URL set).
+	ContentSearch bool `json:"content_search"`
 }
 
 // GetConfig handles GET /api/config
@@ -577,6 +635,15 @@ func (h *RoomHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
 			MaxUsers:        config.RoomConfig.MaxUsers,
 			DefaultMaxUsers: config.RoomConfig.DefaultMaxUsers,
 		},
+		TextChannels: h.textChat != nil,
+	}
+	if h.textChat != nil && h.textChat.Media != nil {
+		l := h.textChat.Media.Limits()
+		cfg.Attachments = &AttachmentsConfig{
+			MaxImageBytes: l.MaxImageBytes, MaxAudioBytes: l.MaxAudioBytes, MaxVideoBytes: l.MaxVideoBytes,
+			QuotaBytes: l.QuotaBytes, MaxPerMessage: chatstore.MaxAttachmentsPerMessage,
+			ContentSearch: h.textChat.Media.ExtractionEnabled(),
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

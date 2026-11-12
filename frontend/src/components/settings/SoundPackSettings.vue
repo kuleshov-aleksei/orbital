@@ -194,6 +194,7 @@
         </button>
       </div>
     </div>
+    <MentionSoundSettings />
   </div>
 </template>
 
@@ -202,6 +203,7 @@ import { ref, computed, onMounted } from "vue"
 import { storeToRefs } from "pinia"
 import { useSoundPackStore, useRoomStore, useSoundboardStore } from "@/stores"
 import SoundPreview from "./SoundPreview.vue"
+import MentionSoundSettings from "./MentionSoundSettings.vue"
 import { PhSpeakerHigh, PhX, PhLinkSimple } from "@phosphor-icons/vue"
 import { isElectron, openExternal } from "@/services/electron"
 

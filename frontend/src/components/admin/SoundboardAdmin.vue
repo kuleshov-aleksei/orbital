@@ -16,6 +16,15 @@
           @click="soundboardStore.fetchSounds()">
           {{ soundboardStore.isLoading ? "Loading..." : "Refresh" }}
         </button>
+        <button
+          v-if="canUpload"
+          type="button"
+          data-testid="soundboard-admin-upload"
+          class="px-3 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors flex items-center gap-1.5"
+          @click="isUploadOpen = true">
+          <PhUploadSimple class="w-4 h-4" />
+          Upload
+        </button>
       </div>
     </div>
 
@@ -155,6 +164,8 @@
       :sound="audioEditSound"
       @close="audioEditSound = null" />
 
+    <SoundboardUploadModal v-if="isUploadOpen" @close="isUploadOpen = false" />
+
     <div v-if="sounds.length === 0 && !soundboardStore.isLoading" class="p-8 text-center">
       <PhMusicNotes class="w-12 h-12 text-gray-600 mx-auto mb-4" />
       <p class="text-gray-400">
@@ -166,17 +177,31 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue"
-import { PhMusicNotes, PhPlay, PhSmiley, PhSpeakerHigh, PhWaveform } from "@phosphor-icons/vue"
+import {
+  PhMusicNotes,
+  PhPlay,
+  PhSmiley,
+  PhSpeakerHigh,
+  PhUploadSimple,
+  PhWaveform,
+} from "@phosphor-icons/vue"
 import EmojiGlyph from "@/components/EmojiGlyph.vue"
 import EmojiPicker from "@/components/EmojiPicker.vue"
 import SoundboardAudioEditModal from "@/components/soundboard/SoundboardAudioEditModal.vue"
-import { useSoundboardStore, useUsersStore } from "@/stores"
+import SoundboardUploadModal from "@/components/soundboard/SoundboardUploadModal.vue"
+import { usePermissionsStore, useSoundboardStore, useUsersStore } from "@/stores"
 import { previewSoundboardSound } from "@/services/soundboardPlayer"
 import type { EmojiRef } from "@/services/emoji"
 import type { SoundboardSound } from "@/types"
+import { Permission } from "@/types/permissions"
 
 const soundboardStore = useSoundboardStore()
 const usersStore = useUsersStore()
+const permissionsStore = usePermissionsStore()
+
+// Upload is gated separately from management; the backend checks UploadSounds.
+const canUpload = computed(() => permissionsStore.can(Permission.UploadSounds))
+const isUploadOpen = ref(false)
 
 const query = ref("")
 const sounds = computed(() => soundboardStore.search(query.value))

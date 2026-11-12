@@ -732,6 +732,13 @@ onMounted(async () => {
   document.addEventListener("touchstart", resumeAudioOnGesture)
 
   onKeyDown = (e: KeyboardEvent) => {
+    const target = e.target as HTMLElement | null
+    if (
+      target &&
+      (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
+    ) {
+      return
+    }
     if (e.key === "c" || e.key === "C") {
       toggleCollisionDebug()
     }

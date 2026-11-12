@@ -43,6 +43,34 @@
         </button>
       </div>
 
+      <!-- Taskbar flash on mentions -->
+      <div class="flex items-center justify-between pt-2 border-t border-theme-border">
+        <div>
+          <label id="mention-flash-label" class="text-sm font-medium text-theme-text-primary block">
+            Flash taskbar on mentions
+          </label>
+
+          <p class="text-xs text-theme-text-muted mt-0.5">
+            Flash the Orbital taskbar entry when someone mentions you in a text channel while the
+            window is not focused.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          role="switch"
+          :aria-checked="mentionTaskbarFlash"
+          aria-labelledby="mention-flash-label"
+          data-testid="mention-flash-toggle"
+          class="relative inline-flex h-6 w-12 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-theme-accent focus:ring-offset-2 focus:ring-offset-theme-bg-primary"
+          :class="mentionTaskbarFlash ? 'bg-theme-accent' : 'bg-theme-bg-hover'"
+          @click="appSettingsStore.setMentionTaskbarFlash(!mentionTaskbarFlash)">
+          <span
+            class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+            :class="mentionTaskbarFlash ? 'translate-x-7' : 'translate-x-1'" />
+        </button>
+      </div>
+
       <!-- Keyboard Shortcuts Section -->
       <div class="pt-2 border-t border-theme-border">
         <h4 class="text-sm font-medium text-theme-text-primary mb-3">Keyboard Shortcuts</h4>
@@ -149,6 +177,7 @@ defineProps<{
 const appSettingsStore = useAppSettingsStore()
 
 const closeToTray = computed(() => appSettingsStore.closeToTray)
+const mentionTaskbarFlash = computed(() => appSettingsStore.mentionTaskbarFlash)
 const hotkeys = computed(() => appSettingsStore.hotkeys)
 const hasCustomHotkeys = computed(() => appSettingsStore.hasCustomHotkeys)
 const isWayland = ref(false)

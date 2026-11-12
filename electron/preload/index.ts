@@ -89,6 +89,7 @@ export interface ElectronAPI {
   getPlatform: () => Promise<NodeJS.Platform>
   getSystemInfo: () => Promise<SystemInfoData>
   minimizeWindow: () => void
+  flashWindow: () => void
   maximizeWindow: () => void
   closeWindow: () => void
   onDeepLink: (callback: (url: string) => void) => void
@@ -180,6 +181,10 @@ const electronAPI: ElectronAPI = {
 
   minimizeWindow: () => {
     ipcRenderer.invoke("minimize-window")
+  },
+
+  flashWindow: () => {
+    ipcRenderer.invoke("flash-window")
   },
 
   maximizeWindow: () => {

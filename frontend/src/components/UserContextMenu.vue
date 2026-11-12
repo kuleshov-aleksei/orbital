@@ -52,8 +52,9 @@
         v-if="permissionsStore.canManageRoles && (targetUserIsOwner || assignableRoles.length > 0)">
         <div class="border-t border-theme-border my-1"></div>
 
+        <!-- Only the owner may edit the owner's roles (e.g. to pick a name colour) -->
         <div
-          v-if="targetUserIsOwner"
+          v-if="!permissionsStore.canEditRolesOf(targetUserIsOwner)"
           class="px-3 py-2 text-sm text-purple-400 flex items-center gap-2 cursor-not-allowed opacity-60"
           title="The owner has every permission">
           <PhCrown class="w-4 h-4" />

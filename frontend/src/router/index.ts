@@ -27,6 +27,13 @@ const router = createRouter({
       meta: { requiresAdminPanel: true },
     },
     {
+      // Storage page for text channel attachments; opened in its own tab.
+      path: "/files",
+      name: "files",
+      component: () => import("@/views/MyFilesView.vue"),
+      meta: { requiresAuth: true },
+    },
+    {
       path: "/auth/callback",
       name: "auth-callback",
       alias: "/auth/callback/",
@@ -49,6 +56,17 @@ const router = createRouter({
 // Navigation guard to protect admin routes
 router.beforeEach(async (to, _from, next) => {
   const userStore = useUserStore()
+
+  // A protected page opened directly (e.g. /files in a new tab) runs this
+  // guard before anything has restored the session from storage.
+  if ((to.meta.requiresAuth || to.meta.requiresAdminPanel) && !userStore.isAuthenticated) {
+    await userStore.loadUserFromStorage()
+  }
+
+  if (to.meta.requiresAuth && (!userStore.isAuthenticated || userStore.isGuest)) {
+    next("/")
+    return
+  }
 
   if (to.meta.requiresAdminPanel) {
     if (!userStore.isAuthenticated) {

@@ -88,9 +88,14 @@ Do not try to explore source code or write scripts to test them. Documentation f
 - Use gorilla/websocket for WebSocket connections
 - Implement proper error handling and logging
 
+### Shell commands
+
+The shell safety check rejects commands it cannot parse (long chains mixing heredocs, `$(...)` and pipes, e.g. a Python heredoc next to `$(grep ...)`). Make file edits with the Edit tool, and keep Bash calls to one simple command or pipeline.
+
 ### Code Quality
 - Run `make lint` before committing
 - `make lint` covers changed and untracked files; use `make lint-full` to lint all frontend sources
+- `make lint` runs ESLint with `--fix`, so it can rewrite (reformat) the files it checks. Re-read a file after linting before editing it again, or the next edit may not match.
 - Use meaningful variable and function names
 - Add comments for complex logic
 - Follow language-specific conventions
@@ -132,6 +137,7 @@ Types coming FROM backend to frontend should have **snake_case**. Do not follow 
 
 ### Testing
 - Write unit tests for business logic
+- **Use realistic IDs in tests.** User IDs are padded URL-safe base64 (`qkUrdzLDoqslx8EEy2cM7Q==`, from `generateUserID` in `backend/internal/service/authservice.go`); room IDs look like `20261110145113MiTbtB`. Fixtures such as `"alice"` hide parsing bugs: a mention token pattern of `[A-Za-z0-9_-]` passed every unit test and dropped every real mention. Any pattern or validator that accepts IDs must allow `=` (and `+`/`/` for standard base64).
 - Test LiveKit functionality in browsers
 - Test WebSocket connections
 - Use integration tests for API endpoints
@@ -148,6 +154,18 @@ Popovers such as `UserProfilePopover` close on any `pointerdown` outside themsel
 - Edit with `components/common/EmojiTextInput.vue` (`allow-custom`): the input shows `:shortcode:` and the model holds tokens. Without `allow-custom` the picker is unicode-only.
 - Render with `components/common/EmojiText.vue` — never `{{ room.name }}` — or the raw token shows. Use `emojiTextToPlain` for non-HTML sinks (titles, logs).
 - Length: a token counts as one character. Frontend `emojiTextLength`; backend `validRoomNameLength` (`backend/internal/handlers/roomhandler.go`). Otherwise count characters (`Array.from(s).length` / `utf8.RuneCountInString`), never bytes or UTF-16 units.
+
+### Text channels (persistent chat)
+
+Spec and decisions: [`docs/specs/CHAT_SYSTEM.md`](./docs/specs/CHAT_SYSTEM.md). Text channels are rooms with `type: "text"`; their messages live **only in Meilisearch** (`backend/internal/service/chatstore/`), never in SQLite. The in-call chat (`ChatService`, `send_message`) is a separate, ephemeral feature.
+
+- Local Meilisearch: `make meili-up` (the backend's development defaults point at it).
+- Attachments (phase 3, spec §7.12): files live in S3 (dev Garage: `make garage-up`, single-node mode creates the dev key and bucket; production uses an external Garage). Ownership, sizes, protection and the per-user quota live in SQLite `chat_attachments`, not in the message document. Every removal (quota, owner, moderator, message/channel delete) goes through one removal path, and the S3 deletes happen in a background janitor. The API is Bearer-only, so `<img>`/`<video>`/`<audio>` get presigned URLs from `POST /api/attachments/urls` via `services/attachments/urls.ts` (`useAttachmentUrl`); never point an element at an `/api/...` URL.
+- Search by image contents (phase 4, spec §7.13) uses an existing **Immich ML** service (`backend/internal/service/immichml`, `CHAT_ML_URL`; dev: `make ml-up`), not our own ML code. Its `/predict` API is Immich-internal: keep the dev image tag in step with production and run `ML_TEST_URL=http://127.0.0.1:3003 go test -tags integration -run ImmichML ./internal/service/immichml/` before bumping it. Once the `image` embedder exists, Meilisearch rejects any document without `_vectors.image`, so whole-document writes must go through `Meili.Add` (which sets `null`).
+- Text channel WS events (`text_*`) go to the global socket only; listen with `wsService.onGlobal`.
+- **Never unmount the call view** (`VoiceCallView` / `SpatialWorldView`) to show something else: `useLiveKit` disconnects from LiveKit in `onUnmounted`. `MainContent.vue` keeps it mounted and hides it with `v-show` while a text channel is open.
+- Tests that need Meilisearch or Garage use the `integration` build tag and run with `make test-integration` (starts both; the S3 test reads `GARAGE_DEFAULT_*` from `.env` and skips without it); PR CI runs only `go test ./...` (unit tests).
+- `make e2e-textchat` runs a live REST/WebSocket check (`scripts/e2e-textchat.mjs`) against a throwaway backend with its own database and index, then cleans up. It includes an attachment pass against the dev Garage (skipped when `GARAGE_DEFAULT_*` is missing from `.env`). The browser side is covered by `frontend/tests/e2e/text-attachments.spec.ts` (Playwright; skips unless Meilisearch and Garage are up; its backend uses the `text_messages_playwright` index). `CHAT_ML_URL=http://127.0.0.1:3003 make e2e-textchat` (after `make ml-up`) adds the search-by-image-contents pass (Cyrillic OCR, image found by meaning). Run it after changes to `chatstore`, `websocket/textchat.go` or the text chat handlers.
 
 ### Electron Development
 - Electron desktop app is in the `electron/` directory
@@ -174,7 +192,9 @@ The project uses a Makefile for common operations:
 - `make dev-electron` - Run Electron in development mode
 - `make lint` - Run code quality checks
 - `make test` - Run full test suite (Playwright e2e in Docker)
-- `make test-backend` - Run backend Go tests
+- `make test-backend` - Run backend Go unit tests (what PR CI runs)
+- `make test-integration` - Run backend integration tests (starts Meilisearch via `make meili-up`)
+- `make e2e-textchat` - Live text channel check on a throwaway backend + Meilisearch index
 - `make test-headed` - Run tests in headed mode
 - `make docker-build` - Build Docker images
 - `make docker-up` - Run with Docker Compose
@@ -211,6 +231,7 @@ THIS PART IS VERY IMPORTANT! NEVER SKIP IT
 
 - Agents are not allowed to make git commits
 - Agents are not allowed to install npm/go packages
+  - When a task needs a new package, say so while planning (before implementation) and give the user the exact `go get` / `pnpm add` command, so it is installed before coding starts instead of worked around (build tags, stubs).
 
 ## Godot
 

@@ -109,6 +109,31 @@ export function createWindow() {
   setMainWindow(win)
 
   win.webContents.setWindowOpenHandler(({ url }) => {
+    // App pages opened in a new tab on the web (the /files storage page)
+    // become a child app window with the same preload and session.
+    const appBase = win.webContents.getURL().split("#")[0]
+    const isAppUrl =
+      (appBase !== "" && url.startsWith(appBase)) ||
+      (VITE_DEV_SERVER_URL !== undefined && url.startsWith(VITE_DEV_SERVER_URL))
+    if (isAppUrl) {
+      return {
+        action: "allow",
+        overrideBrowserWindowOptions: {
+          width: 1100,
+          height: 760,
+          title: "Orbital",
+          backgroundColor: "#1a1a1a",
+          icon: iconPath,
+          autoHideMenuBar: true,
+          webPreferences: {
+            preload: preloadPath,
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: false,
+          },
+        },
+      }
+    }
     if (url.startsWith("https:") || url.startsWith("http:")) {
       shell.openExternal(url)
     }

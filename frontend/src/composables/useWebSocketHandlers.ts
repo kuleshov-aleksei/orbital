@@ -11,6 +11,9 @@ import {
   usePermissionsStore,
   useSoundboardStore,
   useCustomEmojisStore,
+  useTextChatStore,
+  useTextNotifyStore,
+  useConfigStore,
 } from "@/stores"
 import { wsService } from "@/services/websocket"
 import type {
@@ -32,6 +35,17 @@ import type {
   SoundPlayedData,
 } from "@/types"
 
+import type {
+  TextErrorEvent,
+  TextMessageDeletedEvent,
+  TextMessageNewEvent,
+  TextMessageUpdatedEvent,
+  TextReadStateEvent,
+  TextMentionEvent,
+  TextNotifySettingsEvent,
+  TextTypingEvent,
+} from "@/types/textChat"
+
 declare const __APP_VERSION__: string
 
 const appVersion = __APP_VERSION__
@@ -48,6 +62,9 @@ export function useWebSocketHandlers() {
   const permissionsStore = usePermissionsStore()
   const soundboardStore = useSoundboardStore()
   const customEmojisStore = useCustomEmojisStore()
+  const textChatStore = useTextChatStore()
+  const textNotifyStore = useTextNotifyStore()
+  const configStore = useConfigStore()
   const hasConnected = ref(false)
 
   const cleanupFns: Array<() => void> = []
@@ -183,6 +200,14 @@ export function useWebSocketHandlers() {
     }
     wsService.onGlobal("permissions_updated", onPermissionsUpdated)
     onCleanup(() => wsService.offGlobal("permissions_updated", onPermissionsUpdated))
+
+    // Someone picked which of their roles colors their name (cosmetic only).
+    const onColorRoleUpdated: MessageCallback = (message) => {
+      const data = message.data as { user_id?: string; role_id?: string } | undefined
+      if (data?.user_id) permissionsStore.applyColorRole(data.user_id, data.role_id || null)
+    }
+    wsService.onGlobal("color_role_updated", onColorRoleUpdated)
+    onCleanup(() => wsService.offGlobal("color_role_updated", onColorRoleUpdated))
 
     const onPermissionDenied: MessageCallback = (message) => {
       const data = message.data as { action?: string } | undefined
@@ -332,11 +357,37 @@ export function useWebSocketHandlers() {
     wsService.onGlobal("room_deleted", onRoomDeleted)
     onCleanup(() => wsService.offGlobal("room_deleted", onRoomDeleted))
 
+    // Text channels: events arrive on the global socket only.
+    const textHandlers: Array<[string, MessageCallback]> = [
+      ["text_message_new", (m) => textChatStore.onMessageNew(m.data as TextMessageNewEvent)],
+      [
+        "text_message_updated",
+        (m) => textChatStore.onMessageUpdated(m.data as TextMessageUpdatedEvent),
+      ],
+      [
+        "text_message_deleted",
+        (m) => textChatStore.onMessageDeleted(m.data as TextMessageDeletedEvent),
+      ],
+      ["text_read_state", (m) => textChatStore.onReadState(m.data as TextReadStateEvent)],
+      ["text_error", (m) => textChatStore.onError(m.data as TextErrorEvent)],
+      ["text_typing", (m) => textChatStore.onTyping(m.data as TextTypingEvent)],
+      ["text_mention", (m) => textNotifyStore.onMention(m.data as TextMentionEvent)],
+      [
+        "text_notify_settings",
+        (m) => textNotifyStore.onSettings(m.data as TextNotifySettingsEvent),
+      ],
+    ]
+    for (const [type, handler] of textHandlers) {
+      wsService.onGlobal(type, handler)
+      onCleanup(() => wsService.offGlobal(type, handler))
+    }
+
     const onGlobalConnected: ConnectionCallback = () => {
       debugLog("Global WebSocket connected")
       startGlobalPing()
       void usersStore.fetchAllUsers()
       void syncRoomsData()
+      if (configStore.textChannelsEnabled) void textChatStore.resync()
     }
     wsService.onGlobalConnection(onGlobalConnected)
     onCleanup(() => wsService.removeGlobalConnectionCallback(onGlobalConnected))

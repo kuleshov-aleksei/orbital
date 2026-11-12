@@ -66,6 +66,9 @@ type MyPermissions struct {
 	Categories map[string]uint64 `json:"categories"`
 	RoleIDs    []string          `json:"role_ids"`
 	TopPos     int               `json:"top_position"`
+	// PrivateRooms lists the visible rooms whose permissions are customized
+	// (room overwrites, or the category's when synced); the UI marks them.
+	PrivateRooms []string `json:"private_rooms"`
 }
 
 // PermissionService caches roles, assignments and overwrites in memory and
@@ -80,6 +83,7 @@ type PermissionService struct {
 	roles      map[string]*models.Role
 	userRoles  map[string][]string                               // user_id -> role IDs (no system roles)
 	overwrites map[string]map[string]*models.PermissionOverwrite // "type:id" -> "subjectType:subjectID" -> overwrite
+	colorRoles map[string]string                                 // user_id -> role picked to color their nickname
 
 	listenersMu sync.RWMutex
 	listeners   []func(PermissionChange)
@@ -95,6 +99,7 @@ func NewPermissionService(repo *repository.RBACRepository, roomService *RoomServ
 		roles:           make(map[string]*models.Role),
 		userRoles:       make(map[string][]string),
 		overwrites:      make(map[string]map[string]*models.PermissionOverwrite),
+		colorRoles:      make(map[string]string),
 	}
 }
 
@@ -106,6 +111,7 @@ func (ps *PermissionService) LoadFromDB() error {
 	ps.roles = make(map[string]*models.Role)
 	ps.userRoles = make(map[string][]string)
 	ps.overwrites = make(map[string]map[string]*models.PermissionOverwrite)
+	ps.colorRoles = make(map[string]string)
 
 	if ps.repo == nil {
 		now := time.Now()
@@ -130,6 +136,11 @@ func (ps *PermissionService) LoadFromDB() error {
 		return err
 	}
 	ps.userRoles = userRoles
+	colorRoles, err := ps.repo.GetColorRoles()
+	if err != nil {
+		return err
+	}
+	ps.colorRoles = colorRoles
 	overwrites, err := ps.repo.GetOverwrites()
 	if err != nil {
 		return err
@@ -260,6 +271,20 @@ func roomOverwriteTarget(room *models.Room) (string, string) {
 	return models.OverwriteTargetRoom, room.ID
 }
 
+// hasCustomPermissions reports whether any overwrite governing the room
+// changes something (an overwrite with no allow and no deny bits does not).
+func (ps *PermissionService) hasCustomPermissions(room *models.Room) bool {
+	tt, tid := roomOverwriteTarget(room)
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+	for _, o := range ps.overwrites[targetKey(tt, tid)] {
+		if o.Allow|o.Deny != 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // RoomPerms returns effective permissions in a room (0 if the room is unknown).
 func (ps *PermissionService) RoomPerms(sub Subject, roomID string) permissions.Permission {
 	room, ok := ps.roomService.GetRoom(roomID)
@@ -277,6 +302,25 @@ func (ps *PermissionService) CategoryPerms(sub Subject, categoryID string) permi
 	ps.mu.RLock()
 	defer ps.mu.RUnlock()
 	return ps.computeWithTargetLocked(sub, models.OverwriteTargetCategory, categoryID)
+}
+
+// RoomViewers returns the IDs of the users who can see a room (ViewRoom),
+// in input order. Unknown rooms have no viewers.
+func (ps *PermissionService) RoomViewers(roomID string, users []*models.User) []string {
+	out := []string{}
+	room, ok := ps.roomService.GetRoom(roomID)
+	if !ok {
+		return out
+	}
+	tt, tid := roomOverwriteTarget(room)
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+	for _, u := range users {
+		if ps.computeWithTargetLocked(SubjectFromUser(u), tt, tid).Has(permissions.ViewRoom) {
+			out = append(out, u.ID)
+		}
+	}
+	return out
 }
 
 // CanInRoom reports whether the subject holds every bit of want in a room.
@@ -346,13 +390,21 @@ func (ps *PermissionService) Me(sub Subject) MyPermissions {
 		Categories: make(map[string]uint64),
 		RoleIDs:    ps.UserRoleIDs(sub.UserID),
 		TopPos:     ps.TopPosition(sub),
+
+		PrivateRooms: []string{},
 	}
 	if out.TopPos == math.MaxInt {
 		out.TopPos = math.MaxInt32
 	}
 	for _, room := range ps.roomService.GetRooms() {
-		out.Rooms[room.ID] = uint64(ps.RoomPerms(sub, room.ID))
+		perms := ps.RoomPerms(sub, room.ID)
+		out.Rooms[room.ID] = uint64(perms)
+		// Only rooms the subject can see: hidden rooms stay unlisted.
+		if perms.Has(permissions.ViewRoom) && ps.hasCustomPermissions(&room) {
+			out.PrivateRooms = append(out.PrivateRooms, room.ID)
+		}
 	}
+	sort.Strings(out.PrivateRooms)
 	if ps.categoryService != nil {
 		for _, c := range ps.categoryService.GetCategories() {
 			out.Categories[c.ID] = uint64(ps.CategoryPerms(sub, c.ID))
@@ -398,6 +450,88 @@ func (ps *PermissionService) AllUserRoleIDs() map[string][]string {
 		out[k] = append([]string{}, v...)
 	}
 	return out
+}
+
+// ColorRoles returns a snapshot of user_id -> role picked to color their nickname.
+func (ps *PermissionService) ColorRoles() map[string]string {
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+	out := make(map[string]string, len(ps.colorRoles))
+	for k, v := range ps.colorRoles {
+		out[k] = v
+	}
+	return out
+}
+
+// SetColorRole picks which of the user's own roles colors their nickname.
+// An empty roleID means automatic (the highest colored role). The role must
+// be colored and held by the user: assigned to them, or the implicit Owner
+// role for the super admin.
+func (ps *PermissionService) SetColorRole(sub Subject, roleID string) error {
+	if sub.IsGuest {
+		return rbacForbidden("guests cannot pick a name color")
+	}
+	ps.mu.Lock()
+	if roleID != "" {
+		role, ok := ps.roles[roleID]
+		if !ok {
+			ps.mu.Unlock()
+			return ErrRBACNotFound
+		}
+		if role.Color == "" {
+			ps.mu.Unlock()
+			return rbacInvalid("role has no color")
+		}
+		held := role.SystemKey == models.SystemRoleOwner && sub.IsOwner
+		if role.SystemKey == "" {
+			for _, id := range ps.userRoles[sub.UserID] {
+				if id == roleID {
+					held = true
+					break
+				}
+			}
+		}
+		if !held {
+			ps.mu.Unlock()
+			return rbacForbidden("you do not have this role")
+		}
+	}
+	if ps.repo != nil {
+		if err := ps.repo.SetColorRole(sub.UserID, roleID); err != nil {
+			ps.mu.Unlock()
+			return err
+		}
+	}
+	if roleID == "" {
+		delete(ps.colorRoles, sub.UserID)
+	} else {
+		ps.colorRoles[sub.UserID] = roleID
+	}
+	ps.mu.Unlock()
+	return nil
+}
+
+// dropColorRoleLocked clears a user's color pick if it is no longer held.
+func (ps *PermissionService) dropColorRoleLocked(userID string, held []string) {
+	picked, ok := ps.colorRoles[userID]
+	if !ok {
+		return
+	}
+	if r, exists := ps.roles[picked]; exists && r.SystemKey == models.SystemRoleOwner {
+		return // the Owner role is implicit, never assigned
+	}
+	for _, id := range held {
+		if id == picked {
+			return
+		}
+	}
+	if ps.repo != nil {
+		if err := ps.repo.SetColorRole(userID, ""); err != nil {
+			log.Printf("Failed to clear color role of %s: %v", userID, err)
+			return
+		}
+	}
+	delete(ps.colorRoles, userID)
 }
 
 // Overwrites returns the overwrites stored directly on a room or category.
@@ -658,6 +792,11 @@ func (ps *PermissionService) DeleteRole(actor Subject, roleID string) error {
 	for uid, ids := range ps.userRoles {
 		ps.userRoles[uid] = removeString(ids, roleID)
 	}
+	for uid, picked := range ps.colorRoles {
+		if picked == roleID {
+			delete(ps.colorRoles, uid) // the DB row went with the role
+		}
+	}
 	for _, set := range ps.overwrites {
 		delete(set, subjectKey(models.OverwriteSubjectRole, roleID))
 	}
@@ -711,8 +850,15 @@ func (ps *PermissionService) ReorderRoles(actor Subject, positions map[string]in
 // SetUserRoles replaces a user's custom roles. Every role added or removed
 // must be below the actor's highest role.
 func (ps *PermissionService) SetUserRoles(actor Subject, targetUserID string, roleIDs []string) ([]string, error) {
-	if ps.userLookup != nil && ps.userLookup(targetUserID) == nil {
-		return nil, ErrRBACNotFound
+	if ps.userLookup != nil {
+		target := ps.userLookup(targetUserID)
+		if target == nil {
+			return nil, ErrRBACNotFound
+		}
+		// Only the owner may change the owner's roles (e.g. for a name colour).
+		if target.Role == models.RoleSuperAdmin && !actor.IsOwner {
+			return nil, rbacForbidden("only the owner can change the owner's roles")
+		}
 	}
 	ps.mu.Lock()
 	_, top, err := ps.requireManageRolesLocked(actor)
@@ -767,6 +913,7 @@ func (ps *PermissionService) SetUserRoles(actor Subject, targetUserID string, ro
 	} else {
 		ps.userRoles[targetUserID] = final
 	}
+	ps.dropColorRoleLocked(targetUserID, final)
 	ps.mu.Unlock()
 	ps.Notify("user_roles_updated")
 	return final, nil
@@ -1001,6 +1148,7 @@ func (ps *PermissionService) ForgetTarget(targetType, targetID string) {
 func (ps *PermissionService) ForgetUser(userID string) {
 	ps.mu.Lock()
 	delete(ps.userRoles, userID)
+	delete(ps.colorRoles, userID)
 	for _, set := range ps.overwrites {
 		delete(set, subjectKey(models.OverwriteSubjectUser, userID))
 	}

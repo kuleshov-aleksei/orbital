@@ -45,8 +45,8 @@
           </div>
         </div>
 
-        <!-- Max Users -->
-        <div class="mb-6">
+        <!-- Max Users (not for text channels) -->
+        <div v-if="initialType !== 'text'" class="mb-6">
           <label for="maxUsers" class="block text-sm font-medium text-gray-300 mb-2">
             Maximum Users ({{ configStore.minUsers }} - {{ configStore.maxUsers }})
           </label>

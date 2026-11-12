@@ -1,6 +1,6 @@
 # The Orbital
 
-A simple yet powerful voice communication platform for small amount of people. Similar to Discord but built for simplicity.
+A simple yet powerful voice chat for small groups of friends. Similar to Discord, but built for simplicity: voice rooms, screen sharing and persistent text channels, all self-hosted.
 
 ## AI Disclaimer
 
@@ -16,398 +16,91 @@ This project is built by AI (like 90%). AI is not perfect, but MVP was built in 
 
 ## Features
 
-- **Voice Rooms** - Create and join voice rooms with up to 10 participants (in theory it is limited only by your network, cause livekit is able to handle about 3k users per room)
-- **LiveKit SFU** - Scalable Selective Forwarding Unit for reliable voice communication
-- **Text Chat** - Real-time text messaging within voice rooms
-- **Desktop App** - Standalone Electron application for Linux and Windows with auto-update system
-- **Screen Sharing** - Share your screen with quality options (720p, 1080p 60fps, text-optimized)
-- **Process audio sharing** - Share audio of the specific application. Currently works only on linux with pipewire
-- **Advanced Audio Processing**
-  - Multiple noise suppression algorithms (LiveKit Native, Browser Native, Speex, RNNoise)
-  - Echo cancellation
-  - Automatic gain control
-- **OAuth authentication** - Supports OAuth2 providers Google and Discord.
-- **Password authentication** - Basic email + nickname + password schema. WITHOUT sending emails, password recovery, etc. Just a simple storage
-- **Simple Deployment** - Frontent + Backend + LiveKit is all what you need. No complex modules like MAS, no custom path rewriting
-- **Persistence** - Backend stores data in sqlite database. Easy management, easy deployment, easy life
-- **Role-Based Access Control** - Granular permissions for different user types
-- **Per-user custom soundpacks** - Every user can select one of the provided soundpacks for media presence events. Other users will hear this customization, with the ability to override the preference to avoid suffering from misuse
-- **Spatial Audio** - 2D world map with character sprites and proximity-based voice attenuation
-- **Boombox Music System** - In-world DJ with spatialized music playback, track upload, and admin management
-- **Custom themes** - Features a selection of classic UI themes like Catppuccin, True Black, Solarized, etc
+### Voice, video and screen sharing
 
-## Roles & Permissions
+- **Voice rooms** for small groups. The room size limit is configurable; LiveKit itself handles far more people per room.
+- **Camera and screen sharing** with presets: Adaptive, Full HD 60 fps, Text Optimized (5 fps, sharp text for code and documents).
+- **App audio sharing**: share the sound of one application (Linux + PipeWire, desktop app).
+- **Noise suppression** of your choice: LiveKit, browser built-in, RNNoise (ML-based) or Speex, plus echo cancellation and automatic gain control.
+- **Soundboard**: upload short clips and play them to the room.
+- **Sound packs** for join/leave/mute/screen share events. Everyone hears the pack you picked, and you can override it for others ([make your own](docs/SOUND_PACKS.md)).
 
-Orbital uses a Discord-style permission system. It is enforced on the backend
-(REST, WebSocket and LiveKit publish grants); the UI only hides what you can't do.
+### Text channels
 
-- **Owner**: the first non-guest account. Has every permission and can't be kicked or restricted.
-- **@everyone**: the base layer for every signed-in user, guests included.
-- **Guest**: a system role applied automatically to guest accounts, right above @everyone.
-  By default it denies camera and screen share.
-- **Custom roles**: ordered by position, above Guest. Every role sets each permission to
-  allow / inherit / deny. Roles apply from lowest to highest, so a higher role's allow or deny wins.
-  You can only manage, assign or kick below your highest role, and you can't change permissions you
-  don't have. The migration converts legacy admins to an **Admin** role with their old rights.
+Persistent, searchable chat channels next to the voice rooms ([user guide](docs/TEXT_CHANNELS.md)):
 
-### Permissions
+- **Messages**: replies, `@user` and `@role` mentions with pings, reactions, pins, unicode and custom emoji, **bold** / *italic* / ~~strike~~ / spoiler formatting, edit and delete.
+- **Unread state**: channels open at your last read message; unread dots and mention badges stay in sync across devices.
+- **Per-channel notifications**: everything, mentions off, or muted for 1 hour to forever.
+- **Attachments**: images, audio (with waveforms) and video. Each user has a storage quota (5 GB by default); when it fills up, your oldest files are removed first unless you protect them. The **My files** page shows and manages everything you have uploaded.
+- **Fast search** as you type, typo-tolerant, with Discord-style filters: `from:`, `in:`, `has:image`, `during:`, `before:`, `after:`, `mentions:`, `pinned:`.
+- **Search inside images**:
+  - **OCR**: finds the text written in a screenshot or photo (Russian, Ukrainian, Belarusian and English).
+  - **CLIP**: finds images by what they show. Search "cat on a keyboard" and get the photo, even if nobody wrote those words. Multiligual: English, Russian, Ukrainian, Belarusian (by default)
 
-| Permission | Scope | Allows |
-|---|---|---|
-| Administrator | role | Everything; ignores room overrides (owner-only areas like logs excluded) |
-| Manage Roles | role | Create, edit and assign roles below your own; edit room/category permissions |
-| Manage Audio | role | Rename and delete shared audio |
-| Manage Rooms | role + override | Create, edit, delete and reorder rooms and categories |
-| View Room | role + override | See the room, its members and their media state |
-| Connect | role + override | Join the room |
-| Speak / Video / Screen Share | role + override | Publish microphone, camera or screen (enforced by the LiveKit token) |
-| Send Messages | role + override | Room chat |
-| Use Boombox | role + override | Boombox controls (UI-level: playback rides the LiveKit data channel) |
-| Kick Members | role + override | Disconnect lower-ranked members |
+The voice room also has its own quick, temporary chat that is not saved.
 
-### Room and category overrides
-
-Each category and room can override permissions for a role or a single member: deny / inherit / allow.
-They are evaluated like Discord: role permissions → `@everyone` override → combined role overrides →
-member override, with deny applied before allow at each step. A room is **synced** with its category
-until you edit its permissions, which copies the category's overrides into the room. Changes apply
-live: members who lose *View Room*/*Connect* are disconnected, and revoked media is stopped.
-
-## Tech Stack
-
-### Frontend
-- Vue 3 + TypeScript + Tailwind CSS
-- LiveKit Client SDK for real-time communication
-
-### Backend
-- Go 1.25+
-- LiveKit Server SDK for room management
-- WebSockets for signaling
-- REST API for room and user management
-
-## Development
-
-### Prerequisites
-- Node.js 18+
-- Go 1.21+
-- Docker & Docker Compose
-
-### Available Commands
-- `make install` - Install all dependencies
-- `make build` - Build frontend and backend
-- `make dev` - Run development servers
-- `make run-build` - Run build artifacts
-- `make dev-public` - Run development servers on 0.0.0.0 address
-- `make lint` - Run linters for both frontend and backend
-- `make test` - Run full test suite (Playwright e2e in Docker)
-- `make test-backend` - Run backend Go tests
-- `make docker-build` - Build Docker images
-- `make docker-up` - Run with Docker Compose
-- `make clean` - Clean build artifacts
-- `make licenses` - Generates license information for deps
-- `make dev-electron` - Run electron in dev mode
-- `make build-electron` - Build electron app
-- `make build-electron-win` - Build windows electron app
-- `make build-electron-linux` - Build linux electron app (.AppImage, .deb, .tar.gz)
-
-## Live Stats Dashboard
-
-![Stats dashboard](docs/images/Screenshot_20260618_221317.png)
-
-The admin panel includes a real-time network stats dashboard:
-- jitter
-- packet loss
-- bitrate
-- codec
-- resolution and FPS
-
-for each media track
-
-## Spatial Audio System
+### Spatial world
 
 ![Spatial audio system](docs/images/Screenshot_20260530_185125.png)
 
-The Orbital features a spatial audio experience with a real-time 2D world where participants are represented as animated character sprites:
+- A 2D map where everyone walks around as an animated character, and voices get quieter with distance.
+- **Boombox**: an in-world music player that nearby people hear. Upload `.mp3` / `.opus` tracks or pick from curated ones.
+- Each room can have its own world, built in Godot 4 ([how to make one](docs/SPATIAL_WORLDS.md)).
 
-- **2D world map** — shared visual space rendered with PixiJS for smooth hardware-accelerated graphics
-- **Multiple rendering layers** — background, background-decorations, ground, ground-decorations, decoration, and sky layers with distinct z-index values
-- **Animated character sprites** — 9 unique characters with directional walk animations (up/down/left/right) and idle states
-- **Animated tile sprites** — make the world alive
-- **Proximity-based voice** — audio volume attenuates based on distance between characters; users outside the earshot radius are muted
-- **Precise tile collision** — SAT-based polygon collision system with axis-separated resolution (wall sliding) and debug overlay (press `C` to toggle)
+### Accounts and access
 
-### Boombox Music System
+- **Sign in** with Google, Discord, email + password, or as a guest. Passwords are stored only; there are no emails and no password recovery.
+- **Sign in with a QR code**: scan it from a device where you are already signed in ([how it works](docs/qr-auth-flow.md)).
+- **Discord-style roles and permissions**, enforced on the server, with per-room and per-category overrides ([details](docs/PERMISSIONS.md)).
+- **Custom emoji**, role colors for nicknames, avatars.
 
-A spatial music playback system that plays audio from a fixed world position:
+### Personalization
 
-- **In-world boombox** — a boombox sprite placed on the map plays audio to nearby users with spatialized audio
-- **Upload or pick** — users can upload `.mp3` / `.opus` files (max 50MB) or select from system-curated tracks
-- **Admin management** — admins can rename and delete audio files via the admin panel
+- **Themes**: Default, True Black, Retrowave, Catppuccin, Solarized.
+- **Desktop app** for Linux and Windows with auto-updates, tray icon, global hotkeys and `orbital://` links. Download it from the [/download](https://orb.encamy.com/download) page of your server:.
 
-### Custom Worlds
+### For admins
 
-The spatial world uses a tile-based system with data exported from **Godot 4**. Each room can have its own world.
+The admin panel has:
+- user and role management;
+- soundboard, shared audio and custom emoji management;
+- a live network stats dashboard (jitter, packet loss, bitrate, codec, resolution and FPS per track);
+- usage analytics;
+- a security self-check;
+- the image search indexing status.
 
-The rendering pipeline uses 6 z-ordered layers: background → background-decorations → ground (where characters walk) → ground-decorations → decoration → sky.
+![Stats dashboard](docs/images/Screenshot_20260618_221317.png)
 
-#### Multi-Tileset Support
+## Self-hosting
 
-Each **TileMapLayer** can use its own independent **TileSet** resource, and a single layer can mix tiles from multiple tilesets. The export script assigns each unique `(TileSet, source_id)` pair a sequential global source ID and exports its texture separately. Each tile in the `world.json` carries its own `sourceId`, allowing tiles from different tilesets to coexist in the same layer.
+The minimum is the backend, the frontend and LiveKit. Text channels also need Meilisearch. Attachments and image search are optional and need S3 storage (Garage) and an Immich machine-learning service. Each optional part turns itself off when it is not configured.
 
-#### Collision System
+- [Deployment](docs/DEPLOYMENT.md): production setup, ports, reverse proxy, optional services.
+- [Configuration](docs/CONFIGURATION.md): every setting and environment variable.
+- [Backups and restore](docs/notes/BACKUP_RESTORE.md).
 
-The world uses a SAT (Separating Axis Theorem) collision system with convex polygon decomposition:
+## Development
 
-- **Per-tile collision** — every tile carries a per-tile `collidable` flag and optional `collisionPolygons` (array of convex polygons). Tiles on any layer can participate in collision — the system scans all layers for tiles with collision data.
-- **Physics layer polygons** — collision polygons drawn in Godot's physics layer are exported as top-left-relative points. Non-rectilinear polygons (e.g., L-shaped tiles with diagonal inner corners) are decomposed via scanline Y-slice into axis-aligned rectangles before SAT resolution.
-- **SAT resolution** — axis-separated X/Y resolution (wall sliding feel) with a final full-MTV correction pass (up to 2 iterations, minimum-penetration push).
-- **Debug overlay** — press `C` in a spatial world room to toggle a red overlay showing actual collision polygons and a green hitbox outline.
+See [Development](docs/DEVELOPMENT.md) for prerequisites, `make` commands and tests.
 
-#### Collision Polygon Export
+## Known issues
 
-When a tile has collision polygons defined in Godot's physics layer, the export captures them as center-relative points and offsets them by `tile_half_px` to convert to top-left-relative. The frontend receives them as `collisionPolygons: [number, number][][]` per tile and uses them directly in SAT collision tests.
+### Screen share audio with some wireless headsets (Windows)
 
-Without physics layer polygons, tiles fall back to a legacy `collidable` boolean flag that generates a full-tile rectangle.
+On Windows, screen share audio can only be captured from the **default playback device**, and some drivers (**Logitech** wireless headsets in particular) don't support capturing it at all. Orbital then shares video only. There's no workaround: capturing a single app's audio the way Discord does would need DLL injection, which is out of reach for this project (and antivirus/anticheat software doesn't like it).
 
-#### Tile Animation
+## Documentation
 
-Tiles can be animated using horizontal strip frames in the atlas. The export reads frame count via `get_tile_animation_frames_count()` and frame duration via `get_tile_animation_frame_duration()`. Tiles with `animation_mode = ANIMATION_MODE_RANDOM_START_TIMES` (set in Godot's `TileSetAtlasSource`) get a `randomOffset: true` flag — the frontend picks a random starting frame so adjacent tiles don't animate in sync.
-
-#### 1. Set up your Godot scene
-
-Create a `TileMapLayer` node for each layer. Naming determines how the layer is handled:
-
-| Layer name | Render pass | Description |
-|------------|-------------|-------------|
-| `background` | Below characters (ground) | Water, space tiles, sky — rendered first |
-| `background-decorations` | Below characters (ground) | Animated foam, water edge details — on top of background, below ground |
-| `ground` | Below characters (ground) | Floor tiles, paths — rendered on top of background-decorations |
-| `ground-decorations` | Below characters (ground) | Flowers, rocks, puddles — rendered above ground, below elevation |
-| `collision` | (invisible) | Tiles that block player movement |
-| `decorations` | Above characters (decoration) | Treetops, signs, lamps |
-| `elevation` | Above characters | elevation cliffs |
-| `sky` | Above characters (foreground) | Cloud layers, sky elements — rendered above everything else |
-| `objects` | — | Contains Marker2D children for placed props |
-
-Layers render in order: `background` → `background-decorations` → `ground` → `ground-decorations` → `decoration`/`elevation` → `sky`.
-
-**TileSet custom data layers** (define on tiles in your TileSet):
-- `collidable` (bool) — whether the tile blocks movement (used when no physics collision polygons are drawn)
-- `animated` (bool) — whether the tile cycles through animation frames
-
-**To define collision polygons**: draw collision shapes on tiles in Godot's **Physics Layer 0** of the TileSet. The export automatically detects polygons and sets `collidable = true` on the tile.
-
-**To enable random animation starts**: set the TileSetAtlasSource's tile animation mode to `ANIMATION_MODE_RANDOM_START_TIMES` (value `1`) in Godot's TileSet editor.
-
-**Spawn point**: Place a `Marker2D` named `SpawnPoint` anywhere in the scene. Falls back to the center of the world if missing.
-
-**Boombox position**: Place a `Marker2D` named `Boombox` where the boombox should appear. Falls back to `(0, -200)` if missing.
-
-**Object metadata** (on Marker2D children inside the `objects` layer):
-- `tile_id` (int) — which tileset tile ID this object uses
-- `animated` (bool) — enable frame animation
-- `collision_w` / `collision_h` (int) — collision hitbox dimensions
-
-#### 2. Run the export script
-
-```bash
-# Open your Godot 4 project, then:
-# Project > Tools > Export Orbital World
-```
-
-This produces:
-- `world.json` — tile grid, per-tile source IDs, collision polygons, animation data, object placements, spawn point, boombox position
-- `tileset_0.png`, `tileset_1.png`, … — one texture per unique TileSet source in the scene
-
-#### 3. Provide assets
-
-Place the exported files inside `frontend/public/assets/worlds/<world_id>/`:
-
-```
-frontend/public/assets/worlds/
-├── my_world/
-│   ├── world.json
-│   ├── tileset_0.png
-│   ├── tileset_1.png
-│   └── tileset_2.png
-└── default/
-    ├── world.json       # (empty fallback, ships with the app)
-```
-
-#### 4. Assign the world to a room
-
-When creating or editing a spatial audio room, set the `world` field to your world ID (the directory name). The frontend loads `assets/worlds/<world_id>/world.json` automatically.
-
-If no `world` is specified, rooms default to `"default"`, which is an open space with a boombox and no tiles.
-
-## Audio Processing
-
-The Orbital supports multiple noise suppression algorithms:
-
-- **LiveKit Native** - Built-in LiveKit noise suppression (SFU-optimized, low latency)
-- **Browser Native** - Uses built-in browser audio processing
-- **RNNoise** - High-quality ML-based noise suppression (requires 48kHz microphone)
-- **Speex** - Fast CPU-efficient noise suppression
-
-## Deployment
-
-Note that this section describes my personal setup and it can and it WILL be different for your usecase
-
-### Production Architecture
-
-My setup of the Orbital uses a split-traffic architecture for optimal performance:
-
-- **Traefik (Load Balancer)**: Handles SSL termination for API/WebSocket traffic via path-based routing (`/livekit`)
-- **LiveKit (Host Network)**: Media traffic goes directly to LiveKit using host networking for zero-overhead performance
-
-#### Traefik Configuration
-
-Use path-based routing to proxy LiveKit WebSocket connections through your main entrypoint:
-
-```yaml
-# Traefik routers configuration
-routers:
-  livekit:
-    entryPoints:
-      - "https"
-    rule: "Host(`your-domain.com`) && PathPrefix(`/livekit`)"
-    middlewares:
-      - strip-livekit-prefix
-      - default-headers
-    tls: {}
-    service: livekit
-
-middlewares:
-  strip-livekit-prefix:
-    stripPrefix:
-      prefixes:
-        - "/livekit"
-
-services:
-  livekit:
-    loadBalancer:
-      servers:
-        - url: "http://your-livekit-host:7880"
-      passHostHeader: true
-```
-
-Then set your `LIVEKIT_URL` in `.env`:
-```bash
-LIVEKIT_URL=wss://your-domain.com/livekit
-```
-
-### .env configuration for production
-
-It is CORS should allow both electron application and web frontend to fetch API, so 2 CORS origins are required, e.g.
-```
-SERVER_CORS_ORIGINS=https://orb.encamy.com,orbital://app
-```
-
-#### Required Ports
-
-| Port | Protocol | Purpose | Route |
-|------|----------|---------|-------|
-| 7880 | TCP | API/WebSocket | Via Traefik (SSL, path `/livekit`) |
-| 7881 | TCP | ICE/TCP fallback | Direct to LiveKit |
-| 3478 | UDP | TURN/UDP relay | Direct to LiveKit |
-| 62000-65535 | UDP | WebRTC media | Direct to LiveKit |
-| 5349 | TCP | TURN/TLS | Direct to LiveKit (or 443 if no LB) |
-
-### Docker Compose Deployment
-
-The production deployment uses host networking for LiveKit:
-
-```bash
-# Copy the deployment compose file
-cp docker/docker-compose.deploy.yml /opt/orbital/docker-compose.yml
-
-# Start services
-cd /opt/orbital && docker compose up -d
-```
-
-LiveKit will bind directly to host network interfaces. Ensure the required ports are open on your firewall.
-
-Checkout [deploy.yml](.github/workflows/deploy.yml) to see how it is deployed in the real world
-
-## Audio sprites
-
-UI SFX supports custom audio sprites.
-
-There are 2 options: special tool: [audiospriter.encamy.com/](https://audiospriter.encamy.com/)
-
-![editor.png](docs/images/editor.png)
-
-Or create audio pack manually:
-
-### 1. Gather audio samples
-
-Name your audio files according to the supported events:
-
-| Event | Description |
-|-------|-------------|
-| `join_room` | Played when user joins a voice room |
-| `leave_room` | Played when user leaves a voice room |
-| `mute` | Played when user mutes themselves |
-| `unmute` | Played when user unmutes themselves |
-| `deafen` | Played when user deafens themselves |
-| `undeafen` | Played when user undeafens themselves |
-| `camera_start` | Played when user starts their camera |
-| `camera_stop` | Played when user stops their camera |
-| `screenshare_start` | Played when user starts screen sharing |
-| `screenshare_stop` | Played when user stops screen sharing |
-| `message` | Played when a text message notification appears |
-| `viewer_joined` | Played for the sharer when someone subscribes to their screen share |
-| `viewer_left` | Played for the sharer when someone unsubscribes from their screen share |
-
-### 2. Generate sprite with audiosprite
-
-```bash
-# Install audiosprite globally if needed
-pnpm install -g audiosprite
-
-# Generate sprite files
-audiosprite --output pack_name *.mp3
-```
-
-This produces multiple audio files and a sprite definition (`pack_name.json`).
-
-### 3. Provide assets
-
-Place audio files inside `public/assets/`
-
-### 3. Convert to TypeScript
-
-Place `pack_name.json` into the project root directory, then run:
-
-```bash
-pnpm run convert:soundsprite -- pack_name.json
-```
-
-This generates a TypeScript sprite definition in `services/sprites/packName.ts`.
-
-### 4. Register the sound pack
-
-Include the generated sprites in `sounds.ts` to make the pack available in the app.
-
-# Known issues:
-
-## Screen share audio capture fails with some wireless headsets (Windows 11)
-
-On Windows, screen share system-audio capture relies on WASAPI loopback of the **default playback device**. There is no supported API to pick a different device — Chromium/Electron loopback is always bound to the default render endpoint.
-
-On some devices, screen share audio capture fails entirely. Some audio drivers (**Logitech** wireless headsets in particular) simply do not have loopback capture capabilities, and there is no known way around this: The app falls back to video-only sharing.
-
-Unfortunately, I do not have a large team that can develop custom DLL injection for capturing the audio of a specific application (like Discord does), nor do I have the reputation with antivirus/anticheat clients to do so.
-
-## Global hotkeys (Linux + Wayland + KDE Plasma)
-
-Electron's global shortcuts are a joke on Wayland - change a hotkey and the old grab stays registered with the compositor forever. So on KDE/Plasma, Orbital doesn't trust them. It talks to kglobalacceld directly over D-Bus instead: the app registers its hotkeys with the global shortcuts daemon under the `com.orbital.app` component, the compositor does the actual grabbing, and the daemon notifies the app when a hotkey is pressed. The daemon persists the bindings, so they survive app relaunches and reboots. Edit them in System Settings > Keyboard > Shortcuts and Orbital syncs your changes back automatically. Non-KDE Wayland desktops fall back to the desktop portal; everywhere else, Electron's own shortcuts.
-
-# Building on Windows
-
-Don't... Simply don't. If you value your time, avoid building this project on Windows at any cost.
-
-Windows is not intended for good developer experience  
-- Make scripts won't work out of the box
-- You will get odd libvips problems (h2non\bimg@v1.1.9\image.go:93:49: undefined: Gravity) with backend (and you will have to use docker for the backend)
-
+| Document | Contents |
+|---|---|
+| [docs/TEXT_CHANNELS.md](docs/TEXT_CHANNELS.md) | Text channel guide: formatting, search syntax, attachments, image search |
+| [docs/PERMISSIONS.md](docs/PERMISSIONS.md) | Roles, permissions, room overrides |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Production deployment |
+| [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | Configuration reference |
+| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Tech stack, local setup, commands, tests |
+| [docs/SPATIAL_WORLDS.md](docs/SPATIAL_WORLDS.md) | Building worlds in Godot |
+| [docs/SOUND_PACKS.md](docs/SOUND_PACKS.md) | Creating sound packs |
+| [docs/qr-auth-flow.md](docs/qr-auth-flow.md) | QR code sign-in protocol |
+| [docs/specs/CHAT_SYSTEM.md](docs/specs/CHAT_SYSTEM.md) | Text channel design spec |
+| [docs/notes/](docs/notes/) | Backups, release storage, runner notes |

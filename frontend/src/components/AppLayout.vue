@@ -86,6 +86,8 @@ import {
   useAppStore,
   usePermissionsStore,
   useCustomEmojisStore,
+  useTextChatStore,
+  useConfigStore,
 } from "@/stores"
 import {
   useUserSession,
@@ -104,6 +106,8 @@ useUserSession()
 const userStore = useUserStore()
 const permissionsStore = usePermissionsStore()
 const customEmojisStore = useCustomEmojisStore()
+const textChatStore = useTextChatStore()
+const configStore = useConfigStore()
 const roomStore = useRoomStore()
 const appStore = useAppStore()
 const roomManager = useRoomManager()
@@ -225,6 +229,7 @@ onMounted(async () => {
     await roomManager.loadRooms()
     await categoryManager.loadCategories()
   }
+  loadTextUnread()
 
   // Start version checker (disabled in Electron - uses native auto-updater)
   if (!isElectron()) {
@@ -232,6 +237,15 @@ onMounted(async () => {
     versionChecker.start()
   }
 })
+
+// Unread badges for text channels (only when the server has them enabled).
+function loadTextUnread() {
+  if (userStore.hasCompletedAuth && configStore.textChannelsEnabled) {
+    void textChatStore.loadUnread()
+  }
+}
+// The config may finish loading after auth.
+watch(() => configStore.textChannelsEnabled, loadTextUnread)
 
 // Cleanup on unmount
 onUnmounted(() => {
@@ -247,9 +261,11 @@ watch(
       await permissionsStore.refresh()
       await roomManager.loadRooms()
       await categoryManager.loadCategories()
+      loadTextUnread()
     } else {
       permissionsStore.reset()
       customEmojisStore.reset()
+      textChatStore.reset()
     }
   },
 )

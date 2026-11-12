@@ -6,6 +6,11 @@ on:
       - '*'
   workflow_dispatch:
 
+# Never run two deploys (and their backups) on the host at the same time.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: [self-hosted, linux, orbital-host]
@@ -42,7 +47,20 @@ jobs:
           # Build images with version tag using buildx (BuildKit)
           docker buildx build --build-arg VERSION=${{ env.VERSION }} --build-arg APP_URL=${{ vars.APP_URL }} -t orbital-frontend:${{ env.VERSION }} -f docker/Dockerfile.frontend .
           docker buildx build --build-arg VERSION=${{ env.VERSION }} -t orbital-backend:${{ env.VERSION }} -f docker/Dockerfile.backend .
-      
+
+      # Must run before the compose file is replaced and before any container
+      # is recreated: it talks to the currently deployed stack. A failure aborts
+      # the deploy. See docs/notes/BACKUP_RESTORE.md.
+      - name: Backup data
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.S3_REGION }}
+          AWS_ENDPOINT_URL: ${{ secrets.S3_ENDPOINT }}
+          BACKUP_S3_BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+          AWS_CLI_VERSION: ${{ vars.AWS_CLI_VERSION }}
+        run: ./scripts/backup-release.sh "${{ env.VERSION }}"
+
       - name: Setup deployment directory
         run: |
           # Create deployment directory structure
@@ -83,7 +101,18 @@ jobs:
           
           # Deploy with docker compose
           docker compose up -d --remove-orphans
-      
+
+      # Keeps the last 3 database backup versions. Never fails a finished deploy.
+      - name: Prune old backups
+        continue-on-error: true
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.S3_REGION }}
+          AWS_ENDPOINT_URL: ${{ secrets.S3_ENDPOINT }}
+          AWS_CLI_VERSION: ${{ vars.AWS_CLI_VERSION }}
+        run: ./scripts/prune-s3-backups.sh "${{ vars.BACKUP_S3_BUCKET }}" 3
+
       - name: Cleanup old Docker images
         run: |
           # Remove old orbital images except current version

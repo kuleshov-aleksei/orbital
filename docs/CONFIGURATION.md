@@ -87,9 +87,10 @@ All configuration values can be overridden via environment variables:
 | `LIVEKIT_URL` | LiveKit WebSocket URL | ws://localhost:7880 |
 | `LIVEKIT_API_KEY` | LiveKit API key | dev_key |
 | `LIVEKIT_API_SECRET` | LiveKit API secret | this_is_a_development_secret_key_32chars |
+| `RELEASES_URL` | Where the desktop app's downloads and updates are served from | https://orbital-updates.encamy.com |
 | `ROOM_MIN_USERS` | Minimum users per room | 2 |
-| `ROOM_MAX_USERS` | Maximum users per room | 6 |
-| `ROOM_DEFAULT_MAX_USERS` | Default max users | 6 |
+| `ROOM_MAX_USERS` | Maximum users per room | 6 in `configs/config.yaml` (10 without a config file; the deploy compose sets 20) |
+| `ROOM_DEFAULT_MAX_USERS` | Default max users | 6 in `configs/config.yaml` (10 without a config file and in the deploy compose) |
 | `JWT_SECRET` | JWT secret for token signing | change-this-in-production |
 | `LOG_LEVEL` | Log level (debug, info, warn, error) | info |
 | `LOG_REQUESTS` | Enable request logging | true |
@@ -147,6 +148,54 @@ For Docker Compose (internal communication):
 ```bash
 LIVEKIT_URL=ws://livekit:7880
 ```
+
+## Text Channels (Meilisearch)
+
+Text channel messages are stored only in Meilisearch (`docs/specs/CHAT_SYSTEM.md`). Without `MEILI_URL`, text channels are disabled: the "Text" room type is hidden and creating one is rejected.
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MEILI_URL` | Meilisearch base URL | development: `http://localhost:7700`; production: unset (disabled); deploy compose sets `http://meilisearch:7700` |
+| `MEILI_API_KEY` | API key the backend uses. Falls back to `MEILI_MASTER_KEY` | development: `orbital-dev-meili-key` |
+| `MEILI_MASTER_KEY` | Meilisearch master key (read by the Meilisearch container; production needs at least 16 bytes) | dev compose: `orbital-dev-meili-key` |
+| `MEILI_INDEX` | Index name for messages | `text_messages` |
+| `MEILI_MAX_INDEXING_MEMORY` | Indexing memory cap for the deploy container | `1Gb` |
+
+Local development: `make meili-up` (starts the `meilisearch` service of `docker-compose.dev.yml`), then `make dev`; the development defaults match that container. Data lives in `./data/meilisearch`.
+
+**The Meilisearch volume holds primary data.** Back it up before every release (`docs/specs/MEILI_RELEASE_BACKUP.md`). The deploy compose takes a daily snapshot (`MEILI_SCHEDULE_SNAPSHOT=86400`). `/api/health` reports `text_channels: ok | unavailable | disabled`; Meilisearch being down degrades text channels only.
+
+## Attachments (S3 / Garage)
+
+Text channel attachments are stored in an S3 bucket (Garage). Without endpoint, bucket and keys, attachments are disabled and the attachment button is hidden. YAML section: `chat_media`.
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CHAT_MEDIA_S3_ENDPOINT` | S3 endpoint the backend uses (may be internal) | development: `http://localhost:3900`; production: unset (disabled) |
+| `CHAT_MEDIA_S3_PUBLIC_ENDPOINT` | Host signed into presigned URLs; must be reachable by browsers and Electron (HTTPS in production) | `CHAT_MEDIA_S3_ENDPOINT` |
+| `CHAT_MEDIA_S3_BUCKET` | Bucket name | `orbital-chat-media` |
+| `CHAT_MEDIA_S3_ACCESS_KEY` / `CHAT_MEDIA_S3_SECRET_KEY` | Read/write key | development: `GARAGE_DEFAULT_ACCESS_KEY` / `GARAGE_DEFAULT_SECRET_KEY` from `.env` |
+| `CHAT_MEDIA_S3_REGION` | S3 region | `garage` |
+| `CHAT_MEDIA_MAX_IMAGE_MB` / `CHAT_MEDIA_MAX_AUDIO_MB` / `CHAT_MEDIA_MAX_VIDEO_MB` | Size limit per file | 20 / 25 / 100 |
+| `CHAT_MEDIA_QUOTA_MB` | Storage per user; oldest unprotected files are removed when it is full | 5120 |
+| `RATE_LIMIT_CHAT_UPLOAD_PER_HOUR` | Uploads per user per hour | 120 |
+
+Local development: `make garage-up` (single-node Garage that creates the dev key and bucket). Production uses an external Garage; no bucket CORS or website access is needed.
+
+## Search by image contents (Immich ML)
+
+OCR and CLIP embeddings for image attachments come from an Immich machine-learning service. Without `CHAT_ML_URL` (or without attachments) the feature is off. YAML section: `chat_ml`. Details: `docs/specs/CHAT_SYSTEM.md` §7.13.
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CHAT_ML_URL` | Immich ML base URL (port 3003) | unset (disabled); dev: `make ml-up`, then `http://localhost:3003` |
+| `CHAT_ML_OCR_ENABLED` / `CHAT_ML_CLIP_ENABLED` | Turn OCR or image embeddings off separately | true / true |
+| `CHAT_ML_OCR_MODEL` | OCR model, with a language prefix | `ESLAV__PP-OCRv5_mobile` (ru/uk/be + en) |
+| `CHAT_ML_CLIP_MODEL` | CLIP model; must be multilingual. Changing it re-indexes every image | `XLM-Roberta-Large-Vit-B-16Plus` |
+| `CHAT_ML_SEMANTIC_THRESHOLD` | Minimum score (0..1) of an image found only by meaning | 0.6 |
+| `CHAT_ML_TIMEOUT_SECONDS` | Per request timeout (the first one may wait for a model download) | 120 |
+
+Never expose Immich ML publicly. In production, attach the backend to Immich's network or publish port 3003 on a private interface.
 
 ## Usage
 

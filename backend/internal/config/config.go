@@ -26,7 +26,112 @@ type Config struct {
 	WebSocket WebSocketConfig `yaml:"websocket"`
 	LiveKit   LiveKitConfig   `yaml:"livekit"`
 	RateLimit RateLimitConfig `yaml:"rate_limit"`
+	Chat      ChatConfig      `yaml:"chat"`
+	ChatMedia ChatMediaConfig `yaml:"chat_media"`
+	ChatML    ChatMLConfig    `yaml:"chat_ml"`
 }
+
+// ChatConfig configures persistent text channels. Messages are stored in
+// Meilisearch; with an empty MeiliURL text channels are disabled.
+type ChatConfig struct {
+	MeiliURL    string `yaml:"meili_url"`
+	MeiliAPIKey string `yaml:"meili_api_key"`
+	MeiliIndex  string `yaml:"meili_index"`
+}
+
+// Development defaults match the meilisearch service in docker-compose.dev.yml,
+// so `make meili-up` plus `make dev` works without extra .env entries. Production must set MEILI_URL.
+const (
+	devMeiliURL = "http://localhost:7700"
+	devMeiliKey = "orbital-dev-meili-key"
+)
+
+func (c *Config) applyDevChatDefaults() {
+	if !c.IsDevelopment() || c.Chat.MeiliURL != "" {
+		return
+	}
+	c.Chat.MeiliURL = devMeiliURL
+	if c.Chat.MeiliAPIKey == "" {
+		c.Chat.MeiliAPIKey = devMeiliKey
+	}
+}
+
+// TextChannelsEnabled reports whether a Meilisearch backend is configured.
+func (c ChatConfig) TextChannelsEnabled() bool { return c.MeiliURL != "" }
+
+// ChatMediaConfig configures text channel attachments on S3 (Garage), see
+// docs/specs/CHAT_SYSTEM.md §7.12. Without endpoint, bucket and keys,
+// attachments are disabled.
+type ChatMediaConfig struct {
+	S3Endpoint string `yaml:"s3_endpoint"`
+	// S3PublicEndpoint is signed into presigned URLs; defaults to S3Endpoint.
+	S3PublicEndpoint string `yaml:"s3_public_endpoint"`
+	Bucket           string `yaml:"bucket"`
+	AccessKey        string `yaml:"access_key"`
+	SecretKey        string `yaml:"secret_key"`
+	Region           string `yaml:"region"`
+	MaxImageMB       int    `yaml:"max_image_mb"`
+	MaxAudioMB       int    `yaml:"max_audio_mb"`
+	MaxVideoMB       int    `yaml:"max_video_mb"`
+	// QuotaMB is the per-user attachment storage.
+	QuotaMB int `yaml:"quota_mb"`
+	// UploadsPerHour is the per-user upload rate.
+	UploadsPerHour int `yaml:"uploads_per_hour"`
+}
+
+// Enabled reports whether S3 is configured.
+func (c ChatMediaConfig) Enabled() bool {
+	return c.S3Endpoint != "" && c.Bucket != "" && c.AccessKey != "" && c.SecretKey != ""
+}
+
+// PublicEndpoint is the host for presigned URLs.
+func (c ChatMediaConfig) PublicEndpoint() string {
+	if c.S3PublicEndpoint != "" {
+		return c.S3PublicEndpoint
+	}
+	return c.S3Endpoint
+}
+
+func (c ChatMediaConfig) QuotaBytes() int64 { return int64(c.QuotaMB) * 1024 * 1024 }
+
+// Development default matches the garage service in docker-compose.dev.yml;
+// its key comes from GARAGE_DEFAULT_ACCESS_KEY/SECRET_KEY in .env.
+const devChatMediaEndpoint = "http://localhost:3900"
+
+func (c *Config) applyDevChatMediaDefaults() {
+	if !c.IsDevelopment() || c.ChatMedia.S3Endpoint != "" {
+		return
+	}
+	c.ChatMedia.S3Endpoint = devChatMediaEndpoint
+	if c.ChatMedia.AccessKey == "" {
+		c.ChatMedia.AccessKey = os.Getenv("GARAGE_DEFAULT_ACCESS_KEY")
+	}
+	if c.ChatMedia.SecretKey == "" {
+		c.ChatMedia.SecretKey = os.Getenv("GARAGE_DEFAULT_SECRET_KEY")
+	}
+	if v := os.Getenv("GARAGE_DEFAULT_BUCKET"); v != "" && os.Getenv("CHAT_MEDIA_S3_BUCKET") == "" {
+		c.ChatMedia.Bucket = v
+	}
+}
+
+// ChatMLConfig configures content search of text channel images: OCR and
+// CLIP embeddings from an Immich machine-learning service
+// (docs/specs/CHAT_SYSTEM.md §7.13). With an empty URL it is disabled.
+type ChatMLConfig struct {
+	URL         string `yaml:"url"`
+	OCREnabled  bool   `yaml:"ocr_enabled"`
+	CLIPEnabled bool   `yaml:"clip_enabled"`
+	OCRModel    string `yaml:"ocr_model"`
+	// CLIPModel must embed text in the users' languages (search queries).
+	CLIPModel string `yaml:"clip_model"`
+	// SemanticThreshold is the minimum ranking score (0..1) of an image
+	// found only by meaning.
+	SemanticThreshold float64 `yaml:"semantic_threshold"`
+	TimeoutSeconds    int     `yaml:"timeout_seconds"`
+}
+
+// Enabled reports whether any extraction task is configured.
+func (c ChatMLConfig) Enabled() bool { return c.URL != "" && (c.OCREnabled || c.CLIPEnabled) }
 
 type RateLimitConfig struct {
 	AuthPerMinute        int `yaml:"auth_per_minute"`
@@ -131,6 +236,26 @@ func DefaultConfig() *Config {
 			PingCheckInterval: 10 * time.Second,
 		},
 		LiveKit: DefaultLiveKitConfig(),
+		Chat: ChatConfig{
+			MeiliIndex: "text_messages",
+		},
+		ChatMedia: ChatMediaConfig{
+			Bucket:         "orbital-chat-media",
+			Region:         "garage",
+			MaxImageMB:     20,
+			MaxAudioMB:     25,
+			MaxVideoMB:     100,
+			QuotaMB:        5120,
+			UploadsPerHour: 120,
+		},
+		ChatML: ChatMLConfig{
+			OCREnabled:        true,
+			CLIPEnabled:       true,
+			OCRModel:          "ESLAV__PP-OCRv5_mobile",
+			CLIPModel:         "XLM-Roberta-Large-Vit-B-16Plus",
+			SemanticThreshold: 0.6,
+			TimeoutSeconds:    120,
+		},
 		RateLimit: RateLimitConfig{
 			AuthPerMinute:        10,
 			GuestPerHour:         10,
@@ -163,6 +288,8 @@ func Load(configPath string) (*Config, error) {
 
 	// Apply environment variable overrides
 	cfg.loadFromEnv()
+	cfg.applyDevChatDefaults()
+	cfg.applyDevChatMediaDefaults()
 
 	return cfg, nil
 }
@@ -283,6 +410,70 @@ func (c *Config) loadFromEnv() {
 	// LiveKit config
 	c.LiveKit.LoadFromEnv()
 
+	// Text channels (Meilisearch). MEILI_MASTER_KEY is accepted as a fallback
+	// so a single key in .env serves both the Meilisearch container and us.
+	if v := os.Getenv("MEILI_URL"); v != "" {
+		c.Chat.MeiliURL = v
+	}
+	if v := os.Getenv("MEILI_API_KEY"); v != "" {
+		c.Chat.MeiliAPIKey = v
+	} else if v := os.Getenv("MEILI_MASTER_KEY"); v != "" && c.Chat.MeiliAPIKey == "" {
+		c.Chat.MeiliAPIKey = v
+	}
+	if v := os.Getenv("MEILI_INDEX"); v != "" {
+		c.Chat.MeiliIndex = v
+	}
+
+	// Text channel attachments (S3)
+	for key, dst := range map[string]*string{
+		"CHAT_MEDIA_S3_ENDPOINT":        &c.ChatMedia.S3Endpoint,
+		"CHAT_MEDIA_S3_PUBLIC_ENDPOINT": &c.ChatMedia.S3PublicEndpoint,
+		"CHAT_MEDIA_S3_BUCKET":          &c.ChatMedia.Bucket,
+		"CHAT_MEDIA_S3_ACCESS_KEY":      &c.ChatMedia.AccessKey,
+		"CHAT_MEDIA_S3_SECRET_KEY":      &c.ChatMedia.SecretKey,
+		"CHAT_MEDIA_S3_REGION":          &c.ChatMedia.Region,
+	} {
+		if v := os.Getenv(key); v != "" {
+			*dst = v
+		}
+	}
+	for key, dst := range map[string]*int{
+		"CHAT_MEDIA_MAX_IMAGE_MB":         &c.ChatMedia.MaxImageMB,
+		"CHAT_MEDIA_MAX_AUDIO_MB":         &c.ChatMedia.MaxAudioMB,
+		"CHAT_MEDIA_MAX_VIDEO_MB":         &c.ChatMedia.MaxVideoMB,
+		"CHAT_MEDIA_QUOTA_MB":             &c.ChatMedia.QuotaMB,
+		"RATE_LIMIT_CHAT_UPLOAD_PER_HOUR": &c.ChatMedia.UploadsPerHour,
+	} {
+		if v, ok := getEnvInt(key); ok {
+			*dst = v
+		}
+	}
+
+	// Text channel content search (Immich ML)
+	for key, dst := range map[string]*string{
+		"CHAT_ML_URL":        &c.ChatML.URL,
+		"CHAT_ML_OCR_MODEL":  &c.ChatML.OCRModel,
+		"CHAT_ML_CLIP_MODEL": &c.ChatML.CLIPModel,
+	} {
+		if v := os.Getenv(key); v != "" {
+			*dst = v
+		}
+	}
+	for key, dst := range map[string]*bool{
+		"CHAT_ML_OCR_ENABLED":  &c.ChatML.OCREnabled,
+		"CHAT_ML_CLIP_ENABLED": &c.ChatML.CLIPEnabled,
+	} {
+		if v, err := strconv.ParseBool(os.Getenv(key)); err == nil {
+			*dst = v
+		}
+	}
+	if v, err := strconv.ParseFloat(os.Getenv("CHAT_ML_SEMANTIC_THRESHOLD"), 64); err == nil {
+		c.ChatML.SemanticThreshold = v
+	}
+	if v, ok := getEnvInt("CHAT_ML_TIMEOUT_SECONDS"); ok {
+		c.ChatML.TimeoutSeconds = v
+	}
+
 	// Rate limit and quota config
 	if v, ok := getEnvInt("RATE_LIMIT_AUTH_PER_MINUTE"); ok {
 		c.RateLimit.AuthPerMinute = v
@@ -393,6 +584,23 @@ func (c *Config) Validate() error {
 	}
 	if err := c.LiveKit.Validate(); err != nil {
 		return fmt.Errorf("livekit configuration: %w", err)
+	}
+	if c.ChatML.SemanticThreshold <= 0 || c.ChatML.SemanticThreshold >= 1 {
+		return fmt.Errorf("CHAT_ML_SEMANTIC_THRESHOLD must be between 0 and 1")
+	}
+	if c.ChatML.TimeoutSeconds <= 0 {
+		return fmt.Errorf("CHAT_ML_TIMEOUT_SECONDS must be positive")
+	}
+	for name, value := range map[string]int{
+		"CHAT_MEDIA_MAX_IMAGE_MB":         c.ChatMedia.MaxImageMB,
+		"CHAT_MEDIA_MAX_AUDIO_MB":         c.ChatMedia.MaxAudioMB,
+		"CHAT_MEDIA_MAX_VIDEO_MB":         c.ChatMedia.MaxVideoMB,
+		"CHAT_MEDIA_QUOTA_MB":             c.ChatMedia.QuotaMB,
+		"RATE_LIMIT_CHAT_UPLOAD_PER_HOUR": c.ChatMedia.UploadsPerHour,
+	} {
+		if value <= 0 {
+			return fmt.Errorf("%s must be positive", name)
+		}
 	}
 	return nil
 }

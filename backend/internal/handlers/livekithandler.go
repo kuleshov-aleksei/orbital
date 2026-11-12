@@ -74,7 +74,8 @@ func (h *LiveKitHandler) GenerateToken(w http.ResponseWriter, r *http.Request) {
 		h.sendError(w, "Room service is not available", http.StatusServiceUnavailable)
 		return
 	}
-	if _, exists := h.roomService.GetRoom(req.RoomID); !exists {
+	room, exists := h.roomService.GetRoom(req.RoomID)
+	if !exists {
 		h.sendError(w, "Room not found", http.StatusNotFound)
 		return
 	}
@@ -87,6 +88,10 @@ func (h *LiveKitHandler) GenerateToken(w http.ResponseWriter, r *http.Request) {
 	}
 	if !perms.Has(permissions.Connect) {
 		h.sendError(w, "Missing connect permission", http.StatusForbidden)
+		return
+	}
+	if room.IsText() {
+		h.sendError(w, "Text channels have no voice", http.StatusBadRequest)
 		return
 	}
 

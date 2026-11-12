@@ -435,6 +435,39 @@ export function playRemoteViewerLeft(soundPack: string): void {
   playRemoteSound("viewer_left", soundPack)
 }
 
+let mentionContext: AudioContext | null = null
+
+/**
+ * Text channel mention ping: a short two-note chime synthesized with Web
+ * Audio, so it does not depend on the sound pack. volume is 0..1 and is
+ * scaled by the global sound volume. Silent while deafened.
+ */
+export function playMention(volume: number): void {
+  if (useCallStore().isDeafened || volume <= 0) return
+  try {
+    mentionContext ??= new AudioContext()
+    const ctx = mentionContext
+    if (ctx.state === "suspended") void ctx.resume()
+    const peak = 0.25 * volume * globalVolume
+    const start = ctx.currentTime + 0.01
+    for (const [i, freq] of [880, 1318.5].entries()) {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      const t = start + i * 0.09
+      osc.type = "sine"
+      osc.frequency.value = freq
+      gain.gain.setValueAtTime(0, t)
+      gain.gain.linearRampToValueAtTime(peak, t + 0.01)
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35)
+      osc.connect(gain).connect(ctx.destination)
+      osc.start(t)
+      osc.stop(t + 0.4)
+    }
+  } catch (error) {
+    console.warn("[Sounds] Failed to play mention sound:", error)
+  }
+}
+
 export function playReconnecting(): void {
   playLocalSound("reconnecting")
 }

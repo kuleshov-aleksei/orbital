@@ -77,6 +77,9 @@ func (r *RBACRepository) DeleteRole(id string) error {
 		if _, err := tx.Exec(`DELETE FROM user_roles WHERE role_id = ?`, id); err != nil {
 			return err
 		}
+		if _, err := tx.Exec(`DELETE FROM user_color_roles WHERE role_id = ?`, id); err != nil {
+			return err
+		}
 		if _, err := tx.Exec(`DELETE FROM permission_overwrites WHERE subject_type = 'role' AND subject_id = ?`, id); err != nil {
 			return err
 		}
@@ -117,6 +120,37 @@ func (r *RBACRepository) SetUserRoles(userID string, roleIDs []string) error {
 		}
 		return nil
 	})
+}
+
+// GetColorRoles returns user_id -> the role picked to color their nickname.
+func (r *RBACRepository) GetColorRoles() (map[string]string, error) {
+	rows, err := r.db.Query(`SELECT user_id, role_id FROM user_color_roles`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make(map[string]string)
+	for rows.Next() {
+		var userID, roleID string
+		if err := rows.Scan(&userID, &roleID); err != nil {
+			return nil, err
+		}
+		out[userID] = roleID
+	}
+	return out, rows.Err()
+}
+
+// SetColorRole stores the role coloring a user's nickname; an empty roleID
+// clears the pick (back to the highest colored role).
+func (r *RBACRepository) SetColorRole(userID, roleID string) error {
+	if roleID == "" {
+		_, err := r.db.Exec(`DELETE FROM user_color_roles WHERE user_id = ?`, userID)
+		return err
+	}
+	_, err := r.db.Exec(`INSERT INTO user_color_roles (user_id, role_id) VALUES (?, ?)
+		ON CONFLICT(user_id) DO UPDATE SET role_id = excluded.role_id`, userID, roleID)
+	return err
 }
 
 // GetOverwrites returns every permission overwrite.

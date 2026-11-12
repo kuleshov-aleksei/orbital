@@ -17,6 +17,27 @@ import {
   SecuritySelfCheckReport,
 } from "@/types"
 import type {
+  TextHistoryCursor,
+  TextHistoryPage,
+  TextContextPage,
+  TextUnreadResponse,
+  TextPinsResponse,
+  TextSearchResponse,
+  TextSearchSort,
+  TextNotifyMode,
+  TextMuteDuration,
+  TextNotifySetting,
+  AttachmentBulkAction,
+  AttachmentBulkResponse,
+  AttachmentUploadResponse,
+  AttachmentUrlsResponse,
+  AttachmentUsage,
+  AttachmentVariant,
+  MyAttachmentsPage,
+  MyAttachmentsQuery,
+  TextAttachment,
+} from "@/types/textChat"
+import type {
   HalloweenGameConfig,
   HalloweenStateResponse,
   PumpkinStatesResponse,
@@ -223,6 +244,160 @@ export interface RoomConfig {
 // General application configuration
 export interface AppConfig {
   room: RoomConfig
+  text_channels?: boolean
+  /** Present when text channel attachments are enabled (S3 configured). */
+  attachments?: AttachmentsConfig
+}
+
+export interface AttachmentsConfig {
+  max_image_bytes: number
+  max_audio_bytes: number
+  max_video_bytes: number
+  quota_bytes: number
+  max_per_message: number
+  /** Images are read by OCR/CLIP for search (backend CHAT_ML_URL set). */
+  content_search?: boolean
+}
+
+/** GET /api/admin/attachments/extraction: the image content queue. */
+export interface ExtractionStatus {
+  enabled: boolean
+  models: string
+  last_run_at: number
+  /** Non-zero while Immich ML (or S3) is unreachable. */
+  paused_since: number
+  pause_error: string
+  /** Attached images the worker has not queued yet. */
+  unqueued: number
+  /** Pending and ready to run now. */
+  due: number
+  /** Pending, retry scheduled after a failure. */
+  waiting: number
+  done: number
+  failed: number
+  outdated: number
+  with_text: number
+  with_vector: number
+  last_done_at: number
+  problems: ExtractionProblem[]
+}
+
+export interface ExtractionProblem {
+  id: string
+  filename: string
+  room_id: string
+  room_name: string
+  message_id?: string
+  status: "pending" | "failed"
+  attempts: number
+  next_attempt_at?: number
+  last_error: string
+  updated_at: number
+}
+
+/** GET /api/attachments/{id}/content: what search knows about a file. */
+export interface AttachmentContent {
+  enabled: boolean
+  /** "" = not queued yet (the worker picks it up within a minute). */
+  status: "" | "pending" | "done" | "failed"
+  attempts: number
+  next_attempt_at?: number
+  last_error?: string
+  /** Models of the stored result, e.g. "immich;ocr=...;clip=...". */
+  models?: string
+  /** The stored result comes from the models in use. */
+  current: boolean
+  text: string
+  vector: { dims: number; values: number[] } | null
+  updated_at?: number
+  can_retry: boolean
+  /** With ?q=: how the phrase scores against the image embedding. */
+  match?: {
+    query: string
+    cosine: number
+    score: number
+    threshold: number
+    matches: boolean
+    error?: string
+  }
+}
+
+/** Client-measured display metadata sent with an upload. */
+export interface AttachmentUploadMeta {
+  peaks?: number[]
+  durationMs?: number
+  width?: number
+  height?: number
+}
+
+/** A failed attachment upload; code is the backend error code. */
+export class AttachmentUploadError extends Error {
+  constructor(
+    public code: string,
+    public status: number,
+  ) {
+    super(code)
+    this.name = "AttachmentUploadError"
+  }
+}
+
+function sendUpload(
+  url: string,
+  form: FormData,
+  onProgress: (fraction: number) => void,
+  signal?: AbortSignal,
+): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open("POST", url)
+    const token = getAuthToken()
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`)
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(e.loaded / e.total)
+    }
+    xhr.onload = () => resolve({ status: xhr.status, body: xhr.responseText })
+    xhr.onerror = () => reject(new AttachmentUploadError("network_error", 0))
+    xhr.onabort = () => reject(new DOMException("Upload aborted", "AbortError"))
+    signal?.addEventListener("abort", () => xhr.abort(), { once: true })
+    xhr.send(form)
+  })
+}
+
+/**
+ * Upload one file to a text channel (XHR for progress). Resolves with the
+ * pending upload; the message is sent later with its upload_id.
+ */
+export async function uploadTextAttachment(
+  roomId: string,
+  file: File,
+  meta: AttachmentUploadMeta,
+  onProgress: (fraction: number) => void,
+  signal?: AbortSignal,
+): Promise<AttachmentUploadResponse> {
+  const form = new FormData()
+  if (meta.peaks?.length) form.append("peaks", JSON.stringify(meta.peaks))
+  if (meta.durationMs) form.append("duration_ms", String(Math.round(meta.durationMs)))
+  if (meta.width) form.append("width", String(meta.width))
+  if (meta.height) form.append("height", String(meta.height))
+  form.append("file", file, file.name)
+  const url = `${API_BASE}/rooms/${encodeURIComponent(roomId)}/attachments`
+  let res = await sendUpload(url, form, onProgress, signal)
+  if (res.status === 401 && !isTokenExpired() && (await refreshAuthToken())) {
+    res = await sendUpload(url, form, onProgress, signal)
+  }
+  if (res.status === 401) notifySessionExpired()
+  if (res.status < 200 || res.status >= 300) {
+    let code = res.status === 429 ? "rate_limited" : "upload_failed"
+    try {
+      code = (JSON.parse(res.body) as { error?: string }).error ?? code
+    } catch {
+      if (res.status === 403) code = "forbidden"
+      else if (res.status === 404) code = "not_found"
+      else if (res.status === 413) code = "file_too_large"
+    }
+    throw new AttachmentUploadError(code, res.status)
+  }
+  return JSON.parse(res.body) as AttachmentUploadResponse
 }
 
 // Latest desktop release, resolved by the backend from the update feed
@@ -338,6 +513,7 @@ export async function apiRequest<T>(
       throw apiError(errorText || `Upload failed (${response.status})`, response.status)
     }
 
+    if (response.status === 204) return undefined as T
     return (await response.json()) as T
   } catch (error) {
     console.error(`API request failed to ${endpoint}:`, error)
@@ -429,6 +605,115 @@ export const apiService = {
   // Get general application configuration
   async getConfig(): Promise<AppConfig> {
     return apiRequest<AppConfig>("/config")
+  },
+
+  // Text channels (history over REST; writes go over the global WebSocket)
+  async getTextMessages(roomId: string, cursor: TextHistoryCursor = {}): Promise<TextHistoryPage> {
+    const params = new URLSearchParams()
+    if (cursor.beforeSeq) params.set("before_seq", String(cursor.beforeSeq))
+    if (cursor.afterSeq) params.set("after_seq", String(cursor.afterSeq))
+    if (cursor.aroundSeq) params.set("around_seq", String(cursor.aroundSeq))
+    if (cursor.limit) params.set("limit", String(cursor.limit))
+    const query = params.toString()
+    return apiRequest<TextHistoryPage>(
+      `/rooms/${encodeURIComponent(roomId)}/messages${query ? `?${query}` : ""}`,
+    )
+  },
+
+  async getTextMessageContext(messageId: string, n = 25): Promise<TextContextPage> {
+    return apiRequest<TextContextPage>(`/messages/${encodeURIComponent(messageId)}/context?n=${n}`)
+  },
+
+  async getTextUnread(): Promise<TextUnreadResponse> {
+    return apiRequest<TextUnreadResponse>("/chat/unread")
+  },
+
+  async getTextPins(roomId: string): Promise<TextPinsResponse> {
+    return apiRequest<TextPinsResponse>(`/rooms/${encodeURIComponent(roomId)}/pins`)
+  },
+
+  async searchTextMessages(
+    q: string,
+    opts: { sort?: TextSearchSort; offset?: number; limit?: number; signal?: AbortSignal } = {},
+  ): Promise<TextSearchResponse> {
+    const params = new URLSearchParams({ q, tz: Intl.DateTimeFormat().resolvedOptions().timeZone })
+    if (opts.sort) params.set("sort", opts.sort)
+    if (opts.offset) params.set("offset", String(opts.offset))
+    if (opts.limit) params.set("limit", String(opts.limit))
+    return apiRequest<TextSearchResponse>(`/chat/search?${params}`, { signal: opts.signal })
+  },
+
+  async setTextNotify(
+    roomId: string,
+    mode: TextNotifyMode,
+    muteDuration?: TextMuteDuration,
+  ): Promise<TextNotifySetting> {
+    return apiRequest<TextNotifySetting>(`/rooms/${encodeURIComponent(roomId)}/notify`, {
+      method: "PUT",
+      body: JSON.stringify(mode === "muted" ? { mode, mute_duration: muteDuration } : { mode }),
+    })
+  },
+
+  // --- Text channel attachments (docs/specs/CHAT_SYSTEM.md §7.12) ---
+
+  /** Presigned URLs for files (img/video cannot send the auth header). */
+  async getAttachmentUrls(
+    items: { id: string; variant: AttachmentVariant }[],
+  ): Promise<AttachmentUrlsResponse> {
+    return apiRequest<AttachmentUrlsResponse>("/attachments/urls", {
+      method: "POST",
+      body: JSON.stringify({ items }),
+    })
+  },
+
+  async setAttachmentProtected(id: string, isProtected: boolean): Promise<TextAttachment> {
+    const res = await apiRequest<{ attachment: TextAttachment }>(
+      `/attachments/${encodeURIComponent(id)}`,
+      { method: "PATCH", body: JSON.stringify({ protected: isProtected }) },
+    )
+    return res.attachment
+  },
+
+  async getAttachmentContent(id: string, query?: string): Promise<AttachmentContent> {
+    const qs = query ? `?q=${encodeURIComponent(query)}` : ""
+    return apiRequest<AttachmentContent>(`/attachments/${encodeURIComponent(id)}/content${qs}`)
+  },
+
+  async retryAttachmentContent(id: string): Promise<void> {
+    await apiRequest<void>(`/attachments/${encodeURIComponent(id)}/content/retry`, {
+      method: "POST",
+    })
+  },
+
+  async deleteAttachment(id: string): Promise<void> {
+    await apiRequest<void>(`/attachments/${encodeURIComponent(id)}`, { method: "DELETE" })
+  },
+
+  async listMyAttachments(query: MyAttachmentsQuery = {}): Promise<MyAttachmentsPage> {
+    const params = new URLSearchParams()
+    if (query.kind) params.set("kind", query.kind)
+    if (query.roomId) params.set("room_id", query.roomId)
+    if (query.sort) params.set("sort", query.sort)
+    if (query.q) params.set("q", query.q)
+    if (query.protectedOnly) params.set("protected", "1")
+    if (query.cursor) params.set("cursor", query.cursor)
+    if (query.limit) params.set("limit", String(query.limit))
+    const qs = params.toString()
+    return apiRequest<MyAttachmentsPage>(`/me/attachments${qs ? `?${qs}` : ""}`)
+  },
+
+  async getMyAttachmentUsage(): Promise<AttachmentUsage> {
+    return apiRequest<AttachmentUsage>("/me/attachments/usage")
+  },
+
+  async bulkMyAttachments(
+    ids: string[],
+    action: AttachmentBulkAction,
+  ): Promise<AttachmentBulkResponse> {
+    return apiRequest<AttachmentBulkResponse>("/me/attachments/bulk", {
+      method: "POST",
+      body: JSON.stringify({ ids, action }),
+    })
   },
 
   // Get the latest desktop release (version + artifact URLs), resolved by
@@ -767,12 +1052,25 @@ export const apiService = {
   },
 
   // RBAC: permissions, roles, assignments and overwrites
+  /** IDs of the users who can see a room (404 unless the caller can see it). */
+  async getRoomViewers(roomId: string): Promise<{ user_ids: string[] }> {
+    return apiRequest<{ user_ids: string[] }>(`/rooms/${encodeURIComponent(roomId)}/viewers`)
+  },
+
   async getMyPermissions(): Promise<MyPermissions> {
     return apiRequest<MyPermissions>("/me/permissions")
   },
 
   async getRoles(): Promise<RolesResponse> {
     return apiRequest<RolesResponse>("/roles")
+  },
+
+  /** Picks which of my roles colors my nickname; null = automatic (highest). */
+  async setMyColorRole(roleId: string | null): Promise<{ role_id: string }> {
+    return apiRequest<{ role_id: string }>("/me/color-role", {
+      method: "PUT",
+      body: JSON.stringify({ role_id: roleId ?? "" }),
+    })
   },
 
   async createRole(data: { name: string; color?: string; permissions?: number }): Promise<Role> {
@@ -1171,6 +1469,17 @@ export const apiService = {
   // ===== Usage Analytics API (super_admin only) =====
   async getAnalyticsReport(): Promise<AnalyticsReport> {
     return apiRequest<AnalyticsReport>("/admin/analytics/report")
+  },
+
+  // ===== Search indexing of attachments (super_admin only) =====
+  async getExtractionStatus(): Promise<ExtractionStatus> {
+    return apiRequest<ExtractionStatus>("/admin/attachments/extraction")
+  },
+
+  async retryFailedExtractions(): Promise<{ requeued: number }> {
+    return apiRequest<{ requeued: number }>("/admin/attachments/extraction/retry-failed", {
+      method: "POST",
+    })
   },
 
   // ===== Security self-check API (super_admin only) =====

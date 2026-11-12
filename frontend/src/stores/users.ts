@@ -172,6 +172,18 @@ export const useUsersStore = defineStore("users", () => {
     }
   }
 
+  /**
+   * Name to show for a user id found in stored content (messages, pins,
+   * reactions). Messages outlive accounts: an id missing from the loaded
+   * user list belongs to a deleted user.
+   */
+  function displayName(userId: string): string {
+    const user = allUsers.value.find((u) => u.id === userId)
+    if (user) return user.nickname
+    // Nothing loaded yet: the user may well exist.
+    return allUsers.value.length === 0 ? "Unknown user" : "Deleted user"
+  }
+
   function updateUserCustomStatus(userId: string, customStatus: string, emoji = "") {
     const index = allUsers.value.findIndex((u) => u.id === userId)
     if (index !== -1) {
@@ -198,6 +210,7 @@ export const useUsersStore = defineStore("users", () => {
     userCount,
     sortedUsers,
     usersByRole,
+    displayName,
     // Actions
     fetchAllUsers,
     addUser,

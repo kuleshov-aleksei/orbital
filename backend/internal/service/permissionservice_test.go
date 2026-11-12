@@ -391,3 +391,61 @@ func TestMigrationGrantsSoundboardPermissionsToExistingRoles(t *testing.T) {
 		t.Fatalf("admin missing manage_soundboard: %b", allow)
 	}
 }
+
+func TestMePrivateRooms(t *testing.T) {
+	f := newPermFixture(t, nil)
+	owner := f.user(t, "qkUrdzLDoqslx8EEy2cM7Q==", models.RoleSuperAdmin, false)
+	user := f.user(t, "Zm9vYmFyYmF6cXV4MTIzNA==", models.RoleUser, false)
+	general := f.cats.GetGeneralCategoryID()
+	vip, err := f.cats.CreateCategory("vip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	public, _ := f.rooms.CreateRoom("public", general, 5, "text")
+	custom, _ := f.rooms.CreateRoom("custom", general, 5, "text")
+	hidden, _ := f.rooms.CreateRoom("hidden", general, 5, "text")
+	inherited, _ := f.rooms.CreateRoom("inherited", vip.ID, 5, "text")
+
+	set := func(targetType, targetID string, allow, deny permissions.Permission) {
+		t.Helper()
+		if _, err := f.ps.SetOverwrite(owner, models.PermissionOverwrite{TargetType: targetType, TargetID: targetID,
+			SubjectType: models.OverwriteSubjectRole, SubjectID: models.SystemRoleEveryone,
+			Allow: uint64(allow), Deny: uint64(deny)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	set(models.OverwriteTargetRoom, custom.ID, 0, permissions.Screenshare)
+	set(models.OverwriteTargetRoom, hidden.ID, 0, permissions.ViewRoom)
+	set(models.OverwriteTargetCategory, vip.ID, 0, permissions.Video) // inherited room stays synced
+
+	if got := f.ps.Me(user).PrivateRooms; !sameIDs(got, custom.ID, inherited.ID) {
+		t.Fatalf("user private rooms = %v (public %s must be absent, hidden %s unlisted)", got, public.ID, hidden.ID)
+	}
+	if got := f.ps.Me(owner).PrivateRooms; !sameIDs(got, custom.ID, hidden.ID, inherited.ID) {
+		t.Fatalf("owner private rooms = %v", got)
+	}
+
+	// Re-syncing drops the room's own overwrites: public again.
+	if err := f.ps.SetRoomSynced(owner, custom.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.ps.Me(user).PrivateRooms; !sameIDs(got, inherited.ID) {
+		t.Fatalf("after re-sync = %v", got)
+	}
+}
+
+func sameIDs(got []string, want ...string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, id := range got {
+		seen[id] = true
+	}
+	for _, id := range want {
+		if !seen[id] {
+			return false
+		}
+	}
+	return true
+}

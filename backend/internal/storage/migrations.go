@@ -469,6 +469,113 @@ CREATE INDEX IF NOT EXISTS idx_custom_emojis_created ON custom_emojis(created_at
 		SQL: `ALTER TABLE custom_emojis ADD COLUMN animated INTEGER NOT NULL DEFAULT 0;
 UPDATE custom_emojis SET animated = 1 WHERE filename LIKE '%.gif';`,
 	},
+	{
+		Version: 41,
+		Name:    "create_text_read_state",
+		// Per-user read position in text channels (messages themselves live
+		// in Meilisearch, see docs/specs/CHAT_SYSTEM.md).
+		SQL: `CREATE TABLE IF NOT EXISTS text_read_state (
+			user_id TEXT NOT NULL,
+			room_id TEXT NOT NULL,
+			last_read_seq INTEGER NOT NULL DEFAULT 0,
+			updated_at INTEGER NOT NULL,
+			PRIMARY KEY (user_id, room_id)
+		);
+CREATE INDEX IF NOT EXISTS idx_text_read_state_room ON text_read_state(room_id);`,
+	},
+	{
+		Version: 42,
+		Name:    "grant_text_channel_permissions",
+		// Attach Files is on for @everyone and denied to guests; Manage
+		// Messages goes to the admin role. OR-ing keeps it idempotent.
+		SQL: fmt.Sprintf(`UPDATE roles SET permissions = permissions | %d WHERE id = 'everyone';
+UPDATE roles SET deny_permissions = deny_permissions | %d WHERE id = 'guest';
+UPDATE roles SET permissions = permissions | %d WHERE id = 'admin';`,
+			permissions.AttachFiles,
+			permissions.AttachFiles,
+			permissions.ManageMessages),
+	},
+	{
+		Version: 43,
+		Name:    "create_text_notify_settings",
+		// Per-user notification mode per text channel; no row = 'all'.
+		// muted_until is unix ms, NULL with mode 'muted' = forever.
+		SQL: `CREATE TABLE IF NOT EXISTS text_notify_settings (
+			user_id TEXT NOT NULL,
+			room_id TEXT NOT NULL,
+			mode TEXT NOT NULL CHECK (mode IN ('all','no_mentions','muted')),
+			muted_until INTEGER,
+			updated_at INTEGER NOT NULL,
+			PRIMARY KEY (user_id, room_id)
+		);
+CREATE INDEX IF NOT EXISTS idx_text_notify_settings_room ON text_notify_settings(room_id);
+CREATE INDEX IF NOT EXISTS idx_text_notify_settings_until ON text_notify_settings(muted_until) WHERE muted_until IS NOT NULL;`,
+	},
+	{
+		Version: 44,
+		Name:    "create_chat_attachments",
+		// Text channel attachments from upload to purge (docs/specs/CHAT_SYSTEM.md
+		// §7.12): ownership, quota usage and protection. Times are unix ms.
+		SQL: `CREATE TABLE IF NOT EXISTS chat_attachments (
+			id TEXT PRIMARY KEY,
+			room_id TEXT NOT NULL,
+			uploader_id TEXT NOT NULL,
+			message_id TEXT,
+			kind TEXT NOT NULL,
+			mime TEXT NOT NULL,
+			ext TEXT NOT NULL,
+			filename TEXT NOT NULL,
+			size_bytes INTEGER NOT NULL,
+			stored_bytes INTEGER NOT NULL,
+			width INTEGER,
+			height INTEGER,
+			duration_ms INTEGER,
+			has_thumb INTEGER NOT NULL DEFAULT 0,
+			peaks TEXT,
+			status TEXT NOT NULL CHECK (status IN ('pending','attached','removed')),
+			protected INTEGER NOT NULL DEFAULT 0,
+			removed_reason TEXT,
+			created_at INTEGER NOT NULL,
+			attached_at INTEGER,
+			removed_at INTEGER,
+			purged_at INTEGER
+		);
+CREATE INDEX IF NOT EXISTS idx_chat_att_owner ON chat_attachments(uploader_id, status, protected, created_at);
+CREATE INDEX IF NOT EXISTS idx_chat_att_message ON chat_attachments(message_id);
+CREATE INDEX IF NOT EXISTS idx_chat_att_room ON chat_attachments(room_id);
+CREATE INDEX IF NOT EXISTS idx_chat_att_purge ON chat_attachments(status, purged_at);`,
+	},
+	{
+		Version: 45,
+		Name:    "create_user_color_roles",
+		// The role a user picked to color their nickname; no row = the
+		// highest colored role. role_id may be the implicit 'owner' role.
+		SQL: `CREATE TABLE IF NOT EXISTS user_color_roles (
+			user_id TEXT PRIMARY KEY,
+			role_id TEXT NOT NULL
+		);
+CREATE INDEX IF NOT EXISTS idx_user_color_roles_role ON user_color_roles(role_id);`,
+	},
+	{
+		Version: 46,
+		Name:    "create_chat_attachment_jobs",
+		// Content extraction (OCR, image embeddings) per attachment, see
+		// docs/specs/CHAT_SYSTEM.md §7.13. signature names the models that
+		// produced the result; a model change re-queues the done rows.
+		// vector is little-endian float32.
+		SQL: `CREATE TABLE IF NOT EXISTS chat_attachment_jobs (
+			attachment_id TEXT PRIMARY KEY,
+			status TEXT NOT NULL CHECK (status IN ('pending','done','failed')),
+			attempts INTEGER NOT NULL DEFAULT 0,
+			next_attempt_at INTEGER NOT NULL DEFAULT 0,
+			last_error TEXT,
+			signature TEXT NOT NULL DEFAULT '',
+			text TEXT NOT NULL DEFAULT '',
+			vector BLOB,
+			updated_at INTEGER NOT NULL
+		);
+CREATE INDEX IF NOT EXISTS idx_chat_att_jobs_due ON chat_attachment_jobs(status, next_attempt_at);`,
+	},
 }
 
 // RunMigrationsUpTo applies migrations up to and including maxVersion.

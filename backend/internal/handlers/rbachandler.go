@@ -14,12 +14,18 @@ import (
 // Every mutation is authorized inside PermissionService (manage_roles,
 // hierarchy, and "cannot grant what you don't have").
 type RBACHandler struct {
-	ps *service.PermissionService
+	ps        *service.PermissionService
+	broadcast func(message interface{}) // optional: WS broadcast to every client
 }
 
 // NewRBACHandler creates a new RBAC handler
 func NewRBACHandler(ps *service.PermissionService) *RBACHandler {
 	return &RBACHandler{ps: ps}
+}
+
+// SetBroadcaster wires the WebSocket broadcast used for cosmetic updates.
+func (h *RBACHandler) SetBroadcaster(fn func(message interface{})) {
+	h.broadcast = fn
 }
 
 type permissionCatalogEntry struct {
@@ -51,9 +57,40 @@ func (h *RBACHandler) GetMyPermissions(w http.ResponseWriter, r *http.Request) {
 // role colours/badges).
 func (h *RBACHandler) ListRoles(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{
-		"roles":      h.ps.Roles(),
-		"user_roles": h.ps.AllUserRoleIDs(),
+		"roles":       h.ps.Roles(),
+		"user_roles":  h.ps.AllUserRoleIDs(),
+		"color_roles": h.ps.ColorRoles(),
 	})
+}
+
+// SetMyColorRole handles PUT /api/me/color-role with {"role_id": "..."}; an
+// empty role_id restores the automatic (highest colored role) name color.
+func (h *RBACHandler) SetMyColorRole(w http.ResponseWriter, r *http.Request) {
+	sub, ok := subjectFromRequest(r)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	var req struct {
+		RoleID string `json:"role_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if err := h.ps.SetColorRole(sub, req.RoleID); err != nil {
+		writeRBACError(w, err)
+		return
+	}
+	// Cosmetic only: a light event instead of ps.Notify, which would make
+	// every client refetch permissions, rooms and categories.
+	if h.broadcast != nil {
+		h.broadcast(models.WebSocketMessage{
+			Type: "color_role_updated",
+			Data: map[string]string{"user_id": sub.UserID, "role_id": req.RoleID},
+		})
+	}
+	writeJSON(w, map[string]string{"role_id": req.RoleID})
 }
 
 type roleRequest struct {

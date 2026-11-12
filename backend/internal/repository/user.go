@@ -192,6 +192,9 @@ func (r *UserRepository) Delete(id string) error {
 	if _, err := r.db.Exec(`DELETE FROM user_roles WHERE user_id = ?`, id); err != nil {
 		return err
 	}
+	if _, err := r.db.Exec(`DELETE FROM user_color_roles WHERE user_id = ?`, id); err != nil {
+		return err
+	}
 	if _, err := r.db.Exec(`DELETE FROM permission_overwrites WHERE subject_type = 'user' AND subject_id = ?`, id); err != nil {
 		return err
 	}
@@ -253,6 +256,9 @@ func (r *UserRepository) HasSuperAdmin() (bool, error) {
 // DeleteAllGuests deletes all guest users and returns the count of deleted users
 func (r *UserRepository) DeleteAllGuests() (int64, error) {
 	if _, err := r.db.Exec(`DELETE FROM user_roles WHERE user_id IN (SELECT id FROM users WHERE is_guest = 1)`); err != nil {
+		return 0, err
+	}
+	if _, err := r.db.Exec(`DELETE FROM user_color_roles WHERE user_id IN (SELECT id FROM users WHERE is_guest = 1)`); err != nil {
 		return 0, err
 	}
 	if _, err := r.db.Exec(`DELETE FROM permission_overwrites WHERE subject_type = 'user' AND subject_id IN (SELECT id FROM users WHERE is_guest = 1)`); err != nil {

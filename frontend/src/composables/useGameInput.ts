@@ -4,6 +4,12 @@ export interface GameInputState {
   direction: Ref<{ x: number; y: number }>
 }
 
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  const tag = target.tagName
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable
+}
+
 export function useGameInput(): {
   direction: Ref<{ x: number; y: number }>
   keysPressed: Set<string>
@@ -16,6 +22,8 @@ export function useGameInput(): {
   let isListening = false
 
   const keyDownListener = (e: KeyboardEvent) => {
+    // Typing in a text field (e.g. a text channel next to the world) never moves.
+    if (isEditableTarget(e.target)) return
     keysPressed.add(e.code)
     const prev = direction.value
     const next = { x: prev.x, y: prev.y }

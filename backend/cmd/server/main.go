@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"log"
@@ -16,6 +17,9 @@ import (
 	"github.com/kuleshov-aleksei/orbital/internal/ratelimit"
 	"github.com/kuleshov-aleksei/orbital/internal/repository"
 	"github.com/kuleshov-aleksei/orbital/internal/service"
+	"github.com/kuleshov-aleksei/orbital/internal/service/chatmedia"
+	"github.com/kuleshov-aleksei/orbital/internal/service/chatstore"
+	"github.com/kuleshov-aleksei/orbital/internal/service/immichml"
 	"github.com/kuleshov-aleksei/orbital/internal/storage"
 	"github.com/kuleshov-aleksei/orbital/internal/version"
 	"github.com/kuleshov-aleksei/orbital/internal/websocket"
@@ -69,6 +73,9 @@ func main() {
 	var halloweenService *service.HalloweenService
 	var pumpkinAssetService *service.PumpkinAssetService
 	var rbacRepo *repository.RBACRepository
+	var textReadState chatstore.ReadStateStore
+	var textNotify chatstore.NotifyStore
+	var appDB *storage.DB
 
 	if cfg.Database.Path != "" {
 		db, err := storage.NewDB(cfg.Database.Path)
@@ -76,6 +83,7 @@ func main() {
 			log.Fatalf("Failed to initialize database: %v", err)
 		}
 		defer func() { _ = db.Close() }()
+		appDB = db
 
 		// Run migrations
 		if err := db.RunMigrations(); err != nil {
@@ -90,6 +98,8 @@ func main() {
 		sessionRepo = repository.NewSessionRepository(db)
 		qrLoginRepo = repository.NewQRLoginRepository(db)
 		rbacRepo = repository.NewRBACRepository(db)
+		textReadState = repository.NewTextReadStateRepository(db)
+		textNotify = repository.NewTextNotifyRepository(db)
 
 		// Initialize services with repositories
 		categoryService = service.NewCategoryService(categoryRepo)
@@ -191,19 +201,58 @@ func main() {
 		wsHub.SetSoundboard(soundboardService)
 	}
 
+	// Text channels: messages live in Meilisearch (docs/specs/CHAT_SYSTEM.md).
+	var textChat *websocket.TextChat
+	if cfg.Chat.TextChannelsEnabled() {
+		if textReadState == nil {
+			textReadState = chatstore.NewMemoryReadState()
+		}
+		store := chatstore.New(chatstore.NewMeili(cfg.Chat.MeiliURL, cfg.Chat.MeiliAPIKey, cfg.Chat.MeiliIndex), chatstore.Options{})
+		store.Start(context.Background(), func() []string {
+			var ids []string
+			for _, room := range roomService.GetRooms() {
+				if room.IsText() {
+					ids = append(ids, room.ID)
+				}
+			}
+			return ids
+		})
+		textChat = &websocket.TextChat{
+			Store: store, ReadState: textReadState, Notify: textNotify,
+			UserExists: func(id string) bool { return userLookup(id) != nil },
+			Media:      newChatMedia(cfg, appDB),
+		}
+		if textChat.Media != nil {
+			textChat.ML, textChat.SemanticThreshold = newChatML(cfg), cfg.ChatML.SemanticThreshold
+		}
+		wsHub.SetTextChat(textChat)
+		if textChat.Media != nil {
+			textChat.Media.Start(context.Background()) // after SetTextChat wired the hooks
+		}
+		wsHub.StartMuteExpiry(context.Background())
+		log.Printf("Text channels enabled (Meilisearch at %s, index %s)", cfg.Chat.MeiliURL, cfg.Chat.MeiliIndex)
+	} else {
+		log.Println("MEILI_URL is not set, text channels are disabled")
+	}
+
 	// Initialize avatar service
 	avatarService := service.NewAvatarService("data")
 
 	// Initialize handlers with config
 	roomHandler := handlers.NewRoomHandler(roomService, categoryService, livekitService, permissionService, wsHub)
+	if textChat != nil {
+		roomHandler.SetTextChat(textChat)
+	}
 	categoryHandler := handlers.NewCategoryHandler(categoryService, roomService, livekitService, permissionService, wsHub)
 	authHandler := handlers.NewAuthHandler(authService, roleService, cfg.Server.ExternalURL, cfg.Server.ElectronRedirectURL)
 	adminHandler := handlers.NewAdminHandlerWithHub(roleService, userRepo, debugLogService, analyticsService, halloweenService, wsHub)
 	adminHandler.SetPermissionService(permissionService)
 	securityHandler := handlers.NewSecurityHandler(cfg)
 	usersHandler := handlers.NewUsersHandler(userRepo, wsHub)
+	usersHandler.SetPermissionService(permissionService)
 	livekitHandler := handlers.NewLiveKitHandler(livekitService, roomService, permissionService)
 	rbacHandler := handlers.NewRBACHandler(permissionService)
+	rbacHandler.SetBroadcaster(wsHub.BroadcastToAll)
 	avatarHandler := handlers.NewAvatarHandler(avatarService, userRepo)
 	releaseHandler := handlers.NewReleaseHandler(cfg.GetReleasesURL())
 
@@ -268,7 +317,7 @@ func main() {
 	}
 
 	// API routes
-	r.HandleFunc("/api/health", healthHandler).Methods("GET")
+	r.HandleFunc("/api/health", healthHandler(textChat)).Methods("GET")
 	r.HandleFunc("/api/version", versionHandler).Methods("GET")
 
 	// Auth routes
@@ -364,6 +413,49 @@ func main() {
 	r.Handle("/api/rooms/{id}/leave", auth(http.HandlerFunc(roomHandler.LeaveRoom))).Methods("POST")
 	r.Handle("/api/rooms/{room_id}/kick/{user_id}", auth(http.HandlerFunc(roomHandler.KickUser))).Methods("POST")
 
+	// Text channels: reads over REST (VIEW_ROOM checked per request), writes over WebSocket.
+	if textChat != nil {
+		textChatHandler := handlers.NewTextChatHandler(handlers.TextChatDeps{
+			Store: textChat.Store, ReadState: textChat.ReadState, Notify: textChat.Notify,
+			RoomService: roomService, Permissions: permissionService, Events: wsHub,
+			Media: textChat.Media,
+			Users: func() []*models.User {
+				if userRepo == nil {
+					return nil
+				}
+				users, err := userRepo.GetAll()
+				if err != nil {
+					log.Printf("[TextChat] Failed to list users for search: %v", err)
+				}
+				return users
+			},
+		})
+		r.Handle("/api/rooms/{id}/messages", auth(http.HandlerFunc(textChatHandler.GetMessages))).Methods("GET")
+		r.Handle("/api/messages/{id}/context", auth(http.HandlerFunc(textChatHandler.GetMessageContext))).Methods("GET")
+		r.Handle("/api/chat/unread", auth(http.HandlerFunc(textChatHandler.GetUnread))).Methods("GET")
+		r.Handle("/api/chat/search", auth(http.HandlerFunc(textChatHandler.Search))).Methods("GET")
+		r.Handle("/api/rooms/{id}/pins", auth(http.HandlerFunc(textChatHandler.GetPins))).Methods("GET")
+		r.Handle("/api/rooms/{id}/notify", auth(http.HandlerFunc(textChatHandler.SetNotify))).Methods("PUT")
+
+		// Attachments (docs/specs/CHAT_SYSTEM.md §7.12): RBAC per request in the handlers.
+		if textChat.Media != nil {
+			chatUploadLimit := ratelimit.Every(cfg.ChatMedia.UploadsPerHour, time.Hour)
+			uploadHandler := limiter.Middleware("chat-upload", chatUploadLimit, userOrIPKey, http.HandlerFunc(textChatHandler.UploadAttachment))
+			r.Handle("/api/rooms/{id}/attachments", auth(uploadHandler)).Methods("POST")
+			r.Handle("/api/attachments/urls", auth(http.HandlerFunc(textChatHandler.AttachmentURLs))).Methods("POST")
+			r.Handle("/api/attachments/{id}", auth(http.HandlerFunc(textChatHandler.UpdateAttachment))).Methods("PATCH")
+			r.Handle("/api/attachments/{id}", auth(http.HandlerFunc(textChatHandler.DeleteAttachment))).Methods("DELETE")
+			r.Handle("/api/attachments/{id}/content", auth(http.HandlerFunc(textChatHandler.AttachmentContent))).Methods("GET")
+			r.Handle("/api/attachments/{id}/content/retry", auth(http.HandlerFunc(textChatHandler.RetryAttachmentContent))).Methods("POST")
+			superAdmin := func(h http.HandlerFunc) http.Handler { return auth(authHandler.RequireSuperAdmin(h)) }
+			r.Handle("/api/admin/attachments/extraction", superAdmin(textChatHandler.ExtractionStatus)).Methods("GET")
+			r.Handle("/api/admin/attachments/extraction/retry-failed", superAdmin(textChatHandler.RetryFailedExtractions)).Methods("POST")
+			r.Handle("/api/me/attachments", auth(http.HandlerFunc(textChatHandler.ListMyAttachments))).Methods("GET")
+			r.Handle("/api/me/attachments/usage", auth(http.HandlerFunc(textChatHandler.MyAttachmentUsage))).Methods("GET")
+			r.Handle("/api/me/attachments/bulk", auth(http.HandlerFunc(textChatHandler.BulkMyAttachments))).Methods("POST")
+		}
+	}
+
 	// Category routes
 	r.Handle("/api/categories", auth(http.HandlerFunc(categoryHandler.GetCategories))).Methods("GET")
 	r.Handle("/api/categories", requirePerm(permissions.ManageRooms, categoryHandler.CreateCategory)).Methods("POST")
@@ -375,6 +467,7 @@ func main() {
 	// authorized inside PermissionService (manage_roles + hierarchy).
 	r.HandleFunc("/api/permissions/catalog", rbacHandler.GetCatalog).Methods("GET")
 	r.Handle("/api/me/permissions", auth(http.HandlerFunc(rbacHandler.GetMyPermissions))).Methods("GET")
+	r.Handle("/api/me/color-role", auth(http.HandlerFunc(rbacHandler.SetMyColorRole))).Methods("PUT")
 	r.Handle("/api/roles", auth(http.HandlerFunc(rbacHandler.ListRoles))).Methods("GET")
 	r.Handle("/api/roles", auth(http.HandlerFunc(rbacHandler.CreateRole))).Methods("POST")
 	r.Handle("/api/roles/order", auth(http.HandlerFunc(rbacHandler.ReorderRoles))).Methods("PUT")
@@ -390,6 +483,7 @@ func main() {
 		r.Handle(t.prefix+"/{id}/overwrites/{subject_type}/{subject_id}", auth(rbacHandler.DeleteOverwrite(t.target))).Methods("DELETE")
 	}
 	r.Handle("/api/rooms/{id}/permissions_synced", auth(http.HandlerFunc(rbacHandler.SetRoomSync))).Methods("PUT")
+	r.Handle("/api/rooms/{id}/viewers", auth(http.HandlerFunc(usersHandler.GetRoomViewers))).Methods("GET")
 
 	// Soundboard: listing needs auth, clip files are public (audio loaders
 	// cannot send auth headers). Upload (upload_sounds) and moderation
@@ -501,14 +595,26 @@ func writeJSON(w http.ResponseWriter, v interface{}) {
 	}
 }
 
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	writeJSON(w, map[string]string{
-		"status":  "ok",
-		"service": "orbital-backend",
-		"version": version.GetVersion(),
-	})
+// healthHandler reports backend health. Meilisearch being down degrades
+// text channels only, so it is reported but does not fail the check.
+func healthHandler(textChat *websocket.TextChat) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		textChannels := "disabled"
+		if textChat != nil {
+			textChannels = "ok"
+			if !textChat.Store.Ready() || textChat.Store.Health(r.Context()) != nil {
+				textChannels = "unavailable"
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		writeJSON(w, map[string]string{
+			"status":        "ok",
+			"service":       "orbital-backend",
+			"version":       version.GetVersion(),
+			"text_channels": textChannels,
+		})
+	}
 }
 
 func versionHandler(w http.ResponseWriter, r *http.Request) {
@@ -559,4 +665,48 @@ func requestLoggingMiddleware(next http.Handler) http.Handler {
 		duration := time.Since(start)
 		log.Printf("[%s] %s %s - %v", r.Method, r.URL.Path, r.RemoteAddr, duration)
 	})
+}
+
+// newChatMedia sets up text channel attachments, or returns nil (disabled)
+// without S3 config or a database.
+func newChatMedia(cfg *config.Config, db *storage.DB) *chatmedia.Service {
+	mc := cfg.ChatMedia
+	if !mc.Enabled() || db == nil {
+		log.Println("CHAT_MEDIA_S3_* is not set (or no database), text channel attachments are disabled")
+		return nil
+	}
+	store, err := chatmedia.NewS3Store(chatmedia.S3Config{
+		Endpoint: mc.S3Endpoint, PublicEndpoint: mc.PublicEndpoint(), Bucket: mc.Bucket, Region: mc.Region,
+		AccessKey: mc.AccessKey, SecretKey: mc.SecretKey,
+	})
+	if err != nil {
+		log.Printf("Text channel attachments are disabled: %v", err)
+		return nil
+	}
+	const mb = 1024 * 1024
+	svc := chatmedia.New(db, store, chatmedia.Limits{
+		MaxImageBytes: int64(mc.MaxImageMB) * mb, MaxAudioBytes: int64(mc.MaxAudioMB) * mb,
+		MaxVideoBytes: int64(mc.MaxVideoMB) * mb, QuotaBytes: mc.QuotaBytes(),
+	})
+	log.Printf("Text channel attachments enabled (S3 %s, bucket %s, quota %d MB)", mc.S3Endpoint, mc.Bucket, mc.QuotaMB)
+	return svc
+}
+
+// newChatML returns the Immich ML client for image content search, or nil
+// (disabled) without CHAT_ML_URL.
+func newChatML(cfg *config.Config) *immichml.Client {
+	mc := cfg.ChatML
+	if !mc.Enabled() {
+		log.Println("CHAT_ML_URL is not set, search by image contents is disabled")
+		return nil
+	}
+	opts := immichml.Options{URL: mc.URL, Timeout: time.Duration(mc.TimeoutSeconds) * time.Second}
+	if mc.OCREnabled {
+		opts.OCRModel = mc.OCRModel
+	}
+	if mc.CLIPEnabled {
+		opts.CLIPModel = mc.CLIPModel
+	}
+	log.Printf("Search by image contents enabled (Immich ML at %s, OCR %q, CLIP %q)", mc.URL, opts.OCRModel, opts.CLIPModel)
+	return immichml.New(opts)
 }

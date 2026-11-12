@@ -1,4 +1,4 @@
-.PHONY: help install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-backend test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all balance-drift balance-check
+.PHONY: help install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-backend test-integration e2e-textchat meili-up meili-down ml-up ml-down garage-up garage-down test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all balance-drift balance-check
 
 # Default target
 help:
@@ -12,7 +12,15 @@ help:
 	@echo "  check             - Release quality gate: frontend typecheck + full backend lint"
 	@echo "  test              - Run tests (Playwright e2e in Docker)"
 	@echo "  test-unit         - Run frontend unit tests (Vitest)"
-	@echo "  test-backend      - Run backend Go tests"
+	@echo "  test-backend      - Run backend Go unit tests (hermetic, what PR CI runs)"
+	@echo "  test-integration  - Run backend integration tests against Meilisearch + Garage (starts them)"
+	@echo "  e2e-textchat      - Live text channel check on a throwaway backend + index (starts Meilisearch + Garage)"
+	@echo "  meili-up          - Start the dev Meilisearch container (text channels)"
+	@echo "  meili-down        - Stop the dev Meilisearch container"
+	@echo "  ml-up             - Start the dev Immich ML container (search by image contents)"
+	@echo "  ml-down           - Stop the dev Immich ML container"
+	@echo "  garage-up         - Start the dev Garage S3 container (chat attachments)"
+	@echo "  garage-down       - Stop the dev Garage S3 container"
 	@echo "  test-e2e-docker   - Run Playwright e2e tests in Docker"
 	@echo "  test-headed       - Run tests in headed mode (local browser required)"
 	@echo "  docker-build-test - Build the Playwright test Docker image"
@@ -162,10 +170,68 @@ test-e2e-docker: docker-build-test
 test: docker-build-test
 	@PLAYWRIGHT_TEST_IMAGE=$(PLAYWRIGHT_TEST_IMAGE) PLAYWRIGHT_TEST_ARGS="$(PLAYWRIGHT_TEST_ARGS)" bash scripts/run-tests.sh all
 
-# Run backend unit tests
+# Run backend unit tests (no external services; integration tests are excluded
+# by build tag, see test-integration)
 test-backend:
 	@echo "Running backend tests..."
 	cd backend && go test ./...
+
+# Dev Meilisearch (text channel store, docs/specs/CHAT_SYSTEM.md). The backend's
+# development defaults point at it, so `make meili-up && make dev` just works.
+MEILI_TEST_URL ?= http://127.0.0.1:7700
+MEILI_TEST_KEY ?= $(or $(MEILI_MASTER_KEY),orbital-dev-meili-key)
+
+meili-up:
+	docker-compose -f docker-compose.dev.yml up -d meilisearch
+	@for i in $$(seq 1 60); do \
+		curl -fsS $(MEILI_TEST_URL)/health >/dev/null 2>&1 && echo "Meilisearch is up at $(MEILI_TEST_URL)" && exit 0; \
+		sleep 0.5; \
+	done; echo "Meilisearch did not become healthy" >&2; exit 1
+
+meili-down:
+	docker-compose -f docker-compose.dev.yml stop meilisearch
+
+# Dev Garage S3 (text channel attachments, docs/specs/CHAT_SYSTEM.md §7.12).
+# Single-node mode creates the layout, dev key and bucket on first start.
+GARAGE_TEST_BUCKET ?= orbital-chat-media
+
+# Dev Immich ML (OCR + CLIP for search by image contents). The first start
+# downloads the models (a few GB), so the health wait is long.
+ml-up:
+	docker-compose -f docker-compose.dev.yml up -d immich-ml
+	@for i in $$(seq 1 120); do \
+		curl -fsS http://127.0.0.1:3003/ping >/dev/null 2>&1 && echo "Immich ML is up at http://127.0.0.1:3003 (set CHAT_ML_URL to use it)" && exit 0; \
+		sleep 1; \
+	done; echo "Immich ML did not answer /ping" >&2; exit 1
+
+ml-down:
+	docker-compose -f docker-compose.dev.yml stop immich-ml
+
+garage-up:
+	docker-compose -f docker-compose.dev.yml up -d garage
+	@for i in $$(seq 1 60); do \
+		docker exec orbital-garage /garage bucket info $(GARAGE_TEST_BUCKET) >/dev/null 2>&1 && \
+			echo "Garage is up at http://127.0.0.1:3900 (bucket $(GARAGE_TEST_BUCKET))" && exit 0; \
+		sleep 0.5; \
+	done; echo "Garage did not become ready" >&2; exit 1
+
+garage-down:
+	docker-compose -f docker-compose.dev.yml stop garage
+
+# Backend integration tests (build tag `integration`), e.g. the Meilisearch
+# engine. Not part of PR CI; each test uses its own throwaway index.
+test-integration: meili-up garage-up
+	@echo "Running backend integration tests..."
+	@# The S3 test uses the dev Garage key from .env (skips without it).
+	@cd backend && export $$(grep -E '^GARAGE_DEFAULT_(ACCESS_KEY|SECRET_KEY|BUCKET)=' ../.env 2>/dev/null | tr -d '"' | xargs) && \
+		MEILI_TEST_URL=$(MEILI_TEST_URL) MEILI_TEST_KEY=$(MEILI_TEST_KEY) \
+		go test -count=1 -tags integration -run Integration ./...
+
+# Live text channel check: throwaway backend (own DB + index) driven over
+# REST/WS by scripts/e2e-textchat.mjs. Run it after chatstore or text chat
+# WebSocket/handler changes; it is not part of PR CI.
+e2e-textchat: meili-up garage-up
+	@MEILI_URL=$(MEILI_TEST_URL) MEILI_KEY=$(MEILI_TEST_KEY) bash scripts/e2e-textchat.sh
 
 # Run frontend unit tests
 test-unit:

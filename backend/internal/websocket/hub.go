@@ -8,11 +8,13 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gorilla/websocket"
 	"github.com/kuleshov-aleksei/orbital/internal/config"
 	"github.com/kuleshov-aleksei/orbital/internal/models"
 	"github.com/kuleshov-aleksei/orbital/internal/permissions"
+	"github.com/kuleshov-aleksei/orbital/internal/ratelimit"
 	"github.com/kuleshov-aleksei/orbital/internal/repository"
 	"github.com/kuleshov-aleksei/orbital/internal/service"
 )
@@ -46,6 +48,10 @@ type Hub struct {
 	soundboard    SoundLookup
 	soundMu       sync.Mutex
 	lastSoundPlay map[string]time.Time // user_id -> last accepted play_sound
+
+	// Text channels (see textchat.go)
+	textChat    *TextChat
+	textLimiter *ratelimit.Limiter
 }
 
 // Client represents a WebSocket client
@@ -685,6 +691,20 @@ func (c *Client) handleMessage(message models.WebSocketMessage) {
 		c.handleRequestStatsState(message.Data)
 	case "request_logs":
 		c.handleRequestLogs(message.Data)
+	case "text_message_send":
+		c.handleTextMessageSend(message.Data)
+	case "text_message_edit":
+		c.handleTextMessageEdit(message.Data)
+	case "text_message_delete":
+		c.handleTextMessageDelete(message.Data)
+	case "text_channel_read":
+		c.handleTextChannelRead(message.Data)
+	case "text_reaction_toggle":
+		c.handleTextReactionToggle(message.Data)
+	case "text_pin":
+		c.handleTextPin(message.Data)
+	case "text_typing":
+		c.handleTextTyping(message.Data)
 	default:
 		log.Printf("Unknown message type: %s", message.Type)
 	}
@@ -713,6 +733,15 @@ func (c *Client) handleJoinRoom(data interface{}) {
 	}
 	if req.UserID != "" && req.UserID != userID {
 		log.Printf("[WebSocket] Rejecting join_room: user_id mismatch (authenticated=%s, requested=%s)", userID, req.UserID)
+		return
+	}
+
+	if room, ok := c.hub.roomService.GetRoom(c.roomID); ok && room.IsText() {
+		log.Printf("[WebSocket] Rejecting join_room for user %s in room %s: text channels cannot be joined", userID, c.roomID)
+		c.hub.trySend(c, marshalMessage(models.WebSocketMessage{
+			Type: "error",
+			Data: map[string]string{"message": "Text channels cannot be joined"},
+		}))
 		return
 	}
 
@@ -1373,7 +1402,7 @@ func (c *Client) handleSendMessage(data interface{}) {
 		return
 	}
 
-	if len(content) > 2000 {
+	if utf8.RuneCountInString(content) > 2000 {
 		log.Printf("[Chat] Cannot send message: content exceeds 2000 characters")
 		c.send <- marshalMessage(models.WebSocketMessage{
 			Type: "error",

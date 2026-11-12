@@ -4,6 +4,7 @@ import (
 	"log"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/kuleshov-aleksei/orbital/internal/models"
 )
@@ -25,7 +26,7 @@ func (cs *ChatService) AddMessage(roomID, senderID, content string) (*models.Cha
 	if content == "" {
 		return nil, &ChatError{Message: "Message content cannot be empty"}
 	}
-	if len(content) > 2000 {
+	if utf8.RuneCountInString(content) > 2000 {
 		return nil, &ChatError{Message: "Message content exceeds 2000 characters"}
 	}
 

@@ -21,6 +21,8 @@ export const Permission = {
   MuteMembers: 1 << 16,
   MoveMembers: 1 << 17,
   UseSoundboard: 1 << 18,
+  ManageMessages: 1 << 19,
+  AttachFiles: 1 << 20,
 } as const
 
 export type PermissionName = keyof typeof Permission
@@ -103,6 +105,18 @@ export const PERMISSION_INFO: Array<{
     group: "room",
   },
   {
+    key: "ManageMessages",
+    label: "Manage Messages",
+    description: "Delete other members' messages and pin messages in text channels",
+    group: "room",
+  },
+  {
+    key: "AttachFiles",
+    label: "Attach Files",
+    description: "Upload images, audio and video in text channels",
+    group: "room",
+  },
+  {
     key: "KickMembers",
     label: "Kick Members",
     description: "Disconnect lower-ranked members from the room",
@@ -148,6 +162,8 @@ export interface Role {
 export interface RolesResponse {
   roles: Role[]
   user_roles: Record<string, string[]>
+  /** user_id -> role picked to color their nickname (absent = highest colored role). */
+  color_roles?: Record<string, string>
 }
 
 export type OverwriteTargetType = "room" | "category"
@@ -169,4 +185,6 @@ export interface MyPermissions {
   categories: Record<string, number>
   role_ids: string[]
   top_position: number
+  /** Visible rooms with customized permissions (shown as private). */
+  private_rooms?: string[]
 }

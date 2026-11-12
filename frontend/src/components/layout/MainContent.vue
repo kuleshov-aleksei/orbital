@@ -1,49 +1,58 @@
 <template>
   <main
     v-if="!appStore.isMobile || appStore.mobileView === 'room'"
-    class="flex-1 flex flex-col min-h-0 bg-theme-bg-primary">
+    class="flex-1 flex flex-col min-h-0 min-w-0 bg-theme-bg-primary">
+    <!-- An open text channel is shown instead of the call view. The call view
+         stays mounted (hidden): unmounting it would disconnect from LiveKit. -->
+    <TextChannelView v-if="textChatStore.activeChannel" :channel="textChatStore.activeChannel" />
+
     <WelcomeView
-      v-if="!roomStore.activeRoomId"
+      v-else-if="!roomStore.activeRoomId"
       @room-selected="$emit('room-selected', $event)"
       @create-room="$emit('create-room')" />
 
-    <VoiceCallView
-      v-else-if="roomStore.activeRoomId && roomStore.activeRoom?.type !== 'spatial_audio'"
-      ref="voiceCallViewRef"
-      v-model:model-value-muted="callStore.isMuted"
-      v-model:model-value-deafened="callStore.isDeafened"
-      v-model:model-value-screen-sharing="callStore.isScreenSharing"
-      v-model:model-value-camera-enabled="callStore.isCameraEnabled"
-      :room-id="roomStore.activeRoomId"
-      :room-name="roomStore.activeRoomName"
-      :users="roomStore.currentRoomUsers"
-      :remote-stream-volumes="roomStore.remoteStreamVolumes"
-      :is-mobile="appStore.isMobile"
-      @leave-room="$emit('leave-room')"
-      @show-room-list="appStore.showRoomsView()"
-      @toggle-user-sidebar="appStore.toggleMobileUserSidebar()"
-      @ping-update="(ping, quality) => $emit('ping-update', { ping, quality })"
-      @request-screen-share="$emit('request-screen-share')" />
+    <div
+      v-if="roomStore.activeRoomId"
+      v-show="!textChatStore.activeChannel"
+      class="flex-1 flex flex-col min-h-0">
+      <VoiceCallView
+        v-if="roomStore.activeRoom?.type !== 'spatial_audio'"
+        ref="voiceCallViewRef"
+        v-model:model-value-muted="callStore.isMuted"
+        v-model:model-value-deafened="callStore.isDeafened"
+        v-model:model-value-screen-sharing="callStore.isScreenSharing"
+        v-model:model-value-camera-enabled="callStore.isCameraEnabled"
+        :room-id="roomStore.activeRoomId"
+        :room-name="roomStore.activeRoomName"
+        :users="roomStore.currentRoomUsers"
+        :remote-stream-volumes="roomStore.remoteStreamVolumes"
+        :is-mobile="appStore.isMobile"
+        @leave-room="$emit('leave-room')"
+        @show-room-list="appStore.showRoomsView()"
+        @toggle-user-sidebar="appStore.toggleMobileUserSidebar()"
+        @ping-update="(ping, quality) => $emit('ping-update', { ping, quality })"
+        @request-screen-share="$emit('request-screen-share')" />
 
-    <SpatialWorldView
-      v-else-if="roomStore.activeRoomId && roomStore.activeRoom?.type === 'spatial_audio'"
-      v-model:model-value-muted="callStore.isMuted"
-      v-model:model-value-deafened="callStore.isDeafened"
-      :room-id="roomStore.activeRoomId"
-      :room-name="roomStore.activeRoomName"
-      :users="roomStore.currentRoomUsers"
-      :remote-stream-volumes="roomStore.remoteStreamVolumes"
-      :is-mobile="appStore.isMobile"
-      :world-id="roomStore.activeRoom?.world || 'default'"
-      @leave-room="$emit('leave-room')"
-      @show-room-list="appStore.showRoomsView()"
-      @toggle-user-sidebar="appStore.toggleMobileUserSidebar()" />
+      <SpatialWorldView
+        v-else
+        v-model:model-value-muted="callStore.isMuted"
+        v-model:model-value-deafened="callStore.isDeafened"
+        :room-id="roomStore.activeRoomId"
+        :room-name="roomStore.activeRoomName"
+        :users="roomStore.currentRoomUsers"
+        :remote-stream-volumes="roomStore.remoteStreamVolumes"
+        :is-mobile="appStore.isMobile"
+        :world-id="roomStore.activeRoom?.world || 'default'"
+        @leave-room="$emit('leave-room')"
+        @show-room-list="appStore.showRoomsView()"
+        @toggle-user-sidebar="appStore.toggleMobileUserSidebar()" />
+    </div>
   </main>
 </template>
 
 <script setup lang="ts">
 import { defineAsyncComponent, useTemplateRef } from "vue"
-import { useRoomStore, useAppStore, useCallStore } from "@/stores"
+import { useRoomStore, useAppStore, useCallStore, useTextChatStore } from "@/stores"
 import WelcomeView from "@/views/WelcomeView.vue"
 
 defineEmits<{
@@ -59,10 +68,12 @@ defineEmits<{
 
 const VoiceCallView = defineAsyncComponent(() => import("@/views/VoiceCallView.vue"))
 const SpatialWorldView = defineAsyncComponent(() => import("@/views/SpatialWorldView.vue"))
+const TextChannelView = defineAsyncComponent(() => import("@/views/TextChannelView.vue"))
 
 const roomStore = useRoomStore()
 const appStore = useAppStore()
 const callStore = useCallStore()
+const textChatStore = useTextChatStore()
 
 const voiceCallViewRef = useTemplateRef<InstanceType<typeof VoiceCallView>>("voiceCallViewRef")
 
