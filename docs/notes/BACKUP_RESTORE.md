@@ -2,7 +2,11 @@
 
 Every production deploy (`.github/workflows/deploy.yml`, step "Backup data") runs
 `scripts/backup-release.sh <version>` **before** any container is replaced. A
-failed backup aborts the deploy. After a successful deploy,
+failed backup aborts the deploy. Patch-only updates (`3.1.0` → `3.1.1`) and
+redeploys of the same version skip the backup, since only major/minor releases
+may carry migrations; the deployed version is read from the `orbital-backend`
+image tag in `/opt/orbital/docker-compose.yml` (unreadable → back up). Run the
+workflow manually with `force_backup` to back up anyway. After a successful deploy,
 `scripts/prune-s3-backups.sh` trims old database backups (non-fatal).
 
 Spec: `docs/specs/MEILI_RELEASE_BACKUP.md`.

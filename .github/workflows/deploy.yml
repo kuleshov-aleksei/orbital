@@ -5,6 +5,11 @@ on:
     tags:
       - '*'
   workflow_dispatch:
+    inputs:
+      force_backup:
+        description: 'Back up data even for a patch-only update'
+        type: boolean
+        default: false
 
 # Never run two deploys (and their backups) on the host at the same time.
 concurrency:
@@ -48,10 +53,38 @@ jobs:
           docker buildx build --build-arg VERSION=${{ env.VERSION }} --build-arg APP_URL=${{ vars.APP_URL }} -t orbital-frontend:${{ env.VERSION }} -f docker/Dockerfile.frontend .
           docker buildx build --build-arg VERSION=${{ env.VERSION }} -t orbital-backend:${{ env.VERSION }} -f docker/Dockerfile.backend .
 
+      # Only major/minor releases may carry database migrations, so a patch-only
+      # update (3.1.0 -> 3.1.1) or a redeploy skips the backup. The deployed
+      # version is read from the current compose file (orbital-backend:<x.y.z-sha>);
+      # if it cannot be read (first deploy), back up anyway.
+      - name: Decide whether to back up
+        id: backup_check
+        env:
+          FORCE_BACKUP: ${{ inputs.force_backup }}
+        run: |
+          DEPLOYED=$(sed -n 's/^ *image: orbital-backend:\([0-9][0-9.]*\)-.*/\1/p' /opt/orbital/docker-compose.yml 2>/dev/null | head -n 1 || true)
+          DEPLOYED_MINOR=$(echo "$DEPLOYED" | cut -d. -f1,2)
+          NEW_MINOR=$(echo "$VERSION" | cut -d. -f1,2)
+          echo "Deployed: ${DEPLOYED:-unknown}, deploying: $VERSION"
+          if [ "$FORCE_BACKUP" = "true" ]; then
+            echo "Backup forced via workflow input"
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif [ -z "$DEPLOYED" ]; then
+            echo "Deployed version unknown, backing up"
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif [ "$DEPLOYED_MINOR" = "$NEW_MINOR" ]; then
+            echo "Patch-only update ($DEPLOYED_MINOR.x), skipping backup"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Minor/major update ($DEPLOYED_MINOR -> $NEW_MINOR), backing up"
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
       # Must run before the compose file is replaced and before any container
       # is recreated: it talks to the currently deployed stack. A failure aborts
       # the deploy. See docs/notes/BACKUP_RESTORE.md.
       - name: Backup data
+        if: steps.backup_check.outputs.run == 'true'
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_KEY }}
