@@ -410,3 +410,30 @@ func TestCustomEmojiRefsInStatusAndSoundboard(t *testing.T) {
 		t.Fatalf("sound with unknown custom emoji: %d, want 400", rec.Code)
 	}
 }
+
+func TestEmojiDuplicateNameConflict(t *testing.T) {
+	f, h, svc, n := newEmojiFixture(t)
+	first, err := svc.Create("owner", testPNG(t, 32, 32), "Party Parrot", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Same :shortcode: (party_parrot) despite case and punctuation.
+	rec := uploadEmoji(t, f, h, "owner", testPNG(t, 32, 32), map[string]string{"name": "party-parrot!"})
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("duplicate upload: %d %s, want 409", rec.Code, rec.Body.String())
+	}
+	other, err := svc.Create("owner", testPNG(t, 32, 32), "blob", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rename := map[string]any{"name": "PARTY PARROT"}
+	if rec := f.do(t, "owner", h.UpdateEmoji, http.MethodPatch, map[string]string{"id": other.ID}, rename); rec.Code != http.StatusConflict {
+		t.Fatalf("rename onto taken name: %d, want 409", rec.Code)
+	}
+	if rec := f.do(t, "owner", h.UpdateEmoji, http.MethodPatch, map[string]string{"id": first.ID}, rename); rec.Code != http.StatusOK {
+		t.Fatalf("rename to own name variant: %d %s", rec.Code, rec.Body.String())
+	}
+	if n.n != 1 {
+		t.Fatalf("only the successful rename broadcasts, got %d", n.n)
+	}
+}

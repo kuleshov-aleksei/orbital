@@ -7,9 +7,11 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/kuleshov-aleksei/orbital/internal/models"
@@ -40,9 +42,12 @@ var (
 	ErrEmojiInvalidType  = errors.New("invalid file type, only PNG, GIF and WebP images are allowed")
 	ErrEmojiInvalidImage = fmt.Errorf("invalid image, must be up to %dx%d (animated: up to %dx%d with at most %d frames)",
 		maxEmojiSourceDimension, maxEmojiSourceDimension, maxAnimatedSourceDimension, maxAnimatedSourceDimension, maxEmojiFrames)
-	ErrEmojiNotFound    = errors.New("emoji not found")
+	ErrEmojiNotFound = errors.New("emoji not found")
 	// ErrEmojiLibraryFull is wrapped with the configured maximum by Create.
 	ErrEmojiLibraryFull = errors.New("emoji library is full")
+	// ErrEmojiNameTaken: names are unique by :shortcode:, so "Party Parrot"
+	// and "party-parrot" conflict.
+	ErrEmojiNameTaken = errors.New("an emoji with this name already exists")
 )
 
 // EmojiService manages the shared custom emoji library. Name and alias rules
@@ -56,6 +61,10 @@ type EmojiService struct {
 	// SQLite stays the source of truth. nil means "rebuild on next read".
 	idxMu sync.Mutex
 	idx   *emojiIndex
+
+	// nameMu serializes the name uniqueness check with the write that
+	// follows it (Create, Update, DedupeNames).
+	nameMu sync.Mutex
 }
 
 // NewEmojiService creates the service. maxCustom <= 0 uses DefaultMaxCustomEmojis.
@@ -121,6 +130,11 @@ func (s *EmojiService) Create(userID string, data []byte, name string, aliases [
 	if err != nil {
 		return nil, err
 	}
+	s.nameMu.Lock()
+	defer s.nameMu.Unlock()
+	if err := s.checkNameLocked(name, ""); err != nil {
+		return nil, err
+	}
 	count, err := s.repo.Count()
 	if err != nil {
 		return nil, fmt.Errorf("failed to count emojis: %w", err)
@@ -184,6 +198,11 @@ func (s *EmojiService) Update(id string, req models.UpdateCustomEmojiRequest) (*
 		if err != nil {
 			return nil, err
 		}
+		s.nameMu.Lock()
+		defer s.nameMu.Unlock()
+		if err := s.checkNameLocked(name, id); err != nil {
+			return nil, err
+		}
 		emoji.Name = name
 	}
 	if req.Aliases != nil {
@@ -198,6 +217,81 @@ func (s *EmojiService) Update(id string, req models.UpdateCustomEmojiRequest) (*
 	}
 	s.invalidateIndex()
 	return withImageURL(emoji), nil
+}
+
+// checkNameLocked returns ErrEmojiNameTaken when another emoji (not exceptID)
+// already has a name with the same shortcode. Callers hold nameMu.
+func (s *EmojiService) checkNameLocked(name, exceptID string) error {
+	idx, err := s.index()
+	if err != nil {
+		return err
+	}
+	if e := idx.byNameShortcode[EmojiShortcode(name)]; e != nil && e.ID != exceptID {
+		return ErrEmojiNameTaken
+	}
+	return nil
+}
+
+// dedupeSuffixedName is base + "_NN", with base cut so the result still fits
+// the name length limit.
+func dedupeSuffixedName(base string, n int) string {
+	suffix := fmt.Sprintf("_%02d", n)
+	runes := []rune(base)
+	if keep := MaxSoundboardNameRunes - utf8.RuneCountInString(suffix); len(runes) > keep {
+		runes = runes[:keep]
+	}
+	return strings.TrimSpace(string(runes)) + suffix
+}
+
+// DedupeNames resolves emojis whose names share a :shortcode: (stored before
+// names had to be unique). The oldest keeps its name, which is the one
+// :shortcode: already resolved to; the others get "_01", "_02", ... Message
+// tokens carry the emoji id, so renames don't break existing messages.
+// Idempotent; returns how many emojis were renamed.
+func (s *EmojiService) DedupeNames() (int, error) {
+	s.nameMu.Lock()
+	defer s.nameMu.Unlock()
+	emojis, err := s.repo.List()
+	if err != nil {
+		return 0, err
+	}
+	sort.SliceStable(emojis, func(i, j int) bool { return emojiBefore(emojis[i], emojis[j]) })
+
+	// Reserve every kept name first, so a suffixed name can't take the
+	// shortcode of a newer emoji that already owns it (e.g. "x_01").
+	used := make(map[string]bool, len(emojis))
+	var dups []*models.CustomEmoji
+	for _, e := range emojis {
+		code := EmojiShortcode(e.Name)
+		if used[code] {
+			dups = append(dups, e)
+			continue
+		}
+		used[code] = true
+	}
+
+	renamed := 0
+	for _, e := range dups {
+		var name string
+		for n := 1; ; n++ {
+			name = dedupeSuffixedName(e.Name, n)
+			if !used[EmojiShortcode(name)] {
+				break
+			}
+		}
+		used[EmojiShortcode(name)] = true
+		log.Printf("emoji %s: renamed duplicate %q to %q", e.ID, e.Name, name)
+		e.Name = name
+		if err := s.repo.Update(e); err != nil {
+			s.invalidateIndex()
+			return renamed, fmt.Errorf("rename emoji %s: %w", e.ID, err)
+		}
+		renamed++
+	}
+	if renamed > 0 {
+		s.invalidateIndex()
+	}
+	return renamed, nil
 }
 
 // Delete removes the emoji and its file. References to it (statuses,

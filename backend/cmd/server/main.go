@@ -268,6 +268,13 @@ func main() {
 
 	var emojiHandler *handlers.EmojiHandler
 	if emojiService != nil {
+		// Names are unique by :shortcode:; rename duplicates stored before
+		// that rule, before anything is served.
+		if n, err := emojiService.DedupeNames(); err != nil {
+			log.Printf("Failed to dedupe custom emoji names: %v", err)
+		} else if n > 0 {
+			log.Printf("Renamed %d custom emojis with duplicate names", n)
+		}
 		emojiHandler = handlers.NewEmojiHandler(emojiService, permissionService, wsHub)
 		// One-time conversion of emojis stored before WebP. Their image_url
 		// changes, so tell connected clients to refetch the library.

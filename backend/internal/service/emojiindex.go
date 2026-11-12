@@ -25,6 +25,9 @@ type emojiIndex struct {
 	list        []*models.CustomEmoji // (created_at, id) order, image_url set
 	byID        map[string]*models.CustomEmoji
 	byShortcode map[string]*models.CustomEmoji
+	// byNameShortcode holds name shortcodes only (names are unique by
+	// shortcode, see EmojiService.nameTakenLocked).
+	byNameShortcode map[string]*models.CustomEmoji
 }
 
 // EmojiShortcode turns an emoji name into its `:shortcode:` form
@@ -57,9 +60,10 @@ func EmojiShortcode(name string) string {
 func buildEmojiIndex(emojis []*models.CustomEmoji) *emojiIndex {
 	sort.SliceStable(emojis, func(i, j int) bool { return emojiBefore(emojis[i], emojis[j]) })
 	idx := &emojiIndex{
-		list:        emojis,
-		byID:        make(map[string]*models.CustomEmoji, len(emojis)),
-		byShortcode: make(map[string]*models.CustomEmoji, len(emojis)),
+		list:            emojis,
+		byID:            make(map[string]*models.CustomEmoji, len(emojis)),
+		byShortcode:     make(map[string]*models.CustomEmoji, len(emojis)),
+		byNameShortcode: make(map[string]*models.CustomEmoji, len(emojis)),
 	}
 	// Name shortcodes win over alias shortcodes; among equals the oldest
 	// emoji wins (same rule as the frontend before paging).
@@ -68,6 +72,7 @@ func buildEmojiIndex(emojis []*models.CustomEmoji) *emojiIndex {
 		idx.byID[e.ID] = e
 		if code := EmojiShortcode(e.Name); idx.byShortcode[code] == nil {
 			idx.byShortcode[code] = e
+			idx.byNameShortcode[code] = e
 		}
 	}
 	for _, e := range emojis {

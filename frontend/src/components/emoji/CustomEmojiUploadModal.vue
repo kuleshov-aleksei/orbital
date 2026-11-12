@@ -136,6 +136,11 @@
                 <p v-if="item.error" class="mt-0.5 text-[11px] text-red-400 truncate">
                   {{ item.error }}
                 </p>
+                <p
+                  v-else-if="duplicateIds.has(item.id)"
+                  class="mt-0.5 text-[11px] text-red-400 truncate">
+                  Duplicate name in this batch
+                </p>
               </div>
               <div class="w-5 shrink-0 flex justify-center">
                 <PhSpinner
@@ -192,6 +197,7 @@ import { computed, onMounted, onUnmounted, ref, useTemplateRef } from "vue"
 import { PhImage, PhSpinner, PhWarningCircle, PhX } from "@phosphor-icons/vue"
 import AliasInput from "@/components/common/AliasInput.vue"
 import { useCustomEmojisStore } from "@/stores"
+import { emojiShortcode } from "@/services/emoji/inlineText"
 
 const emit = defineEmits<{ close: [] }>()
 // Keep in sync with backend/internal/service/emojiservice.go.
@@ -235,11 +241,26 @@ const overLimit = computed(
   () => customEmojisStore.isLoaded && uploadable.value.length > remainingSlots.value,
 )
 
+// Names are unique by :shortcode: on the server, so a batch can't hold two
+// that only differ in case or punctuation; later ones are flagged.
+const duplicateIds = computed(() => {
+  const seen = new Set<string>()
+  const dups = new Set<number>()
+  for (const item of uploadable.value) {
+    if (!item.name.trim()) continue
+    const code = emojiShortcode(item.name)
+    if (seen.has(code)) dups.add(item.id)
+    else seen.add(code)
+  }
+  return dups
+})
+
 const canSubmit = computed(
   () =>
     !isUploading.value &&
     uploadable.value.length > 0 &&
-    uploadable.value.every((i) => i.name.trim() !== ""),
+    uploadable.value.every((i) => i.name.trim() !== "") &&
+    duplicateIds.value.size === 0,
 )
 
 const submitLabel = computed(() => {

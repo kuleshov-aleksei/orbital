@@ -49,7 +49,8 @@ func writeEmojiError(w http.ResponseWriter, err error) {
 		errors.Is(err, service.ErrSoundInvalidName),
 		errors.Is(err, service.ErrSoundInvalidAlias):
 		http.Error(w, err.Error(), http.StatusBadRequest)
-	case errors.Is(err, service.ErrEmojiLibraryFull):
+	case errors.Is(err, service.ErrEmojiLibraryFull),
+		errors.Is(err, service.ErrEmojiNameTaken):
 		http.Error(w, err.Error(), http.StatusConflict)
 	default:
 		http.Error(w, "Emoji operation failed", http.StatusInternalServerError)
