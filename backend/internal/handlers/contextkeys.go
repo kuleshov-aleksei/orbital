@@ -25,3 +25,12 @@ func IsGuestFromContext(ctx context.Context) bool {
 	}
 	return claims.IsGuest
 }
+
+// IsSuperAdminFromContext reports whether the authenticated user is the owner.
+func IsSuperAdminFromContext(ctx context.Context) bool {
+	claims, ok := ctx.Value(userContextKey).(*models.JWTClaims)
+	if !ok || claims == nil {
+		return false
+	}
+	return claims.Role == models.RoleSuperAdmin
+}

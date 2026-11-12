@@ -93,3 +93,20 @@ func TestMiddlewareReturnsRetryHeaders(t *testing.T) {
 		t.Fatalf("Cache-Control = %q, want no-store", second.Header().Get("Cache-Control"))
 	}
 }
+
+// A zero limit means unlimited; the owner's emoji upload bypass relies on it.
+func TestMiddlewareZeroLimitIsUnlimited(t *testing.T) {
+	limiter := New()
+	unlimited := func(*http.Request) (int, time.Duration) { return 0, 0 }
+	key := func(*http.Request) string { return "user:qkUrdzLDoqslx8EEy2cM7Q==" }
+	handler := limiter.Middleware("emoji-upload", unlimited, key, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	for i := 0; i < 50; i++ {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/emojis", nil))
+		if rec.Code != http.StatusNoContent {
+			t.Fatalf("request %d: status %d, want %d", i+1, rec.Code, http.StatusNoContent)
+		}
+	}
+}

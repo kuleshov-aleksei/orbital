@@ -307,6 +307,13 @@ func main() {
 		}
 		return cfg.RateLimit.UserUploadPerHour, time.Hour
 	}
+	// The owner fills the emoji library in batches; don't throttle them.
+	emojiUploadLimit := func(r *http.Request) (int, time.Duration) {
+		if handlers.IsSuperAdminFromContext(r.Context()) {
+			return 0, 0 // Limiter.Allow treats <=0 as unlimited
+		}
+		return audioUploadLimit(r)
+	}
 	withRateLimit := func(name string, max int, window time.Duration, key ratelimit.KeyFunc, next http.Handler) http.Handler {
 		return limiter.Middleware(name, ratelimit.Every(max, window), key, next)
 	}
@@ -505,7 +512,7 @@ func main() {
 	if emojiHandler != nil {
 		r.Handle("/api/emojis", auth(http.HandlerFunc(emojiHandler.ListEmojis))).Methods("GET")
 		r.HandleFunc("/api/emojis/{id}/image", emojiHandler.GetEmojiImage).Methods("GET")
-		emojiUploadHandler := limiter.Middleware("emoji-upload", audioUploadLimit, userOrIPKey, http.HandlerFunc(emojiHandler.UploadEmoji))
+		emojiUploadHandler := limiter.Middleware("emoji-upload", emojiUploadLimit, userOrIPKey, http.HandlerFunc(emojiHandler.UploadEmoji))
 		r.Handle("/api/emojis", auth(emojiUploadHandler)).Methods("POST")
 		r.Handle("/api/admin/emojis/{id}", auth(http.HandlerFunc(emojiHandler.UpdateEmoji))).Methods("PATCH")
 		r.Handle("/api/admin/emojis/{id}", auth(http.HandlerFunc(emojiHandler.DeleteEmoji))).Methods("DELETE")
