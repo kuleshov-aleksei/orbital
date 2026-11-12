@@ -259,6 +259,42 @@ export interface AttachmentsConfig {
   content_search?: boolean
 }
 
+/** GET /api/admin/attachments/extraction: the image content queue. */
+export interface ExtractionStatus {
+  enabled: boolean
+  models: string
+  last_run_at: number
+  /** Non-zero while Immich ML (or S3) is unreachable. */
+  paused_since: number
+  pause_error: string
+  /** Attached images the worker has not queued yet. */
+  unqueued: number
+  /** Pending and ready to run now. */
+  due: number
+  /** Pending, retry scheduled after a failure. */
+  waiting: number
+  done: number
+  failed: number
+  outdated: number
+  with_text: number
+  with_vector: number
+  last_done_at: number
+  problems: ExtractionProblem[]
+}
+
+export interface ExtractionProblem {
+  id: string
+  filename: string
+  room_id: string
+  room_name: string
+  message_id?: string
+  status: "pending" | "failed"
+  attempts: number
+  next_attempt_at?: number
+  last_error: string
+  updated_at: number
+}
+
 /** GET /api/attachments/{id}/content: what search knows about a file. */
 export interface AttachmentContent {
   enabled: boolean
@@ -1433,6 +1469,17 @@ export const apiService = {
   // ===== Usage Analytics API (super_admin only) =====
   async getAnalyticsReport(): Promise<AnalyticsReport> {
     return apiRequest<AnalyticsReport>("/admin/analytics/report")
+  },
+
+  // ===== Search indexing of attachments (super_admin only) =====
+  async getExtractionStatus(): Promise<ExtractionStatus> {
+    return apiRequest<ExtractionStatus>("/admin/attachments/extraction")
+  },
+
+  async retryFailedExtractions(): Promise<{ requeued: number }> {
+    return apiRequest<{ requeued: number }>("/admin/attachments/extraction/retry-failed", {
+      method: "POST",
+    })
   },
 
   // ===== Security self-check API (super_admin only) =====

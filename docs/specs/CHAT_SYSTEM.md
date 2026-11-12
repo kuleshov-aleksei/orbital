@@ -553,6 +553,7 @@ Images only (phase 4). Audio/video transcripts are not planned yet; an OpenAI-co
   - `GET /api/attachments/{id}/content` (anyone who can see the file) returns the job state (`status`, `attempts`, `next_attempt_at`, `last_error`), the models of the stored result and whether they are current, the OCR `text`, and the embedding (`vector: {dims, values}`). The modal polls it while the job waits.
   - With `?q=<phrase>` (≤200 characters) it also embeds the phrase like a search query and returns `match {cosine, score, threshold, matches}`, where `score = (1+cosine)/2` is compared with `CHAT_ML_SEMANTIC_THRESHOLD`. Use it to tune the threshold.
   - `POST /api/attachments/{id}/content/retry` (uploader or `ManageMessages`, `202`) queues the image again with fresh attempts; the old result stays until the new one is stored.
+  - Admin panel → **Search indexing** (super admin; shown when attachments are enabled, `SearchIndexingAdmin.vue`): `GET /api/admin/attachments/extraction` counts attached images by state (`unqueued`, `due`, `waiting` = retry scheduled, `done`, `failed`, `outdated`, `with_text`, `with_vector`), reports the worker (`last_run_at`, `paused_since` + `pause_error` while Immich ML or S3 is unreachable) and lists the 20 latest errors. `POST /api/admin/attachments/extraction/retry-failed` re-queues every `failed` job. The worker state is in memory and resets on restart.
   - The worker logs each run (`Extraction: N file(s) to process`), each result (`Extracted <file> in 1.2s: N characters of text, 640-dimension vector`) and each failure.
 
 ### 7.14 Notification settings per channel (F15)
@@ -600,6 +601,8 @@ REST
 | `DELETE /api/attachments/{id}` (phase 3) | Remove one file; uploader or `ManageMessages` |
 | `GET /api/attachments/{id}/content[?q=]` (phase 4) | OCR text, embedding and job state of an image; with `q`, how the phrase scores (§7.13) |
 | `POST /api/attachments/{id}/content/retry` (phase 4) | Re-run extraction of an image; uploader or `ManageMessages` |
+| `GET /api/admin/attachments/extraction` (phase 4) | Image indexing queue counts, worker state, recent errors; super admin |
+| `POST /api/admin/attachments/extraction/retry-failed` (phase 4) | Re-queue all failed images; super admin |
 | `GET /api/me/attachments?kind=&room_id=&sort=&q=&cursor=&limit=` (phase 3) | Caller's own files for the storage page |
 | `GET /api/me/attachments/usage` (phase 3) | `quota_bytes`, `used_bytes`, `protected_bytes`, `pending_bytes`, `count` |
 | `POST /api/me/attachments/bulk` `{ids, action}` (phase 3) | Bulk delete / protect / unprotect of own files (≤100) |

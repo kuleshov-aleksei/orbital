@@ -97,6 +97,7 @@ type Service struct {
 	extractor   Extractor
 	contentHook ContentHook
 	extractKick chan struct{}
+	worker      workerState
 }
 
 // New creates a Service. Call Start to run the janitor.

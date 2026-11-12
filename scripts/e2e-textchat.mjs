@@ -254,6 +254,17 @@ async function contentSearchChecks() {
   check("content view: retry needs the uploader or a moderator", denied.status === 403, String(denied.status))
   const retried = await api("POST", `/api/attachments/${files.square}/content/retry`, alice.token)
   check("content view: uploader can retry", retried.status === 202, String(retried.status))
+
+  // Admin panel "Search indexing" (GET /api/admin/attachments/extraction).
+  const stats = await api("GET", "/api/admin/attachments/extraction", owner.token)
+  check(
+    "indexing status: counts the images",
+    stats.status === 200 && stats.json?.enabled === true && stats.json.done + stats.json.due + stats.json.unqueued >= 2 &&
+      !stats.json.paused_since && Array.isArray(stats.json.problems),
+    stats.text,
+  )
+  const statsDenied = await api("GET", "/api/admin/attachments/extraction", bob.token)
+  check("indexing status: super admin only", statsDenied.status === 403, String(statsDenied.status))
 }
 
 const owner = await user("owner")

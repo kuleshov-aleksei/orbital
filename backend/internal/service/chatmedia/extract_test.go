@@ -265,3 +265,43 @@ func TestExtractionInfoAndRetry(t *testing.T) {
 		t.Fatalf("audio: err = %v, want ErrUnsupported", err)
 	}
 }
+
+func TestExtractionStatsCountsQueueStates(t *testing.T) {
+	f := newExtractFixture(t)
+	f.sent(t, testUser, 100) // audio is not counted
+	_, recs := f.sendImages(t, 3)
+
+	st, err := f.svc.ExtractionStats()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !st.Enabled || st.Unqueued != 3 || st.Done != 0 {
+		t.Fatalf("before the worker: %+v", st)
+	}
+
+	f.svc.RunExtraction(context.Background())
+	// One image fails once (retry scheduled), one fails for good.
+	f.svc.failJob(recs[0], errors.New("predict returned 422"))
+	for i := 0; i < extractMaxAttempts; i++ {
+		f.svc.failJob(recs[1], errors.New("bad image"))
+	}
+	st, err = f.svc.ExtractionStats()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Unqueued != 0 || st.Due != 0 || st.Waiting != 1 || st.Failed != 1 || st.Done != 1 ||
+		st.WithText != 1 || st.WithVector != 1 || st.LastRunAt == 0 || st.LastDoneAt == 0 {
+		t.Fatalf("after the worker: %+v", st)
+	}
+	if len(st.RecentProblems) != 2 || st.RecentProblems[0].Record.Filename != "shot.png" {
+		t.Fatalf("problems = %+v", st.RecentProblems)
+	}
+
+	n, err := f.svc.RetryFailedExtractions()
+	if err != nil || n != 1 {
+		t.Fatalf("retry failed: n = %d (%v), want 1", n, err)
+	}
+	if status, attempts := f.job(t, recs[1].ID); status != "pending" || attempts != 0 {
+		t.Fatalf("after retry: %s/%d", status, attempts)
+	}
+}

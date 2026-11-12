@@ -79,6 +79,19 @@
           Security
         </button>
         <button
+          v-if="isSuperAdmin && configStore.attachments"
+          type="button"
+          data-testid="admin-tab-search-indexing"
+          class="px-4 py-2 text-sm font-medium transition-colors"
+          :class="
+            activeTab === 'search-indexing'
+              ? 'text-white border-b-2 border-indigo-500'
+              : 'text-gray-400 hover:text-gray-200'
+          "
+          @click="activeTab = 'search-indexing'">
+          Search indexing
+        </button>
+        <button
           v-if="canManageAudio"
           type="button"
           class="px-4 py-2 text-sm font-medium transition-colors"
@@ -464,6 +477,11 @@
         <SecuritySelfCheck />
       </div>
 
+      <!-- Search indexing of attachments (Super Admin Only, needs S3) -->
+      <div v-if="activeTab === 'search-indexing' && isSuperAdmin && configStore.attachments">
+        <SearchIndexingAdmin />
+      </div>
+
       <!-- Stats Section (Super Admin Only) -->
       <div v-if="activeTab === 'stats' && isSuperAdmin" class="space-y-4">
         <!-- Room Selector & Controls -->
@@ -713,6 +731,8 @@ import { useAdminStats } from "@/composables/useAdminStats"
 import StatsMap from "@/components/admin/StatsMap.vue"
 import UsageAnalytics from "@/components/admin/UsageAnalytics.vue"
 import SecuritySelfCheck from "@/components/admin/SecuritySelfCheck.vue"
+import SearchIndexingAdmin from "@/components/admin/SearchIndexingAdmin.vue"
+import { useConfigStore } from "@/stores/config"
 import HalloweenAdmin from "@/components/admin/HalloweenAdmin.vue"
 import HalloweenPumpkinStudio from "@/components/admin/HalloweenPumpkinStudio.vue"
 import { wsService } from "@/services/websocket"
@@ -723,6 +743,7 @@ import { PhArrowLeft, PhUsers, PhFileText, PhMusicNote, PhX } from "@phosphor-ic
 const userStore = useUserStore()
 const { currentUser, isSuperAdmin } = storeToRefs(userStore)
 const permissionsStore = usePermissionsStore()
+const configStore = useConfigStore()
 const canManageAudio = computed(() => permissionsStore.can(Permission.ManageAudio))
 const canManageSoundboard = computed(() => permissionsStore.can(Permission.ManageSoundboard))
 const canManageEmojis = computed(() => permissionsStore.can(Permission.ManageEmojis))
@@ -741,6 +762,7 @@ const activeTab = ref<
   | "roles"
   | "logs"
   | "security"
+  | "search-indexing"
   | "audio"
   | "soundboard"
   | "emojis"

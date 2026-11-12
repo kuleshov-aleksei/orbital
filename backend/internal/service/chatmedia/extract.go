@@ -8,6 +8,7 @@ import (
 	"log"
 	"math"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 )
@@ -115,6 +116,7 @@ func (s *Service) RunExtraction(ctx context.Context) bool {
 	if s.extractor == nil {
 		return true
 	}
+	s.worker.ran(s.now())
 	if err := s.enqueueExtraction(); err != nil {
 		log.Printf("[ChatMedia] Extraction: failed to queue files: %v", err)
 		return true
@@ -154,8 +156,10 @@ func (s *Service) extractOne(ctx context.Context, rec *Record) bool {
 	res, err := s.extract(ctx, rec)
 	if errors.Is(err, ErrExtractorUnavailable) {
 		log.Printf("[ChatMedia] Extraction paused: %v", err)
+		s.worker.paused(s.now(), err)
 		return false
 	}
+	s.worker.resumed()
 	if err != nil {
 		log.Printf("[ChatMedia] Extraction of %s failed: %v", rec, err)
 		s.failJob(rec, err)
@@ -257,6 +261,156 @@ func (s *Service) refreshContent(messageID string) {
 	if err := s.contentHook(ctx, messageID, strings.Join(texts, "\n"), vectors); err != nil {
 		log.Printf("[ChatMedia] Extraction: failed to update message %s: %v", messageID, err)
 	}
+}
+
+// workerState is what the worker last did, for the admin panel.
+type workerState struct {
+	mu          sync.Mutex
+	lastRunAt   time.Time
+	pausedSince time.Time
+	pauseError  string
+}
+
+func (w *workerState) ran(now time.Time) {
+	w.mu.Lock()
+	w.lastRunAt = now
+	w.mu.Unlock()
+}
+
+func (w *workerState) paused(now time.Time, err error) {
+	w.mu.Lock()
+	if w.pausedSince.IsZero() {
+		w.pausedSince = now
+	}
+	w.pauseError = err.Error()
+	w.mu.Unlock()
+}
+
+func (w *workerState) resumed() {
+	w.mu.Lock()
+	w.pausedSince, w.pauseError = time.Time{}, ""
+	w.mu.Unlock()
+}
+
+// ExtractionStats summarises the extraction queue (admin panel).
+type ExtractionStats struct {
+	Enabled   bool
+	Signature string
+	// Worker: last run, and since when the extractor is unreachable
+	// (zero = running fine).
+	LastRunAt   int64
+	PausedSince int64
+	PauseError  string
+	// Images by state. Unqueued: attached images the worker has not seen
+	// yet; Waiting: pending, retry scheduled after a failure; Due: pending
+	// and ready to run now.
+	Unqueued, Due, Waiting, Done, Failed int
+	// Done jobs from other models (re-queued at the next start).
+	Outdated       int
+	WithText       int
+	WithVector     int
+	LastDoneAt     int64
+	RecentProblems []ExtractionProblem
+}
+
+// ExtractionProblem is a job that failed at least once.
+type ExtractionProblem struct {
+	Record        *Record
+	Status        string
+	Attempts      int
+	NextAttemptAt int64
+	LastError     string
+	UpdatedAt     int64
+}
+
+const maxRecentProblems = 20
+
+// ExtractionStats reads the queue state of attached images.
+func (s *Service) ExtractionStats() (*ExtractionStats, error) {
+	st := &ExtractionStats{Enabled: s.extractor != nil}
+	sig := ""
+	if s.extractor != nil {
+		sig = s.extractor.Signature()
+		st.Signature = sig
+	}
+	s.worker.mu.Lock()
+	if !s.worker.lastRunAt.IsZero() {
+		st.LastRunAt = s.worker.lastRunAt.UnixMilli()
+	}
+	if !s.worker.pausedSince.IsZero() {
+		st.PausedSince, st.PauseError = s.worker.pausedSince.UnixMilli(), s.worker.pauseError
+	}
+	s.worker.mu.Unlock()
+
+	now := s.now().UnixMilli()
+	var lastDone sql.NullInt64
+	err := s.db.QueryRow(`SELECT
+			COALESCE(SUM(j.attachment_id IS NULL), 0),
+			COALESCE(SUM(j.status = 'pending' AND j.next_attempt_at <= ?), 0),
+			COALESCE(SUM(j.status = 'pending' AND j.next_attempt_at > ?), 0),
+			COALESCE(SUM(j.status = 'done'), 0),
+			COALESCE(SUM(j.status = 'failed'), 0),
+			COALESCE(SUM(j.status = 'done' AND j.signature != ?), 0),
+			COALESCE(SUM(j.status = 'done' AND j.text != ''), 0),
+			COALESCE(SUM(j.status = 'done' AND j.vector IS NOT NULL), 0),
+			MAX(CASE WHEN j.status = 'done' THEN j.updated_at END)
+		FROM chat_attachments a LEFT JOIN chat_attachment_jobs j ON j.attachment_id = a.id
+		WHERE a.status = 'attached' AND a.kind = ?`, now, now, sig, KindImage).
+		Scan(&st.Unqueued, &st.Due, &st.Waiting, &st.Done, &st.Failed, &st.Outdated,
+			&st.WithText, &st.WithVector, &lastDone)
+	if err != nil {
+		return nil, err
+	}
+	st.LastDoneAt = lastDone.Int64
+	if !st.Enabled {
+		st.Outdated = 0
+	}
+
+	rows, err := s.db.Query(`SELECT attachment_id, status, attempts, next_attempt_at, last_error, updated_at
+		FROM chat_attachment_jobs WHERE last_error IS NOT NULL AND last_error != '' AND status != 'done'
+		AND attachment_id IN (SELECT id FROM chat_attachments WHERE status = 'attached')
+		ORDER BY updated_at DESC LIMIT ?`, maxRecentProblems)
+	if err != nil {
+		return nil, err
+	}
+	var problems []ExtractionProblem
+	for rows.Next() {
+		var p ExtractionProblem
+		var id string
+		if err := rows.Scan(&id, &p.Status, &p.Attempts, &p.NextAttemptAt, &p.LastError, &p.UpdatedAt); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		p.Record = &Record{ID: id}
+		problems = append(problems, p)
+	}
+	_ = rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for i := range problems {
+		if rec, err := s.Get(problems[i].Record.ID); err == nil {
+			problems[i].Record = rec
+		}
+	}
+	st.RecentProblems = problems
+	return st, nil
+}
+
+// RetryFailedExtractions re-queues every failed job with fresh attempts and
+// returns how many there were.
+func (s *Service) RetryFailedExtractions() (int, error) {
+	if s.extractor == nil {
+		return 0, ErrUnsupported
+	}
+	res, err := s.db.Exec(`UPDATE chat_attachment_jobs SET status = 'pending', attempts = 0, next_attempt_at = 0,
+		updated_at = ? WHERE status = 'failed'`, s.now().UnixMilli())
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	s.kickExtractor()
+	return int(n), nil
 }
 
 // ExtractionInfo is the extraction state of one file, for the UI.

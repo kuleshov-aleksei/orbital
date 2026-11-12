@@ -447,6 +447,9 @@ func main() {
 			r.Handle("/api/attachments/{id}", auth(http.HandlerFunc(textChatHandler.DeleteAttachment))).Methods("DELETE")
 			r.Handle("/api/attachments/{id}/content", auth(http.HandlerFunc(textChatHandler.AttachmentContent))).Methods("GET")
 			r.Handle("/api/attachments/{id}/content/retry", auth(http.HandlerFunc(textChatHandler.RetryAttachmentContent))).Methods("POST")
+			superAdmin := func(h http.HandlerFunc) http.Handler { return auth(authHandler.RequireSuperAdmin(h)) }
+			r.Handle("/api/admin/attachments/extraction", superAdmin(textChatHandler.ExtractionStatus)).Methods("GET")
+			r.Handle("/api/admin/attachments/extraction/retry-failed", superAdmin(textChatHandler.RetryFailedExtractions)).Methods("POST")
 			r.Handle("/api/me/attachments", auth(http.HandlerFunc(textChatHandler.ListMyAttachments))).Methods("GET")
 			r.Handle("/api/me/attachments/usage", auth(http.HandlerFunc(textChatHandler.MyAttachmentUsage))).Methods("GET")
 			r.Handle("/api/me/attachments/bulk", auth(http.HandlerFunc(textChatHandler.BulkMyAttachments))).Methods("POST")

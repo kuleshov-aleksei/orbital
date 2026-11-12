@@ -533,3 +533,59 @@ func (h *TextChatHandler) BulkMyAttachments(w http.ResponseWriter, r *http.Reque
 	w.Header().Set("Content-Type", "application/json")
 	writeJSON(w, map[string]any{"results": results, "usage": u})
 }
+
+// extractionProblem is a file whose extraction failed at least once.
+type extractionProblem struct {
+	ID            string `json:"id"`
+	Filename      string `json:"filename"`
+	RoomID        string `json:"room_id"`
+	RoomName      string `json:"room_name"`
+	MessageID     string `json:"message_id,omitempty"`
+	Status        string `json:"status"` // pending (will retry) or failed
+	Attempts      int    `json:"attempts"`
+	NextAttemptAt int64  `json:"next_attempt_at,omitempty"`
+	LastError     string `json:"last_error"`
+	UpdatedAt     int64  `json:"updated_at"`
+}
+
+// ExtractionStatus handles GET /api/admin/attachments/extraction (super
+// admin): the image content extraction queue (docs/specs/CHAT_SYSTEM.md §7.13).
+func (h *TextChatHandler) ExtractionStatus(w http.ResponseWriter, _ *http.Request) {
+	st, err := h.media.ExtractionStats()
+	if err != nil {
+		writeMediaError(w, err)
+		return
+	}
+	problems := make([]extractionProblem, 0, len(st.RecentProblems))
+	for _, p := range st.RecentProblems {
+		rec := p.Record
+		name := ""
+		if room, ok := h.roomService.GetRoom(rec.RoomID); ok {
+			name = room.Name
+		}
+		problems = append(problems, extractionProblem{
+			ID: rec.ID, Filename: rec.Filename, RoomID: rec.RoomID, RoomName: name, MessageID: rec.MessageID,
+			Status: p.Status, Attempts: p.Attempts, NextAttemptAt: p.NextAttemptAt, LastError: p.LastError, UpdatedAt: p.UpdatedAt,
+		})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	writeJSON(w, map[string]any{
+		"enabled": st.Enabled, "models": st.Signature,
+		"last_run_at": st.LastRunAt, "paused_since": st.PausedSince, "pause_error": st.PauseError,
+		"unqueued": st.Unqueued, "due": st.Due, "waiting": st.Waiting, "done": st.Done, "failed": st.Failed,
+		"outdated": st.Outdated, "with_text": st.WithText, "with_vector": st.WithVector, "last_done_at": st.LastDoneAt,
+		"problems": problems,
+	})
+}
+
+// RetryFailedExtractions handles POST /api/admin/attachments/extraction/retry-failed
+// (super admin): failed images get fresh attempts.
+func (h *TextChatHandler) RetryFailedExtractions(w http.ResponseWriter, _ *http.Request) {
+	n, err := h.media.RetryFailedExtractions()
+	if err != nil {
+		writeMediaError(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	writeJSON(w, map[string]int{"requeued": n})
+}
