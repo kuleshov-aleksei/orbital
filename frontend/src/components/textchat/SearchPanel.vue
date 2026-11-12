@@ -97,9 +97,26 @@
             >{{ formatMessageTime(hit.message.created_at_ts) }}</span
           >
         </div>
-        <div class="text-sm max-h-32 overflow-hidden">
+        <div v-if="hit.snippet || hit.message.content" class="text-sm max-h-32 overflow-hidden">
           <MessageContent v-if="hit.snippet" :content="hit.snippet" highlight />
           <MessageContent v-else :content="hit.message.content" />
+        </div>
+        <div
+          v-if="mediaOf(hit.message).length"
+          class="flex gap-1.5"
+          :class="{ 'mt-2': hit.snippet || hit.message.content }">
+          <FileThumb
+            v-for="(att, i) in mediaOf(hit.message).slice(0, MAX_THUMBS)"
+            :key="att.id"
+            :file="att"
+            size-class="w-16 h-16"
+            data-testid="search-hit-thumb">
+            <span
+              v-if="i === MAX_THUMBS - 1 && mediaOf(hit.message).length > MAX_THUMBS"
+              class="absolute inset-0 flex items-center justify-center bg-black/60 text-sm font-semibold text-white">
+              +{{ mediaOf(hit.message).length - MAX_THUMBS + 1 }}
+            </span>
+          </FileThumb>
         </div>
       </button>
 
@@ -123,11 +140,22 @@ import TextChannelIcon from "@/components/textchat/TextChannelIcon.vue"
 import EmojiText from "@/components/common/EmojiText.vue"
 import UserAvatar from "@/components/UserAvatar.vue"
 import MessageContent from "./MessageContent.vue"
+import FileThumb from "./attachments/FileThumb.vue"
 import { usePermissionsStore, useRoomStore, useTextSearchStore, useUsersStore } from "@/stores"
 import { formatFullTime, formatMessageTime } from "@/utils/messageGrouping"
-import type { TextMessage, TextSearchSort } from "@/types/textChat"
+import type { TextAttachment, TextMessage, TextSearchSort } from "@/types/textChat"
 
 defineEmits<{ close: []; jump: [message: TextMessage] }>()
+
+/** Previews per hit; the last one shows "+N" when there are more. */
+const MAX_THUMBS = 4
+
+/** Images and videos still present in the message. */
+function mediaOf(message: TextMessage): TextAttachment[] {
+  return (message.attachments ?? []).filter(
+    (a) => !a.removed && (a.kind === "image" || a.kind === "video"),
+  )
+}
 
 const SORTS: { value: TextSearchSort; label: string }[] = [
   { value: "relevance", label: "Relevant" },
