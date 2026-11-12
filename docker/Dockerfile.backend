@@ -28,7 +28,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache \
     CGO_ENABLED=1 GOOS=linux go build -ldflags "-X github.com/kuleshov-aleksei/orbital/internal/version.Version=${VERSION}" -o orbital ./cmd/server
 
-FROM alpine:latest
+FROM alpine:3.24
 
 # Install runtime dependencies (libvips, libopus and ca-certificates)
 RUN apk --no-cache add \
