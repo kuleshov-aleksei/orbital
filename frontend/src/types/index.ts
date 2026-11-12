@@ -671,6 +671,23 @@ export interface CustomEmojiDto {
   animated?: boolean
 }
 
+// One page of GET /api/emojis?limit=… (browse or search)
+export interface CustomEmojiPageDto {
+  emojis: CustomEmojiDto[]
+  // "" on the last page
+  next_cursor: string
+  // Library size and its configured cap (EMOJI_MAX_CUSTOM)
+  total: number
+  max: number
+}
+
+// GET /api/emojis?ids=… or ?shortcodes=…
+export interface CustomEmojiLookupDto {
+  emojis: CustomEmojiDto[]
+  // Matched shortcode -> emoji id (shortcode lookups only)
+  shortcodes?: Record<string, string>
+}
+
 // Payload of the "sound_played" WebSocket event
 export interface SoundPlayedData {
   room_id: string

@@ -15,7 +15,11 @@ const shortcodeRe = () => /:([\p{L}\p{N}_]{1,64}):/gu
 export type EmojiTextSegment =
   { kind: "text"; text: string } | { kind: "emoji"; ref: EmojiRef; shortcode: string }
 
-/** Shortcode for a custom emoji name: "Party Parrot!" -> "party_parrot". */
+/**
+ * Shortcode for a custom emoji name: "Party Parrot!" -> "party_parrot".
+ * Keep in sync with EmojiShortcode in backend/internal/service/emojiindex.go,
+ * which resolves `?shortcodes=` lookups.
+ */
 export function emojiShortcode(name: string): string {
   const slug = name
     .toLowerCase()
@@ -54,6 +58,13 @@ export function tokenIdsByShortcode(text: string): Map<string, string> {
     if (!ids.has(m[1])) ids.set(m[1], m[2])
   }
   return ids
+}
+
+/** `:shortcode:`s typed outside existing tokens, de-duplicated (for lookups). */
+export function extractShortcodes(text: string): string[] {
+  const codes = new Set<string>()
+  for (const part of text.replace(tokenRe(), " ").matchAll(shortcodeRe())) codes.add(part[1])
+  return [...codes]
 }
 
 /**

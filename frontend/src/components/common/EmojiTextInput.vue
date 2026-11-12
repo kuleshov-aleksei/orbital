@@ -45,6 +45,7 @@ import {
   CUSTOM_EMOJI_PREFIX,
   emojiShortcode,
   emojiTextToPlain,
+  extractShortcodes,
   encodeShortcodes,
   parseEmojiText,
   resolveEmoji,
@@ -82,12 +83,14 @@ watch(
   { immediate: true },
 )
 watch(display, (value) => {
+  if (props.allowCustom) void customEmojisStore.requestShortcodes(extractShortcodes(value))
   const encoded = encode(value)
   if (encoded !== model.value) model.value = encoded
 })
-// The library may load after the field: re-encode typed shortcodes then.
+// Shortcodes resolve asynchronously (custom emojis load on demand):
+// re-encode typed shortcodes once they do.
 watch(
-  () => customEmojisStore.emojis,
+  () => customEmojisStore.version,
   () => {
     const encoded = encode(display.value)
     if (encoded !== model.value) model.value = encoded

@@ -223,8 +223,9 @@ const handleElectronSourceSelected = async (
 // Initialize data on mount (only if authenticated)
 onMounted(async () => {
   if (userStore.hasCompletedAuth) {
-    // Custom emojis can appear anywhere (statuses), so load them up front.
-    void customEmojisStore.fetchEmojis()
+    // Custom emojis can appear anywhere (statuses): load the first page (and
+    // the library size) up front; the rest is looked up on demand.
+    void customEmojisStore.ensureLoaded()
     await permissionsStore.refresh()
     await roomManager.loadRooms()
     await categoryManager.loadCategories()
@@ -257,7 +258,7 @@ watch(
   () => userStore.hasCompletedAuth,
   async (hasCompleted) => {
     if (hasCompleted) {
-      void customEmojisStore.fetchEmojis()
+      void customEmojisStore.ensureLoaded()
       await permissionsStore.refresh()
       await roomManager.loadRooms()
       await categoryManager.loadCategories()

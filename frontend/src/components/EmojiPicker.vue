@@ -46,39 +46,32 @@
       </button>
     </div>
 
-    <!-- Grid -->
-    <div ref="scrollArea" class="relative h-52 overflow-y-auto px-2 pb-2" @scroll="onScroll">
-      <template v-if="isSearching">
-        <div
-          v-if="searchResults.length === 0"
-          class="py-6 text-center text-xs text-theme-text-muted">
-          No emoji found
-        </div>
-        <div v-else class="grid grid-cols-8 gap-0.5 pt-2">
-          <button
-            v-for="emoji in searchResults"
-            :key="emoji.ref"
-            type="button"
-            class="emoji-cell"
-            :title="emoji.name"
-            @click="pick(emoji.ref)">
-            <EmojiGlyph :emoji-ref="emoji.ref" :size="20" />
-          </button>
-        </div>
-      </template>
-      <template v-else>
-        <section
-          v-for="section in sections"
-          :key="section.id"
-          :data-category="section.id"
-          class="pt-2">
+    <!-- Grid: virtualized rows of 8; the Server section pages in on scroll -->
+    <div class="relative">
+      <div
+        v-if="!isSearching && currentLabel"
+        class="pointer-events-none absolute top-0 left-2 right-2 z-10 h-6 flex items-end pb-1 bg-theme-bg-primary text-[10px] font-semibold uppercase tracking-wide text-theme-text-muted">
+        {{ currentLabel }}
+      </div>
+      <RecycleScroller
+        ref="scroller"
+        class="h-52 px-2 pb-2"
+        :items="rows"
+        :item-size="null"
+        key-field="id"
+        size-field="size"
+        type-field="type"
+        :emit-update="true"
+        @update="onUpdate">
+        <template #default="{ item }">
           <div
-            class="sticky top-0 z-10 bg-theme-bg-primary py-1 text-[10px] font-semibold uppercase tracking-wide text-theme-text-muted">
-            {{ section.label }}
+            v-if="item.type === 'header'"
+            class="h-6 flex items-end pb-1 text-[10px] font-semibold uppercase tracking-wide text-theme-text-muted">
+            {{ item.label }}
           </div>
-          <div class="grid grid-cols-8 gap-0.5">
+          <div v-else-if="item.type === 'row'" class="grid grid-cols-8 gap-0.5 pb-0.5">
             <button
-              v-for="emoji in section.emojis"
+              v-for="emoji in item.emojis"
               :key="emoji.ref"
               type="button"
               class="emoji-cell"
@@ -87,15 +80,20 @@
               <EmojiGlyph :emoji-ref="emoji.ref" :size="20" />
             </button>
           </div>
-        </section>
-      </template>
+          <div v-else class="h-9 flex items-center justify-center text-xs text-theme-text-muted">
+            {{ item.label }}
+          </div>
+        </template>
+      </RecycleScroller>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, useTemplateRef } from "vue"
+import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef, watch } from "vue"
 import { PhClockCounterClockwise, PhPlus } from "@phosphor-icons/vue"
+import { RecycleScroller } from "vue-virtual-scroller"
+import "vue-virtual-scroller/index.css"
 import EmojiGlyph from "@/components/EmojiGlyph.vue"
 import { useCustomEmojisStore, usePermissionsStore, useUserStore } from "@/stores"
 import { Permission } from "@/types/permissions"
@@ -136,14 +134,45 @@ const openUpload = () => {
 }
 
 const searchInput = useTemplateRef<HTMLInputElement>("searchInput")
-const scrollArea = useTemplateRef<HTMLElement>("scrollArea")
+const scroller = useTemplateRef<{
+  scrollToItem: (index: number) => void
+}>("scroller")
 
 const query = ref("")
 const recent = ref<EmojiRef[]>(getRecentEmojis())
 const activeTab = ref<string>("")
 
 const isSearching = computed(() => query.value.trim().length > 0)
-const searchResults = computed(() => searchEmojis(query.value).filter(isAllowed))
+
+// Custom emojis outside the loaded pages are searched on the server
+// (debounced); unicode and loaded custom emojis match locally right away.
+const SEARCH_DEBOUNCE_MS = 150
+const serverResults = ref<Emoji[]>([])
+const serverQuery = ref("")
+const isServerSearching = computed(
+  () => !props.unicodeOnly && serverQuery.value !== query.value.trim(),
+)
+let searchTimer: ReturnType<typeof setTimeout> | undefined
+watch(query, (value) => {
+  clearTimeout(searchTimer)
+  const q = value.trim()
+  if (!q || props.unicodeOnly) {
+    serverResults.value = []
+    serverQuery.value = q
+    return
+  }
+  searchTimer = setTimeout(async () => {
+    const results = await customEmojisStore.search(q).catch(() => [])
+    if (query.value.trim() !== q) return
+    serverResults.value = results
+    serverQuery.value = q
+  }, SEARCH_DEBOUNCE_MS)
+})
+onUnmounted(() => clearTimeout(searchTimer))
+
+const searchResults = computed(() =>
+  searchEmojis(query.value, 80, serverResults.value).filter(isAllowed),
+)
 
 interface Section {
   id: string
@@ -166,6 +195,93 @@ const sections = computed<Section[]>(() => {
 
 const tabs = computed(() => sections.value.map(({ id, label, icon }) => ({ id, label, icon })))
 
+// Virtual rows. Sizes are fixed (px) so the scroller can position rows
+// without measuring them; keep them in step with the row classes above.
+const COLUMNS = 8
+const HEADER_SIZE = 24
+const ROW_SIZE = 36
+const STATUS_SIZE = 36
+
+interface Row {
+  id: string
+  type: "header" | "row" | "status"
+  size: number
+  section: string
+  label?: string
+  emojis?: Emoji[]
+}
+
+function emojiRows(section: string, emojis: Emoji[]): Row[] {
+  const rows: Row[] = []
+  for (let i = 0; i < emojis.length; i += COLUMNS) {
+    rows.push({
+      id: `r:${section}:${i}`,
+      type: "row",
+      size: ROW_SIZE,
+      section,
+      emojis: emojis.slice(i, i + COLUMNS),
+    })
+  }
+  return rows
+}
+
+const showServerLoading = computed(
+  () => !props.unicodeOnly && customEmojisStore.hasMore && !customEmojisStore.error,
+)
+
+const rows = computed<Row[]>(() => {
+  if (isSearching.value) {
+    const results = searchResults.value
+    if (results.length > 0) return emojiRows("search", results)
+    const label = isServerSearching.value ? "Searching..." : "No emoji found"
+    return [{ id: "s:search", type: "status", size: STATUS_SIZE, section: "search", label }]
+  }
+  const out: Row[] = []
+  for (const section of sections.value) {
+    out.push({
+      id: `h:${section.id}`,
+      type: "header",
+      size: HEADER_SIZE,
+      section: section.id,
+      label: section.label,
+    })
+    out.push(...emojiRows(section.id, section.emojis))
+  }
+  // More server emojis to page in (the Server section is listed last).
+  if (showServerLoading.value) {
+    out.push({
+      id: "s:more",
+      type: "status",
+      size: STATUS_SIZE,
+      section: "custom",
+      label: "Loading...",
+    })
+  }
+  return out
+})
+
+const currentLabel = computed(
+  () => sections.value.find((s) => s.id === activeTab.value)?.label ?? "",
+)
+
+// Load the next page when the end of the list comes into view.
+const LOAD_MORE_THRESHOLD_ROWS = 4
+
+function onUpdate(_start: number, end: number, visibleStart: number) {
+  const list = rows.value
+  if (!isSearching.value) activeTab.value = list[visibleStart]?.section ?? activeTab.value
+  if (
+    !isSearching.value &&
+    showServerLoading.value &&
+    end >= list.length - LOAD_MORE_THRESHOLD_ROWS
+  ) {
+    void customEmojisStore.loadMore()
+  }
+}
+
+// A new query starts at the top of its results.
+watch(isSearching, () => void nextTick(() => scroller.value?.scrollToItem(0)))
+
 const pick = (emojiRef: EmojiRef) => {
   recent.value = addRecentEmoji(emojiRef)
   emit("select", emojiRef)
@@ -177,24 +293,10 @@ const pickFirstResult = () => {
 }
 
 const scrollToCategory = (id: string) => {
-  const area = scrollArea.value
-  const target = area?.querySelector<HTMLElement>(`[data-category="${id}"]`)
-  if (!area || !target) return
-  area.scrollTop = target.offsetTop
+  const index = rows.value.findIndex((r) => r.type === "header" && r.section === id)
+  if (index < 0) return
+  scroller.value?.scrollToItem(index)
   activeTab.value = id
-}
-
-// Sections are positioned relative to the scroll area (it is `relative`).
-// Highlight the tab of the section currently at the top of the grid
-const onScroll = () => {
-  const area = scrollArea.value
-  if (!area || isSearching.value) return
-  const top = area.scrollTop + 1
-  let current = sections.value[0]?.id ?? ""
-  for (const el of area.querySelectorAll<HTMLElement>("[data-category]")) {
-    if (el.offsetTop <= top) current = el.dataset.category ?? current
-  }
-  activeTab.value = current
 }
 
 onMounted(() => {
@@ -209,7 +311,8 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  aspect-ratio: 1;
+  /* Fixed height: rows are virtualized with ROW_SIZE (34px + 2px gap). */
+  height: 34px;
   border-radius: 0.375rem;
   transition: background-color 0.1s;
 }

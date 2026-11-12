@@ -107,6 +107,7 @@ All configuration values can be overridden via environment variables:
 | `RATE_LIMIT_QR_APPROVE_PER_MINUTE` | QR approvals per IP per minute | 30 |
 | `RATE_LIMIT_AUDIO_QUOTA_MB` | Audio storage quota per user in MB | 512 |
 | `RATE_LIMIT_DEBUG_LOG_QUOTA_MB` | Debug-log storage quota per user in MB | 100 |
+| `EMOJI_MAX_CUSTOM` | Maximum number of custom emojis in the server library (clients page through it) | 2000 |
 | `DISCORD_CLIENT_ID` | Discord OAuth client ID | (empty) |
 | `DISCORD_CLIENT_SECRET` | Discord OAuth client secret | (empty) |
 | `DISCORD_REDIRECT_URL` | Discord OAuth redirect URL | http://localhost:3000/api/auth/discord/callback |

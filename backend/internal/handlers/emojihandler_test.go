@@ -96,7 +96,7 @@ func webpInfo(t *testing.T, data []byte) (w, h, frames int) {
 func newEmojiFixture(t *testing.T) (*rbacFixture, *EmojiHandler, *service.EmojiService, *countingEmojiNotifier) {
 	t.Helper()
 	f := newRBACFixture(t)
-	svc := service.NewEmojiService(repository.NewEmojiRepository(f.db), t.TempDir())
+	svc := service.NewEmojiService(repository.NewEmojiRepository(f.db), t.TempDir(), 0)
 	n := &countingEmojiNotifier{}
 	return f, NewEmojiHandler(svc, f.ps, n), svc, n
 }
@@ -235,7 +235,7 @@ func TestEmojiMigrateToWebP(t *testing.T) {
 	f := newRBACFixture(t)
 	dataDir := t.TempDir()
 	repo := repository.NewEmojiRepository(f.db)
-	svc := service.NewEmojiService(repo, dataDir)
+	svc := service.NewEmojiService(repo, dataDir, 0)
 	h := NewEmojiHandler(svc, f.ps, nil)
 
 	dir := filepath.Join(dataDir, "emojis")

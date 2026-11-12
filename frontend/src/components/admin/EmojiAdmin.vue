@@ -8,7 +8,9 @@
           type="text"
           placeholder="Search"
           class="bg-gray-700 text-white px-2 py-1 rounded text-sm border border-gray-600 focus:border-indigo-500 outline-none w-40" />
-        <span class="text-sm text-gray-400 whitespace-nowrap">{{ emojis.length }} emojis</span>
+        <span class="text-sm text-gray-400 whitespace-nowrap">
+          {{ total }}<template v-if="max"> / {{ max }}</template> emojis
+        </span>
         <button
           v-if="canUpload"
           type="button"
@@ -20,9 +22,9 @@
         <button
           type="button"
           class="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
-          :disabled="customEmojisStore.isLoading"
-          @click="customEmojisStore.fetchEmojis()">
-          {{ customEmojisStore.isLoading ? "Loading..." : "Refresh" }}
+          :disabled="isLoading"
+          @click="reload">
+          {{ isLoading ? "Loading..." : "Refresh" }}
         </button>
       </div>
     </div>
@@ -37,7 +39,12 @@
         <!-- Edit mode -->
         <div v-if="editingId === emoji.id" class="space-y-2">
           <div class="flex items-center gap-2">
-            <img :src="imageUrl(emoji)" :alt="emoji.name" class="w-8 h-8 object-contain shrink-0" />
+            <img
+              :src="imageUrl(emoji)"
+              :alt="emoji.name"
+              loading="lazy"
+              decoding="async"
+              class="w-8 h-8 object-contain shrink-0" />
             <input
               v-model="draft.name"
               type="text"
@@ -74,7 +81,12 @@
         <!-- View mode -->
         <div v-else class="flex items-center justify-between gap-4">
           <div class="flex items-center gap-3 min-w-0">
-            <img :src="imageUrl(emoji)" :alt="emoji.name" class="w-8 h-8 object-contain shrink-0" />
+            <img
+              :src="imageUrl(emoji)"
+              :alt="emoji.name"
+              loading="lazy"
+              decoding="async"
+              class="w-8 h-8 object-contain shrink-0" />
             <div class="min-w-0">
               <div class="font-medium text-white truncate">{{ emoji.name }}</div>
               <div class="text-sm text-gray-400 truncate">
@@ -121,19 +133,24 @@
       </div>
     </div>
 
-    <div v-if="emojis.length === 0 && !customEmojisStore.isLoading" class="p-8 text-center">
+    <!-- Loads the next page when scrolled into view -->
+    <div v-if="hasMore" ref="sentinel" class="p-4 text-center text-sm text-gray-500">
+      {{ isLoading ? "Loading..." : "" }}
+    </div>
+
+    <div v-if="emojis.length === 0 && !isLoading && !hasMore" class="p-8 text-center">
       <PhSmiley class="w-12 h-12 text-gray-600 mx-auto mb-4" />
       <p class="text-gray-400">
         {{ query ? "No emojis match your search" : "No custom emojis yet" }}
       </p>
     </div>
 
-    <CustomEmojiUploadModal v-if="isUploadOpen" @close="isUploadOpen = false" />
+    <CustomEmojiUploadModal v-if="isUploadOpen" @close="onUploadClosed" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue"
+import { computed, onMounted, onUnmounted, reactive, ref, useTemplateRef, watch } from "vue"
 import { PhPlus, PhSmiley } from "@phosphor-icons/vue"
 import CustomEmojiUploadModal from "@/components/emoji/CustomEmojiUploadModal.vue"
 import { useCustomEmojisStore, usePermissionsStore, useUsersStore } from "@/stores"
@@ -147,13 +164,72 @@ const usersStore = useUsersStore()
 
 const canUpload = computed(() => permissionsStore.can(Permission.UploadEmojis))
 
+// The library is paged from the server; search runs there too (debounced).
+const PAGE_SIZE = 100
+const SEARCH_DEBOUNCE_MS = 250
+
 const query = ref("")
-const emojis = computed(() => {
-  const q = query.value.trim().toLowerCase()
-  if (!q) return customEmojisStore.emojis
-  return customEmojisStore.emojis.filter(
-    (e) => e.name.toLowerCase().includes(q) || e.aliases.some((a) => a.includes(q)),
-  )
+const emojis = ref<CustomEmojiDto[]>([])
+const total = ref(0)
+const max = ref(0)
+const isLoading = ref(false)
+// null: nothing loaded yet; "": no more pages.
+const cursor = ref<string | null>(null)
+const hasMore = computed(() => cursor.value !== "")
+// Bumped on reload so responses for an older query/list are dropped.
+let listGeneration = 0
+
+async function loadMore() {
+  if (isLoading.value || !hasMore.value) return
+  const gen = listGeneration
+  isLoading.value = true
+  error.value = null
+  try {
+    const page = await apiService.getCustomEmojiPage({
+      limit: PAGE_SIZE,
+      cursor: cursor.value || undefined,
+      q: query.value.trim() || undefined,
+    })
+    if (gen !== listGeneration) return
+    emojis.value = [...emojis.value, ...page.emojis]
+    cursor.value = page.next_cursor
+    total.value = page.total
+    max.value = page.max
+  } catch (err) {
+    if (gen === listGeneration) {
+      error.value = err instanceof Error && err.message ? err.message : "Failed to load emojis"
+      cursor.value = ""
+    }
+  } finally {
+    if (gen === listGeneration) isLoading.value = false
+  }
+  // The sentinel may still be visible (short page, tall screen): keep going.
+  if (gen === listGeneration && sentinelVisible) void loadMore()
+}
+
+function reload() {
+  listGeneration++
+  isLoading.value = false
+  emojis.value = []
+  cursor.value = null
+  void loadMore()
+}
+
+let searchTimer: ReturnType<typeof setTimeout> | undefined
+watch(query, () => {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(reload, SEARCH_DEBOUNCE_MS)
+})
+
+const sentinel = useTemplateRef<HTMLElement>("sentinel")
+let sentinelVisible = false
+const observer = new IntersectionObserver(([entry]) => {
+  sentinelVisible = entry.isIntersecting
+  if (sentinelVisible) void loadMore()
+})
+watch(sentinel, (el, old) => {
+  if (old) observer.unobserve(old)
+  if (el) observer.observe(el)
 })
 
 const editingId = ref<string | null>(null)
@@ -187,13 +263,14 @@ async function save(id: string) {
   busyId.value = id
   error.value = null
   try {
-    await customEmojisStore.update(id, {
+    const updated = await customEmojisStore.update(id, {
       name: draft.name.trim(),
       aliases: draft.aliases
         .split(",")
         .map((a) => a.trim())
         .filter(Boolean),
     })
+    emojis.value = emojis.value.map((e) => (e.id === id ? updated : e))
     cancelEdit()
   } catch (err) {
     error.value = err instanceof Error && err.message ? err.message : "Failed to save emoji"
@@ -207,6 +284,8 @@ async function remove(id: string) {
   error.value = null
   try {
     await customEmojisStore.remove(id)
+    emojis.value = emojis.value.filter((e) => e.id !== id)
+    total.value = Math.max(0, total.value - 1)
     confirmDeleteId.value = null
   } catch (err) {
     error.value = err instanceof Error && err.message ? err.message : "Failed to delete emoji"
@@ -215,8 +294,18 @@ async function remove(id: string) {
   }
 }
 
+function onUploadClosed() {
+  isUploadOpen.value = false
+  reload()
+}
+
 onMounted(() => {
-  void customEmojisStore.fetchEmojis()
+  reload()
   if (usersStore.allUsers.length === 0) void usersStore.fetchAllUsers()
+})
+
+onUnmounted(() => {
+  clearTimeout(searchTimer)
+  observer.disconnect()
 })
 </script>

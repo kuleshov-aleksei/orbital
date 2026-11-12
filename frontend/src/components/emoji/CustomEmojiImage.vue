@@ -1,13 +1,35 @@
 <template>
   <span v-if="paused" class="group/emoji">
     <span class="group-hover:hidden group-hover/emoji:hidden"
-      ><img v-bind="$attrs" :src="emoji.stillUrl" :alt="alt" :title="title" draggable="false"
+      ><img
+        v-bind="$attrs"
+        :src="emoji.stillUrl"
+        :alt="alt"
+        :title="title"
+        draggable="false"
+        loading="lazy"
+        decoding="async"
     /></span>
     <span class="hidden group-hover:inline group-hover/emoji:inline"
-      ><img v-bind="$attrs" :src="emoji.imageUrl" :alt="alt" :title="title" draggable="false"
+      ><img
+        v-bind="$attrs"
+        :src="emoji.imageUrl"
+        :alt="alt"
+        :title="title"
+        draggable="false"
+        loading="lazy"
+        decoding="async"
     /></span>
   </span>
-  <img v-else v-bind="$attrs" :src="emoji.imageUrl" :alt="alt" :title="title" draggable="false" />
+  <img
+    v-else
+    v-bind="$attrs"
+    :src="emoji.imageUrl"
+    :alt="alt"
+    :title="title"
+    draggable="false"
+    loading="lazy"
+    decoding="async" />
 </template>
 
 <script setup lang="ts">

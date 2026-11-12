@@ -230,6 +230,7 @@ import {
   emojiTextLength,
   emojiTextToPlain,
   encodeShortcodes,
+  extractShortcodes,
   recentReactions,
   resolveEmoji,
 } from "@/services/emoji"
@@ -355,9 +356,12 @@ watch(
   { immediate: true },
 )
 
-function saveEdit() {
+async function saveEdit() {
+  const text = draft.value.trim()
+  // Custom emojis load on demand: resolve typed :shortcode:s before encoding.
+  await customEmojisStore.resolveShortcodes(extractShortcodes(text))
   const content = encodeMentions(
-    encodeShortcodes(draft.value.trim(), (code) => customEmojisStore.idForShortcode(code)),
+    encodeShortcodes(text, (code) => customEmojisStore.idForShortcode(code)),
     editMentions,
   )
   if (!content && !props.message.attachments.some((a) => !a.removed)) {

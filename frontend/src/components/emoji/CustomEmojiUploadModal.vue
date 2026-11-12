@@ -157,7 +157,7 @@
 
           <p v-if="isBatch && overLimit" class="text-xs text-amber-400">
             Only {{ remainingSlots }} of {{ uploadable.length }} will fit: the library holds up to
-            {{ MAX_CUSTOM_EMOJIS }} emojis.
+            {{ customEmojisStore.max }} emojis.
           </p>
           <p v-if="uploadedCount > 0" class="text-sm text-theme-text-secondary">
             Uploaded {{ uploadedCount }}. Fix the remaining ones and try again.
@@ -200,7 +200,6 @@ const MAX_UPLOAD_BYTES = MAX_UPLOAD_KB * 1024
 const MAX_DIMENSION = 128
 const MAX_NAME = 32
 const MAX_ALIASES = 10
-const MAX_CUSTOM_EMOJIS = 200
 const ACCEPTED_TYPES = ["image/png", "image/gif", "image/webp"]
 
 interface UploadItem {
@@ -230,9 +229,8 @@ let nextId = 0
 const isBatch = computed(() => items.value.length > 1)
 const single = computed(() => (items.value.length === 1 ? items.value[0] : null))
 const uploadable = computed(() => items.value.filter((i) => i.valid))
-const remainingSlots = computed(() =>
-  Math.max(0, MAX_CUSTOM_EMOJIS - customEmojisStore.emojis.length),
-)
+// The cap is configurable on the server (EMOJI_MAX_CUSTOM); the first page reports it.
+const remainingSlots = computed(() => Math.max(0, customEmojisStore.max - customEmojisStore.total))
 const overLimit = computed(
   () => customEmojisStore.isLoaded && uploadable.value.length > remainingSlots.value,
 )
@@ -339,7 +337,7 @@ async function submit() {
     }
   } finally {
     isUploading.value = false
-    if (uploaded > 0) await customEmojisStore.fetchEmojis()
+    if (uploaded > 0) await customEmojisStore.refresh()
   }
   uploadedCount.value += uploaded
   // Failed items stay listed with their error so they can be renamed and retried.

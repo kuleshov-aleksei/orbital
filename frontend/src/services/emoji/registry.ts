@@ -38,15 +38,19 @@ export function resolveEmoji(ref: EmojiRef | null | undefined): Emoji | null {
  * Match every query word against an emoji's keywords: exact keyword matches
  * first, then prefix, then substring. Custom emojis win ties so a server
  * emoji's alias beats a unicode emoji with the same keyword.
+ * `extra` adds candidates that no provider lists yet (server-side search
+ * results for custom emojis outside the loaded pages); they rank first on ties.
+ * Keep the scoring in sync with emojiSearchScore in backend/internal/service/emojiindex.go.
  */
-export function searchEmojis(query: string, limit = 80): Emoji[] {
+export function searchEmojis(query: string, limit = 80, extra: Emoji[] = []): Emoji[] {
   const words = query.toLowerCase().trim().split(/\s+/).filter(Boolean)
   if (words.length === 0) return []
 
   const scored: { emoji: Emoji; score: number }[] = []
   const seen = new Set<EmojiRef>()
-  for (const category of getEmojiCategories()) {
-    for (const emoji of category.emojis) {
+  const candidates = [extra, ...getEmojiCategories().map((c) => c.emojis)]
+  for (const emojis of candidates) {
+    for (const emoji of emojis) {
       if (seen.has(emoji.ref)) continue
       let score = 0
       const matchesAll = words.every((word) => {

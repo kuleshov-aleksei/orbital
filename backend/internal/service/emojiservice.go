@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -27,8 +28,9 @@ const (
 	maxAnimatedSourceDimension = 512
 	// maxEmojiFrames caps animation length.
 	maxEmojiFrames = 300
-	// MaxCustomEmojis caps the library; every client loads the whole list.
-	MaxCustomEmojis = 200
+	// DefaultMaxCustomEmojis caps the library unless configured otherwise
+	// (EMOJI_MAX_CUSTOM). Clients load the library page by page.
+	DefaultMaxCustomEmojis = 2000
 )
 
 var gifMagics = [][]byte{[]byte("GIF87a"), []byte("GIF89a")}
@@ -39,18 +41,34 @@ var (
 	ErrEmojiInvalidImage = fmt.Errorf("invalid image, must be up to %dx%d (animated: up to %dx%d with at most %d frames)",
 		maxEmojiSourceDimension, maxEmojiSourceDimension, maxAnimatedSourceDimension, maxAnimatedSourceDimension, maxEmojiFrames)
 	ErrEmojiNotFound    = errors.New("emoji not found")
-	ErrEmojiLibraryFull = fmt.Errorf("emoji library is full (%d emojis max)", MaxCustomEmojis)
+	// ErrEmojiLibraryFull is wrapped with the configured maximum by Create.
+	ErrEmojiLibraryFull = errors.New("emoji library is full")
 )
 
 // EmojiService manages the shared custom emoji library. Name and alias rules
 // are shared with the soundboard.
 type EmojiService struct {
-	repo    *repository.EmojiRepository
-	dataDir string
+	repo      *repository.EmojiRepository
+	dataDir   string
+	maxCustom int
+
+	// idx caches the library metadata for paging, search and batch lookups;
+	// SQLite stays the source of truth. nil means "rebuild on next read".
+	idxMu sync.Mutex
+	idx   *emojiIndex
 }
 
-func NewEmojiService(repo *repository.EmojiRepository, dataDir string) *EmojiService {
-	return &EmojiService{repo: repo, dataDir: dataDir}
+// NewEmojiService creates the service. maxCustom <= 0 uses DefaultMaxCustomEmojis.
+func NewEmojiService(repo *repository.EmojiRepository, dataDir string, maxCustom int) *EmojiService {
+	if maxCustom <= 0 {
+		maxCustom = DefaultMaxCustomEmojis
+	}
+	return &EmojiService{repo: repo, dataDir: dataDir, maxCustom: maxCustom}
+}
+
+// MaxCustom is the configured library size limit.
+func (s *EmojiService) MaxCustom() int {
+	return s.maxCustom
 }
 
 func (s *EmojiService) emojiDir() string {
@@ -107,8 +125,8 @@ func (s *EmojiService) Create(userID string, data []byte, name string, aliases [
 	if err != nil {
 		return nil, fmt.Errorf("failed to count emojis: %w", err)
 	}
-	if count >= MaxCustomEmojis {
-		return nil, ErrEmojiLibraryFull
+	if count >= s.maxCustom {
+		return nil, fmt.Errorf("%w (%d emojis max)", ErrEmojiLibraryFull, s.maxCustom)
 	}
 	encoded, animated, err := processEmojiImage(data)
 	if err != nil {
@@ -139,18 +157,17 @@ func (s *EmojiService) Create(userID string, data []byte, name string, aliases [
 		_ = os.Remove(filePath)
 		return nil, fmt.Errorf("failed to save emoji record: %w", err)
 	}
+	s.invalidateIndex()
 	return withImageURL(emoji), nil
 }
 
+// List returns the whole library in upload order.
 func (s *EmojiService) List() ([]*models.CustomEmoji, error) {
-	emojis, err := s.repo.List()
+	idx, err := s.index()
 	if err != nil {
 		return nil, err
 	}
-	for _, e := range emojis {
-		withImageURL(e)
-	}
-	return emojis, nil
+	return cloneEmojis(idx.list), nil
 }
 
 // Update applies the non-nil fields of req.
@@ -179,6 +196,7 @@ func (s *EmojiService) Update(id string, req models.UpdateCustomEmojiRequest) (*
 	if err := s.repo.Update(emoji); err != nil {
 		return nil, err
 	}
+	s.invalidateIndex()
 	return withImageURL(emoji), nil
 }
 
@@ -195,6 +213,7 @@ func (s *EmojiService) Delete(id string) error {
 	if err := s.repo.Delete(id); err != nil {
 		return err
 	}
+	s.invalidateIndex()
 	if filename, ok := safeEmojiFilename(emoji.Filename); ok {
 		if err := os.Remove(filepath.Join(s.emojiDir(), filename)); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("failed to delete emoji file: %w", err)
@@ -283,6 +302,7 @@ func (s *EmojiService) MigrateToWebP() int {
 		converted++
 	}
 	if converted > 0 {
+		s.invalidateIndex()
 		log.Printf("emoji webp migration: converted %d emojis", converted)
 	}
 	return converted
@@ -325,6 +345,6 @@ func (s *EmojiService) migrateOneToWebP(e *models.CustomEmoji) error {
 // EmojiExists reports whether a custom emoji id exists (used to validate
 // "custom:<id>" references).
 func (s *EmojiService) EmojiExists(id string) bool {
-	emoji, err := s.repo.GetByID(id)
-	return err == nil && emoji != nil
+	idx, err := s.index()
+	return err == nil && idx.byID[id] != nil
 }

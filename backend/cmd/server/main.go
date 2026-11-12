@@ -110,7 +110,7 @@ func main() {
 		}
 		audioService = service.NewAudioService(repository.NewAudioRepository(db), "data", cfg.RateLimit.AudioQuotaBytes())
 		soundboardService = service.NewSoundboardService(repository.NewSoundboardRepository(db), "data")
-		emojiService = service.NewEmojiService(repository.NewEmojiRepository(db), "data")
+		emojiService = service.NewEmojiService(repository.NewEmojiRepository(db), "data", cfg.Emoji.MaxCustom)
 		analyticsService = service.NewAnalyticsService(sessionRepo)
 		halloweenService = service.NewHalloweenService(repository.NewHalloweenRepository(db))
 		pumpkinAssetService = service.NewPumpkinAssetService("data", "assets")

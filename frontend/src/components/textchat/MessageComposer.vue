@@ -227,8 +227,10 @@ import {
   emojiTextLength,
   emojiTextToPlain,
   encodeShortcodes,
+  extractShortcodes,
   resolveEmoji,
   searchEmojis,
+  type Emoji,
   type EmojiRef,
 } from "@/services/emoji"
 import {
@@ -308,6 +310,11 @@ const encode = (text: string) =>
     mentionMap(),
   )
 const charCount = computed(() => emojiTextLength(encode(draft.value)))
+// Custom emojis load on demand: resolve typed :shortcode:s in the background
+// so the character count is right and send rarely has to wait.
+watch(draft, (value) => void customEmojisStore.requestShortcodes(extractShortcodes(value)), {
+  immediate: true,
+})
 
 function nameOf(userId: string): string {
   return usersStore.displayName(userId)
@@ -324,8 +331,17 @@ function focus() {
   input.value?.focus()
 }
 
-function send() {
-  const content = encode(draft.value.trim())
+let sending = false
+async function send() {
+  if (sending) return
+  const text = draft.value.trim()
+  sending = true
+  try {
+    await customEmojisStore.resolveShortcodes(extractShortcodes(text))
+  } finally {
+    sending = false
+  }
+  const content = encode(text)
   if (charCount.value > MAX_CHARS || !props.canSend) return
   if (attachmentsStore.busy(props.roomId)) {
     attachmentsStore.composerError = "Wait for the uploads to finish."
@@ -423,6 +439,7 @@ let suggestionStart = -1
 function closeSuggestions() {
   suggestions.value = []
   suggestionStart = -1
+  emojiSearchQuery = ""
 }
 
 function mentionSuggestions(query: string): Suggestion[] {
@@ -462,8 +479,37 @@ function mentionSuggestions(query: string): Suggestion[] {
   )
 }
 
-function emojiSuggestions(query: string): Suggestion[] {
-  return searchEmojis(query, MAX_SUGGESTIONS).map((e) => ({
+// Custom emojis outside the loaded pages come from a debounced server search;
+// local (unicode + loaded) matches show immediately.
+const EMOJI_SEARCH_DEBOUNCE_MS = 150
+let emojiSearchTimer: ReturnType<typeof setTimeout> | undefined
+let emojiSearchQuery = ""
+// Server results for emojiSearchQuery, reused while the query is unchanged.
+let emojiSearchExtra: Emoji[] = []
+
+function showEmojiSuggestions(query: string) {
+  if (query === emojiSearchQuery) {
+    suggestions.value = emojiSuggestions(query, emojiSearchExtra)
+    return
+  }
+  suggestions.value = emojiSuggestions(query)
+  emojiSearchQuery = query
+  emojiSearchExtra = []
+  clearTimeout(emojiSearchTimer)
+  emojiSearchTimer = setTimeout(async () => {
+    const extra = await customEmojisStore.search(query).catch(() => [])
+    if (emojiSearchQuery !== query) return
+    emojiSearchExtra = extra
+    suggestions.value = emojiSuggestions(query, extra)
+    activeSuggestion.value = Math.max(
+      0,
+      Math.min(activeSuggestion.value, suggestions.value.length - 1),
+    )
+  }, EMOJI_SEARCH_DEBOUNCE_MS)
+}
+
+function emojiSuggestions(query: string, extra: Emoji[] = []): Suggestion[] {
+  return searchEmojis(query, MAX_SUGGESTIONS, extra).map((e) => ({
     key: `e:${e.ref}`,
     kind: "emoji",
     id: e.ref,
@@ -478,13 +524,14 @@ function updateSuggestions() {
   const caret = el.selectionStart
   const mention = activeMentionQuery(draft.value, caret)
   if (mention) {
+    emojiSearchQuery = ""
     suggestions.value = mentionSuggestions(mention.query)
     suggestionTitle.value = "Members and roles"
     suggestionStart = mention.start
   } else {
     const emoji = activeEmojiQuery(draft.value, caret)
     if (emoji) {
-      suggestions.value = emojiSuggestions(emoji.query)
+      showEmojiSuggestions(emoji.query)
       suggestionTitle.value = "Emoji"
       suggestionStart = emoji.start
     } else {

@@ -12,6 +12,8 @@ import {
   AudioFile,
   SoundboardSound,
   CustomEmojiDto,
+  CustomEmojiLookupDto,
+  CustomEmojiPageDto,
   StatsStatus,
   AnalyticsReport,
   SecuritySelfCheckReport,
@@ -1370,8 +1372,30 @@ export const apiService = {
   },
 
   // Custom emoji API calls
-  async getCustomEmojis(): Promise<CustomEmojiDto[]> {
-    return apiRequest<CustomEmojiDto[]>("/emojis")
+  /** One page of the library in upload order, or of a search when `q` is set. */
+  async getCustomEmojiPage(opts: {
+    limit: number
+    cursor?: string
+    q?: string
+  }): Promise<CustomEmojiPageDto> {
+    const params = new URLSearchParams({ limit: String(opts.limit) })
+    if (opts.cursor) params.set("cursor", opts.cursor)
+    if (opts.q) params.set("q", opts.q)
+    return apiRequest<CustomEmojiPageDto>(`/emojis?${params}`)
+  },
+
+  /** Batch lookup by id (at most 100); unknown ids are left out. */
+  async getCustomEmojisByIds(ids: string[]): Promise<CustomEmojiLookupDto> {
+    return apiRequest<CustomEmojiLookupDto>(
+      `/emojis?${new URLSearchParams({ ids: ids.join(",") })}`,
+    )
+  },
+
+  /** Batch lookup by :shortcode: (at most 100); unmatched ones are left out. */
+  async getCustomEmojisByShortcodes(codes: string[]): Promise<CustomEmojiLookupDto> {
+    return apiRequest<CustomEmojiLookupDto>(
+      `/emojis?${new URLSearchParams({ shortcodes: codes.join(",") })}`,
+    )
   },
 
   async uploadCustomEmoji(input: {

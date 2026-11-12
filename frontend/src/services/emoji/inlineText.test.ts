@@ -4,6 +4,7 @@ import {
   emojiTextLength,
   emojiTextToPlain,
   encodeShortcodes,
+  extractShortcodes,
   parseEmojiText,
   tokenIdsByShortcode,
 } from "./inlineText"
@@ -44,5 +45,12 @@ describe("inline custom emoji text", () => {
 
   it("counts a token as one character", () => {
     expect(emojiTextLength(`ab${token}🎮`)).toBe(4)
+  })
+
+  it("extracts typed shortcodes outside tokens, once each", () => {
+    expect(extractShortcodes(`:party: hi <:cat:${ID}> :party: :котик: :not closed`)).toEqual([
+      "party",
+      "котик",
+    ])
   })
 })

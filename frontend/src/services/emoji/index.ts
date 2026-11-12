@@ -14,6 +14,7 @@ export {
   emojiTextToPlain,
   emojiTextLength,
   encodeShortcodes,
+  extractShortcodes,
   tokenIdsByShortcode,
   type EmojiTextSegment,
 } from "./inlineText"

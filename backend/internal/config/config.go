@@ -29,6 +29,13 @@ type Config struct {
 	Chat      ChatConfig      `yaml:"chat"`
 	ChatMedia ChatMediaConfig `yaml:"chat_media"`
 	ChatML    ChatMLConfig    `yaml:"chat_ml"`
+	Emoji     EmojiConfig     `yaml:"emoji"`
+}
+
+// EmojiConfig configures the custom emoji library.
+type EmojiConfig struct {
+	// MaxCustom caps the library size (EMOJI_MAX_CUSTOM).
+	MaxCustom int `yaml:"max_custom"`
 }
 
 // ChatConfig configures persistent text channels. Messages are stored in
@@ -255,6 +262,9 @@ func DefaultConfig() *Config {
 			CLIPModel:         "XLM-Roberta-Large-Vit-B-16Plus",
 			SemanticThreshold: 0.6,
 			TimeoutSeconds:    120,
+		},
+		Emoji: EmojiConfig{
+			MaxCustom: 2000,
 		},
 		RateLimit: RateLimitConfig{
 			AuthPerMinute:        10,
@@ -484,6 +494,9 @@ func (c *Config) loadFromEnv() {
 	if v, ok := getEnvInt("RATE_LIMIT_OAUTH_PER_MINUTE"); ok {
 		c.RateLimit.OAuthPerMinute = v
 	}
+	if v, ok := getEnvInt("EMOJI_MAX_CUSTOM"); ok {
+		c.Emoji.MaxCustom = v
+	}
 	if v, ok := getEnvInt("RATE_LIMIT_GUEST_UPLOAD_PER_HOUR"); ok {
 		c.RateLimit.GuestUploadPerHour = v
 	}
@@ -590,6 +603,9 @@ func (c *Config) Validate() error {
 	}
 	if c.ChatML.TimeoutSeconds <= 0 {
 		return fmt.Errorf("CHAT_ML_TIMEOUT_SECONDS must be positive")
+	}
+	if c.Emoji.MaxCustom <= 0 {
+		return fmt.Errorf("EMOJI_MAX_CUSTOM must be positive")
 	}
 	for name, value := range map[string]int{
 		"CHAT_MEDIA_MAX_IMAGE_MB":         c.ChatMedia.MaxImageMB,

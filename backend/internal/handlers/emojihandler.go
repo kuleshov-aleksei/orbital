@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/kuleshov-aleksei/orbital/internal/models"
@@ -54,16 +56,109 @@ func writeEmojiError(w http.ResponseWriter, err error) {
 	}
 }
 
-// ListEmojis returns the whole library.
-// GET /api/emojis
-func (h *EmojiHandler) ListEmojis(w http.ResponseWriter, r *http.Request) {
-	emojis, err := h.emojis.List()
-	if err != nil {
-		http.Error(w, "Failed to fetch emojis", http.StatusInternalServerError)
-		return
+// maxEmojiLookup caps the values of one ?ids= or ?shortcodes= lookup.
+const maxEmojiLookup = 100
+
+// emojiPageResponse is one page of the library or of a search.
+type emojiPageResponse struct {
+	Emojis     []*models.CustomEmoji `json:"emojis"`
+	NextCursor string                `json:"next_cursor"`
+	Total      int                   `json:"total"`
+	Max        int                   `json:"max"`
+}
+
+// emojiLookupResponse answers ?ids= and ?shortcodes= lookups. Shortcodes maps
+// each matched shortcode to its emoji id (unmatched ones are absent).
+type emojiLookupResponse struct {
+	Emojis     []*models.CustomEmoji `json:"emojis"`
+	Shortcodes map[string]string     `json:"shortcodes,omitempty"`
+}
+
+// splitEmojiLookup parses a comma-separated lookup list, dropping empties.
+func splitEmojiLookup(raw string) ([]string, bool) {
+	var out []string
+	for _, v := range strings.Split(raw, ",") {
+		if v = strings.TrimSpace(v); v != "" {
+			out = append(out, v)
+		}
 	}
+	return out, len(out) <= maxEmojiLookup
+}
+
+// ListEmojis serves the library.
+// GET /api/emojis                          the whole library as an array (older clients)
+// GET /api/emojis?limit=N[&cursor=][&q=]   one page (or a search), with total and max
+// GET /api/emojis?ids=a,b                  batch lookup by id
+// GET /api/emojis?shortcodes=x,y           batch lookup by :shortcode:
+func (h *EmojiHandler) ListEmojis(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
 	w.Header().Set("Content-Type", "application/json")
-	writeJSON(w, emojis)
+
+	switch {
+	case query.Has("ids"):
+		ids, ok := splitEmojiLookup(query.Get("ids"))
+		if !ok {
+			http.Error(w, "Too many ids", http.StatusBadRequest)
+			return
+		}
+		emojis, err := h.emojis.GetByIDs(ids)
+		if err != nil {
+			http.Error(w, "Failed to fetch emojis", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, emojiLookupResponse{Emojis: emojis})
+
+	case query.Has("shortcodes"):
+		codes, ok := splitEmojiLookup(query.Get("shortcodes"))
+		if !ok {
+			http.Error(w, "Too many shortcodes", http.StatusBadRequest)
+			return
+		}
+		ids, emojis, err := h.emojis.ByShortcodes(codes)
+		if err != nil {
+			http.Error(w, "Failed to fetch emojis", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, emojiLookupResponse{Emojis: emojis, Shortcodes: ids})
+
+	case query.Has("limit"):
+		limit, err := strconv.Atoi(query.Get("limit"))
+		if err != nil {
+			http.Error(w, "Invalid limit", http.StatusBadRequest)
+			return
+		}
+		var (
+			emojis []*models.CustomEmoji
+			next   string
+		)
+		if q := strings.TrimSpace(query.Get("q")); q != "" {
+			emojis, next, err = h.emojis.Search(q, query.Get("cursor"), limit)
+		} else {
+			emojis, next, err = h.emojis.Page(query.Get("cursor"), limit)
+		}
+		if errors.Is(err, service.ErrEmojiInvalidCursor) {
+			http.Error(w, "Invalid cursor", http.StatusBadRequest)
+			return
+		}
+		if err != nil {
+			http.Error(w, "Failed to fetch emojis", http.StatusInternalServerError)
+			return
+		}
+		total, err := h.emojis.Count()
+		if err != nil {
+			http.Error(w, "Failed to fetch emojis", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, emojiPageResponse{Emojis: emojis, NextCursor: next, Total: total, Max: h.emojis.MaxCustom()})
+
+	default:
+		emojis, err := h.emojis.List()
+		if err != nil {
+			http.Error(w, "Failed to fetch emojis", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, emojis)
+	}
 }
 
 // GetEmojiImage serves an emoji image. Public because <img> cannot send
