@@ -55,8 +55,11 @@ fi
 echo "Starting throwaway backend on :$PORT (index $INDEX)..."
 (
   cd "$ROOT/backend"
+  # CHAT_ML_URL (e.g. http://127.0.0.1:3003 after `make ml-up`) enables the
+  # search-by-image-contents checks; unset, they skip.
   exec setsid env SERVER_PORT="$PORT" DATABASE_PATH="$WORK/e2e.db" \
     MEILI_URL="$MEILI_URL" MEILI_API_KEY="$MEILI_KEY" MEILI_INDEX="$INDEX" \
+    CHAT_ML_URL="${CHAT_ML_URL:-}" \
     go run ./cmd/server >"$WORK/server.log" 2>&1
 ) &
 SERVER_PID=$!
@@ -79,7 +82,7 @@ if ! curl -fsS "http://localhost:$PORT/api/health" 2>/dev/null | grep -q '"text_
 fi
 
 status=0
-node "$ROOT/scripts/e2e-textchat.mjs" "http://localhost:$PORT" "$WORK/e2e.db" || status=$?
+E2E_ML="${CHAT_ML_URL:+1}" node "$ROOT/scripts/e2e-textchat.mjs" "http://localhost:$PORT" "$WORK/e2e.db" || status=$?
 if [ "$status" -ne 0 ]; then
   echo "--- backend log (last 30 lines) ---" >&2
   tail -30 "$WORK/server.log" >&2

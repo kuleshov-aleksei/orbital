@@ -556,6 +556,26 @@ CREATE INDEX IF NOT EXISTS idx_chat_att_purge ON chat_attachments(status, purged
 		);
 CREATE INDEX IF NOT EXISTS idx_user_color_roles_role ON user_color_roles(role_id);`,
 	},
+	{
+		Version: 46,
+		Name:    "create_chat_attachment_jobs",
+		// Content extraction (OCR, image embeddings) per attachment, see
+		// docs/specs/CHAT_SYSTEM.md §7.13. signature names the models that
+		// produced the result; a model change re-queues the done rows.
+		// vector is little-endian float32.
+		SQL: `CREATE TABLE IF NOT EXISTS chat_attachment_jobs (
+			attachment_id TEXT PRIMARY KEY,
+			status TEXT NOT NULL CHECK (status IN ('pending','done','failed')),
+			attempts INTEGER NOT NULL DEFAULT 0,
+			next_attempt_at INTEGER NOT NULL DEFAULT 0,
+			last_error TEXT,
+			signature TEXT NOT NULL DEFAULT '',
+			text TEXT NOT NULL DEFAULT '',
+			vector BLOB,
+			updated_at INTEGER NOT NULL
+		);
+CREATE INDEX IF NOT EXISTS idx_chat_att_jobs_due ON chat_attachment_jobs(status, next_attempt_at);`,
+	},
 }
 
 // RunMigrationsUpTo applies migrations up to and including maxVersion.

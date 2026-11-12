@@ -91,3 +91,26 @@ func fitBox(w, h, box int) (int, int) {
 	}
 	return max(1, w*box/h), box
 }
+
+// extractBox bounds the image sent to content extractors (OCR reads small
+// text, so the 640 px thumbnail is too coarse; originals can be 20 MB).
+const extractBox = 1440
+
+// extractionImage renders a stored original as a JPEG that fits extractBox
+// (first frame of animations). Smaller images are re-encoded, not scaled.
+func extractionImage(data []byte) ([]byte, error) {
+	bimg.Initialize()
+	size, err := bimg.NewImage(data).Size()
+	if err != nil || size.Width <= 0 || size.Height <= 0 {
+		return nil, errBadImage
+	}
+	w, h := fitBox(size.Width, size.Height, extractBox)
+	out, err := bimg.NewImage(data).Process(bimg.Options{
+		Width: w, Height: h, Force: true, Type: bimg.JPEG, Quality: jpegQuality, StripMetadata: true,
+		Background: bimg.Color{R: 255, G: 255, B: 255}, // transparent PNGs: dark text stays readable
+	})
+	if err != nil {
+		return nil, errBadImage
+	}
+	return out, nil
+}

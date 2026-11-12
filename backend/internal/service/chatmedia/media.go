@@ -6,6 +6,7 @@ package chatmedia
 
 import (
 	"context"
+	"errors"
 	"io"
 	"sort"
 	"sync"
@@ -16,6 +17,8 @@ import (
 // MemoryStore backs tests.
 type MediaStore interface {
 	Put(ctx context.Context, key string, body io.ReadSeeker, size int64, contentType string) error
+	// Get reads a whole object (content extraction reads stored images).
+	Get(ctx context.Context, key string) ([]byte, error)
 	// Delete removes objects; missing keys are not an error.
 	Delete(ctx context.Context, keys []string) error
 	// PresignGet returns a time-limited GET URL. disposition, when set, is
@@ -53,6 +56,16 @@ func (m *MemoryStore) Put(_ context.Context, key string, body io.ReadSeeker, _ i
 	m.objects[key] = data
 	m.types[key] = contentType
 	return nil
+}
+
+func (m *MemoryStore) Get(_ context.Context, key string) ([]byte, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	data, ok := m.objects[key]
+	if !ok {
+		return nil, errors.New("memory store: no such key " + key)
+	}
+	return append([]byte(nil), data...), nil
 }
 
 func (m *MemoryStore) Delete(_ context.Context, keys []string) error {

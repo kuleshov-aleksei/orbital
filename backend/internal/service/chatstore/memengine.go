@@ -21,6 +21,8 @@ type MemoryEngine struct {
 	hold     bool
 	failNext bool
 	down     bool
+	// embedderDims is the ImageEmbedder size (0 = none).
+	embedderDims int
 }
 
 type heldWrite struct {
@@ -342,6 +344,21 @@ func anyIn(want, have []string) bool {
 		}
 	}
 	return false
+}
+
+// ImageEmbedderDims and SetImageEmbedder only record the size: the memory
+// engine has no vector search (Search ignores req.Vector).
+func (e *MemoryEngine) ImageEmbedderDims(context.Context) (int, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.embedderDims, nil
+}
+
+func (e *MemoryEngine) SetImageEmbedder(_ context.Context, dims int) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.embedderDims = dims
+	return nil
 }
 
 func (e *MemoryEngine) CountMentions(_ context.Context, qs []MentionCountQuery) ([]int, error) {

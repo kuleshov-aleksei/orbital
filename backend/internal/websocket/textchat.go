@@ -12,6 +12,7 @@ import (
 	"github.com/kuleshov-aleksei/orbital/internal/ratelimit"
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatmedia"
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatstore"
+	"github.com/kuleshov-aleksei/orbital/internal/service/immichml"
 )
 
 // Text channel send rate limit, per user and channel.
@@ -34,6 +35,10 @@ type TextChat struct {
 	UserExists func(userID string) bool
 	// Media stores attachments; nil when S3 is not configured.
 	Media *chatmedia.Service
+	// ML reads image contents (OCR, embeddings); nil when disabled.
+	ML *immichml.Client
+	// SemanticThreshold is the minimum score of images found by meaning.
+	SemanticThreshold float64
 }
 
 // SetTextChat enables text channel messaging over WebSocket.
@@ -64,6 +69,20 @@ func (h *Hub) SetTextChat(tc *TextChat) {
 			}
 			h.broadcastUpdated(msg)
 		})
+	}
+	if tc != nil && tc.Media != nil && tc.Store != nil && tc.ML != nil {
+		ml, store := tc.ML, tc.Store
+		// Search-only fields: no broadcast, clients never see them.
+		tc.Media.SetExtractor(immichml.NewExtractor(ml), func(ctx context.Context, messageID, text string, vectors [][]float32) error {
+			err := store.SetAttachmentContent(ctx, messageID, text, vectors, ml.CLIPEnabled())
+			if errors.Is(err, chatstore.ErrNotFound) {
+				return nil // message deleted meanwhile
+			}
+			return err
+		})
+		if ml.CLIPEnabled() {
+			store.SetQueryEmbedder(ml.EmbedText, tc.SemanticThreshold)
+		}
 	}
 }
 

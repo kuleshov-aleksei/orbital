@@ -28,6 +28,7 @@ type Config struct {
 	RateLimit RateLimitConfig `yaml:"rate_limit"`
 	Chat      ChatConfig      `yaml:"chat"`
 	ChatMedia ChatMediaConfig `yaml:"chat_media"`
+	ChatML    ChatMLConfig    `yaml:"chat_ml"`
 }
 
 // ChatConfig configures persistent text channels. Messages are stored in
@@ -112,6 +113,25 @@ func (c *Config) applyDevChatMediaDefaults() {
 		c.ChatMedia.Bucket = v
 	}
 }
+
+// ChatMLConfig configures content search of text channel images: OCR and
+// CLIP embeddings from an Immich machine-learning service
+// (docs/specs/CHAT_SYSTEM.md §7.13). With an empty URL it is disabled.
+type ChatMLConfig struct {
+	URL         string `yaml:"url"`
+	OCREnabled  bool   `yaml:"ocr_enabled"`
+	CLIPEnabled bool   `yaml:"clip_enabled"`
+	OCRModel    string `yaml:"ocr_model"`
+	// CLIPModel must embed text in the users' languages (search queries).
+	CLIPModel string `yaml:"clip_model"`
+	// SemanticThreshold is the minimum ranking score (0..1) of an image
+	// found only by meaning.
+	SemanticThreshold float64 `yaml:"semantic_threshold"`
+	TimeoutSeconds    int     `yaml:"timeout_seconds"`
+}
+
+// Enabled reports whether any extraction task is configured.
+func (c ChatMLConfig) Enabled() bool { return c.URL != "" && (c.OCREnabled || c.CLIPEnabled) }
 
 type RateLimitConfig struct {
 	AuthPerMinute        int `yaml:"auth_per_minute"`
@@ -227,6 +247,14 @@ func DefaultConfig() *Config {
 			MaxVideoMB:     100,
 			QuotaMB:        5120,
 			UploadsPerHour: 120,
+		},
+		ChatML: ChatMLConfig{
+			OCREnabled:        true,
+			CLIPEnabled:       true,
+			OCRModel:          "ESLAV__PP-OCRv5_mobile",
+			CLIPModel:         "XLM-Roberta-Large-Vit-B-16Plus",
+			SemanticThreshold: 0.6,
+			TimeoutSeconds:    120,
 		},
 		RateLimit: RateLimitConfig{
 			AuthPerMinute:        10,
@@ -421,6 +449,31 @@ func (c *Config) loadFromEnv() {
 		}
 	}
 
+	// Text channel content search (Immich ML)
+	for key, dst := range map[string]*string{
+		"CHAT_ML_URL":        &c.ChatML.URL,
+		"CHAT_ML_OCR_MODEL":  &c.ChatML.OCRModel,
+		"CHAT_ML_CLIP_MODEL": &c.ChatML.CLIPModel,
+	} {
+		if v := os.Getenv(key); v != "" {
+			*dst = v
+		}
+	}
+	for key, dst := range map[string]*bool{
+		"CHAT_ML_OCR_ENABLED":  &c.ChatML.OCREnabled,
+		"CHAT_ML_CLIP_ENABLED": &c.ChatML.CLIPEnabled,
+	} {
+		if v, err := strconv.ParseBool(os.Getenv(key)); err == nil {
+			*dst = v
+		}
+	}
+	if v, err := strconv.ParseFloat(os.Getenv("CHAT_ML_SEMANTIC_THRESHOLD"), 64); err == nil {
+		c.ChatML.SemanticThreshold = v
+	}
+	if v, ok := getEnvInt("CHAT_ML_TIMEOUT_SECONDS"); ok {
+		c.ChatML.TimeoutSeconds = v
+	}
+
 	// Rate limit and quota config
 	if v, ok := getEnvInt("RATE_LIMIT_AUTH_PER_MINUTE"); ok {
 		c.RateLimit.AuthPerMinute = v
@@ -531,6 +584,12 @@ func (c *Config) Validate() error {
 	}
 	if err := c.LiveKit.Validate(); err != nil {
 		return fmt.Errorf("livekit configuration: %w", err)
+	}
+	if c.ChatML.SemanticThreshold <= 0 || c.ChatML.SemanticThreshold >= 1 {
+		return fmt.Errorf("CHAT_ML_SEMANTIC_THRESHOLD must be between 0 and 1")
+	}
+	if c.ChatML.TimeoutSeconds <= 0 {
+		return fmt.Errorf("CHAT_ML_TIMEOUT_SECONDS must be positive")
 	}
 	for name, value := range map[string]int{
 		"CHAT_MEDIA_MAX_IMAGE_MB":         c.ChatMedia.MaxImageMB,

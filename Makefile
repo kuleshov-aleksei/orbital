@@ -1,4 +1,4 @@
-.PHONY: help install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-backend test-integration e2e-textchat meili-up meili-down garage-up garage-down test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all balance-drift balance-check
+.PHONY: help install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-backend test-integration e2e-textchat meili-up meili-down ml-up ml-down garage-up garage-down test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all balance-drift balance-check
 
 # Default target
 help:
@@ -17,6 +17,8 @@ help:
 	@echo "  e2e-textchat      - Live text channel check on a throwaway backend + index (starts Meilisearch + Garage)"
 	@echo "  meili-up          - Start the dev Meilisearch container (text channels)"
 	@echo "  meili-down        - Stop the dev Meilisearch container"
+	@echo "  ml-up             - Start the dev Immich ML container (search by image contents)"
+	@echo "  ml-down           - Stop the dev Immich ML container"
 	@echo "  garage-up         - Start the dev Garage S3 container (chat attachments)"
 	@echo "  garage-down       - Stop the dev Garage S3 container"
 	@echo "  test-e2e-docker   - Run Playwright e2e tests in Docker"
@@ -192,6 +194,18 @@ meili-down:
 # Dev Garage S3 (text channel attachments, docs/specs/CHAT_SYSTEM.md §7.12).
 # Single-node mode creates the layout, dev key and bucket on first start.
 GARAGE_TEST_BUCKET ?= orbital-chat-media
+
+# Dev Immich ML (OCR + CLIP for search by image contents). The first start
+# downloads the models (a few GB), so the health wait is long.
+ml-up:
+	docker-compose -f docker-compose.dev.yml up -d immich-ml
+	@for i in $$(seq 1 120); do \
+		curl -fsS http://127.0.0.1:3003/ping >/dev/null 2>&1 && echo "Immich ML is up at http://127.0.0.1:3003 (set CHAT_ML_URL to use it)" && exit 0; \
+		sleep 1; \
+	done; echo "Immich ML did not answer /ping" >&2; exit 1
+
+ml-down:
+	docker-compose -f docker-compose.dev.yml stop immich-ml
 
 garage-up:
 	docker-compose -f docker-compose.dev.yml up -d garage

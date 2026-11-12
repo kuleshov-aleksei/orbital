@@ -92,6 +92,11 @@ type Service struct {
 	hook   MessageHook
 
 	kick chan struct{}
+
+	// Content extraction (extract.go); nil when disabled.
+	extractor   Extractor
+	contentHook ContentHook
+	extractKick chan struct{}
 }
 
 // New creates a Service. Call Start to run the janitor.
@@ -329,6 +334,7 @@ func (s *Service) afterRemoval(recs []*Record) {
 		return
 	}
 	s.async(func() {
+		messages := map[string]bool{}
 		for _, r := range docs {
 			reason := r.RemovedReason
 			s.callHook(r, func(a *chatstore.Attachment) bool {
@@ -338,6 +344,12 @@ func (s *Service) afterRemoval(recs []*Record) {
 				a.Removed = reason
 				return true
 			})
+			messages[r.MessageID] = true
+		}
+		if s.extractor != nil {
+			for id := range messages {
+				s.refreshContent(id) // drop the removed files' text and vectors
+			}
 		}
 	})
 }
@@ -395,6 +407,9 @@ func (s *Service) Attach(ctx context.Context, uploaderID, roomID string, ids []s
 	}
 	_, err = s.db.Exec(`UPDATE chat_attachments SET status = 'attached', message_id = ?, attached_at = ?
 		WHERE status = 'pending' AND id IN (`+placeholders(len(keep))+`)`, args...)
+	if err == nil {
+		s.kickExtractor()
+	}
 	return err
 }
 
@@ -595,8 +610,10 @@ func (s *Service) URL(ctx context.Context, rec *Record, variant string) (string,
 	return u, s.now().Add(urlTTL), nil
 }
 
-// Start runs the janitor until ctx ends.
+// Start runs the janitor (and the extraction worker, when an Extractor is
+// set) until ctx ends.
 func (s *Service) Start(ctx context.Context) {
+	s.startExtractor(ctx)
 	go func() {
 		ticker := time.NewTicker(janitorInterval)
 		defer ticker.Stop()
@@ -654,6 +671,7 @@ func (s *Service) RunJanitor(ctx context.Context) {
 		}
 	}
 
+	s.pruneJobs()
 	if _, err := s.db.Exec(`DELETE FROM chat_attachments WHERE status = 'removed' AND purged_at IS NOT NULL AND purged_at < ?`,
 		now.Add(-tombstoneTTL).UnixMilli()); err != nil {
 		log.Printf("[ChatMedia] Janitor: failed to prune tombstones: %v", err)

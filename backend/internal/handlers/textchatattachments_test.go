@@ -213,3 +213,34 @@ func TestDeleteTextChannelRemovesAttachments(t *testing.T) {
 		t.Fatalf("reason = %q", got.RemovedReason)
 	}
 }
+
+func TestAttachmentContentPermissions(t *testing.T) {
+	f := newMediaFixture(t)
+	_, id := f.sentFile(t)
+	vars := map[string]string{"id": id}
+	rec := f.do(t, "mod", f.text.AttachmentContent, http.MethodGet, vars, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("viewer content: %d %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Enabled  bool `json:"enabled"`
+		CanRetry bool `json:"can_retry"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	if resp.Enabled || resp.CanRetry {
+		t.Fatalf("audio without extractor: %s", rec.Body.String())
+	}
+	if rec := f.do(t, "guest", f.text.RetryAttachmentContent, http.MethodPost, vars, nil); rec.Code != http.StatusForbidden && rec.Code != http.StatusNotFound {
+		t.Fatalf("guest retry: %d, want 403/404", rec.Code)
+	}
+	if rec := f.do(t, "user", f.text.RetryAttachmentContent, http.MethodPost, vars, nil); rec.Code != http.StatusUnsupportedMediaType {
+		t.Fatalf("uploader retry of audio: %d, want 415", rec.Code)
+	}
+	if _, err := f.ps.SetOverwrite(f.ownerSub, models.PermissionOverwrite{TargetType: models.OverwriteTargetRoom, TargetID: f.openText.ID,
+		SubjectType: models.OverwriteSubjectUser, SubjectID: "mod", Deny: uint64(permissions.ViewRoom)}); err != nil {
+		t.Fatal(err)
+	}
+	if rec := f.do(t, "mod", f.text.AttachmentContent, http.MethodGet, vars, nil); rec.Code != http.StatusNotFound {
+		t.Fatalf("non-viewer content: %d, want 404", rec.Code)
+	}
+}

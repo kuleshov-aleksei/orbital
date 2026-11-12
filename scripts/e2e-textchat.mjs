@@ -5,6 +5,7 @@
 // Usage: node scripts/e2e-textchat.mjs <base-url> <sqlite-db-path>
 // The database is needed to promote the "owner" user to super admin.
 import { execFileSync } from "node:child_process"
+import { readFileSync } from "node:fs"
 
 const [BASE, DB] = process.argv.slice(2)
 if (!BASE || !DB) {
@@ -179,6 +180,82 @@ async function attachmentChecks() {
   check("quota freed", freed.json?.used_bytes === 0, freed.text)
 }
 
+/**
+ * Search by image contents (spec §7.13) against a real Immich ML: OCR text
+ * and image-by-meaning. Runs only with CHAT_ML_URL (E2E_ML=1).
+ */
+async function contentSearchChecks() {
+  const cfg = await api("GET", "/api/config", alice.token)
+  if (process.env.E2E_ML !== "1" || !cfg.json?.attachments) {
+    console.log("SKIP content search — set CHAT_ML_URL (make ml-up) and enable attachments")
+    return
+  }
+  const fixtures = new URL("./fixtures/", import.meta.url)
+  const sent = {}
+  const files = {}
+  for (const [name, file] of [
+    ["receipt", "ocr-ru.jpg"],
+    ["square", "red-square.jpg"],
+  ]) {
+    const up = await upload(alice.token, readFileSync(new URL(file, fixtures)), file)
+    wsAlice.send("text_message_send", {
+      room_id: roomId,
+      content: "",
+      upload_ids: [up.json?.upload_id],
+      nonce: `ml-${name}`,
+    })
+    await sleep(400)
+    const msg = wsAlice.take("text_message_new").pop()?.data?.message
+    sent[name] = msg?.id
+    files[name] = msg?.attachments?.[0]?.id
+  }
+  check("content search: images sent", !!sent.receipt && !!sent.square, JSON.stringify(sent))
+
+  // The worker is kicked on attach; the first run may still load models.
+  const hitIds = async (q) => {
+    const r = await api("GET", `/api/chat/search?q=${encodeURIComponent(q)}&tz=Europe/Moscow`, bob.token)
+    return (r.json?.hits ?? []).map((h) => h.message?.id ?? h.id)
+  }
+  let ocr = []
+  for (let i = 0; i < 120 && !ocr.includes(sent.receipt); i++) {
+    ocr = await hitIds("итого")
+    if (!ocr.includes(sent.receipt)) await sleep(1000)
+  }
+  check("content search: OCR text (Cyrillic) is searchable", ocr.includes(sent.receipt), JSON.stringify(ocr))
+  const meaning = await hitIds("красный квадрат")
+  check(
+    "content search: image found by meaning",
+    meaning.includes(sent.square) && !meaning.includes(sent.receipt),
+    JSON.stringify({ meaning, sent }),
+  )
+  const none = await hitIds("собака в снегу")
+  check("content search: unrelated query finds no image", !none.includes(sent.square), JSON.stringify(none))
+
+  // "What search sees" (GET /api/attachments/{id}/content).
+  check("content search: advertised in /api/config", cfg.json.attachments.content_search === true)
+  const content = (id, q) =>
+    api("GET", `/api/attachments/${id}/content${q ? `?q=${encodeURIComponent(q)}` : ""}`, bob.token)
+  const receipt = await content(files.receipt)
+  check(
+    "content view: OCR text and embedding",
+    receipt.json?.status === "done" && /ИТОГО/.test(receipt.json?.text) && receipt.json?.vector?.dims > 0 &&
+      receipt.json?.vector?.values?.length === receipt.json?.vector?.dims,
+    JSON.stringify({ ...receipt.json, vector: receipt.json?.vector?.dims }),
+  )
+  const hit = await content(files.square, "красный квадрат")
+  const miss = await content(files.square, "собака в снегу")
+  check(
+    "content view: phrase check matches like search",
+    hit.json?.match?.matches === true && miss.json?.match?.matches === false &&
+      hit.json.match.score > miss.json.match.score,
+    JSON.stringify({ hit: hit.json?.match, miss: miss.json?.match }),
+  )
+  const denied = await api("POST", `/api/attachments/${files.square}/content/retry`, bob.token)
+  check("content view: retry needs the uploader or a moderator", denied.status === 403, String(denied.status))
+  const retried = await api("POST", `/api/attachments/${files.square}/content/retry`, alice.token)
+  check("content view: uploader can retry", retried.status === 202, String(retried.status))
+}
+
 const owner = await user("owner")
 const alice = await user("alice")
 const bob = await user("bob")
@@ -292,6 +369,7 @@ try {
   )
 
   await attachmentChecks()
+  await contentSearchChecks()
 } finally {
   for (const s of sockets) s.ws.close()
   await api("DELETE", `/api/rooms/${roomId}`, owner.token)

@@ -247,6 +247,8 @@ data/meilisearch/
 docker/data/meilisearch/
 # Dev Garage S3 data (text channel attachments)
 data/garage/
+# Dev Immich ML model cache (search by image contents, several GB)
+data/immich-ml/
 
 docker/docker-data/data/*
 !docker/docker-data/data/.gitkeep

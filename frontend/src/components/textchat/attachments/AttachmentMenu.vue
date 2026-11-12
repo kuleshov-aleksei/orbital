@@ -21,6 +21,15 @@
       <button type="button" role="menuitem" :class="item" @click="act('download')">
         <PhDownloadSimple class="w-4 h-4" /> Download
       </button>
+      <button
+        v-if="showContent"
+        type="button"
+        role="menuitem"
+        :class="item"
+        data-testid="attachment-content"
+        @click="act('content')">
+        <PhTextAa class="w-4 h-4" /> What search sees
+      </button>
       <template v-if="isOwn">
         <div class="my-1 border-t border-theme-border" />
         <button
@@ -62,12 +71,13 @@ import {
   PhHardDrives,
   PhLock,
   PhLockOpen,
+  PhTextAa,
   PhTrash,
 } from "@phosphor-icons/vue"
 import { formatBytes } from "@/utils/formatBytes"
 import type { TextAttachment } from "@/types/textChat"
 
-export type AttachmentAction = "open" | "download" | "protect" | "storage" | "delete"
+export type AttachmentAction = "open" | "download" | "content" | "protect" | "storage" | "delete"
 
 const props = defineProps<{
   attachment: TextAttachment
@@ -75,6 +85,8 @@ const props = defineProps<{
   y: number
   isOwn: boolean
   canManage: boolean
+  /** Offer the OCR/CLIP view (content search enabled, image file). */
+  showContent?: boolean
 }>()
 const emit = defineEmits<{ close: []; action: [action: AttachmentAction] }>()
 

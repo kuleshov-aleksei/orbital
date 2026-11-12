@@ -2,6 +2,7 @@ package chatstore
 
 import (
 	"context"
+	"log"
 	"time"
 )
 
@@ -32,8 +33,13 @@ type SearchRequest struct {
 	HasKinds []string
 	// HasAttachment: at least one attachment of any kind (has:file).
 	HasAttachment bool
-	SortNewest    bool
-	Limit, Offset int
+	// Vector, when set, also finds images by meaning: the embedded Text is
+	// matched against ImageEmbedder, keeping hits scored >= MinSemanticScore.
+	// Set by Service.Search.
+	Vector           []float32
+	MinSemanticScore float64
+	SortNewest       bool
+	Limit, Offset    int
 }
 
 // SearchHit is one result: the message plus a highlighted snippet of
@@ -60,6 +66,11 @@ type MentionCountQuery struct {
 // Search runs a full-text/filter search. Pending deletes are hidden and
 // pending edits replace the stored message (the snippet may lag behind).
 func (s *Service) Search(ctx context.Context, req SearchRequest) (*SearchResult, error) {
+	// Embedding the query has its own timeout, outside the engine call's.
+	req.Vector, req.MinSemanticScore = nil, 0
+	if len(req.RoomIDs) > 0 && s.Ready() {
+		req.Vector, req.MinSemanticScore = s.queryVector(ctx, req)
+	}
 	ctx, cancel, err := s.begin(ctx)
 	defer cancel()
 	if err != nil {
@@ -74,6 +85,11 @@ func (s *Service) Search(ctx context.Context, req SearchRequest) (*SearchResult,
 	req.Limit = min(req.Limit, MaxSearchLimit)
 	req.Offset = max(req.Offset, 0)
 	res, err := s.eng.Search(ctx, req)
+	if err != nil && req.Vector != nil && ctx.Err() == nil {
+		log.Printf("[TextChat] Image search failed, retrying keyword-only: %v", err)
+		req.Vector = nil
+		res, err = s.eng.Search(ctx, req)
+	}
 	if err != nil {
 		return nil, engineErr(err)
 	}

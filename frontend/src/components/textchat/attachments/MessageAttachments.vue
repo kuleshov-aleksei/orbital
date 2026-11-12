@@ -80,6 +80,7 @@
       :y="menu.y"
       :is-own="isOwn"
       :can-manage="canManage"
+      :show-content="contentSearch && menu.attachment.kind === 'image'"
       @action="onAction"
       @close="menu = null" />
     <AttachmentLightbox
@@ -87,6 +88,7 @@
       :images="images"
       :start-index="lightboxIndex"
       @close="lightboxIndex = null" />
+    <AttachmentContentModal v-if="contentFor" :attachment="contentFor" @close="contentFor = null" />
   </div>
 </template>
 
@@ -98,6 +100,8 @@ import AttachmentVideo from "./AttachmentVideo.vue"
 import AttachmentAudio from "./AttachmentAudio.vue"
 import AttachmentLightbox from "./AttachmentLightbox.vue"
 import AttachmentMenu, { type AttachmentAction } from "./AttachmentMenu.vue"
+import AttachmentContentModal from "./AttachmentContentModal.vue"
+import { useConfigStore } from "@/stores/config"
 import { apiService } from "@/services/api"
 import { forgetAttachmentUrls, openAttachment, openStoragePage } from "@/services/attachments/urls"
 import { formatBytes } from "@/utils/formatBytes"
@@ -124,6 +128,9 @@ const removed = computed(() => props.attachments.filter((a) => a.removed))
 const lightboxIndex = ref<number | null>(null)
 const menu = ref<{ attachment: TextAttachment; x: number; y: number } | null>(null)
 const actionError = ref<string | null>(null)
+const contentFor = ref<TextAttachment | null>(null)
+const configStore = useConfigStore()
+const contentSearch = computed(() => !!configStore.attachments?.content_search)
 
 function openMenu(attachment: TextAttachment, e: MouseEvent) {
   if (props.pending) return
@@ -154,6 +161,9 @@ async function onAction(action: AttachmentAction) {
         break
       case "download":
         await openAttachment(att.id, "download")
+        break
+      case "content":
+        contentFor.value = att
         break
       case "protect":
         // The message updates through text_message_updated.

@@ -30,6 +30,9 @@ services:
       - MEILI_URL=${MEILI_URL:-http://meilisearch:7700}
       # Attachments use an external Garage: set CHAT_MEDIA_S3_* in .env (env_file
       # above); without them attachments are disabled (docs/specs/CHAT_SYSTEM.md §11).
+      # Search by image contents reuses an existing Immich ML: set CHAT_ML_URL in
+      # .env and make it reachable from this container (e.g. join Immich's network);
+      # without it the feature is off (docs/specs/CHAT_SYSTEM.md §7.13).
     volumes:
       - ./data/backend/:/root/data/
     depends_on:

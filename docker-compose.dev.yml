@@ -39,6 +39,22 @@ services:
       # Primary data: text channel messages exist only here.
       - ./data/meilisearch:/meili_data
 
+  # Search by image contents (docs/specs/CHAT_SYSTEM.md §7.13): OCR and CLIP
+  # embeddings. Production reuses an existing Immich ML instance; this one is
+  # for local development only (`make ml-up`, then CHAT_ML_URL=http://localhost:3003).
+  # Keep the tag in step with the production Immich: the /predict API is
+  # Immich-internal. Models download into ./data/immich-ml on first use.
+  immich-ml:
+    image: ghcr.io/immich-app/immich-machine-learning:v3.3.4
+    container_name: orbital-immich-ml
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3003:3003"
+    environment:
+      MACHINE_LEARNING_PRELOAD__CLIP__TEXTUAL: XLM-Roberta-Large-Vit-B-16Plus
+    volumes:
+      - ./data/immich-ml:/cache
+
   # Text channel attachments (docs/specs/CHAT_SYSTEM.md §7.12). Single-node mode
   # creates the layout, the key and the bucket on first start. Secrets come from
   # .env (see .env.example); the backend reads the same GARAGE_DEFAULT_* key in

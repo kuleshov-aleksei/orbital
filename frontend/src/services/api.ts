@@ -255,6 +255,35 @@ export interface AttachmentsConfig {
   max_video_bytes: number
   quota_bytes: number
   max_per_message: number
+  /** Images are read by OCR/CLIP for search (backend CHAT_ML_URL set). */
+  content_search?: boolean
+}
+
+/** GET /api/attachments/{id}/content: what search knows about a file. */
+export interface AttachmentContent {
+  enabled: boolean
+  /** "" = not queued yet (the worker picks it up within a minute). */
+  status: "" | "pending" | "done" | "failed"
+  attempts: number
+  next_attempt_at?: number
+  last_error?: string
+  /** Models of the stored result, e.g. "immich;ocr=...;clip=...". */
+  models?: string
+  /** The stored result comes from the models in use. */
+  current: boolean
+  text: string
+  vector: { dims: number; values: number[] } | null
+  updated_at?: number
+  can_retry: boolean
+  /** With ?q=: how the phrase scores against the image embedding. */
+  match?: {
+    query: string
+    cosine: number
+    score: number
+    threshold: number
+    matches: boolean
+    error?: string
+  }
 }
 
 /** Client-measured display metadata sent with an upload. */
@@ -607,6 +636,17 @@ export const apiService = {
       { method: "PATCH", body: JSON.stringify({ protected: isProtected }) },
     )
     return res.attachment
+  },
+
+  async getAttachmentContent(id: string, query?: string): Promise<AttachmentContent> {
+    const qs = query ? `?q=${encodeURIComponent(query)}` : ""
+    return apiRequest<AttachmentContent>(`/attachments/${encodeURIComponent(id)}/content${qs}`)
+  },
+
+  async retryAttachmentContent(id: string): Promise<void> {
+    await apiRequest<void>(`/attachments/${encodeURIComponent(id)}/content/retry`, {
+      method: "POST",
+    })
   },
 
   async deleteAttachment(id: string): Promise<void> {

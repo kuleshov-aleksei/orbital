@@ -179,9 +179,19 @@ func (m *Meili) indexPath(suffix string) string {
 	return "/indexes/" + url.PathEscape(m.index) + suffix
 }
 
+// noImageVectors opts a document out of the ImageEmbedder. A userProvided
+// embedder rejects documents without _vectors.<name> (even ones without
+// images), so every new document carries it; with no embedder configured
+// it is an ordinary field.
+var noImageVectors = map[string]any{ImageEmbedder: nil}
+
 func (m *Meili) Add(ctx context.Context, msg *Message) (int64, error) {
+	doc := struct {
+		*Message
+		Vectors map[string]any `json:"_vectors"`
+	}{msg, noImageVectors}
 	var task taskRef
-	err := m.do(ctx, http.MethodPost, m.indexPath("/documents"), []*Message{msg}, &task)
+	err := m.do(ctx, http.MethodPost, m.indexPath("/documents"), []any{doc}, &task)
 	return task.TaskUID, err
 }
 
@@ -390,20 +400,46 @@ func searchFilter(req SearchRequest) []any {
 	return f
 }
 
+// snippetParams crop and highlight content_search around the query words.
+func snippetParams(body map[string]any) {
+	body["attributesToCrop"] = []string{"content_search"}
+	body["cropLength"] = 40
+	body["attributesToHighlight"] = []string{"content_search"}
+	body["highlightPreTag"] = HighlightPre
+	body["highlightPostTag"] = HighlightPost
+}
+
 func (m *Meili) Search(ctx context.Context, req SearchRequest) (*SearchResult, error) {
 	body := map[string]any{
-		"q": req.Text, "filter": searchFilter(req), "limit": req.Limit, "offset": req.Offset,
-		"matchingStrategy": "all",
+		"q": req.Text, "filter": searchFilter(req), "matchingStrategy": "all",
 	}
 	if req.Text != "" {
-		body["attributesToCrop"] = []string{"content_search"}
-		body["cropLength"] = 40
-		body["attributesToHighlight"] = []string{"content_search"}
-		body["highlightPreTag"] = HighlightPre
-		body["highlightPostTag"] = HighlightPost
+		snippetParams(body)
 	}
 	if req.SortNewest || req.Text == "" {
 		body["sort"] = []string{"seq:desc"}
+	}
+	path := m.indexPath("/search")
+	if len(req.Vector) > 0 && req.Text != "" && !req.SortNewest {
+		// Federated search: the keyword query as is, plus images close to the
+		// query by meaning. Hits are merged by ranking score and a message
+		// found by both queries appears once. The threshold keeps unrelated
+		// images out (every image has some similarity to any text).
+		body["indexUid"] = m.index
+		semantic := map[string]any{
+			"indexUid": m.index, "q": req.Text, "vector": req.Vector,
+			"hybrid":                map[string]any{"embedder": ImageEmbedder, "semanticRatio": 1.0},
+			"filter":                append(searchFilter(req), "attachment_kinds = "+quote("image")),
+			"rankingScoreThreshold": req.MinSemanticScore,
+		}
+		snippetParams(semantic)
+		path = "/multi-search"
+		body = map[string]any{
+			"federation": map[string]any{"limit": req.Limit, "offset": req.Offset},
+			"queries":    []map[string]any{body, semantic},
+		}
+	} else {
+		body["limit"], body["offset"] = req.Limit, req.Offset
 	}
 	var resp struct {
 		Hits []struct {
@@ -414,7 +450,7 @@ func (m *Meili) Search(ctx context.Context, req SearchRequest) (*SearchResult, e
 		} `json:"hits"`
 		EstimatedTotalHits int `json:"estimatedTotalHits"`
 	}
-	if err := m.do(ctx, http.MethodPost, m.indexPath("/search"), body, &resp); err != nil {
+	if err := m.do(ctx, http.MethodPost, path, body, &resp); err != nil {
 		return nil, err
 	}
 	out := &SearchResult{Total: resp.EstimatedTotalHits, Hits: make([]SearchHit, 0, len(resp.Hits))}
@@ -429,6 +465,91 @@ func (m *Meili) Search(ctx context.Context, req SearchRequest) (*SearchResult, e
 		out.Hits = append(out.Hits, hit)
 	}
 	return out, nil
+}
+
+func (m *Meili) ImageEmbedderDims(ctx context.Context) (int, error) {
+	var embedders map[string]struct {
+		Source     string `json:"source"`
+		Dimensions int    `json:"dimensions"`
+	}
+	if err := m.do(ctx, http.MethodGet, m.indexPath("/settings/embedders"), nil, &embedders); err != nil {
+		return 0, err
+	}
+	e, ok := embedders[ImageEmbedder]
+	if !ok || e.Source != "userProvided" {
+		return 0, nil
+	}
+	return e.Dimensions, nil
+}
+
+// SetImageEmbedder replaces the ImageEmbedder (removing it first: the size
+// of an embedder cannot change in place, and old vectors are meaningless in
+// a new model's space).
+func (m *Meili) SetImageEmbedder(ctx context.Context, dims int) error {
+	cur, err := m.ImageEmbedderDims(ctx)
+	if err != nil {
+		return err
+	}
+	if cur == dims {
+		return nil
+	}
+	if cur > 0 {
+		if err := m.setEmbedder(ctx, nil); err != nil {
+			return err
+		}
+	}
+	if err := m.optOutAll(ctx); err != nil {
+		return err
+	}
+	return m.setEmbedder(ctx, map[string]any{"source": "userProvided", "dimensions": dims})
+}
+
+func (m *Meili) setEmbedder(ctx context.Context, e any) error {
+	var task taskRef
+	body := map[string]any{"embedders": map[string]any{ImageEmbedder: e}}
+	if err := m.do(ctx, http.MethodPatch, m.indexPath("/settings"), body, &task); err != nil {
+		return err
+	}
+	return m.waitTask(ctx, task.TaskUID)
+}
+
+// optOutAll sets _vectors.image to null on every document, so creating the
+// embedder does not fail on documents from before it (or that still hold
+// another model's vectors). The extraction worker writes real vectors
+// afterwards.
+func (m *Meili) optOutAll(ctx context.Context) error {
+	const batch = 1000
+	var last int64 = -1
+	for offset := 0; ; offset += batch {
+		var page struct {
+			Results []struct {
+				ID string `json:"id"`
+			} `json:"results"`
+		}
+		path := fmt.Sprintf("%s?fields=id&limit=%d&offset=%d", m.indexPath("/documents"), batch, offset)
+		if err := m.do(ctx, http.MethodGet, path, nil, &page); err != nil {
+			return err
+		}
+		if len(page.Results) == 0 {
+			break
+		}
+		docs := make([]map[string]any, len(page.Results))
+		for i, r := range page.Results {
+			docs[i] = map[string]any{"id": r.ID, "_vectors": noImageVectors}
+		}
+		var task taskRef
+		if err := m.do(ctx, http.MethodPut, m.indexPath("/documents"), docs, &task); err != nil {
+			return err
+		}
+		last = task.TaskUID
+		if len(page.Results) < batch {
+			break
+		}
+	}
+	if last < 0 {
+		return nil
+	}
+	return m.waitTask(ctx, last) // tasks of one index run in order
 }
 
 func (m *Meili) CountMentions(ctx context.Context, qs []MentionCountQuery) ([]int, error) {

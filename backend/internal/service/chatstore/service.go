@@ -61,6 +61,9 @@ type Service struct {
 
 	// pinMu serializes pin changes so the per-channel limit holds.
 	pinMu sync.Mutex
+
+	// sem is image search by meaning (semantic.go).
+	sem semantic
 }
 
 // New creates a Service. Call Start to bootstrap it in the background.

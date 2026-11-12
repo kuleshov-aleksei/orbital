@@ -67,6 +67,15 @@ func (s *S3Store) Put(ctx context.Context, key string, body io.ReadSeeker, size 
 	return err
 }
 
+func (s *S3Store) Get(ctx context.Context, key string) ([]byte, error) {
+	out, err := s.client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key)})
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = out.Body.Close() }()
+	return io.ReadAll(out.Body)
+}
+
 // Delete removes objects one by one (DeleteObjects needs a checksum header
 // that S3-compatible stores do not all accept). S3 deletes are idempotent.
 func (s *S3Store) Delete(ctx context.Context, keys []string) error {

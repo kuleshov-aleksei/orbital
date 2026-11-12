@@ -74,6 +74,10 @@ type Engine interface {
 	Pins(ctx context.Context, roomID string, limit int) ([]*Message, error)
 	// Search runs a search over non-deleted messages of req.RoomIDs.
 	Search(ctx context.Context, req SearchRequest) (*SearchResult, error)
+	// ImageEmbedderDims returns the size of the ImageEmbedder, 0 if absent.
+	ImageEmbedderDims(ctx context.Context) (int, error)
+	// SetImageEmbedder creates or replaces the ImageEmbedder.
+	SetImageEmbedder(ctx context.Context, dims int) error
 	// CountMentions counts non-deleted messages after AfterSeq that mention
 	// the user directly or through one of RoleIDs, per query.
 	CountMentions(ctx context.Context, qs []MentionCountQuery) ([]int, error)

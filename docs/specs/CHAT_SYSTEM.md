@@ -119,8 +119,8 @@ The production prototype writes only to Meilisearch. The dual writes in `experim
                                      //   duration_ms, has_thumb, peaks, protected, removed?}
   "attachment_kinds": [],            // ["image","video","audio"] for has: filters
   "attachment_names": [],            // original filenames (searchable)
-  "attachment_text": ""              // OCR / transcripts (searchable, filled by extractors §7.13)
-  // "_vectors": { "image": [...] }  // phase 4, userProvided embedder
+  "attachment_text": "",             // OCR text of the images (searchable, filled by §7.13)
+  "_vectors": { "image": null }      // phase 4: CLIP embeddings of the images, or null (§7.13)
 }
 ```
 
@@ -525,30 +525,35 @@ Removal reasons:
   - `GET /api/me/attachments/usage` returns `{quota_bytes, used_bytes, protected_bytes, pending_bytes, count}`.
   - `POST /api/me/attachments/bulk {ids: [≤100], action: "delete"|"protect"|"unprotect"}`. Each id is checked as in the single-item endpoints, and the response reports per-id results.
 
-### 7.13 Search by attachment contents (F14): architecture now, ML later
-- **Index fields** (§5.1):
-  - `attachment_text` (OCR text and audio/video transcripts);
-  - `attachment_names`;
-  - `attachment_kinds`;
-  - later, `_vectors.image` with a `userProvided` embedder sized to the model's dimensions.
-- **Pipeline:**
-  - When a message with attachments is created, enqueue `attachment_jobs` rows, one per (attachment, enabled extractor).
-  - A worker loop (single goroutine, with backoff and attempt limits) runs `Extractor` implementations:
-    ```go
-    type Extractor interface {
-        Name() string
-        Kinds() []string                       // image | audio | video
-        Extract(ctx context.Context, a Attachment, r io.Reader) (Result, error)
-    }
-    type Result struct { Text string; Vector []float32 }
-    ```
-  - Results are merged into the message document with the §6.2 mutation path: `attachment_text` is appended per attachment and `_vectors` are set.
-- **Initial extractors:** none. The phase 3 build ships the queue, the worker and a no-op registry. Later extractors run as an optional sidecar (Python, CPU) called over HTTP:
-  - OCR for images;
-  - Whisper transcripts for audio and video;
-  - CLIP/SigLIP embeddings for images, with text queries embedded through the same sidecar.
-  - All are behind config flags. If the sidecar is down, jobs retry and nothing else breaks.
-- **Query side:** text queries already match `attachment_text`. Once embeddings exist, add `hybrid: {embedder: "image", semanticRatio: 0.3}` with the query vector, and use `has:image` to restrict to images.
+### 7.13 Search by attachment contents (F14)
+Images only (phase 4). Audio/video transcripts are not planned yet; an OpenAI-compatible Whisper server (e.g. speaches) could be a second `Extractor` later.
+
+- **ML service: an existing Immich ML** (`ghcr.io/immich-app/immich-machine-learning`), called over HTTP (`backend/internal/service/immichml`). We write no ML code and manage no models: Immich downloads and caches them itself. Decided on 2026-11-12. The alternatives were PaddleX serving for OCR plus Infinity for embeddings, Tika/Tesseract, and hosted embedding APIs.
+  - Models: OCR `ESLAV__PP-OCRv5_mobile` (East Slavic recognition: ru/be/uk + en; Immich lists it as "PP-OCRv5_mobile (Russian, Belarusian, Ukrainian and English)"). Plain `PP-OCRv5_mobile` reads Cyrillic as Latin look-alikes ("ИТОГО" → "MTOTO"). Other prefixes in `immich_ml/models/constants.py`: `EN__`, `LATIN__`, `CH__`, …. CLIP `XLM-Roberta-Large-Vit-B-16Plus` (multilingual text encoder, so Russian queries work).
+  - API (Immich-internal, no versioned docs; `immichml/client_test.go` pins it): `GET /ping`; `POST /predict` as multipart `entries` (JSON) + `image` or `text`. OCR and CLIP visual go in one request; CLIP embeddings come back as a JSON array **inside a string**.
+  - Its errors: transport, timeout and 5xx (a model still downloading) mean "unavailable" and pause the worker without using attempts; 4xx counts as a failed attempt.
+  - Pin the Immich tag (dev: `docker-compose.dev.yml`) and run the `immichml` integration test before an upgrade.
+- **Index fields** (§5.1): `attachment_text` (OCR lines of the message's live images, joined in file order), `attachment_names`, `attachment_kinds`, and `_vectors.image`: one CLIP vector per image, through the `userProvided` embedder `image`.
+- **Jobs** live in SQLite `chat_attachment_jobs`, one row per image attachment: status (pending/done/failed), attempts and backoff, the result text and vector, and a `signature` naming the models.
+  - The worker (single goroutine in `chatmedia`, extract.go) queues every attached image without a row, at startup, after each attach and every 30 s. So images sent before the feature was enabled are backfilled.
+  - It processes newest files first. It reads the original from S3 and sends a JPEG of at most 1440 px per side (the 640 px thumbnail is too small for OCR).
+  - Retries back off exponentially (1 min … 6 h); after 6 failed attempts a job is `failed`.
+  - A model change gives a new signature, which re-queues every done or failed job at startup.
+- **Writing results:** after each job and after any file removal, the message's content is rebuilt from the done jobs of its *live* files and written with the §6.2 mutation path (`SetAttachmentContent`). Removing one of three images therefore drops exactly its text and vector. These fields are search-only and never broadcast.
+- **Embedder:** created lazily with the size of the first vector.
+  - A `userProvided` embedder rejects every document without `_vectors.image`, including text-only ones. So every new document is written with `_vectors: {image: null}`, and existing documents get the same opt-out (batches of 1000) before the embedder is created.
+  - A model with another size removes and re-creates the embedder.
+  - Clearing uses a plain `null`: `{embeddings: null, regenerate: false}` keeps the old vectors.
+- **Query side:** keyword search is unchanged and already matches `attachment_text`.
+  - With CLIP enabled, a relevance-ordered search with text embeds the query (2 s timeout) and runs a federated `/multi-search`: the keyword query, plus a pure vector query (`semanticRatio: 1`) restricted to `attachment_kinds = image` with `rankingScoreThreshold: CHAT_ML_SEMANTIC_THRESHOLD`.
+  - Federation merges by score and lists a message found by both queries once. The threshold matters: every image has *some* similarity to any text. Meilisearch scores cosine c as about (1+c)/2, and CLIP text/image matches are c ≈ 0.2–0.35.
+  - Newest-first and filter-only searches never embed.
+  - Any failure (Immich down, timeout, wrong size, Meilisearch rejecting the vector query) falls back to keyword-only.
+- **Inspecting results ("What search sees"):** the attachment menu of an image opens a modal (`AttachmentContentModal.vue`) when `/api/config` reports `attachments.content_search`.
+  - `GET /api/attachments/{id}/content` (anyone who can see the file) returns the job state (`status`, `attempts`, `next_attempt_at`, `last_error`), the models of the stored result and whether they are current, the OCR `text`, and the embedding (`vector: {dims, values}`). The modal polls it while the job waits.
+  - With `?q=<phrase>` (≤200 characters) it also embeds the phrase like a search query and returns `match {cosine, score, threshold, matches}`, where `score = (1+cosine)/2` is compared with `CHAT_ML_SEMANTIC_THRESHOLD`. Use it to tune the threshold.
+  - `POST /api/attachments/{id}/content/retry` (uploader or `ManageMessages`, `202`) queues the image again with fresh attempts; the old result stays until the new one is stored.
+  - The worker logs each run (`Extraction: N file(s) to process`), each result (`Extracted <file> in 1.2s: N characters of text, 640-dimension vector`) and each failure.
 
 ### 7.14 Notification settings per channel (F15)
 - **Modes** (per user, per text channel; default `all` when there is no row):
@@ -593,6 +598,8 @@ REST
 | `POST /api/attachments/urls` `{items: [{id, variant}]}` (phase 3) | Batched presigned URLs (`original`, `thumb`, `download`); removed or invisible files in `gone` |
 | `PATCH /api/attachments/{id}` `{protected}` (phase 3) | Protect / unprotect; uploader only |
 | `DELETE /api/attachments/{id}` (phase 3) | Remove one file; uploader or `ManageMessages` |
+| `GET /api/attachments/{id}/content[?q=]` (phase 4) | OCR text, embedding and job state of an image; with `q`, how the phrase scores (§7.13) |
+| `POST /api/attachments/{id}/content/retry` (phase 4) | Re-run extraction of an image; uploader or `ManageMessages` |
 | `GET /api/me/attachments?kind=&room_id=&sort=&q=&cursor=&limit=` (phase 3) | Caller's own files for the storage page |
 | `GET /api/me/attachments/usage` (phase 3) | `quota_bytes`, `used_bytes`, `protected_bytes`, `pending_bytes`, `count` |
 | `POST /api/me/attachments/bulk` `{ids, action}` (phase 3) | Bulk delete / protect / unprotect of own files (≤100) |
@@ -692,6 +699,14 @@ Denied-path tests:
 | `CHAT_MEDIA_MAX_IMAGE_MB/AUDIO_MB/VIDEO_MB` | 20/25/100 | Phase 3 |
 | `CHAT_MEDIA_QUOTA_MB` | 5120 | Phase 3. Per-user attachment storage (§7.12.3) |
 | `RATE_LIMIT_CHAT_UPLOAD_PER_HOUR` | 120 | Phase 3. Per-user upload rate |
+| `CHAT_ML_URL` | none | Phase 4. Immich ML base URL (port 3003). Unset = no search by image contents. Needs attachments. Dev: `make ml-up`, then `http://localhost:3003` |
+| `CHAT_ML_OCR_ENABLED` / `CHAT_ML_CLIP_ENABLED` | true / true | Phase 4. Turn OCR or image embeddings off separately |
+| `CHAT_ML_OCR_MODEL` | `ESLAV__PP-OCRv5_mobile` | Phase 4. Language-prefixed name, see §7.13 |
+| `CHAT_ML_CLIP_MODEL` | `XLM-Roberta-Large-Vit-B-16Plus` | Phase 4. Must be multilingual; a change re-indexes every image |
+| `CHAT_ML_SEMANTIC_THRESHOLD` | 0.6 | Phase 4. Minimum ranking score (0..1) of images found by meaning only |
+| `CHAT_ML_TIMEOUT_SECONDS` | 120 | Phase 4. Per request (the first one may wait for a model download) |
+
+Immich ML (phase 4): production reuses the existing Immich instance's machine-learning container. It usually listens only on Immich's internal compose network, so either attach the backend to that network or publish port 3003 on a private interface; never expose it publicly. Asking it for a CLIP model other than the one Immich uses loads that model next to Immich's own (RAM). Immich unloads idle models after `MACHINE_LEARNING_MODEL_TTL`.
 
 Garage S3 (phase 3): development uses the `garage` service in `docker-compose.dev.yml` (`make garage-up`; single-node mode creates the dev key and bucket). Production uses an **external** Garage instance: create the `orbital-chat-media` bucket and a read/write key there, and pass the `CHAT_MEDIA_*` variables to the backend in `docker/docker-compose.deploy.yml`. No bucket CORS and no website access are needed.
 
@@ -781,10 +796,10 @@ Original plan:
 - Storage page `/files` (new tab) and the `/api/me/attachments*` endpoints.
 - Tests (fake `MediaStore`): eviction order; protected and pending rows are never evicted; `file_exceeds_quota` and `quota_protected_full`; concurrent reservations by one user; message and channel delete purge and free quota; the janitor retries failed S3 deletes; uploader-only protect; moderator delete; `/api/me/attachments` isolation; 410 on removed files; the uploader can fetch a file without `ViewRoom`. Integration (`integration` tag, Garage): PUT, presign and delete.
 - `has:` filters (`ParsedQuery.HasFilter`, `SearchRequest.HasKinds`/`HasAttachment`; `has:` autocomplete in `SearchBox.vue`).
-- The extraction queue and worker with no extractors yet.
+- ~~The extraction queue and worker with no extractors yet.~~ Not built in phase 3; it shipped with phase 4.
 
 **Phase 4: content search (ML)**
-- Sidecar extractors (OCR, transcripts, embeddings), the `userProvided` embedder, hybrid search.
+- Image OCR and CLIP embeddings from an existing Immich ML (§7.13), the `chat_attachment_jobs` queue and worker, the `userProvided` embedder, and the federated keyword + vector search. Transcripts are not planned yet.
 
 ## 14. Open questions
 
@@ -811,6 +826,7 @@ Resolved on 2026-11-11 (phase 3):
 - **Totals are estimates.** Search paging stops at `maxTotalHits`. History avoids this with seq cursors.
 - **Typo tolerance is per index.** Phrase quoting is the only way to get exact matching.
 - **Highlighting:** highlight tags must be control characters, converted only after escaping or rendering.
+- **`userProvided` embedders need `_vectors` on every document.** Otherwise the settings task (and every later document write) fails with `vector_embedding_error: no vectors provided`. Opt out with `_vectors.<name>: null`, which is a plain null; `{embeddings: null}` does not clear.
 - **No tuple cursors.** That is why `seq` exists. The prototype's timestamp-only history cursor can skip messages that share a millisecond. Don't copy it.
 
 ## 16. References

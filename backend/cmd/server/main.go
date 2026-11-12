@@ -19,6 +19,7 @@ import (
 	"github.com/kuleshov-aleksei/orbital/internal/service"
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatmedia"
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatstore"
+	"github.com/kuleshov-aleksei/orbital/internal/service/immichml"
 	"github.com/kuleshov-aleksei/orbital/internal/storage"
 	"github.com/kuleshov-aleksei/orbital/internal/version"
 	"github.com/kuleshov-aleksei/orbital/internal/websocket"
@@ -221,7 +222,13 @@ func main() {
 			UserExists: func(id string) bool { return userLookup(id) != nil },
 			Media:      newChatMedia(cfg, appDB),
 		}
+		if textChat.Media != nil {
+			textChat.ML, textChat.SemanticThreshold = newChatML(cfg), cfg.ChatML.SemanticThreshold
+		}
 		wsHub.SetTextChat(textChat)
+		if textChat.Media != nil {
+			textChat.Media.Start(context.Background()) // after SetTextChat wired the hooks
+		}
 		wsHub.StartMuteExpiry(context.Background())
 		log.Printf("Text channels enabled (Meilisearch at %s, index %s)", cfg.Chat.MeiliURL, cfg.Chat.MeiliIndex)
 	} else {
@@ -438,6 +445,8 @@ func main() {
 			r.Handle("/api/attachments/urls", auth(http.HandlerFunc(textChatHandler.AttachmentURLs))).Methods("POST")
 			r.Handle("/api/attachments/{id}", auth(http.HandlerFunc(textChatHandler.UpdateAttachment))).Methods("PATCH")
 			r.Handle("/api/attachments/{id}", auth(http.HandlerFunc(textChatHandler.DeleteAttachment))).Methods("DELETE")
+			r.Handle("/api/attachments/{id}/content", auth(http.HandlerFunc(textChatHandler.AttachmentContent))).Methods("GET")
+			r.Handle("/api/attachments/{id}/content/retry", auth(http.HandlerFunc(textChatHandler.RetryAttachmentContent))).Methods("POST")
 			r.Handle("/api/me/attachments", auth(http.HandlerFunc(textChatHandler.ListMyAttachments))).Methods("GET")
 			r.Handle("/api/me/attachments/usage", auth(http.HandlerFunc(textChatHandler.MyAttachmentUsage))).Methods("GET")
 			r.Handle("/api/me/attachments/bulk", auth(http.HandlerFunc(textChatHandler.BulkMyAttachments))).Methods("POST")
@@ -676,7 +685,25 @@ func newChatMedia(cfg *config.Config, db *storage.DB) *chatmedia.Service {
 		MaxImageBytes: int64(mc.MaxImageMB) * mb, MaxAudioBytes: int64(mc.MaxAudioMB) * mb,
 		MaxVideoBytes: int64(mc.MaxVideoMB) * mb, QuotaBytes: mc.QuotaBytes(),
 	})
-	svc.Start(context.Background())
 	log.Printf("Text channel attachments enabled (S3 %s, bucket %s, quota %d MB)", mc.S3Endpoint, mc.Bucket, mc.QuotaMB)
 	return svc
+}
+
+// newChatML returns the Immich ML client for image content search, or nil
+// (disabled) without CHAT_ML_URL.
+func newChatML(cfg *config.Config) *immichml.Client {
+	mc := cfg.ChatML
+	if !mc.Enabled() {
+		log.Println("CHAT_ML_URL is not set, search by image contents is disabled")
+		return nil
+	}
+	opts := immichml.Options{URL: mc.URL, Timeout: time.Duration(mc.TimeoutSeconds) * time.Second}
+	if mc.OCREnabled {
+		opts.OCRModel = mc.OCRModel
+	}
+	if mc.CLIPEnabled {
+		opts.CLIPModel = mc.CLIPModel
+	}
+	log.Printf("Search by image contents enabled (Immich ML at %s, OCR %q, CLIP %q)", mc.URL, opts.OCRModel, opts.CLIPModel)
+	return immichml.New(opts)
 }

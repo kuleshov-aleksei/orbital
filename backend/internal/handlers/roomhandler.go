@@ -623,6 +623,8 @@ type AttachmentsConfig struct {
 	MaxVideoBytes int64 `json:"max_video_bytes"`
 	QuotaBytes    int64 `json:"quota_bytes"`
 	MaxPerMessage int   `json:"max_per_message"`
+	// ContentSearch: images are read by OCR/CLIP (CHAT_ML_URL set).
+	ContentSearch bool `json:"content_search"`
 }
 
 // GetConfig handles GET /api/config
@@ -640,6 +642,7 @@ func (h *RoomHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
 		cfg.Attachments = &AttachmentsConfig{
 			MaxImageBytes: l.MaxImageBytes, MaxAudioBytes: l.MaxAudioBytes, MaxVideoBytes: l.MaxVideoBytes,
 			QuotaBytes: l.QuotaBytes, MaxPerMessage: chatstore.MaxAttachmentsPerMessage,
+			ContentSearch: h.textChat.Media.ExtractionEnabled(),
 		}
 	}
 

@@ -6,6 +6,8 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/gorilla/mux"
 
@@ -274,6 +276,104 @@ func (h *TextChatHandler) DeleteAttachment(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// attachmentContent is GET /api/attachments/{id}/content: what search
+// knows about the file (docs/specs/CHAT_SYSTEM.md §7.13).
+type attachmentContent struct {
+	// Enabled: content extraction is configured on the server.
+	Enabled       bool          `json:"enabled"`
+	Status        string        `json:"status"` // "", pending, done, failed
+	Attempts      int           `json:"attempts"`
+	NextAttemptAt int64         `json:"next_attempt_at,omitempty"`
+	LastError     string        `json:"last_error,omitempty"`
+	Models        string        `json:"models,omitempty"`
+	Current       bool          `json:"current"`
+	Text          string        `json:"text"`
+	Vector        *vectorInfo   `json:"vector"`
+	UpdatedAt     int64         `json:"updated_at,omitempty"`
+	CanRetry      bool          `json:"can_retry"`
+	Match         *contentMatch `json:"match,omitempty"`
+}
+
+type vectorInfo struct {
+	Dims int `json:"dims"`
+	// Values is the embedding itself (a few hundred numbers), for display.
+	Values []float32 `json:"values"`
+}
+
+type contentMatch struct {
+	Query     string  `json:"query"`
+	Cosine    float64 `json:"cosine"`
+	Score     float64 `json:"score"`
+	Threshold float64 `json:"threshold"`
+	Matches   bool    `json:"matches"`
+	Error     string  `json:"error,omitempty"`
+}
+
+const maxMatchQueryRunes = 200
+
+// AttachmentContent handles GET /api/attachments/{id}/content[?q=text]:
+// the extraction state, OCR text and image embedding of a file. With q, it
+// also scores q against the embedding like search does.
+func (h *TextChatHandler) AttachmentContent(w http.ResponseWriter, r *http.Request) {
+	rec, ok := h.loadVisible(w, r, mux.Vars(r)["id"])
+	if !ok {
+		return
+	}
+	_, canRetry := h.removalReason(r, rec)
+	resp := attachmentContent{
+		Enabled:  h.media.ExtractionEnabled() && rec.Kind == chatmedia.KindImage,
+		CanRetry: canRetry && h.media.ExtractionEnabled() && rec.Kind == chatmedia.KindImage,
+	}
+	info, err := h.media.Extraction(rec.ID)
+	if err != nil {
+		writeMediaError(w, err)
+		return
+	}
+	resp.Status, resp.Attempts, resp.LastError = info.Status, info.Attempts, info.LastError
+	resp.Models, resp.Current, resp.Text, resp.UpdatedAt = info.Signature, info.Current, info.Text, info.UpdatedAt
+	if info.Status == "pending" {
+		resp.NextAttemptAt = info.NextAttemptAt
+	}
+	if len(info.Vector) > 0 {
+		resp.Vector = &vectorInfo{Dims: len(info.Vector), Values: info.Vector}
+	}
+	if q := strings.TrimSpace(r.URL.Query().Get("q")); q != "" && len(info.Vector) > 0 {
+		if utf8.RuneCountInString(q) > maxMatchQueryRunes {
+			http.Error(w, "Query too long", http.StatusBadRequest)
+			return
+		}
+		m := &contentMatch{Query: q}
+		res, err := h.store.MatchImage(r.Context(), q, info.Vector)
+		if err != nil {
+			m.Error = err.Error()
+		} else {
+			m.Cosine, m.Score, m.Threshold = res.Cosine, res.Score, res.Threshold
+			m.Matches = res.Score >= res.Threshold
+		}
+		resp.Match = m
+	}
+	w.Header().Set("Content-Type", "application/json")
+	writeJSON(w, resp)
+}
+
+// RetryAttachmentContent handles POST /api/attachments/{id}/content/retry:
+// the uploader or a moderator re-runs extraction of an image.
+func (h *TextChatHandler) RetryAttachmentContent(w http.ResponseWriter, r *http.Request) {
+	rec, ok := h.loadVisible(w, r, mux.Vars(r)["id"])
+	if !ok {
+		return
+	}
+	if _, ok := h.removalReason(r, rec); !ok {
+		writeMediaError(w, chatmedia.ErrForbidden)
+		return
+	}
+	if err := h.media.RetryExtraction(rec); err != nil {
+		writeMediaError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusAccepted)
 }
 
 func (h *TextChatHandler) removalReason(r *http.Request, rec *chatmedia.Record) (string, bool) {
