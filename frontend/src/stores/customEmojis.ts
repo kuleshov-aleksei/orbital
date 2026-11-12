@@ -101,13 +101,13 @@ export const useCustomEmojisStore = defineStore("customEmojis", () => {
     if (isLoaded.value) void fetchEmojis()
   }
 
-  async function upload(input: {
-    file: File
-    name: string
-    aliases: string[]
-  }): Promise<CustomEmojiDto> {
+  /** Uploads one emoji. Batch uploads pass refresh: false and call fetchEmojis once at the end. */
+  async function upload(
+    input: { file: File; name: string; aliases: string[] },
+    { refresh = true }: { refresh?: boolean } = {},
+  ): Promise<CustomEmojiDto> {
     const emoji = await apiService.uploadCustomEmoji(input)
-    await fetchEmojis()
+    if (refresh) await fetchEmojis()
     return emoji
   }
 
