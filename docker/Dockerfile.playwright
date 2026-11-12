@@ -37,9 +37,17 @@ RUN npm install -g pnpm@12.16.1
 
 WORKDIR /app
 
-# Install dependencies in their own layer so source-only changes stay cached.
+# Install dependencies in their own layers so source-only changes stay cached.
+# The pnpm store is a BuildKit cache mount; node_modules itself stays in the image.
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./frontend/
-RUN cd frontend && pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    cd frontend && pnpm install --frozen-lockfile --store-dir /pnpm/store
+
+# Go modules must live in the image (tests `go run` the backend at runtime),
+# so no cache mount here; copying go.mod/go.sum first keeps this layer cached
+# across source changes.
+COPY backend/go.mod backend/go.sum ./backend/
+RUN cd backend && go mod download
 
 COPY frontend/ ./frontend/
 COPY backend/ ./backend/
@@ -47,7 +55,11 @@ COPY tools/ ./tools/
 COPY livekit/ ./livekit/
 
 WORKDIR /app/backend
-RUN go mod download
+
+# Pre-compile the backend into the image's Go build cache so Playwright's
+# `go run ./cmd/server` starts in seconds instead of compiling the CGO
+# dependencies (libvips, opus) on every test run.
+RUN CGO_ENABLED=1 go build -o /dev/null ./cmd/server
 
 RUN mkdir -p /app/backend/data
 

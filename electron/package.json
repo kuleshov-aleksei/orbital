@@ -21,8 +21,10 @@
     "prebuild:venmic": "npx tsx scripts/copyVenmic.mts",
     "clean:venmic": "npx tsx scripts/cleanVenmic.mts",
     "build": "npx tsx scripts/generate-licenses.js && npx vite build && npx tsx scripts/copyVenmic.mts && electron-builder --linux",
-    "build:win": "npx tsx scripts/generate-licenses.js && npx vite build && npx tsx scripts/cleanVenmic.mts && electron-builder --win",
-    "build:linux": "npx tsx scripts/generate-licenses.js && npx vite build && npx tsx scripts/copyVenmic.mts && electron-builder --linux",
+    "build:win": "npx tsx scripts/generate-licenses.js && npx vite build && pnpm run package:win",
+    "build:linux": "npx tsx scripts/generate-licenses.js && npx vite build && pnpm run package:linux",
+    "package:win": "npx tsx scripts/cleanVenmic.mts && electron-builder --win",
+    "package:linux": "npx tsx scripts/copyVenmic.mts && electron-builder --linux",
     "build:all": "npx tsx scripts/generate-licenses.js && npx vite build && npx tsx scripts/copyVenmic.mts && electron-builder -wl",
     "postinstall": "electron-builder install-app-deps"
   },
