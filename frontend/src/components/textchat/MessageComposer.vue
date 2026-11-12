@@ -145,6 +145,18 @@
           @click="isPickerOpen = !isPickerOpen">
           <PhSmiley class="w-5 h-5" />
         </button>
+        <button
+          v-if="showSend"
+          type="button"
+          class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded text-theme-accent hover:bg-theme-bg-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          title="Send (Enter)"
+          aria-label="Send message"
+          :disabled="charCount > MAX_CHARS"
+          data-testid="send-button"
+          @mousedown.prevent
+          @click="send">
+          <PhPaperPlaneRight class="w-5 h-5" weight="fill" />
+        </button>
         <ComposerSuggestions
           v-if="suggestions.length"
           :items="suggestions"
@@ -186,6 +198,7 @@ import { computed, nextTick, ref, useTemplateRef, watch } from "vue"
 import {
   PhEyeSlash,
   PhInfo,
+  PhPaperPlaneRight,
   PhPlusCircle,
   PhSmiley,
   PhTextB,
@@ -343,6 +356,10 @@ const canAttach = computed(
     props.canSend &&
     attachmentsStore.enabled &&
     permissionsStore.can(Permission.AttachFiles, { roomId: props.roomId }),
+)
+/** Send button: shown once there is text or an attachment to send. */
+const showSend = computed(
+  () => props.canSend && (draft.value.trim() !== "" || roomUploads.value.length > 0),
 )
 const quotaWarning = computed(() => canAttach.value && attachmentsStore.usageRatio >= 0.9)
 watch(canAttach, (can) => can && void attachmentsStore.loadUsage(), { immediate: true })
