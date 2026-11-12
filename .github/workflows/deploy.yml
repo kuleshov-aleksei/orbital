@@ -115,14 +115,23 @@ jobs:
 
       - name: Cleanup old Docker images
         run: |
-          # Remove old orbital images except current version
-          docker images --format "table {{.Repository}}:{{.Tag}}" | grep "orbital-" | grep -v "${{ env.VERSION }}" | xargs -r docker rmi || true
-          
-          # Remove dangling images
+          # Keep the current version plus the newest previous one (for rollback).
+          # `docker images` lists newest first; exact match avoids 1.2.3 vs 1.2.30.
+          for repo in orbital-frontend orbital-backend; do
+            docker images "$repo" --format '{{.Tag}}' \
+              | grep -vx "$VERSION" | tail -n +2 \
+              | xargs -r -I{} docker rmi "$repo:{}" || true
+          done
+
+          # Remove dangling images (does not touch the BuildKit cache)
           docker image prune -f
-          
+
           echo "Deployment completed successfully!"
           echo "Version: ${{ env.VERSION }}"
 
-      - name: Clean up builder
-        run: docker builder prune -f
+      # Keep the build cache (layers + cache mounts) for the next deploy, but cap
+      # its size: least recently used records go first. Override via the
+      # BUILD_CACHE_MAX repo variable.
+      - name: Trim build cache
+        continue-on-error: true
+        run: docker buildx prune -f --max-used-space "${{ vars.BUILD_CACHE_MAX || '10gb' }}"

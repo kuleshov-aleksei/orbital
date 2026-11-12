@@ -9,9 +9,6 @@ RUN apk add --no-cache \
     opusfile-dev \
     pkgconfig
 
-# Accept version as build argument
-ARG VERSION=dev-unknown
-
 WORKDIR /app
 COPY backend/go.mod backend/go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
@@ -24,6 +21,10 @@ COPY backend/ .
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache \
     CGO_ENABLED=1 golangci-lint run
+
+# Declared right before its only use: VERSION changes every release, and every
+# RUN after an ARG misses the cache when its value changes.
+ARG VERSION=dev-unknown
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache \
     CGO_ENABLED=1 GOOS=linux go build -ldflags "-X github.com/kuleshov-aleksei/orbital/internal/version.Version=${VERSION}" -o orbital ./cmd/server

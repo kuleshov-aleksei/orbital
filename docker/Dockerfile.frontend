@@ -1,23 +1,29 @@
 # Frontend Dockerfile
 FROM node:26.12.1-alpine AS builder
 
-ARG VERSION=dev-unknown
-ARG APP_URL=http://localhost:8000
-ENV VITE_APP_VERSION=${VERSION}
-ENV VITE_APP_URL=${APP_URL}
-
 # Mirror the repo layout (/app/frontend + /app/tools): the dev-only balance
 # visualizer imports from tools/halloween-balance, and vue-tsc checks it too
 WORKDIR /app/frontend
 COPY frontend/package.json ./
 COPY frontend/pnpm-*.yaml ./
-RUN npm install -g pnpm@12.16.1 && pnpm install --frozen-lockfile
+RUN npm install -g pnpm@12.16.1
+# The store lives in a BuildKit cache mount so lockfile changes only download
+# the packages that changed.
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile --store-dir /pnpm/store
 
 COPY tools/halloween-balance/ /app/tools/halloween-balance/
 COPY frontend/ .
 # Release quality gate: fail the image build on type errors
 RUN pnpm run typecheck
 RUN pnpm run generate:licenses
+
+# Declared as late as possible: VERSION changes every release, and every RUN
+# after an ARG misses the cache when its value changes.
+ARG VERSION=dev-unknown
+ARG APP_URL=http://localhost:8000
+ENV VITE_APP_VERSION=${VERSION}
+ENV VITE_APP_URL=${APP_URL}
 RUN pnpm run build
 
 FROM alpine:3.24
