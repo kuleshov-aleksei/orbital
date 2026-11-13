@@ -21,70 +21,8 @@
       <div
         v-if="isOpen"
         class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-theme-bg-secondary border border-theme-border rounded-lg shadow-lg overflow-hidden z-50">
-        <div class="p-3 space-y-3">
-          <!-- Input Device (compact) -->
-          <div>
-            <label class="text-xs font-medium text-theme-text-secondary block mb-1.5">
-              Input
-            </label>
-            <select
-              v-model="selectedInputDevice"
-              class="w-full bg-theme-bg-tertiary border border-theme-border rounded px-2 py-1.5 text-xs text-theme-text-primary focus:outline-none focus:ring-1 focus:ring-theme-accent"
-              @change="onInputDeviceChange">
-              <option value="">Default</option>
-              <option
-                v-for="device in filteredInputDevices"
-                :key="device.deviceId"
-                :value="device.deviceId">
-                {{ truncateLabel(device.label) }}
-              </option>
-            </select>
-          </div>
-
-          <!-- Toggles -->
-          <div class="space-y-2 pt-2 border-t border-theme-border">
-            <!-- Noise Suppression -->
-            <div class="flex items-center justify-between">
-              <span class="text-xs text-theme-text-secondary">Noise Suppression</span>
-              <button
-                type="button"
-                class="relative inline-flex h-5 w-8 items-center rounded-full transition-colors focus:outline-none focus:ring-1 focus:ring-theme-accent"
-                :class="noiseSuppressionEnabled ? 'bg-theme-accent' : 'bg-theme-bg-tertiary'"
-                @click="toggleNoiseSuppression">
-                <span
-                  class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform"
-                  :class="noiseSuppressionEnabled ? 'translate-x-4' : 'translate-x-1'" />
-              </button>
-            </div>
-
-            <!-- Echo Cancellation -->
-            <div class="flex items-center justify-between">
-              <span class="text-xs text-theme-text-secondary">Echo Cancellation</span>
-              <button
-                type="button"
-                class="relative inline-flex h-5 w-8 items-center rounded-full transition-colors focus:outline-none focus:ring-1 focus:ring-theme-accent"
-                :class="echoCancellationEnabled ? 'bg-theme-accent' : 'bg-theme-bg-tertiary'"
-                @click="toggleEchoCancellation">
-                <span
-                  class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform"
-                  :class="echoCancellationEnabled ? 'translate-x-4' : 'translate-x-1'" />
-              </button>
-            </div>
-
-            <!-- Auto Gain -->
-            <div class="flex items-center justify-between">
-              <span class="text-xs text-theme-text-secondary">Auto Gain</span>
-              <button
-                type="button"
-                class="relative inline-flex h-5 w-8 items-center rounded-full transition-colors focus:outline-none focus:ring-1 focus:ring-theme-accent"
-                :class="autoGainControlEnabled ? 'bg-theme-accent' : 'bg-theme-bg-tertiary'"
-                @click="toggleAutoGainControl">
-                <span
-                  class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform"
-                  :class="autoGainControlEnabled ? 'translate-x-4' : 'translate-x-1'" />
-              </button>
-            </div>
-          </div>
+        <div class="p-3">
+          <AudioQuickSettings variant="compact" />
         </div>
       </div>
     </Transition>
@@ -95,9 +33,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, useTemplateRef } from "vue"
+import { ref, onMounted, onUnmounted, useTemplateRef } from "vue"
 import { PhCaretUp, PhCaretDown } from "@phosphor-icons/vue"
-import { useAudioSettingsStore } from "@/stores"
+import AudioQuickSettings from "@/components/AudioQuickSettings.vue"
 
 interface Props {
   muted?: boolean
@@ -107,33 +45,8 @@ const props = withDefaults(defineProps<Props>(), {
   muted: false,
 })
 
-const audioStore = useAudioSettingsStore()
 const isOpen = ref(false)
 const dropdownRef = useTemplateRef<HTMLElement>("dropdownRef")
-
-const selectedInputDevice = ref<string>("")
-const availableInputDevices = ref<{ deviceId: string; label: string }[]>([])
-
-const noiseSuppressionEnabled = computed(() => audioStore.noiseSuppressionEnabled)
-const echoCancellationEnabled = computed(() => audioStore.echoCancellationEnabled)
-const autoGainControlEnabled = computed(() => audioStore.autoGainControlEnabled)
-
-const filteredInputDevices = computed(() => {
-  return availableInputDevices.value.filter((d) => !d.label.toLowerCase().startsWith("monitor"))
-})
-
-function truncateLabel(label: string): string {
-  return label.length > 25 ? label.slice(0, 22) + "..." : label
-}
-
-async function loadInputDevices() {
-  const devices = await audioStore.requestPermissionsAndEnumerate()
-  availableInputDevices.value = devices
-}
-
-function onInputDeviceChange() {
-  audioStore.setInputDeviceId(selectedInputDevice.value || null)
-}
 
 function toggleDropdown() {
   isOpen.value = !isOpen.value
@@ -143,28 +56,13 @@ function closeDropdown() {
   isOpen.value = false
 }
 
-function toggleNoiseSuppression() {
-  audioStore.toggleNoiseSuppression(!noiseSuppressionEnabled.value)
-}
-
-function toggleEchoCancellation() {
-  audioStore.toggleEchoCancellation(!echoCancellationEnabled.value)
-}
-
-function toggleAutoGainControl() {
-  audioStore.toggleAutoGainControl(!autoGainControlEnabled.value)
-}
-
 function handleClickOutside(event: MouseEvent) {
   if (dropdownRef.value && !dropdownRef.value.contains(event.target as Node)) {
     closeDropdown()
   }
 }
 
-onMounted(async () => {
-  audioStore.loadSettings()
-  selectedInputDevice.value = audioStore.inputDeviceId || ""
-  await loadInputDevices()
+onMounted(() => {
   document.addEventListener("click", handleClickOutside)
 })
 

@@ -1,7 +1,10 @@
 <template>
   <div
     data-testid="soundboard-popover"
-    class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-80 max-w-[calc(100vw-2rem)] bg-theme-bg-secondary border border-theme-border rounded-lg shadow-lg z-50 flex flex-col"
+    class="absolute bottom-full mb-2 bg-theme-bg-secondary border border-theme-border rounded-lg shadow-lg z-50 flex flex-col"
+    :class="
+      fullWidth ? 'left-3 right-3' : 'left-1/2 -translate-x-1/2 w-80 max-w-[calc(100vw-2rem)]'
+    "
     @click.stop
     @keydown.esc="$emit('close')">
     <div class="p-2 flex items-center gap-2 border-b border-theme-border">
@@ -9,7 +12,6 @@
         <PhMagnifyingGlass
           class="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-theme-text-muted pointer-events-none" />
         <input
-          ref="searchInput"
           v-model="query"
           type="text"
           placeholder="Search sounds"
@@ -78,13 +80,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, useTemplateRef } from "vue"
+import { computed, onMounted, onUnmounted, ref } from "vue"
 import { PhMagnifyingGlass, PhPlus, PhSpeakerHigh } from "@phosphor-icons/vue"
 import EmojiGlyph from "@/components/EmojiGlyph.vue"
 import { usePermissionsStore, useSoundboardStore, useUserStore } from "@/stores"
 import { Permission } from "@/types/permissions"
 import type { SoundboardSound } from "@/types"
 
+// fullWidth: span the nearest positioned ancestor (the mobile call bar) instead of
+// centering on the button, which overflows the screen edge on phones.
+defineProps<{ fullWidth?: boolean }>()
 defineEmits<{ close: []; upload: [] }>()
 
 const soundboardStore = useSoundboardStore()
@@ -92,7 +97,6 @@ const permissionsStore = usePermissionsStore()
 const userStore = useUserStore()
 
 const query = ref("")
-const searchInput = useTemplateRef<HTMLInputElement>("searchInput")
 
 const canUpload = computed(
   () => !userStore.isGuest && permissionsStore.can(Permission.UploadSounds),
@@ -117,7 +121,6 @@ const playFirst = () => {
 }
 
 onMounted(() => {
-  searchInput.value?.focus()
   void soundboardStore.ensureLoaded()
   timer = setInterval(() => (now.value = Date.now()), 250)
 })

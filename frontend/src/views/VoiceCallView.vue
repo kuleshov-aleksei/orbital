@@ -130,14 +130,10 @@
           class="absolute bottom-24 left-1/2 -translate-x-1/2 z-20" />
 
         <!-- Audio Controls: floating pill centered at the bottom on desktop,
-             a full-width bar docked to the bottom on mobile -->
+             a full-width bar with a pull-up settings sheet on mobile -->
         <div
           class="absolute z-30 lg:z-40"
-          :class="
-            isMobile
-              ? 'inset-x-0 bottom-0 bg-theme-bg-secondary border-t border-theme-border'
-              : 'bottom-4 left-1/2 -translate-x-1/2'
-          ">
+          :class="isMobile ? 'inset-x-0 bottom-0' : 'bottom-4 left-1/2 -translate-x-1/2'">
           <AudioControls
             ref="audioControlsRef"
             v-model:model-value-muted="isMuted"

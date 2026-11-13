@@ -162,8 +162,10 @@ const confirmStartScreenShare = () => {
 }
 
 // Expose method for parent to call after quality selection
+// toggle: lets a wrapping row (mobile call sheet) act as the button's hit area
 defineExpose({
   confirmStartScreenShare,
+  toggle: handleClick,
 })
 </script>
 
