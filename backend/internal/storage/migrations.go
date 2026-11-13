@@ -590,6 +590,17 @@ CREATE INDEX IF NOT EXISTS idx_chat_att_jobs_due ON chat_attachment_jobs(status,
 		);
 CREATE INDEX IF NOT EXISTS idx_push_devices_user ON push_devices(user_id);`,
 	},
+	{
+		Version: 48,
+		Name:    "create_app_settings",
+		// Server-wide key/value settings edited from the admin panel
+		// (e.g. android_min_version, the oldest Android app still allowed).
+		SQL: `CREATE TABLE IF NOT EXISTS app_settings (
+			key TEXT PRIMARY KEY,
+			value TEXT NOT NULL,
+			updated_at INTEGER NOT NULL
+		);`,
+	},
 }
 
 // RunMigrationsUpTo applies migrations up to and including maxVersion.

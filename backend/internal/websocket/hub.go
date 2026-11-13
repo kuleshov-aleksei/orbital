@@ -31,7 +31,8 @@ type Hub struct {
 	livekitService *service.LiveKitService
 	chatService    *service.ChatService
 	sessionRepo    *repository.SessionRepository
-	permissions    *service.PermissionService // nil only in unit tests
+	permissions    *service.PermissionService    // nil only in unit tests
+	clientVersions *service.ClientVersionService // nil: no minimum app version
 	grantsMu       sync.Mutex
 	appliedGrants  map[string]permissions.Permission // "room|user" -> perms last pushed to LiveKit
 	cfg            *config.Config
@@ -66,6 +67,7 @@ type Client struct {
 	roomID            string
 	userID            string
 	subject           service.Subject // RBAC identity, resolved at connect
+	clientID          string          // "<platform>/<version>" from ?client= (app builds only)
 	lastPingTime      time.Time
 	firstPingReceived bool
 	// inactive is set by client_state when the user isn't looking at this
@@ -182,7 +184,17 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 		conn:         conn,
 		send:         make(chan []byte, 256),
 		roomID:       roomID,
+		clientID:     r.URL.Query().Get("client"),
 		lastPingTime: time.Now(),
+	}
+
+	// An app below the minimum version is refused with a close code the
+	// frontend recognises (a browser can't read the status of a failed upgrade).
+	if h.clientVersions != nil && h.clientVersions.IsOutdated(client.clientID) {
+		log.Printf("WebSocket connection rejected (roomID=%q): outdated client %q", roomID, client.clientID)
+		closeOutdated(conn)
+		_ = conn.Close()
+		return
 	}
 
 	// JWT authentication is mandatory: no token means no connection.

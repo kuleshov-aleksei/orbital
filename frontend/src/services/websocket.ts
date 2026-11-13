@@ -1,5 +1,6 @@
 import { WebSocketMessage } from "@/types"
 import { getAuthToken, isTokenExpired } from "./api"
+import { clientId, notifyClientOutdated, WS_CLOSE_CLIENT_OUTDATED } from "./appVersion"
 
 declare const __BACKEND_WS_URL__: string | undefined
 
@@ -121,6 +122,12 @@ export class WebSocketService {
         this.ws.onclose = (event) => {
           console.log("WebSocket closed:", event)
           this.notifyDisconnectionCallbacks(event)
+          if (event.code === WS_CLOSE_CLIENT_OUTDATED) {
+            // App below the minimum version: retrying can't help.
+            this.reconnectAttempts = this.maxReconnectAttempts
+            notifyClientOutdated()
+            return
+          }
           this.attemptReconnect()
         }
       } catch (error) {
@@ -179,6 +186,11 @@ export class WebSocketService {
           this.notifyGlobalDisconnectionCallbacks(event)
           if (this.globalManualClose) {
             this.globalManualClose = false
+            return
+          }
+          if (event.code === WS_CLOSE_CLIENT_OUTDATED) {
+            // App below the minimum version: retrying can't help.
+            notifyClientOutdated()
             return
           }
           this.attemptGlobalReconnect()
@@ -451,29 +463,28 @@ export class WebSocketService {
 
   // Private methods
   private getWebSocketUrl(roomId: string): string {
-    const wsUrlFromEnv = typeof __BACKEND_WS_URL__ !== "undefined" ? __BACKEND_WS_URL__ : null
-    if (wsUrlFromEnv) {
-      const token = getAuthToken()
-      const baseUrl = `${wsUrlFromEnv}/ws/${roomId}`
-      return token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl
-    }
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
-    const token = getAuthToken()
-    const baseUrl = `${protocol}//${window.location.host}/ws/${roomId}`
-    return token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl
+    return this.buildWebSocketUrl(`/ws/${roomId}`)
   }
 
   private getGlobalWebSocketUrl(): string {
+    return this.buildWebSocketUrl("/ws")
+  }
+
+  // ?token= authenticates; ?client= lets the backend refuse app builds below
+  // the minimum version (close code 4426).
+  private buildWebSocketUrl(path: string): string {
     const wsUrlFromEnv = typeof __BACKEND_WS_URL__ !== "undefined" ? __BACKEND_WS_URL__ : null
-    if (wsUrlFromEnv) {
-      const token = getAuthToken()
-      const baseUrl = `${wsUrlFromEnv}/ws`
-      return token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl
-    }
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
+    const baseUrl = wsUrlFromEnv
+      ? `${wsUrlFromEnv}${path}`
+      : `${protocol}//${window.location.host}${path}`
+    const params = new URLSearchParams()
     const token = getAuthToken()
-    const baseUrl = `${protocol}//${window.location.host}/ws`
-    return token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl
+    if (token) params.set("token", token)
+    const client = clientId()
+    if (client) params.set("client", client)
+    const query = params.toString()
+    return query ? `${baseUrl}?${query}` : baseUrl
   }
 
   private handleMessage(event: MessageEvent<unknown>): void {

@@ -78,6 +78,7 @@ func main() {
 	var textNotify chatstore.NotifyStore
 	var pushDevices *repository.PushDeviceRepository
 	var appDB *storage.DB
+	var appSettings service.AppSettingsStore = service.NewMemoryAppSettings()
 
 	if cfg.Database.Path != "" {
 		db, err := storage.NewDB(cfg.Database.Path)
@@ -103,6 +104,7 @@ func main() {
 		textReadState = repository.NewTextReadStateRepository(db)
 		textNotify = repository.NewTextNotifyRepository(db)
 		pushDevices = repository.NewPushDeviceRepository(db)
+		appSettings = repository.NewAppSettingsRepository(db)
 
 		// Initialize services with repositories
 		categoryService = service.NewCategoryService(categoryRepo)
@@ -200,6 +202,14 @@ func main() {
 	wsHub.SetPermissionService(permissionService)
 	// Apply permission changes live (kick, LiveKit grants, client refresh).
 	permissionService.Subscribe(wsHub.OnPermissionsChanged)
+
+	// Minimum Android app version (admin panel): older apps are refused.
+	clientVersions, err := service.NewClientVersionService(appSettings)
+	if err != nil {
+		log.Fatalf("Failed to initialize client version service: %v", err)
+	}
+	wsHub.SetClientVersionService(clientVersions)
+	clientVersions.OnChange(wsHub.OnClientVersionChanged)
 	if soundboardService != nil {
 		wsHub.SetSoundboard(soundboardService)
 	}
@@ -265,6 +275,8 @@ func main() {
 	rbacHandler.SetBroadcaster(wsHub.BroadcastToAll)
 	avatarHandler := handlers.NewAvatarHandler(avatarService, userRepo)
 	releaseHandler := handlers.NewReleaseHandler(cfg.GetReleasesURL())
+	releaseHandler.SetClientVersionService(clientVersions)
+	clientVersionHandler := handlers.NewClientVersionHandler(clientVersions, releaseHandler.Latest)
 
 	var audioHandler *handlers.AudioHandler
 	if audioService != nil {
@@ -339,6 +351,9 @@ func main() {
 	if cfg.ShouldLogRequests() {
 		r.Use(requestLoggingMiddleware)
 	}
+
+	// Apps below the minimum version get 426 (see ClientVersionGate).
+	r.Use(handlers.ClientVersionGate(clientVersions))
 
 	// API routes
 	r.HandleFunc("/api/health", healthHandler(textChat)).Methods("GET")
@@ -558,6 +573,8 @@ func main() {
 	superAdminRouter.HandleFunc("/users/{id}", adminHandler.DeleteUser).Methods("DELETE")
 	superAdminRouter.HandleFunc("/logs", adminHandler.ListDebugLogs).Methods("GET")
 	superAdminRouter.HandleFunc("/logs/{id}", adminHandler.GetDebugLog).Methods("GET")
+	superAdminRouter.HandleFunc("/client-versions", clientVersionHandler.Get).Methods("GET")
+	superAdminRouter.HandleFunc("/client-versions", clientVersionHandler.Update).Methods("PUT")
 	superAdminRouter.HandleFunc("/logs/{id}", adminHandler.DeleteDebugLog).Methods("DELETE")
 
 	// Stats collection routes (super_admin only)
@@ -679,7 +696,7 @@ func corsMiddleware(next http.Handler, allowedOrigins []string) http.Handler {
 
 		w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Cache-Control")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Cache-Control, "+handlers.ClientHeader)
 
 		// Handle preflight requests
 		if r.Method == "OPTIONS" {

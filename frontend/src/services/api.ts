@@ -65,6 +65,7 @@ import type {
 } from "@/types/permissions"
 import { isElectron, openExternal, oauthAuthenticate } from "./electron"
 import { isCapacitor } from "./platform"
+import { CLIENT_HEADER, clientId, notifyClientOutdated } from "./appVersion"
 
 const API_BASE = typeof __BACKEND_URL__ !== "undefined" ? `${__BACKEND_URL__}/api` : "/api"
 
@@ -403,12 +404,22 @@ export async function uploadTextAttachment(
   return JSON.parse(res.body) as AttachmentUploadResponse
 }
 
-// Latest desktop release, resolved by the backend from the update feed
+// Latest release, resolved by the backend from the update feed
 // (latest.yml). Artifact URLs are absolute links to the update host.
 export interface LatestRelease {
   version: string
   windows_url: string
   linux_url: string
+  android_url: string
+  /** Oldest Android app the backend accepts; "" = no minimum. */
+  android_min_version: string
+}
+
+// Minimum app versions (superadmin, Admin → App versions).
+export interface ClientVersions {
+  android_min_version: string
+  /** Newest published release; "" when the update feed can't be reached. */
+  latest_version: string
 }
 
 // LiveKit token response types
@@ -494,11 +505,31 @@ export async function apiRequest<T>(
     if (token) {
       headers["Authorization"] = `Bearer ${token}`
     }
+    // Packaged app build: lets the backend refuse versions below the minimum.
+    const client = clientId()
+    if (client) {
+      headers[CLIENT_HEADER] = client
+    }
 
     const response = await fetch(`${API_BASE}${endpoint}`, {
       headers,
       ...options,
     })
+
+    // This app version is below the minimum: show the "update required" screen.
+    if (response.status === 426) {
+      const body = (await response
+        .clone()
+        .json()
+        .catch(() => null)) as {
+        error?: string
+        min_version?: string
+      } | null
+      if (body?.error === "client_outdated") {
+        notifyClientOutdated(body.min_version || null)
+        throw apiError("This version of Orbital is no longer supported.", 426)
+      }
+    }
 
     // Expired/invalid session: try one silent refresh, then retry the request.
     if (response.status === 401 && allowRetry && !isCredentialEndpoint(endpoint)) {
@@ -730,6 +761,18 @@ export const apiService = {
   // should fall back to the bundled app version.
   async getLatestRelease(): Promise<LatestRelease> {
     return apiRequest<LatestRelease>("/releases/latest")
+  },
+
+  // Minimum app versions (super_admin only).
+  async getClientVersions(): Promise<ClientVersions> {
+    return apiRequest<ClientVersions>("/admin/client-versions")
+  },
+
+  async updateClientVersions(androidMinVersion: string): Promise<ClientVersions> {
+    return apiRequest<ClientVersions>("/admin/client-versions", {
+      method: "PUT",
+      body: JSON.stringify({ android_min_version: androidMinVersion }),
+    })
   },
 
   // Category management

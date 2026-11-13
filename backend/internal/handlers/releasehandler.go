@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kuleshov-aleksei/orbital/internal/service"
 	"gopkg.in/yaml.v3"
 )
 
@@ -29,15 +30,20 @@ type LatestReleaseResponse struct {
 	Version    string `json:"version"`
 	WindowsURL string `json:"windows_url"`
 	LinuxURL   string `json:"linux_url"`
+	AndroidURL string `json:"android_url"`
+	// AndroidMinVersion is the oldest Android app the backend accepts
+	// ("" = no minimum); older apps show a blocking "update required" screen.
+	AndroidMinVersion string `json:"android_min_version"`
 }
 
-// ReleaseHandler resolves the newest desktop release published to the
-// update feed (Garage S3). Both platforms ship in the same release, so the
+// ReleaseHandler resolves the newest release published to the update feed
+// (Garage S3). All platforms (incl. the Android APK) ship in the same release, so the
 // Windows manifest (latest.yml) is the single source of truth and the
 // artifact URLs are derived from its version.
 type ReleaseHandler struct {
-	baseURL string
-	client  *http.Client
+	baseURL        string
+	client         *http.Client
+	clientVersions *service.ClientVersionService // nil: no android_min_version
 
 	mu       sync.Mutex
 	cached   *LatestReleaseResponse
@@ -52,24 +58,43 @@ func NewReleaseHandler(baseURL string) *ReleaseHandler {
 	}
 }
 
+// SetClientVersionService adds android_min_version to the response.
+func (h *ReleaseHandler) SetClientVersionService(s *service.ClientVersionService) {
+	h.clientVersions = s
+}
+
 // GetLatest handles GET /api/releases/latest.
-// Returns the version and artifact URLs of the newest desktop release.
+// Returns the version and artifact URLs of the newest release.
 func (h *ReleaseHandler) GetLatest(w http.ResponseWriter, r *http.Request) {
-	release, ok := h.getCached()
-	if !ok {
-		var err error
-		release, err = h.resolve(r.Context())
-		if err != nil {
-			log.Printf("[ReleaseHandler] Failed to resolve latest release: %v", err)
-			h.sendError(w, "Failed to resolve latest release", http.StatusBadGateway)
-			return
-		}
-		h.storeCached(release)
+	cached, err := h.Latest(r.Context())
+	if err != nil {
+		log.Printf("[ReleaseHandler] Failed to resolve latest release: %v", err)
+		h.sendError(w, "Failed to resolve latest release", http.StatusBadGateway)
+		return
+	}
+
+	// Copy: the minimum version is live, not part of the cached release.
+	release := *cached
+	if h.clientVersions != nil {
+		release.AndroidMinVersion = h.clientVersions.AndroidMinVersion()
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	writeJSON(w, release)
+}
+
+// Latest returns the newest published release (cached for releaseCacheTTL).
+func (h *ReleaseHandler) Latest(ctx context.Context) (*LatestReleaseResponse, error) {
+	if release, ok := h.getCached(); ok {
+		return release, nil
+	}
+	release, err := h.resolve(ctx)
+	if err != nil {
+		return nil, err
+	}
+	h.storeCached(release)
+	return release, nil
 }
 
 // getCached returns the cached release when it is still fresh.
@@ -105,6 +130,7 @@ func (h *ReleaseHandler) resolve(ctx context.Context) (*LatestReleaseResponse, e
 		Version:    version,
 		WindowsURL: fmt.Sprintf("%s/Orbital-Setup-%s.exe", base, version),
 		LinuxURL:   fmt.Sprintf("%s/Orbital-%s.AppImage", base, version),
+		AndroidURL: fmt.Sprintf("%s/Orbital-%s.apk", base, version),
 	}, nil
 }
 
