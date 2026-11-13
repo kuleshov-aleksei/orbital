@@ -8,20 +8,27 @@
         !isMobileView,
       'translate-x-0': !isHidden && !isMobileView,
     }">
-    <!-- Desktop Header (only when not in mobile view mode) -->
-    <div v-if="!isMobileView" class="hidden h-16 lg:flex p-4 border-b border-theme-border">
-      <h2 class="text-sm font-semibold text-theme-text-secondary uppercase tracking-wider">
-        Rooms
-      </h2>
-    </div>
+    <!-- Header: brand + who is around -->
+    <div
+      class="flex items-center gap-3"
+      :class="isMobileView ? 'p-4 pr-16' : 'hidden lg:flex h-16 px-4 border-b border-theme-border'">
+      <img
+        src="/orbital-icon.png"
+        alt=""
+        class="flex-shrink-0 rounded-lg"
+        :class="isMobileView ? 'w-10 h-10' : 'w-8 h-8'" />
 
-    <!-- Mobile Full-screen Header -->
-    <div v-if="isMobileView" class="p-4">
-      <h2 class="text-xl font-semibold text-theme-text-primary">Available Rooms</h2>
+      <div class="min-w-0">
+        <h2
+          class="font-semibold text-theme-text-primary leading-tight"
+          :class="isMobileView ? 'text-xl' : 'text-base'">
+          Orbital
+        </h2>
 
-      <p class="text-sm text-theme-text-muted mt-1">
-        {{ rooms?.length || 0 }} room{{ (rooms?.length || 0) !== 1 ? "s" : "" }}
-      </p>
+        <p class="text-xs text-theme-text-muted truncate" data-testid="sidebar-presence-summary">
+          {{ presenceSummary }}
+        </p>
+      </div>
     </div>
 
     <!-- Room Categories and List -->
@@ -432,6 +439,7 @@ import {
   usePermissionsStore,
   useTextChatStore,
   useTextNotifyStore,
+  useUsersStore,
 } from "@/stores"
 import { describeMute } from "@/stores/textNotify"
 import type { TextNotifyMode } from "@/types/textChat"
@@ -473,6 +481,7 @@ const categoryStore = useCategoryStore()
 const permissionsStore = usePermissionsStore()
 const textChatStore = useTextChatStore()
 const textNotifyStore = useTextNotifyStore()
+const usersStore = useUsersStore()
 const { rooms } = storeToRefs(roomStore)
 const { categories } = storeToRefs(categoryStore)
 const { isUserContextMenuOpen } = useUserContextMenu()
@@ -483,6 +492,15 @@ const canCreateRooms = computed(() => permissionsStore.canManageAnyRooms)
 const isDraggable = computed(
   () => permissionsStore.can(Permission.ManageRooms) && !isUserContextMenuOpen.value,
 )
+
+// "3 online · 2 in voice": tells at a glance whether anyone is around.
+const presenceSummary = computed(() => {
+  const online = usersStore.allUsers.filter((u) => u.is_online).length
+  const inVoice = (rooms.value ?? [])
+    .filter((r) => r.type !== "text")
+    .reduce((sum, r) => sum + (r.user_count || 0), 0)
+  return inVoice > 0 ? `${online} online · ${inVoice} in voice` : `${online} online`
+})
 
 const isHidden = computed(() => {
   return !rooms.value || rooms.value.length === 0
