@@ -26,7 +26,8 @@
         </h1>
 
         <p class="text-theme-text-muted text-lg">
-          Native desktop voice chat. Lower latency, screen sharing, and global hotkeys.
+          Native apps for desktop and Android. Lower latency, screen sharing, and global hotkeys on
+          desktop.
         </p>
 
         <p class="mt-3 text-sm text-theme-text-muted">
@@ -41,7 +42,7 @@
       </div>
 
       <!-- Platform cards -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
         <div
           v-for="platform in platforms"
           :key="platform.key"
@@ -111,14 +112,20 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, type Component } from "vue"
-import { PhArrowLeft, PhDownloadSimple, PhWindowsLogo, PhLinuxLogo } from "@phosphor-icons/vue"
+import {
+  PhArrowLeft,
+  PhDownloadSimple,
+  PhWindowsLogo,
+  PhLinuxLogo,
+  PhAndroidLogo,
+} from "@phosphor-icons/vue"
 import { apiService, type LatestRelease } from "@/services/api"
 
 declare const __APP_VERSION__: string
 
 const DOWNLOAD_BASE_URL = "https://orbital-updates.encamy.com"
 
-type OS = "windows" | "linux" | "unknown"
+type OS = "windows" | "linux" | "android" | "unknown"
 
 // Fallback when the backend cannot resolve the latest desktop release
 // (e.g. no network). The frontend build version can be ahead of the newest
@@ -146,6 +153,7 @@ const version = computed(() => latest.value?.version || fallbackVersion)
 
 const detectedOS = computed<OS>(() => {
   const ua = navigator.userAgent
+  if (/Android/i.test(ua)) return "android"
   if (/Windows/i.test(ua)) return "windows"
   if (/Linux/i.test(ua) && !/Android/i.test(ua)) return "linux"
   return "unknown"
@@ -180,6 +188,16 @@ const platforms = computed<Platform[]>(() => {
       buttonLabel: "Download for Linux",
       url: latest.value?.linux_url || `${DOWNLOAD_BASE_URL}/Orbital-${version.value}.AppImage`,
       icon: PhLinuxLogo,
+    },
+    {
+      key: "android",
+      name: "Android",
+      detail: "APK · Android 7.0+",
+      description:
+        "Download the APK and open it. Android may ask you to allow your browser to install apps.",
+      buttonLabel: "Download for Android",
+      url: latest.value?.android_url || `${DOWNLOAD_BASE_URL}/Orbital-${version.value}.apk`,
+      icon: PhAndroidLogo,
     },
   ]
 
