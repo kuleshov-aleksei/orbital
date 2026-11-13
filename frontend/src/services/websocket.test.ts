@@ -297,3 +297,71 @@ describe("message routing", () => {
     expect(received).toHaveLength(0)
   })
 })
+
+describe("client_state (mobile push suppression)", () => {
+  const states = (socket: FakeWebSocket) =>
+    socket.sent
+      .map((raw) => JSON.parse(raw) as WebSocketMessage)
+      .filter((m) => m.type === "client_state")
+      .map((m) => (m.data as { active: boolean }).active)
+
+  // The node test environment stubs document/window with no-op listeners
+  // (src/test-setup.ts): capture what the service registers.
+  type Handler = () => void
+  let docHandlers: Map<string, Handler[]>
+  let winHandlers: Map<string, Handler[]>
+  const doc = document as unknown as { hidden: boolean }
+  const fire = (map: Map<string, Handler[]>, type: string) => map.get(type)?.forEach((h) => h())
+
+  beforeEach(() => {
+    docHandlers = new Map()
+    winHandlers = new Map()
+    const capture = (map: Map<string, Handler[]>) => (type: string, fn: unknown) => {
+      map.set(type, [...(map.get(type) ?? []), fn as Handler])
+    }
+    vi.spyOn(document, "addEventListener").mockImplementation(capture(docHandlers))
+    vi.spyOn(window, "addEventListener").mockImplementation(capture(winHandlers))
+    doc.hidden = false
+  })
+  afterEach(() => {
+    doc.hidden = false
+  })
+
+  async function connectGlobal() {
+    const service = new WebSocketService()
+    const connected = service.connectGlobal()
+    const socket = lastSocket()
+    socket.open()
+    await connected
+    return { service, socket }
+  }
+
+  it("ignores focus: a blurred but visible window stays active", async () => {
+    const { service, socket } = await connectGlobal()
+    expect(winHandlers.has("blur")).toBe(false)
+    fire(winHandlers, "blur")
+    expect(states(socket)).toEqual([true])
+    await service.disconnectGlobal()
+  })
+
+  it("goes inactive when hidden or idle, and active again on input", async () => {
+    const { service, socket } = await connectGlobal()
+    expect(states(socket)).toEqual([true])
+
+    doc.hidden = true
+    fire(docHandlers, "visibilitychange")
+    expect(states(socket)).toEqual([true, false])
+
+    doc.hidden = false
+    fire(docHandlers, "visibilitychange")
+    expect(states(socket)).toEqual([true, false, true])
+
+    // Ten minutes without clicks or keys: idle.
+    await vi.advanceTimersByTimeAsync(10 * 60 * 1000)
+    expect(states(socket)).toEqual([true, false, true, false])
+
+    fire(winHandlers, "pointerdown")
+    expect(states(socket)).toEqual([true, false, true, false, true])
+    await service.disconnectGlobal()
+  })
+})

@@ -29,7 +29,7 @@ function toMediaStatePayload(state: LocalMediaState) {
 const MAX_QUEUED_MESSAGES = 100
 
 // No input for this long marks the session idle (client_state).
-const IDLE_AFTER_MS = 5 * 60 * 1000
+const IDLE_AFTER_MS = 10 * 60 * 1000
 const IDLE_CHECK_MS = 60 * 1000
 
 export class WebSocketService {
@@ -658,7 +658,8 @@ export class WebSocketService {
       this.lastInputAt = Date.now()
       this.reportClientState()
     })
-    window.addEventListener("blur", () => this.reportClientState())
+    // No blur handler: an unfocused but visible window (second monitor,
+    // another app in front) still counts as active.
     const onInput = () => {
       this.lastInputAt = Date.now()
       if (this.reportedActive === false) this.reportClientState()
@@ -669,11 +670,10 @@ export class WebSocketService {
     setInterval(() => this.reportClientState(), IDLE_CHECK_MS)
   }
 
-  /** Visible, focused and touched recently. */
+  /** Visible and used recently; focus is ignored. */
   private isClientActive(): boolean {
     if (typeof document === "undefined") return true
-    const focused = typeof document.hasFocus === "function" ? document.hasFocus() : true
-    return !document.hidden && focused && Date.now() - this.lastInputAt < IDLE_AFTER_MS
+    return !document.hidden && Date.now() - this.lastInputAt < IDLE_AFTER_MS
   }
 
   /** Sends client_state on change (or always with force) over the global socket. */
