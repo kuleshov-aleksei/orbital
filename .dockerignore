@@ -20,6 +20,7 @@ bin
 
 # Environment files
 .env
+.env-mobile-tunnel
 .env.*
 certs
 
