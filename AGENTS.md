@@ -188,7 +188,7 @@ The Android app wraps the same frontend in a Capacitor WebView.
 - Config lives in `frontend/` (Capacitor resolves plugins from `frontend/node_modules`): `capacitor.config.ts` and `vite.config.mobile.ts`. The native project is `mobile/android`, the web bundle `mobile/dist` (both generated; `mobile/android/app/src/main/assets/public` is gitignored).
 - Build with `make build-android` / `make dev-android`, never `npx cap` + `vite build` by hand. Building the APK needs a JDK and the Android SDK (`ANDROID_HOME`).
 - The WebView origin is `https://localhost`. The backend always allows it (and Electron's `orbital://app`) through `config.IsAppOrigin`; don't add it to `cors_origins`.
-- Relative `/api` URLs don't work in the app: the mobile build bakes in `__BACKEND_URL__` / `__BACKEND_WS_URL__` like Electron does.
+- Relative `/api` URLs don't work in the app: the mobile build bakes in `__BACKEND_URL__` / `__BACKEND_WS_URL__` like Electron does. Conversely, bundled static files (`/assets/...`, `public/`) must stay relative: never pass them through `resolveUrl()`, which prefixes the backend URL.
 - Platform checks go through `frontend/src/services/platform.ts` (`isCapacitor`, `isNative`, `openExternal`, `notifyAttention`), not new `isElectron()` branches. The Android app always uses the mobile layout (`stores/app.ts` `setMobile`).
 - Edge-to-edge: `#app` pads itself with the safe-area insets (`style.css`); `position: fixed` elements escape that padding and need `.safe-area-pad` / `.safe-top-4`.
 - OAuth on Android is not wired yet: the Electron flow uses a loopback server on `127.0.0.1:27271`, which does not exist on the phone. QR login works. Planned approach: [`docs/notes/ANDROID_OAUTH_DEEPLINK.md`](./docs/notes/ANDROID_OAUTH_DEEPLINK.md).

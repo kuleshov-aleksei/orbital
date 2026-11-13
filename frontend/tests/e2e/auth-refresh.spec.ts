@@ -86,7 +86,7 @@ test.describe("JWT refresh lifecycle", () => {
       })
       .toBeGreaterThan(Date.parse(seededExpiry))
 
-    await expect(page.getByTestId("auth-tab-password")).toBeHidden()
+    await expect(page.getByTestId("auth-form")).toBeHidden()
 
     await ctx.close()
   })
@@ -102,7 +102,7 @@ test.describe("JWT refresh lifecycle", () => {
     await page.goto("/")
 
     await expect(page.getByTestId("session-expired-notice")).toBeVisible()
-    await expect(page.getByTestId("auth-tab-password")).toBeVisible()
+    await expect(page.getByTestId("auth-form")).toBeVisible()
 
     await ctx.close()
   })
@@ -122,7 +122,7 @@ test.describe("JWT refresh lifecycle", () => {
     await page.goto("/")
 
     await expect(page.getByTestId("session-expired-notice")).toBeVisible()
-    await expect(page.getByTestId("auth-tab-password")).toBeVisible()
+    await expect(page.getByTestId("auth-form")).toBeVisible()
 
     await ctx.close()
   })

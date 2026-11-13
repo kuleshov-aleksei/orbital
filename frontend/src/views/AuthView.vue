@@ -1,12 +1,11 @@
 <template>
   <div
     class="auth-view fixed inset-0 safe-area-pad bg-theme-bg-primary flex items-start lg:items-center justify-center overflow-y-auto z-50">
-    <div class="max-w-md lg:max-w-5xl w-full mx-4 pt-8 lg:pt-0">
+    <div class="max-w-md lg:max-w-5xl w-full px-5 lg:px-4 pt-10 pb-8 lg:py-0">
       <div class="lg:flex lg:items-center lg:justify-center lg:gap-16">
-        <!-- Logo/Title -->
-        <div class="text-center mb-8 lg:mb-0 lg:flex-shrink-0">
+        <!-- Desktop brand panel -->
+        <div v-if="!isMobile" class="text-center mb-8 lg:mb-0 lg:flex-shrink-0">
           <div
-            v-if="!isMobile"
             class="w-20 h-20 lg:w-28 lg:h-28 bg-theme-accent rounded-2xl flex items-center justify-center mx-auto mb-4">
             <img
               src="/orbital-logo.png"
@@ -14,22 +13,13 @@
               class="w-16 h-16 lg:w-24 lg:h-24 object-contain" />
           </div>
 
-          <h1
-            class="text-3xl lg:text-4xl font-bold text-theme-text-primary mb-2 flex items-center justify-center gap-2">
-            <img
-              v-if="isMobile"
-              src="/orbital-logo.png"
-              alt="Orbital Logo"
-              class="w-8 h-8 object-contain" />
+          <h1 class="text-3xl lg:text-4xl font-bold text-theme-text-primary mb-2">
             Welcome to Orbital
           </h1>
-
-          <p v-if="!isMobile" class="text-theme-text-muted text-lg">Voice chat for my dudes</p>
+          <p class="text-theme-text-muted text-lg">Voice chat for my dudes</p>
 
           <!-- Landing actions: GitHub + Download (web only) -->
-          <div
-            v-if="!isElectron() && !isMobile"
-            class="mt-6 flex items-center justify-center gap-3">
+          <div v-if="!isElectron()" class="mt-6 flex items-center justify-center gap-3">
             <a
               href="https://github.com/kuleshov-aleksei/orbital"
               target="_blank"
@@ -50,122 +40,47 @@
           </div>
         </div>
 
-        <!-- Auth Card -->
-        <div class="bg-theme-bg-secondary rounded-xl p-8 shadow-xl lg:w-[420px]">
-          <!-- Session expired notice -->
-          <div
-            v-if="userStore.sessionExpired"
-            data-testid="session-expired-notice"
-            class="mb-4 p-3 bg-amber-500/20 border border-amber-500 rounded-lg text-amber-200 text-sm">
-            Your session expired. Please sign in again.
+        <!-- Auth card: a plain column on mobile, a card on desktop -->
+        <div
+          class="lg:bg-theme-bg-secondary lg:rounded-xl lg:p-8 lg:shadow-xl lg:w-[420px]"
+          data-testid="auth-card">
+          <!-- QR view (desktop only: the QR is scanned by a signed-in phone) -->
+          <div v-if="view === 'qr'">
+            <button
+              type="button"
+              data-testid="auth-qr-back"
+              class="mb-4 flex items-center gap-1.5 text-sm text-theme-text-muted hover:text-theme-text-primary transition-colors"
+              @click="view = 'form'">
+              <PhArrowLeft class="w-4 h-4" />
+              Back to sign in
+            </button>
+            <QRLoginPanel />
           </div>
 
-          <!-- Tabs -->
-          <div class="flex border-b border-theme-border mb-6">
-            <button
-              type="button"
-              data-testid="auth-tab-oauth"
-              class="flex-1 py-2 text-center font-medium transition-colors"
-              :class="
-                activeTab === 'oauth'
-                  ? 'text-theme-text-primary border-b-2 border-theme-accent'
-                  : 'text-theme-text-muted hover:text-theme-text-primary'
-              "
-              @click="activeTab = 'oauth'">
-              OAuth providers
-            </button>
-            <button
-              type="button"
-              data-testid="auth-tab-password"
-              class="flex-1 py-2 text-center font-medium transition-colors"
-              :class="
-                activeTab === 'password'
-                  ? 'text-theme-text-primary border-b-2 border-theme-accent'
-                  : 'text-theme-text-muted hover:text-theme-text-primary'
-              "
-              @click="activeTab = 'password'">
-              {{ isRegisterMode ? "Register" : "Login" }}
-            </button>
-            <button
-              type="button"
-              data-testid="auth-tab-qr"
-              class="flex-1 py-2 text-center font-medium transition-colors"
-              :class="
-                activeTab === 'qr'
-                  ? 'text-theme-text-primary border-b-2 border-theme-accent'
-                  : 'text-theme-text-muted hover:text-theme-text-primary'
-              "
-              @click="activeTab = 'qr'">
-              QR code
-            </button>
-          </div>
-
-          <!-- OAuth Providers Tab -->
-          <div v-show="activeTab === 'oauth'">
-            <h2 class="text-xl font-semibold text-theme-text-primary text-center mb-6">
-              Choose how to join
-            </h2>
-
-            <!-- OAuth Provider Buttons -->
-            <div class="space-y-2 mb-4">
-              <!-- Discord Login -->
-              <button
-                type="button"
-                class="w-full flex items-center justify-center px-4 py-3 bg-[#5865F2] hover:bg-[#4752C4] text-white rounded-lg transition-colors duration-200 font-medium"
-                @click="handleLoginWithDiscord">
-                <DiscordIcon class="w-5 h-5 mr-3" />
-                Login with Discord
-              </button>
-
-              <!-- Google Login -->
-              <button
-                type="button"
-                class="w-full flex items-center justify-center px-4 py-3 bg-theme-text-primary hover:bg-theme-text-secondary text-theme-bg-primary rounded-lg transition-colors duration-200 font-medium"
-                @click="handleLoginWithGoogle">
-                <GoogleIcon class="w-5 h-5 mr-3" />
-                Login with Google
-              </button>
+          <template v-else>
+            <!-- Heading -->
+            <div class="text-center mb-6">
+              <img
+                v-if="isMobile"
+                src="/orbital-logo.png"
+                alt="Orbital Logo"
+                class="w-14 h-14 object-contain mx-auto mb-3" />
+              <h2 class="text-2xl font-bold text-theme-text-primary">
+                {{ isRegisterMode ? "Create an account" : "Welcome back!" }}
+              </h2>
+              <p class="mt-1 text-theme-text-muted">
+                {{ isRegisterMode ? "Join Orbital in a few seconds" : "Sign in to Orbital" }}
+              </p>
             </div>
 
-            <!-- Divider -->
-            <div class="relative mb-4">
-              <div class="absolute inset-0 flex items-center">
-                <div class="w-full border-t border-theme-border"></div>
-              </div>
-
-              <div class="relative flex justify-center text-sm">
-                <span class="px-2 bg-theme-bg-secondary text-theme-text-muted">or</span>
-              </div>
+            <!-- Session expired notice -->
+            <div
+              v-if="userStore.sessionExpired"
+              data-testid="session-expired-notice"
+              class="mb-4 p-3 bg-amber-500/20 border border-amber-500 rounded-lg text-amber-200 text-sm">
+              Your session expired. Please sign in again.
             </div>
 
-            <!-- Guest Option -->
-            <button
-              type="button"
-              class="w-full flex items-center justify-center px-4 py-3 bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-primary rounded-lg transition-colors duration-200 font-medium"
-              @click="handleContinueAsGuest">
-              <PhUser class="w-5 h-5 mr-3" />
-              Continue as Guest
-            </button>
-
-            <!-- Restriction Notice -->
-            <div class="mt-4 flex items-start text-sm text-theme-text-muted">
-              <PhInfo class="w-4 h-4 mr-2 mt-0.5 flex-shrink-0 text-theme-text-muted" />
-
-              <span
-                >Guests can join voice rooms but can't share their screen.
-                <button
-                  type="button"
-                  class="text-theme-accent hover:underline"
-                  @click="activeTab = 'password'">
-                  Sign in
-                </button>
-                to unlock all features.</span
-              >
-            </div>
-          </div>
-
-          <!-- Password Tab -->
-          <div v-show="activeTab === 'password'">
             <!-- Error Message -->
             <div
               v-if="errorMessage"
@@ -173,7 +88,7 @@
               {{ errorMessage }}
             </div>
 
-            <form @submit.prevent="handlePasswordSubmit">
+            <form data-testid="auth-form" @submit.prevent="handlePasswordSubmit">
               <!-- Nickname (only in register mode) -->
               <div v-if="isRegisterMode" class="mb-3">
                 <label class="block text-theme-text-muted text-sm mb-1" for="nickname"
@@ -183,8 +98,9 @@
                   id="nickname"
                   v-model="nickname"
                   type="text"
-                  class="w-full px-4 py-2 bg-theme-bg-tertiary border rounded-lg text-theme-text-primary placeholder-theme-text-muted focus:outline-none focus:border-theme-accent"
-                  :class="nicknameError ? 'border-red-500' : 'border-theme-border'"
+                  autocomplete="username"
+                  autocapitalize="off"
+                  :class="[inputClass, nicknameError ? 'border-red-500' : 'border-theme-border']"
                   placeholder="Choose a nickname"
                   required
                   @input="handleNicknameInput"
@@ -201,8 +117,8 @@
                   id="email"
                   v-model="email"
                   type="email"
-                  class="w-full px-4 py-2 bg-theme-bg-tertiary border rounded-lg text-theme-text-primary placeholder-theme-text-muted focus:outline-none focus:border-theme-accent"
-                  :class="emailError ? 'border-red-500' : 'border-theme-border'"
+                  autocomplete="email"
+                  :class="[inputClass, emailError ? 'border-red-500' : 'border-theme-border']"
                   placeholder="your@email.com"
                   required
                   @input="handleEmailInput"
@@ -220,13 +136,15 @@
               <!-- Login (email or nickname) - only in login mode -->
               <div v-if="!isRegisterMode" class="mb-3">
                 <label class="block text-theme-text-muted text-sm mb-1" for="login"
-                  >Email or Nickname</label
+                  >Email or nickname</label
                 >
                 <input
                   id="login"
                   v-model="login"
                   type="text"
-                  class="w-full px-4 py-2 bg-theme-bg-tertiary border border-theme-border rounded-lg text-theme-text-primary placeholder-theme-text-muted focus:outline-none focus:border-theme-accent"
+                  autocomplete="username"
+                  autocapitalize="off"
+                  :class="[inputClass, 'border-theme-border']"
                   placeholder="Enter your email or nickname"
                   required
                   @input="handleLoginInput" />
@@ -242,8 +160,12 @@
                     id="password"
                     v-model="password"
                     :type="showPassword ? 'text' : 'password'"
-                    class="w-full px-4 py-2 pr-10 bg-theme-bg-tertiary border rounded-lg text-theme-text-primary placeholder-theme-text-muted focus:outline-none focus:border-theme-accent"
-                    :class="passwordError ? 'border-red-500' : 'border-theme-border'"
+                    :autocomplete="isRegisterMode ? 'new-password' : 'current-password'"
+                    :class="[
+                      inputClass,
+                      'pr-11',
+                      passwordError ? 'border-red-500' : 'border-theme-border',
+                    ]"
                     :placeholder="isRegisterMode ? 'Create a password' : 'Enter your password'"
                     required
                     @input="handlePasswordInput"
@@ -251,6 +173,7 @@
                     @blur="handlePasswordBlur" />
                   <button
                     type="button"
+                    :aria-label="showPassword ? 'Hide password' : 'Show password'"
                     class="absolute right-3 top-1/2 -translate-y-1/2 text-theme-text-muted hover:text-theme-text-primary"
                     @click="showPassword = !showPassword">
                     <PhEye v-if="!showPassword" class="w-5 h-5" />
@@ -285,21 +208,26 @@
               <!-- Confirm Password (only in register mode) -->
               <div v-if="isRegisterMode" class="mb-3">
                 <label class="block text-theme-text-muted text-sm mb-1" for="confirmPassword"
-                  >Confirm Password</label
+                  >Confirm password</label
                 >
                 <div class="relative">
                   <input
                     id="confirmPassword"
                     v-model="confirmPassword"
                     :type="showConfirmPassword ? 'text' : 'password'"
-                    class="w-full px-4 py-2 pr-10 bg-theme-bg-tertiary border rounded-lg text-theme-text-primary placeholder-theme-text-muted focus:outline-none focus:border-theme-accent"
-                    :class="confirmPasswordError ? 'border-red-500' : 'border-theme-border'"
+                    autocomplete="new-password"
+                    :class="[
+                      inputClass,
+                      'pr-11',
+                      confirmPasswordError ? 'border-red-500' : 'border-theme-border',
+                    ]"
                     placeholder="Confirm your password"
                     required
                     @input="handleConfirmPasswordInput"
                     @blur="confirmPasswordTouched = true" />
                   <button
                     type="button"
+                    :aria-label="showConfirmPassword ? 'Hide password' : 'Show password'"
                     class="absolute right-3 top-1/2 -translate-y-1/2 text-theme-text-muted hover:text-theme-text-primary"
                     @click="showConfirmPassword = !showConfirmPassword">
                     <PhEye v-if="!showConfirmPassword" class="w-5 h-5" />
@@ -316,41 +244,76 @@
               <!-- Submit Button -->
               <button
                 type="submit"
-                class="w-full py-2 bg-theme-accent hover:bg-theme-accent-hover text-theme-text-on-accent rounded-lg font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                :disabled="isLoading || (isRegisterMode && !canSubmit)"
-                @click="handlePasswordSubmit">
+                class="mt-2 w-full py-3 bg-theme-accent hover:bg-theme-accent-hover text-theme-text-on-accent rounded-lg font-semibold transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                :disabled="isLoading || (isRegisterMode && !canSubmit)">
                 <span v-if="isLoading">Please wait...</span>
-                <span v-else>{{ isRegisterMode ? "Register" : "Login" }}</span>
+                <span v-else>{{ isRegisterMode ? "Create account" : "Log In" }}</span>
               </button>
             </form>
 
-            <!-- Toggle Mode Link -->
-            <div class="mt-4 text-center">
-              <span v-if="!isRegisterMode" class="text-theme-text-muted">
-                Don't have an account?
-                <button
-                  type="button"
-                  class="text-theme-accent hover:text-theme-accent-hover font-medium ml-1"
-                  @click="switchToRegister">
-                  Register
-                </button>
-              </span>
-              <span v-else class="text-theme-text-muted">
-                Already have an account?
-                <button
-                  type="button"
-                  class="text-theme-accent hover:text-theme-accent-hover font-medium ml-1"
-                  @click="switchToLogin">
-                  Login
-                </button>
-              </span>
-            </div>
-          </div>
+            <!-- Other ways to sign in (login mode only) -->
+            <template v-if="!isRegisterMode">
+              <div class="my-5 flex items-center gap-3" aria-hidden="true">
+                <div class="flex-1 border-t border-theme-border" />
+                <span class="text-xs font-semibold tracking-wider text-theme-text-muted">OR</span>
+                <div class="flex-1 border-t border-theme-border" />
+              </div>
 
-          <!-- QR code Tab -->
-          <div v-show="activeTab === 'qr'">
-            <QRLoginPanel v-if="activeTab === 'qr'" />
-          </div>
+              <div class="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  data-testid="auth-oauth-discord"
+                  class="flex items-center justify-center gap-2 px-3 py-3 bg-[#5865F2] hover:bg-[#4752C4] text-white rounded-lg transition-colors duration-200 font-medium"
+                  @click="handleLoginWithDiscord">
+                  <DiscordIcon class="w-5 h-5" />
+                  Discord
+                </button>
+                <button
+                  type="button"
+                  data-testid="auth-oauth-google"
+                  class="flex items-center justify-center gap-2 px-3 py-3 bg-theme-text-primary hover:bg-theme-text-secondary text-theme-bg-primary rounded-lg transition-colors duration-200 font-medium"
+                  @click="handleLoginWithGoogle">
+                  <GoogleIcon class="w-5 h-5" />
+                  Google
+                </button>
+              </div>
+
+              <button
+                type="button"
+                data-testid="auth-guest"
+                class="mt-2 w-full flex items-center justify-center gap-2 px-4 py-3 bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-primary rounded-lg transition-colors duration-200 font-medium"
+                @click="handleContinueAsGuest">
+                <PhUser class="w-5 h-5" />
+                Continue as guest
+              </button>
+              <p class="mt-2 text-center text-xs text-theme-text-muted">
+                Guests can join voice rooms but can't share their screen.
+              </p>
+
+              <p v-if="!isMobile" class="mt-4 text-center text-sm text-theme-text-muted">
+                Signed in on another device?
+                <button
+                  type="button"
+                  data-testid="auth-qr-link"
+                  class="text-theme-accent hover:text-theme-accent-hover font-medium"
+                  @click="view = 'qr'">
+                  Use a QR code
+                </button>
+              </p>
+            </template>
+
+            <!-- Login / Register switch -->
+            <p class="mt-5 text-center text-sm text-theme-text-muted">
+              {{ isRegisterMode ? "Already have an account?" : "Don't have an account?" }}
+              <button
+                type="button"
+                data-testid="auth-register-toggle"
+                class="text-theme-accent hover:text-theme-accent-hover font-medium ml-1"
+                @click="isRegisterMode ? switchToLogin() : switchToRegister()">
+                {{ isRegisterMode ? "Log in" : "Register" }}
+              </button>
+            </p>
+          </template>
         </div>
       </div>
     </div>
@@ -358,14 +321,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue"
+import { ref, computed, watch } from "vue"
 import { storeToRefs } from "pinia"
 import { useUserStore, useAppStore } from "@/stores"
 import {
   PhUser,
   PhEye,
   PhEyeSlash,
-  PhInfo,
+  PhArrowLeft,
   PhGithubLogo,
   PhDownloadSimple,
 } from "@phosphor-icons/vue"
@@ -378,7 +341,15 @@ const userStore = useUserStore()
 const appStore = useAppStore()
 const { isMobile } = storeToRefs(appStore)
 
-const activeTab = ref<"oauth" | "password" | "qr">("oauth")
+const inputClass =
+  "w-full px-4 py-2.5 bg-theme-bg-tertiary border rounded-lg text-theme-text-primary placeholder-theme-text-muted focus:outline-none focus:border-theme-accent"
+
+// The QR code is shown on the device that wants to sign in and scanned by a
+// signed-in phone, so the QR view only exists on the desktop layout.
+const view = ref<"form" | "qr">("form")
+watch(isMobile, (mobile) => {
+  if (mobile) view.value = "form"
+})
 
 const isRegisterMode = ref(false)
 const isLoading = ref(false)
