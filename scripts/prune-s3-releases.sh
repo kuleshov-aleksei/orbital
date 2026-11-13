@@ -2,7 +2,7 @@
 # Prune old Electron release artifacts from the Garage (S3) update bucket.
 #
 # Keeps the newest N versions plus the version currently referenced by the live
-# `latest.yml`, deleting the installer/blockmap/AppImage files of everything
+# `latest.yml`, deleting the installer/blockmap/AppImage/APK files of everything
 # older. Manifests, staging manifests and any non-versioned objects are left
 # untouched.
 #
@@ -80,7 +80,8 @@ for v in "${VERSIONS[@]}"; do
   for name in \
     "Orbital-Setup-${v}.exe" \
     "Orbital-Setup-${v}.exe.blockmap" \
-    "Orbital-${v}.AppImage"; do
+    "Orbital-${v}.AppImage" \
+    "Orbital-${v}.apk"; do
     aws s3 rm "${REMOTE}/${name}" >/dev/null 2>&1 || true
   done
 done

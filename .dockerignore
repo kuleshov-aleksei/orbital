@@ -41,3 +41,12 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 .codegraph/
+
+# Android native project: local build outputs and machine-specific SDK path
+mobile/android/.gradle
+mobile/android/**/build
+mobile/android/local.properties
+mobile/android/capacitor-cordova-android-plugins
+mobile/android/app/src/main/assets/public
+*.jks
+*.keystore

@@ -1,0 +1,89 @@
+# syntax=docker/dockerfile:1
+# Signed release APK of the Android app (Capacitor). Built in CI by
+# .github/workflows/build-electron.yml right after the Electron build, on the same
+# runner: both builds share the BuildKit pnpm store (id=pnpm-store).
+#
+# Signing material comes in as BuildKit secrets, never build args (those end up in
+# the image history):
+#   --secret id=android_keystore,src=<keystore.jks>
+#   --secret id=android_keystore_password,env=<VAR>
+#   --secret id=android_key_alias,env=<VAR>
+
+# Stage 1: Build environment
+FROM node:26.12.1-trixie AS builder
+
+RUN npm install -g pnpm@12.16.1
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends unzip ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+# JDK 21: Gradle 8.x (pinned by the Capacitor template) cannot run on JDK > 24
+COPY --from=eclipse-temurin:21-jdk /opt/java/openjdk /opt/java/openjdk
+ENV JAVA_HOME=/opt/java/openjdk
+
+# Android SDK (rarely changes — cached layer). compileSdk lives in
+# mobile/android/variables.gradle; build-tools is the AGP default.
+ARG ANDROID_CMDLINE_TOOLS_BUILD=16111833
+ARG ANDROID_CMDLINE_TOOLS_SHA256=0877a1d048fe4a24efe2eff536ca4223f7adeb58648bb81909d33c446918cfa8
+ENV ANDROID_HOME=/opt/android-sdk
+ENV PATH=$JAVA_HOME/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
+RUN curl -fsSL -o /tmp/cmdline-tools.zip \
+      "https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_CMDLINE_TOOLS_BUILD}_latest.zip" && \
+    echo "${ANDROID_CMDLINE_TOOLS_SHA256}  /tmp/cmdline-tools.zip" | sha256sum -c - && \
+    mkdir -p "$ANDROID_HOME/cmdline-tools" && \
+    unzip -q /tmp/cmdline-tools.zip -d "$ANDROID_HOME/cmdline-tools" && \
+    mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest" && \
+    rm /tmp/cmdline-tools.zip && \
+    yes | sdkmanager --licenses > /dev/null && \
+    sdkmanager --install "platform-tools" "platforms;android-36" "build-tools;35.0.0" > /dev/null
+
+WORKDIR /app/frontend
+
+# Frontend dependencies (cached when lockfile unchanged). Also provides the
+# Capacitor Android plugin projects (mobile/android/capacitor.settings.gradle).
+COPY frontend/package.json ./
+COPY frontend/pnpm-*.yaml ./
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile --store-dir /pnpm/store
+
+# Sources. No typecheck here: the Electron build that runs just before this one
+# in CI is the release quality gate.
+COPY tools/halloween-balance/ /app/tools/halloween-balance/
+COPY frontend/ .
+COPY mobile/android/ /app/mobile/android/
+
+# Gradle distribution + dependencies (cached across builds)
+WORKDIR /app/mobile/android
+RUN --mount=type=cache,target=/root/.gradle,sharing=locked \
+    ./gradlew --version > /dev/null
+
+# ── Version-sensitive section ──
+ARG VERSION=dev-unknown
+ARG VERSION_CODE=1
+ARG VITE_BACKEND_URL=https://orb.encamy.com
+ENV VITE_BACKEND_URL=$VITE_BACKEND_URL
+ENV VITE_APP_VERSION=$VERSION
+
+# Web bundle into mobile/dist, then copy it + plugin config into the native
+# project (same as `make build-android-web`).
+WORKDIR /app/frontend
+RUN pnpm exec vite build --config vite.config.mobile.ts && \
+    pnpm exec cap sync android
+
+WORKDIR /app/mobile/android
+RUN --mount=type=cache,target=/root/.gradle,sharing=locked \
+    --mount=type=secret,id=android_keystore,target=/run/secrets/keystore.jks,required=true \
+    --mount=type=secret,id=android_keystore_password,env=ORBITAL_KEYSTORE_PASSWORD,required=true \
+    --mount=type=secret,id=android_key_alias,env=ORBITAL_KEY_ALIAS,required=true \
+    test -s /run/secrets/keystore.jks && \
+    ORBITAL_KEYSTORE_FILE=/run/secrets/keystore.jks \
+      ./gradlew --no-daemon assembleRelease \
+        -PversionCode="$VERSION_CODE" -PversionName="$VERSION" && \
+    mkdir -p /app/release && \
+    cp app/build/outputs/apk/release/app-release.apk "/app/release/Orbital-${VERSION}.apk"
+
+# Stage 2: Minimal image with only the APK
+FROM alpine:3.24
+WORKDIR /app
+COPY --from=builder /app/release ./release

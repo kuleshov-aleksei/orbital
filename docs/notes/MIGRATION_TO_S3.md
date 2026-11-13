@@ -48,6 +48,7 @@ migrated/new clients), and the update checker points at S3.
 Orbital-Setup-<version>.exe
 Orbital-Setup-<version>.exe.blockmap
 Orbital-<version>.AppImage
+Orbital-<version>.apk          # Android, signed release; no update manifest
 latest.yml
 latest-linux.yml
 _staging/<version>/latest.yml

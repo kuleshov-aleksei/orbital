@@ -16,8 +16,10 @@ android {
         manifestPlaceholders = [oauthScheme: orbitalDev ? "orbital-dev" : "orbital"]
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // CI passes -PversionCode/-PversionName (docker/Dockerfile.android);
+        // versionCode must grow with every release or Android refuses the update.
+        versionCode((project.findProperty("versionCode") ?: "1").toString().toInteger())
+        versionName((project.findProperty("versionName") ?: "1.0").toString())
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -25,8 +27,25 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Release signing, only when a keystore is provided (CI: docker/Dockerfile.android).
+    // The key must never change: installed apps refuse updates signed with another key.
+    // PKCS12 keystores (keytool's default) use the store password for the key too.
+    def keystoreFile = System.getenv("ORBITAL_KEYSTORE_FILE")
+    if (keystoreFile) {
+        signingConfigs {
+            release {
+                storeFile file(keystoreFile)
+                storePassword System.getenv("ORBITAL_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("ORBITAL_KEY_ALIAS")
+                keyPassword System.getenv("ORBITAL_KEY_PASSWORD") ?: System.getenv("ORBITAL_KEYSTORE_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
+            if (keystoreFile) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
