@@ -3,7 +3,7 @@
     <!-- Trigger Button (inline segment) -->
     <button
       type="button"
-      class="h-10 w-6 rounded-r-lg flex items-center justify-center transition-colors cursor-pointer"
+      class="audio-caret h-10 w-6 rounded-r-lg flex items-center justify-center transition-colors cursor-pointer"
       :class="[
         props.muted
           ? 'bg-red-600 hover:bg-red-700 text-white'

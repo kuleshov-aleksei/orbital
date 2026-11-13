@@ -1,9 +1,14 @@
 <template>
   <div
     data-testid="audio-controls"
-    class="flex items-center justify-center gap-2 shrink-0 px-4 py-3">
+    class="flex items-center shrink-0"
+    :class="
+      isMobile
+        ? 'audio-controls--compact w-full justify-between gap-1 px-3 py-2'
+        : 'justify-center gap-2 px-4 py-3'
+    ">
     <!-- Group: Mute + Audio quick-settings caret + Deafen -->
-    <div class="flex items-center gap-1.5 p-1.5 rounded-xl bg-theme-bg-secondary">
+    <div :class="groupClass">
       <div class="flex items-center">
         <MicMuteButton v-model="isMuted" size="lg" corner="left" />
         <AudioControlsDropdown :muted="isMuted" />
@@ -12,9 +17,7 @@
     </div>
 
     <!-- Group: Camera + Screen Share -->
-    <div
-      v-if="!isSpatialRoom"
-      class="flex items-center gap-1.5 p-1.5 rounded-xl bg-theme-bg-secondary">
+    <div v-if="!isSpatialRoom" :class="groupClass">
       <div class="flex items-center">
         <CameraButton
           v-model="isCameraEnabled"
@@ -49,7 +52,7 @@
     </div>
 
     <!-- Group: Soundboard -->
-    <div class="flex items-center gap-1.5 p-1.5 rounded-xl bg-theme-bg-secondary">
+    <div :class="groupClass">
       <SoundboardButton />
     </div>
 
@@ -113,6 +116,12 @@ const emit = defineEmits<{
   "auth-required": []
   "leave-room": []
 }>()
+
+// Desktop: buttons grouped into pills. Mobile: the groups dissolve
+// (display: contents) so every button spreads evenly across one full-width row.
+const groupClass = computed(() =>
+  props.isMobile ? "contents" : "flex items-center gap-1.5 p-1.5 rounded-xl bg-theme-bg-secondary",
+)
 
 // Template refs
 const screenShareButtonRef =
@@ -195,3 +204,16 @@ defineExpose({
   confirmStartScreenShare,
 })
 </script>
+
+<style scoped>
+/* Mobile: one uniform 44px touch target per button, so the full row
+   (mic + caret, deafen, camera, settings, soundboard, leave) fits a 360px screen.
+   Overrides the desktop size classes (h-10 w-14 / h-12 w-16) on purpose. */
+.audio-controls--compact :deep(.control-button) {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+.audio-controls--compact :deep(.audio-caret) {
+  height: 2.75rem;
+}
+</style>

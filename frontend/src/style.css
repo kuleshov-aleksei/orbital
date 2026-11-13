@@ -125,7 +125,10 @@ body {
   color: var(--color-text-primary);
 }
 
-#app {
+/* The mount point from index.html. App.vue's root also has id="app" (h-full inside
+   this one), so scope to body's child: padding the inner one too would apply the
+   safe-area insets twice. */
+body > #app {
   height: 100dvh;
   width: 100vw;
   overflow: hidden;

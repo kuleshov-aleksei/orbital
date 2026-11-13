@@ -2,7 +2,7 @@
   <div
     id="app"
     :data-theme="themeStore.currentTheme"
-    class="h-dvh bg-theme-bg-primary text-theme-text-primary">
+    class="h-full bg-theme-bg-primary text-theme-text-primary">
     <router-view />
     <CustomEmojiUploadModal
       v-if="customEmojisStore.isUploadOpen"
