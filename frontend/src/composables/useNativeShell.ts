@@ -2,6 +2,7 @@ import { onBeforeUnmount } from "vue"
 import type { PluginListenerHandle } from "@capacitor/core"
 import { isCapacitor } from "@/services/platform"
 import { useAppStore } from "@/stores/app"
+import { useTextChatStore } from "@/stores/textChat"
 import { debugWarn } from "@/utils/debug"
 
 /**
@@ -13,6 +14,7 @@ export function useNativeShell(options: { onResume?: () => void } = {}) {
   if (!isCapacitor()) return
 
   const appStore = useAppStore()
+  const textChatStore = useTextChatStore()
   const handles: PluginListenerHandle[] = []
   let disposed = false
   let stopAppOAuth: (() => void) | null = null
@@ -32,6 +34,10 @@ export function useNativeShell(options: { onResume?: () => void } = {}) {
         if (appStore.mobileUserSidebarOpen || appStore.mobileSidebarOpen) {
           appStore.closeAllMobileSidebars()
         } else if (appStore.mobileView === "room") {
+          // Same as the header back arrow (TextChannelView backToList): an open
+          // text channel must be closed too, or it stays active in the sidebar
+          // and tapping it again is ignored.
+          textChatStore.closeChannel()
           appStore.showRoomsView()
         } else {
           void App.minimizeApp()
