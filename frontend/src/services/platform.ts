@@ -1,5 +1,12 @@
-import { Capacitor } from "@capacitor/core"
+import { Capacitor, registerPlugin } from "@capacitor/core"
 import * as electron from "@/services/electron"
+
+/** Local Android plugin (mobile/android/.../CallKeepAlivePlugin.java). */
+interface CallKeepAlivePlugin {
+  start(options: { title: string; text: string }): Promise<void>
+  stop(): Promise<void>
+}
+const CallKeepAlive = registerPlugin<CallKeepAlivePlugin>("CallKeepAlive")
 
 /**
  * Platform layer over the three shells the frontend runs in:
@@ -42,6 +49,29 @@ export function notifyAttention(): void {
   }
   if (isCapacitor()) {
     void haptic("medium")
+  }
+}
+
+/**
+ * Keeps a voice call alive while the Android app is minimised or the screen is locked:
+ * a foreground service (ongoing notification + wake/Wi-Fi locks) stops Android from
+ * freezing the process and cutting its network, which kills the LiveKit signal and
+ * /ws sockets (code 1006). Start it only while the app is in the foreground (joining);
+ * repeat calls are no-ops. No-op outside the Android app.
+ */
+export async function setCallKeepAlive(active: boolean, roomName = ""): Promise<void> {
+  if (!isCapacitor()) return
+  try {
+    if (active) {
+      await CallKeepAlive.start({
+        title: roomName ? `In voice: ${roomName}` : "In a voice call",
+        text: "Tap to return to the call",
+      })
+    } else {
+      await CallKeepAlive.stop()
+    }
+  } catch (err) {
+    console.warn("Call keep-alive service failed:", err)
   }
 }
 

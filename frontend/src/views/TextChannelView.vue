@@ -131,6 +131,7 @@ import SearchPanel from "@/components/textchat/SearchPanel.vue"
 import TypingIndicator from "@/components/textchat/TypingIndicator.vue"
 import { useAppStore, usePermissionsStore, useTextChatStore, useUserStore } from "@/stores"
 import { Permission } from "@/types/permissions"
+import { isCapacitor } from "@/services/platform"
 import type { Room } from "@/types"
 
 const props = defineProps<{ channel: Room }>()
@@ -206,13 +207,16 @@ function onGlobalKeydown(event: KeyboardEvent) {
   }
 }
 
+// On Android, focusing the composer pops up the on-screen keyboard and hides
+// half the channel, so opening a channel there leaves the input unfocused.
+function autofocusComposer() {
+  if (!isCapacitor()) composer.value?.focus()
+}
+
 onMounted(() => {
-  composer.value?.focus()
+  autofocusComposer()
   window.addEventListener("keydown", onGlobalKeydown)
 })
 onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown))
-watch(
-  () => props.channel.id,
-  () => composer.value?.focus(),
-)
+watch(() => props.channel.id, autofocusComposer)
 </script>
