@@ -2,7 +2,7 @@ import { defineStore } from "pinia"
 import { ref } from "vue"
 import { apiService } from "@/services/api"
 import { playMention } from "@/services/sounds"
-import { flashWindow } from "@/services/electron"
+import { notifyAttention } from "@/services/platform"
 import { formatTime24 } from "@/utils/messageGrouping"
 import { useAppSettingsStore } from "./appSettings"
 import { useTextChatStore } from "./textChat"
@@ -117,7 +117,7 @@ export const useTextNotifyStore = defineStore("textNotify", () => {
     if (!viewing) {
       const app = useAppSettingsStore()
       if (app.mentionSound) playMention(app.mentionSoundVolume)
-      if (app.mentionTaskbarFlash) flashWindow()
+      if (app.mentionTaskbarFlash) notifyAttention()
     }
   }
 

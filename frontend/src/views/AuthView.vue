@@ -1,7 +1,7 @@
 <template>
   <div
-    class="auth-view fixed inset-0 bg-theme-bg-primary flex items-start lg:items-center justify-center pt-8 lg:pt-0 overflow-y-auto z-50">
-    <div class="max-w-md lg:max-w-5xl w-full mx-4">
+    class="auth-view fixed inset-0 safe-area-pad bg-theme-bg-primary flex items-start lg:items-center justify-center overflow-y-auto z-50">
+    <div class="max-w-md lg:max-w-5xl w-full mx-4 pt-8 lg:pt-0">
       <div class="lg:flex lg:items-center lg:justify-center lg:gap-16">
         <!-- Logo/Title -->
         <div class="text-center mb-8 lg:mb-0 lg:flex-shrink-0">

@@ -30,6 +30,9 @@ func TestCheckOrigin(t *testing.T) {
 		{name: "no origin", origin: "", want: true},
 		{name: "configured origin", origin: "https://orbital.example", want: true},
 		{name: "electron", origin: "orbital://app", want: true},
+		{name: "android app", origin: "https://localhost", want: true},
+		{name: "android dev app", origin: "http://localhost", want: true},
+		{name: "localhost other port", origin: "https://localhost:8443", want: false},
 		{name: "trailing slash", origin: "https://orbital.example/", want: true},
 		{name: "untrusted origin", origin: "https://evil.example", want: false},
 	}

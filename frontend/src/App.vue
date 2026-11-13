@@ -31,6 +31,8 @@ import MuteChannelModal from "@/components/textchat/MuteChannelModal.vue"
 import { listenForMessageJumps } from "@/services/attachments/jumps"
 import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts"
 import { useThumbarButtons, useWebSocketHandlers } from "@/composables"
+import { useNativeShell } from "@/composables/useNativeShell"
+import { wsService } from "@/services/websocket"
 import { isElectron, onDeepLink, onOAuthToken, setupMainProcessLogRelay } from "@/services/electron"
 import {
   setAuthToken,
@@ -80,6 +82,15 @@ const handleVisibilityChange = () => {
 }
 const handleWindowFocus = () => void refreshSessionIfNeeded()
 const handleOnline = () => void refreshSessionIfNeeded()
+
+// Android app: the WebView may sit in the background for hours; on resume,
+// re-validate the session and bring dropped sockets back.
+useNativeShell({
+  onResume: () => {
+    void refreshSessionIfNeeded()
+    wsService.recoverConnections()
+  },
+})
 
 const checkMobile = () => {
   appStore.checkMobile()

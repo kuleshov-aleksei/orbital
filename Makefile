@@ -1,4 +1,4 @@
-.PHONY: help install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-backend test-integration e2e-textchat meili-up meili-down ml-up ml-down garage-up garage-down test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all balance-drift balance-check
+.PHONY: help install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-backend test-integration e2e-textchat meili-up meili-down ml-up ml-down garage-up garage-down test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all build-android-web build-android build-android-dev check-android-jdk dev-android balance-drift balance-check
 
 # Default target
 help:
@@ -32,6 +32,9 @@ help:
 	@echo "  build-electron       - Build Electron desktop app"
 	@echo "  build-electron-win   - Build Electron for Windows"
 	@echo "  build-electron-linux - Build Electron for Linux"
+	@echo "  build-android        - Build the Android app (debug APK; needs JDK + Android SDK)"
+	@echo "  build-android-dev    - Build \"Orbital Dev\" against this machine's backend (ANDROID_DEV_HOST)"
+	@echo "  dev-android          - Run the Android app against a live dev server (CAP_SERVER_URL=http://<lan-ip>:3000)"
 
 # Install dependencies
 install:
@@ -372,3 +375,45 @@ build-electron-all:
 	else \
 		cd electron && VITE_BACKEND_URL=$$VITE_BACKEND_URL UPDATE_URL=$(UPDATE_URL) pnpm run build:all; \
 	fi
+# Android app (Capacitor). The web bundle is built with frontend/vite.config.mobile.ts
+# into mobile/dist and packaged into the native project at mobile/android.
+# Requires a JDK and the Android SDK (ANDROID_HOME) for the Gradle step.
+ANDROID_BACKEND_URL ?= https://orb.encamy.com
+# Gradle 8.x (pinned by the Capacitor template) cannot run on JDK > 24, so the
+# Android build uses its own JDK 21 instead of the system default.
+ANDROID_JAVA_HOME ?= /usr/lib/jvm/java-21-openjdk
+
+build-android-web:
+	@echo "Building Android web bundle against $(ANDROID_BACKEND_URL) (version $(VERSION))..."
+	cd frontend && VITE_BACKEND_URL=$(ANDROID_BACKEND_URL) VITE_APP_VERSION=$(VERSION) pnpm exec vite build --config vite.config.mobile.ts
+	cd frontend && VITE_BACKEND_URL=$(ANDROID_BACKEND_URL) pnpm exec cap sync android
+
+check-android-jdk:
+	@if [ ! -x "$(ANDROID_JAVA_HOME)/bin/java" ]; then \
+		echo "JDK 21 not found at $(ANDROID_JAVA_HOME). Install it (Arch: pacman -S jdk21-openjdk) or pass ANDROID_JAVA_HOME=<path>."; \
+		exit 1; \
+	fi
+
+build-android: check-android-jdk build-android-web
+	cd mobile/android && JAVA_HOME=$(ANDROID_JAVA_HOME) ./gradlew assembleDebug
+	@echo "APK: mobile/android/app/build/outputs/apk/debug/app-debug.apk"
+
+# "Orbital Dev" (app.orbital.dev, installs next to the production app) talking to the
+# backend on this machine over plain HTTP, e.g. via Headscale. The backend must hand
+# out URLs the phone can reach; set these in .env (see AGENTS.md "Mobile"):
+#   LIVEKIT_URL=ws://$(ANDROID_DEV_HOST):7880
+#   CHAT_MEDIA_S3_PUBLIC_ENDPOINT=http://$(ANDROID_DEV_HOST):3900
+ANDROID_DEV_HOST ?= 100.111.0.8
+
+build-android-dev: check-android-jdk
+	$(MAKE) build-android-web ANDROID_BACKEND_URL=http://$(ANDROID_DEV_HOST):8080
+	cd mobile/android && JAVA_HOME=$(ANDROID_JAVA_HOME) ./gradlew assembleDebug -PorbitalDev
+	@echo "APK: mobile/android/app/build/outputs/apk/debug/app-debug.apk (Orbital Dev -> http://$(ANDROID_DEV_HOST):8080)"
+
+# Live reload on a device: run `make dev-public` (or `make dev`) first, then
+#   make dev-android CAP_SERVER_URL=http://192.168.1.10:3000
+# The WebView loads the Vite dev server, which proxies /api and /ws to the backend.
+dev-android:
+	@if [ -z "$(CAP_SERVER_URL)" ]; then echo "Set CAP_SERVER_URL=http://<lan-ip>:3000"; exit 1; fi
+	cd frontend && CAP_SERVER_URL=$(CAP_SERVER_URL) pnpm exec cap sync android
+	cd frontend && JAVA_HOME=$(ANDROID_JAVA_HOME) CAP_SERVER_URL=$(CAP_SERVER_URL) pnpm exec cap run android

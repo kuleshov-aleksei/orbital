@@ -8,7 +8,7 @@ const api = vi.hoisted(() => ({
 }))
 vi.mock("@/services/api", () => ({ apiService: api }))
 vi.mock("@/services/sounds", () => ({ playMention: vi.fn() }))
-vi.mock("@/services/electron", () => ({ flashWindow: vi.fn() }))
+vi.mock("@/services/platform", () => ({ notifyAttention: vi.fn() }))
 vi.mock("@/services/websocket", () => ({ wsService: { sendGlobalMessage: vi.fn() } }))
 
 import { useTextChatStore } from "./textChat"

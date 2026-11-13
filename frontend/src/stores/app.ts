@@ -1,6 +1,7 @@
 import { defineStore } from "pinia"
 import { ref, computed } from "vue"
 import { isElectron } from "@/services/electron"
+import { isCapacitor } from "@/services/platform"
 
 export type ConnectionQuality = "sub-wave" | "excellent" | "good" | "fair" | "poor"
 export type MobileView = "rooms" | "room"
@@ -53,16 +54,16 @@ export const useAppStore = defineStore("app", () => {
     errorMessage.value = ""
   }
 
+  // Shells pin the layout: Electron is always desktop, the Android app is always
+  // mobile (tablets included). Only the browser follows the window width.
   function setMobile(mobile: boolean) {
-    isMobile.value = isElectron() ? false : mobile
+    if (isElectron()) mobile = false
+    else if (isCapacitor()) mobile = true
+    isMobile.value = mobile
   }
 
   function checkMobile() {
-    if (isElectron()) {
-      isMobile.value = false
-      return
-    }
-    isMobile.value = window.innerWidth < 1024 // lg breakpoint
+    setMobile(window.innerWidth < 1024) // lg breakpoint
   }
 
   function setMobileView(view: MobileView) {

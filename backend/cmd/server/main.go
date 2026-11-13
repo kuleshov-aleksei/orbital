@@ -652,6 +652,10 @@ func corsMiddleware(next http.Handler, allowedOrigins []string) http.Handler {
 				break
 			}
 		}
+		// Packaged clients (Electron, Android app) always get their own origin back.
+		if allowedOrigin != "*" && config.IsAppOrigin(origin) {
+			allowedOrigin = origin
+		}
 
 		if allowedOrigin == "" && len(allowedOrigins) > 0 {
 			allowedOrigin = allowedOrigins[0]

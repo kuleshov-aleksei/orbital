@@ -613,22 +613,34 @@ export class WebSocketService {
     }
   }
 
+  /**
+   * Reconnects whichever socket dropped, with a fresh retry budget. Called when
+   * the page becomes visible, the network comes back, or the Android app resumes:
+   * the backoff gives up after a few attempts, and on a phone the network is often
+   * gone for longer than that (lock screen, Wi-Fi <-> LTE).
+   */
+  recoverConnections(): void {
+    // Never reconnect with a stale token: the server rejects it and we'd
+    // just retry forever. The session lifecycle handles re-auth instead.
+    if (isTokenExpired()) return
+    // disconnect() nulls ws, so a non-null closed socket is one that dropped.
+    if (this.ws && this.ws.readyState === WebSocket.CLOSED && this.roomId) {
+      this.reconnectAttempts = 0
+      this.attemptReconnect()
+    }
+    if (!this.isGlobalConnected() && !this.globalManualClose) {
+      this.globalReconnectAttempts = 0
+      this.connectGlobal().catch((error) => {
+        console.error("Failed to reconnect global WebSocket:", error)
+      })
+    }
+  }
+
   private setupEventHandlers(): void {
     document.addEventListener("visibilitychange", () => {
-      if (!document.hidden) {
-        // Never reconnect with a stale token: the server rejects it and we'd
-        // just retry forever. The session lifecycle handles re-auth instead.
-        if (isTokenExpired()) return
-        if (!this.isConnected() && this.roomId) {
-          this.attemptReconnect()
-        }
-        if (!this.isGlobalConnected()) {
-          this.connectGlobal().catch((error) => {
-            console.error("Failed to reconnect global WebSocket:", error)
-          })
-        }
-      }
+      if (!document.hidden) this.recoverConnections()
     })
+    window.addEventListener("online", () => this.recoverConnections())
   }
 }
 

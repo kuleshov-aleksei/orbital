@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <!-- app_name and title_activity_main are generated in app/build.gradle (resValue): dev vs production. -->
+    <string name="package_name">app.orbital</string>
+    <string name="custom_url_scheme">app.orbital</string>
+</resources>

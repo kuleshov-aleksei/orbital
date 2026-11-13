@@ -29,9 +29,6 @@ importers:
       '@capacitor/splash-screen':
         specifier: ^8.0.2
         version: 8.0.2(@capacitor/core@8.6.0)
-      '@capacitor/status-bar':
-        specifier: ^8.0.4
-        version: 8.0.4(@capacitor/core@8.6.0)
       '@phosphor-icons/vue':
         specifier: ^2.2.1
         version: 2.2.1(vue@3.5.44(typescript@6.0.3))
@@ -280,11 +277,6 @@ packages:
 
   '@capacitor/splash-screen@8.0.2':
     resolution: {integrity: sha512-0C6rYScr13WfAE9nPl4ScOQynmjFv9NT3Th+RZkD4ezYHmER6mcl1/lDYsv7jg3Rj3FOvLrlTlmNkUrr83kZzQ==}
-    peerDependencies:
-      '@capacitor/core': '>=8.0.0'
-
-  '@capacitor/status-bar@8.0.4':
-    resolution: {integrity: sha512-ZMzBUyHBzwDUxcHadEhvOvmoPmMQGMZgaMRJu8ohELeI6IaxoVH9ZhdF/OHnY3/yykv3Glev8Tnbh4aZY/0B0w==}
     peerDependencies:
       '@capacitor/core': '>=8.0.0'
 
@@ -2560,10 +2552,6 @@ snapshots:
       '@capacitor/core': 8.6.0
 
   '@capacitor/splash-screen@8.0.2(@capacitor/core@8.6.0)':
-    dependencies:
-      '@capacitor/core': 8.6.0
-
-  '@capacitor/status-bar@8.0.4(@capacitor/core@8.6.0)':
     dependencies:
       '@capacitor/core': 8.6.0
 

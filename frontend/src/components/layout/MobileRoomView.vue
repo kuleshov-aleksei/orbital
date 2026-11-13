@@ -5,7 +5,7 @@
     <!-- Floating Toggle Button for User Sidebar -->
     <button
       type="button"
-      class="fixed top-4 right-4 z-30 w-10 h-10 rounded-full bg-gray-700/90 hover:bg-gray-600 text-gray-300 hover:text-white shadow-lg flex items-center justify-center transition-all duration-200"
+      class="fixed safe-top-4 right-4 z-30 w-10 h-10 rounded-full bg-gray-700/90 hover:bg-gray-600 text-gray-300 hover:text-white shadow-lg flex items-center justify-center transition-all duration-200"
       title="Open user list"
       @click="appStore.toggleMobileUserSidebar()">
       <PhCaretDoubleLeft class="w-5 h-5" />

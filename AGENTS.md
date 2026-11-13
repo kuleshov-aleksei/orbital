@@ -181,6 +181,20 @@ Spec and decisions: [`docs/specs/CHAT_SYSTEM.md`](./docs/specs/CHAT_SYSTEM.md). 
 2. **`process.argv` layout inside a utility process** is `[electronBinary, modulePath, ...args]` — NOT Node's `[node, script, ...]`. The first custom arg passed to `utilityProcess.fork(modulePath, args)` lands at `process.argv[2]`, not `argv[1]`.
 3. **venmic addon calls block their caller thread.** The `@vencord/venmic` addon's `list()` blocks the calling thread with no timeout until the PipeWire worker replies; a vanished node mid-bind can wedge that worker forever. Never call it on the Electron main thread — all venmic calls go through the utilityProcess bridge in `electron/main/venmic.ts` (timeouts + kill/respawn recovery), and the watchdog debounces re-links (stability window + min gap) to avoid rebuild storms during node churn.
 
+### Mobile (Android app, Capacitor)
+
+The Android app wraps the same frontend in a Capacitor WebView.
+
+- Config lives in `frontend/` (Capacitor resolves plugins from `frontend/node_modules`): `capacitor.config.ts` and `vite.config.mobile.ts`. The native project is `mobile/android`, the web bundle `mobile/dist` (both generated; `mobile/android/app/src/main/assets/public` is gitignored).
+- Build with `make build-android` / `make dev-android`, never `npx cap` + `vite build` by hand. Building the APK needs a JDK and the Android SDK (`ANDROID_HOME`).
+- The WebView origin is `https://localhost`. The backend always allows it (and Electron's `orbital://app`) through `config.IsAppOrigin`; don't add it to `cors_origins`.
+- Relative `/api` URLs don't work in the app: the mobile build bakes in `__BACKEND_URL__` / `__BACKEND_WS_URL__` like Electron does.
+- Platform checks go through `frontend/src/services/platform.ts` (`isCapacitor`, `isNative`, `openExternal`, `notifyAttention`), not new `isElectron()` branches. The Android app always uses the mobile layout (`stores/app.ts` `setMobile`).
+- Edge-to-edge: `#app` pads itself with the safe-area insets (`style.css`); `position: fixed` elements escape that padding and need `.safe-area-pad` / `.safe-top-4`.
+- OAuth on Android is not wired yet: the Electron flow uses a loopback server on `127.0.0.1:27271`, which does not exist on the phone. QR login works. Planned approach: [`docs/notes/ANDROID_OAUTH_DEEPLINK.md`](./docs/notes/ANDROID_OAUTH_DEEPLINK.md).
+- **Testing against this machine**: `make build-android-dev` (default `ANDROID_DEV_HOST=100.111.0.8`, the Headscale IP) builds a separate "Orbital Dev" app (`app.orbital.dev`) that talks to `http://<host>:8080`. Plain HTTP needs the page itself on `http://localhost` (`androidScheme` switches automatically when the backend URL is `http://`; `allowMixedContent` does NOT work, current WebViews still block mixed WebSockets and images) and cleartext in `app/src/debug/AndroidManifest.xml`. The backend hands URLs to clients verbatim, so `.env` needs `LIVEKIT_URL=ws://<host>:7880`, `CHAT_MEDIA_S3_PUBLIC_ENDPOINT=http://<host>:3900` and `GARAGE_S3_BIND=0.0.0.0` (see `.env.example`).
+- Gradle 8.x can't run on JDK > 24; `make build-android` uses `ANDROID_JAVA_HOME` (default `/usr/lib/jvm/java-21-openjdk`), not the system Java.
+
 ## Build Commands
 
 The project uses a Makefile for common operations:

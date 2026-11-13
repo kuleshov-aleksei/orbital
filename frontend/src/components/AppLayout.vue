@@ -97,7 +97,7 @@ import {
   useModalManager,
 } from "@/composables"
 import { createVersionChecker } from "@/services/version"
-import { isElectron } from "@/services/electron"
+import { isNative } from "@/services/platform"
 
 // Initialize composables (auto-initialize on mount)
 useUserSession()
@@ -232,8 +232,9 @@ onMounted(async () => {
   }
   loadTextUnread()
 
-  // Start version checker (disabled in Electron - uses native auto-updater)
-  if (!isElectron()) {
+  // Web-only "new version deployed, reload" check. Packaged apps ship their own
+  // bundle (a reload can't update it): Electron has its auto-updater, Android the APK updater.
+  if (!isNative()) {
     versionChecker = createVersionChecker(handleUpdateAvailable, () => roomStore.isInRoom)
     versionChecker.start()
   }

@@ -93,13 +93,14 @@ func NewHub(roomService *service.RoomService, authService *service.AuthService, 
 }
 
 // checkOrigin limits WebSocket upgrades to the configured frontend origins.
-// Non-browser clients that omit Origin are allowed; Electron uses orbital://app.
+// Non-browser clients that omit Origin are allowed, and so are the packaged
+// apps (config.IsAppOrigin: Electron and Android).
 func (h *Hub) checkOrigin(r *http.Request) bool {
 	origin := strings.TrimSpace(r.Header.Get("Origin"))
 	if origin == "" {
 		return true
 	}
-	if strings.EqualFold(strings.TrimRight(origin, "/"), "orbital://app") {
+	if config.IsAppOrigin(origin) {
 		return true
 	}
 	if h.cfg == nil {

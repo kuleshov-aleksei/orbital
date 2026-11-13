@@ -14,6 +14,7 @@ export default [
       "tests/**",
       "playwright.config*.ts",
       "vite.config*.ts",
+      "capacitor.config.ts",
     ],
   },
   eslint.configs.recommended,

@@ -666,6 +666,24 @@ func (c *Config) String() string {
 	)
 }
 
+// appOrigins are the fixed origins of our own packaged clients, allowed no
+// matter what cors_origins says: Electron serves from orbital://app and the
+// Android app (Capacitor) from https://localhost, or http://localhost in dev
+// builds that talk to a plain-HTTP backend (make build-android-dev).
+// Auth is a Bearer token, never a cookie, so these origins gain no ambient access.
+var appOrigins = []string{"orbital://app", "https://localhost", "http://localhost"}
+
+// IsAppOrigin reports whether origin belongs to a packaged Orbital client.
+func IsAppOrigin(origin string) bool {
+	origin = strings.TrimRight(strings.TrimSpace(origin), "/")
+	for _, o := range appOrigins {
+		if strings.EqualFold(origin, o) {
+			return true
+		}
+	}
+	return false
+}
+
 // GetCORSOrigins returns CORS origins as a slice
 func (c *Config) GetCORSOrigins() []string {
 	if len(c.Server.CORSOrigins) == 0 {
