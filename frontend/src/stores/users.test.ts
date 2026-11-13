@@ -85,3 +85,36 @@ describe("users store custom status", () => {
     expect(store.allUsers[0].custom_status).toBe("old")
   })
 })
+
+describe("users store away status", () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  const ID = "qkUrdzLDoqslx8EEy2cM7Q=="
+  const statusOf = (store: ReturnType<typeof useUsersStore>) =>
+    store.allUsers.find((u) => u.id === ID)?.status
+
+  it("sets and clears away, and coming online or offline resets it", () => {
+    const store = useUsersStore()
+    store.setUsers([publicUser({ id: ID })])
+
+    store.setUserAway(ID, true)
+    expect(statusOf(store)).toBe("away")
+    store.setUserAway(ID, false)
+    expect(statusOf(store)).toBeUndefined()
+
+    store.setUserAway(ID, true)
+    store.updateOnlineStatus(ID, false)
+    expect(statusOf(store)).toBeUndefined()
+  })
+
+  it("keeps away across a REST refetch of the user list", async () => {
+    const store = useUsersStore()
+    store.setUsers([publicUser({ id: ID })])
+    store.setUserAway(ID, true)
+    vi.spyOn(apiService, "getAllUsers").mockResolvedValue([publicUser({ id: ID })])
+    await store.fetchAllUsers()
+    expect(statusOf(store)).toBe("away")
+  })
+})

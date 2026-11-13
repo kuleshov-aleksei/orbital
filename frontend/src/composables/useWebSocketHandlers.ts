@@ -465,6 +465,7 @@ export function useWebSocketHandlers() {
           custom_status?: string
           custom_status_emoji?: string
           created_at?: string
+          status?: "away"
         }>
       }
 
@@ -478,6 +479,7 @@ export function useWebSocketHandlers() {
           custom_status: user.custom_status,
           custom_status_emoji: user.custom_status_emoji,
           created_at: user.created_at,
+          status: user.status,
         })
       })
 
@@ -490,6 +492,14 @@ export function useWebSocketHandlers() {
     }
     wsService.onGlobal("online_users", onOnlineUsers)
     onCleanup(() => wsService.offGlobal("online_users", onOnlineUsers))
+
+    // Online but no session in use (backend websocket/presence.go).
+    const onUserStatus: MessageCallback = (message) => {
+      const data = message.data as { user_id: string; status: "online" | "away" }
+      usersStore.setUserAway(data.user_id, data.status === "away")
+    }
+    wsService.onGlobal("user_status", onUserStatus)
+    onCleanup(() => wsService.offGlobal("user_status", onUserStatus))
 
     // Backend room members are the single source of truth for the sidebar's
     // mute/deafen/screen share/camera icons.

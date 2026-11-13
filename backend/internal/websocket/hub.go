@@ -52,6 +52,10 @@ type Hub struct {
 	// Text channels (see textchat.go)
 	textChat    *TextChat
 	textLimiter *ratelimit.Limiter
+
+	// Presence: users shown as "away" (see presence.go)
+	awayMu    sync.Mutex
+	awayUsers map[string]bool
 }
 
 // Client represents a WebSocket client
@@ -262,6 +266,8 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 	} else {
 		log.Printf("[WebSocket] Cannot broadcast user_online: authService is nil")
 	}
+	// user_online reads as "not away" on clients; a new socket starts active.
+	h.resyncAway(userID)
 
 	// Start goroutines for this client FIRST so they can receive messages
 	go client.writePump()
@@ -280,7 +286,7 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 			for _, uid := range onlineUserIDs {
 				user, err := h.authService.GetUserByID(uid)
 				if err == nil && user != nil {
-					onlineUsers = append(onlineUsers, models.NewPublicUser(user, true))
+					onlineUsers = append(onlineUsers, h.onlinePublicUser(user))
 				}
 			}
 		}
@@ -620,6 +626,12 @@ func (c *Client) readPump() {
 				}
 			} else if wasOnline && isStillOnline {
 				log.Printf("[WebSocket] User %s disconnected but still has other connections, keeping online", userID)
+			}
+			if isStillOnline {
+				// The closed socket may have been the only active one.
+				c.hub.refreshAway(userID)
+			} else {
+				c.hub.forgetAway(userID)
 			}
 		}
 
@@ -1100,6 +1112,7 @@ func (c *Client) handlePing(data interface{}) {
 					Type: "user_online",
 					Data: models.NewPublicUser(user, true),
 				})
+				c.hub.resyncAway(userID)
 			} else {
 				log.Printf("[WebSocket] Cannot broadcast user_online for %s: auth error=%v, user=%v", userID, err, user)
 			}
@@ -1187,7 +1200,7 @@ func (h *Hub) broadcastOnlineUsers() {
 		for _, userID := range onlineUserIDs {
 			user, err := h.authService.GetUserByID(userID)
 			if err == nil && user != nil {
-				onlineUsers = append(onlineUsers, models.NewPublicUser(user, true))
+				onlineUsers = append(onlineUsers, h.onlinePublicUser(user))
 			}
 		}
 	}

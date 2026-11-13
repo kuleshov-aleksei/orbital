@@ -74,6 +74,8 @@ export const useUsersStore = defineStore("users", () => {
         return {
           ...user,
           is_online: isOnline,
+          // Away comes only over WebSocket (user_status); the API doesn't know it.
+          status: isOnline ? existing?.status : undefined,
         }
       })
 
@@ -95,13 +97,24 @@ export const useUsersStore = defineStore("users", () => {
   function updateOnlineStatus(userId: string, isOnline: boolean) {
     const index = allUsers.value.findIndex((u) => u.id === userId)
     if (index !== -1) {
-      // Use splice to ensure reactivity in Vue 3
+      // Use splice to ensure reactivity in Vue 3. Coming online or going
+      // offline clears "away"; user_status sets it again if needed.
       allUsers.value.splice(index, 1, {
         ...allUsers.value[index],
         is_online: isOnline,
+        status: undefined,
       })
       lastOnlineUpdate.value = Date.now()
     }
+  }
+
+  /** user_status: "away" when none of the user's sessions is in use. */
+  function setUserAway(userId: string, away: boolean) {
+    const index = allUsers.value.findIndex((u) => u.id === userId)
+    if (index === -1) return
+    const user = allUsers.value[index]
+    if ((user.status === "away") === away) return
+    allUsers.value.splice(index, 1, { ...user, status: away ? "away" : undefined })
   }
 
   function updateOnlineUsersList(onlineUserIds: string[]) {
@@ -221,6 +234,7 @@ export const useUsersStore = defineStore("users", () => {
     updateUserCustomStatus,
     setMyCustomStatus,
     updateOnlineStatus,
+    setUserAway,
     updateOnlineUsersList,
   }
 })
