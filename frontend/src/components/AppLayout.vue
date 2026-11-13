@@ -9,7 +9,7 @@
       <div class="flex flex-1 overflow-hidden">
         <!-- Desktop Sidebar -->
         <DesktopSidebar
-          :active-room-id="roomManager.activeRoomId"
+          :active-room-id="roomStore.activeRoomId"
           @room-selected="roomManager.handleRoomSelected"
           @create-room="modalManager.openCreateRoomModal()"
           @create-room-in-category="handleCreateRoomInCategory"
@@ -24,7 +24,7 @@
 
         <!-- Mobile Room List View -->
         <MobileRoomView
-          :active-room-id="roomManager.activeRoomId"
+          :active-room-id="roomStore.activeRoomId"
           @room-selected-mobile="roomManager.handleRoomSelectedMobile"
           @create-room="modalManager.openCreateRoomModal()"
           @create-room-in-category="handleCreateRoomInCategory"

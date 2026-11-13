@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="appStore.isMobile && appStore.mobileView === 'rooms'"
-    class="lg:hidden flex-1 flex flex-col bg-gray-900">
+    class="lg:hidden flex-1 flex flex-col bg-theme-bg-primary">
     <!-- Floating Toggle Button for User Sidebar -->
     <button
       type="button"

@@ -16,7 +16,7 @@
     </div>
 
     <!-- Mobile Full-screen Header -->
-    <div v-if="isMobileView" class="p-4 border-b border-theme-border">
+    <div v-if="isMobileView" class="p-4">
       <h2 class="text-xl font-semibold text-theme-text-primary">Available Rooms</h2>
 
       <p class="text-sm text-theme-text-muted mt-1">
@@ -82,7 +82,7 @@
             <template v-for="(room, index) in category.rooms" :key="room.id">
               <RoomCard
                 :room="room"
-                :is-active="isRoomActive(room)"
+                :is-active="isRoomHighlighted(room)"
                 :is-unread="room.type === 'text' && textChatStore.isUnread(room.id)"
                 :notify-mode="room.type === 'text' ? textNotifyStore.modeOf(room.id) : 'all'"
                 :mention-count="room.type === 'text' ? textNotifyStore.mentionCount(room.id) : 0"
@@ -153,7 +153,10 @@
     </div>
 
     <!-- Create Room Button - only with manage_rooms somewhere -->
-    <div v-if="canCreateRooms" class="p-3 border-t border-theme-border">
+    <div
+      v-if="canCreateRooms"
+      class="p-3"
+      :class="{ 'border-t border-theme-border': !isMobileView, 'pb-0': isMobileView }">
       <button
         type="button"
         data-testid="create-room-sidebar"
@@ -499,6 +502,11 @@ const isRoomActive = (room: Room) =>
   textChatStore.activeChannelId
     ? room.id === textChatStore.activeChannelId
     : room.id === props.activeRoomId
+
+// Highlight both the shown text channel and the voice room we are connected to.
+// Clicks still go through isRoomActive, so tapping the call room while a text
+// channel is open switches back to the call.
+const isRoomHighlighted = (room: Room) => isRoomActive(room) || room.id === props.activeRoomId
 
 const handleRoomClick = (room: Room) => {
   if (!isRoomActive(room)) {

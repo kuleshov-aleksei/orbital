@@ -294,12 +294,6 @@ export function useRoomManager() {
   }
 
   return {
-    rooms: roomStore.rooms,
-    activeRoomId: roomStore.activeRoomId,
-    currentRoomUsers: roomStore.currentRoomUsers,
-    remoteStreamVolumes: roomStore.remoteStreamVolumes,
-    activeRoomName: roomStore.activeRoomName,
-    isInRoom: roomStore.isInRoom,
     loadRooms,
     joinRoom,
     leaveCurrentRoom,
