@@ -64,6 +64,7 @@ import type {
   RolesResponse,
 } from "@/types/permissions"
 import { isElectron, openExternal, oauthAuthenticate } from "./electron"
+import { isCapacitor } from "./platform"
 
 const API_BASE = typeof __BACKEND_URL__ !== "undefined" ? `${__BACKEND_URL__}/api` : "/api"
 
@@ -430,7 +431,13 @@ function apiError(message: string, status: number): ApiError {
 
 // Endpoints whose 401 means "bad credentials" rather than "session expired" -
 // they must never trigger a refresh attempt or the session-expired flow.
-const AUTH_ENDPOINTS_NO_RETRY = ["/auth/login", "/auth/register", "/auth/guest", "/auth/refresh"]
+const AUTH_ENDPOINTS_NO_RETRY = [
+  "/auth/login",
+  "/auth/register",
+  "/auth/guest",
+  "/auth/refresh",
+  "/auth/exchange",
+]
 
 function isCredentialEndpoint(endpoint: string): boolean {
   return AUTH_ENDPOINTS_NO_RETRY.some((path) => endpoint.startsWith(path))
@@ -902,20 +909,43 @@ export const apiService = {
   },
 
   // Auth API calls
+  /**
+   * OAuth URL for flows that finish outside the page: the desktop app
+   * (loopback redirect) and the Android app (deep link + one-time code, which
+   * needs the app's S256 `codeChallenge`).
+   */
   async getOAuthUrl(
     provider: "discord" | "google",
-    isElectronApp = false,
+    client: "electron" | "android" | "android-dev",
+    codeChallenge?: string,
   ): Promise<{ url: string; state: string }> {
-    const endpoint = isElectronApp ? `/auth/${provider}/url?electron=true` : `/auth/${provider}/url`
-    const response = await apiRequest<{ url: string; state: string }>(endpoint)
-    return response
+    const params = new URLSearchParams({ client })
+    if (codeChallenge) params.set("code_challenge", codeChallenge)
+    return apiRequest<{ url: string; state: string }>(`/auth/${provider}/url?${params}`)
+  },
+
+  /** Redeems the one-time code from the Android OAuth deep link for a session. */
+  async exchangeAppLoginCode(
+    code: string,
+    state: string,
+    codeVerifier: string,
+  ): Promise<AuthResponse> {
+    return apiRequest<AuthResponse>("/auth/exchange", {
+      method: "POST",
+      headers: { "Cache-Control": "no-store" },
+      body: JSON.stringify({ code, state, code_verifier: codeVerifier }),
+    })
   },
 
   async initiateOAuthLogin(provider: "discord" | "google"): Promise<void> {
     if (isElectron()) {
-      const { url, state } = await this.getOAuthUrl(provider, true)
+      const { url, state } = await this.getOAuthUrl(provider, "electron")
       await oauthAuthenticate(state)
       await openExternal(url)
+    } else if (isCapacitor()) {
+      // Dynamic import: oauthApp imports this module.
+      const { startAppOAuth } = await import("./oauthApp")
+      await startAppOAuth(provider)
     } else {
       window.location.href = `${API_BASE}/auth/${provider}/login`
     }

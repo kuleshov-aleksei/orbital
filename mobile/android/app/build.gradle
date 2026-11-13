@@ -10,6 +10,10 @@ android {
         applicationId orbitalDev ? "app.orbital.dev" : "app.orbital"
         resValue "string", "app_name", orbitalDev ? "Orbital Dev" : "The Orbital"
         resValue "string", "title_activity_main", orbitalDev ? "Orbital Dev" : "The Orbital"
+        // OAuth deep link scheme (AndroidManifest.xml). Separate per app so both
+        // can be installed without an app chooser on sign-in. Must match
+        // OAuthClient.AppCallbackURL (backend/internal/service/oauthapp.go).
+        manifestPlaceholders = [oauthScheme: orbitalDev ? "orbital-dev" : "orbital"]
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

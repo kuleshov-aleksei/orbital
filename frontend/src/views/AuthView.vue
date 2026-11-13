@@ -336,6 +336,7 @@ import { isElectron } from "@/services/electron"
 import DiscordIcon from "~icons/simple-icons/discord"
 import GoogleIcon from "~icons/logos/google-icon"
 import QRLoginPanel from "@/components/auth/QRLoginPanel.vue"
+import { appOAuthError } from "@/services/oauthApp"
 
 const userStore = useUserStore()
 const appStore = useAppStore()
@@ -354,6 +355,10 @@ watch(isMobile, (mobile) => {
 const isRegisterMode = ref(false)
 const isLoading = ref(false)
 const errorMessage = ref("")
+// Android app: OAuth finishes through a deep link handled outside this view.
+watch(appOAuthError, (message) => {
+  if (message) errorMessage.value = message
+})
 
 const login = ref("")
 const password = ref("")

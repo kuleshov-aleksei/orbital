@@ -403,12 +403,15 @@ build-android: check-android-jdk build-android-web
 # out URLs the phone can reach; set these in .env (see AGENTS.md "Mobile"):
 #   LIVEKIT_URL=ws://$(ANDROID_DEV_HOST):7880
 #   CHAT_MEDIA_S3_PUBLIC_ENDPOINT=http://$(ANDROID_DEV_HOST):3900
-ANDROID_DEV_HOST ?= 100.111.0.8
+#ANDROID_DEV_SCHEMA ?= http
+#ANDROID_DEV_HOST ?= 100.111.0.8:8000
+ANDROID_DEV_SCHEMA ?= https
+ANDROID_DEV_HOST ?= orb-dev.encamy.com
 
 build-android-dev: check-android-jdk
-	$(MAKE) build-android-web ANDROID_BACKEND_URL=http://$(ANDROID_DEV_HOST):8080
+	$(MAKE) build-android-web ANDROID_BACKEND_URL=$(ANDROID_DEV_SCHEMA)://$(ANDROID_DEV_HOST)
 	cd mobile/android && JAVA_HOME=$(ANDROID_JAVA_HOME) ./gradlew assembleDebug -PorbitalDev
-	@echo "APK: mobile/android/app/build/outputs/apk/debug/app-debug.apk (Orbital Dev -> http://$(ANDROID_DEV_HOST):8080)"
+	@echo "APK: mobile/android/app/build/outputs/apk/debug/app-debug.apk (Orbital Dev -> $(ANDROID_DEV_SCHEMA)://$(ANDROID_DEV_HOST))"
 
 # Live reload on a device: run `make dev-public` (or `make dev`) first, then
 #   make dev-android CAP_SERVER_URL=http://192.168.1.10:3000

@@ -160,6 +160,11 @@ type AuthConfig struct {
 	Google                     OAuthProviderConfig `yaml:"google"`
 	DiscordElectronRedirectURL string              `yaml:"discord_electron_redirect_url"`
 	GoogleElectronRedirectURL  string              `yaml:"google_electron_redirect_url"`
+	// Optional: provider redirect URIs for the Android app. Empty falls back
+	// to the Electron ones. Must point at the app callback route
+	// (/api/auth/{provider}/electron/callback) on a host the phone can reach.
+	DiscordAndroidRedirectURL string `yaml:"discord_android_redirect_url"`
+	GoogleAndroidRedirectURL  string `yaml:"google_android_redirect_url"`
 }
 
 // OAuthProviderConfig holds OAuth configuration for a specific provider
@@ -403,6 +408,12 @@ func (c *Config) loadFromEnv() {
 	}
 	if v := os.Getenv("DISCORD_ELECTRON_REDIRECT_URL"); v != "" {
 		c.Auth.DiscordElectronRedirectURL = v
+	}
+	if v := os.Getenv("DISCORD_ANDROID_REDIRECT_URL"); v != "" {
+		c.Auth.DiscordAndroidRedirectURL = v
+	}
+	if v := os.Getenv("GOOGLE_ANDROID_REDIRECT_URL"); v != "" {
+		c.Auth.GoogleAndroidRedirectURL = v
 	}
 
 	// WebSocket config
