@@ -74,6 +74,13 @@ jobs:
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/orbital-release.jks"
           test -s "$RUNNER_TEMP/orbital-release.jks"
 
+      - name: Prepare Firebase config
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          printf '%s' "$GOOGLE_SERVICES_JSON" > "$RUNNER_TEMP/google-services.json"
+          test -s "$RUNNER_TEMP/google-services.json"
+
       - name: Build Android in Docker
         env:
           DOCKER_BUILDKIT: 1
@@ -84,6 +91,7 @@ jobs:
             --secret id=android_keystore,src="$RUNNER_TEMP/orbital-release.jks" \
             --secret id=android_keystore_password,env=ANDROID_KEYSTORE_PASSWORD \
             --secret id=android_key_alias,env=ANDROID_KEY_ALIAS \
+            --secret id=google_services,src="$RUNNER_TEMP/google-services.json" \
             --build-arg VERSION=${{ env.VERSION }} \
             --build-arg VERSION_CODE=${{ env.VERSION_CODE }} \
             --build-arg VITE_BACKEND_URL=${{ secrets.VITE_BACKEND_URL }} \
@@ -136,9 +144,9 @@ jobs:
           body: "Automated build"
           draft: true
           
-      - name: Remove Android keystore
+      - name: Remove Android signing and Firebase files
         if: always()
-        run: rm -f "$RUNNER_TEMP/orbital-release.jks"
+        run: rm -f "$RUNNER_TEMP/orbital-release.jks" "$RUNNER_TEMP/google-services.json"
 
       - name: Remove old builder images (keep build cache)
         if: always()

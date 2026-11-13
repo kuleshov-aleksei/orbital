@@ -28,6 +28,10 @@ function toMediaStatePayload(state: LocalMediaState) {
 // memory without limit. Oldest messages are dropped first.
 const MAX_QUEUED_MESSAGES = 100
 
+// No input for this long marks the session idle (client_state).
+const IDLE_AFTER_MS = 5 * 60 * 1000
+const IDLE_CHECK_MS = 60 * 1000
+
 export class WebSocketService {
   private ws: WebSocket | null = null
   private globalWs: WebSocket | null = null
@@ -56,6 +60,10 @@ export class WebSocketService {
   // Last media state snapshot; re-sent inside join_room on every (re)connect so
   // the backend member never starts from stale defaults.
   private lastMediaState: LocalMediaState | null = null
+  // client_state: whether the user is looking at this session. The server
+  // sends mobile pushes only when no session of the user is active.
+  private lastInputAt = Date.now()
+  private reportedActive: boolean | null = null
 
   constructor() {
     this.setupEventHandlers()
@@ -150,6 +158,7 @@ export class WebSocketService {
           this.globalConnectionPromise = null
           this.globalReconnectAttempts = 0
           this.flushQueue(this.globalWs, this.globalQueue, "global WebSocket")
+          this.reportClientState(true)
           this.notifyGlobalConnectionCallbacks()
           resolve()
         }
@@ -638,9 +647,46 @@ export class WebSocketService {
 
   private setupEventHandlers(): void {
     document.addEventListener("visibilitychange", () => {
-      if (!document.hidden) this.recoverConnections()
+      if (!document.hidden) {
+        this.lastInputAt = Date.now()
+        this.recoverConnections()
+      }
+      this.reportClientState()
     })
     window.addEventListener("online", () => this.recoverConnections())
+    window.addEventListener("focus", () => {
+      this.lastInputAt = Date.now()
+      this.reportClientState()
+    })
+    window.addEventListener("blur", () => this.reportClientState())
+    const onInput = () => {
+      this.lastInputAt = Date.now()
+      if (this.reportedActive === false) this.reportClientState()
+    }
+    for (const type of ["pointerdown", "keydown", "wheel", "touchstart"]) {
+      window.addEventListener(type, onInput, { passive: true, capture: true })
+    }
+    setInterval(() => this.reportClientState(), IDLE_CHECK_MS)
+  }
+
+  /** Visible, focused and touched recently. */
+  private isClientActive(): boolean {
+    if (typeof document === "undefined") return true
+    const focused = typeof document.hasFocus === "function" ? document.hasFocus() : true
+    return !document.hidden && focused && Date.now() - this.lastInputAt < IDLE_AFTER_MS
+  }
+
+  /** Sends client_state on change (or always with force) over the global socket. */
+  private reportClientState(force = false): void {
+    const active = this.isClientActive()
+    if (!force && active === this.reportedActive) return
+    if (!this.globalWs || this.globalWs.readyState !== WebSocket.OPEN) return
+    this.reportedActive = active
+    this.writeToSocket(
+      this.globalWs,
+      { type: "client_state", data: { active } },
+      "global WebSocket",
+    )
   }
 }
 

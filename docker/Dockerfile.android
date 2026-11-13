@@ -8,6 +8,8 @@
 #   --secret id=android_keystore,src=<keystore.jks>
 #   --secret id=android_keystore_password,env=<VAR>
 #   --secret id=android_key_alias,env=<VAR>
+# Firebase config for push notifications (gitignored, not in the build context):
+#   --secret id=google_services,src=<google-services.json>
 
 # Stage 1: Build environment
 FROM node:26.12.1-trixie AS builder
@@ -76,7 +78,10 @@ RUN --mount=type=cache,target=/root/.gradle,sharing=locked \
     --mount=type=secret,id=android_keystore,target=/run/secrets/keystore.jks,required=true \
     --mount=type=secret,id=android_keystore_password,env=ORBITAL_KEYSTORE_PASSWORD,required=true \
     --mount=type=secret,id=android_key_alias,env=ORBITAL_KEY_ALIAS,required=true \
+    --mount=type=secret,id=google_services,target=/run/secrets/google-services.json,required=true \
     test -s /run/secrets/keystore.jks && \
+    test -s /run/secrets/google-services.json && \
+    cp /run/secrets/google-services.json app/google-services.json && \
     ORBITAL_KEYSTORE_FILE=/run/secrets/keystore.jks \
       ./gradlew --no-daemon assembleRelease \
         -PversionCode="$VERSION_CODE" -PversionName="$VERSION" && \

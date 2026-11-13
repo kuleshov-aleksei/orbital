@@ -64,7 +64,10 @@ type Client struct {
 	subject           service.Subject // RBAC identity, resolved at connect
 	lastPingTime      time.Time
 	firstPingReceived bool
-	mu                sync.RWMutex
+	// inactive is set by client_state when the user isn't looking at this
+	// session (hidden, unfocused or idle); see presence.go.
+	inactive bool
+	mu       sync.RWMutex
 }
 
 // NewHub creates a new WebSocket hub
@@ -706,6 +709,8 @@ func (c *Client) handleMessage(message models.WebSocketMessage) {
 		c.handleTextPin(message.Data)
 	case "text_typing":
 		c.handleTextTyping(message.Data)
+	case "client_state":
+		c.handleClientState(message.Data)
 	default:
 		log.Printf("Unknown message type: %s", message.Type)
 	}

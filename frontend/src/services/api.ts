@@ -1013,6 +1013,21 @@ export const apiService = {
     return response
   },
 
+  /** Registers this device's FCM token for mention pushes (Android app). */
+  async registerPushDevice(token: string, platform: "android"): Promise<void> {
+    await apiRequest<void>("/push/devices", {
+      method: "POST",
+      body: JSON.stringify({ token, platform }),
+    })
+  },
+
+  async unregisterPushDevice(token: string): Promise<void> {
+    await apiRequest<void>("/push/devices", {
+      method: "DELETE",
+      body: JSON.stringify({ token }),
+    })
+  },
+
   async logout(): Promise<{ status: string; message: string }> {
     const response = await apiRequest<{ status: string; message: string }>("/auth/logout", {
       method: "POST",

@@ -13,6 +13,7 @@ import (
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatmedia"
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatstore"
 	"github.com/kuleshov-aleksei/orbital/internal/service/immichml"
+	"github.com/kuleshov-aleksei/orbital/internal/service/push"
 )
 
 // Text channel send rate limit, per user and channel.
@@ -39,6 +40,11 @@ type TextChat struct {
 	ML *immichml.Client
 	// SemanticThreshold is the minimum score of images found by meaning.
 	SemanticThreshold float64
+	// Push notifies mentioned users who have no active session; nil or
+	// disabled sends nothing.
+	Push *push.Service
+	// UserName resolves a user id to a display name for push text.
+	UserName func(userID string) string
 }
 
 // SetTextChat enables text channel messaging over WebSocket.

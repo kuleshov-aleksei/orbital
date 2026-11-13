@@ -8,6 +8,7 @@ import {
   type ApiError,
 } from "@/services/api"
 import { setUserSoundPack } from "@/services/sounds"
+import { unregisterPush } from "@/services/push"
 import type { UserRole } from "@/types"
 
 export type AuthProvider = "guest" | "discord" | "google" | "password"
@@ -323,6 +324,8 @@ export const useUserStore = defineStore("user", () => {
   }
 
   async function logout() {
+    // While the session is still valid, so the server drops this device.
+    await unregisterPush()
     try {
       await apiService.logout()
     } catch {

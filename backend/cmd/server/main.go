@@ -20,6 +20,7 @@ import (
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatmedia"
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatstore"
 	"github.com/kuleshov-aleksei/orbital/internal/service/immichml"
+	"github.com/kuleshov-aleksei/orbital/internal/service/push"
 	"github.com/kuleshov-aleksei/orbital/internal/storage"
 	"github.com/kuleshov-aleksei/orbital/internal/version"
 	"github.com/kuleshov-aleksei/orbital/internal/websocket"
@@ -75,6 +76,7 @@ func main() {
 	var rbacRepo *repository.RBACRepository
 	var textReadState chatstore.ReadStateStore
 	var textNotify chatstore.NotifyStore
+	var pushDevices *repository.PushDeviceRepository
 	var appDB *storage.DB
 
 	if cfg.Database.Path != "" {
@@ -100,6 +102,7 @@ func main() {
 		rbacRepo = repository.NewRBACRepository(db)
 		textReadState = repository.NewTextReadStateRepository(db)
 		textNotify = repository.NewTextNotifyRepository(db)
+		pushDevices = repository.NewPushDeviceRepository(db)
 
 		// Initialize services with repositories
 		categoryService = service.NewCategoryService(categoryRepo)
@@ -221,6 +224,13 @@ func main() {
 			Store: store, ReadState: textReadState, Notify: textNotify,
 			UserExists: func(id string) bool { return userLookup(id) != nil },
 			Media:      newChatMedia(cfg, appDB),
+			Push:       newPush(cfg, pushDevices),
+			UserName: func(id string) string {
+				if u := userLookup(id); u != nil {
+					return u.Nickname
+				}
+				return ""
+			},
 		}
 		if textChat.Media != nil {
 			textChat.ML, textChat.SemanticThreshold = newChatML(cfg), cfg.ChatML.SemanticThreshold
@@ -451,6 +461,11 @@ func main() {
 		r.Handle("/api/chat/search", auth(http.HandlerFunc(textChatHandler.Search))).Methods("GET")
 		r.Handle("/api/rooms/{id}/pins", auth(http.HandlerFunc(textChatHandler.GetPins))).Methods("GET")
 		r.Handle("/api/rooms/{id}/notify", auth(http.HandlerFunc(textChatHandler.SetNotify))).Methods("PUT")
+		if pushDevices != nil {
+			pushHandler := handlers.NewPushHandler(pushDevices)
+			r.Handle("/api/push/devices", auth(http.HandlerFunc(pushHandler.RegisterDevice))).Methods("POST")
+			r.Handle("/api/push/devices", auth(http.HandlerFunc(pushHandler.UnregisterDevice))).Methods("DELETE")
+		}
 
 		// Attachments (docs/specs/CHAT_SYSTEM.md §7.12): RBAC per request in the handlers.
 		if textChat.Media != nil {
@@ -728,4 +743,23 @@ func newChatML(cfg *config.Config) *immichml.Client {
 	}
 	log.Printf("Search by image contents enabled (Immich ML at %s, OCR %q, CLIP %q)", mc.URL, opts.OCRModel, opts.CLIPModel)
 	return immichml.New(opts)
+}
+
+// newPush returns the mobile push service, or nil when FCM credentials or
+// the database are missing.
+func newPush(cfg *config.Config, devices *repository.PushDeviceRepository) *push.Service {
+	if devices == nil {
+		return nil
+	}
+	if !cfg.Push.Enabled() {
+		log.Println("FCM_CREDENTIALS_FILE is not set, mobile push notifications are disabled")
+		return nil
+	}
+	sender, err := push.NewFCMSender(context.Background(), cfg.Push.FCMCredentialsFile, cfg.Push.FCMCredentialsJSON)
+	if err != nil {
+		log.Printf("Warning: mobile push notifications are disabled: %v", err)
+		return nil
+	}
+	log.Println("Mobile push notifications enabled (FCM)")
+	return push.NewService(sender, devices)
 }

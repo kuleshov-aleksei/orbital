@@ -30,6 +30,22 @@ type Config struct {
 	ChatMedia ChatMediaConfig `yaml:"chat_media"`
 	ChatML    ChatMLConfig    `yaml:"chat_ml"`
 	Emoji     EmojiConfig     `yaml:"emoji"`
+	Push      PushConfig      `yaml:"push"`
+}
+
+// PushConfig configures mobile push notifications through Firebase Cloud
+// Messaging. With neither credential set, pushes are disabled.
+type PushConfig struct {
+	// FCMCredentialsFile is the path of a service account key JSON
+	// (FCM_CREDENTIALS_FILE). Takes precedence over FCMCredentialsJSON.
+	FCMCredentialsFile string `yaml:"fcm_credentials_file"`
+	// FCMCredentialsJSON is the key itself (FCM_CREDENTIALS_JSON).
+	FCMCredentialsJSON string `yaml:"-"`
+}
+
+// Enabled reports whether FCM credentials are configured.
+func (p PushConfig) Enabled() bool {
+	return p.FCMCredentialsFile != "" || p.FCMCredentialsJSON != ""
 }
 
 // EmojiConfig configures the custom emoji library.
@@ -468,6 +484,14 @@ func (c *Config) loadFromEnv() {
 		if v, ok := getEnvInt(key); ok {
 			*dst = v
 		}
+	}
+
+	// Mobile push notifications (FCM)
+	if v := os.Getenv("FCM_CREDENTIALS_FILE"); v != "" {
+		c.Push.FCMCredentialsFile = v
+	}
+	if v := os.Getenv("FCM_CREDENTIALS_JSON"); v != "" {
+		c.Push.FCMCredentialsJSON = v
 	}
 
 	// Text channel content search (Immich ML)

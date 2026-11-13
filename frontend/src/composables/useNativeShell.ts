@@ -1,13 +1,15 @@
-import { onBeforeUnmount } from "vue"
+import { onBeforeUnmount, watch } from "vue"
 import type { PluginListenerHandle } from "@capacitor/core"
 import { isCapacitor } from "@/services/platform"
+import { registerPush, setupPush } from "@/services/push"
 import { useAppStore } from "@/stores/app"
 import { useTextChatStore } from "@/stores/textChat"
+import { useUserStore } from "@/stores/user"
 import { debugWarn } from "@/utils/debug"
 
 /**
  * Android shell integration: system bar styling, hardware back button, app
- * resume and the OAuth deep link. Call once from App.vue; a no-op outside the
+ * resume, the OAuth deep link and mention push notifications. Call once from App.vue; a no-op outside the
  * Android app.
  */
 export function useNativeShell(options: { onResume?: () => void } = {}) {
@@ -15,6 +17,7 @@ export function useNativeShell(options: { onResume?: () => void } = {}) {
 
   const appStore = useAppStore()
   const textChatStore = useTextChatStore()
+  const userStore = useUserStore()
   const handles: PluginListenerHandle[] = []
   let disposed = false
   let stopAppOAuth: (() => void) | null = null
@@ -61,8 +64,26 @@ export function useNativeShell(options: { onResume?: () => void } = {}) {
 
   void setup().catch((err) => debugWarn("[NativeShell] setup failed", err))
 
+  // Push: listeners first (a tap may have launched the app), then register
+  // the device whenever a user is signed in. Logout unregisters (stores/user.ts).
+  const pushReady = setupPush((roomId, messageId) => {
+    if (!userStore.isAuthenticated) return
+    appStore.closeAllMobileSidebars()
+    appStore.showRoomView()
+    if (messageId) void textChatStore.openChannelAt(roomId, messageId)
+    else void textChatStore.openChannel(roomId)
+  })
+  const stopPushWatch = watch(
+    () => userStore.isAuthenticated,
+    (signedIn) => {
+      if (signedIn) void pushReady.then(registerPush)
+    },
+    { immediate: true },
+  )
+
   onBeforeUnmount(() => {
     disposed = true
+    stopPushWatch()
     handles.forEach((h) => void h.remove())
     stopAppOAuth?.()
   })

@@ -115,6 +115,7 @@ export type WebSocketMessageType =
   | "text_reaction_toggle"
   | "text_pin"
   | "text_typing"
+  | "client_state"
 
 export interface WebSocketMessage {
   type: WebSocketMessageType
