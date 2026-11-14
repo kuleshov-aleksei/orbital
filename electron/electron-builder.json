@@ -43,6 +43,12 @@
     ],
     "icon": "build/orbital-icon.png",
     "artifactName": "${productName}-Setup-${version}.${ext}",
+    "extraResources": [
+      {
+        "from": "../native/win-audiocap/orbital-audiocap.exe",
+        "to": "orbital-audiocap.exe"
+      }
+    ],
     "files": [
       "!dist/venmic-x64.node",
       "!dist/venmic-arm64.node",

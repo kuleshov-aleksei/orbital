@@ -1,6 +1,6 @@
 # Windows per-app audio capture (spec)
 
-Status: proposed. Not implemented.
+Status: implemented. Waiting for Windows hardware testing (§8).
 
 ## 1. Problem
 
@@ -63,7 +63,7 @@ None of them saves much work: the capture code is about 400 lines based on Micro
 
 ```
 native/win-audiocap/
-  audiocap.cpp   # the whole helper, ~400 lines
+  audiocap.cpp   # the whole helper, builds orbital-audiocap.exe
   Makefile
   README.md      # build, CLI, attribution
 ```
@@ -76,14 +76,15 @@ stdout carries data, stderr carries logs. Control output is newline-delimited JS
 
 | Command | Output |
 |---|---|
-| `audiocap probe` | `{"supported":true,"build":22631}` and exit 0. The exit code is 2 when the API is missing. |
-| `audiocap list` | A JSON array `[{"pid":1234,"name":"Spotify","exe":"Spotify.exe"}]` listing processes with an active audio session. It walks every active render endpoint (`IMMDeviceEnumerator` → `IAudioSessionManager2` → `IAudioSessionEnumerator`), removes duplicate PIDs, and skips the system sounds session. |
-| `audiocap pid-of-hwnd <hwnd>` | `{"pid":1234}` for the process that owns the window, via `GetWindowThreadProcessId`. `desktopCapturer` window ids look like `window:<hwnd>:<n>`. |
-| `audiocap capture --include <pid>` / `--exclude <pid>` | Raw PCM on stdout until it stops. |
+| `probe` | `{"supported":true,"build":22631}` and exit 0. The exit code is 2 when the API is missing. |
+| `list [--skip-tree <pid>]` | A JSON array `[{"pid":1234,"name":"Spotify","exe":"Spotify.exe","active":true}]` listing processes with an audio session. `--skip-tree` hides a process tree (Orbital passes its own PID). A session from a child process is reported under the topmost ancestor that runs the same exe (browsers play audio from a child process), so an include capture covers the whole app. It walks every active render endpoint (`IMMDeviceEnumerator` → `IAudioSessionManager2` → `IAudioSessionEnumerator`), removes duplicate PIDs, and skips the system sounds session. |
+| `pid-of-hwnd <hwnd>` | `{"pid":1234}` for the process that owns the window, via `GetWindowThreadProcessId`. `desktopCapturer` window ids look like `window:<hwnd>:<n>`. |
+| `capture --include <pid>` / `--exclude <pid>` | Raw PCM on stdout until it stops. |
 
 How `capture` works:
 - **Format:** s16le, 48 kHz, stereo. The format is fixed and the client is initialized with `AUDCLNT_STREAMFLAGS_LOOPBACK | AUDCLNT_STREAMFLAGS_EVENTCALLBACK | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM`, so Windows converts whatever the app plays. Throughput is about 192 KB/s.
 - **Gaps:** when the target is silent, no packets arrive. The renderer handles that, so the helper doesn't fill the gaps with silence.
+- **Started event:** once audio flows, stderr gets `{"event":"started",...}`. The Electron side waits for it before reporting success.
 - **Lifetime:** the helper exits when **stdin closes** (the parent died or stopped it), when the target process exits, or on an error.
 - **Exit codes:** 0 = stopped normally, 2 = API unsupported, 3 = target gone, 1 = any other error. The last stderr line is `{"error":"...","hresult":"0x8889000A"}`.
 
@@ -93,10 +94,7 @@ How `capture` works:
 
 Microsoft documents build 20348 as the minimum, but the API works from 19041 (2004) onward. **Detect support at run time and never hard-code a build number.**
 
-If the mingw-w64 headers lack `audioclientactivationparams.h`, define its three items in `audiocap.cpp`:
-- `AUDIOCLIENT_ACTIVATION_PARAMS`
-- the two enums
-- `VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK`
+Debian trixie's mingw-w64 has no `audioclientactivationparams.h`, so `audiocap.cpp` declares the activation structs, the async-activation interfaces and their IIDs itself, in `namespace orb`.
 
 Target for orbital app is Windows 11, so we do not need to support old Windows anyway
 
@@ -104,31 +102,32 @@ Target for orbital app is Windows 11, so we do not need to support old Windows a
 
 ```make
 # native/win-audiocap/Makefile
-CXX ?= x86_64-w64-mingw32-g++
-audiocap.exe: audiocap.cpp
-	$(CXX) -O2 -static -municode -Wall -o $@ $< -lole32 -luuid
+CXX := x86_64-w64-mingw32-g++   # unless set by the caller
+orbital-audiocap.exe: audiocap.cpp
+	$(CXX) -std=c++17 -O2 -Wall -Wextra -static -municode -o $@ $< -lole32 -luuid -lversion
 ```
 
 - `docker/Dockerfile.electron`:
   - add `g++-mingw-w64-x86-64` to the apt list;
-  - run `RUN make -C /app/native/win-audiocap` before `pnpm run package:win`;
-  - the `native/` directory must be copied into the image.
-- electron-builder `win.extraResources`: `{ from: "../native/win-audiocap/audiocap.exe", to: "audiocap.exe" }`. Ship it next to the asar, not inside it, because an exe can't be launched from inside an asar.
-- Root `Makefile`: a `build-win-audiocap` target for local builds.
-- `audiocap.exe` is gitignored and never committed.
+  - copy `native/win-audiocap/` and run `make` before the version-sensitive layers, so the result stays cached;
+  - `.dockerignore` excludes a locally built exe, so the image always builds its own.
+- electron-builder `win.extraResources`: `{ from: "../native/win-audiocap/orbital-audiocap.exe", to: "orbital-audiocap.exe" }`. Ship it next to the asar, not inside it, because an exe can't be launched from inside an asar.
+- Root `Makefile`: a `build-win-audiocap` target, which `build-electron-win` depends on.
+- `orbital-audiocap.exe` is gitignored (`*.exe`) and never committed.
 - Later, if the installer gets signed: sign the helper with the same certificate. An unsigned helper inside a signed app can trigger SmartScreen or antivirus heuristics.
 
 ## 5. Electron main: `electron/main/winAudioCapture.ts`
 
 This is the Windows counterpart of `electron/main/venmic.ts` and follows the same discipline: timeouts on every call, and kill the child on any failure.
 
-- Path: `path.join(process.resourcesPath, "audiocap.exe")`. In dev, use `native/win-audiocap/audiocap.exe`.
-- `probe()` / `list()` / `pidOfHwnd()`: `execFile` with a 3 s timeout, then parse the JSON. Cache the `probe` result for the session.
+- Path: `path.join(process.resourcesPath, "orbital-audiocap.exe")`. In dev, use `native/win-audiocap/orbital-audiocap.exe`.
+- `probe()` / `listApps()` / `pidOfSource()`: `execFile` with a 5 s timeout, then parse the JSON. Cache the `probe` result for the session.
 - `start(target)`:
   - `spawn` the helper with `stdio: ["pipe", "pipe", "pipe"]`;
   - open a `MessageChannelMain` and hand one port to the renderer with `webContents.postMessage("win-audio-port", null, [port])`;
-  - forward stdout chunks to the other port, transferring the buffers;
-  - forward stderr to `electron-log`.
+  - forward stdout chunks to the other port. Each chunk is cut to whole frames and copied, since `MessagePortMain` can't transfer buffers;
+  - forward stderr to `electron-log`;
+  - resolve once the helper prints `started` (6 s timeout).
 - On exit, post `{type:"ended", code}` on the port. Exit code 2 or a failed spawn means "use the fallback".
 - `stop()`:
   - close stdin, so the helper stops on its own;
@@ -139,38 +138,43 @@ This is the Windows counterpart of `electron/main/venmic.ts` and follows the sam
 
 IPC (preload + `frontend/src/services/electron.ts`), Windows only, under `window.electronAPI.winAudio`:
 
+These are flat methods on `window.electronAPI`, following the `venmic*` naming:
+
 ```ts
-probe(): Promise<{ supported: boolean; build?: number }>
-list(): Promise<{ pid: number; name: string; exe: string }[]>
-pidOfHwnd(sourceId: string): Promise<number | null>
-start(target: { mode: "include" | "exclude"; pid: number }): Promise<MessagePort>
-stop(): Promise<void>
+winAudioProbe(): Promise<{ supported: boolean; build?: number }>
+winAudioList(): Promise<WinAudioApp[]>
+winAudioPidOfSource(sourceId: string): Promise<number | null>
+winAudioStart(target: { mode: "include"; pid: number } | { mode: "exclude-self" }): Promise<WinAudioStartResult>
+winAudioStop(): Promise<boolean>
 ```
 
-For "exclude Orbital", the PID is `process.pid` of the Electron main process. Renderer and GPU processes are its children, so the whole Orbital process tree is excluded.
+The PCM `MessagePort` arrives separately. The main process sends it on `win-audio:port`, and the preload forwards it to the page with `window.postMessage({ type: "orbital:win-audio-port", sessionId }, "*", ports)`, because contextBridge can't carry ports.
+
+`exclude-self` is resolved in the main process to `process.pid` of the Electron main process, so the renderer can never exclude an arbitrary process. Renderer and GPU processes are children of the main process, so the whole Orbital tree is excluded.
 
 ## 6. Renderer
 
 New `frontend/src/services/winAudio/`:
 
-- An `AudioWorkletProcessor` (`pcm-player`):
-  - receives `Int16Array` chunks over the port and converts them to float;
-  - keeps a ring buffer of about 100 ms;
+- An `AudioWorkletProcessor` (`orbital-pcm-player`, `pcmPlayer.worklet.ts`, loaded with `?worker&url`):
+  - the PCM port is transferred into the worklet, so audio never touches the renderer main thread;
+  - the ring buffer (`pcmRing.ts`) holds up to 150 ms and starts playback after 30 ms of prebuffer;
   - outputs silence on underrun and drops the oldest samples on overflow. This keeps the latency bounded and absorbs clock drift.
 - Pipeline: `AudioContext({ sampleRate: 48000 })` → worklet node → `MediaStreamAudioDestinationNode` → `stream.getAudioTracks()[0]`.
 - `useLiveKitScreenShare.ts` `startElectronScreenShare`:
-  - when Windows per-app audio is chosen, call `getDisplayMedia` with `audio: false`;
-  - publish the worklet track as `Track.Source.ScreenShareAudio`, reusing the venmic branch's publish code (`musicHighQualityStereo`, `onended` → stop). Extract that code into a shared helper instead of copying it.
+  - when Windows per-app audio is chosen, start the helper first, then call `getDisplayMedia` with `audio: false`;
+  - publish the worklet track through `publishScreenShareAudio`, which is now shared by the venmic, system-loopback and Windows branches;
+  - if the helper ends mid-share (the app quit, or an error), `handleWinAudioEnded` unpublishes only the audio, keeps the video and shows a warning.
   - `stopScreenShare` calls `winAudio.stop()` and closes the `AudioContext`, next to the existing `stopAudioCapture()` (venmic).
 - The backend needs no change: `ScreenShareAudio` is already mapped in `PublishSourcesFor`.
 
 ## 7. UX (`ScreenShareQualityModal.vue`)
 
-On Windows, when `probe().supported` is true, the audio section offers:
+On Windows, when `probe().supported` is true, the audio section offers three buttons:
 
-1. **System audio (without Orbital)**: the default for screen shares (`exclude` + Orbital's PID).
-2. **App**: a picker filled from `list()` (`include` + PID). For a window share it preselects the app that owns the window (`pidOfHwnd`). This replaces the current "audio is not supported for windows" note.
-3. **Off**.
+1. **Off**: the default, as with the old toggle.
+2. **System (without Orbital)**: `exclude-self`.
+3. **One app**: a picker filled from `list()` with a refresh button (`include` + PID). Choosing a window source preselects the app that owns it (`pidOfSource`), even if that app has no audio session yet. This replaces the "audio is not supported for windows" note.
 
 When `probe().supported` is false, the modal keeps today's behaviour (`audio: "loopback"`, no audio for window shares).
 
@@ -178,7 +182,7 @@ When `start()` fails at share time with an unsupported or spawn error, the share
 
 ## 8. Testing
 
-- **Linux / CI:** compile only (`make build-win-audiocap`, and the Docker build). Wine doesn't implement process loopback, so there is no runtime test here.
+- **Linux / CI:** compile only (`make build-win-audiocap`, and the Docker build). Under Wine the CLI runs (`probe` reports `{"supported":false}` with exit 2, missing targets exit 3), but Wine doesn't implement process loopback, so there is no capture test here.
 - **Unit:** the renderer ring buffer (underrun, overflow, s16 → float) with Vitest.
 - **Manual checklist on Windows:**
   - [ ] `audiocap probe`, `list` and `capture --include <pid> > out.raw` from `cmd`; the file plays back correctly (e.g. `ffplay -f s16le -ar 48000 -ac 2 out.raw`).
@@ -187,7 +191,7 @@ When `start()` fails at share time with an unsupported or spawn error, the share
   - [ ] Window share preselects the owning app.
   - [ ] Default device in exclusive use, set to 7.1/virtual, or Bluetooth headset with the mic open: capture still works.
   - [ ] The target app quits mid-share: the audio track ends and the video keeps going, or the share stops cleanly. Same behaviour as venmic, commit a593daa.
-  - [ ] Orbital quits or crashes mid-capture: no `audiocap.exe` process is left behind.
+  - [ ] Orbital quits or crashes mid-capture: no `orbital-audiocap.exe` process is left behind.
   - [ ] Windows 10 19041, Windows 10 22H2 and Windows 11: probe results recorded; fallback used where unsupported.
   - [ ] Long share (1 h): no growing latency, no audible drift.
 

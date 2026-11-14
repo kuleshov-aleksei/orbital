@@ -10,6 +10,7 @@ import { flushPendingLogEntries } from "./logRelay"
 import { replayCachedEvents } from "./update"
 import { consumePendingDeepLink } from "./deeplink"
 import { stopAudioCapture } from "../venmic"
+import { stopCapture as stopWinAudioCapture } from "../winAudioCapture"
 
 let thumbarIcons: Record<string, nativeImage> = {}
 
@@ -200,11 +201,13 @@ export function createWindow() {
     // Tear it down here, otherwise loopbacks keep capturing (and auto-linking
     // relaunched apps) with no screen share active.
     stopAudioCapture().catch((e) => log.warn("[Venmic] Stop on window close failed:", e))
+    stopWinAudioCapture()
   })
 
   win.webContents.on("render-process-gone", (_event, details) => {
     log.warn("[Window] Renderer gone:", details?.reason)
     stopAudioCapture().catch((e) => log.warn("[Venmic] Stop on renderer crash failed:", e))
+    stopWinAudioCapture()
   })
 
   if (VITE_DEV_SERVER_URL) {

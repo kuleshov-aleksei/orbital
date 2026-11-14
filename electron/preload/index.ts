@@ -39,6 +39,22 @@ export interface VenmicApp {
   hasAudio: boolean
 }
 
+export interface WinAudioApp {
+  pid: number
+  name: string
+  exe: string
+  active: boolean
+}
+
+export type WinAudioTarget = { mode: "include"; pid: number } | { mode: "exclude-self" }
+
+export interface WinAudioStartResult {
+  ok: boolean
+  sessionId?: number
+  unsupported?: boolean
+  error?: string
+}
+
 export interface HotkeySetting {
   enabled: boolean
   accelerator: string
@@ -105,6 +121,11 @@ export interface ElectronAPI {
   venmicSaveSources: (sources: VenmicSource[]) => Promise<void>
   venmicStart: (include: VenmicSource[]) => Promise<boolean>
   venmicStop: () => Promise<boolean>
+  winAudioProbe: () => Promise<{ supported: boolean; build?: number }>
+  winAudioList: () => Promise<WinAudioApp[]>
+  winAudioPidOfSource: (sourceId: string) => Promise<number | null>
+  winAudioStart: (target: WinAudioTarget) => Promise<WinAudioStartResult>
+  winAudioStop: () => Promise<boolean>
   getCloseToTray: () => Promise<boolean | null>
   setCloseToTray: (value: boolean) => Promise<void>
   hasSelectedCloseBehavior: () => Promise<boolean>
@@ -216,6 +237,12 @@ const electronAPI: ElectronAPI = {
   venmicStart: (include) => ipcRenderer.invoke("venmic:start", include),
   venmicStop: () => ipcRenderer.invoke("venmic:stop"),
 
+  winAudioProbe: () => ipcRenderer.invoke("win-audio:probe"),
+  winAudioList: () => ipcRenderer.invoke("win-audio:list"),
+  winAudioPidOfSource: (sourceId) => ipcRenderer.invoke("win-audio:pid-of-source", sourceId),
+  winAudioStart: (target) => ipcRenderer.invoke("win-audio:start", target),
+  winAudioStop: () => ipcRenderer.invoke("win-audio:stop"),
+
   getCloseToTray: () => ipcRenderer.invoke("get-close-to-tray"),
   setCloseToTray: (value) => ipcRenderer.invoke("set-close-to-tray", value),
   hasSelectedCloseBehavior: () => ipcRenderer.invoke("has-selected-close-behavior"),
@@ -248,3 +275,10 @@ const electronAPI: ElectronAPI = {
 }
 
 contextBridge.exposeInMainWorld("electronAPI", electronAPI)
+
+// Windows per-app audio: the main process sends a MessagePort carrying PCM.
+// contextBridge cannot pass ports, so forward it to the page with
+// window.postMessage (the page checks event.source === window).
+ipcRenderer.on("win-audio:port", (event, data: { sessionId: number }) => {
+  window.postMessage({ type: "orbital:win-audio-port", sessionId: data?.sessionId }, "*", event.ports)
+})

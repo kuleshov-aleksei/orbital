@@ -15,7 +15,12 @@ import {
   startScreenshare as startElectronScreenShareIPC,
 } from "@/services/electron"
 import { startAudioCapture, stopAudioCapture, getVirtualMicDeviceId } from "@/services/venmic"
-import type { ScreenShareQuality, VenmicSource } from "@/types"
+import {
+  startWinAudioCapture,
+  WIN_AUDIO_EXIT_TARGET_GONE,
+  type WinAudioCapture,
+} from "@/services/winAudio"
+import type { ScreenShareQuality, VenmicSource, WinAudioTarget } from "@/types"
 import type { LiveKitState } from "./useLiveKitState"
 
 export const SCREEN_VIEWER_EVENT_TYPE = "screen_viewer"
@@ -30,6 +35,56 @@ export interface ScreenViewerEvent {
 export function useLiveKitScreenShare(state: LiveKitState) {
   const audioTracksStore = useAudioTracksStore()
   const usersStore = useUsersStore()
+
+  // Windows per-app audio capture of the current share (null otherwise).
+  let winAudioCapture: WinAudioCapture | null = null
+
+  const stopWinAudio = async (): Promise<void> => {
+    const capture = winAudioCapture
+    winAudioCapture = null
+    if (capture) await capture.stop()
+  }
+
+  /** Publishes a screen share audio track and records it in state. */
+  const publishScreenShareAudio = async (
+    track: MediaStreamTrack,
+    onEnded: () => void,
+  ): Promise<void> => {
+    if (!state.room.value) throw new Error("Not connected to room")
+    const audioPublication = await state.room.value.localParticipant.publishTrack(track, {
+      name: "screen-share-audio",
+      source: Track.Source.ScreenShareAudio,
+      audioPreset: AudioPresets.musicHighQualityStereo,
+    })
+    state.localScreenAudioPublication.value = audioPublication
+    state.localScreenAudioTrack.value = audioPublication.track as LocalAudioTrack
+    track.onended = () => {
+      if (!state.isStoppingScreenShare.value) onEnded()
+    }
+  }
+
+  // The captured app quit (or the helper failed) mid-share: drop the audio
+  // track but keep sharing video.
+  const handleWinAudioEnded = async (code: number | null): Promise<void> => {
+    if (state.isStoppingScreenShare.value) return
+    debugLog(`[LiveKit][INFO]: Windows app audio ended (code ${code}), keeping video`)
+    await stopWinAudio()
+    const publication = state.localScreenAudioPublication.value
+    if (publication?.track && state.room.value) {
+      try {
+        await state.room.value.localParticipant.unpublishTrack(publication.track)
+      } catch (e) {
+        debugWarn(`[LiveKit][WARN]: Failed to unpublish app audio: ${(e as Error).message}`)
+      }
+    }
+    state.localScreenAudioPublication.value = null
+    state.localScreenAudioTrack.value = null
+    state.screenShareVersion.value++
+    state.screenShareAudioWarning.value =
+      code === WIN_AUDIO_EXIT_TARGET_GONE
+        ? "The shared app closed. Screen sharing continues without audio."
+        : "App audio capture stopped. Screen sharing continues without audio."
+  }
 
   const getNickname = (userId: string): string => {
     const user = usersStore.allUsers.find((u) => u.id === userId)
@@ -58,6 +113,7 @@ export function useLiveKitScreenShare(state: LiveKitState) {
       // while no screen share is active.
       state.isStoppingScreenShare.value = true
       try {
+        await stopWinAudio()
         const stopped = await stopAudioCapture()
         debugLog(`[LiveKit][INFO]: Venmic audio capture stopped: ${stopped}`)
       } catch (e) {
@@ -84,6 +140,12 @@ export function useLiveKitScreenShare(state: LiveKitState) {
           mediaStreamTrack.stop()
           debugLog(`[LiveKit][INFO]: Stopped screen share audio MediaStreamTrack`)
         }
+      }
+
+      try {
+        await stopWinAudio()
+      } catch (e) {
+        debugWarn(`[LiveKit][WARN]: Failed to stop Windows app audio: ${(e as Error).message}`)
       }
 
       try {
@@ -138,12 +200,14 @@ export function useLiveKitScreenShare(state: LiveKitState) {
     audio: boolean,
     sourceId: string,
     audioSources?: VenmicSource[],
+    winAudioTarget?: WinAudioTarget,
   ): Promise<void> => {
     console.log("[ScreenShare] startElectronScreenShare called:", {
       quality,
       audio,
       sourceId,
       audioSources,
+      winAudioTarget,
     })
 
     if (!state.room.value) {
@@ -181,7 +245,26 @@ export function useLiveKitScreenShare(state: LiveKitState) {
 
       let displayStream: MediaStream
 
-      await startElectronScreenShareIPC(sourceId, audio)
+      // Windows per-app audio (process loopback helper). On "unsupported" fall
+      // back to Chromium's system loopback; on other failures share video only.
+      let displayAudio = audio
+      if (audio && winAudioTarget && platform === "win32") {
+        await stopWinAudio()
+        const outcome = await startWinAudioCapture(winAudioTarget)
+        if (outcome.ok) {
+          winAudioCapture = outcome.capture
+          displayAudio = false
+        } else {
+          debugWarn(`[ScreenShare] Windows app audio failed: ${outcome.error}`)
+          // System loopback can't be limited to a window (see the display media handler).
+          displayAudio = outcome.unsupported && !sourceId.startsWith("window:")
+          state.screenShareAudioWarning.value = displayAudio
+            ? "Could not capture app audio. Sharing system audio instead."
+            : "Could not capture app audio. Screen sharing without audio."
+        }
+      }
+
+      await startElectronScreenShareIPC(sourceId, displayAudio)
 
       // -- DIAG: log available audio output devices at the start of the attempt (loopback capture depends on the default output) --
       const audioOutputs = (await navigator.mediaDevices.enumerateDevices())
@@ -209,7 +292,7 @@ export function useLiveKitScreenShare(state: LiveKitState) {
       }
 
       try {
-        displayStream = await getDisplayMediaStream(audio, "getDisplayMedia")
+        displayStream = await getDisplayMediaStream(displayAudio, "getDisplayMedia")
       } catch (cause) {
         const msg = cause instanceof Error ? cause.message : String(cause)
         debugError("[ScreenShare] getDisplayMedia failed:", {
@@ -219,7 +302,7 @@ export function useLiveKitScreenShare(state: LiveKitState) {
         })
         const isAudioSourceError = msg.includes("Could not start audio source")
 
-        if (isAudioSourceError && audio) {
+        if (isAudioSourceError && displayAudio) {
           debugLog("[ScreenShare] Audio source unavailable, falling back to video-only share")
           await startElectronScreenShareIPC(sourceId, false)
           try {
@@ -309,10 +392,11 @@ export function useLiveKitScreenShare(state: LiveKitState) {
 
       console.log("[ScreenShare] audio check:", {
         audio,
+        displayAudio,
         displayAudioTracks: displayStream.getAudioTracks().length,
       })
 
-      if (audio && displayStream.getAudioTracks().length > 0) {
+      if (displayAudio && displayStream.getAudioTracks().length > 0) {
         const venmicReady = isLinux && audioSources && audioSources.length > 0
 
         console.log("[ScreenShare] venmicReady check:", {
@@ -353,25 +437,10 @@ export function useLiveKitScreenShare(state: LiveKitState) {
               throw new Error("No audio track from virtual device")
             }
 
-            const audioPublication = await state.room.value.localParticipant.publishTrack(
-              audioTrackFromStream,
-              {
-                name: "screen-share-audio",
-                source: Track.Source.ScreenShareAudio,
-                audioPreset: AudioPresets.musicHighQualityStereo,
-              },
-            )
-            state.localScreenAudioPublication.value = audioPublication
-
-            const lkAudioTrack = audioPublication.track as LocalAudioTrack
-            state.localScreenAudioTrack.value = lkAudioTrack
-
-            audioTrackFromStream.onended = () => {
-              if (!state.isStoppingScreenShare.value) {
-                void stopAudioCapture()
-                void stopScreenShare()
-              }
-            }
+            await publishScreenShareAudio(audioTrackFromStream, () => {
+              void stopAudioCapture()
+              void stopScreenShare()
+            })
 
             debugLog(`[LiveKit][INFO] Screen share audio captured via venmic`)
           } catch (audioError) {
@@ -384,26 +453,13 @@ export function useLiveKitScreenShare(state: LiveKitState) {
         } else {
           console.log("[ScreenShare] Using system audio from display stream")
           const audioTrackFromStream = displayStream.getAudioTracks()[0]
-
-          const audioPublication = await state.room.value.localParticipant.publishTrack(
-            audioTrackFromStream,
-            {
-              name: "screen-share-audio",
-              source: Track.Source.ScreenShareAudio,
-              audioPreset: AudioPresets.musicHighQualityStereo,
-            },
-          )
-          state.localScreenAudioPublication.value = audioPublication
-
-          const lkAudioTrack = audioPublication.track as LocalAudioTrack
-          state.localScreenAudioTrack.value = lkAudioTrack
-
-          audioTrackFromStream.onended = () => {
-            if (!state.isStoppingScreenShare.value) {
-              void stopScreenShare()
-            }
-          }
+          await publishScreenShareAudio(audioTrackFromStream, () => void stopScreenShare())
         }
+      } else if (winAudioCapture) {
+        const capture = winAudioCapture
+        console.log("[ScreenShare] Publishing Windows app audio")
+        await publishScreenShareAudio(capture.track, () => void stopScreenShare())
+        capture.onEnded((code) => void handleWinAudioEnded(code))
       } else {
         console.log("[ScreenShare] No audio to publish")
       }
@@ -419,6 +475,8 @@ export function useLiveKitScreenShare(state: LiveKitState) {
     } catch (error) {
       console.error("Failed to start Electron screen share:", error)
       console.error(`[LiveKit][ERROR]: Electron screen share failed: ${(error as Error).message}`)
+      // Don't leave the helper capturing if the share never got its audio published.
+      if (!state.localScreenAudioPublication.value) await stopWinAudio()
       throw error
     } finally {
       state.isStartingScreenShare.value = false

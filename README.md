@@ -20,7 +20,7 @@ This project is built by AI (like 90%). AI is not perfect, but MVP was built in 
 
 - **Voice rooms** for small groups. The room size limit is configurable; LiveKit itself handles far more people per room.
 - **Camera and screen sharing** with presets: Adaptive, Full HD 60 fps, Text Optimized (5 fps, sharp text for code and documents).
-- **App audio sharing**: share the sound of one application (Linux + PipeWire, desktop app).
+- **App audio sharing**: share the sound of one application (desktop app: Linux with PipeWire, Windows 10 2004+ / 11).
 - **Noise suppression** of your choice: LiveKit, browser built-in, RNNoise (ML-based) or Speex, plus echo cancellation and automatic gain control.
 - **Soundboard**: upload short clips and play them to the room.
 - **Sound packs** for join/leave/mute/screen share events. Everyone hears the pack you picked, and you can override it for others ([make your own](docs/SOUND_PACKS.md)).
@@ -86,9 +86,11 @@ See [Development](docs/DEVELOPMENT.md) for prerequisites, `make` commands and te
 
 ## Known issues
 
-### Screen share audio with some wireless headsets (Windows)
+### Screen share audio on Windows
 
-On Windows, screen share audio can only be captured from the **default playback device**, and some drivers (**Logitech** wireless headsets in particular) don't support capturing it at all. Orbital then shares video only. There's no workaround: capturing a single app's audio the way Discord does would need DLL injection, which is out of reach for this project (and antivirus/anticheat software doesn't like it).
+The desktop app captures audio with the Windows process loopback API ([details](docs/specs/WINDOWS_APP_AUDIO.md)). You can share one app's audio, or all system audio except Orbital, so the call's own voices don't echo back. This doesn't depend on the default playback device.
+
+It needs Windows 11 or a recent Windows 10. On systems without the API, Orbital falls back to Chromium's system loopback. That fallback captures only the **default playback device**, can fail when another app holds that device exclusively or it's a virtual multichannel device, and then shares video only. Protected (DRM) audio is always silent.
 
 ## Documentation
 

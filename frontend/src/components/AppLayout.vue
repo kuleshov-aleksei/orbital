@@ -79,7 +79,7 @@ import ModalManager from "@/components/ModalManager.vue"
 import ScreenShareQualityModal from "@/components/ScreenShareQualityModal.vue"
 import UpdateNotification from "@/components/UpdateNotification.vue"
 import AuthView from "@/views/AuthView.vue"
-import type { VenmicSource } from "@/types"
+import type { VenmicSource, WinAudioTarget } from "@/types"
 import {
   useRoomStore,
   useUserStore,
@@ -202,6 +202,7 @@ const handleElectronSourceSelected = async (
   sourceId: string,
   audio: boolean,
   audioSources?: VenmicSource[],
+  winAudioTarget?: WinAudioTarget,
 ) => {
   showScreenShareQualityModal.value = false
 
@@ -212,11 +213,18 @@ const handleElectronSourceSelected = async (
           audio: boolean,
           sourceId: string,
           audioSources?: VenmicSource[],
+          winAudioTarget?: WinAudioTarget,
         ) => Promise<void>
       }
     | undefined
   if (voiceCallView?.startElectronScreenShare) {
-    await voiceCallView.startElectronScreenShare(quality, audio, sourceId, audioSources)
+    await voiceCallView.startElectronScreenShare(
+      quality,
+      audio,
+      sourceId,
+      audioSources,
+      winAudioTarget,
+    )
   }
 }
 

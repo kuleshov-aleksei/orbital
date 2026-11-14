@@ -535,6 +535,25 @@ export interface VenmicApp {
   hasAudio: boolean
 }
 
+/** An app with an audio session, reported by the Windows audio helper over Electron IPC. */
+export interface WinAudioApp {
+  pid: number
+  name: string
+  exe: string
+  active: boolean
+}
+
+/** What to capture on Windows: one app's process tree, or everything except Orbital. */
+export type WinAudioTarget = { mode: "include"; pid: number } | { mode: "exclude-self" }
+
+export interface WinAudioStartResult {
+  ok: boolean
+  sessionId?: number
+  /** Helper missing or process loopback unavailable: fall back to system loopback. */
+  unsupported?: boolean
+  error?: string
+}
+
 export interface License {
   name: string
   version: string
@@ -608,6 +627,11 @@ export interface ElectronAPI {
   venmicSaveSources?: (sources: VenmicSource[]) => Promise<void>
   venmicStart?: (include: VenmicSource[]) => Promise<boolean>
   venmicStop?: () => Promise<boolean>
+  winAudioProbe?: () => Promise<{ supported: boolean; build?: number }>
+  winAudioList?: () => Promise<WinAudioApp[]>
+  winAudioPidOfSource?: (sourceId: string) => Promise<number | null>
+  winAudioStart?: (target: WinAudioTarget) => Promise<WinAudioStartResult>
+  winAudioStop?: () => Promise<boolean>
 }
 
 declare global {

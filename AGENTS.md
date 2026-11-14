@@ -185,6 +185,16 @@ Spec and decisions: [`docs/specs/CHAT_SYSTEM.md`](./docs/specs/CHAT_SYSTEM.md). 
 2. **`process.argv` layout inside a utility process** is `[electronBinary, modulePath, ...args]` — NOT Node's `[node, script, ...]`. The first custom arg passed to `utilityProcess.fork(modulePath, args)` lands at `process.argv[2]`, not `argv[1]`.
 3. **venmic addon calls block their caller thread.** The `@vencord/venmic` addon's `list()` blocks the calling thread with no timeout until the PipeWire worker replies; a vanished node mid-bind can wedge that worker forever. Never call it on the Electron main thread — all venmic calls go through the utilityProcess bridge in `electron/main/venmic.ts` (timeouts + kill/respawn recovery), and the watchdog debounces re-links (stability window + min gap) to avoid rebuild storms during node churn.
 
+### Windows audio helper (per-app screen share audio)
+
+Spec: [`docs/specs/WINDOWS_APP_AUDIO.md`](./docs/specs/WINDOWS_APP_AUDIO.md). On Windows, screen share audio comes from `native/win-audiocap/orbital-audiocap.exe`, a small C++ program using the process loopback API. It is not a Node addon.
+
+- Built with mingw-w64 (`make build-win-audiocap`; in CI inside `docker/Dockerfile.electron`). The exe is a build artifact; never commit it.
+- It ships through electron-builder `win.extraResources` next to `app.asar`, never inside it, because an exe can't be spawned from an asar.
+- Its lifetime is tied to its stdin: closing stdin stops a capture, and the helper exits when Orbital dies. `electron/main/winAudioCapture.ts` also kills it on stop, window close, renderer crash and quit.
+- PCM goes helper stdout → main → `MessagePort` → page → AudioWorklet (`frontend/src/services/winAudio/`). contextBridge can't carry ports, so the preload forwards the port with `window.postMessage`.
+- Wine runs the CLI but not process loopback: real testing needs Windows.
+
 ### Mobile (Android app, Capacitor)
 
 The Android app wraps the same frontend in a Capacitor WebView.

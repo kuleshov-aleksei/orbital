@@ -183,7 +183,7 @@ import {
 import { Permission } from "@/types/permissions"
 import { useMuteDeafenToggle } from "@/composables/useMuteDeafenToggle"
 import { storeToRefs } from "pinia"
-import type { User, ScreenShareQuality, VenmicSource } from "@/types"
+import type { User, ScreenShareQuality, VenmicSource, WinAudioTarget } from "@/types"
 import { playRemoteMessage } from "@/services/sounds"
 
 const props = withDefaults(defineProps<Props>(), {
@@ -781,9 +781,16 @@ const startElectronScreenShareWithQuality = async (
   audio: boolean,
   sourceId: string,
   audioSources?: VenmicSource[],
+  winAudioTarget?: WinAudioTarget,
 ) => {
   try {
-    await startElectronScreenShare(quality as ScreenShareQuality, audio, sourceId, audioSources)
+    await startElectronScreenShare(
+      quality as ScreenShareQuality,
+      audio,
+      sourceId,
+      audioSources,
+      winAudioTarget,
+    )
     // Follow the same unified flow as web start: plays sound and syncs store state
     await confirmAudioControlsScreenShare()
   } catch (error) {

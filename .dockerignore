@@ -50,3 +50,6 @@ mobile/android/capacitor-cordova-android-plugins
 mobile/android/app/src/main/assets/public
 *.jks
 *.keystore
+
+# Windows audio helper: always rebuilt inside the image
+native/win-audiocap/*.exe

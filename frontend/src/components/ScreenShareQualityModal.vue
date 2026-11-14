@@ -82,7 +82,50 @@
 
         <!-- Audio Toggle -->
         <div class="px-5 py-3 border-t border-theme-border shrink-0">
-          <div v-if="selectedSourceIsWindow" class="flex items-start text-xs text-amber-400">
+          <!-- Windows: per-app capture through the process loopback helper -->
+          <div v-if="winAudioSupported" class="space-y-2">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-medium text-theme-text-secondary uppercase tracking-wide">
+                Audio
+              </span>
+              <div class="flex gap-1.5">
+                <button
+                  v-for="option in winAudioModeOptions"
+                  :key="option.value"
+                  type="button"
+                  class="px-2.5 py-1 rounded-lg border text-xs transition-colors duration-200"
+                  :class="
+                    winAudioMode === option.value
+                      ? 'border-theme-accent bg-theme-accent/10 text-theme-text-primary'
+                      : 'border-theme-border text-theme-text-secondary hover:border-theme-text-muted'
+                  "
+                  @click="winAudioMode = option.value">
+                  {{ option.label }}
+                </button>
+              </div>
+            </div>
+            <div v-if="winAudioMode === 'app'" class="flex items-center gap-2">
+              <select
+                v-model="selectedWinAppPid"
+                class="flex-1 min-w-0 bg-theme-bg-tertiary border border-theme-border rounded-lg px-2 py-1.5 text-sm text-theme-text-primary">
+                <option :value="null" disabled>
+                  {{ winAudioApps.length ? "Choose an app" : "No apps are playing audio" }}
+                </option>
+                <option v-for="appItem in winAudioApps" :key="appItem.pid" :value="appItem.pid">
+                  {{ appItem.name }}{{ appItem.active ? "" : " (silent)" }}
+                </option>
+              </select>
+              <button
+                type="button"
+                class="p-1.5 rounded-lg border border-theme-border text-theme-text-secondary hover:border-theme-text-muted"
+                title="Refresh apps"
+                aria-label="Refresh apps"
+                @click="refreshWinAudioApps">
+                <PhArrowClockwise class="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+          <div v-else-if="selectedSourceIsWindow" class="flex items-start text-xs text-amber-400">
             <PhInfo class="w-4 h-4 mr-1.5 shrink-0 mt-0.5" />
             <span>
               System audio can only be captured when sharing an entire screen. Audio capture is not
@@ -227,13 +270,26 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, onUnmounted } from "vue"
-import { PhMonitorPlay, PhSpeakerHigh, PhInfo, PhWarning } from "@phosphor-icons/vue"
+import {
+  PhMonitorPlay,
+  PhSpeakerHigh,
+  PhInfo,
+  PhWarning,
+  PhArrowClockwise,
+} from "@phosphor-icons/vue"
 import { useScreenShareSupport } from "@/composables/useScreenShareSupport"
 import { getDesktopSources, getPlatform } from "@/services/electron"
 import { hasVenmic, hasPipeWire, getSavedSources, saveSources } from "@/services/venmic"
+import { isWinAudioSupported, listWinAudioApps, pidOfWindowSource } from "@/services/winAudio"
 import AudioSourcePicker from "./AudioSourcePicker.vue"
 import AudioCaptureError from "./AudioCaptureError.vue"
-import type { DesktopSource, ScreenShareQuality, VenmicSource } from "@/types"
+import type {
+  DesktopSource,
+  ScreenShareQuality,
+  VenmicSource,
+  WinAudioApp,
+  WinAudioTarget,
+} from "@/types"
 
 interface Props {
   isOpen: boolean
@@ -253,6 +309,7 @@ const emit = defineEmits<{
     sourceId: string,
     audio: boolean,
     audioSources?: VenmicSource[],
+    winAudioTarget?: WinAudioTarget,
   ]
   cancel: []
 }>()
@@ -288,6 +345,41 @@ const selectedAudioSources = ref<VenmicSource[]>([])
 
 const platform = ref<string | null>(null)
 
+// Windows per-app audio (docs/specs/WINDOWS_APP_AUDIO.md)
+type WinAudioMode = "off" | "system" | "app"
+const winAudioModeOptions: { value: WinAudioMode; label: string }[] = [
+  { value: "off", label: "Off" },
+  { value: "system", label: "System (without Orbital)" },
+  { value: "app", label: "One app" },
+]
+const winAudioSupported = ref(false)
+const winAudioMode = ref<WinAudioMode>("off")
+const winAudioApps = ref<WinAudioApp[]>([])
+const selectedWinAppPid = ref<number | null>(null)
+
+async function refreshWinAudioApps() {
+  const apps = await listWinAudioApps()
+  // Keep the current pick even if its app has no audio session right now.
+  const picked = winAudioApps.value.find((a) => a.pid === selectedWinAppPid.value)
+  if (picked && !apps.some((a) => a.pid === picked.pid)) apps.push(picked)
+  winAudioApps.value = apps
+}
+
+// Sharing a window: preselect the app that owns it.
+watch(selectedSourceId, async (id) => {
+  if (!winAudioSupported.value || !id?.startsWith("window:")) return
+  const pid = await pidOfWindowSource(id)
+  if (!pid || selectedSourceId.value !== id) return
+  if (!winAudioApps.value.some((a) => a.pid === pid)) {
+    const source = sources.value.find((s) => s.id === id)
+    winAudioApps.value = [
+      ...winAudioApps.value,
+      { pid, name: source?.name ?? `Process ${pid}`, exe: "", active: false },
+    ]
+  }
+  selectedWinAppPid.value = pid
+})
+
 const selectedSourceIsWindow = computed(
   () => platform.value === "win32" && (selectedSourceId.value?.startsWith("window:") ?? false),
 )
@@ -309,6 +401,10 @@ watch(
       venmicAvailable.value = false
       selectedAudioSources.value = []
       audioCaptureError.value = null
+      winAudioSupported.value = false
+      winAudioMode.value = "off"
+      winAudioApps.value = []
+      selectedWinAppPid.value = null
 
       if (isRunningInElectron.value) {
         sources.value = []
@@ -321,6 +417,9 @@ watch(
           if (venmicAvailable.value) {
             selectedAudioSources.value = await getSavedSources()
           }
+        } else if (platform.value === "win32") {
+          winAudioSupported.value = await isWinAudioSupported()
+          if (winAudioSupported.value) await refreshWinAudioApps()
         }
       }
     }
@@ -357,6 +456,30 @@ function handleStartShare() {
 
   if (shareAudio.value && venmicAvailable.value && selectedAudioSources.value.length === 0) {
     audioCaptureError.value = "Please select at least one audio source"
+    return
+  }
+
+  if (winAudioSupported.value) {
+    let target: WinAudioTarget | undefined
+    if (winAudioMode.value === "system") {
+      target = { mode: "exclude-self" }
+    } else if (winAudioMode.value === "app") {
+      if (selectedWinAppPid.value === null) {
+        audioCaptureError.value = "Choose an app to share audio from"
+        return
+      }
+      target = { mode: "include", pid: selectedWinAppPid.value }
+    }
+    audioCaptureError.value = null
+    isStarting.value = true
+    emit(
+      "select-electron-source",
+      selectedQuality.value,
+      selectedSourceId.value,
+      !!target,
+      undefined,
+      target,
+    )
     return
   }
 

@@ -14,6 +14,7 @@ import { setupScreenShareHandler } from "./features/screenshare"
 import { registerAllHotkeys, closeHotkeyBackend } from "./features/hotkeys"
 import { setupIPC } from "./ipc"
 import { stopAudioCapture } from "./venmic"
+import { stopCapture as stopWinAudioCapture } from "./winAudioCapture"
 import { VITE_DEV_SERVER_URL } from "./paths"
 
 log.transports.file.level = "info"
@@ -97,6 +98,8 @@ app.on("before-quit", () => {
   // with the app anyway, but an explicit unlink avoids leaving loopbacks behind
   // if shutdown stalls. Never block quit on it.
   stopAudioCapture().catch((e) => log.warn("[Venmic] Stop on quit failed:", e))
+  // The helper also exits on its own when our end of its stdin pipe closes.
+  stopWinAudioCapture()
 })
 
 process.on("uncaughtException", (error) => {

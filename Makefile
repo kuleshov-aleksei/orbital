@@ -1,4 +1,4 @@
-.PHONY: help install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-backend test-integration e2e-textchat meili-up meili-down ml-up ml-down garage-up garage-down test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all build-android-web build-android build-android-dev check-android-jdk dev-android balance-drift balance-check
+.PHONY: help install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-backend test-integration e2e-textchat meili-up meili-down ml-up ml-down garage-up garage-down test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-win-audiocap build-electron-all build-android-web build-android build-android-dev check-android-jdk dev-android balance-drift balance-check
 
 # Default target
 help:
@@ -32,6 +32,7 @@ help:
 	@echo "  build-electron       - Build Electron desktop app"
 	@echo "  build-electron-win   - Build Electron for Windows"
 	@echo "  build-electron-linux - Build Electron for Linux"
+	@echo "  build-win-audiocap   - Cross-compile the Windows audio helper (needs mingw-w64)"
 	@echo "  build-android        - Build the Android app (debug APK; needs JDK + Android SDK)"
 	@echo "  build-android-dev    - Build \"Orbital Dev\" against this machine's backend (ANDROID_DEV_HOST)"
 	@echo "  dev-android          - Run the Android app against a live dev server (CAP_SERVER_URL=http://<lan-ip>:3000)"
@@ -330,7 +331,12 @@ build-electron:
 		cd electron && VITE_BACKEND_URL=$$VITE_BACKEND_URL UPDATE_URL=$(UPDATE_URL) pnpm run build; \
 	fi
 
-build-electron-win:
+# Windows per-app audio helper (docs/specs/WINDOWS_APP_AUDIO.md), built with
+# mingw-w64 (Debian: g++-mingw-w64-x86-64, Arch: mingw-w64-gcc).
+build-win-audiocap:
+	$(MAKE) -C native/win-audiocap
+
+build-electron-win: build-win-audiocap
 	@echo "Installing electron dependencies..."
 	cd electron && pnpm install
 	@echo "Building electron for Windows..."

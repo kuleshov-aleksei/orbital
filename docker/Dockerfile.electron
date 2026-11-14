@@ -20,6 +20,7 @@ RUN dpkg --add-architecture i386 && \
     libpipewire-0.3-dev \
     libpulse-dev \
     libstdc++-12-dev \
+    g++-mingw-w64-x86-64 \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
@@ -53,6 +54,12 @@ COPY electron/ .
 
 # Generate licenses
 RUN node scripts/generate-licenses.js
+
+# Windows per-app audio helper (native/win-audiocap), shipped by
+# electron-builder through win.extraResources.
+# Built before the version-sensitive section so it stays cached.
+COPY native/win-audiocap/ /app/native/win-audiocap/
+RUN make -C /app/native/win-audiocap
 
 # ── Version-sensitive section ──
 # Everything below invalidates every release (unavoidable for builds)
