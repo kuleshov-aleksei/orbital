@@ -16,6 +16,7 @@ require (
 	github.com/livekit/protocol v1.53.1
 	github.com/livekit/server-sdk-go/v2 v2.19.0
 	github.com/pion/rtp v1.10.5
+	github.com/pion/rtp/v2 v2.0.0
 	github.com/pion/webrtc/v4 v4.2.19
 	golang.org/x/crypto v0.58.0
 	golang.org/x/oauth2 v0.38.0
