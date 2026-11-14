@@ -38,7 +38,7 @@ import { setOnClientOutdated } from "@/services/appVersion"
 import { isCapacitor } from "@/services/platform"
 import { listenForMessageJumps } from "@/services/attachments/jumps"
 import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts"
-import { useThumbarButtons, useWebSocketHandlers } from "@/composables"
+import { useCallNotificationControls, useThumbarButtons, useWebSocketHandlers } from "@/composables"
 import { useNativeShell } from "@/composables/useNativeShell"
 import { wsService } from "@/services/websocket"
 import { isElectron, onDeepLink, onOAuthToken, setupMainProcessLogRelay } from "@/services/electron"
@@ -63,6 +63,7 @@ const appUpdateStore = useAppUpdateStore()
 
 useKeyboardShortcuts()
 useThumbarButtons()
+useCallNotificationControls()
 useWebSocketHandlers()
 
 const SESSION_REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000

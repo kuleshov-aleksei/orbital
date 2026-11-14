@@ -36,30 +36,54 @@ public class CallKeepAliveService extends Service {
 
     private static final String TAG = "CallKeepAlive";
     static final String EXTRA_TITLE = "title";
-    static final String EXTRA_TEXT = "text";
+    /** Notification buttons; handled in onStartCommand and forwarded to JS. */
+    static final String ACTION_TOGGLE_MUTE = "app.orbital.call.TOGGLE_MUTE";
+    static final String ACTION_TOGGLE_DEAFEN = "app.orbital.call.TOGGLE_DEAFEN";
     private static final String CHANNEL_ID = "ongoing_call";
     private static final int NOTIFICATION_ID = 4201;
 
     /** True between a successful startForeground and onDestroy. */
     static volatile boolean running = false;
 
+    /**
+     * Mute/deafen state pushed from JS (CallKeepAlivePlugin.update). JS is the
+     * source of truth; these only pick the button labels and the status text.
+     */
+    static volatile boolean muted = false;
+    static volatile boolean deafened = false;
+
+    /** The running service, so the plugin can refresh its notification. */
+    @Nullable
+    private static CallKeepAliveService instance;
+
+    private String title;
+
     private PowerManager.WakeLock wakeLock;
     private WifiManager.WifiLock wifiLock;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        String title = intent != null ? intent.getStringExtra(EXTRA_TITLE) : null;
-        String text = intent != null ? intent.getStringExtra(EXTRA_TEXT) : null;
-        Notification notification = buildNotification(
-            title != null ? title : getString(R.string.app_name),
-            text != null ? text : "In a voice call"
-        );
+        String action = intent != null ? intent.getAction() : null;
+        if (ACTION_TOGGLE_MUTE.equals(action) || ACTION_TOGGLE_DEAFEN.equals(action)) {
+            // A notification button: JS toggles and pushes the new state back (update()).
+            if (running) {
+                CallKeepAlivePlugin.dispatchAction(ACTION_TOGGLE_MUTE.equals(action) ? "mute" : "deafen");
+            } else {
+                stopSelf(); // stale button after the call ended
+            }
+            return START_NOT_STICKY;
+        }
+
+        String extraTitle = intent != null ? intent.getStringExtra(EXTRA_TITLE) : null;
+        title = extraTitle != null ? extraTitle : getString(R.string.app_name);
+        Notification notification = buildNotification();
 
         if (!enterForeground(notification)) {
             stopSelf();
             return START_NOT_STICKY;
         }
         running = true;
+        instance = this;
         acquireLocks();
         // Not sticky: if the system kills us the WebView (and the call) is gone too.
         return START_NOT_STICKY;
@@ -102,7 +126,24 @@ public class CallKeepAliveService extends Service {
             == PackageManager.PERMISSION_GRANTED;
     }
 
-    private Notification buildNotification(String title, String text) {
+    /** Rebuilds the ongoing notification after a mute/deafen change. */
+    static void refresh() {
+        CallKeepAliveService service = instance;
+        if (service == null || !running) return;
+        NotificationManager nm = (NotificationManager) service.getSystemService(Context.NOTIFICATION_SERVICE);
+        try {
+            nm.notify(NOTIFICATION_ID, service.buildNotification());
+        } catch (RuntimeException e) {
+            Log.w(TAG, "notification refresh failed", e);
+        }
+    }
+
+    private PendingIntent actionIntent(String action, int requestCode) {
+        Intent intent = new Intent(this, CallKeepAliveService.class).setAction(action);
+        return PendingIntent.getService(this, requestCode, intent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+    }
+
+    private Notification buildNotification() {
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && nm.getNotificationChannel(CHANNEL_ID) == null) {
             NotificationChannel channel = new NotificationChannel(
@@ -122,10 +163,25 @@ public class CallKeepAliveService extends Service {
             contentIntent = PendingIntent.getActivity(this, 0, launch, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         }
 
+        boolean isMuted = muted;
+        boolean isDeafened = deafened;
+        String text = isDeafened ? "Deafened" : isMuted ? "Muted" : "Tap to return to the call";
+
         return new NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_call_notification)
             .setContentTitle(title)
             .setContentText(text)
+            .addAction(
+                isMuted ? R.drawable.ic_notif_mic : R.drawable.ic_notif_mic_off,
+                isMuted ? "Unmute" : "Mute",
+                actionIntent(ACTION_TOGGLE_MUTE, 1)
+            )
+            .addAction(
+                isDeafened ? R.drawable.ic_notif_headphones : R.drawable.ic_notif_headphones_off,
+                isDeafened ? "Undeafen" : "Deafen",
+                actionIntent(ACTION_TOGGLE_DEAFEN, 2)
+            )
+            .setOnlyAlertOnce(true)
             .setContentIntent(contentIntent)
             .setOngoing(true)
             .setSilent(true)
@@ -170,6 +226,7 @@ public class CallKeepAliveService extends Service {
     @Override
     public void onDestroy() {
         running = false;
+        if (instance == this) instance = null;
         releaseLocks();
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE);
         super.onDestroy();

@@ -1,10 +1,18 @@
 import { Capacitor, registerPlugin } from "@capacitor/core"
+import type { PluginListenerHandle } from "@capacitor/core"
 import * as electron from "@/services/electron"
+
+export type CallNotificationAction = "mute" | "deafen"
 
 /** Local Android plugin (mobile/android/.../CallKeepAlivePlugin.java). */
 interface CallKeepAlivePlugin {
-  start(options: { title: string; text: string }): Promise<void>
+  start(options: { title: string }): Promise<void>
+  update(options: { muted: boolean; deafened: boolean }): Promise<void>
   stop(): Promise<void>
+  addListener(
+    eventName: "action",
+    listener: (event: { action: CallNotificationAction }) => void,
+  ): Promise<PluginListenerHandle>
 }
 const CallKeepAlive = registerPlugin<CallKeepAlivePlugin>("CallKeepAlive")
 
@@ -65,7 +73,6 @@ export async function setCallKeepAlive(active: boolean, roomName = ""): Promise<
     if (active) {
       await CallKeepAlive.start({
         title: roomName ? `In voice: ${roomName}` : "In a voice call",
-        text: "Tap to return to the call",
       })
     } else {
       await CallKeepAlive.stop()
@@ -73,6 +80,36 @@ export async function setCallKeepAlive(active: boolean, roomName = ""): Promise<
   } catch (err) {
     console.warn("Call keep-alive service failed:", err)
   }
+}
+
+/**
+ * Pushes the mute/deafen state to the ongoing call notification (Android), which
+ * shows matching Mute/Unmute and Deafen/Undeafen buttons. Safe to call before the
+ * call starts: the state is kept for the next notification. No-op elsewhere.
+ */
+export async function setCallNotificationState(state: {
+  muted: boolean
+  deafened: boolean
+}): Promise<void> {
+  if (!isCapacitor()) return
+  try {
+    await CallKeepAlive.update(state)
+  } catch (err) {
+    console.warn("Call notification update failed:", err)
+  }
+}
+
+/**
+ * Listens for taps on the ongoing call notification buttons (Android). The
+ * listener should toggle the state; the notification follows through
+ * setCallNotificationState. Returns a function that removes the listener.
+ */
+export async function onCallNotificationAction(
+  listener: (action: CallNotificationAction) => void,
+): Promise<() => void> {
+  if (!isCapacitor()) return () => {}
+  const handle = await CallKeepAlive.addListener("action", (event) => listener(event.action))
+  return () => void handle.remove()
 }
 
 /** Light haptic feedback on Android (mute/deafen toggles); no-op elsewhere. */
