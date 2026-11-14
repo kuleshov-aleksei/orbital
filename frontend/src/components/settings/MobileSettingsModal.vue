@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="isOpen"
-    class="fixed inset-0 bg-theme-backdrop flex items-center justify-center z-50"
+    class="fixed inset-0 safe-area-pad bg-theme-backdrop flex items-center justify-center z-50"
     @click.self="close">
     <div
       class="bg-theme-bg-secondary rounded-xl shadow-xl w-full mx-4 overflow-hidden flex flex-col"

@@ -79,6 +79,19 @@
           Security
         </button>
         <button
+          v-if="isSuperAdmin"
+          type="button"
+          data-testid="admin-tab-app-versions"
+          class="px-4 py-2 text-sm font-medium transition-colors"
+          :class="
+            activeTab === 'app-versions'
+              ? 'text-white border-b-2 border-indigo-500'
+              : 'text-gray-400 hover:text-gray-200'
+          "
+          @click="activeTab = 'app-versions'">
+          App versions
+        </button>
+        <button
           v-if="isSuperAdmin && configStore.attachments"
           type="button"
           data-testid="admin-tab-search-indexing"
@@ -477,6 +490,11 @@
         <SecuritySelfCheck />
       </div>
 
+      <!-- Minimum Android app version (Super Admin Only) -->
+      <div v-if="activeTab === 'app-versions' && isSuperAdmin">
+        <AppVersionsAdmin />
+      </div>
+
       <!-- Search indexing of attachments (Super Admin Only, needs S3) -->
       <div v-if="activeTab === 'search-indexing' && isSuperAdmin && configStore.attachments">
         <SearchIndexingAdmin />
@@ -731,6 +749,7 @@ import { useAdminStats } from "@/composables/useAdminStats"
 import StatsMap from "@/components/admin/StatsMap.vue"
 import UsageAnalytics from "@/components/admin/UsageAnalytics.vue"
 import SecuritySelfCheck from "@/components/admin/SecuritySelfCheck.vue"
+import AppVersionsAdmin from "@/components/admin/AppVersionsAdmin.vue"
 import SearchIndexingAdmin from "@/components/admin/SearchIndexingAdmin.vue"
 import { useConfigStore } from "@/stores/config"
 import HalloweenAdmin from "@/components/admin/HalloweenAdmin.vue"
@@ -762,6 +781,7 @@ const activeTab = ref<
   | "roles"
   | "logs"
   | "security"
+  | "app-versions"
   | "search-indexing"
   | "audio"
   | "soundboard"

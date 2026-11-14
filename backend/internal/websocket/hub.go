@@ -31,7 +31,8 @@ type Hub struct {
 	livekitService *service.LiveKitService
 	chatService    *service.ChatService
 	sessionRepo    *repository.SessionRepository
-	permissions    *service.PermissionService // nil only in unit tests
+	permissions    *service.PermissionService    // nil only in unit tests
+	clientVersions *service.ClientVersionService // nil: no minimum app version
 	grantsMu       sync.Mutex
 	appliedGrants  map[string]permissions.Permission // "room|user" -> perms last pushed to LiveKit
 	cfg            *config.Config
@@ -52,6 +53,10 @@ type Hub struct {
 	// Text channels (see textchat.go)
 	textChat    *TextChat
 	textLimiter *ratelimit.Limiter
+
+	// Presence: users shown as "away" (see presence.go)
+	awayMu    sync.Mutex
+	awayUsers map[string]bool
 }
 
 // Client represents a WebSocket client
@@ -62,9 +67,13 @@ type Client struct {
 	roomID            string
 	userID            string
 	subject           service.Subject // RBAC identity, resolved at connect
+	clientID          string          // "<platform>/<version>" from ?client= (app builds only)
 	lastPingTime      time.Time
 	firstPingReceived bool
-	mu                sync.RWMutex
+	// inactive is set by client_state when the user isn't looking at this
+	// session (hidden, unfocused or idle); see presence.go.
+	inactive bool
+	mu       sync.RWMutex
 }
 
 // NewHub creates a new WebSocket hub
@@ -93,13 +102,14 @@ func NewHub(roomService *service.RoomService, authService *service.AuthService, 
 }
 
 // checkOrigin limits WebSocket upgrades to the configured frontend origins.
-// Non-browser clients that omit Origin are allowed; Electron uses orbital://app.
+// Non-browser clients that omit Origin are allowed, and so are the packaged
+// apps (config.IsAppOrigin: Electron and Android).
 func (h *Hub) checkOrigin(r *http.Request) bool {
 	origin := strings.TrimSpace(r.Header.Get("Origin"))
 	if origin == "" {
 		return true
 	}
-	if strings.EqualFold(strings.TrimRight(origin, "/"), "orbital://app") {
+	if config.IsAppOrigin(origin) {
 		return true
 	}
 	if h.cfg == nil {
@@ -174,7 +184,17 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 		conn:         conn,
 		send:         make(chan []byte, 256),
 		roomID:       roomID,
+		clientID:     r.URL.Query().Get("client"),
 		lastPingTime: time.Now(),
+	}
+
+	// An app below the minimum version is refused with a close code the
+	// frontend recognises (a browser can't read the status of a failed upgrade).
+	if h.clientVersions != nil && h.clientVersions.IsOutdated(client.clientID) {
+		log.Printf("WebSocket connection rejected (roomID=%q): outdated client %q", roomID, client.clientID)
+		closeOutdated(conn)
+		_ = conn.Close()
+		return
 	}
 
 	// JWT authentication is mandatory: no token means no connection.
@@ -258,6 +278,8 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 	} else {
 		log.Printf("[WebSocket] Cannot broadcast user_online: authService is nil")
 	}
+	// user_online reads as "not away" on clients; a new socket starts active.
+	h.resyncAway(userID)
 
 	// Start goroutines for this client FIRST so they can receive messages
 	go client.writePump()
@@ -276,7 +298,7 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 			for _, uid := range onlineUserIDs {
 				user, err := h.authService.GetUserByID(uid)
 				if err == nil && user != nil {
-					onlineUsers = append(onlineUsers, models.NewPublicUser(user, true))
+					onlineUsers = append(onlineUsers, h.onlinePublicUser(user))
 				}
 			}
 		}
@@ -617,6 +639,12 @@ func (c *Client) readPump() {
 			} else if wasOnline && isStillOnline {
 				log.Printf("[WebSocket] User %s disconnected but still has other connections, keeping online", userID)
 			}
+			if isStillOnline {
+				// The closed socket may have been the only active one.
+				c.hub.refreshAway(userID)
+			} else {
+				c.hub.forgetAway(userID)
+			}
 		}
 
 		_ = c.conn.Close()
@@ -705,6 +733,8 @@ func (c *Client) handleMessage(message models.WebSocketMessage) {
 		c.handleTextPin(message.Data)
 	case "text_typing":
 		c.handleTextTyping(message.Data)
+	case "client_state":
+		c.handleClientState(message.Data)
 	default:
 		log.Printf("Unknown message type: %s", message.Type)
 	}
@@ -1094,6 +1124,7 @@ func (c *Client) handlePing(data interface{}) {
 					Type: "user_online",
 					Data: models.NewPublicUser(user, true),
 				})
+				c.hub.resyncAway(userID)
 			} else {
 				log.Printf("[WebSocket] Cannot broadcast user_online for %s: auth error=%v, user=%v", userID, err, user)
 			}
@@ -1181,7 +1212,7 @@ func (h *Hub) broadcastOnlineUsers() {
 		for _, userID := range onlineUserIDs {
 			user, err := h.authService.GetUserByID(userID)
 			if err == nil && user != nil {
-				onlineUsers = append(onlineUsers, models.NewPublicUser(user, true))
+				onlineUsers = append(onlineUsers, h.onlinePublicUser(user))
 			}
 		}
 	}

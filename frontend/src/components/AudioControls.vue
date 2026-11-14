@@ -1,9 +1,26 @@
 <template>
+  <!-- Mobile: compact bar with a pull-up sheet for everything else -->
+  <MobileCallControls
+    v-if="isMobile"
+    ref="mobileControlsRef"
+    v-model:muted="isMuted"
+    v-model:deafened="isDeafened"
+    v-model:screen-sharing="isScreenSharing"
+    v-model:camera-enabled="isCameraEnabled"
+    :is-spatial-room="isSpatialRoom"
+    :has-multiple-cameras="hasMultipleCameras"
+    @start-screen-share="$emit('start-screen-share')"
+    @toggle-camera="$emit('toggle-camera', $event)"
+    @flip-camera="handleFlipCamera"
+    @auth-required="$emit('auth-required')"
+    @leave-room="handleLeaveRoom" />
+
   <div
+    v-else
     data-testid="audio-controls"
-    class="flex items-center justify-center gap-2 shrink-0 px-4 py-3">
+    class="flex items-center shrink-0 justify-center gap-2 px-4 py-3">
     <!-- Group: Mute + Audio quick-settings caret + Deafen -->
-    <div class="flex items-center gap-1.5 p-1.5 rounded-xl bg-theme-bg-secondary">
+    <div :class="groupClass">
       <div class="flex items-center">
         <MicMuteButton v-model="isMuted" size="lg" corner="left" />
         <AudioControlsDropdown :muted="isMuted" />
@@ -12,9 +29,7 @@
     </div>
 
     <!-- Group: Camera + Screen Share -->
-    <div
-      v-if="!isSpatialRoom"
-      class="flex items-center gap-1.5 p-1.5 rounded-xl bg-theme-bg-secondary">
+    <div v-if="!isSpatialRoom" :class="groupClass">
       <div class="flex items-center">
         <CameraButton
           v-model="isCameraEnabled"
@@ -36,20 +51,10 @@
         v-model="isScreenSharing"
         size="lg"
         @start-screen-share="$emit('start-screen-share')" />
-
-      <!-- Settings (mobile only) -->
-      <button
-        v-if="isMobile"
-        type="button"
-        class="control-button h-10 w-12 rounded-lg bg-theme-bg-tertiary hover:bg-theme-bg-hover"
-        title="Settings"
-        @click="openSettings">
-        <PhGearSix class="w-5 h-5" />
-      </button>
     </div>
 
     <!-- Group: Soundboard -->
-    <div class="flex items-center gap-1.5 p-1.5 rounded-xl bg-theme-bg-secondary">
+    <div :class="groupClass">
       <SoundboardButton />
     </div>
 
@@ -77,14 +82,15 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, useTemplateRef } from "vue"
-import { PhSignOut, PhGearSix, PhImageBroken, PhArrowsClockwise } from "@phosphor-icons/vue"
+import { PhSignOut, PhImageBroken, PhArrowsClockwise } from "@phosphor-icons/vue"
 import MicMuteButton from "@/components/MicMuteButton.vue"
 import AudioDeafenButton from "@/components/AudioDeafenButton.vue"
 import ScreenShareButton from "@/components/ScreenShareButton.vue"
 import CameraButton from "@/components/CameraButton.vue"
 import AudioControlsDropdown from "@/components/AudioControlsDropdown.vue"
 import SoundboardButton from "@/components/soundboard/SoundboardButton.vue"
-import { useModalStore, useCallStore, useRoomStore, useVideoSettingsStore } from "@/stores"
+import MobileCallControls from "@/components/MobileCallControls.vue"
+import { useCallStore, useRoomStore, useVideoSettingsStore } from "@/stores"
 
 interface Props {
   modelValueMuted?: boolean
@@ -114,12 +120,15 @@ const emit = defineEmits<{
   "leave-room": []
 }>()
 
+const groupClass = "flex items-center gap-1.5 p-1.5 rounded-xl bg-theme-bg-secondary"
+
 // Template refs
 const screenShareButtonRef =
   useTemplateRef<InstanceType<typeof ScreenShareButton>>("screenShareButtonRef")
+const mobileControlsRef =
+  useTemplateRef<InstanceType<typeof MobileCallControls>>("mobileControlsRef")
 
 // Stores
-const modalStore = useModalStore()
 const callStore = useCallStore()
 const roomStore = useRoomStore()
 const videoSettingsStore = useVideoSettingsStore()
@@ -151,10 +160,6 @@ onUnmounted(() => {
 })
 
 // Methods
-const openSettings = () => {
-  modalStore.openUserSettingsModal()
-}
-
 const handleLeaveRoom = () => {
   emit("leave-room")
 }
@@ -182,6 +187,10 @@ const isCameraEnabled = computed({
 
 // Confirm screen share start (called by parent after quality selection)
 const confirmStartScreenShare = async () => {
+  if (props.isMobile) {
+    mobileControlsRef.value?.confirmStartScreenShare()
+    return
+  }
   const button = screenShareButtonRef.value as unknown as {
     confirmStartScreenShare?: () => Promise<void>
   } | null

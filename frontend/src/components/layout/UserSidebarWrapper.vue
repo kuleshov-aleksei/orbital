@@ -19,7 +19,7 @@
   <UserSidebar
     v-if="appStore.isMobile"
     :is-open="appStore.mobileUserSidebarOpen"
-    class="fixed right-0 top-0 h-full w-60 bg-gray-800 z-40"
+    class="fixed right-0 top-0 h-full w-60 bg-gray-800 z-40 safe-area-pad"
     :users="visibleUsers"
     :user-count="visibleUsers.length"
     :room-id="roomStore.activeRoomId || ''"

@@ -64,6 +64,8 @@ import type {
   RolesResponse,
 } from "@/types/permissions"
 import { isElectron, openExternal, oauthAuthenticate } from "./electron"
+import { isCapacitor } from "./platform"
+import { CLIENT_HEADER, clientId, notifyClientOutdated } from "./appVersion"
 
 const API_BASE = typeof __BACKEND_URL__ !== "undefined" ? `${__BACKEND_URL__}/api` : "/api"
 
@@ -402,12 +404,22 @@ export async function uploadTextAttachment(
   return JSON.parse(res.body) as AttachmentUploadResponse
 }
 
-// Latest desktop release, resolved by the backend from the update feed
+// Latest release, resolved by the backend from the update feed
 // (latest.yml). Artifact URLs are absolute links to the update host.
 export interface LatestRelease {
   version: string
   windows_url: string
   linux_url: string
+  android_url: string
+  /** Oldest Android app the backend accepts; "" = no minimum. */
+  android_min_version: string
+}
+
+// Minimum app versions (superadmin, Admin → App versions).
+export interface ClientVersions {
+  android_min_version: string
+  /** Newest published release; "" when the update feed can't be reached. */
+  latest_version: string
 }
 
 // LiveKit token response types
@@ -430,7 +442,13 @@ function apiError(message: string, status: number): ApiError {
 
 // Endpoints whose 401 means "bad credentials" rather than "session expired" -
 // they must never trigger a refresh attempt or the session-expired flow.
-const AUTH_ENDPOINTS_NO_RETRY = ["/auth/login", "/auth/register", "/auth/guest", "/auth/refresh"]
+const AUTH_ENDPOINTS_NO_RETRY = [
+  "/auth/login",
+  "/auth/register",
+  "/auth/guest",
+  "/auth/refresh",
+  "/auth/exchange",
+]
 
 function isCredentialEndpoint(endpoint: string): boolean {
   return AUTH_ENDPOINTS_NO_RETRY.some((path) => endpoint.startsWith(path))
@@ -487,11 +505,31 @@ export async function apiRequest<T>(
     if (token) {
       headers["Authorization"] = `Bearer ${token}`
     }
+    // Packaged app build: lets the backend refuse versions below the minimum.
+    const client = clientId()
+    if (client) {
+      headers[CLIENT_HEADER] = client
+    }
 
     const response = await fetch(`${API_BASE}${endpoint}`, {
       headers,
       ...options,
     })
+
+    // This app version is below the minimum: show the "update required" screen.
+    if (response.status === 426) {
+      const body = (await response
+        .clone()
+        .json()
+        .catch(() => null)) as {
+        error?: string
+        min_version?: string
+      } | null
+      if (body?.error === "client_outdated") {
+        notifyClientOutdated(body.min_version || null)
+        throw apiError("This version of Orbital is no longer supported.", 426)
+      }
+    }
 
     // Expired/invalid session: try one silent refresh, then retry the request.
     if (response.status === 401 && allowRetry && !isCredentialEndpoint(endpoint)) {
@@ -725,6 +763,18 @@ export const apiService = {
     return apiRequest<LatestRelease>("/releases/latest")
   },
 
+  // Minimum app versions (super_admin only).
+  async getClientVersions(): Promise<ClientVersions> {
+    return apiRequest<ClientVersions>("/admin/client-versions")
+  },
+
+  async updateClientVersions(androidMinVersion: string): Promise<ClientVersions> {
+    return apiRequest<ClientVersions>("/admin/client-versions", {
+      method: "PUT",
+      body: JSON.stringify({ android_min_version: androidMinVersion }),
+    })
+  },
+
   // Category management
   async getCategories(): Promise<Category[]> {
     return apiRequest<Category[]>("/categories")
@@ -902,20 +952,43 @@ export const apiService = {
   },
 
   // Auth API calls
+  /**
+   * OAuth URL for flows that finish outside the page: the desktop app
+   * (loopback redirect) and the Android app (deep link + one-time code, which
+   * needs the app's S256 `codeChallenge`).
+   */
   async getOAuthUrl(
     provider: "discord" | "google",
-    isElectronApp = false,
+    client: "electron" | "android" | "android-dev",
+    codeChallenge?: string,
   ): Promise<{ url: string; state: string }> {
-    const endpoint = isElectronApp ? `/auth/${provider}/url?electron=true` : `/auth/${provider}/url`
-    const response = await apiRequest<{ url: string; state: string }>(endpoint)
-    return response
+    const params = new URLSearchParams({ client })
+    if (codeChallenge) params.set("code_challenge", codeChallenge)
+    return apiRequest<{ url: string; state: string }>(`/auth/${provider}/url?${params}`)
+  },
+
+  /** Redeems the one-time code from the Android OAuth deep link for a session. */
+  async exchangeAppLoginCode(
+    code: string,
+    state: string,
+    codeVerifier: string,
+  ): Promise<AuthResponse> {
+    return apiRequest<AuthResponse>("/auth/exchange", {
+      method: "POST",
+      headers: { "Cache-Control": "no-store" },
+      body: JSON.stringify({ code, state, code_verifier: codeVerifier }),
+    })
   },
 
   async initiateOAuthLogin(provider: "discord" | "google"): Promise<void> {
     if (isElectron()) {
-      const { url, state } = await this.getOAuthUrl(provider, true)
+      const { url, state } = await this.getOAuthUrl(provider, "electron")
       await oauthAuthenticate(state)
       await openExternal(url)
+    } else if (isCapacitor()) {
+      // Dynamic import: oauthApp imports this module.
+      const { startAppOAuth } = await import("./oauthApp")
+      await startAppOAuth(provider)
     } else {
       window.location.href = `${API_BASE}/auth/${provider}/login`
     }
@@ -981,6 +1054,21 @@ export const apiService = {
     setAuthToken(response.token)
     setTokenExpiry(response.expires_at)
     return response
+  },
+
+  /** Registers this device's FCM token for mention pushes (Android app). */
+  async registerPushDevice(token: string, platform: "android"): Promise<void> {
+    await apiRequest<void>("/push/devices", {
+      method: "POST",
+      body: JSON.stringify({ token, platform }),
+    })
+  },
+
+  async unregisterPushDevice(token: string): Promise<void> {
+    await apiRequest<void>("/push/devices", {
+      method: "DELETE",
+      body: JSON.stringify({ token }),
+    })
   },
 
   async logout(): Promise<{ status: string; message: string }> {

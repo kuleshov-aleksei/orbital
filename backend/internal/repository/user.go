@@ -198,6 +198,9 @@ func (r *UserRepository) Delete(id string) error {
 	if _, err := r.db.Exec(`DELETE FROM permission_overwrites WHERE subject_type = 'user' AND subject_id = ?`, id); err != nil {
 		return err
 	}
+	if _, err := r.db.Exec(`DELETE FROM push_devices WHERE user_id = ?`, id); err != nil {
+		return err
+	}
 	_, err := r.db.Exec(`DELETE FROM users WHERE id = ?`, id)
 	return err
 }
@@ -262,6 +265,9 @@ func (r *UserRepository) DeleteAllGuests() (int64, error) {
 		return 0, err
 	}
 	if _, err := r.db.Exec(`DELETE FROM permission_overwrites WHERE subject_type = 'user' AND subject_id IN (SELECT id FROM users WHERE is_guest = 1)`); err != nil {
+		return 0, err
+	}
+	if _, err := r.db.Exec(`DELETE FROM push_devices WHERE user_id IN (SELECT id FROM users WHERE is_guest = 1)`); err != nil {
 		return 0, err
 	}
 	result, err := r.db.Exec(`DELETE FROM users WHERE is_guest = 1`)

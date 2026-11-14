@@ -34,7 +34,8 @@ description: Use when changing Electron builds, auto-update feeds, S3/Garage art
 
 ## References
 
-- `docs/notes/MIGRATION_TO_S3.md`
-- `.github/workflows/build-electron.yml`, `.github/workflows/publish-electron.yml`
+- `docs/notes/MIGRATION_TO_S3.md`, `docs/notes/ANDROID_SIGNING.md`
+- `.github/workflows/build-electron.yml` (Electron + Android APK), `.github/workflows/publish-electron.yml`
+- `docker/Dockerfile.electron`, `docker/Dockerfile.android`
 - `electron/electron-builder.json`, `electron/main/features/update.ts`
 - `scripts/prune-s3-releases.sh`, `scripts/aws-cli-config`

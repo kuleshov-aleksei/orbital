@@ -33,11 +33,21 @@ var googleOAuthEndpoint = oauth2.Endpoint{
 
 const oauthStateTTL = 5 * time.Minute
 
-type oauthStateEntry struct {
-	Provider     models.AuthProvider
-	Electron     bool
+// OAuthState is what a one-time OAuth state remembers about the flow that
+// created it.
+type OAuthState struct {
+	Provider models.AuthProvider
+	Client   OAuthClient
+	// CodeVerifier is the PKCE verifier for the provider's token exchange.
 	CodeVerifier string
-	ExpiresAt    time.Time
+	// AppChallenge is the app's own S256 challenge (Android only): the app
+	// proves it with its verifier when redeeming the one-time login code.
+	AppChallenge string
+}
+
+type oauthStateEntry struct {
+	OAuthState
+	ExpiresAt time.Time
 }
 
 // AuthService handles OAuth authentication and JWT management
@@ -46,9 +56,13 @@ type AuthService struct {
 	userRepo             *repository.UserRepository
 	oauthConfigs         map[models.AuthProvider]*oauth2.Config
 	electronOAuthConfigs map[models.AuthProvider]*oauth2.Config
+	androidOAuthConfigs  map[models.AuthProvider]*oauth2.Config
 
 	stateMu sync.Mutex
 	states  map[string]oauthStateEntry
+
+	appCodeMu sync.Mutex
+	appCodes  map[string]appLoginCodeEntry
 }
 
 // NewAuthService creates a new auth service
@@ -58,7 +72,9 @@ func NewAuthService(cfg *config.AuthConfig, userRepo *repository.UserRepository)
 		userRepo:             userRepo,
 		oauthConfigs:         make(map[models.AuthProvider]*oauth2.Config),
 		electronOAuthConfigs: make(map[models.AuthProvider]*oauth2.Config),
-		states:               make(map[string]oauthStateEntry),
+		androidOAuthConfigs:  make(map[models.AuthProvider]*oauth2.Config),
+		states:              make(map[string]oauthStateEntry),
+		appCodes:             make(map[string]appLoginCodeEntry),
 	}
 
 	// Debug logging for OAuth configuration
@@ -137,28 +153,67 @@ func NewAuthService(cfg *config.AuthConfig, userRepo *repository.UserRepository)
 		log.Printf("[Auth] Google OAuth (Electron) configured with redirect: %s", cfg.GoogleElectronRedirectURL)
 	}
 
+	// Optional Android redirect URIs. Without them Android uses the Electron
+	// ones, which is fine when they point at a public host. In development the
+	// Electron URI is usually http://localhost:3000, which a phone cannot reach.
+	for provider, redirect := range map[models.AuthProvider]string{
+		models.AuthProviderDiscord: cfg.DiscordAndroidRedirectURL,
+		models.AuthProviderGoogle:  cfg.GoogleAndroidRedirectURL,
+	} {
+		base, ok := service.oauthConfigs[provider]
+		if !ok || redirect == "" {
+			continue
+		}
+		android := *base
+		android.RedirectURL = redirect
+		service.androidOAuthConfigs[provider] = &android
+		log.Printf("[Auth] %s OAuth (Android) configured with redirect: %s", provider, redirect)
+	}
+
 	return service
+}
+
+// clientOAuthConfig picks the provider registration (redirect URI) a client's
+// flow uses on both legs: the authorization URL and the code exchange.
+func (s *AuthService) clientOAuthConfig(provider models.AuthProvider, client OAuthClient) (*oauth2.Config, bool) {
+	if client.IsAndroid() {
+		if config, ok := s.androidOAuthConfigs[provider]; ok {
+			return config, true
+		}
+	}
+	if client.UsesAppRedirect() {
+		config, ok := s.electronOAuthConfigs[provider]
+		return config, ok
+	}
+	config, ok := s.oauthConfigs[provider]
+	return config, ok
 }
 
 // GenerateState creates a random, single-use OAuth state bound to a provider
 // and flow. The state is stored server-side so a callback can only complete a
-// flow that this server actually initiated.
-func (s *AuthService) GenerateState(provider models.AuthProvider, electron bool) (string, string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
+// flow that this server actually initiated. appChallenge is the Android app's
+// S256 challenge and must be empty for other clients.
+func (s *AuthService) GenerateState(provider models.AuthProvider, client OAuthClient, appChallenge string) (string, string, error) {
+	if client.IsAndroid() != (appChallenge != "") {
+		return "", "", fmt.Errorf("app challenge is required for (and only for) the Android client")
+	}
+	state, err := randomToken()
+	if err != nil {
 		return "", "", err
 	}
-	state := base64.RawURLEncoding.EncodeToString(b)
 	verifier := oauth2.GenerateVerifier()
 
 	now := time.Now()
 	s.stateMu.Lock()
 	s.pruneStatesLocked(now)
 	s.states[state] = oauthStateEntry{
-		Provider:     provider,
-		Electron:     electron,
-		CodeVerifier: verifier,
-		ExpiresAt:    now.Add(oauthStateTTL),
+		OAuthState: OAuthState{
+			Provider:     provider,
+			Client:       client,
+			CodeVerifier: verifier,
+			AppChallenge: appChallenge,
+		},
+		ExpiresAt: now.Add(oauthStateTTL),
 	}
 	s.stateMu.Unlock()
 
@@ -167,9 +222,9 @@ func (s *AuthService) GenerateState(provider models.AuthProvider, electron bool)
 
 // ConsumeState validates and burns an OAuth state. It never leaves a state
 // reusable, even when the callback later fails.
-func (s *AuthService) ConsumeState(state string) (models.AuthProvider, bool, string, error) {
+func (s *AuthService) ConsumeState(state string) (OAuthState, error) {
 	if state == "" {
-		return "", false, "", fmt.Errorf("missing oauth state")
+		return OAuthState{}, fmt.Errorf("missing oauth state")
 	}
 
 	now := time.Now()
@@ -180,9 +235,9 @@ func (s *AuthService) ConsumeState(state string) (models.AuthProvider, bool, str
 	s.stateMu.Unlock()
 
 	if !ok || now.After(entry.ExpiresAt) {
-		return "", false, "", fmt.Errorf("invalid or expired oauth state")
+		return OAuthState{}, fmt.Errorf("invalid or expired oauth state")
 	}
-	return entry.Provider, entry.Electron, entry.CodeVerifier, nil
+	return entry.OAuthState, nil
 }
 
 func (s *AuthService) pruneStatesLocked(now time.Time) {
@@ -204,33 +259,24 @@ func (s *AuthService) GetOAuthURL(provider models.AuthProvider, state, codeVerif
 	return config.AuthCodeURL(state, oauth2.AccessTypeOnline, oauth2.S256ChallengeOption(codeVerifier)), nil
 }
 
-// GetElectronOAuthURL returns the OAuth URL for Electron with custom redirect
-func (s *AuthService) GetElectronOAuthURL(provider models.AuthProvider, state, codeVerifier string) (string, error) {
-	config, ok := s.electronOAuthConfigs[provider]
-	if !ok {
-		return "", fmt.Errorf("electron OAuth not configured for provider: %s", provider)
+// GetAppOAuthURL returns the OAuth URL for the desktop or Android app, using
+// that client's redirect URI.
+func (s *AuthService) GetAppOAuthURL(provider models.AuthProvider, client OAuthClient, state, codeVerifier string) (string, error) {
+	config, ok := s.clientOAuthConfig(provider, client)
+	if !ok || !client.UsesAppRedirect() {
+		return "", fmt.Errorf("%s OAuth not configured for provider: %s", client, provider)
 	}
 
-	log.Printf("[Auth] GetElectronOAuthURL - redirect_uri: %s", config.RedirectURL)
+	log.Printf("[Auth] GetAppOAuthURL (%s) - redirect_uri: %s", client, config.RedirectURL)
 	return config.AuthCodeURL(state, oauth2.AccessTypeOnline, oauth2.S256ChallengeOption(codeVerifier)), nil
 }
 
-// ExchangeCode exchanges an OAuth code for an access token and user info
-// Use electronConfig parameter to specify which config to use
-func (s *AuthService) ExchangeCode(ctx context.Context, provider models.AuthProvider, code string, useElectronConfig bool, codeVerifier string) (*models.OAuthUserInfo, error) {
-	var config *oauth2.Config
-	var ok bool
-
-	if useElectronConfig {
-		config, ok = s.electronOAuthConfigs[provider]
-		if !ok {
-			return nil, fmt.Errorf("electron OAuth not configured for provider: %s", provider)
-		}
-	} else {
-		config, ok = s.oauthConfigs[provider]
-		if !ok {
-			return nil, fmt.Errorf("OAuth not configured for provider: %s", provider)
-		}
+// ExchangeCode exchanges an OAuth code for an access token and user info. The
+// client selects the same registration (redirect URI) the flow started with.
+func (s *AuthService) ExchangeCode(ctx context.Context, provider models.AuthProvider, code string, client OAuthClient, codeVerifier string) (*models.OAuthUserInfo, error) {
+	config, ok := s.clientOAuthConfig(provider, client)
+	if !ok {
+		return nil, fmt.Errorf("%s OAuth not configured for provider: %s", client, provider)
 	}
 
 	// Exchange code for token (include the PKCE verifier when present)
@@ -551,10 +597,11 @@ func (s *AuthService) IsProviderConfigured(provider models.AuthProvider) bool {
 	return ok
 }
 
-// IsElectronOAuthConfigured checks if Electron OAuth is configured for a provider
-func (s *AuthService) IsElectronOAuthConfigured(provider models.AuthProvider) bool {
-	_, ok := s.electronOAuthConfigs[provider]
-	return ok
+// IsAppOAuthConfigured checks that a desktop/Android client has a redirect URI
+// registered for the provider.
+func (s *AuthService) IsAppOAuthConfigured(provider models.AuthProvider, client OAuthClient) bool {
+	_, ok := s.clientOAuthConfig(provider, client)
+	return ok && client.UsesAppRedirect()
 }
 
 // Password validation constants

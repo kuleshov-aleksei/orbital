@@ -1,5 +1,6 @@
 import { WebSocketMessage } from "@/types"
 import { getAuthToken, isTokenExpired } from "./api"
+import { clientId, notifyClientOutdated, WS_CLOSE_CLIENT_OUTDATED } from "./appVersion"
 
 declare const __BACKEND_WS_URL__: string | undefined
 
@@ -27,6 +28,10 @@ function toMediaStatePayload(state: LocalMediaState) {
 // Upper bound on buffered outbound messages — a long outage must not grow
 // memory without limit. Oldest messages are dropped first.
 const MAX_QUEUED_MESSAGES = 100
+
+// No input for this long marks the session idle (client_state).
+const IDLE_AFTER_MS = 10 * 60 * 1000
+const IDLE_CHECK_MS = 60 * 1000
 
 export class WebSocketService {
   private ws: WebSocket | null = null
@@ -56,6 +61,10 @@ export class WebSocketService {
   // Last media state snapshot; re-sent inside join_room on every (re)connect so
   // the backend member never starts from stale defaults.
   private lastMediaState: LocalMediaState | null = null
+  // client_state: whether the user is looking at this session. The server
+  // sends mobile pushes only when no session of the user is active.
+  private lastInputAt = Date.now()
+  private reportedActive: boolean | null = null
 
   constructor() {
     this.setupEventHandlers()
@@ -113,6 +122,12 @@ export class WebSocketService {
         this.ws.onclose = (event) => {
           console.log("WebSocket closed:", event)
           this.notifyDisconnectionCallbacks(event)
+          if (event.code === WS_CLOSE_CLIENT_OUTDATED) {
+            // App below the minimum version: retrying can't help.
+            this.reconnectAttempts = this.maxReconnectAttempts
+            notifyClientOutdated()
+            return
+          }
           this.attemptReconnect()
         }
       } catch (error) {
@@ -150,6 +165,7 @@ export class WebSocketService {
           this.globalConnectionPromise = null
           this.globalReconnectAttempts = 0
           this.flushQueue(this.globalWs, this.globalQueue, "global WebSocket")
+          this.reportClientState(true)
           this.notifyGlobalConnectionCallbacks()
           resolve()
         }
@@ -170,6 +186,11 @@ export class WebSocketService {
           this.notifyGlobalDisconnectionCallbacks(event)
           if (this.globalManualClose) {
             this.globalManualClose = false
+            return
+          }
+          if (event.code === WS_CLOSE_CLIENT_OUTDATED) {
+            // App below the minimum version: retrying can't help.
+            notifyClientOutdated()
             return
           }
           this.attemptGlobalReconnect()
@@ -442,29 +463,28 @@ export class WebSocketService {
 
   // Private methods
   private getWebSocketUrl(roomId: string): string {
-    const wsUrlFromEnv = typeof __BACKEND_WS_URL__ !== "undefined" ? __BACKEND_WS_URL__ : null
-    if (wsUrlFromEnv) {
-      const token = getAuthToken()
-      const baseUrl = `${wsUrlFromEnv}/ws/${roomId}`
-      return token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl
-    }
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
-    const token = getAuthToken()
-    const baseUrl = `${protocol}//${window.location.host}/ws/${roomId}`
-    return token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl
+    return this.buildWebSocketUrl(`/ws/${roomId}`)
   }
 
   private getGlobalWebSocketUrl(): string {
+    return this.buildWebSocketUrl("/ws")
+  }
+
+  // ?token= authenticates; ?client= lets the backend refuse app builds below
+  // the minimum version (close code 4426).
+  private buildWebSocketUrl(path: string): string {
     const wsUrlFromEnv = typeof __BACKEND_WS_URL__ !== "undefined" ? __BACKEND_WS_URL__ : null
-    if (wsUrlFromEnv) {
-      const token = getAuthToken()
-      const baseUrl = `${wsUrlFromEnv}/ws`
-      return token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl
-    }
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
+    const baseUrl = wsUrlFromEnv
+      ? `${wsUrlFromEnv}${path}`
+      : `${protocol}//${window.location.host}${path}`
+    const params = new URLSearchParams()
     const token = getAuthToken()
-    const baseUrl = `${protocol}//${window.location.host}/ws`
-    return token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl
+    if (token) params.set("token", token)
+    const client = clientId()
+    if (client) params.set("client", client)
+    const query = params.toString()
+    return query ? `${baseUrl}?${query}` : baseUrl
   }
 
   private handleMessage(event: MessageEvent<unknown>): void {
@@ -613,22 +633,71 @@ export class WebSocketService {
     }
   }
 
+  /**
+   * Reconnects whichever socket dropped, with a fresh retry budget. Called when
+   * the page becomes visible, the network comes back, or the Android app resumes:
+   * the backoff gives up after a few attempts, and on a phone the network is often
+   * gone for longer than that (lock screen, Wi-Fi <-> LTE).
+   */
+  recoverConnections(): void {
+    // Never reconnect with a stale token: the server rejects it and we'd
+    // just retry forever. The session lifecycle handles re-auth instead.
+    if (isTokenExpired()) return
+    // disconnect() nulls ws, so a non-null closed socket is one that dropped.
+    if (this.ws && this.ws.readyState === WebSocket.CLOSED && this.roomId) {
+      this.reconnectAttempts = 0
+      this.attemptReconnect()
+    }
+    if (!this.isGlobalConnected() && !this.globalManualClose) {
+      this.globalReconnectAttempts = 0
+      this.connectGlobal().catch((error) => {
+        console.error("Failed to reconnect global WebSocket:", error)
+      })
+    }
+  }
+
   private setupEventHandlers(): void {
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) {
-        // Never reconnect with a stale token: the server rejects it and we'd
-        // just retry forever. The session lifecycle handles re-auth instead.
-        if (isTokenExpired()) return
-        if (!this.isConnected() && this.roomId) {
-          this.attemptReconnect()
-        }
-        if (!this.isGlobalConnected()) {
-          this.connectGlobal().catch((error) => {
-            console.error("Failed to reconnect global WebSocket:", error)
-          })
-        }
+        this.lastInputAt = Date.now()
+        this.recoverConnections()
       }
+      this.reportClientState()
     })
+    window.addEventListener("online", () => this.recoverConnections())
+    window.addEventListener("focus", () => {
+      this.lastInputAt = Date.now()
+      this.reportClientState()
+    })
+    // No blur handler: an unfocused but visible window (second monitor,
+    // another app in front) still counts as active.
+    const onInput = () => {
+      this.lastInputAt = Date.now()
+      if (this.reportedActive === false) this.reportClientState()
+    }
+    for (const type of ["pointerdown", "keydown", "wheel", "touchstart"]) {
+      window.addEventListener(type, onInput, { passive: true, capture: true })
+    }
+    setInterval(() => this.reportClientState(), IDLE_CHECK_MS)
+  }
+
+  /** Visible and used recently; focus is ignored. */
+  private isClientActive(): boolean {
+    if (typeof document === "undefined") return true
+    return !document.hidden && Date.now() - this.lastInputAt < IDLE_AFTER_MS
+  }
+
+  /** Sends client_state on change (or always with force) over the global socket. */
+  private reportClientState(force = false): void {
+    const active = this.isClientActive()
+    if (!force && active === this.reportedActive) return
+    if (!this.globalWs || this.globalWs.readyState !== WebSocket.OPEN) return
+    this.reportedActive = active
+    this.writeToSocket(
+      this.globalWs,
+      { type: "client_state", data: { active } },
+      "global WebSocket",
+    )
   }
 }
 

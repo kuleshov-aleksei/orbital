@@ -86,5 +86,8 @@ export default defineConfig({
         secure: !isHttps,
       },
     },
+    allowedHosts: [
+      "orb-dev.encamy.com"
+    ]
   },
 })

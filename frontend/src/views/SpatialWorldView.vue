@@ -68,7 +68,10 @@
       </div>
 
       <!-- Audio Controls (clickable through the canvas) -->
-      <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-30" style="pointer-events: auto">
+      <div
+        class="absolute z-30"
+        :class="isMobile ? 'inset-x-0 bottom-0' : 'bottom-4 left-1/2 -translate-x-1/2'"
+        style="pointer-events: auto">
         <AudioControls
           v-model:model-value-muted="isMuted"
           v-model:model-value-deafened="isDeafened"

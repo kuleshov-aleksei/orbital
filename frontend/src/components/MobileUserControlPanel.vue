@@ -1,13 +1,13 @@
 <template>
   <div
-    class="mobile-user-control-panel bg-theme-bg-secondary border-t border-theme-border px-3 py-2">
+    class="mobile-user-control-panel mx-3 mb-3 mt-2 rounded-2xl bg-theme-bg-secondary border border-theme-border/60 shadow-lg shadow-black/30 px-3 py-2.5">
     <div class="flex items-center justify-between">
       <!-- User Info -->
       <div class="flex items-center flex-1 min-w-0">
         <UserAvatar
           :user-id="userStore.userId"
           status="online"
-          :size="32"
+          :size="40"
           class="mr-3 flex-shrink-0" />
 
         <div class="min-w-0">
@@ -26,10 +26,10 @@
       <!-- Settings Button -->
       <button
         type="button"
-        class="control-button h-8 w-10 rounded-lg bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary ml-2 flex-shrink-0"
+        class="control-button w-10 h-10 rounded-full flex items-center justify-center bg-transparent hover:bg-theme-bg-hover active:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary ml-2 flex-shrink-0"
         title="Settings"
         @click="openSettings">
-        <PhGearSix class="w-4 h-4" />
+        <PhGearSix class="w-5 h-5" />
       </button>
     </div>
   </div>

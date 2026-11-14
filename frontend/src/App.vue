@@ -2,7 +2,7 @@
   <div
     id="app"
     :data-theme="themeStore.currentTheme"
-    class="h-dvh bg-theme-bg-primary text-theme-text-primary">
+    class="h-full bg-theme-bg-primary text-theme-text-primary">
     <router-view />
     <CustomEmojiUploadModal
       v-if="customEmojisStore.isUploadOpen"
@@ -11,6 +11,9 @@
       v-if="textNotifyStore.muteModalRoomId"
       :room-id="textNotifyStore.muteModalRoomId"
       @close="textNotifyStore.closeMuteModal()" />
+    <!-- Android app updates (stores/appUpdate.ts); the prompt waits until no call is active. -->
+    <AppOutdatedScreen v-if="appUpdateStore.required" />
+    <AppUpdatePrompt v-else-if="appUpdateStore.updateAvailable && !roomStore.isInRoom" />
   </div>
 </template>
 
@@ -19,6 +22,7 @@ import { onMounted, onUnmounted, watch } from "vue"
 import { useRouter } from "vue-router"
 import {
   useAppStore,
+  useAppUpdateStore,
   useCustomEmojisStore,
   useRoomStore,
   useTextChatStore,
@@ -28,9 +32,15 @@ import {
 } from "@/stores"
 import CustomEmojiUploadModal from "@/components/emoji/CustomEmojiUploadModal.vue"
 import MuteChannelModal from "@/components/textchat/MuteChannelModal.vue"
+import AppOutdatedScreen from "@/components/appupdate/AppOutdatedScreen.vue"
+import AppUpdatePrompt from "@/components/appupdate/AppUpdatePrompt.vue"
+import { setOnClientOutdated } from "@/services/appVersion"
+import { isCapacitor } from "@/services/platform"
 import { listenForMessageJumps } from "@/services/attachments/jumps"
 import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts"
 import { useThumbarButtons, useWebSocketHandlers } from "@/composables"
+import { useNativeShell } from "@/composables/useNativeShell"
+import { wsService } from "@/services/websocket"
 import { isElectron, onDeepLink, onOAuthToken, setupMainProcessLogRelay } from "@/services/electron"
 import {
   setAuthToken,
@@ -49,6 +59,7 @@ const userStore = useUserStore()
 const textNotifyStore = useTextNotifyStore()
 const customEmojisStore = useCustomEmojisStore()
 const textChatStore = useTextChatStore()
+const appUpdateStore = useAppUpdateStore()
 
 useKeyboardShortcuts()
 useThumbarButtons()
@@ -80,6 +91,20 @@ const handleVisibilityChange = () => {
 }
 const handleWindowFocus = () => void refreshSessionIfNeeded()
 const handleOnline = () => void refreshSessionIfNeeded()
+
+// Android app: the WebView may sit in the background for hours; on resume,
+// re-validate the session and bring dropped sockets back.
+useNativeShell({
+  onResume: () => {
+    void refreshSessionIfNeeded()
+    wsService.recoverConnections()
+    void appUpdateStore.check()
+  },
+})
+
+// Android: look for a new APK while the app stays in the foreground for long.
+const APP_UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000
+let appUpdateInterval: ReturnType<typeof setInterval> | null = null
 
 const checkMobile = () => {
   appStore.checkMobile()
@@ -155,6 +180,13 @@ onMounted(() => {
   // reappears with an explanation.
   setOnSessionExpired(() => userStore.handleSessionExpired())
 
+  // The backend refused this app build (426 / WS 4426): block the app.
+  setOnClientOutdated((minVersion) => appUpdateStore.markRefused(minVersion))
+  if (isCapacitor()) {
+    void appUpdateStore.check()
+    appUpdateInterval = setInterval(() => void appUpdateStore.check(), APP_UPDATE_CHECK_INTERVAL_MS)
+  }
+
   // Proactive session lifecycle: refresh before expiry, or surface the auth
   // view when the token already lapsed (long sleep / idle / backgrounded tab).
   void refreshSessionIfNeeded()
@@ -204,6 +236,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   stopMessageJumps?.()
+  setOnClientOutdated(null)
+  if (appUpdateInterval) clearInterval(appUpdateInterval)
   window.removeEventListener("resize", checkMobile)
   window.removeEventListener("beforeunload", handleBeforeUnload)
   window.removeEventListener("unload", cleanupOnUnload)

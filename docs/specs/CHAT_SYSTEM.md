@@ -278,6 +278,7 @@ New package `backend/internal/service/chatstore/`: the Meilisearch client (port 
   - On create only, never on edit.
   - Each targeted user (directly, through a role, or as the replied-to author) who can view the channel gets a WS `text_mention {room_id, message_id, sender_id}` on all their sessions. You never ping yourself.
   - **Notification settings are applied on the server** (§7.14): no `text_mention` goes to users whose setting for the channel is `no_mentions`, or `muted` and not expired. Every device behaves the same.
+  - **Android push (FCM)**: the same targets also get a push notification ("#channel" / "Sender: preview", tag = room id, data `{type: "text_mention", room_id, message_id}`) when **none of their sessions is active**. Every global socket reports `client_state {active}` (page visible and used in the last 10 minutes; focus is ignored, so a window on a second monitor still counts; `services/websocket.ts`); a socket that never reported counts as active. Devices register with `POST /api/push/devices {token, platform: "android"}` and unregister on logout with `DELETE /api/push/devices {token}` (table `push_devices`). Fan-out: `pingMentions` in `websocket/textchat_mentions.go`, sender in `service/push`. Disabled when `FCM_CREDENTIALS_FILE`/`FCM_CREDENTIALS_JSON` are unset.
   - A role mention fans out to the role's current members who can view the channel. That is cheap at our scale.
 - **Client:**
   - plays the new `mention` sound unless the channel is open and the window has focus;

@@ -18,7 +18,9 @@
       v-if="chatStore.isOpen"
       class="flex flex-col bg-theme-bg-secondary border-theme-border"
       :class="
-        isMobile ? ['fixed', 'inset-0', 'z-40', 'w-full', 'h-full'] : ['w-80', 'shrink-0', 'h-full']
+        isMobile
+          ? ['fixed', 'inset-0', 'z-40', 'w-full', 'h-full', 'safe-area-pad']
+          : ['w-80', 'shrink-0', 'h-full']
       "
       :data-testid="isMobile ? 'chat-modal' : 'chat-sidebar'">
       <!-- Header -->

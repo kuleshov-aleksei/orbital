@@ -30,6 +30,22 @@ type Config struct {
 	ChatMedia ChatMediaConfig `yaml:"chat_media"`
 	ChatML    ChatMLConfig    `yaml:"chat_ml"`
 	Emoji     EmojiConfig     `yaml:"emoji"`
+	Push      PushConfig      `yaml:"push"`
+}
+
+// PushConfig configures mobile push notifications through Firebase Cloud
+// Messaging. With neither credential set, pushes are disabled.
+type PushConfig struct {
+	// FCMCredentialsFile is the path of a service account key JSON
+	// (FCM_CREDENTIALS_FILE). Takes precedence over FCMCredentialsJSON.
+	FCMCredentialsFile string `yaml:"fcm_credentials_file"`
+	// FCMCredentialsJSON is the key itself (FCM_CREDENTIALS_JSON).
+	FCMCredentialsJSON string `yaml:"-"`
+}
+
+// Enabled reports whether FCM credentials are configured.
+func (p PushConfig) Enabled() bool {
+	return p.FCMCredentialsFile != "" || p.FCMCredentialsJSON != ""
 }
 
 // EmojiConfig configures the custom emoji library.
@@ -160,6 +176,11 @@ type AuthConfig struct {
 	Google                     OAuthProviderConfig `yaml:"google"`
 	DiscordElectronRedirectURL string              `yaml:"discord_electron_redirect_url"`
 	GoogleElectronRedirectURL  string              `yaml:"google_electron_redirect_url"`
+	// Optional: provider redirect URIs for the Android app. Empty falls back
+	// to the Electron ones. Must point at the app callback route
+	// (/api/auth/{provider}/electron/callback) on a host the phone can reach.
+	DiscordAndroidRedirectURL string `yaml:"discord_android_redirect_url"`
+	GoogleAndroidRedirectURL  string `yaml:"google_android_redirect_url"`
 }
 
 // OAuthProviderConfig holds OAuth configuration for a specific provider
@@ -404,6 +425,12 @@ func (c *Config) loadFromEnv() {
 	if v := os.Getenv("DISCORD_ELECTRON_REDIRECT_URL"); v != "" {
 		c.Auth.DiscordElectronRedirectURL = v
 	}
+	if v := os.Getenv("DISCORD_ANDROID_REDIRECT_URL"); v != "" {
+		c.Auth.DiscordAndroidRedirectURL = v
+	}
+	if v := os.Getenv("GOOGLE_ANDROID_REDIRECT_URL"); v != "" {
+		c.Auth.GoogleAndroidRedirectURL = v
+	}
 
 	// WebSocket config
 	if v := os.Getenv("WS_PING_TIMEOUT"); v != "" {
@@ -457,6 +484,14 @@ func (c *Config) loadFromEnv() {
 		if v, ok := getEnvInt(key); ok {
 			*dst = v
 		}
+	}
+
+	// Mobile push notifications (FCM)
+	if v := os.Getenv("FCM_CREDENTIALS_FILE"); v != "" {
+		c.Push.FCMCredentialsFile = v
+	}
+	if v := os.Getenv("FCM_CREDENTIALS_JSON"); v != "" {
+		c.Push.FCMCredentialsJSON = v
 	}
 
 	// Text channel content search (Immich ML)
@@ -664,6 +699,24 @@ func (c *Config) String() string {
 		c.LiveKit.URL,
 		livekitConfigured,
 	)
+}
+
+// appOrigins are the fixed origins of our own packaged clients, allowed no
+// matter what cors_origins says: Electron serves from orbital://app and the
+// Android app (Capacitor) from https://localhost, or http://localhost in dev
+// builds that talk to a plain-HTTP backend (make build-android-dev).
+// Auth is a Bearer token, never a cookie, so these origins gain no ambient access.
+var appOrigins = []string{"orbital://app", "https://localhost", "http://localhost"}
+
+// IsAppOrigin reports whether origin belongs to a packaged Orbital client.
+func IsAppOrigin(origin string) bool {
+	origin = strings.TrimRight(strings.TrimSpace(origin), "/")
+	for _, o := range appOrigins {
+		if strings.EqualFold(origin, o) {
+			return true
+		}
+	}
+	return false
 }
 
 // GetCORSOrigins returns CORS origins as a slice

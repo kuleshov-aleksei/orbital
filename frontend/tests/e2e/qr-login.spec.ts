@@ -14,7 +14,7 @@ test.describe("QR device linking", () => {
       (res) =>
         res.url().includes("/api/auth/qr/challenge") && res.request().method() === "POST",
     )
-    await page.getByTestId("auth-tab-qr").click()
+    await page.getByTestId("auth-qr-link").click()
     const createResponse = await createPromise
     expect(createResponse.ok()).toBe(true)
     const created = (await createResponse.json()) as { challenge_id: string }
@@ -63,7 +63,7 @@ test.describe("QR device linking", () => {
 
     // The waiting panel polls, opens the sealed box, and signs in as the
     // approver without any further interaction.
-    await expect(page.getByTestId("auth-tab-qr")).toHaveCount(0, { timeout: 15000 })
+    await expect(page.getByTestId("auth-card")).toHaveCount(0, { timeout: 15000 })
     await expect(page.getByText("QRApprover").first()).toBeVisible({ timeout: 15000 })
   })
 

@@ -54,6 +54,23 @@ func TestGetLatestResolvesRelease(t *testing.T) {
 	if want := upstream.URL + "/Orbital-2.55.4.AppImage"; resp.LinuxURL != want {
 		t.Errorf("linux_url = %q, want %q", resp.LinuxURL, want)
 	}
+	if want := upstream.URL + "/Orbital-2.55.4.apk"; resp.AndroidURL != want {
+		t.Errorf("android_url = %q, want %q", resp.AndroidURL, want)
+	}
+	if resp.AndroidMinVersion != "" {
+		t.Errorf("android_min_version = %q, want empty", resp.AndroidMinVersion)
+	}
+
+	// The minimum version is live, not frozen in the release cache.
+	versions := newTestClientVersions(t, "2.55.0")
+	handler.SetClientVersionService(versions)
+	rec = httptest.NewRecorder()
+	handler.GetLatest(rec, httptest.NewRequest(http.MethodGet, "/api/releases/latest", nil))
+	resp = LatestReleaseResponse{}
+	_ = json.NewDecoder(rec.Body).Decode(&resp)
+	if resp.AndroidMinVersion != "2.55.0" {
+		t.Errorf("android_min_version = %q, want 2.55.0", resp.AndroidMinVersion)
+	}
 }
 
 func TestGetLatestCachesUpstream(t *testing.T) {

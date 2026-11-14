@@ -1,6 +1,6 @@
 <template>
   <div
-    class="app-layout h-dvh bg-theme-bg-primary text-theme-text-primary flex flex-col lg:flex-row overflow-hidden">
+    class="app-layout h-full bg-theme-bg-primary text-theme-text-primary flex flex-col lg:flex-row overflow-hidden">
     <!-- Auth View - Blocks entire app until user completes auth -->
     <AuthView v-if="!userStore.hasCompletedAuth" />
 
@@ -9,7 +9,7 @@
       <div class="flex flex-1 overflow-hidden">
         <!-- Desktop Sidebar -->
         <DesktopSidebar
-          :active-room-id="roomManager.activeRoomId"
+          :active-room-id="roomStore.activeRoomId"
           @room-selected="roomManager.handleRoomSelected"
           @create-room="modalManager.openCreateRoomModal()"
           @create-room-in-category="handleCreateRoomInCategory"
@@ -24,7 +24,7 @@
 
         <!-- Mobile Room List View -->
         <MobileRoomView
-          :active-room-id="roomManager.activeRoomId"
+          :active-room-id="roomStore.activeRoomId"
           @room-selected-mobile="roomManager.handleRoomSelectedMobile"
           @create-room="modalManager.openCreateRoomModal()"
           @create-room-in-category="handleCreateRoomInCategory"
@@ -97,7 +97,7 @@ import {
   useModalManager,
 } from "@/composables"
 import { createVersionChecker } from "@/services/version"
-import { isElectron } from "@/services/electron"
+import { isNative } from "@/services/platform"
 
 // Initialize composables (auto-initialize on mount)
 useUserSession()
@@ -232,8 +232,9 @@ onMounted(async () => {
   }
   loadTextUnread()
 
-  // Start version checker (disabled in Electron - uses native auto-updater)
-  if (!isElectron()) {
+  // Web-only "new version deployed, reload" check. Packaged apps ship their own
+  // bundle (a reload can't update it): Electron has its auto-updater, Android the APK updater.
+  if (!isNative()) {
     versionChecker = createVersionChecker(handleUpdateAvailable, () => roomStore.isInRoom)
     versionChecker.start()
   }

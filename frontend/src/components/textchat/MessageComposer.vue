@@ -221,6 +221,7 @@ import {
   type MentionMap,
 } from "@/utils/mentionText"
 import { wrapSelection } from "@/utils/wrapSelection"
+import { isCapacitor } from "@/services/platform"
 import {
   CUSTOM_EMOJI_PREFIX,
   emojiShortcode,
@@ -278,7 +279,8 @@ watch(
     closeSuggestions()
     await nextTick()
     autosize()
-    focus()
+    // No autofocus on Android: it would pop up the on-screen keyboard.
+    if (!isCapacitor()) focus()
   },
 )
 

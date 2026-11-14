@@ -50,15 +50,18 @@ type User struct {
 // PublicUser represents a user with limited public information
 // Used for global user list to avoid exposing sensitive data
 type PublicUser struct {
-	ID                string    `json:"id"`
-	Nickname          string    `json:"nickname"`
-	AvatarURL         string    `json:"avatar_url,omitempty"`
-	Role              string    `json:"role"`
-	IsOnline          bool      `json:"is_online"`
-	SoundPack         string    `json:"sound_pack,omitempty"`
-	CustomStatus      string    `json:"custom_status,omitempty"`
-	CustomStatusEmoji string    `json:"custom_status_emoji,omitempty"`
-	CreatedAt         time.Time `json:"created_at"`
+	ID                string `json:"id"`
+	Nickname          string `json:"nickname"`
+	AvatarURL         string `json:"avatar_url,omitempty"`
+	Role              string `json:"role"`
+	IsOnline          bool   `json:"is_online"`
+	SoundPack         string `json:"sound_pack,omitempty"`
+	CustomStatus      string `json:"custom_status,omitempty"`
+	CustomStatusEmoji string `json:"custom_status_emoji,omitempty"`
+	// Status is "away" for an online user with no active session (hidden or
+	// idle everywhere); omitted otherwise.
+	Status    string    `json:"status,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // NewPublicUser builds the public projection of a user.

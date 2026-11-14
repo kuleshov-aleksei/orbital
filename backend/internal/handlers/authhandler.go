@@ -58,27 +58,47 @@ func (h *AuthHandler) GetOAuthUrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isElectron := r.URL.Query().Get("electron") == "true"
-	log.Printf("[Auth] GetOAuthUrl - provider: %s, isElectron: %v", provider, isElectron)
+	query := r.URL.Query()
+	client, ok := service.ParseOAuthClient(query.Get("client"))
+	if !ok {
+		http.Error(w, "Invalid client", http.StatusBadRequest)
+		return
+	}
+	// Legacy flag sent by released desktop builds.
+	if client == service.OAuthClientWeb && query.Get("electron") == "true" {
+		client = service.OAuthClientElectron
+	}
+	log.Printf("[Auth] GetOAuthUrl - provider: %s, client: %s", provider, client)
 
-	// Check if Electron OAuth is configured when requesting electron flow
-	if isElectron && !h.authService.IsElectronOAuthConfigured(provider) {
-		http.Error(w, "Electron OAuth not configured for this provider", http.StatusServiceUnavailable)
+	// The Android app proves it started the flow with a PKCE-style verifier
+	// when it redeems the deep-link code (see ExchangeAppCode).
+	appChallenge := ""
+	if client.IsAndroid() {
+		appChallenge = query.Get("code_challenge")
+		if !service.ValidAppChallenge(appChallenge) {
+			http.Error(w, "Missing or invalid code_challenge", http.StatusBadRequest)
+			return
+		}
+	}
+
+	// Desktop and Android use the app redirect URI (Android may override it).
+	if client.UsesAppRedirect() && !h.authService.IsAppOAuthConfigured(provider, client) {
+		http.Error(w, "App OAuth not configured for this provider", http.StatusServiceUnavailable)
 		return
 	}
 
-	state, verifier, err := h.authService.GenerateState(provider, isElectron)
+	state, verifier, err := h.authService.GenerateState(provider, client, appChallenge)
 	if err != nil {
 		http.Error(w, "Failed to generate state", http.StatusInternalServerError)
 		return
 	}
-	if !isElectron {
+	if !client.UsesAppRedirect() {
 		h.setOAuthStateCookie(w, r, state)
 	}
 
 	var authURL string
-	if isElectron {
-		authURL, err = h.authService.GetElectronOAuthURL(provider, state, verifier)
+	if client.UsesAppRedirect() {
+		authURL, err = h.authService.GetAppOAuthURL(provider, client, state, verifier)
 	} else {
 		authURL, err = h.authService.GetOAuthURL(provider, state, verifier)
 	}
@@ -106,7 +126,7 @@ func (h *AuthHandler) initiateOAuth(w http.ResponseWriter, r *http.Request, prov
 	}
 
 	// Generate state for CSRF protection
-	state, verifier, err := h.authService.GenerateState(provider, false)
+	state, verifier, err := h.authService.GenerateState(provider, service.OAuthClientWeb, "")
 	if err != nil {
 		http.Error(w, "Failed to generate state", http.StatusInternalServerError)
 		return
@@ -165,8 +185,8 @@ func (h *AuthHandler) handleCallback(w http.ResponseWriter, r *http.Request, pro
 		return
 	}
 
-	stateProvider, stateElectron, codeVerifier, err := h.authService.ConsumeState(queryState)
-	if err != nil || stateProvider != provider || stateElectron {
+	oauthState, err := h.authService.ConsumeState(queryState)
+	if err != nil || oauthState.Provider != provider || oauthState.Client != service.OAuthClientWeb {
 		http.Error(w, "Invalid state parameter", http.StatusBadRequest)
 		return
 	}
@@ -178,33 +198,8 @@ func (h *AuthHandler) handleCallback(w http.ResponseWriter, r *http.Request, pro
 		return
 	}
 
-	// For web callback, use regular config (not electron)
-	log.Printf("[Auth] Exchanging code for provider: %s (web)", provider)
-	oauthInfo, err := h.authService.ExchangeCode(r.Context(), provider, code, false, codeVerifier)
-	if err != nil {
-		log.Printf("[Auth] ExchangeCode error: %v", err)
-		http.Error(w, "Failed to exchange code: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	log.Printf("[Auth] OAuth info received - ID: %s, Email: %s", oauthInfo.ID, oauthInfo.Email)
-	// Create or update user
-	user, err := h.authService.CreateOrUpdateUser(oauthInfo)
-	if err != nil {
-		http.Error(w, "Failed to create user: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Check if this user should be made super_admin (first non-guest user)
-	if err := h.roleService.AssignSuperAdminIfFirst(user.ID); err != nil {
-		// Log error but don't fail the login; the user keeps the default role.
-		log.Printf("Failed to assign super admin if first: %v", err)
-	}
-
-	// Refresh user data in case role was changed
-	user, err = h.authService.GetUserByID(user.ID)
-	if err != nil || user == nil {
-		http.Error(w, "Failed to get user", http.StatusInternalServerError)
+	user, ok := h.completeOAuthLogin(w, r, provider, code, oauthState)
+	if !ok {
 		return
 	}
 
@@ -224,9 +219,43 @@ func (h *AuthHandler) handleCallback(w http.ResponseWriter, r *http.Request, pro
 	http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 }
 
-// handleElectronCallback processes OAuth callback for Electron - redirects to deep link
+// completeOAuthLogin exchanges the provider code, creates or updates the user
+// and returns the fresh user. On failure it has already written the response.
+func (h *AuthHandler) completeOAuthLogin(w http.ResponseWriter, r *http.Request, provider models.AuthProvider, code string, oauthState service.OAuthState) (*models.User, bool) {
+	log.Printf("[Auth] Exchanging code for provider: %s (%s)", provider, oauthState.Client)
+	oauthInfo, err := h.authService.ExchangeCode(r.Context(), provider, code, oauthState.Client, oauthState.CodeVerifier)
+	if err != nil {
+		log.Printf("[Auth] ExchangeCode error: %v", err)
+		http.Error(w, "Failed to exchange code: "+err.Error(), http.StatusInternalServerError)
+		return nil, false
+	}
+
+	user, err := h.authService.CreateOrUpdateUser(oauthInfo)
+	if err != nil {
+		http.Error(w, "Failed to create user: "+err.Error(), http.StatusInternalServerError)
+		return nil, false
+	}
+
+	// Check if this user should be made super_admin (first non-guest user)
+	if err := h.roleService.AssignSuperAdminIfFirst(user.ID); err != nil {
+		// Log error but don't fail the login; the user keeps the default role.
+		log.Printf("Failed to assign super admin if first: %v", err)
+	}
+
+	// Refresh user data in case role was changed
+	user, err = h.authService.GetUserByID(user.ID)
+	if err != nil || user == nil {
+		http.Error(w, "Failed to get user", http.StatusInternalServerError)
+		return nil, false
+	}
+	return user, true
+}
+
+// handleElectronCallback processes the OAuth callback on the app redirect URI
+// shared by the desktop app (loopback redirect with the JWT) and the Android
+// app (deep link with a one-time code).
 func (h *AuthHandler) handleElectronCallback(w http.ResponseWriter, r *http.Request, provider models.AuthProvider) {
-	log.Printf("[Auth] Electron callback received for provider: %s", provider)
+	log.Printf("[Auth] App callback received for provider: %s", provider)
 
 	queryState := r.URL.Query().Get("state")
 	if queryState == "" {
@@ -234,8 +263,8 @@ func (h *AuthHandler) handleElectronCallback(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	stateProvider, stateElectron, codeVerifier, err := h.authService.ConsumeState(queryState)
-	if err != nil || stateProvider != provider || !stateElectron {
+	oauthState, err := h.authService.ConsumeState(queryState)
+	if err != nil || oauthState.Provider != provider || !oauthState.Client.UsesAppRedirect() {
 		http.Error(w, "Invalid state parameter", http.StatusBadRequest)
 		return
 	}
@@ -247,30 +276,24 @@ func (h *AuthHandler) handleElectronCallback(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Exchange code for user info (electron = true)
-	oauthInfo, err := h.authService.ExchangeCode(r.Context(), provider, code, true, codeVerifier)
-	if err != nil {
-		http.Error(w, "Failed to exchange code: "+err.Error(), http.StatusInternalServerError)
+	user, ok := h.completeOAuthLogin(w, r, provider, code, oauthState)
+	if !ok {
 		return
 	}
 
-	// Create or update user
-	user, err := h.authService.CreateOrUpdateUser(oauthInfo)
-	if err != nil {
-		http.Error(w, "Failed to create user: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Check if this user should be made super_admin
-	if err := h.roleService.AssignSuperAdminIfFirst(user.ID); err != nil {
-		// Log error but don't fail the login; the user keeps the default role.
-		log.Printf("Failed to assign super admin if first: %v", err)
-	}
-
-	// Refresh user data in case role was changed
-	user, err = h.authService.GetUserByID(user.ID)
-	if err != nil || user == nil {
-		http.Error(w, "Failed to get user", http.StatusInternalServerError)
+	if oauthState.Client.IsAndroid() {
+		// Deep link back into the app with a one-time code, never the JWT:
+		// any app can register the URL scheme. The app redeems the code with
+		// its verifier at POST /api/auth/exchange.
+		loginCode, err := h.authService.IssueAppLoginCode(user.ID, queryState, oauthState.AppChallenge)
+		if err != nil {
+			http.Error(w, "Failed to issue login code", http.StatusInternalServerError)
+			return
+		}
+		params := url.Values{}
+		params.Set("code", loginCode)
+		params.Set("state", queryState)
+		http.Redirect(w, r, oauthState.Client.AppCallbackURL()+"?"+params.Encode(), http.StatusFound)
 		return
 	}
 
@@ -290,6 +313,51 @@ func (h *AuthHandler) handleElectronCallback(w http.ResponseWriter, r *http.Requ
 	params.Set("state", queryState)
 	redirectURL := "http://127.0.0.1:27271/callback?" + params.Encode()
 	http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
+}
+
+// appCodeExchangeRequest redeems a deep-link login code (Android app).
+type appCodeExchangeRequest struct {
+	Code         string `json:"code"`
+	State        string `json:"state"`
+	CodeVerifier string `json:"code_verifier"`
+}
+
+// ExchangeAppCode trades the one-time code from the Android OAuth deep link
+// for a session. The code is bound to the flow's state and to the app's PKCE
+// verifier, so an intercepted deep link cannot be redeemed by another app.
+func (h *AuthHandler) ExchangeAppCode(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+	var req appCodeExchangeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	userID, err := h.authService.RedeemAppLoginCode(req.Code, req.State, req.CodeVerifier)
+	if err != nil {
+		http.Error(w, "Invalid or expired login code", http.StatusUnauthorized)
+		return
+	}
+
+	user, err := h.authService.GetUserByID(userID)
+	if err != nil || user == nil {
+		http.Error(w, "User not found", http.StatusUnauthorized)
+		return
+	}
+
+	token, expiry, err := h.authService.GenerateJWT(user)
+	if err != nil {
+		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, models.AuthResponse{
+		Token:     token,
+		User:      *user,
+		ExpiresAt: expiry,
+	})
 }
 
 // GuestLogin creates a new guest user

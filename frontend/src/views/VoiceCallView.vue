@@ -76,7 +76,7 @@
       <!-- Screen Share Quality Modal handled by parent -->
 
       <!-- Main Call Area -->
-      <div class="relative flex flex-1 flex-col min-h-0 overflow-hidden pb-20 max-lg:max-h-[80svh]">
+      <div class="relative flex flex-1 flex-col min-h-0 overflow-hidden pb-20">
         <!-- Use v-show instead of v-if to keep both components mounted and preserve audio elements -->
         <!-- Screen Share Area - Shows users in side panel when screen sharing or camera is active -->
         <ScreenShareArea
@@ -129,8 +129,11 @@
           :users="users"
           class="absolute bottom-24 left-1/2 -translate-x-1/2 z-20" />
 
-        <!-- Floating Audio Controls - positioned at bottom center of main content -->
-        <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 lg:z-40">
+        <!-- Audio Controls: floating pill centered at the bottom on desktop,
+             a full-width bar with a pull-up settings sheet on mobile -->
+        <div
+          class="absolute z-30 lg:z-40"
+          :class="isMobile ? 'inset-x-0 bottom-0' : 'bottom-4 left-1/2 -translate-x-1/2'">
           <AudioControls
             ref="audioControlsRef"
             v-model:model-value-muted="isMuted"

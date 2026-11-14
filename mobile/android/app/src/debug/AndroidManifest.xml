@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds only: allow plain HTTP so dev APKs can reach a local backend
+     (http://<headscale-or-lan-ip>:8080, ws://…:7880). Release builds keep Android's default (HTTPS only). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:usesCleartextTraffic="true" />
+</manifest>

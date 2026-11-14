@@ -2,10 +2,12 @@ package websocket
 
 import (
 	"log"
+	"strings"
 
 	"github.com/kuleshov-aleksei/orbital/internal/models"
 	"github.com/kuleshov-aleksei/orbital/internal/permissions"
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatstore"
+	"github.com/kuleshov-aleksei/orbital/internal/service/push"
 )
 
 // resolveMentions keeps users that exist and can view the channel, and
@@ -79,10 +81,68 @@ func (h *Hub) mentionTargets(tc *TextChat, msg *chatstore.Message) []string {
 }
 
 func (h *Hub) pingMentions(tc *TextChat, msg *chatstore.Message) {
+	var note *push.Notification
 	for _, userID := range h.mentionTargets(tc, msg) {
 		h.sendTextToUser(userID, models.WebSocketMessage{
 			Type: "text_mention",
 			Data: map[string]any{"room_id": msg.RoomID, "message_id": msg.ID, "sender_id": msg.SenderID},
 		})
+		if !tc.Push.Enabled() || h.userIsActive(userID) {
+			continue
+		}
+		if note == nil {
+			n := h.mentionNotification(tc, msg)
+			note = &n
+		}
+		tc.Push.NotifyUser(userID, *note)
+	}
+}
+
+// pushPreviewRunes caps the message preview in a push notification.
+const pushPreviewRunes = 140
+
+// mentionNotification renders the push for a mention:
+// "#channel" / "Sender: preview".
+func (h *Hub) mentionNotification(tc *TextChat, msg *chatstore.Message) push.Notification {
+	userName := func(id string) string {
+		if tc.UserName != nil {
+			return tc.UserName(id)
+		}
+		return ""
+	}
+	roleNames := map[string]string{}
+	if ps := h.permissionService(); ps != nil {
+		for _, r := range ps.Roles() {
+			roleNames[r.ID] = r.Name
+		}
+	}
+	roleName := func(id string) string { return roleNames[id] }
+
+	title := "Orbital"
+	if h.roomService != nil {
+		if room, ok := h.roomService.GetRoom(msg.RoomID); ok && room.Name != "" {
+			title = "#" + chatstore.PlainText(room.Name, nil, nil)
+		}
+	}
+	sender := userName(msg.SenderID)
+	if sender == "" {
+		sender = "Someone"
+	}
+	text := strings.Join(strings.Fields(chatstore.PlainText(msg.Content, userName, roleName)), " ")
+	if text == "" && len(msg.Attachments) > 0 {
+		text = "sent an attachment"
+	}
+	if r := []rune(text); len(r) > pushPreviewRunes {
+		text = strings.TrimSpace(string(r[:pushPreviewRunes-1])) + "…"
+	}
+	body := sender
+	if text != "" {
+		body += ": " + text
+	}
+	return push.Notification{
+		Title: title,
+		Body:  body,
+		Tag:   msg.RoomID,
+		Data:  map[string]string{"type": "text_mention", "room_id": msg.RoomID, "message_id": msg.ID},
 	}
 }

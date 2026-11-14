@@ -10,6 +10,7 @@ import {
   setTokenExpiry,
   tokenNeedsRefresh,
 } from "./api"
+import { setOnClientOutdated } from "./appVersion"
 
 const fetchMock = vi.fn<typeof fetch>()
 
@@ -32,6 +33,7 @@ beforeEach(() => {
 
 afterEach(() => {
   setOnSessionExpired(null)
+  setOnClientOutdated(null)
   clearAuthToken()
 })
 
@@ -175,5 +177,37 @@ describe("apiService payload contract", () => {
       max_users: 12,
       category: "cat-2",
     })
+  })
+})
+
+describe("client version gate", () => {
+  it("reports an outdated app on 426 instead of a session error", async () => {
+    const outdated = vi.fn()
+    const expired = vi.fn()
+    setOnClientOutdated(outdated)
+    setOnSessionExpired(expired)
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ error: "client_outdated", min_version: "1.6.0" }, 426),
+    )
+
+    await expect(apiRequest("/rooms")).rejects.toMatchObject({ status: 426 })
+    expect(outdated).toHaveBeenCalledWith("1.6.0")
+    expect(expired).not.toHaveBeenCalled()
+  })
+
+  it("treats other 426 bodies as a plain error", async () => {
+    const outdated = vi.fn()
+    setOnClientOutdated(outdated)
+    fetchMock.mockResolvedValueOnce(new Response("nope", { status: 426 }))
+
+    await expect(apiRequest("/rooms")).rejects.toMatchObject({ status: 426, message: "nope" })
+    expect(outdated).not.toHaveBeenCalled()
+  })
+
+  it("does not identify the web app as a packaged client", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse([]))
+    await apiRequest("/rooms")
+    const headers = fetchMock.mock.calls[0][1]?.headers as Record<string, string>
+    expect(headers["X-Orbital-Client"]).toBeUndefined()
   })
 })

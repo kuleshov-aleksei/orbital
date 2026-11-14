@@ -43,6 +43,8 @@ export interface PublicUser {
   custom_status?: string // User-set status text, omitted when empty
   custom_status_emoji?: string // EmojiRef (see services/emoji/types.ts), omitted when empty
   created_at?: string // ISO timestamp of registration
+  // "away": online but no session in use (hidden or idle 10 min everywhere)
+  status?: "away"
 }
 
 // Screen sharing quality options
@@ -115,6 +117,7 @@ export type WebSocketMessageType =
   | "text_reaction_toggle"
   | "text_pin"
   | "text_typing"
+  | "client_state"
 
 export interface WebSocketMessage {
   type: WebSocketMessageType

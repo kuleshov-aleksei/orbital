@@ -1,10 +1,14 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
 	"testing"
 	"time"
@@ -17,6 +21,11 @@ import (
 )
 
 func newTestAuthHandler(t *testing.T) (*AuthHandler, *service.AuthService, *models.User) {
+	t.Helper()
+	return newTestAuthHandlerWithConfig(t, &config.AuthConfig{JWTSecret: "test-secret"})
+}
+
+func newTestAuthHandlerWithConfig(t *testing.T, cfg *config.AuthConfig) (*AuthHandler, *service.AuthService, *models.User) {
 	t.Helper()
 
 	db, err := storage.NewDB(filepath.Join(t.TempDir(), "test.db"))
@@ -44,7 +53,7 @@ func newTestAuthHandler(t *testing.T) (*AuthHandler, *service.AuthService, *mode
 		t.Fatalf("Create user: %v", err)
 	}
 
-	authService := service.NewAuthService(&config.AuthConfig{JWTSecret: "test-secret"}, userRepo)
+	authService := service.NewAuthService(cfg, userRepo)
 	return NewAuthHandler(authService, nil, "", ""), authService, user
 }
 
@@ -104,7 +113,7 @@ func TestRefreshTokenRequiresAuth(t *testing.T) {
 func TestOAuthStateIsSingleUseAndProviderBound(t *testing.T) {
 	_, authService, _ := newTestAuthHandler(t)
 
-	state, verifier, err := authService.GenerateState(models.AuthProviderDiscord, false)
+	state, verifier, err := authService.GenerateState(models.AuthProviderDiscord, service.OAuthClientWeb, "")
 	if err != nil {
 		t.Fatalf("GenerateState: %v", err)
 	}
@@ -112,15 +121,15 @@ func TestOAuthStateIsSingleUseAndProviderBound(t *testing.T) {
 		t.Fatal("expected non-empty PKCE verifier")
 	}
 
-	provider, electron, storedVerifier, err := authService.ConsumeState(state)
+	got, err := authService.ConsumeState(state)
 	if err != nil {
 		t.Fatalf("ConsumeState: %v", err)
 	}
-	if provider != models.AuthProviderDiscord || electron || storedVerifier != verifier {
-		t.Fatalf("unexpected state payload: provider=%q electron=%v verifier_match=%v", provider, electron, storedVerifier == verifier)
+	if got.Provider != models.AuthProviderDiscord || got.Client != service.OAuthClientWeb || got.CodeVerifier != verifier {
+		t.Fatalf("unexpected state payload: provider=%q client=%q verifier_match=%v", got.Provider, got.Client, got.CodeVerifier == verifier)
 	}
 
-	if _, _, _, err := authService.ConsumeState(state); err == nil {
+	if _, err := authService.ConsumeState(state); err == nil {
 		t.Fatal("state was accepted twice")
 	}
 }
@@ -241,5 +250,203 @@ func TestAuthMiddlewareUsesFreshDatabaseRole(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+}
+
+// newOAuthTestHandler is newTestAuthHandler with Discord OAuth (web + app
+// redirect URIs) configured.
+func newOAuthTestHandler(t *testing.T) (*AuthHandler, *service.AuthService, *models.User) {
+	t.Helper()
+	return newTestAuthHandlerWithConfig(t, &config.AuthConfig{
+		JWTSecret: "test-secret",
+		Discord: config.OAuthProviderConfig{
+			ClientID:     "discord-client-id",
+			ClientSecret: "discord-client-secret",
+			RedirectURL:  "https://orbital.example/api/auth/discord/callback",
+		},
+		DiscordElectronRedirectURL: "https://orbital.example/api/auth/discord/electron/callback",
+	})
+}
+
+func appTestChallenge(verifier string) string {
+	sum := sha256.Sum256([]byte(verifier))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
+}
+
+func TestGetOAuthUrlAndroidRequiresChallenge(t *testing.T) {
+	handler, _, _ := newOAuthTestHandler(t)
+
+	for _, target := range []string{
+		"/api/auth/discord/url?client=android",
+		"/api/auth/discord/url?client=android&code_challenge=not-a-challenge",
+		"/api/auth/discord/url?client=orbital-evil",
+	} {
+		rec := httptest.NewRecorder()
+		handler.GetOAuthUrl(rec, httptest.NewRequest(http.MethodGet, target, nil))
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("%s: status = %d, want %d", target, rec.Code, http.StatusBadRequest)
+		}
+	}
+}
+
+func TestGetOAuthUrlAndroidUsesAppRedirect(t *testing.T) {
+	handler, authService, _ := newOAuthTestHandler(t)
+	challenge := appTestChallenge("verifier")
+
+	rec := httptest.NewRecorder()
+	handler.GetOAuthUrl(rec, httptest.NewRequest(http.MethodGet,
+		"/api/auth/discord/url?client=android&code_challenge="+challenge, nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d (body: %s)", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if len(rec.Result().Cookies()) != 0 {
+		t.Error("app flow must not set the web state cookie")
+	}
+
+	var resp struct {
+		URL   string `json:"url"`
+		State string `json:"state"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	authURL, err := url.Parse(resp.URL)
+	if err != nil {
+		t.Fatalf("parse url: %v", err)
+	}
+	if got := authURL.Query().Get("redirect_uri"); got != "https://orbital.example/api/auth/discord/electron/callback" {
+		t.Errorf("redirect_uri = %q, want the app redirect URI", got)
+	}
+
+	got, err := authService.ConsumeState(resp.State)
+	if err != nil {
+		t.Fatalf("ConsumeState: %v", err)
+	}
+	if got.Client != service.OAuthClientAndroid || got.AppChallenge != challenge {
+		t.Fatalf("state = %+v, want android client with the app challenge", got)
+	}
+}
+
+func TestWebCallbackRejectsAndroidState(t *testing.T) {
+	handler, authService, _ := newOAuthTestHandler(t)
+	state, _, err := authService.GenerateState(models.AuthProviderDiscord, service.OAuthClientAndroid, appTestChallenge("v"))
+	if err != nil {
+		t.Fatalf("GenerateState: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/auth/discord/callback?code=c&state="+state, nil)
+	req.AddCookie(&http.Cookie{Name: "oauth_state", Value: state})
+	rec := httptest.NewRecorder()
+	handler.handleCallback(rec, req, models.AuthProviderDiscord)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
+func TestAppCallbackRejectsWebState(t *testing.T) {
+	handler, authService, _ := newOAuthTestHandler(t)
+	state, _, err := authService.GenerateState(models.AuthProviderDiscord, service.OAuthClientWeb, "")
+	if err != nil {
+		t.Fatalf("GenerateState: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	handler.handleElectronCallback(rec, httptest.NewRequest(http.MethodGet,
+		"/api/auth/discord/electron/callback?code=c&state="+state, nil), models.AuthProviderDiscord)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
+func postExchange(handler *AuthHandler, code, state, verifier string) *httptest.ResponseRecorder {
+	body, _ := json.Marshal(map[string]string{"code": code, "state": state, "code_verifier": verifier})
+	rec := httptest.NewRecorder()
+	handler.ExchangeAppCode(rec, httptest.NewRequest(http.MethodPost, "/api/auth/exchange", bytes.NewReader(body)))
+	return rec
+}
+
+func TestExchangeAppCodeIssuesSessionOnce(t *testing.T) {
+	handler, authService, user := newTestAuthHandler(t)
+	verifier := "app-verifier-0123456789"
+	code, err := authService.IssueAppLoginCode(user.ID, "state-1", appTestChallenge(verifier))
+	if err != nil {
+		t.Fatalf("IssueAppLoginCode: %v", err)
+	}
+
+	rec := postExchange(handler, code, "state-1", verifier)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d (body: %s)", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var resp models.AuthResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	claims, err := authService.ValidateJWT(resp.Token)
+	if err != nil || claims.UserID != user.ID {
+		t.Fatalf("token for %q (err %v), want %q", claims.UserID, err, user.ID)
+	}
+
+	if rec := postExchange(handler, code, "state-1", verifier); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("second exchange status = %d, want %d", rec.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestExchangeAppCodeRejectsWrongVerifier(t *testing.T) {
+	handler, authService, user := newTestAuthHandler(t)
+	code, err := authService.IssueAppLoginCode(user.ID, "state-1", appTestChallenge("real-verifier"))
+	if err != nil {
+		t.Fatalf("IssueAppLoginCode: %v", err)
+	}
+
+	if rec := postExchange(handler, code, "state-1", "stolen-code-no-verifier"); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestGetOAuthUrlAndroidPrefersAndroidRedirect(t *testing.T) {
+	handler, authService, _ := newTestAuthHandlerWithConfig(t, &config.AuthConfig{
+		JWTSecret: "test-secret",
+		Discord: config.OAuthProviderConfig{
+			ClientID:     "discord-client-id",
+			ClientSecret: "discord-client-secret",
+			RedirectURL:  "http://localhost:3000/api/auth/discord/callback",
+		},
+		DiscordElectronRedirectURL: "http://localhost:3000/api/auth/discord/electron/callback",
+		DiscordAndroidRedirectURL:  "http://100.111.0.8:8080/api/auth/discord/electron/callback",
+	})
+
+	redirectFor := func(target string) string {
+		t.Helper()
+		rec := httptest.NewRecorder()
+		handler.GetOAuthUrl(rec, httptest.NewRequest(http.MethodGet, target, nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: status = %d (body: %s)", target, rec.Code, rec.Body.String())
+		}
+		var resp struct {
+			URL   string `json:"url"`
+			State string `json:"state"`
+		}
+		if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		_, _ = authService.ConsumeState(resp.State)
+		u, err := url.Parse(resp.URL)
+		if err != nil {
+			t.Fatalf("parse url: %v", err)
+		}
+		return u.Query().Get("redirect_uri")
+	}
+
+	challenge := appTestChallenge("v")
+	if got := redirectFor("/api/auth/discord/url?client=android&code_challenge=" + challenge); got != "http://100.111.0.8:8080/api/auth/discord/electron/callback" {
+		t.Errorf("android redirect_uri = %q, want the Android one", got)
+	}
+	if got := redirectFor("/api/auth/discord/url?client=android-dev&code_challenge=" + challenge); got != "http://100.111.0.8:8080/api/auth/discord/electron/callback" {
+		t.Errorf("android-dev redirect_uri = %q, want the Android one", got)
+	}
+	if got := redirectFor("/api/auth/discord/url?client=electron"); got != "http://localhost:3000/api/auth/discord/electron/callback" {
+		t.Errorf("electron redirect_uri = %q, want the Electron one", got)
 	}
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatmedia"
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatstore"
 	"github.com/kuleshov-aleksei/orbital/internal/service/immichml"
+	"github.com/kuleshov-aleksei/orbital/internal/service/push"
 	"github.com/kuleshov-aleksei/orbital/internal/storage"
 	"github.com/kuleshov-aleksei/orbital/internal/version"
 	"github.com/kuleshov-aleksei/orbital/internal/websocket"
@@ -75,7 +76,9 @@ func main() {
 	var rbacRepo *repository.RBACRepository
 	var textReadState chatstore.ReadStateStore
 	var textNotify chatstore.NotifyStore
+	var pushDevices *repository.PushDeviceRepository
 	var appDB *storage.DB
+	var appSettings service.AppSettingsStore = service.NewMemoryAppSettings()
 
 	if cfg.Database.Path != "" {
 		db, err := storage.NewDB(cfg.Database.Path)
@@ -100,6 +103,8 @@ func main() {
 		rbacRepo = repository.NewRBACRepository(db)
 		textReadState = repository.NewTextReadStateRepository(db)
 		textNotify = repository.NewTextNotifyRepository(db)
+		pushDevices = repository.NewPushDeviceRepository(db)
+		appSettings = repository.NewAppSettingsRepository(db)
 
 		// Initialize services with repositories
 		categoryService = service.NewCategoryService(categoryRepo)
@@ -197,6 +202,14 @@ func main() {
 	wsHub.SetPermissionService(permissionService)
 	// Apply permission changes live (kick, LiveKit grants, client refresh).
 	permissionService.Subscribe(wsHub.OnPermissionsChanged)
+
+	// Minimum Android app version (admin panel): older apps are refused.
+	clientVersions, err := service.NewClientVersionService(appSettings)
+	if err != nil {
+		log.Fatalf("Failed to initialize client version service: %v", err)
+	}
+	wsHub.SetClientVersionService(clientVersions)
+	clientVersions.OnChange(wsHub.OnClientVersionChanged)
 	if soundboardService != nil {
 		wsHub.SetSoundboard(soundboardService)
 	}
@@ -221,6 +234,13 @@ func main() {
 			Store: store, ReadState: textReadState, Notify: textNotify,
 			UserExists: func(id string) bool { return userLookup(id) != nil },
 			Media:      newChatMedia(cfg, appDB),
+			Push:       newPush(cfg, pushDevices),
+			UserName: func(id string) string {
+				if u := userLookup(id); u != nil {
+					return u.Nickname
+				}
+				return ""
+			},
 		}
 		if textChat.Media != nil {
 			textChat.ML, textChat.SemanticThreshold = newChatML(cfg), cfg.ChatML.SemanticThreshold
@@ -255,6 +275,8 @@ func main() {
 	rbacHandler.SetBroadcaster(wsHub.BroadcastToAll)
 	avatarHandler := handlers.NewAvatarHandler(avatarService, userRepo)
 	releaseHandler := handlers.NewReleaseHandler(cfg.GetReleasesURL())
+	releaseHandler.SetClientVersionService(clientVersions)
+	clientVersionHandler := handlers.NewClientVersionHandler(clientVersions, releaseHandler.Latest)
 
 	var audioHandler *handlers.AudioHandler
 	if audioService != nil {
@@ -330,6 +352,9 @@ func main() {
 		r.Use(requestLoggingMiddleware)
 	}
 
+	// Apps below the minimum version get 426 (see ClientVersionGate).
+	r.Use(handlers.ClientVersionGate(clientVersions))
+
 	// API routes
 	r.HandleFunc("/api/health", healthHandler(textChat)).Methods("GET")
 	r.HandleFunc("/api/version", versionHandler).Methods("GET")
@@ -343,7 +368,8 @@ func main() {
 	r.HandleFunc("/api/auth/google/callback", authHandler.GoogleCallback).Methods("GET")
 	r.Handle("/api/auth/google/url", withRateLimit("oauth-url", cfg.RateLimit.OAuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.GetOAuthUrl))).Methods("GET")
 	r.HandleFunc("/api/auth/google/electron/callback", authHandler.GoogleElectronCallback).Methods("GET")
-	r.Handle("/api/auth/guest", withRateLimit("guest-login", cfg.RateLimit.GuestPerHour, time.Hour, clientIPKey, http.HandlerFunc(authHandler.GuestLogin))).Methods("POST")
+	r.Handle("/api/auth/exchange", withRateLimit("auth-exchange", cfg.RateLimit.AuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.ExchangeAppCode))).Methods("POST")
+	r.Handle("/api/auth/guest",withRateLimit("guest-login", cfg.RateLimit.GuestPerHour, time.Hour, clientIPKey, http.HandlerFunc(authHandler.GuestLogin))).Methods("POST")
 	r.Handle("/api/auth/logout", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.Logout))).Methods("POST")
 	r.Handle("/api/auth/me", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.GetCurrentUser))).Methods("GET")
 	r.Handle("/api/auth/refresh", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.RefreshToken))).Methods("POST")
@@ -450,6 +476,11 @@ func main() {
 		r.Handle("/api/chat/search", auth(http.HandlerFunc(textChatHandler.Search))).Methods("GET")
 		r.Handle("/api/rooms/{id}/pins", auth(http.HandlerFunc(textChatHandler.GetPins))).Methods("GET")
 		r.Handle("/api/rooms/{id}/notify", auth(http.HandlerFunc(textChatHandler.SetNotify))).Methods("PUT")
+		if pushDevices != nil {
+			pushHandler := handlers.NewPushHandler(pushDevices)
+			r.Handle("/api/push/devices", auth(http.HandlerFunc(pushHandler.RegisterDevice))).Methods("POST")
+			r.Handle("/api/push/devices", auth(http.HandlerFunc(pushHandler.UnregisterDevice))).Methods("DELETE")
+		}
 
 		// Attachments (docs/specs/CHAT_SYSTEM.md §7.12): RBAC per request in the handlers.
 		if textChat.Media != nil {
@@ -542,6 +573,8 @@ func main() {
 	superAdminRouter.HandleFunc("/users/{id}", adminHandler.DeleteUser).Methods("DELETE")
 	superAdminRouter.HandleFunc("/logs", adminHandler.ListDebugLogs).Methods("GET")
 	superAdminRouter.HandleFunc("/logs/{id}", adminHandler.GetDebugLog).Methods("GET")
+	superAdminRouter.HandleFunc("/client-versions", clientVersionHandler.Get).Methods("GET")
+	superAdminRouter.HandleFunc("/client-versions", clientVersionHandler.Update).Methods("PUT")
 	superAdminRouter.HandleFunc("/logs/{id}", adminHandler.DeleteDebugLog).Methods("DELETE")
 
 	// Stats collection routes (super_admin only)
@@ -652,6 +685,10 @@ func corsMiddleware(next http.Handler, allowedOrigins []string) http.Handler {
 				break
 			}
 		}
+		// Packaged clients (Electron, Android app) always get their own origin back.
+		if allowedOrigin != "*" && config.IsAppOrigin(origin) {
+			allowedOrigin = origin
+		}
 
 		if allowedOrigin == "" && len(allowedOrigins) > 0 {
 			allowedOrigin = allowedOrigins[0]
@@ -659,7 +696,7 @@ func corsMiddleware(next http.Handler, allowedOrigins []string) http.Handler {
 
 		w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Cache-Control")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Cache-Control, "+handlers.ClientHeader)
 
 		// Handle preflight requests
 		if r.Method == "OPTIONS" {
@@ -723,4 +760,23 @@ func newChatML(cfg *config.Config) *immichml.Client {
 	}
 	log.Printf("Search by image contents enabled (Immich ML at %s, OCR %q, CLIP %q)", mc.URL, opts.OCRModel, opts.CLIPModel)
 	return immichml.New(opts)
+}
+
+// newPush returns the mobile push service, or nil when FCM credentials or
+// the database are missing.
+func newPush(cfg *config.Config, devices *repository.PushDeviceRepository) *push.Service {
+	if devices == nil {
+		return nil
+	}
+	if !cfg.Push.Enabled() {
+		log.Println("FCM_CREDENTIALS_FILE is not set, mobile push notifications are disabled")
+		return nil
+	}
+	sender, err := push.NewFCMSender(context.Background(), cfg.Push.FCMCredentialsFile, cfg.Push.FCMCredentialsJSON)
+	if err != nil {
+		log.Printf("Warning: mobile push notifications are disabled: %v", err)
+		return nil
+	}
+	log.Println("Mobile push notifications enabled (FCM)")
+	return push.NewService(sender, devices)
 }

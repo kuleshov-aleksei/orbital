@@ -134,7 +134,6 @@ export async function ensureUser(
 
 export async function loginViaUi(page: Page, login: string, password: string) {
   await page.goto("/")
-  await page.getByTestId("auth-tab-password").click()
   await page.locator("#login").fill(login)
   await page.locator("#password").fill(password)
   await page.locator('form button[type="submit"]').click()

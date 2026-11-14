@@ -7,7 +7,6 @@ import { crunchySprites } from "@/services/sprites/crunchy"
 import { kawkawSprites } from "@/services/sprites/kawkaw"
 import { dotaSprites } from "@/services/sprites/dota"
 import { destinySprites } from "@/services/sprites/destiny"
-import { resolveUrl } from "@/services/api"
 import { isElectron } from "@/services/electron"
 import { useCallStore } from "@/stores/call"
 
@@ -156,7 +155,9 @@ function getSpriteUrls(packId: string): string[] {
     }
     return urls.map((url) => `.${appendVersion(url)}`)
   }
-  return urls.map((url) => resolveUrl(appendVersion(url)))
+  // Bundled static files: same-origin in the browser and inside the Android app.
+  // Not resolveUrl(): that prefixes the backend URL, which only serves the API.
+  return urls.map(appendVersion)
 }
 
 function getSprites(packId: string): Record<string, SoundPackSprite> {

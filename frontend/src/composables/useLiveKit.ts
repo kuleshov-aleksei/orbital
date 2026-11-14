@@ -10,6 +10,8 @@ import { useLiveKitEvents } from "./useLiveKitEvents"
 import { useLiveKitConnection } from "./useLiveKitConnection"
 import { useLiveKitSupervisor } from "./useLiveKitSupervisor"
 import { usePresenceBroadcast } from "./usePresenceBroadcast"
+import { setCallKeepAlive } from "@/services/platform"
+import { emojiTextToPlain } from "@/services/emoji/inlineText"
 
 export interface UseLiveKitOptions {
   roomId: string
@@ -64,7 +66,12 @@ export function useLiveKit(options: UseLiveKitOptions) {
   const initializeLiveKit = async (): Promise<boolean> => {
     supervisor.reset()
     state.connectionFailed.value = false
-    return rawJoin()
+    const connected = await rawJoin()
+    // Android: keep the process/network alive in the background for the whole call
+    // (including reconnects). Started after rawJoin so the mic permission prompt has
+    // run and the service can claim the microphone type. Stopped in cleanup().
+    void setCallKeepAlive(true, emojiTextToPlain(options.roomName))
+    return connected
   }
 
   // Manual retry from the "connection lost" banner after the SDK gave up.
@@ -87,6 +94,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
       await screenShare.stopScreenShare()
     }
     connection.cleanup()
+    void setCallKeepAlive(false)
   }
 
   const localStream = audio.ensureLocalStream

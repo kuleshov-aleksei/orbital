@@ -2,7 +2,6 @@ import { Howl } from "howler"
 import type { SoundPackSprite } from "@/types/audio"
 import { HALLOWEEN_GAME_VOLUME_KEY } from "@/types/audio"
 import { halloweenGameSprites } from "@/services/sprites/halloween_game"
-import { resolveUrl } from "@/services/api"
 import { isElectron } from "@/services/electron"
 
 export type HalloweenGameSoundEvent = keyof typeof halloweenGameSprites
@@ -64,7 +63,8 @@ function getGameSpriteUrls(): string[] {
     }
     return GAME_SPRITE_URLS.map((url) => `.${appendVersion(url)}`)
   }
-  return GAME_SPRITE_URLS.map((url) => resolveUrl(appendVersion(url)))
+  // Bundled static files (see services/sounds.ts getSpriteUrls).
+  return GAME_SPRITE_URLS.map(appendVersion)
 }
 
 function toHowlSpriteFormat(

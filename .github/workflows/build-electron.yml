@@ -1,4 +1,4 @@
-name: Build Electron App
+name: Build Desktop & Android
 
 on:
   workflow_dispatch:
@@ -34,6 +34,14 @@ jobs:
           VERSION=${GITHUB_REF_NAME#v}
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "Building version: $VERSION"
+          # Android versionCode must increase with every release
+          if [[ "$VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+            VERSION_CODE=$(( BASH_REMATCH[1] * 1000000 + BASH_REMATCH[2] * 1000 + BASH_REMATCH[3] ))
+          else
+            VERSION_CODE=${{ github.run_number }}
+          fi
+          echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_ENV
+          echo "Android versionCode: $VERSION_CODE"
 
       - name: Validate version
         run: |
@@ -59,13 +67,51 @@ jobs:
           docker cp orbital-extract:/app/electron/release ./electron
           docker rm orbital-extract
 
+      - name: Prepare Android keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/orbital-release.jks"
+          test -s "$RUNNER_TEMP/orbital-release.jks"
+
+      - name: Prepare Firebase config
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          printf '%s' "$GOOGLE_SERVICES_JSON" > "$RUNNER_TEMP/google-services.json"
+          test -s "$RUNNER_TEMP/google-services.json"
+
+      - name: Build Android in Docker
+        env:
+          DOCKER_BUILDKIT: 1
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          docker build \
+            --secret id=android_keystore,src="$RUNNER_TEMP/orbital-release.jks" \
+            --secret id=android_keystore_password,env=ANDROID_KEYSTORE_PASSWORD \
+            --secret id=android_key_alias,env=ANDROID_KEY_ALIAS \
+            --secret id=google_services,src="$RUNNER_TEMP/google-services.json" \
+            --build-arg VERSION=${{ env.VERSION }} \
+            --build-arg VERSION_CODE=${{ env.VERSION_CODE }} \
+            --build-arg VITE_BACKEND_URL=${{ secrets.VITE_BACKEND_URL }} \
+            -t orbital-android-build \
+            -f docker/Dockerfile.android .
+
+      - name: Copy APK
+        run: |
+          docker create --name orbital-android-extract orbital-android-build
+          docker cp "orbital-android-extract:/app/release/Orbital-${VERSION}.apk" ./electron/release/
+          docker rm orbital-android-extract
+
       - name: Upload binaries to S3
         if: github.ref_type == 'tag'
         run: |
           for f in \
             "Orbital-Setup-${VERSION}.exe" \
             "Orbital-Setup-${VERSION}.exe.blockmap" \
-            "Orbital-${VERSION}.AppImage"; do
+            "Orbital-${VERSION}.AppImage" \
+            "Orbital-${VERSION}.apk"; do
             docker run --rm -v "$PWD/electron/release:/data" \
               -v "$PWD/scripts/aws-cli-config:/aws/config:ro" -e AWS_CONFIG_FILE=/aws/config \
               -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_DEFAULT_REGION -e AWS_ENDPOINT_URL \
@@ -90,7 +136,7 @@ jobs:
         if: github.ref_type == 'tag'
         uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1.21.0
         with:
-          artifacts: "electron/release/*Setup*.exe,electron/release/*.blockmap,electron/release/latest.yml,electron/release/*.AppImage,electron/release/latest-linux.yml"
+          artifacts: "electron/release/*Setup*.exe,electron/release/*.blockmap,electron/release/latest.yml,electron/release/*.AppImage,electron/release/latest-linux.yml,electron/release/*.apk"
           token: ${{ secrets.UAT_TOKEN }}
           commit: ${{ github.sha }}
           tag: ${{ env.VERSION }}
@@ -98,5 +144,10 @@ jobs:
           body: "Automated build"
           draft: true
           
+      - name: Remove Android signing and Firebase files
+        if: always()
+        run: rm -f "$RUNNER_TEMP/orbital-release.jks" "$RUNNER_TEMP/google-services.json"
+
       - name: Remove old builder images (keep build cache)
-        run: docker image rm orbital-electron-build || true
+        if: always()
+        run: docker image rm orbital-electron-build orbital-android-build || true

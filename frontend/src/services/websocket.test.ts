@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { WebSocketMessage } from "@/types"
 import { clearAuthToken, setAuthToken, setTokenExpiry } from "./api"
 import { WebSocketService } from "./websocket"
+import { setOnClientOutdated, WS_CLOSE_CLIENT_OUTDATED } from "./appVersion"
 
 type Listener = () => void
 
@@ -18,7 +19,7 @@ class FakeWebSocket {
   onopen: (() => void) | null = null
   onerror: (() => void) | null = null
   onmessage: ((event: { data: string }) => void) | null = null
-  onclose: ((event: { wasClean: boolean }) => void) | null = null
+  onclose: ((event: { wasClean: boolean; code?: number }) => void) | null = null
   private listeners = new Map<string, Set<Listener>>()
 
   constructor(url: string) {
@@ -35,6 +36,12 @@ class FakeWebSocket {
     this.readyState = FakeWebSocket.CLOSED
     this.onclose?.({ wasClean: true })
     this.listeners.get("close")?.forEach((listener) => listener())
+  }
+
+  /** Server-initiated close with a code (e.g. 4426 for an outdated app). */
+  serverClose(code: number): void {
+    this.readyState = FakeWebSocket.CLOSED
+    this.onclose?.({ wasClean: true, code })
   }
 
   addEventListener(type: string, listener: Listener): void {
@@ -295,5 +302,104 @@ describe("message routing", () => {
     service.off("new_message")
     handle({ data: JSON.stringify({ type: "new_message", data: { id: "m2" } }) })
     expect(received).toHaveLength(0)
+  })
+})
+
+describe("client_state (mobile push suppression)", () => {
+  const states = (socket: FakeWebSocket) =>
+    socket.sent
+      .map((raw) => JSON.parse(raw) as WebSocketMessage)
+      .filter((m) => m.type === "client_state")
+      .map((m) => (m.data as { active: boolean }).active)
+
+  // The node test environment stubs document/window with no-op listeners
+  // (src/test-setup.ts): capture what the service registers.
+  type Handler = () => void
+  let docHandlers: Map<string, Handler[]>
+  let winHandlers: Map<string, Handler[]>
+  const doc = document as unknown as { hidden: boolean }
+  const fire = (map: Map<string, Handler[]>, type: string) => map.get(type)?.forEach((h) => h())
+
+  beforeEach(() => {
+    docHandlers = new Map()
+    winHandlers = new Map()
+    const capture = (map: Map<string, Handler[]>) => (type: string, fn: unknown) => {
+      map.set(type, [...(map.get(type) ?? []), fn as Handler])
+    }
+    vi.spyOn(document, "addEventListener").mockImplementation(capture(docHandlers))
+    vi.spyOn(window, "addEventListener").mockImplementation(capture(winHandlers))
+    doc.hidden = false
+  })
+  afterEach(() => {
+    doc.hidden = false
+  })
+
+  async function connectGlobal() {
+    const service = new WebSocketService()
+    const connected = service.connectGlobal()
+    const socket = lastSocket()
+    socket.open()
+    await connected
+    return { service, socket }
+  }
+
+  it("ignores focus: a blurred but visible window stays active", async () => {
+    const { service, socket } = await connectGlobal()
+    expect(winHandlers.has("blur")).toBe(false)
+    fire(winHandlers, "blur")
+    expect(states(socket)).toEqual([true])
+    await service.disconnectGlobal()
+  })
+
+  it("goes inactive when hidden or idle, and active again on input", async () => {
+    const { service, socket } = await connectGlobal()
+    expect(states(socket)).toEqual([true])
+
+    doc.hidden = true
+    fire(docHandlers, "visibilitychange")
+    expect(states(socket)).toEqual([true, false])
+
+    doc.hidden = false
+    fire(docHandlers, "visibilitychange")
+    expect(states(socket)).toEqual([true, false, true])
+
+    // Ten minutes without clicks or keys: idle.
+    await vi.advanceTimersByTimeAsync(10 * 60 * 1000)
+    expect(states(socket)).toEqual([true, false, true, false])
+
+    fire(winHandlers, "pointerdown")
+    expect(states(socket)).toEqual([true, false, true, false, true])
+    await service.disconnectGlobal()
+  })
+})
+
+describe("outdated app", () => {
+  afterEach(() => setOnClientOutdated(null))
+
+  it("stops reconnecting on close code 4426 and reports it", async () => {
+    const outdated = vi.fn()
+    setOnClientOutdated(outdated)
+
+    const { socket } = await connectService()
+    socket.serverClose(WS_CLOSE_CLIENT_OUTDATED)
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(FakeWebSocket.instances).toHaveLength(1)
+    expect(outdated).toHaveBeenCalledTimes(1)
+
+    const service = new WebSocketService()
+    const connected = service.connectGlobal()
+    lastSocket().open()
+    await connected
+    lastSocket().serverClose(WS_CLOSE_CLIENT_OUTDATED)
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(FakeWebSocket.instances).toHaveLength(2)
+    expect(outdated).toHaveBeenCalledTimes(2)
+  })
+
+  it("keeps the token in the socket URL and adds no client id on the web", async () => {
+    const { socket } = await connectService()
+    const url = new URL(socket.url)
+    expect(url.searchParams.get("token")).toBe("valid-token")
+    expect(url.searchParams.has("client")).toBe(false)
   })
 })

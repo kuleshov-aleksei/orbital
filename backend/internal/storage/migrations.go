@@ -576,6 +576,31 @@ CREATE INDEX IF NOT EXISTS idx_user_color_roles_role ON user_color_roles(role_id
 		);
 CREATE INDEX IF NOT EXISTS idx_chat_att_jobs_due ON chat_attachment_jobs(status, next_attempt_at);`,
 	},
+	{
+		Version: 47,
+		Name:    "create_push_devices",
+		// FCM registration tokens of the mobile app, one row per device.
+		// A token belongs to whoever registered it last (shared devices).
+		SQL: `CREATE TABLE IF NOT EXISTS push_devices (
+			token TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			platform TEXT NOT NULL,
+			created_at INTEGER NOT NULL,
+			last_seen_at INTEGER NOT NULL
+		);
+CREATE INDEX IF NOT EXISTS idx_push_devices_user ON push_devices(user_id);`,
+	},
+	{
+		Version: 48,
+		Name:    "create_app_settings",
+		// Server-wide key/value settings edited from the admin panel
+		// (e.g. android_min_version, the oldest Android app still allowed).
+		SQL: `CREATE TABLE IF NOT EXISTS app_settings (
+			key TEXT PRIMARY KEY,
+			value TEXT NOT NULL,
+			updated_at INTEGER NOT NULL
+		);`,
+	},
 }
 
 // RunMigrationsUpTo applies migrations up to and including maxVersion.

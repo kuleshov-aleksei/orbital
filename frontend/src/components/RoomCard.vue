@@ -1,12 +1,11 @@
 <template>
   <div
-    class="room-card px-2 py-1.5 mb-0.5 rounded-md cursor-pointer transition-all duration-200 group"
+    class="room-card px-2 py-1.5 rounded-lg cursor-pointer transition-all duration-200 group"
     :class="{
-      'bg-theme-accent text-theme-text-on-accent': isActive,
-      'bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary':
+      'bg-transparent hover:bg-theme-bg-hover text-theme-text-primary': isActive,
+      'bg-transparent hover:bg-theme-bg-hover active:bg-theme-bg-hover text-theme-text-secondary hover:text-theme-text-primary':
         !isActive && !isLocked,
-      'bg-theme-bg-tertiary text-theme-text-muted opacity-60 cursor-not-allowed':
-        isLocked && !isActive,
+      'bg-transparent text-theme-text-muted opacity-60 cursor-not-allowed': isLocked && !isActive,
       'opacity-50': isDragging,
     }"
     :title="isLocked ? 'You don\'t have permission to join this room' : undefined"
@@ -25,10 +24,10 @@
       <!-- Room Icon -->
       <div class="mr-2">
         <div
-          class="w-7 h-7 rounded-md flex items-center justify-center"
+          class="w-6 h-6 rounded-md flex items-center justify-center"
           :class="{
-            'bg-theme-accent/80': isActive,
-            'bg-theme-bg-hover group-hover:bg-theme-border': !isActive,
+            'bg-theme-accent text-theme-text-on-accent': isActive,
+            'text-theme-text-muted': !isActive,
           }">
           <TextChannelIcon v-if="room.type === 'text'" :room-id="room.id" class="w-4 h-4" />
           <PhWaveform v-else-if="room.type !== 'spatial_audio'" class="w-4 h-4" />
@@ -89,7 +88,7 @@
     </div>
 
     <!-- Users List -->
-    <div v-if="room.users && room.users.length > 0" class="mt-1 pl-9">
+    <div v-if="room.users && room.users.length > 0" class="mt-1 pl-8">
       <div class="space-y-0.5">
         <div
           v-for="user in room.users"

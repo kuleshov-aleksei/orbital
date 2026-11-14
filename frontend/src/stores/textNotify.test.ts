@@ -8,8 +8,8 @@ const api = vi.hoisted(() => ({
 vi.mock("@/services/api", () => ({ apiService: api }))
 const sounds = vi.hoisted(() => ({ playMention: vi.fn() }))
 vi.mock("@/services/sounds", () => sounds)
-const electron = vi.hoisted(() => ({ flashWindow: vi.fn() }))
-vi.mock("@/services/electron", () => electron)
+const platform = vi.hoisted(() => ({ notifyAttention: vi.fn() }))
+vi.mock("@/services/platform", () => platform)
 const ws = vi.hoisted(() => ({ sendGlobalMessage: vi.fn() }))
 vi.mock("@/services/websocket", () => ({ wsService: ws }))
 
@@ -74,7 +74,7 @@ describe("text notify store", () => {
     store.onMention({ room_id: "a", message_id: "30", sender_id: "bob" }) // duplicate
     expect(store.mentionCount("a")).toBe(2)
     expect(sounds.playMention).toHaveBeenCalledTimes(3)
-    expect(electron.flashWindow).toHaveBeenCalled()
+    expect(platform.notifyAttention).toHaveBeenCalled()
 
     chat.markRead("a", 20)
     expect(store.mentionCount("a")).toBe(1)
@@ -86,7 +86,7 @@ describe("text notify store", () => {
     useAppSettingsStore().setMentionTaskbarFlash(false)
     useTextNotifyStore().onMention({ room_id: "a", message_id: "5", sender_id: "bob" })
     expect(sounds.playMention).toHaveBeenCalled()
-    expect(electron.flashWindow).not.toHaveBeenCalled()
+    expect(platform.notifyAttention).not.toHaveBeenCalled()
   })
 
   it("ignores mentions in muted channels", () => {
