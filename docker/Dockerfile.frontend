@@ -1,5 +1,5 @@
 # Frontend Dockerfile
-FROM node:26.12.1-alpine AS builder
+FROM node:26.13.0-alpine AS builder
 
 # Mirror the repo layout (/app/frontend + /app/tools): the dev-only balance
 # visualizer imports from tools/halloween-balance, and vue-tsc checks it too
