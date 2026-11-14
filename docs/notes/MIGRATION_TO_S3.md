@@ -104,6 +104,11 @@ The gate is the GitHub draft release: S3 binaries exist at build time but the
 update only goes live when the manifests are promoted to the S3 root on publish.
 The GitHub release assets (including the binaries) are what old clients download.
 
+Binary uploads must pass `--content-type` and `--content-disposition attachment`:
+aws-cli guesses the type from the extension and knows neither `.apk` nor `.AppImage`.
+Without a type (Garage also sends `nosniff`), mobile Chrome renders the file as text
+instead of downloading it.
+
 ## Phase 2 — drop GitHub artifacts (TO DO LATER)
 
 Goal: stop shipping binaries on GitHub. GitHub releases become manifest-less
