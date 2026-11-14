@@ -1,5 +1,9 @@
 <template>
-  <div class="mt-1 flex flex-col gap-1.5 items-start max-w-full" data-testid="message-attachments">
+  <!-- data-no-long-press: attachments keep their own long-press (contextmenu) menu. -->
+  <div
+    class="mt-1 flex flex-col gap-1.5 items-start max-w-full"
+    data-testid="message-attachments"
+    data-no-long-press>
     <!-- Images: one sized by aspect ratio, several in a grid -->
     <div
       v-if="images.length"

@@ -3,12 +3,19 @@
     class="message-item group relative px-4 transition-colors"
     :class="[
       compact ? 'py-0.5' : 'pt-2 pb-0.5 mt-2',
-      highlighted ? 'message-flash' : 'hover:bg-theme-bg-secondary/60',
+      highlighted ? 'message-flash' : isMobile ? '' : 'hover:bg-theme-bg-secondary/60',
       pendingStatus === 'sending' ? 'opacity-60' : '',
       mentionsMe ? 'mention-me' : '',
+      isMobile && !editing ? 'touch-message' : '',
     ]"
     :data-message-id="message.id"
-    data-testid="text-message">
+    data-testid="text-message"
+    @pointerdown="longPress.onPointerdown"
+    @pointermove="longPress.onPointermove"
+    @pointerup="longPress.onPointerup"
+    @pointercancel="longPress.onPointercancel"
+    @click.capture="longPress.onClickCapture"
+    @contextmenu="onContextMenu">
     <!-- Reply quote -->
     <div
       v-if="message.reply_to_id"
@@ -73,9 +80,22 @@
             class="edit-input w-full resize-none rounded-md bg-theme-bg-tertiary border border-theme-border px-3 py-2 text-sm text-theme-text-primary focus:outline-none focus:border-theme-accent"
             data-testid="edit-message-input"
             @input="autosize"
-            @keydown.enter.exact.prevent="saveEdit"
+            @keydown.enter.exact="onEditEnter"
             @keydown.escape.prevent.stop="$emit('cancel-edit')" />
-          <p class="text-[11px] text-theme-text-muted mt-0.5">
+          <p v-if="isMobile" class="flex gap-4 text-xs mt-1">
+            <button type="button" class="text-theme-text-muted py-1" @click="$emit('cancel-edit')">
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="text-theme-accent font-semibold py-1"
+              data-testid="save-edit"
+              @click="saveEdit">
+              Save
+            </button>
+            <span v-if="editError" class="text-red-400 self-center">{{ editError }}</span>
+          </p>
+          <p v-else class="text-[11px] text-theme-text-muted mt-0.5">
             Escape to
             <button
               type="button"
@@ -125,9 +145,9 @@
       </div>
     </div>
 
-    <!-- Hover toolbar -->
+    <!-- Hover toolbar (mobile uses the long-press sheet: taps fake a sticky hover) -->
     <div
-      v-if="!pendingStatus && !editing"
+      v-if="!pendingStatus && !editing && !isMobile"
       class="message-toolbar absolute -top-3 right-4 hidden group-hover:flex group-focus-within:flex items-center rounded-md border border-theme-border bg-theme-bg-secondary shadow-md"
       role="toolbar"
       aria-label="Message actions">
@@ -224,7 +244,8 @@ import EmojiGlyph from "@/components/EmojiGlyph.vue"
 import MessageContent from "./MessageContent.vue"
 import ReactionBar from "./ReactionBar.vue"
 import MessageAttachments from "./attachments/MessageAttachments.vue"
-import { useCustomEmojisStore, usePermissionsStore, useUsersStore } from "@/stores"
+import { useAppStore, useCustomEmojisStore, usePermissionsStore, useUsersStore } from "@/stores"
+import { useLongPress } from "@/composables/useLongPress"
 import {
   emojiShortcode,
   emojiTextLength,
@@ -280,6 +301,8 @@ const emit = defineEmits<{
   react: [emoji: string]
   "add-reaction": [event: MouseEvent]
   pin: [pinned: boolean]
+  /** Mobile long press: open the message action sheet. */
+  "open-actions": []
 }>()
 
 const toolbarBtn =
@@ -288,6 +311,21 @@ const toolbarBtn =
 const usersStore = useUsersStore()
 const permissionsStore = usePermissionsStore()
 const customEmojisStore = useCustomEmojisStore()
+const appStore = useAppStore()
+const isMobile = computed(() => appStore.isMobile)
+
+// --- Mobile long press ---------------------------------------------------
+const canOpenActions = () => isMobile.value && !props.pendingStatus && !props.editing
+const longPress = useLongPress(() => emit("open-actions"), { enabled: canOpenActions })
+
+// Android also reports a long press as contextmenu (text selection / link
+// callout); the action sheet replaces it. Attachments keep their own menu.
+function onContextMenu(e: MouseEvent) {
+  if (!canOpenActions()) return
+  const target = e.target as Element | null
+  if (target?.closest?.("[data-no-long-press]")) return
+  e.preventDefault()
+}
 
 function nameOf(userId: string): string {
   return usersStore.displayName(userId)
@@ -356,6 +394,13 @@ watch(
   { immediate: true },
 )
 
+// Enter saves on desktop; on mobile it inserts a newline (Save button saves).
+function onEditEnter(e: KeyboardEvent) {
+  if (isMobile.value || e.isComposing) return
+  e.preventDefault()
+  void saveEdit()
+}
+
 async function saveEdit() {
   const text = draft.value.trim()
   // Custom emojis load on demand: resolve typed :shortcode:s before encoding.
@@ -392,6 +437,12 @@ function copyText() {
 }
 .message-flash {
   animation: message-flash 2s ease-out;
+}
+/* Long press opens the action sheet instead of selecting text. */
+.touch-message {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 @keyframes message-flash {

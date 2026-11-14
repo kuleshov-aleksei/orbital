@@ -75,6 +75,7 @@
           :my-user-id="myUserId"
           @react="(emoji) => textChatStore.toggleReaction(item.message.id, emoji)"
           @add-reaction="(e) => openReactionPicker(item.message.id, e)"
+          @open-actions="actionsFor = item.message"
           @pin="(pinned) => textChatStore.setPinned(item.message.id, pinned)"
           @reply="textChatStore.startReply(item.message)"
           @edit="textChatStore.startEdit(item.message.id)"
@@ -116,13 +117,37 @@
     </button>
 
     <Teleport v-if="reactionPicker" to="body">
-      <div class="fixed inset-0 z-40" @pointerdown="closeReactionPicker" />
       <div
+        class="fixed inset-0 z-40"
+        :class="{ 'bg-black/50': appStore.isMobile }"
+        @pointerdown="closeReactionPicker" />
+      <div
+        v-if="appStore.isMobile"
+        class="reaction-picker-docked fixed inset-x-2 z-50"
+        data-testid="reaction-picker-docked">
+        <EmojiPicker @select="pickReaction" @close="closeReactionPicker" />
+      </div>
+      <div
+        v-else
         class="fixed z-50 w-[320px]"
         :style="{ top: `${reactionPicker.top}px`, left: `${reactionPicker.left}px` }">
         <EmojiPicker @select="pickReaction" @close="closeReactionPicker" />
       </div>
     </Teleport>
+
+    <MessageActionSheet
+      :message="actionsFor"
+      :is-own="actionsFor?.sender_id === myUserId"
+      :can-manage="canManage"
+      :can-reply="canSend"
+      @close="actionsFor = null"
+      @react="(emoji) => withActionsMessage((m) => textChatStore.toggleReaction(m.id, emoji))"
+      @add-reaction="withActionsMessage((m) => openReactionPicker(m.id))"
+      @reply="withActionsMessage((m) => textChatStore.startReply(m))"
+      @edit="withActionsMessage((m) => textChatStore.startEdit(m.id))"
+      @pin="(pinned) => withActionsMessage((m) => textChatStore.setPinned(m.id, pinned))"
+      @copy="withActionsMessage(copyMessage)"
+      @delete="withActionsMessage((m) => requestDelete(m, false))" />
 
     <DeleteMessageModal
       v-if="deleting"
@@ -138,8 +163,10 @@ import { PhArrowDown, PhPushPin, PhSpinner } from "@phosphor-icons/vue"
 import TextChannelIcon from "@/components/textchat/TextChannelIcon.vue"
 import EmojiText from "@/components/common/EmojiText.vue"
 import EmojiPicker from "@/components/EmojiPicker.vue"
-import { usePermissionsStore, useUsersStore } from "@/stores"
+import { useAppStore, usePermissionsStore, useUsersStore } from "@/stores"
+import { emojiTextToPlain } from "@/services/emoji"
 import MessageItem from "./MessageItem.vue"
+import MessageActionSheet from "./MessageActionSheet.vue"
 import DeleteMessageModal from "./DeleteMessageModal.vue"
 import { useTextChatStore, type ChannelView, type PendingTextMessage } from "@/stores/textChat"
 import { buildTimeline, formatDay } from "@/utils/messageGrouping"
@@ -158,6 +185,7 @@ const props = defineProps<{
 const textChatStore = useTextChatStore()
 const permissionsStore = usePermissionsStore()
 const usersStore = useUsersStore()
+const appStore = useAppStore()
 
 function nameOf(userId: string): string {
   return usersStore.displayName(userId)
@@ -366,7 +394,12 @@ const PICKER_W = 320
 const PICKER_H = 380
 const reactionPicker = ref<{ messageId: string; top: number; left: number } | null>(null)
 
-function openReactionPicker(messageId: string, event: MouseEvent) {
+// On mobile the picker is docked to the bottom of the screen (see template).
+function openReactionPicker(messageId: string, event?: MouseEvent) {
+  if (!event || appStore.isMobile) {
+    reactionPicker.value = { messageId, top: 0, left: 0 }
+    return
+  }
   const rect = (event.currentTarget as HTMLElement | null)?.getBoundingClientRect()
   const x = rect ? rect.right - PICKER_W : event.clientX - PICKER_W
   const y = rect ? rect.bottom + 4 : event.clientY
@@ -386,6 +419,22 @@ function pickReaction(emoji: string) {
   closeReactionPicker()
 }
 
+// --- Mobile action sheet (long press) --------------------------------------
+
+const actionsFor = ref<TextMessage | null>(null)
+const actionsIsPending = computed(
+  () => !!actionsFor.value && pendingById.value.has(actionsFor.value.id),
+)
+
+function withActionsMessage(fn: (m: TextMessage) => void) {
+  const m = actionsFor.value
+  if (m && !actionsIsPending.value) fn(m)
+}
+
+function copyMessage(m: TextMessage) {
+  void navigator.clipboard?.writeText(emojiTextToPlain(m.content))
+}
+
 // --- Delete ----------------------------------------------------------------
 
 const deleting = ref<TextMessage | null>(null)
@@ -402,3 +451,9 @@ function confirmDelete() {
 
 defineExpose({ scrollToBottom })
 </script>
+
+<style scoped>
+.reaction-picker-docked {
+  bottom: calc(0.5rem + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+}
+</style>

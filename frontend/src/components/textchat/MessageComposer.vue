@@ -109,6 +109,7 @@
               : 'You do not have permission to send messages in this channel'
           "
           :maxlength="MAX_CHARS * 2"
+          :enterkeyhint="appStore.isMobile ? 'enter' : 'send'"
           class="composer-input flex-1 min-w-0 resize-none bg-transparent text-sm text-theme-text-primary placeholder-theme-text-muted focus:outline-none py-1 max-h-[50vh] disabled:cursor-not-allowed"
           data-testid="text-composer"
           aria-label="Message"
@@ -149,7 +150,7 @@
           v-if="showSend"
           type="button"
           class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded text-theme-accent hover:bg-theme-bg-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          title="Send (Enter)"
+          :title="appStore.isMobile ? 'Send' : 'Send (Enter)'"
           aria-label="Send message"
           :disabled="charCount > MAX_CHARS"
           data-testid="send-button"
@@ -235,6 +236,7 @@ import {
   type EmojiRef,
 } from "@/services/emoji"
 import {
+  useAppStore,
   useAttachmentsStore,
   useCustomEmojisStore,
   usePermissionsStore,
@@ -260,6 +262,7 @@ const MAX_CHARS = 2000
 
 const textChatStore = useTextChatStore()
 const customEmojisStore = useCustomEmojisStore()
+const appStore = useAppStore()
 const usersStore = useUsersStore()
 const permissionsStore = usePermissionsStore()
 const attachmentsStore = useAttachmentsStore()
@@ -591,7 +594,8 @@ function onKeydown(event: KeyboardEvent) {
   if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
     void nextTick(updateSuggestions)
   }
-  if (event.key === "Enter" && !event.shiftKey) {
+  // On mobile Enter inserts a newline (textarea default); the send button sends.
+  if (event.key === "Enter" && !event.shiftKey && !appStore.isMobile) {
     event.preventDefault()
     send()
   } else if (event.key === "ArrowUp" && draft.value === "") {
