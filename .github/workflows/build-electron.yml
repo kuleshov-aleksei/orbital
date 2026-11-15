@@ -102,6 +102,8 @@ jobs:
         run: |
           docker create --name orbital-android-extract orbital-android-build
           docker cp "orbital-android-extract:/app/release/Orbital-${VERSION}.apk" ./electron/release/
+          # Over-the-air frontend bundle for Android (merged next to the Electron one)
+          docker cp "orbital-android-extract:/app/release/ota/." ./electron/release/ota/
           docker rm orbital-android-extract
 
       - name: Upload binaries to S3
@@ -126,9 +128,28 @@ jobs:
               --content-type "$type" --content-disposition "attachment; filename=\"$f\""
           done
 
+      - name: Upload OTA frontend files to S3
+        if: github.ref_type == 'tag'
+        run: |
+          # Content-addressed (ota/<platform>/files/<sha256>): immutable and inert
+          # until ota-<platform>.json is promoted, so uploading early is safe.
+          # Clients verify every hash; the type only matters for humans.
+          docker run --rm -v "$PWD/electron/release/ota:/data" \
+            -v "$PWD/scripts/aws-cli-config:/aws/config:ro" -e AWS_CONFIG_FILE=/aws/config \
+            -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_DEFAULT_REGION -e AWS_ENDPOINT_URL \
+            amazon/aws-cli:${AWS_CLI_VERSION} s3 sync "/data/ota/" "s3://${S3_BUCKET}/ota/" \
+            --size-only --content-type application/octet-stream
+
       - name: Stage update manifests on S3
         if: github.ref_type == 'tag'
         run: |
+          for f in ota-electron.json ota-android.json; do
+            docker run --rm -v "$PWD/electron/release/ota:/data" \
+              -v "$PWD/scripts/aws-cli-config:/aws/config:ro" -e AWS_CONFIG_FILE=/aws/config \
+              -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_DEFAULT_REGION -e AWS_ENDPOINT_URL \
+              amazon/aws-cli:${AWS_CLI_VERSION} s3 cp "/data/$f" "s3://${S3_BUCKET}/_staging/${VERSION}/$f" \
+              --content-type application/json
+          done
           for f in latest.yml latest-linux.yml; do
             docker run --rm -v "$PWD/electron/release:/data" \
               -v "$PWD/scripts/aws-cli-config:/aws/config:ro" -e AWS_CONFIG_FILE=/aws/config \

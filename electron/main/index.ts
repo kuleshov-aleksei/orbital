@@ -11,6 +11,7 @@ import { createWindow } from "./features/window"
 import { createTray } from "./features/tray"
 import { setupDeepLink } from "./features/deeplink"
 import { setupAutoUpdater } from "./features/update"
+import { initOta } from "./features/ota"
 import { setupScreenShareHandler } from "./features/screenshare"
 import { registerAllHotkeys, closeHotkeyBackend } from "./features/hotkeys"
 import { setupIPC } from "./ipc"
@@ -74,6 +75,8 @@ app.whenReady().then(() => {
   setupMainProcessLogRelay()
   log.info("App ready")
   loadConfig()
+  // Picks the renderer bundle (built-in or over-the-air) before it is served.
+  initOta()
   setupAppProtocol()
   setupMediaCache()
   createWindow()

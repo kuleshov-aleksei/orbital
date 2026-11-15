@@ -28,6 +28,7 @@ description: Use when changing Electron builds, auto-update feeds, S3/Garage art
 ## Guardrails
 
 - A feed URL change requires a rebuild; old clients keep their baked URL.
+- OTA frontend manifests (`ota-electron.json`, `ota-android.json`) are staged and promoted together with `latest.yml`; never promote one without the other. Shell code changes need a `shell-api.json` bump (AGENTS.md).
 - Manifests must be reachable where the provider expects them.
 - Do not reorder go-live and informational scanning steps.
 - Do not pin tool versions in multiple places.
@@ -37,5 +38,6 @@ description: Use when changing Electron builds, auto-update feeds, S3/Garage art
 - `docs/notes/MIGRATION_TO_S3.md`, `docs/notes/ANDROID_SIGNING.md`
 - `.github/workflows/build-electron.yml` (Electron + Android APK), `.github/workflows/publish-electron.yml`
 - `docker/Dockerfile.electron`, `docker/Dockerfile.android`
-- `electron/electron-builder.json`, `electron/main/features/update.ts`
+- `electron/electron-builder.json`, `electron/main/features/update.ts`, `electron/main/features/ota.ts`
+- `scripts/ota-manifest.mjs`, `mobile/android/app/src/main/java/app/orbital/OtaBundlePlugin.java`
 - `scripts/prune-s3-releases.sh`, `scripts/aws-cli-config`

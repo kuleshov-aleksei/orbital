@@ -575,6 +575,16 @@ export interface ElectronAPI {
   onUpdateError: (callback: (info: UpdateErrorInfo) => void) => void
   onUpdateNotAvailable: (callback: () => void) => void
   installUpdate: () => void
+  /** Over-the-air frontend updates (electron/main/features/ota.ts); missing in older builds. */
+  otaStatus?: () => Promise<{
+    shellApi: number
+    builtinVersion: string
+    activeVersion: string | null
+    pendingVersion: string | null
+  }>
+  onOtaReady?: (callback: (info: { version: string }) => void) => void
+  applyOta?: () => Promise<boolean>
+  confirmOtaBoot?: () => Promise<void>
   getPlatform: () => Promise<NodeJS.Platform>
   getSystemInfo: () => Promise<ElectronSystemInfoData>
   minimizeWindow: () => void

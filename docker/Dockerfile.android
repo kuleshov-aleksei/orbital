@@ -55,6 +55,9 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 COPY tools/halloween-balance/ /app/tools/halloween-balance/
 COPY frontend/ .
 COPY mobile/android/ /app/mobile/android/
+# Shell API version (read by app/build.gradle) and the OTA bundle generator.
+COPY shell-api.json /app/shell-api.json
+COPY scripts/ota-manifest.mjs /app/scripts/ota-manifest.mjs
 
 # Gradle distribution + dependencies (cached across builds)
 WORKDIR /app/mobile/android
@@ -73,6 +76,9 @@ ENV VITE_APP_VERSION=$VERSION
 WORKDIR /app/frontend
 RUN pnpm exec vite build --config vite.config.mobile.ts && \
     pnpm exec cap sync android
+
+# Over-the-air frontend bundle (OtaBundlePlugin): the same files as the APK's.
+RUN node /app/scripts/ota-manifest.mjs /app/mobile/dist android "$VERSION" "$VITE_BACKEND_URL" /app/release/ota
 
 WORKDIR /app/mobile/android
 RUN --mount=type=cache,target=/root/.gradle,sharing=locked \

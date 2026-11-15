@@ -185,6 +185,22 @@ The Android app runs on flaky mobile data, so the client must never assume the s
 - **Voice failures** set `connectionFailed` (Retry/Leave banner, mirrored as `callStore.voiceConnectionFailed`). Clicking the active room again retries. Never cover the sidebar with a full-screen overlay while waiting on the network.
 - Browser coverage: `frontend/tests/e2e/offline.spec.ts` simulates an unreachable server with `page.route` + `page.routeWebSocket`. Use those, not `context.setOffline`, which also blocks the dev server and doesn't drop open sockets.
 
+### ⚠️ CRITICAL: Shell changes require a `shell-api.json` bump
+
+The desktop and Android apps update their **frontend over the air** (OTA) without a reinstall. The **shell** (native code) only changes through a full installer/APK update. Every OTA bundle records the shell API it was built for, and clients apply it only on that same shell (`docs/notes/MIGRATION_TO_S3.md` "OTA frontend"). If you change the shell without bumping `shell-api.json`, a new frontend reaches old shells that lack what it calls, and breaks there.
+
+Bump the matching number in `shell-api.json` whenever you change:
+
+- **Electron** (`"electron"`): anything under `electron/main/` or `electron/preload/` (IPC channels, the `electronAPI` surface, `orbital://`/`orbital-media://` protocols, the venmic worker); `electron/electron-builder.json` (incl. `extraResources`); `electron/package.json` dependencies or the Electron version.
+- **Android** (`"android"`): anything under `mobile/android/` (Java plugins, `MainActivity`, `AndroidManifest.xml`, Gradle/SDK/AGP versions); `frontend/capacitor.config.ts`; adding, removing or upgrading any `@capacitor/*` package in `frontend/package.json`.
+
+Rules:
+
+- Frontend-only changes (`frontend/src`, assets, styles) must **not** bump it. A bump forces every user through a full reinstall.
+- Frontend code that calls a new shell API must still work on older shells: feature-detect it (`window.electronAPI?.newThing`, catch "not implemented" from a Capacitor plugin), as `services/platform.ts` already does.
+- `make lint` and the git pre-commit hook (`.githooks/pre-commit`, installed by `make hooks` / `make install`) run `scripts/check-shell-api.sh`, which fails when shell paths changed without a bump. Use `SKIP_SHELL_API_CHECK=1` only for changes that really can't affect the bundle (comments, logging).
+- OTA tests: `make test-ota`.
+
 ### Electron Development
 - Electron desktop app is in the `electron/` directory
 - Release/update changes must follow `docs/notes/MIGRATION_TO_S3.md` and the `orbital-release-ops` skill

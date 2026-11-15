@@ -51,8 +51,13 @@ Orbital-<version>.AppImage
 Orbital-<version>.apk          # Android, signed release; no update manifest
 latest.yml
 latest-linux.yml
+ota-electron.json              # over-the-air frontend manifests (see "OTA frontend")
+ota-android.json
+ota/<electron|android>/files/<sha256>
 _staging/<version>/latest.yml
 _staging/<version>/latest-linux.yml
+_staging/<version>/ota-electron.json
+_staging/<version>/ota-android.json
 ```
 
 `latest.yml` / `latest-linux.yml` use **relative filenames**, so the same
@@ -108,6 +113,52 @@ Binary uploads must pass `--content-type` and `--content-disposition attachment`
 aws-cli guesses the type from the extension and knows neither `.apk` nor `.AppImage`.
 Without a type (Garage also sends `nosniff`), mobile Chrome renders the file as text
 instead of downloading it.
+
+## OTA frontend (over-the-air renderer updates)
+
+Most releases only change the frontend. The desktop and Android apps download
+newer frontend bundles from this feed and switch to them without a reinstall.
+The installer/APK update runs only when the **shell** changed.
+
+- **Shell API version**: `shell-api.json` (`electron`, `android`). It is baked into
+  the Electron main process (`__SHELL_API__`) and the APK (`BuildConfig.SHELL_API`).
+  Each bundle's manifest records the shell API it was built for. Bump rules are in
+  `AGENTS.md`; `make lint` runs `scripts/check-shell-api.sh`.
+- **Build**: `scripts/ota-manifest.mjs` runs in `docker/Dockerfile.electron` and
+  `docker/Dockerfile.android`. It writes `ota-<platform>.json`
+  (`version`, `shell_api`, `backend_url`, `files[{path, sha256, size}]`) and
+  copies each file to `ota/<platform>/files/<sha256>`. The blobs are
+  content-addressed, so a client downloads only the files that changed.
+- **CI**: `build-electron.yml` syncs `ota/` to the bucket (inert until promoted)
+  and stages both manifests in `_staging/<version>/`. `publish-electron.yml`
+  promotes them together with `latest.yml`, so the same draft-release gate applies.
+- **Client decision** for the newest manifest:
+  - Version not newer: nothing.
+  - `shell_api` higher than the client's: native update (Electron: electron-updater
+    and `UpdateOverlay`; Android: the APK prompt).
+  - Same `shell_api`: download, verify every sha256, stage.
+  - Lower `shell_api`, a different `backend_url`, or a bundle that failed to boot
+    before: ignore it.
+  - Dev builds (`dev-unknown`) never update over the air.
+- **Electron** (`electron/main/features/ota.ts`): checks the feed at startup and
+  every 30 min. Bundles go to `userData/ota/bundles/<version>/` and are served by
+  the `orbital://` protocol (same origin, so IndexedDB is kept). If the OTA
+  manifest can't be read, the app falls back to the old electron-updater check.
+  `ORBITAL_OTA_URL=<feed root>` overrides the baked `UPDATE_URL` for local testing.
+- **Android** (`OtaBundlePlugin.java`): the app learns the manifest URL from
+  `GET /api/releases/latest` (`android_ota_manifest_url`). Bundles go to
+  `files/ota/bundles/<version>/` and are served through Capacitor's
+  `setServerBasePath`. Capacitor drops that path itself when a new APK is installed.
+- **Applying**: a "Reload" toast (`OtaReadyToast`), applied automatically after
+  10 min hidden or 30 min idle, or on the next launch. It is never applied during a call.
+- **Rollback**: the web app calls `confirmBoot` on mount. A bundle that doesn't
+  confirm within 30 s, crashes the renderer, or fails to load is marked bad, and
+  the app goes back to the bundle inside the installer/APK.
+- **Rollout**: clients get OTA only after one native update to a build that
+  contains it.
+- **Manual testing**: [`OTA_TEST_PLAN.md`](./OTA_TEST_PLAN.md).
+- **Retention**: `prune-s3-releases.sh` leaves `ota/` alone. Blob GC by the hashes
+  that retained manifests reference is a TODO.
 
 ## Phase 2 — drop GitHub artifacts (TO DO LATER)
 

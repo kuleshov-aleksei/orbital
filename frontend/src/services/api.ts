@@ -456,6 +456,8 @@ export interface LatestRelease {
   android_url: string
   /** Oldest Android app the backend accepts; "" = no minimum. */
   android_min_version: string
+  /** Over-the-air frontend manifest for the Android app (services/ota.ts); missing on older backends. */
+  android_ota_manifest_url?: string
 }
 
 // Minimum app versions (superadmin, Admin → App versions).

@@ -4,7 +4,8 @@
 # Keeps the newest N versions plus the version currently referenced by the live
 # `latest.yml`, deleting the installer/blockmap/AppImage/APK files of everything
 # older. Manifests, staging manifests and any non-versioned objects are left
-# untouched.
+# untouched, including the over-the-air frontend files under ota/ (shared,
+# content-addressed blobs; garbage collection by referenced hash is a TODO).
 #
 # Requires the AWS_* env vars (credentials + endpoint) to be set and Docker,
 # since the AWS CLI runs via the amazon/aws-cli image. Parsing stays on the host

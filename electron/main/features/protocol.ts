@@ -4,10 +4,9 @@ import fs from "node:fs"
 import { Readable } from "node:stream"
 import { pathToFileURL } from "node:url"
 import log from "electron-log"
-import { RENDERER_DIST } from "../paths"
+import { getRendererRoot } from "./ota"
 
 const scheme = "orbital"
-const indexHtmlPath = path.join(RENDERER_DIST, "index.html")
 const rangePattern = /^bytes=(\d*)-(\d*)$/
 
 const mimeTypes: Record<string, string> = {
@@ -50,15 +49,18 @@ export function setupAppProtocol() {
     try {
       const { pathname } = new URL(request.url)
       const decodedPath = decodeURIComponent(pathname)
+      // Built-in bundle or a newer over-the-air one (features/ota.ts).
+      const root = getRendererRoot()
+      const indexHtmlPath = path.join(root, "index.html")
 
       if (decodedPath === "/" || decodedPath === "") {
         return serveRange(indexHtmlPath, request)
       }
 
-      const filePath = path.join(RENDERER_DIST, decodedPath)
+      const filePath = path.join(root, decodedPath)
       const normalizedPath = path.normalize(filePath)
 
-      if (!normalizedPath.startsWith(RENDERER_DIST + path.sep)) {
+      if (!normalizedPath.startsWith(root + path.sep)) {
         return new Response("Forbidden", { status: 403 })
       }
 
@@ -88,8 +90,10 @@ async function serveRange(filePath: string, request: Request): Promise<Response>
   const response = await net.fetch(pathToFileURL(filePath).toString())
   const headers = new Headers(response.headers)
   headers.set("Accept-Ranges", "bytes")
-  if (filePath === indexHtmlPath) {
+  if (filePath === path.join(getRendererRoot(), "index.html")) {
     headers.set("Content-Security-Policy", "frame-ancestors 'none'")
+    // The bundle behind it changes with OTA updates.
+    headers.set("Cache-Control", "no-cache")
   }
   return new Response(response.body, { status: response.status, headers })
 }

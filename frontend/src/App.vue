@@ -14,6 +14,14 @@
     <!-- Android app updates (stores/appUpdate.ts); the prompt waits until no call is active. -->
     <AppOutdatedScreen v-if="appUpdateStore.required" />
     <AppUpdatePrompt v-else-if="appUpdateStore.updateAvailable && !roomStore.isInRoom" />
+    <!-- Over-the-air frontend update downloaded by the shell (stores/ota.ts). -->
+    <OtaReadyToast
+      v-if="
+        otaStore.readyVersion &&
+        otaStore.readyVersion !== otaStore.dismissedVersion &&
+        !appUpdateStore.required &&
+        !roomStore.isInRoom
+      " />
   </div>
 </template>
 
@@ -24,6 +32,7 @@ import {
   useAppStore,
   useAppUpdateStore,
   useCustomEmojisStore,
+  useOtaStore,
   useRoomStore,
   useTextChatStore,
   useTextNotifyStore,
@@ -34,6 +43,7 @@ import CustomEmojiUploadModal from "@/components/emoji/CustomEmojiUploadModal.vu
 import MuteChannelModal from "@/components/textchat/MuteChannelModal.vue"
 import AppOutdatedScreen from "@/components/appupdate/AppOutdatedScreen.vue"
 import AppUpdatePrompt from "@/components/appupdate/AppUpdatePrompt.vue"
+import OtaReadyToast from "@/components/appupdate/OtaReadyToast.vue"
 import { setOnClientOutdated } from "@/services/appVersion"
 import { isCapacitor } from "@/services/platform"
 import { setupMediaCacheLogRelay } from "@/services/attachments/mediaCache"
@@ -61,6 +71,7 @@ const textNotifyStore = useTextNotifyStore()
 const customEmojisStore = useCustomEmojisStore()
 const textChatStore = useTextChatStore()
 const appUpdateStore = useAppUpdateStore()
+const otaStore = useOtaStore()
 
 useKeyboardShortcuts()
 useThumbarButtons()
@@ -164,6 +175,8 @@ watch(
 let stopMessageJumps: (() => void) | null = null
 
 onMounted(() => {
+  // Confirms to the shell that this (possibly over-the-air) bundle booted.
+  void otaStore.start()
   checkMobile()
   // "Jump to message" from the storage page (/files) in another tab.
   stopMessageJumps = listenForMessageJumps(
@@ -241,6 +254,7 @@ onMounted(() => {
 onUnmounted(() => {
   stopMessageJumps?.()
   setOnClientOutdated(null)
+  otaStore.stop()
   if (appUpdateInterval) clearInterval(appUpdateInterval)
   window.removeEventListener("resize", checkMobile)
   window.removeEventListener("beforeunload", handleBeforeUnload)

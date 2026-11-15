@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Installed with `make hooks` (git config core.hooksPath .githooks).
+# Shell code changes need a shell-api.json bump (AGENTS.md); checks the staged changes.
+# Bypass: SKIP_SHELL_API_CHECK=1 git commit ... (or git commit --no-verify).
+exec "$(git rev-parse --show-toplevel)/scripts/check-shell-api.sh" --staged

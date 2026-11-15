@@ -8,6 +8,7 @@ import { isWayland, isDebugMode } from "../platform"
 import { getConfig, setCloseToTray, setHasSelectedCloseBehavior } from "./config"
 import { flushPendingLogEntries } from "./logRelay"
 import { replayCachedEvents } from "./update"
+import { armBootGuard, watchRendererFailures } from "./ota"
 import { consumePendingDeepLink } from "./deeplink"
 import { stopAudioCapture } from "../venmic"
 
@@ -210,7 +211,10 @@ export function createWindow() {
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL)
   } else {
+    watchRendererFailures(win)
     win.loadURL("orbital://app/")
+    // Rolls back to the built-in bundle if an over-the-air one never boots.
+    armBootGuard(win)
   }
 
   if (VITE_DEV_SERVER_URL || isDebugMode) {

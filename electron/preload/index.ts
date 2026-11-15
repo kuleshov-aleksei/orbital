@@ -24,6 +24,13 @@ export interface UpdateErrorInfo {
   message: string
 }
 
+export interface OtaStatus {
+  shellApi: number
+  builtinVersion: string
+  activeVersion: string | null
+  pendingVersion: string | null
+}
+
 export interface VenmicNode {
   [key: string]: string | number | boolean | undefined
 }
@@ -86,6 +93,10 @@ export interface ElectronAPI {
   onUpdateError: (callback: (info: UpdateErrorInfo) => void) => void
   onUpdateNotAvailable: (callback: () => void) => void
   installUpdate: () => void
+  otaStatus: () => Promise<OtaStatus>
+  onOtaReady: (callback: (info: { version: string }) => void) => void
+  applyOta: () => Promise<boolean>
+  confirmOtaBoot: () => Promise<void>
   getPlatform: () => Promise<NodeJS.Platform>
   getSystemInfo: () => Promise<SystemInfoData>
   minimizeWindow: () => void
@@ -178,6 +189,13 @@ const electronAPI: ElectronAPI = {
   installUpdate: () => {
     ipcRenderer.invoke("install-update")
   },
+
+  otaStatus: () => ipcRenderer.invoke("ota:status"),
+  onOtaReady: (callback) => {
+    ipcRenderer.on("ota-ready", (_, info) => callback(info))
+  },
+  applyOta: () => ipcRenderer.invoke("ota:apply"),
+  confirmOtaBoot: () => ipcRenderer.invoke("ota:confirm-boot"),
 
   getPlatform: () => ipcRenderer.invoke("get-platform"),
   getSystemInfo: () => ipcRenderer.invoke("get-system-info"),

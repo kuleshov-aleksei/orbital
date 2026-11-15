@@ -22,7 +22,8 @@ description: Use before declaring any Orbital code change complete. Selects the 
 2. For backend-only changes, run `make test-backend` (hermetic Go unit tests, the same set PR CI runs). If the change touches `internal/service/chatstore/` or anything else that talks to Meilisearch, also run `make test-integration` (starts the dev Meilisearch container; tests use the `integration` build tag and throwaway indexes). `make test` is the Docker/Playwright e2e suite; run it only when the change needs browser/e2e coverage or the user asks.
 3. For frontend changes, `make lint` covers changed and untracked files; use `make lint-full` to lint all sources.
 4. For frontend changes, run `cd frontend && pnpm typecheck` and determine whether errors are new or part of the known baseline.
-5. Report exactly what ran, what passed, and what was skipped.
+5. If the diff touches shell paths (`electron/main/`, `electron/preload/`, `mobile/android/`, `capacitor.config.ts`, `@capacitor/*` deps), confirm `shell-api.json` was bumped (`./scripts/check-shell-api.sh`, also part of `make lint`). For OTA update code, run `make test-ota`.
+6. Report exactly what ran, what passed, and what was skipped.
 
 ## Live API checks with an owner account
 
