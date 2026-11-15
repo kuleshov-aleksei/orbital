@@ -6,7 +6,7 @@ FROM node:26.13.0-alpine AS builder
 WORKDIR /app/frontend
 COPY frontend/package.json ./
 COPY frontend/pnpm-*.yaml ./
-RUN npm install -g pnpm@12.16.1
+RUN npm install -g pnpm@12.18.0
 # The store lives in a BuildKit cache mount so lockfile changes only download
 # the packages that changed.
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \

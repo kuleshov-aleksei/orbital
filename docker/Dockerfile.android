@@ -14,7 +14,7 @@
 # Stage 1: Build environment
 FROM node:26.13.0-trixie AS builder
 
-RUN npm install -g pnpm@12.16.1
+RUN npm install -g pnpm@12.18.0
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends unzip ca-certificates && \
