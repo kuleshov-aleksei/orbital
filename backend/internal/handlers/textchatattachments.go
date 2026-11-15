@@ -65,7 +65,8 @@ type evictedFile struct {
 
 // UploadAttachment handles POST /api/rooms/{id}/attachments (multipart:
 // file, plus optional peaks, duration_ms, width, height measured by the
-// client). Needs SendMessages and AttachFiles in the channel.
+// client, and original=1 to store an image uncompressed). Needs SendMessages
+// and AttachFiles in the channel.
 func (h *TextChatHandler) UploadAttachment(w http.ResponseWriter, r *http.Request) {
 	roomID := mux.Vars(r)["id"]
 	if !h.requireTextRoom(w, r, roomID) {
@@ -107,6 +108,7 @@ func (h *TextChatHandler) UploadAttachment(w http.ResponseWriter, r *http.Reques
 	res, err := h.media.Upload(r.Context(), chatmedia.UploadInput{
 		RoomID: roomID, UploaderID: sub.UserID, Filename: header.Filename,
 		File: file, Size: header.Size, Meta: meta,
+		Original: r.FormValue("original") == "1",
 	})
 	if err != nil {
 		writeMediaError(w, err)

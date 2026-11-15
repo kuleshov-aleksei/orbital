@@ -81,8 +81,9 @@ const PNG = Buffer.from(
   "base64",
 )
 
-async function upload(token, bytes, filename) {
+async function upload(token, bytes, filename, fields = {}) {
   const form = new FormData()
+  for (const [k, v] of Object.entries(fields)) form.append(k, v)
   form.append("file", new Blob([bytes]), filename)
   const res = await fetch(`${BASE}/api/rooms/${roomId}/attachments`, {
     method: "POST",
@@ -112,6 +113,18 @@ async function attachmentChecks() {
     up.status === 201 && up.json?.attachment?.kind === "image" && !!up.json?.upload_id,
     up.text,
   )
+  check(
+    "image stored compressed as WebP",
+    up.json?.attachment?.mime === "image/webp" && up.json?.attachment?.filename === "dot.webp",
+    up.text,
+  )
+  const orig = await upload(alice.token, PNG, "dot.png", { original: "1" })
+  check(
+    "original=1 keeps the PNG",
+    orig.status === 201 && orig.json?.attachment?.mime === "image/png" && orig.json?.attachment?.filename === "dot.png",
+    orig.text,
+  )
+  if (orig.json?.upload_id) await api("DELETE", `/api/attachments/${orig.json.upload_id}`, alice.token)
   const fake = await upload(bob.token, Buffer.from("not an image at all"), "fake.png")
   check("upload sniffs content, not the name", fake.status === 415, fake.text)
 
@@ -136,7 +149,11 @@ async function attachmentChecks() {
   })
   const signed = urls.json?.urls?.[`${uploadId}:original`]?.url
   const body = signed ? Buffer.from(await (await fetch(signed)).arrayBuffer()) : Buffer.alloc(0)
-  check("presigned original served by S3", body.subarray(1, 4).toString() === "PNG", urls.text)
+  check(
+    "presigned original served by S3",
+    body.subarray(0, 4).toString() === "RIFF" && body.subarray(8, 12).toString() === "WEBP",
+    urls.text,
+  )
 
   const bobProtect = await api("PATCH", `/api/attachments/${uploadId}`, bob.token, { protected: true })
   check("protect by non-uploader rejected", bobProtect.status === 403, bobProtect.text)

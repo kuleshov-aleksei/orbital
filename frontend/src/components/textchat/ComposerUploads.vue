@@ -24,7 +24,9 @@
             Retry
           </button>
         </div>
-        <div v-else class="text-[10px] text-theme-text-muted">{{ formatBytes(u.file.size) }}</div>
+        <div v-else class="text-[10px] text-theme-text-muted">
+          {{ formatBytes(u.sentBytes ?? u.file.size) }}
+        </div>
       </div>
       <div
         v-if="u.status === 'uploading'"
@@ -34,6 +36,19 @@
         :aria-valuenow="Math.round(u.progress * 100)"
         aria-valuemin="0"
         aria-valuemax="100" />
+      <button
+        v-if="canSendOriginal(u)"
+        type="button"
+        class="absolute top-1 left-1 h-5 px-1.5 rounded-full text-[10px] font-semibold leading-none transition-colors"
+        :class="
+          u.original ? 'bg-theme-accent text-white' : 'bg-black/60 text-white/70 hover:text-white'
+        "
+        :aria-pressed="u.original"
+        :title="hdTitle(u)"
+        data-testid="composer-upload-hd"
+        @click="store.setOriginal(u.localId, !u.original)">
+        HD
+      </button>
       <button
         type="button"
         class="absolute top-1 right-1 w-5 h-5 flex items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
@@ -47,9 +62,17 @@
 
 <script setup lang="ts">
 import { PhFilmSlate, PhWaveform, PhX } from "@phosphor-icons/vue"
-import { useAttachmentsStore, type ComposerUpload } from "@/stores/attachments"
+import { canSendOriginal, useAttachmentsStore, type ComposerUpload } from "@/stores/attachments"
 import { formatBytes } from "@/utils/formatBytes"
 
 defineProps<{ uploads: ComposerUpload[] }>()
 const store = useAttachmentsStore()
+
+function hdTitle(u: ComposerUpload): string {
+  const full = formatBytes(u.file.size)
+  if (u.original) return `Sending in original quality (${full}). Click to compress.`
+  const sent =
+    u.sentBytes !== null && u.sentBytes < u.file.size ? ` to ${formatBytes(u.sentBytes)}` : ""
+  return `Compressed${sent}. Click to send in original quality (${full}).`
+}
 </script>

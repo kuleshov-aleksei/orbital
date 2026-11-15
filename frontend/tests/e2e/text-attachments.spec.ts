@@ -3,12 +3,6 @@ import { ADMIN_EMAIL, TEST_PASSWORD, deleteRoom, ensureAdmin, loginViaUi } from 
 
 const BACKEND_URL = "http://127.0.0.1:8080"
 
-// 1x1 PNG: real image bytes for the backend sniffer and thumbnailer.
-const PNG = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
-  "base64",
-)
-
 // Attachments (docs/specs/CHAT_SYSTEM.md §7.12) need Meilisearch (make meili-up)
 // and the dev Garage (make garage-up, GARAGE_DEFAULT_* in .env). The test skips
 // when the backend runs without them, e.g. in the Docker runner.
@@ -34,13 +28,39 @@ test("attach an image, view, protect, list on /files, delete", async ({ page, re
     await page.locator(".room-card").filter({ hasText: name }).click()
     await expect(page.getByTestId("text-channel-view")).toBeVisible()
 
+    // A noisy 3000x200 PNG, wider than the 2560 px storage cap.
+    const wide = await page.evaluate(async () => {
+      const canvas = document.createElement("canvas")
+      canvas.width = 3000
+      canvas.height = 200
+      const ctx = canvas.getContext("2d")!
+      const data = ctx.createImageData(3000, 200)
+      for (let i = 0; i < data.data.length; i++) data.data[i] = (i * 2654435761) >>> 24
+      ctx.putImageData(data, 0, 0)
+      const blob = await new Promise<Blob>((r) => canvas.toBlob((b) => r(b!), "image/png"))
+      const bytes = new Uint8Array(await blob.arrayBuffer())
+      let bin = ""
+      for (const b of bytes) bin += String.fromCharCode(b)
+      return btoa(bin)
+    })
+
     // Upload through the hidden input, then send an attachment-only message.
     await page
       .getByTestId("attach-input")
-      .setInputFiles({ name: "dot.png", mimeType: "image/png", buffer: PNG })
+      .setInputFiles({ name: "wide.png", mimeType: "image/png", buffer: Buffer.from(wide, "base64") })
     const chip = page.getByTestId("composer-upload")
     await expect(chip).toHaveCount(1)
     // Enter while uploading only shows "Wait for the uploads to finish".
+    await expect(chip.getByRole("progressbar")).toHaveCount(0)
+    await expect(chip).not.toContainText("Retry")
+    // HD on and off again: each switch drops the upload and sends it anew.
+    const hd = chip.getByTestId("composer-upload-hd")
+    await expect(hd).toHaveAttribute("title", /^Compressed/)
+    await hd.click()
+    await expect(hd).toHaveAttribute("aria-pressed", "true")
+    await expect(chip.getByRole("progressbar")).toHaveCount(0)
+    await hd.click()
+    await expect(hd).toHaveAttribute("aria-pressed", "false")
     await expect(chip.getByRole("progressbar")).toHaveCount(0)
     await expect(chip).not.toContainText("Retry")
     await page.getByTestId("text-composer").press("Enter")
@@ -56,6 +76,10 @@ test("attach an image, view, protect, list on /files, delete", async ({ page, re
 
     await tile.click()
     await expect(page.getByTestId("attachment-lightbox")).toBeVisible()
+    // Stored compressed: WebP, scaled down to the 2560 px cap.
+    const original = page.getByTestId("attachment-lightbox").locator('img[alt="wide.webp"]')
+    await expect(original).toHaveJSProperty("complete", true)
+    expect(await original.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBe(2560)
     await page.keyboard.press("Escape")
     await expect(page.getByTestId("attachment-lightbox")).toHaveCount(0)
 
@@ -67,7 +91,7 @@ test("attach an image, view, protect, list on /files, delete", async ({ page, re
     // The storage page lists the file as protected.
     const files = await page.context().newPage()
     await files.goto("/files")
-    const row = files.getByTestId("my-file-row").filter({ hasText: "dot.png" })
+    const row = files.getByTestId("my-file-row").filter({ hasText: "wide.webp" })
     await expect(row).toHaveCount(1)
     await files.close()
 

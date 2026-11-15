@@ -333,7 +333,7 @@ func TestImageUploadMakesThumbnail(t *testing.T) {
 		t.Fatalf("upload: %v", err)
 	}
 	r := res.Record
-	if r.Kind != KindImage || r.Width != 1280 || r.Height != 320 || !r.HasThumb || r.Filename != "shot.png" {
+	if r.Kind != KindImage || r.Width != 1280 || r.Height != 320 || !r.HasThumb || r.Filename != "shot.webp" || r.Mime != "image/webp" {
 		t.Fatalf("record = %+v", r)
 	}
 	keys := f.media.Keys()

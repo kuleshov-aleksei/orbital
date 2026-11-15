@@ -10,6 +10,7 @@ import {
   type AttachmentUploadMeta,
 } from "@/services/api"
 import { analyzeAudioFile, analyzeVideoFile } from "@/utils/audioPeaks"
+import { compressImage } from "@/utils/compressImage"
 import { formatBytes } from "@/utils/formatBytes"
 import type {
   AttachmentKind,
@@ -32,6 +33,15 @@ export interface ComposerUpload {
   uploadId: string | null
   attachment: TextAttachment | null
   abort: AbortController
+  /** Images: send uncompressed (full resolution, original format). */
+  original: boolean
+  /** Bytes actually sent (after client-side compression), once known. */
+  sentBytes: number | null
+}
+
+/** Images the user can choose to send uncompressed (not GIFs, which are kept as is). */
+export function canSendOriginal(u: ComposerUpload): boolean {
+  return u.kind === "image" && u.file.type !== "image/gif" && !/\.gif$/i.test(u.file.name)
 }
 
 export interface EvictionNotice {
@@ -133,17 +143,27 @@ export const useAttachmentsStore = defineStore("attachments", () => {
   }
 
   async function start(item: ComposerUpload) {
+    // setOriginal swaps item.abort while this run is in flight: keep ours.
+    const signal = item.abort.signal
     try {
       const meta = await measure(item.file, item.kind)
+      let toSend = item.file
+      if (item.kind === "image") {
+        if (item.original) meta.original = true
+        else toSend = (await compressImage(item.file)) ?? item.file
+        if (signal.aborted) return
+      }
+      const sending = find(item.localId)
+      if (sending) sending.sentBytes = toSend.size
       const res = await uploadTextAttachment(
         item.roomId,
-        item.file,
+        toSend,
         meta,
         (p) => (find(item.localId)!.progress = p),
-        item.abort.signal,
+        signal,
       )
       const cur = find(item.localId)
-      if (!cur) return
+      if (!cur || signal.aborted) return
       cur.status = "done"
       cur.progress = 1
       cur.uploadId = res.upload_id
@@ -152,7 +172,8 @@ export const useAttachmentsStore = defineStore("attachments", () => {
       noteEviction(res.evicted)
     } catch (err) {
       const cur = find(item.localId)
-      if (!cur || (err instanceof DOMException && err.name === "AbortError")) return
+      if (!cur || signal.aborted || (err instanceof DOMException && err.name === "AbortError"))
+        return
       cur.status = "error"
       cur.error = uploadErrorText(err instanceof AttachmentUploadError ? err.code : "upload_failed")
     }
@@ -193,6 +214,8 @@ export const useAttachmentsStore = defineStore("attachments", () => {
         uploadId: null,
         attachment: null,
         abort: new AbortController(),
+        original: false,
+        sentBytes: null,
       }
       uploads.value.push(item)
       void start(find(item.localId)!)
@@ -218,6 +241,29 @@ export const useAttachmentsStore = defineStore("attachments", () => {
     item.status = "uploading"
     item.error = null
     item.progress = 0
+    item.abort = new AbortController()
+    void start(item)
+  }
+
+  /**
+   * Switch an image between compressed and original quality: drop the
+   * current upload (deleting a finished one frees its quota) and send again.
+   */
+  function setOriginal(localId: string, original: boolean) {
+    const item = find(localId)
+    if (!item || item.original === original || !canSendOriginal(item)) return
+    if (item.status === "uploading") item.abort.abort()
+    if (item.uploadId) {
+      const id = item.uploadId
+      void apiService.deleteAttachment(id).catch(() => {}) // expires on the server anyway
+    }
+    item.original = original
+    item.status = "uploading"
+    item.error = null
+    item.progress = 0
+    item.uploadId = null
+    item.attachment = null
+    item.sentBytes = null
     item.abort = new AbortController()
     void start(item)
   }
@@ -262,6 +308,7 @@ export const useAttachmentsStore = defineStore("attachments", () => {
     addFiles,
     remove,
     retry,
+    setOriginal,
     busy,
     takeReady,
     loadUsage,

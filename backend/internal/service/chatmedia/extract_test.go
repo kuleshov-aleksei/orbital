@@ -293,7 +293,7 @@ func TestExtractionStatsCountsQueueStates(t *testing.T) {
 		st.WithText != 1 || st.WithVector != 1 || st.LastRunAt == 0 || st.LastDoneAt == 0 {
 		t.Fatalf("after the worker: %+v", st)
 	}
-	if len(st.RecentProblems) != 2 || st.RecentProblems[0].Record.Filename != "shot.png" {
+	if len(st.RecentProblems) != 2 || st.RecentProblems[0].Record.Filename != "shot.webp" {
 		t.Fatalf("problems = %+v", st.RecentProblems)
 	}
 

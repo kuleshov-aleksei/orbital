@@ -372,6 +372,8 @@ export interface AttachmentUploadMeta {
   durationMs?: number
   width?: number
   height?: number
+  /** Store an image uncompressed (full resolution, original format). */
+  original?: boolean
 }
 
 /** A failed attachment upload; code is the backend error code. */
@@ -423,6 +425,7 @@ export async function uploadTextAttachment(
   if (meta.durationMs) form.append("duration_ms", String(Math.round(meta.durationMs)))
   if (meta.width) form.append("width", String(meta.width))
   if (meta.height) form.append("height", String(meta.height))
+  if (meta.original) form.append("original", "1")
   form.append("file", file, file.name)
   const url = `${API_BASE}/rooms/${encodeURIComponent(roomId)}/attachments`
   let res = await sendUpload(url, form, onProgress, signal)

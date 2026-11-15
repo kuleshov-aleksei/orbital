@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"image"
+	pngenc "image/png"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -242,5 +244,44 @@ func TestAttachmentContentPermissions(t *testing.T) {
 	}
 	if rec := f.do(t, "mod", f.text.AttachmentContent, http.MethodGet, vars, nil); rec.Code != http.StatusNotFound {
 		t.Fatalf("non-viewer content: %d, want 404", rec.Code)
+	}
+}
+
+func (f *mediaFixture) uploadImage(t *testing.T, original bool) string {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, 40, 30))
+	var png bytes.Buffer
+	_ = pngenc.Encode(&png, img)
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	if original {
+		_ = mw.WriteField("original", "1")
+	}
+	fw, _ := mw.CreateFormFile("file", "shot.png")
+	_, _ = fw.Write(png.Bytes())
+	_ = mw.Close()
+	req := httptest.NewRequest(http.MethodPost, "/", &body)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req = req.WithContext(context.WithValue(req.Context(), userContextKey, f.claims["user"]))
+	req = mux.SetURLVars(req, map[string]string{"id": f.openText.ID})
+	rec := httptest.NewRecorder()
+	f.text.UploadAttachment(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("upload: %d %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Attachment chatstore.Attachment `json:"attachment"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	return resp.Attachment.Mime
+}
+
+func TestUploadOriginalField(t *testing.T) {
+	f := newMediaFixture(t)
+	if mime := f.uploadImage(t, false); mime != "image/webp" {
+		t.Fatalf("default upload stored as %q, want image/webp", mime)
+	}
+	if mime := f.uploadImage(t, true); mime != "image/png" {
+		t.Fatalf("original=1 upload stored as %q, want image/png", mime)
 	}
 }

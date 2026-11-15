@@ -165,6 +165,9 @@ type UploadInput struct {
 	File       File
 	Size       int64
 	Meta       ClientMeta
+	// Original keeps an image's format and resolution (metadata is still
+	// stripped); otherwise it is compressed (image.go).
+	Original bool
 }
 
 // UploadResult is a stored pending upload plus the files evicted for it.
@@ -211,14 +214,18 @@ func (s *Service) Upload(ctx context.Context, in UploadInput) (*UploadResult, er
 		if err != nil {
 			return nil, err
 		}
-		img, err := processImage(data, ft)
+		img, err := processImage(data, ft, in.Original)
 		if err != nil {
 			return nil, ErrBadImage
+		}
+		if img.ext != ft.ext {
+			rec.Mime, rec.Ext = img.mime, img.ext
+			rec.Filename = withExt(rec.Filename, img.ext)
 		}
 		rec.Width, rec.Height, rec.HasThumb = img.width, img.height, true
 		rec.SizeBytes = int64(len(img.original))
 		objs = append(objs,
-			object{rec.originalKey(), ft.mime, bytes.NewReader(img.original), int64(len(img.original))},
+			object{rec.originalKey(), img.mime, bytes.NewReader(img.original), int64(len(img.original))},
 			object{rec.thumbKey(), "image/webp", bytes.NewReader(img.thumb), int64(len(img.thumb))})
 	case KindAudio:
 		rec.Peaks = validPeaks(in.Meta.Peaks)
@@ -705,6 +712,16 @@ func cleanFilename(name, ext string) string {
 		name = string(r[:maxFilenameRunes])
 	}
 	return name
+}
+
+// withExt replaces a cleaned filename's extension (photo.jpg → photo.webp)
+// after the stored format changed; names without one get it appended.
+func withExt(name, ext string) string {
+	base := strings.TrimSuffix(name, path.Ext(name))
+	if base == "" {
+		base = "file"
+	}
+	return base + "." + ext
 }
 
 func validPeaks(p []int) []int {
