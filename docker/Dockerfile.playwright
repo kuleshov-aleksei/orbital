@@ -10,7 +10,7 @@ FROM golang:1.27.3-alpine AS go
 
 FROM livekit/livekit-server:v1.13.11 AS livekit
 
-FROM mcr.microsoft.com/playwright:v1.64.1-noble
+FROM mcr.microsoft.com/playwright:v1.65.0-noble
 
 # The Go toolchain comes from the pinned golang image above. Keep it local so
 # `go run` cannot try to download a different toolchain at test time.
@@ -33,7 +33,7 @@ RUN apt-get update \
 COPY --from=go /usr/local/go /usr/local/go
 COPY --from=livekit /livekit-server /usr/local/bin/livekit-server
 
-RUN npm install -g pnpm@12.16.1
+RUN npm install -g pnpm@12.18.0
 
 WORKDIR /app
 

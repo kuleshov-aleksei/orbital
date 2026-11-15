@@ -17,6 +17,30 @@
       "groupName": "all-dependencies",
       "automerge": false,
       "internalChecksFilter": "strict"
+    },
+    {
+      "description": "Base images: majors only, so minor/patch bumps don't invalidate the Docker build cache",
+      "matchManagers": ["dockerfile"],
+      "matchPackageNames": ["node", "golang", "alpine"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "enabled": false
+    },
+    {
+      "description": "pnpm (CI + Dockerfiles): majors only, so all pins move together and the Docker cache isn't busted weekly",
+      "matchPackageNames": ["pnpm"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "enabled": false
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "pnpm pin in Dockerfiles (`npm install -g pnpm@x.y.z`), kept in step with pnpm/action-setup in CI",
+      "managerFilePatterns": ["/(^|/)Dockerfile(\\.[^/]*)?$/"],
+      "matchStrings": ["npm install -g pnpm@(?<currentValue>\\d+\\.\\d+\\.\\d+)"],
+      "depNameTemplate": "pnpm",
+      "datasourceTemplate": "npm",
+      "versioningTemplate": "npm"
     }
   ],
   "ignorePaths": [
