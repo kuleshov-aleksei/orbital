@@ -4,15 +4,20 @@ import { isCapacitor } from "@/services/platform"
 import { debugLog, debugWarn } from "@/utils/debug"
 
 /**
- * Mention push notifications in the Android app (Firebase Cloud Messaging).
- * The server sends a push only when none of the user's sessions is active
- * (client_state, see services/websocket.ts), so this module only registers
- * the device and opens the channel when a notification is tapped.
+ * Text channel push notifications in the Android app (Firebase Cloud
+ * Messaging). The server decides everything: it pushes only when none of the
+ * user's sessions is active (client_state, see services/websocket.ts), skips
+ * muted channels and throttles chatter (backend websocket/textchat_push.go).
+ * This module only registers the device, creates the notification channels
+ * and opens the channel when a notification is tapped.
  * Every function is a no-op outside the Android app.
  */
 
-/** Must match push.AndroidChannelID in the backend. */
-const CHANNEL_ID = "mentions"
+/** Must match push.AndroidChannelID / push.MessagesChannelID in the backend. */
+const MENTIONS_CHANNEL_ID = "mentions"
+const MESSAGES_CHANNEL_ID = "messages"
+/** Push data types that open a text channel when tapped. */
+const OPENABLE_TYPES = new Set(["text_mention", "text_message"])
 const TOKEN_KEY = "orbital_push_token"
 
 type OpenHandler = (roomId: string, messageId: string | null) => void
@@ -53,7 +58,7 @@ const UNREGISTER_TIMEOUT_MS = 3000
 /**
  * Installs the push listeners once (call at app start, before login, so a
  * tap that launched the app is not missed). onOpen gets the channel of a
- * tapped mention.
+ * tapped notification.
  */
 export function setupPush(onOpen: OpenHandler): Promise<void> {
   if (!isCapacitor()) return Promise.resolve()
@@ -73,7 +78,7 @@ export function setupPush(onOpen: OpenHandler): Promise<void> {
       push.addListener("registrationError", (err) => debugWarn("[Push] Registration failed", err)),
       push.addListener("pushNotificationActionPerformed", ({ notification }) => {
         const data = (notification.data ?? {}) as Record<string, string | undefined>
-        if (data.type === "text_mention" && data.room_id) {
+        if (data.type && OPENABLE_TYPES.has(data.type) && data.room_id) {
           onOpen(data.room_id, data.message_id ?? null)
         }
       }),
@@ -96,10 +101,18 @@ export async function registerPush(): Promise<void> {
     await listenersReady
     const { PushNotifications: push } = await pushModule()
     await push.createChannel({
-      id: CHANNEL_ID,
+      id: MENTIONS_CHANNEL_ID,
       name: "Mentions",
       description: "When someone mentions you in a text channel",
       importance: 4,
+      visibility: 0,
+      vibration: true,
+    })
+    await push.createChannel({
+      id: MESSAGES_CHANNEL_ID,
+      name: "New messages",
+      description: "Other messages in text channels you haven't muted",
+      importance: 3,
       visibility: 0,
       vibration: true,
     })

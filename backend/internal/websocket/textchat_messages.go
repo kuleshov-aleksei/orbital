@@ -122,7 +122,7 @@ func (c *Client) handleTextMessageSend(data interface{}) {
 		}
 	}
 	c.hub.broadcastText(msg.RoomID, models.WebSocketMessage{Type: "text_message_new", Data: payload})
-	c.hub.pingMentions(tc, msg)
+	c.hub.pushMessage(tc, msg, c.hub.pingMentions(tc, msg))
 }
 
 // ackExistingMessage answers a duplicate send with the message the nonce
@@ -258,6 +258,8 @@ func (c *Client) handleTextChannelRead(data interface{}) {
 		log.Printf("[TextChat] Failed to store read state for %s in %s: %v", userID, req.RoomID, err)
 		return
 	}
+	// Reading the channel anywhere ends its push summaries.
+	c.hub.textPushes.reset(pushKey{userID: userID, roomID: req.RoomID})
 	c.hub.sendTextToUser(userID, models.WebSocketMessage{
 		Type: "text_read_state",
 		Data: map[string]any{"room_id": req.RoomID, "last_read_seq": stored},

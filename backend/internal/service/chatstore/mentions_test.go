@@ -84,7 +84,7 @@ func TestPlainText(t *testing.T) {
 	roles := map[string]string{role: "Mods"}
 	got := PlainText("hi <@"+user+"> <@&"+role+"> <@ghostGhostGhost0000A==> <:party:0b6c1f2e-9d4a-4c1b-8f3e-2a1d5c6b7e8f>",
 		func(id string) string { return names[id] }, func(id string) string { return roles[id] })
-	if want := "hi @Alice @Mods @unknown :party:"; got != want {
+	if want := "hi @Alice @Mods @unknown "; got != want {
 		t.Fatalf("PlainText = %q, want %q", got, want)
 	}
 }

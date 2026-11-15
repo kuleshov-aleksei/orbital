@@ -55,6 +55,8 @@ type Hub struct {
 	textLimiter *ratelimit.Limiter
 	// Messages created per (user, nonce), so outbox resends don't duplicate.
 	textNonces *sentNonces
+	// Per (user, channel) push cooldown (see textchat_push.go).
+	textPushes *pushThrottle
 
 	// Presence: users shown as "away" (see presence.go)
 	awayMu    sync.Mutex

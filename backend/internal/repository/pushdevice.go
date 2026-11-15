@@ -56,3 +56,21 @@ func (r *PushDeviceRepository) TokensForUser(userID string) ([]string, error) {
 	}
 	return out, rows.Err()
 }
+
+// UserIDs lists the users with at least one registered token.
+func (r *PushDeviceRepository) UserIDs() ([]string, error) {
+	rows, err := r.db.Query(`SELECT DISTINCT user_id FROM push_devices`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}

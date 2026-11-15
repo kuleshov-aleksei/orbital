@@ -16,6 +16,9 @@ type Notification struct {
 	Tag string
 	// Data reaches the app when the user taps the notification.
 	Data map[string]string
+	// ChannelID is the Android notification channel; "" means
+	// AndroidChannelID (mentions).
+	ChannelID string
 }
 
 // Sender delivers a notification to device tokens. It returns the tokens
@@ -27,6 +30,8 @@ type Sender interface {
 // DeviceStore is the token storage (repository.PushDeviceRepository).
 type DeviceStore interface {
 	TokensForUser(userID string) ([]string, error)
+	// UserIDs lists the users with at least one registered device.
+	UserIDs() ([]string, error)
 	Delete(token string) error
 }
 
@@ -54,6 +59,19 @@ func NewSyncService(sender Sender, devices DeviceStore) *Service {
 // Enabled reports whether pushes can be sent.
 func (s *Service) Enabled() bool {
 	return s != nil && s.sender != nil && s.devices != nil
+}
+
+// UsersWithDevices lists the users who can receive pushes at all.
+func (s *Service) UsersWithDevices() []string {
+	if !s.Enabled() {
+		return nil
+	}
+	ids, err := s.devices.UserIDs()
+	if err != nil {
+		log.Printf("[Push] Failed to list users with devices: %v", err)
+		return nil
+	}
+	return ids
 }
 
 // NotifyUser sends n to every device of userID. It never blocks on the
