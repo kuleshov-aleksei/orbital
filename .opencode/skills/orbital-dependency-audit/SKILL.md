@@ -8,7 +8,7 @@ description: Use when reviewing a Renovate/Dependabot PR or any package, lockfil
 ## When to use
 
 - A Renovate/Dependabot PR needs review or a dependency branch must be validated.
-- `package.json`, `pnpm-lock.yaml`, `go.mod`/`go.sum`, or a pinned runtime image changes.
+- `package.json`, `pnpm-lock.yaml`, `go.mod`/`go.sum`, Android Gradle files (`mobile/android/**`), or a pinned runtime image changes.
 - Someone asks whether an update is safe, legitimate, or breaking.
 
 ## Orient
@@ -25,7 +25,7 @@ Confirm this is the real bot and only expected files changed:
 
 - Author is `renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>` (or Dependabot's official identity).
 - Branch name and commit message match the bot; one commit on top of the base is normal.
-- Diff touches only dependency/build files: `package.json`, lockfiles, `go.mod`/`go.sum`, Dockerfiles, compose files, CI dependency pins.
+- Diff touches only dependency/build files: `package.json`, lockfiles, `go.mod`/`go.sum`, Android Gradle files (`build.gradle`, `gradle-wrapper.properties`), Dockerfiles, compose files, CI dependency pins.
 - No source, workflow, `renovate.json`, or script changes.
 - No **new** direct packages, lifecycle scripts (`preinstall`/`postinstall`/`prepare`), or non-registry sources (`tarball:`, `git:`, `file:`, `link:`, custom registries).
 - New npm entries have normal registry integrity hashes; `go.sum` has both `h1` and `/go.mod` hashes.
@@ -40,6 +40,12 @@ Enumerate **every** bump (including transitive duplicates) and classify patch/mi
 - Patch releases: normally safe; still read the notes for behavioural changes.
 - Minor/major: find breaking changes, deprecations, engine/runtime floor changes, and new lint rules.
 - Detect no-op range bumps: if the lockfile already resolved the target version, there is no runtime change.
+- **Go `/vN` "majors" can be stale tags.** If Renovate *adds* `example.com/mod/vN` next to the existing v1 line instead of replacing it, check:
+  - the vN tag's date and `go` directive (e.g. `pion/rtp/v2 v2.0.0` is a 2020 tag with `go 1.13`; upstream master is back on the v1 path);
+  - whether anything imports the `/vN` path (`grep -rn '<module>/vN' backend --include='*.go'`);
+  - `cd backend && go mod tidy -diff`, which only prints changes. If it drops the line, the bump is dead weight.
+  - In that case go.sum usually has only the `/go.mod` hash. Block it in `renovate.json` with `allowedVersions: "<N"` (see the `pion/rtp` rule) rather than merging.
+- **Android Gradle Plugin (AGP) / Gradle majors** (`mobile/android/build.gradle`, `gradle-wrapper.properties`): read the AGP release notes for changed defaults and removed APIs. AGP 9 turned `resValues` off by default and rejects `proguard-android.txt`. Check which build-tools version the new AGP defaults to and update `"build-tools;X"` in `docker/Dockerfile.android` to match.
 - Map each package to real usage, e.g. `rg -n 'from "<pkg>"' frontend/src electron`.
 - For lint plugins, compare new rules against the enabled presets (`flat/recommended`, `essential`, `strongly-recommended`) and note false-negative fixes that can surface old issues.
 - For icon sets, verify the icons actually used still exist.
@@ -72,7 +78,14 @@ Enumerate **every** bump (including transitive duplicates) and classify patch/mi
        -v "$PWD/frontend/test-results:/app/frontend/test-results" \
        orbital-playwright-tests
      ```
-7. Optional heavy checks: screenshot Playwright suite and `make build-electron-linux` when Electron/venmic/dbus changed.
+7. **Android** (required when `mobile/android/**` or `@capacitor/*` changed): `make build-android`.
+   - This also covers the release variant's ProGuard config: `cd mobile/android && JAVA_HOME=/usr/lib/jvm/java-21-openjdk ./gradlew assembleRelease` (unsigned without a keystore).
+   - To check the app name, run `aapt2 dump badging` on the APK; expect `application-label:'The Orbital'`.
+   - If Gradle fails with "Failed to install ... build-tools ... SDK directory is not writable", the new AGP needs a build-tools version that isn't installed, and `/opt/android-sdk` is root-owned.
+     - Ask the user to run `sudo sdkmanager --install "build-tools;X"`.
+     - Meanwhile, verify with a scratchpad Gradle init script that sets `buildToolsVersion` to an installed version (`--init-script <path>`), and delete it afterwards. Report this substitution.
+   - The CI image (`docker/Dockerfile.android`) needs signing/Firebase secrets, so it can't be built locally; check its `sdkmanager` line by reading it.
+8. Optional heavy checks: screenshot Playwright suite and `make build-electron-linux` when Electron/venmic/dbus changed.
 
 ## Guardrails
 
@@ -98,6 +111,7 @@ Enumerate **every** bump (including transitive duplicates) and classify patch/mi
 - `frontend/package.json`, `frontend/pnpm-lock.yaml`, `frontend/eslint.config.js`
 - `electron/package.json`, `electron/pnpm-lock.yaml`
 - `backend/go.mod`, `backend/go.sum`
-- `docker-compose.dev.yml`, `docker/docker-compose.deploy.yml`, `docker/Dockerfile.playwright`
+- `mobile/android/build.gradle`, `mobile/android/app/build.gradle`, `mobile/android/gradle/wrapper/gradle-wrapper.properties`
+- `docker-compose.dev.yml`, `docker/docker-compose.deploy.yml`, `docker/Dockerfile.playwright`, `docker/Dockerfile.android`
 - `.opencode/skills/orbital-verify/SKILL.md`
 - `docs/notes/MIGRATION_TO_S3.md`
