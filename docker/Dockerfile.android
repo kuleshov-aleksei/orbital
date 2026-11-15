@@ -20,7 +20,8 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends unzip ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-# JDK 21: Gradle 8.x (pinned by the Capacitor template) cannot run on JDK > 24
+# JDK 21, same as local builds (ANDROID_JAVA_HOME in the Makefile): Gradle support
+# lags behind new JDK releases
 COPY --from=eclipse-temurin:21-jdk /opt/java/openjdk /opt/java/openjdk
 ENV JAVA_HOME=/opt/java/openjdk
 
@@ -38,7 +39,7 @@ RUN curl -fsSL -o /tmp/cmdline-tools.zip \
     mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest" && \
     rm /tmp/cmdline-tools.zip && \
     yes | sdkmanager --licenses > /dev/null && \
-    sdkmanager --install "platform-tools" "platforms;android-36" "build-tools;35.0.0" > /dev/null
+    sdkmanager --install "platform-tools" "platforms;android-36" "build-tools;36.0.0" > /dev/null
 
 WORKDIR /app/frontend
 

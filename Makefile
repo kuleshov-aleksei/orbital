@@ -381,8 +381,8 @@ build-electron-all:
 # into mobile/dist and packaged into the native project at mobile/android.
 # Requires a JDK and the Android SDK (ANDROID_HOME) for the Gradle step.
 ANDROID_BACKEND_URL ?= https://orb.encamy.com
-# Gradle 8.x (pinned by the Capacitor template) cannot run on JDK > 24, so the
-# Android build uses its own JDK 21 instead of the system default.
+# Gradle support lags behind new JDK releases, so the Android build uses its own
+# JDK 21 (same as CI, docker/Dockerfile.android) instead of the system default.
 ANDROID_JAVA_HOME ?= /usr/lib/jvm/java-21-openjdk
 
 build-android-web:
