@@ -33,6 +33,15 @@ export const useCallStore = defineStore("call", () => {
   // Transient connection state, mirrors the LiveKit room reconnect cycle.
   // Not persisted - always starts false.
   const isReconnecting = ref(false)
+  // Voice (LiveKit) is not connected for the active room: the join failed or
+  // reconnection gave up. Clicking the room again retries (retryRequest).
+  const voiceConnectionFailed = ref(false)
+  const retryRequest = ref(0)
+  // Our own leave (Leave button / room switch) is in flight. The backend's
+  // POST /leave removes us from LiveKit (PARTICIPANT_REMOVED) and broadcasts
+  // room_user_left before the call view tears down, so both look like a kick
+  // unless we know we asked for it. Cleared when the next join starts.
+  const isLeavingRoom = ref(false)
   const wasMutedBeforeDeafen = ref(false)
   const watchingUserIds = ref<Set<string>>(new Set())
 
@@ -135,11 +144,25 @@ export const useCallStore = defineStore("call", () => {
     isScreenSharing.value = false
     isCameraEnabled.value = false
     isReconnecting.value = false
+    voiceConnectionFailed.value = false
     watchingUserIds.value = new Set()
+  }
+
+  function setVoiceConnectionFailed(failed: boolean) {
+    voiceConnectionFailed.value = failed
+  }
+
+  /** Asks the mounted call view to rejoin LiveKit. */
+  function requestVoiceRetry() {
+    retryRequest.value++
   }
 
   function setReconnecting(reconnecting: boolean) {
     isReconnecting.value = reconnecting
+  }
+
+  function setLeavingRoom(leaving: boolean) {
+    isLeavingRoom.value = leaving
   }
 
   return {
@@ -148,6 +171,12 @@ export const useCallStore = defineStore("call", () => {
     isScreenSharing,
     isCameraEnabled,
     isReconnecting,
+    voiceConnectionFailed,
+    retryRequest,
+    isLeavingRoom,
+    setLeavingRoom,
+    setVoiceConnectionFailed,
+    requestVoiceRetry,
     watchingUserIds,
     setMuted,
     setDeafened,

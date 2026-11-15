@@ -28,6 +28,13 @@ func TestPushDevices(t *testing.T) {
 	if toks, _ := r.TokensForUser(alice); len(toks) != 1 {
 		t.Fatalf("alice tokens = %v", toks)
 	}
+	if err := r.Upsert("tok-2", alice, "android"); err != nil {
+		t.Fatal(err)
+	}
+	if ids, _ := r.UserIDs(); len(ids) != 1 || ids[0] != alice {
+		t.Fatalf("users with devices = %v", ids)
+	}
+	_ = r.Delete("tok-2")
 	// The device switches accounts: the token moves to bob.
 	if err := r.Upsert("tok-1", bob, "android"); err != nil {
 		t.Fatal(err)

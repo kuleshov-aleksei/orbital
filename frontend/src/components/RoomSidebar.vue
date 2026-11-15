@@ -25,7 +25,21 @@
           Orbital
         </h2>
 
-        <p class="text-xs text-theme-text-muted truncate" data-testid="sidebar-presence-summary">
+        <p
+          v-if="connectionVisible"
+          class="text-xs truncate flex items-center gap-1.5"
+          :class="connectionShown === 'offline' ? 'text-amber-300' : 'text-theme-text-muted'"
+          data-testid="sidebar-connection-status">
+          <span
+            v-if="connectionShown === 'connecting'"
+            class="w-2.5 h-2.5 rounded-full border-2 border-current border-t-transparent animate-spin flex-shrink-0" />
+          <span v-else class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+          {{ connectionLabel }}
+        </p>
+        <p
+          v-else
+          class="text-xs text-theme-text-muted truncate"
+          data-testid="sidebar-presence-summary">
           {{ presenceSummary }}
         </p>
       </div>
@@ -445,6 +459,7 @@ import { describeMute } from "@/stores/textNotify"
 import type { TextNotifyMode } from "@/types/textChat"
 import { Permission } from "@/types/permissions"
 import { useUserContextMenu } from "@/composables/useUserContextMenu"
+import { useConnectionStatusLabel } from "@/composables/useConnectionStatusLabel"
 import { apiService } from "@/services/api"
 import type { Room, Category } from "@/types"
 
@@ -482,6 +497,11 @@ const permissionsStore = usePermissionsStore()
 const textChatStore = useTextChatStore()
 const textNotifyStore = useTextNotifyStore()
 const usersStore = useUsersStore()
+const {
+  visible: connectionVisible,
+  shownStatus: connectionShown,
+  label: connectionLabel,
+} = useConnectionStatusLabel()
 const { rooms } = storeToRefs(roomStore)
 const { categories } = storeToRefs(categoryStore)
 const { isUserContextMenuOpen } = useUserContextMenu()

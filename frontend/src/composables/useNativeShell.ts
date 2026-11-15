@@ -1,5 +1,6 @@
 import { onBeforeUnmount, watch } from "vue"
 import type { PluginListenerHandle } from "@capacitor/core"
+import { runBackHandler } from "@/services/backButton"
 import { isCapacitor } from "@/services/platform"
 import { registerPush, setupPush } from "@/services/push"
 import { useAppStore } from "@/stores/app"
@@ -31,9 +32,11 @@ export function useNativeShell(options: { onResume?: () => void } = {}) {
     void SplashScreen.hide()
 
     const listeners = await Promise.all([
-      // Back: close drawers, then leave the room view, then send the app to the
-      // background. Never exit: that would drop an active call.
+      // Back: close overlays (lightbox), then drawers, then leave the room view,
+      // then send the app to the background. Never exit: that would drop an
+      // active call.
       App.addListener("backButton", () => {
+        if (runBackHandler()) return
         if (appStore.mobileUserSidebarOpen || appStore.mobileSidebarOpen) {
           appStore.closeAllMobileSidebars()
         } else if (appStore.mobileView === "room") {

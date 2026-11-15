@@ -95,7 +95,7 @@ import { PhClockCounterClockwise, PhPlus } from "@phosphor-icons/vue"
 import { RecycleScroller } from "vue-virtual-scroller"
 import "vue-virtual-scroller/index.css"
 import EmojiGlyph from "@/components/EmojiGlyph.vue"
-import { useCustomEmojisStore, usePermissionsStore, useUserStore } from "@/stores"
+import { useAppStore, useCustomEmojisStore, usePermissionsStore, useUserStore } from "@/stores"
 import { Permission } from "@/types/permissions"
 import {
   addRecentEmoji,
@@ -133,6 +133,7 @@ const openUpload = () => {
   customEmojisStore.isUploadOpen = true
 }
 
+const appStore = useAppStore()
 const searchInput = useTemplateRef<HTMLInputElement>("searchInput")
 const scroller = useTemplateRef<{
   scrollToItem: (index: number) => void
@@ -302,7 +303,8 @@ const scrollToCategory = (id: string) => {
 onMounted(() => {
   void customEmojisStore.ensureLoaded()
   activeTab.value = sections.value[0]?.id ?? ""
-  searchInput.value?.focus()
+  // On mobile, focusing would pop the soft keyboard over the picker.
+  if (!appStore.isMobile) searchInput.value?.focus()
 })
 </script>
 

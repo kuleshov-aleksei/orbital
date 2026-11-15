@@ -1,8 +1,8 @@
 # Stage 1: Build environment
-FROM node:26.12.1-trixie AS builder
+FROM node:26.13.0-trixie AS builder
 
 # System dependencies (rarely changes — cached layer)
-RUN npm install -g pnpm@12.16.1
+RUN npm install -g pnpm@12.18.0
 
 RUN dpkg --add-architecture i386 && \
     apt-get update && \
@@ -51,6 +51,9 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 
 # Electron source
 COPY electron/ .
+
+# Release quality gate: main/preload type errors fail the build too
+RUN pnpm run typecheck
 
 # Generate licenses
 RUN node scripts/generate-licenses.js

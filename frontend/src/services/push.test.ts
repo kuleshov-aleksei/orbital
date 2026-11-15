@@ -57,6 +57,9 @@ describe("push service", () => {
     expect(native.PushNotifications.createChannel).toHaveBeenCalledWith(
       expect.objectContaining({ id: "mentions" }),
     )
+    expect(native.PushNotifications.createChannel).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "messages" }),
+    )
     expect(native.PushNotifications.register).toHaveBeenCalled()
     fire("registration", { value: "fcm-token" })
     expect(api.registerPushDevice).toHaveBeenCalledWith("fcm-token", "android")
@@ -69,7 +72,7 @@ describe("push service", () => {
     expect(native.PushNotifications.register).not.toHaveBeenCalled()
   })
 
-  it("opens the mentioned channel when a notification is tapped", async () => {
+  it("opens the channel when a mention or message notification is tapped", async () => {
     const onOpen = vi.fn()
     await setupPush(onOpen)
     fire("pushNotificationActionPerformed", {
@@ -77,8 +80,17 @@ describe("push service", () => {
       notification: { data: { type: "text_mention", room_id: ROOM, message_id: "42" } },
     })
     expect(onOpen).toHaveBeenCalledWith(ROOM, "42")
+    fire("pushNotificationActionPerformed", {
+      actionId: "tap",
+      notification: { data: { type: "text_message", room_id: ROOM, message_id: "43" } },
+    })
+    expect(onOpen).toHaveBeenCalledWith(ROOM, "43")
     fire("pushNotificationActionPerformed", { actionId: "tap", notification: { data: {} } })
-    expect(onOpen).toHaveBeenCalledTimes(1)
+    fire("pushNotificationActionPerformed", {
+      actionId: "tap",
+      notification: { data: { type: "other", room_id: ROOM } },
+    })
+    expect(onOpen).toHaveBeenCalledTimes(2)
   })
 
   it("unregisters the token on logout and ignores later token events", async () => {

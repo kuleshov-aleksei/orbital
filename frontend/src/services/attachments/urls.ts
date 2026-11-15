@@ -5,6 +5,17 @@
 import { onBeforeUnmount, ref, watch, type Ref } from "vue"
 import { apiService } from "@/services/api"
 import { isElectron } from "@/services/electron"
+import { debugWarn } from "@/utils/debug"
+import { useConnectionStore } from "@/stores/connection"
+import {
+  initMediaCache,
+  isMediaCached,
+  markMediaMissing,
+  mediaCacheAvailable,
+  mediaKey,
+  mediaUrl,
+  noteMediaMiss,
+} from "@/services/attachments/mediaCache"
 import type { AttachmentVariant } from "@/types/textChat"
 
 const BATCH_DELAY_MS = 15
@@ -110,18 +121,48 @@ export function openStoragePage() {
   window.open(url, "_blank")
 }
 
+/** Media error code/message and the URL kind, for debugging failed loads. */
+function describeElementError(event: Event | undefined, src: string | null): string {
+  const el = event?.target as HTMLMediaElement | HTMLImageElement | null | undefined
+  const media = el && "error" in el ? (el as HTMLMediaElement).error : null
+  const kind = !src
+    ? "no src"
+    : src.includes("?src=")
+      ? "cache miss URL"
+      : src.includes("/_media/") || src.startsWith("orbital-media:")
+        ? "cache hit URL"
+        : "direct URL"
+  const parts = [kind, `tag=${el?.tagName ?? "?"}`]
+  if (media) parts.push(`mediaError=${media.code} ${media.message}`)
+  if (el && "networkState" in el) {
+    parts.push(`networkState=${el.networkState} readyState=${el.readyState}`)
+    if (el.buffered?.length) {
+      const ranges = Array.from(
+        { length: el.buffered.length },
+        (_, i) => `${el.buffered.start(i).toFixed(1)}-${el.buffered.end(i).toFixed(1)}s`,
+      )
+      parts.push(`buffered=${ranges.join(",")}`)
+    }
+  }
+  return parts.join(" ")
+}
+
 /**
- * Reactive presigned URL for an element's src. Call onError from the
- * element's error event: an expired URL is refetched once.
+ * Reactive URL for an element's src: presigned, or in Electron and the
+ * Android app a media cache URL (services/attachments/mediaCache.ts). Call
+ * onError from the element's error event: an expired URL or a vanished
+ * cached file is refetched once.
  */
 export function useAttachmentUrl(
   id: () => string | null,
   variant: () => AttachmentVariant,
-): { url: Ref<string | null>; gone: Ref<boolean>; onError: () => void } {
+): { url: Ref<string | null>; gone: Ref<boolean>; onError: (event?: Event) => void } {
   const url = ref<string | null>(null)
   const gone = ref(false)
   let retried = false
   let alive = true
+  // The lookup failed for lack of a connection: retried when it comes back.
+  let failedOffline = false
   onBeforeUnmount(() => (alive = false))
 
   async function load() {
@@ -130,13 +171,33 @@ export function useAttachmentUrl(
       url.value = null
       return
     }
+    const v = variant()
     try {
-      const next = await attachmentUrl(current, variant())
+      if (v !== "download" && mediaCacheAvailable()) {
+        await initMediaCache()
+        const key = mediaKey(current, v)
+        if (isMediaCached(key)) {
+          if (!alive || current !== id()) return
+          url.value = mediaUrl(key)
+          gone.value = false
+          return
+        }
+        const next = await attachmentUrl(current, v)
+        if (!alive || current !== id()) return
+        url.value = next ? mediaUrl(key, next) : null
+        gone.value = next === null
+        if (next) noteMediaMiss()
+        return
+      }
+      const next = await attachmentUrl(current, v)
       if (!alive || current !== id()) return
       url.value = next
       gone.value = next === null
-    } catch {
-      // Transient (offline); the element shows its fallback.
+    } catch (err) {
+      // Transient (offline); the element shows its fallback until the
+      // connection returns.
+      failedOffline = true
+      debugWarn(`[MediaCache] ${current}:${v} URL lookup failed:`, err)
     }
   }
 
@@ -144,16 +205,32 @@ export function useAttachmentUrl(
     [id, variant],
     () => {
       retried = false
+      failedOffline = false
       void load()
     },
     { immediate: true },
   )
 
-  function onError() {
+  const connection = useConnectionStore()
+  watch(
+    () => connection.isOnline,
+    (online) => {
+      if (!online || !failedOffline) return
+      failedOffline = false
+      void load()
+    },
+  )
+
+  function onError(event?: Event) {
     const current = id()
+    debugWarn(
+      `[MediaCache] ${current}:${variant()} element error (${retried ? "giving up" : "retrying"})`,
+      describeElementError(event, url.value),
+    )
     if (!current || retried) return
     retried = true
     forgetAttachmentUrls(current)
+    markMediaMissing(mediaKey(current, variant()))
     void load()
   }
 

@@ -14,6 +14,8 @@ import {
   useTextChatStore,
   useTextNotifyStore,
   useConfigStore,
+  useConnectionStore,
+  useCallStore,
 } from "@/stores"
 import { wsService } from "@/services/websocket"
 import type {
@@ -65,7 +67,18 @@ export function useWebSocketHandlers() {
   const textChatStore = useTextChatStore()
   const textNotifyStore = useTextNotifyStore()
   const configStore = useConfigStore()
+  const connectionStore = useConnectionStore()
+  const callStore = useCallStore()
   const hasConnected = ref(false)
+
+  // The server dropped us from the active room without us asking. reason is
+  // "kicked" / "permission_revoked" (Hub.RemoveUserFromRoom); it is absent for
+  // a ping timeout or a /leave sent by another session of the same account.
+  const logRemovedFromRoom = (roomId: string, reason?: string) => {
+    debugLog(
+      `[WebSocket] Current user was removed from room ${roomId} (reason: ${reason || "none: ping timeout or another session left"}), cleaning up...`,
+    )
+  }
 
   const cleanupFns: Array<() => void> = []
 
@@ -107,11 +120,13 @@ export function useWebSocketHandlers() {
     onCleanup(() => wsService.off("nickname_change", onNicknameChange))
 
     const onRoomUserLeft: MessageCallback = (message) => {
-      const data = message.data as { room_id: string; user: User }
+      const data = message.data as { room_id: string; user: User; reason?: string }
       roomStore.removeUserFromRoom(data.room_id, data.user.id)
 
       if (data.user.id === userStore.userId && roomStore.activeRoomId === data.room_id) {
-        debugLog("[WebSocket] Current user was kicked from room, cleaning up...")
+        // The echo of our own leave: handleLeaveRoom finishes the cleanup.
+        if (callStore.isLeavingRoom) return
+        logRemovedFromRoom(data.room_id, data.reason)
         roomStore.setActiveRoom(null)
         if (appStore.isMobile) {
           appStore.showRoomsView()
@@ -266,11 +281,13 @@ export function useWebSocketHandlers() {
     onCleanup(() => wsService.offGlobal("room_user_joined", onRoomUserJoined))
 
     const onGlobalRoomUserLeft: MessageCallback = (message) => {
-      const data = message.data as { room_id: string; user: User }
+      const data = message.data as { room_id: string; user: User; reason?: string }
       roomStore.removeUserFromRoom(data.room_id, data.user.id)
 
       if (data.user.id === userStore.userId && roomStore.activeRoomId === data.room_id) {
-        debugLog("[WebSocket] Current user was kicked from room, cleaning up...")
+        // The echo of our own leave: handleLeaveRoom finishes the cleanup.
+        if (callStore.isLeavingRoom) return
+        logRemovedFromRoom(data.room_id, data.reason)
         roomStore.setActiveRoom(null)
         if (appStore.isMobile) {
           appStore.showRoomsView()
@@ -387,7 +404,7 @@ export function useWebSocketHandlers() {
       startGlobalPing()
       void usersStore.fetchAllUsers()
       void syncRoomsData()
-      if (configStore.textChannelsEnabled) void textChatStore.resync()
+      void resyncTextChat()
     }
     wsService.onGlobalConnection(onGlobalConnected)
     onCleanup(() => wsService.removeGlobalConnectionCallback(onGlobalConnected))
@@ -395,11 +412,13 @@ export function useWebSocketHandlers() {
     const onGlobalDisconnected: DisconnectionCallback = (event) => {
       debugLog("Global WebSocket disconnected:", event)
       stopGlobalPing()
+      textChatStore.onConnectionLost()
     }
     wsService.onGlobalDisconnection(onGlobalDisconnected)
     onCleanup(() => wsService.removeGlobalDisconnectionCallback(onGlobalDisconnected))
 
     const onPong: MessageCallback = (message) => {
+      clearPongTimer()
       const data = message.data as { timestamp: number }
       const latency = Date.now() - data.timestamp
       if (latency > 1000) {
@@ -568,6 +587,15 @@ export function useWebSocketHandlers() {
     }
   }
 
+  // After a reconnect: the config may never have loaded (app started offline),
+  // then catch up on text channels and send what was queued offline.
+  const resyncTextChat = async () => {
+    if (!configStore.isLoaded) await configStore.loadConfig()
+    if (!configStore.textChannelsEnabled) return
+    await textChatStore.resync()
+    textChatStore.flushOutbox()
+  }
+
   const syncRoomsData = async () => {
     try {
       const rooms = await apiService.getRooms(true)
@@ -600,12 +628,31 @@ export function useWebSocketHandlers() {
   const GLOBAL_PING_INTERVAL = 20000
   let globalPingInterval: ReturnType<typeof setInterval> | null = null
 
+  // A mobile link can die without the socket noticing (no FIN ever arrives).
+  // A ping left unanswered this long drops the socket so it reconnects.
+  const PONG_TIMEOUT = 10000
+  let pongTimer: ReturnType<typeof setTimeout> | null = null
+
+  const clearPongTimer = () => {
+    if (pongTimer) {
+      clearTimeout(pongTimer)
+      pongTimer = null
+    }
+  }
+
   const sendGlobalPing = () => {
     if (wsService.isGlobalConnected()) {
       wsService.sendGlobalMessage("ping", {
         user_id: userStore.userId,
         timestamp: Date.now(),
       })
+      if (!pongTimer) {
+        pongTimer = setTimeout(() => {
+          pongTimer = null
+          debugLog("Global WebSocket ping unanswered, reconnecting")
+          wsService.dropGlobal()
+        }, PONG_TIMEOUT)
+      }
     }
   }
 
@@ -619,6 +666,7 @@ export function useWebSocketHandlers() {
   }
 
   const stopGlobalPing = () => {
+    clearPongTimer()
     if (globalPingInterval) {
       clearInterval(globalPingInterval)
       globalPingInterval = null
@@ -627,6 +675,7 @@ export function useWebSocketHandlers() {
 
   // Connect to WebSocket only after auth is complete
   const connectIfAuthenticated = () => {
+    connectionStore.setSocketExpected(userStore.hasCompletedAuth)
     if (userStore.hasCompletedAuth && !hasConnected.value) {
       hasConnected.value = true
       void connectGlobalWebSocket()
@@ -658,6 +707,7 @@ export function useWebSocketHandlers() {
       if (hasCompleted) {
         connectIfAuthenticated()
       } else {
+        connectionStore.setSocketExpected(false)
         stopGlobalPing()
         wsService.disconnectGlobal()
         hasConnected.value = false

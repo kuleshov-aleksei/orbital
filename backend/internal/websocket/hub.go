@@ -53,6 +53,10 @@ type Hub struct {
 	// Text channels (see textchat.go)
 	textChat    *TextChat
 	textLimiter *ratelimit.Limiter
+	// Messages created per (user, nonce), so outbox resends don't duplicate.
+	textNonces *sentNonces
+	// Per (user, channel) push cooldown (see textchat_push.go).
+	textPushes *pushThrottle
 
 	// Presence: users shown as "away" (see presence.go)
 	awayMu    sync.Mutex
@@ -830,6 +834,7 @@ func (c *Client) handleJoinRoom(data interface{}) {
 	}
 
 	c.hub.subscribeClientToRoom(c, c.roomID)
+	c.hub.refreshAway(userID)
 
 	// Track the call session (1 row per user per call)
 	c.hub.recordSessionStart(userID, c.roomID, req.DeviceInfo)
@@ -897,6 +902,7 @@ func (c *Client) handleLeaveRoom(data interface{}) {
 
 	c.hub.unsubscribeClientFromRoom(c, roomID)
 	c.hub.roomService.LeaveRoom(roomID, userID)
+	c.hub.refreshAway(userID)
 
 	// Finalize the call session last_seen so short calls get accurate durations
 	c.hub.updateSessionLastSeen(userID, roomID)
@@ -1064,6 +1070,8 @@ func (c *Client) applyMediaState(req models.UpdateMediaStateRequest) {
 			IsCameraEnabled: req.IsCameraEnabled,
 		},
 	})
+	// An open mic in a call counts as active (presence.go).
+	c.hub.refreshAway(userID)
 }
 
 // handlePing handles ping messages and responds with pong
@@ -1341,6 +1349,7 @@ func (h *Hub) disconnectUserDueToTimeout(roomID, userID string) {
 
 	// Remove user from room service
 	h.roomService.LeaveRoom(roomID, userID)
+	h.refreshAway(userID)
 
 	// Finalize the call session last_seen (ping timeout)
 	h.updateSessionLastSeen(userID, roomID)

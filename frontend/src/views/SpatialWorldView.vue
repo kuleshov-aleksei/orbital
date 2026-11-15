@@ -19,6 +19,31 @@
           @toggle-user-sidebar="$emit('toggle-user-sidebar')" />
       </div>
 
+      <!-- Voice connection failed: join failed/timed out or reconnection gave up -->
+      <div
+        v-if="connectionFailed"
+        class="absolute top-20 right-4 left-4 sm:left-auto z-50"
+        style="pointer-events: auto"
+        data-testid="voice-connection-failed">
+        <div
+          class="bg-red-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 sm:max-w-sm">
+          <span class="text-sm flex-1">Can't connect to voice.</span>
+          <button
+            type="button"
+            class="flex-shrink-0 px-3 py-1 bg-white text-red-700 text-sm font-medium rounded hover:bg-red-50 transition-colors disabled:opacity-60"
+            :disabled="retrying"
+            @click="handleRetryConnection">
+            {{ retrying ? "Retrying..." : "Retry" }}
+          </button>
+          <button
+            type="button"
+            class="flex-shrink-0 px-3 py-1 border border-white/70 text-white text-sm font-medium rounded hover:bg-red-700 transition-colors"
+            @click="$emit('leave-room')">
+            Leave
+          </button>
+        </div>
+      </div>
+
       <!-- Right Toolbar -->
       <div
         class="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-40"
@@ -195,13 +220,49 @@ const currentRoom = computed(() => ({
   name: props.roomName || "Spatial Room",
 }))
 
+// Participant listeners go on each LiveKit Room (a Retry creates a new one).
+let listenedRoom: typeof room.value = null
+function attachRoomListeners() {
+  const lkRoom = room.value
+  if (!lkRoom || lkRoom === listenedRoom) return
+  listenedRoom = lkRoom
+  lkRoom.on(RoomEvent.ParticipantConnected, handleParticipantConnected)
+  lkRoom.on(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected)
+}
+
+const retrying = ref(false)
+async function handleRetryConnection() {
+  if (retrying.value) return
+  retrying.value = true
+  try {
+    if (await retryConnection()) {
+      attachRoomListeners()
+      for (const [, participant] of remoteParticipants.value) {
+        handleParticipantConnected(participant)
+      }
+    }
+  } finally {
+    retrying.value = false
+  }
+}
+
+// Clicking the active room in the sidebar while voice is down retries.
+watch(
+  () => callStore.retryRequest,
+  () => {
+    if (connectionFailed.value) void handleRetryConnection()
+  },
+)
+
 const {
   room,
   localParticipant,
   remoteParticipants,
   remoteAudioTracks,
   isConnected,
+  connectionFailed,
   initializeLiveKit,
+  retryConnection,
   cleanup: cleanupLiveKit,
   applyMuteState,
   applyDeafenState,
@@ -749,12 +810,7 @@ onMounted(async () => {
   document.addEventListener("keydown", onKeyDown)
 
   await initializeLiveKit()
-
-  const lkRoom = room.value
-  if (lkRoom) {
-    lkRoom.on(RoomEvent.ParticipantConnected, handleParticipantConnected)
-    lkRoom.on(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected)
-  }
+  attachRoomListeners()
 
   await setupWorld()
 

@@ -1,6 +1,6 @@
 <template>
   <div
-    class="download-view min-h-screen bg-theme-bg-primary text-theme-text-primary flex flex-col p-4 lg:p-8"
+    class="download-view h-full overflow-y-auto bg-theme-bg-primary text-theme-text-primary flex flex-col p-4 lg:p-8"
     data-testid="download-view">
     <!-- Back to app -->
     <router-link

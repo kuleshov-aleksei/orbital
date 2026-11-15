@@ -60,19 +60,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
-      # Keep in sync with the pnpm pin in docker/Dockerfile.*. Deliberately not
+      # Same pnpm version as `npm install -g pnpm@…` in docker/Dockerfile.*;
+      # Renovate bumps both together, majors only (renovate.json). Deliberately not
       # a packageManager field: pnpm 12 then records package-manager
       # dependencies in pnpm-lock.yaml, which would need a regenerated lockfile
       # for `pnpm install --frozen-lockfile` to keep working.
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
         with:
-          version: 12.17.0
+          version: 12.18.0
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 26.12.1
+          node-version: 26.13.0
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
 

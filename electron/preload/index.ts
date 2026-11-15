@@ -106,12 +106,15 @@ export interface ElectronAPI {
   getSystemInfo: () => Promise<SystemInfoData>
   minimizeWindow: () => void
   flashWindow: () => void
+  mediaCacheList: () => Promise<string[]>
+  mediaCacheEvict: (id: string) => Promise<void>
+  mediaCacheClear: () => Promise<void>
   maximizeWindow: () => void
   closeWindow: () => void
   onDeepLink: (callback: (url: string) => void) => void
   openExternal: (url: string) => Promise<boolean>
   oauthAuthenticate: (state: string) => Promise<void>
-  oauthCallback: (token) => Promise<boolean>
+  oauthCallback: (token: string) => Promise<boolean>
   onOAuthToken: (callback: (data: { token: string; expires: string }) => void) => void
   venmicHasVenmic: () => Promise<boolean>
   venmicHasPipeWire: () => Promise<boolean>
@@ -207,6 +210,10 @@ const electronAPI: ElectronAPI = {
   flashWindow: () => {
     ipcRenderer.invoke("flash-window")
   },
+
+  mediaCacheList: () => ipcRenderer.invoke("media-cache:list"),
+  mediaCacheEvict: (id) => ipcRenderer.invoke("media-cache:evict", id),
+  mediaCacheClear: () => ipcRenderer.invoke("media-cache:clear"),
 
   maximizeWindow: () => {
     ipcRenderer.invoke("maximize-window")

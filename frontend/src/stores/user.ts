@@ -1,5 +1,5 @@
 import { defineStore } from "pinia"
-import { ref, computed } from "vue"
+import { ref, computed, watch } from "vue"
 import {
   apiService,
   setAuthToken,
@@ -9,6 +9,8 @@ import {
 } from "@/services/api"
 import { setUserSoundPack } from "@/services/sounds"
 import { unregisterPush } from "@/services/push"
+import { clearMediaCache } from "@/services/attachments/mediaCache"
+import { clearOfflineCache, setOfflineCacheUser } from "@/services/offlineCache"
 import type { UserRole } from "@/types"
 
 export type AuthProvider = "guest" | "discord" | "google" | "password"
@@ -45,6 +47,9 @@ export const useUserStore = defineStore("user", () => {
   const avatarUrl = computed(() => currentUser.value?.avatarUrl)
   const role = computed(() => currentUser.value?.role || "guest")
   const isSuperAdmin = computed(() => role.value === "super_admin")
+
+  // Offline snapshots (rooms, messages, outbox) belong to this account only.
+  watch(userId, (id) => setOfflineCacheUser(id), { immediate: true, flush: "sync" })
 
   function setUser(user: UserSession, authToken?: string, expiresAt?: string) {
     // Validate user object
@@ -331,6 +336,9 @@ export const useUserStore = defineStore("user", () => {
     } catch {
       console.warn("Logout API call failed, clearing locally anyway")
     }
+    // Cached chat media must not outlive the account on a shared device.
+    await clearMediaCache()
+    await clearOfflineCache()
     clearUser()
   }
 

@@ -82,41 +82,8 @@ export function setupAppProtocol() {
 
 async function serveRange(filePath: string, request: Request): Promise<Response> {
   const stat = await fs.promises.stat(filePath)
-  const fileSize = stat.size
-  const rangeHeader = request.headers.get("range")
-
-  if (rangeHeader) {
-    const match = rangePattern.exec(rangeHeader.trim())
-    if (match) {
-      let start: number
-      let end: number
-      if (match[1] === "" && match[2] !== "") {
-        start = Math.max(fileSize - parseInt(match[2], 10), 0)
-        end = fileSize - 1
-      } else {
-        start = match[1] !== "" ? parseInt(match[1], 10) : 0
-        end = match[2] !== "" ? parseInt(match[2], 10) : fileSize - 1
-      }
-
-      if (start >= fileSize || start > end) {
-        return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${fileSize}` } })
-      }
-
-      end = Math.min(end, fileSize - 1)
-      const stream = Readable.toWeb(fs.createReadStream(filePath, { start, end })) as ReadableStream<Uint8Array>
-
-      return new Response(stream, {
-        status: 206,
-        headers: {
-          "Content-Range": `bytes ${start}-${end}/${fileSize}`,
-          "Content-Length": String(end - start + 1),
-          "Content-Type": contentTypeFor(filePath),
-          "Accept-Ranges": "bytes",
-          "Cache-Control": "no-cache",
-        },
-      })
-    }
-  }
+  const ranged = fileRangeResponse(filePath, stat.size, request.headers.get("range"), contentTypeFor(filePath))
+  if (ranged) return ranged
 
   const response = await net.fetch(pathToFileURL(filePath).toString())
   const headers = new Headers(response.headers)
@@ -125,4 +92,47 @@ async function serveRange(filePath: string, request: Request): Promise<Response>
     headers.set("Content-Security-Policy", "frame-ancestors 'none'")
   }
   return new Response(response.body, { status: response.status, headers })
+}
+
+/**
+ * A 206/416 response for a Range request on a local file, or null when the
+ * request has no usable Range header (serve the whole file instead).
+ * Shared with the media cache (features/mediaCache.ts).
+ */
+export function fileRangeResponse(
+  filePath: string,
+  fileSize: number,
+  rangeHeader: string | null,
+  contentType: string,
+): Response | null {
+  const match = rangeHeader ? rangePattern.exec(rangeHeader.trim()) : null
+  if (!match) return null
+
+  let start: number
+  let end: number
+  if (match[1] === "" && match[2] !== "") {
+    start = Math.max(fileSize - parseInt(match[2], 10), 0)
+    end = fileSize - 1
+  } else {
+    start = match[1] !== "" ? parseInt(match[1], 10) : 0
+    end = match[2] !== "" ? parseInt(match[2], 10) : fileSize - 1
+  }
+
+  if (start >= fileSize || start > end) {
+    return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${fileSize}` } })
+  }
+
+  end = Math.min(end, fileSize - 1)
+  const stream = Readable.toWeb(fs.createReadStream(filePath, { start, end })) as ReadableStream<Uint8Array>
+
+  return new Response(stream, {
+    status: 206,
+    headers: {
+      "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+      "Content-Length": String(end - start + 1),
+      "Content-Type": contentType,
+      "Accept-Ranges": "bytes",
+      "Cache-Control": "no-cache",
+    },
+  })
 }

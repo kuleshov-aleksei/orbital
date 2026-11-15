@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, nativeImage, screen, shell } from "electron"
-import type { ThumbarButton } from "electron"
+import type { NativeImage, ThumbarButton } from "electron"
 import path from "node:path"
 import log from "electron-log"
 import { APP_ROOT, VITE_DEV_SERVER_URL, __dirname, preloadPath } from "../paths"
@@ -12,9 +12,9 @@ import { consumePendingDeepLink } from "./deeplink"
 import { stopAudioCapture } from "../venmic"
 import { stopCapture as stopWinAudioCapture } from "../winAudioCapture"
 
-let thumbarIcons: Record<string, nativeImage> = {}
+let thumbarIcons: Record<string, NativeImage> = {}
 
-function loadThumbarIcon(filename: string): nativeImage {
+function loadThumbarIcon(filename: string): NativeImage {
   if (thumbarIcons[filename]) {
     return thumbarIcons[filename]
   }

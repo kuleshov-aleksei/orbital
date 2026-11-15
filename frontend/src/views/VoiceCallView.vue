@@ -11,9 +11,10 @@
 
     <!-- Main Content Area (shrinks when chat sidebar opens on desktop) -->
     <div class="flex-1 flex flex-col min-h-0 relative">
-      <!-- Room Header -->
+      <!-- Room Header (always clickable: Back/Leave must work while voice is down) -->
       <RoomHeader
         v-model:screen-share-layout="screenShareLayout"
+        class="pointer-events-auto"
         :room-name="currentRoom?.name || 'Voice Room'"
         :screen-share-count="screenShareData.length"
         :camera-count="cameraData.length"
@@ -56,18 +57,40 @@
         </div>
       </Transition>
 
-      <!-- Connection Lost Notification (watchdog gave up after ~5 min) -->
-      <Transition name="slide-in">
-        <div v-if="connectionFailed" class="absolute top-20 right-4 z-40 pointer-events-auto">
+      <!-- Joining voice: covers only the call area, never the sidebar or header -->
+      <div
+        v-if="joining && !connectionFailed"
+        class="absolute inset-x-0 top-16 bottom-0 z-30 bg-black/40 flex items-center justify-center"
+        data-testid="voice-connecting">
+        <div class="bg-theme-bg-secondary rounded-lg px-5 py-4 flex items-center gap-3 shadow-lg">
           <div
-            class="bg-red-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 max-w-xs">
+            class="animate-spin rounded-full h-5 w-5 border-b-2 border-t-2 border-theme-text-primary"></div>
+          <span class="text-theme-text-primary text-sm">Connecting to voice server...</span>
+        </div>
+      </div>
+
+      <!-- Voice connection failed: the join failed/timed out or reconnection gave up -->
+      <Transition name="slide-in">
+        <div
+          v-if="connectionFailed"
+          class="absolute top-20 right-4 left-4 sm:left-auto z-40 pointer-events-auto"
+          data-testid="voice-connection-failed">
+          <div
+            class="bg-red-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 sm:max-w-sm">
             <PhWarning class="w-5 h-5 flex-shrink-0" />
-            <span class="text-sm">Connection lost. Automatic reconnection gave up.</span>
+            <span class="text-sm flex-1">Can't connect to voice.</span>
             <button
               type="button"
-              class="flex-shrink-0 px-3 py-1 bg-white text-red-700 text-sm font-medium rounded hover:bg-red-50 transition-colors"
+              class="flex-shrink-0 px-3 py-1 bg-white text-red-700 text-sm font-medium rounded hover:bg-red-50 transition-colors disabled:opacity-60"
+              :disabled="joining"
               @click="handleRetryConnection">
-              Retry
+              {{ joining ? "Retrying..." : "Retry" }}
+            </button>
+            <button
+              type="button"
+              class="flex-shrink-0 px-3 py-1 border border-white/70 text-white text-sm font-medium rounded hover:bg-red-700 transition-colors"
+              @click="$emit('leave-room')">
+              Leave
             </button>
           </div>
         </div>
@@ -173,7 +196,6 @@ import {
   useAudioSettingsStore,
   useCallStore,
   useUserStore,
-  useAppStore,
   useRoomStore,
   useChatStore,
   useUsersStore,
@@ -229,7 +251,6 @@ const audioSettingsStore = useAudioSettingsStore()
 
 // Stores
 const callStore = useCallStore()
-const appStore = useAppStore()
 const roomStore = useRoomStore()
 const chatStore = useChatStore()
 const usersStore = useUsersStore()
@@ -559,6 +580,9 @@ watch(
   },
 )
 
+// A LiveKit join in progress (first join or Retry).
+const joining = ref(false)
+
 // Apply initial mute/deafen state from store when joining a room
 watch(
   () => props.roomId,
@@ -583,15 +607,16 @@ watch(
     }
 
     // Initialize LiveKit connection
-    appStore.setConnecting(true)
+    joining.value = true
     try {
-      await initializeLiveKit()
-      startCollecting()
-      startPingInterval()
+      if (await initializeLiveKit()) {
+        startCollecting()
+        startPingInterval()
+      }
     } catch (error) {
       console.error("Error initializing LiveKit:", error)
     } finally {
-      appStore.setConnecting(false)
+      joining.value = false
     }
 
     // Apply deafen state (mute remote audio) - this doesn't affect local tracks
@@ -612,7 +637,8 @@ watch(
 
 // Manual retry from the "connection lost" banner after the watchdog gave up
 const handleRetryConnection = async () => {
-  appStore.setConnecting(true)
+  if (joining.value) return
+  joining.value = true
   try {
     const connected = await retryConnection()
     if (connected) {
@@ -622,9 +648,17 @@ const handleRetryConnection = async () => {
   } catch (error) {
     console.error("Error retrying LiveKit connection:", error)
   } finally {
-    appStore.setConnecting(false)
+    joining.value = false
   }
 }
+
+// Clicking the active room in the sidebar while voice is down retries.
+watch(
+  () => callStore.retryRequest,
+  () => {
+    if (connectionFailed.value) void handleRetryConnection()
+  },
+)
 
 // Watch for screen sharing state changes from UI and call stopScreenShare when needed
 watch(

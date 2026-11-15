@@ -96,6 +96,7 @@ import {
   useCallControls,
   useModalManager,
 } from "@/composables"
+import { useOfflinePersistence } from "@/composables/useOfflinePersistence"
 import { createVersionChecker } from "@/services/version"
 import { isNative } from "@/services/platform"
 
@@ -111,6 +112,7 @@ const configStore = useConfigStore()
 const roomStore = useRoomStore()
 const appStore = useAppStore()
 const roomManager = useRoomManager()
+const offline = useOfflinePersistence()
 const categoryManager = useCategoryManager()
 const callControls = useCallControls()
 const modalManager = useModalManager()
@@ -231,6 +233,8 @@ const handleElectronSourceSelected = async (
 // Initialize data on mount (only if authenticated)
 onMounted(async () => {
   if (userStore.hasCompletedAuth) {
+    // Last known rooms/users first: the server may be slow or unreachable.
+    await offline.hydrate()
     // Custom emojis can appear anywhere (statuses): load the first page (and
     // the library size) up front; the rest is looked up on demand.
     void customEmojisStore.ensureLoaded()
@@ -267,6 +271,7 @@ watch(
   () => userStore.hasCompletedAuth,
   async (hasCompleted) => {
     if (hasCompleted) {
+      await offline.hydrate()
       void customEmojisStore.ensureLoaded()
       await permissionsStore.refresh()
       await roomManager.loadRooms()

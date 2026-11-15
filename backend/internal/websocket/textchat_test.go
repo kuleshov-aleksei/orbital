@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -21,6 +22,8 @@ type textFixture struct {
 	voice  *models.Room
 	alice  *Client // global socket
 	bob    *Client // global socket
+	// Sends get distinct nonces (n1, n2, ...): a reused nonce is a resend.
+	nonceSeq int
 }
 
 var ownerSubject = service.Subject{UserID: "owner", IsOwner: true}
@@ -104,7 +107,8 @@ func errorCode(t *testing.T, c *Client) string {
 }
 
 func (f *textFixture) send(c *Client, roomID, content string) {
-	c.handleTextMessageSend(map[string]interface{}{"room_id": roomID, "content": content, "nonce": "n1"})
+	f.nonceSeq++
+	c.handleTextMessageSend(map[string]interface{}{"room_id": roomID, "content": content, "nonce": fmt.Sprintf("n%d", f.nonceSeq)})
 }
 
 func TestTextEventsSkipRoomSockets(t *testing.T) {

@@ -5,6 +5,7 @@
     :style="boxStyle"
     :aria-label="`Open image ${attachment.filename}`"
     data-testid="attachment-image"
+    :data-attachment-id="attachment.id"
     @click="$emit('open')"
     @mouseenter="hovered = true"
     @mouseleave="hovered = false"

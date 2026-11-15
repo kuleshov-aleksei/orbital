@@ -12,7 +12,6 @@ export type UpdateState =
 export const useAppStore = defineStore("app", () => {
   // State
   const isLoading = ref(false)
-  const isConnecting = ref(false)
   const errorMessage = ref("")
   const isMobile = ref(false)
   const mobileView = ref<MobileView>("rooms")
@@ -40,10 +39,6 @@ export const useAppStore = defineStore("app", () => {
   // Actions
   function setLoading(loading: boolean) {
     isLoading.value = loading
-  }
-
-  function setConnecting(connecting: boolean) {
-    isConnecting.value = connecting
   }
 
   function setError(message: string) {
@@ -120,7 +115,6 @@ export const useAppStore = defineStore("app", () => {
 
   return {
     isLoading,
-    isConnecting,
     errorMessage,
     isMobile,
     mobileView,
@@ -135,7 +129,6 @@ export const useAppStore = defineStore("app", () => {
     updateError,
     updateProgress,
     setLoading,
-    setConnecting,
     setError,
     clearError,
     setMobile,

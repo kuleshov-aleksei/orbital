@@ -8,14 +8,22 @@ import {
 } from "@/stores"
 import { Permission } from "@/types/permissions"
 import { wsService } from "@/services/websocket"
-import { apiService, generateNickname, type ApiError } from "@/services/api"
+import { apiService, generateNickname, isNetworkError, type ApiError } from "@/services/api"
 import { collectSystemInfo } from "@/services/systemInfo"
 import type { CreateRoomData, UpdateRoomData, RoomType } from "@/types"
 import { loadWorld } from "@/world/WorldData"
+import { debugLog } from "@/utils/debug"
 
 // Room ping interval (20 seconds - must be less than backend timeout of 30s)
 const ROOM_PING_INTERVAL = 20000
 let roomPingInterval: ReturnType<typeof setInterval> | null = null
+
+// Switching rooms (leave + join + socket) gives up after this long, so the
+// "Preparing your experience" overlay can't block the app on a dead network.
+const ROOM_SWITCH_DEADLINE_MS = 20_000
+// Bumped by every switch; a join that finishes after it was superseded or
+// timed out must not make its room active.
+let roomSwitchId = 0
 
 export function useRoomManager() {
   const roomStore = useRoomStore()
@@ -56,20 +64,25 @@ export function useRoomManager() {
   }
 
   const loadRooms = async () => {
+    // With a cached room list on screen, refresh quietly: an unreachable
+    // server shows the connection pill, not a blocking overlay.
+    const hasCached = roomStore.rooms.length > 0
     try {
-      appStore.setLoading(true)
+      if (!hasCached) appStore.setLoading(true)
       appStore.clearError()
       const rooms = await apiService.getRooms(true)
-      roomStore.setRooms(rooms)
+      roomStore.setRooms(rooms, true)
     } catch (error) {
       console.error("Failed to load rooms:", error)
-      appStore.setError("Failed to load rooms. Please refresh the page.")
+      if (!(hasCached && isNetworkError(error))) {
+        appStore.setError("Failed to load rooms. Please refresh the page.")
+      }
     } finally {
       appStore.setLoading(false)
     }
   }
 
-  const joinRoom = async (roomId: string) => {
+  const joinRoom = async (roomId: string, isStale: () => boolean = () => false) => {
     const userId = userStore.userId
 
     if (!userId) {
@@ -80,6 +93,8 @@ export function useRoomManager() {
 
     // Disconnect existing connection if any
     wsService.disconnect()
+    // A new join: removals from here on are not our own leave.
+    callStore.setLeavingRoom(false)
 
     try {
       await apiService.joinRoom(roomId, {
@@ -98,12 +113,16 @@ export function useRoomManager() {
 
       // Connect to WebSocket for new room
       await wsService.connect(roomId, userId, deviceInfo)
+      if (isStale()) throw new Error("Room switch abandoned")
       roomStore.setActiveRoom(roomId)
 
       // Start sending pings to keep room WebSocket connection alive
       startRoomPing()
     } catch (error) {
       console.error("Failed to join room:", error)
+      // A socket that never opened (or belongs to an abandoned switch) must
+      // not keep retrying join_room behind the user's back.
+      if (!roomStore.activeRoomId) wsService.disconnect()
       throw error
     }
   }
@@ -114,11 +133,23 @@ export function useRoomManager() {
 
     if (!roomId || !userId) return
 
+    debugLog(`[RoomManager] Leaving room ${roomId}`)
+    // Must be set before the POST: the server removes us from LiveKit and
+    // broadcasts room_user_left while the request is still in flight.
+    callStore.setLeavingRoom(true)
+
     try {
       // Stop room ping interval before disconnecting
       stopRoomPing()
 
-      await apiService.leaveRoom(roomId, userId)
+      try {
+        await apiService.leaveRoom(roomId, userId)
+      } catch (error) {
+        // Offline: leave locally anyway. The server drops the membership when
+        // the room socket closes.
+        if (!isNetworkError(error)) throw error
+        console.warn("Leave request failed (network), leaving locally:", error)
+      }
       wsService.sendMessage("leave_room", { user_id: userId })
       wsService.disconnect()
       roomStore.setCurrentRoomUsers([])
@@ -140,6 +171,8 @@ export function useRoomManager() {
     textChatStore.closeChannel()
 
     if (roomStore.activeRoomId === roomId) {
+      // Clicking the room again while voice is down retries the connection.
+      if (callStore.voiceConnectionFailed) callStore.requestVoiceRetry()
       return true
     }
 
@@ -156,6 +189,8 @@ export function useRoomManager() {
       return false
     }
 
+    const switchId = ++roomSwitchId
+    let deadline: ReturnType<typeof setTimeout> | undefined
     try {
       appStore.setLoading(true)
       appStore.clearError()
@@ -164,24 +199,46 @@ export function useRoomManager() {
       // This ensures proper cleanup including setting activeRoomId to null
       if (roomStore.activeRoomId) {
         await handleLeaveRoom()
+        // Even if leaving failed, the old room must not stay active: the
+        // call view would keep its LiveKit session for the wrong room.
+        if (roomStore.activeRoomId) {
+          stopRoomPing()
+          wsService.disconnect()
+          roomStore.setActiveRoom(null)
+          callStore.resetCallState()
+        }
         // Small delay to ensure cleanup is complete before joining new room
         await new Promise((resolve) => setTimeout(resolve, 200))
       }
 
-      await joinRoom(roomId)
+      const join = joinRoom(roomId, () => switchId !== roomSwitchId)
+      join.catch(() => {}) // may settle after the deadline; reported below
+      await Promise.race([
+        join,
+        new Promise<never>((_, reject) => {
+          deadline = setTimeout(
+            () => reject(new Error("Room switch timed out")),
+            ROOM_SWITCH_DEADLINE_MS,
+          )
+        }),
+      ])
       return true
     } catch (error) {
       console.error("Failed to switch room:", error)
+      if (switchId === roomSwitchId) roomSwitchId++ // abandon the join in flight
       const status = (error as ApiError).status
       appStore.setError(
         status === 403
           ? NO_JOIN_PERMISSION
           : status === 404
             ? "This room is no longer available."
-            : "Failed to switch room. Please try again.",
+            : isNetworkError(error) || (error as Error).message === "Room switch timed out"
+              ? "Can't reach the server. Check your connection and try again."
+              : "Failed to switch room. Please try again.",
       )
       return false
     } finally {
+      clearTimeout(deadline)
       appStore.setLoading(false)
     }
   }

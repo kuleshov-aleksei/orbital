@@ -9,9 +9,13 @@ import (
 	"google.golang.org/api/option"
 )
 
-// AndroidChannelID is the notification channel the app creates for
-// mentions (frontend/src/services/push.ts).
-const AndroidChannelID = "mentions"
+// Android notification channels the app creates
+// (frontend/src/services/push.ts). AndroidChannelID is also the manifest
+// default.
+const (
+	AndroidChannelID  = "mentions"
+	MessagesChannelID = "messages"
+)
 
 // FCMSender sends through the FCM HTTP v1 API.
 type FCMSender struct {
@@ -48,6 +52,10 @@ func (f *FCMSender) Send(ctx context.Context, tokens []string, n Notification) (
 	var invalid []string
 	for start := 0; start < len(tokens); start += maxBatch {
 		batch := tokens[start:min(start+maxBatch, len(tokens))]
+		channel := n.ChannelID
+		if channel == "" {
+			channel = AndroidChannelID
+		}
 		msg := &messaging.MulticastMessage{
 			// Capacitor hands out FCM registration tokens, which go in Tokens.
 			Tokens: batch, //nolint:staticcheck // registration tokens, not installation IDs
@@ -58,7 +66,7 @@ func (f *FCMSender) Send(ctx context.Context, tokens []string, n Notification) (
 					Title:     n.Title,
 					Body:      n.Body,
 					Tag:       n.Tag,
-					ChannelID: AndroidChannelID,
+					ChannelID: channel,
 				},
 			},
 		}

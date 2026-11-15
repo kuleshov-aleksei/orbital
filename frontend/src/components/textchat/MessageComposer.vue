@@ -83,9 +83,14 @@
         <button
           v-if="canAttach"
           type="button"
-          class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded text-theme-text-muted hover:text-theme-text-primary hover:bg-theme-bg-hover transition-colors"
-          title="Attach files (images, audio, mp4 video)"
+          class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded text-theme-text-muted hover:text-theme-text-primary hover:bg-theme-bg-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          :title="
+            serverOnline
+              ? 'Attach files (images, audio, mp4 video)'
+              : 'Attachments need a connection'
+          "
           aria-label="Attach files"
+          :disabled="!serverOnline"
           data-testid="attach-button"
           @click="fileInput?.click()">
           <PhPlusCircle class="w-5 h-5" />
@@ -109,6 +114,7 @@
               : 'You do not have permission to send messages in this channel'
           "
           :maxlength="MAX_CHARS * 2"
+          :enterkeyhint="appStore.isMobile ? 'enter' : 'send'"
           class="composer-input flex-1 min-w-0 resize-none bg-transparent text-sm text-theme-text-primary placeholder-theme-text-muted focus:outline-none py-1 max-h-[50vh] disabled:cursor-not-allowed"
           data-testid="text-composer"
           aria-label="Message"
@@ -149,7 +155,7 @@
           v-if="showSend"
           type="button"
           class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded text-theme-accent hover:bg-theme-bg-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          title="Send (Enter)"
+          :title="appStore.isMobile ? 'Send' : 'Send (Enter)'"
           aria-label="Send message"
           :disabled="charCount > MAX_CHARS"
           data-testid="send-button"
@@ -235,11 +241,13 @@ import {
   type EmojiRef,
 } from "@/services/emoji"
 import {
+  useAppStore,
   useAttachmentsStore,
   useCustomEmojisStore,
   usePermissionsStore,
   useTextChatStore,
   useUsersStore,
+  useConnectionStore,
 } from "@/stores"
 
 const props = defineProps<{
@@ -260,9 +268,11 @@ const MAX_CHARS = 2000
 
 const textChatStore = useTextChatStore()
 const customEmojisStore = useCustomEmojisStore()
+const appStore = useAppStore()
 const usersStore = useUsersStore()
 const permissionsStore = usePermissionsStore()
 const attachmentsStore = useAttachmentsStore()
+const connectionStore = useConnectionStore()
 
 const input = useTemplateRef<HTMLTextAreaElement>("input")
 const box = useTemplateRef<HTMLDivElement>("box")
@@ -382,8 +392,15 @@ const showSend = computed(
 const quotaWarning = computed(() => canAttach.value && attachmentsStore.usageRatio >= 0.9)
 watch(canAttach, (can) => can && void attachmentsStore.loadUsage(), { immediate: true })
 
+// Messages queue offline (outbox); uploads can't.
+const serverOnline = computed(() => connectionStore.isOnline)
+
 function addFiles(files: File[]) {
   if (!files.length) return
+  if (canAttach.value && !serverOnline.value) {
+    attachmentsStore.composerError = "Attachments need a connection."
+    return
+  }
   if (!canAttach.value) {
     attachmentsStore.composerError = attachmentsStore.enabled
       ? "You don't have permission to attach files in this channel."
@@ -591,7 +608,8 @@ function onKeydown(event: KeyboardEvent) {
   if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
     void nextTick(updateSuggestions)
   }
-  if (event.key === "Enter" && !event.shiftKey) {
+  // On mobile Enter inserts a newline (textarea default); the send button sends.
+  if (event.key === "Enter" && !event.shiftKey && !appStore.isMobile) {
     event.preventDefault()
     send()
   } else if (event.key === "ArrowUp" && draft.value === "") {

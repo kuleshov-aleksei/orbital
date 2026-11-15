@@ -12,8 +12,9 @@ const StatusAway = "away"
 
 // clientStateRequest is client_state: whether the user is using this
 // session (page visible, input in the last 10 minutes; focus is ignored).
-// Mobile pushes go out only when none of a user's sessions is active, and
-// such a user is shown as away.
+// Mobile pushes go out only when none of a user's sessions is active and the
+// user is not in a call with an open mic (userInOpenMicCall); such a user is
+// shown as away.
 type clientStateRequest struct {
 	Active bool `json:"active"`
 }
@@ -33,34 +34,12 @@ func (c *Client) handleClientState(data any) {
 	}
 }
 
-// userIsActive reports whether any global socket of userID is active.
-// Sockets that never sent client_state count as active, so older clients
-// never get duplicate pushes.
-func (h *Hub) userIsActive(userID string) bool {
+// globalSessions reports whether userID has a global socket and whether any
+// of them is active. Sockets that never sent client_state count as active,
+// so older clients never get duplicate pushes.
+func (h *Hub) globalSessions(userID string) (hasGlobal, anyActive bool) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	for client := range h.clients {
-		if client.userID != userID || !isGlobalClient(client) {
-			continue
-		}
-		client.mu.RLock()
-		inactive := client.inactive
-		client.mu.RUnlock()
-		if !inactive {
-			return true
-		}
-	}
-	return false
-}
-
-// userIsAway: online, has a global socket, and none of them is active.
-func (h *Hub) userIsAway(userID string) bool {
-	if !h.IsUserOnline(userID) {
-		return false
-	}
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-	hasGlobal := false
 	for client := range h.clients {
 		if client.userID != userID || !isGlobalClient(client) {
 			continue
@@ -70,10 +49,63 @@ func (h *Hub) userIsAway(userID string) bool {
 		inactive := client.inactive
 		client.mu.RUnlock()
 		if !inactive {
-			return false
+			anyActive = true
 		}
 	}
-	return hasGlobal
+	return hasGlobal, anyActive
+}
+
+// userInOpenMicCall reports whether userID has a live call socket in a room
+// where they are unmuted and not deafened. Voice itself never reaches the
+// backend (it goes to the LiveKit SFU), so an open mic stands in for
+// "talking" and keeps the user active without any input.
+func (h *Hub) userInOpenMicCall(userID string) bool {
+	if h.roomService == nil {
+		return false
+	}
+	// Collect rooms under h.mu, query roomService after releasing it.
+	h.mu.RLock()
+	var rooms []string
+	for client := range h.clients {
+		if client.userID != userID {
+			continue
+		}
+		client.mu.RLock()
+		roomID := client.roomID
+		client.mu.RUnlock()
+		if roomID != "" {
+			rooms = append(rooms, roomID)
+		}
+	}
+	h.mu.RUnlock()
+	for _, roomID := range rooms {
+		if state, ok := h.roomService.GetUserMediaState(roomID, userID); ok && !state.IsMuted && !state.IsDeafened {
+			return true
+		}
+	}
+	return false
+}
+
+// userIsActive: any global socket is active, or the user is in a call with
+// an open mic. Mention pushes are skipped for active users.
+func (h *Hub) userIsActive(userID string) bool {
+	if _, anyActive := h.globalSessions(userID); anyActive {
+		return true
+	}
+	return h.userInOpenMicCall(userID)
+}
+
+// userIsAway: online, has a global socket, none of them is active, and not
+// in a call with an open mic.
+func (h *Hub) userIsAway(userID string) bool {
+	if !h.IsUserOnline(userID) {
+		return false
+	}
+	hasGlobal, anyActive := h.globalSessions(userID)
+	if !hasGlobal || anyActive {
+		return false
+	}
+	return !h.userInOpenMicCall(userID)
 }
 
 // refreshAway recomputes a user's away state and broadcasts

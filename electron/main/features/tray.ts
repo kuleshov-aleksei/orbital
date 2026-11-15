@@ -1,6 +1,5 @@
-import { app, Tray, Menu, nativeImage } from "electron"
+import { app, Tray, Menu, nativeImage, type NativeImage } from "electron"
 import path from "node:path"
-import log from "electron-log"
 import { VITE_DEV_SERVER_URL, __dirname } from "../paths"
 import { getMainWindow, setIsQuitting } from "../state"
 
@@ -11,7 +10,7 @@ export function createTray() {
     ? path.join(__dirname, "../../build/orbital-icon.png")
     : path.join(process.resourcesPath, "build/orbital-icon.png")
 
-  let trayIcon: nativeImage
+  let trayIcon: NativeImage
   try {
     trayIcon = nativeImage.createFromPath(iconPath)
     if (trayIcon.isEmpty()) {

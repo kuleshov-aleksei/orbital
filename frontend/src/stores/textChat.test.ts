@@ -9,7 +9,11 @@ const api = vi.hoisted(() => ({
 vi.mock("@/services/api", () => ({ apiService: api }))
 vi.mock("@/services/sounds", () => ({ playMention: vi.fn() }))
 vi.mock("@/services/platform", () => ({ notifyAttention: vi.fn() }))
-vi.mock("@/services/websocket", () => ({ wsService: { sendGlobalMessage: vi.fn() } }))
+const ws = vi.hoisted(() => ({
+  sendGlobalMessage: vi.fn(),
+  isGlobalConnected: vi.fn(() => true),
+}))
+vi.mock("@/services/websocket", () => ({ wsService: ws }))
 
 import { useTextChatStore } from "./textChat"
 import type { TextHistoryPage, TextMessage, TextUnreadResponse } from "@/types/textChat"
@@ -74,6 +78,7 @@ describe("text chat store", () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    ws.isGlobalConnected.mockReturnValue(true)
   })
 
   it("keeps a live message that arrives while the page is loading", async () => {
@@ -165,5 +170,66 @@ describe("text chat store", () => {
     request.resolve(unread(9, 9))
     await loading
     expect(store.isUnread(ROOM)).toBe(true)
+  })
+
+  describe("outbox", () => {
+    const sends = () =>
+      ws.sendGlobalMessage.mock.calls.filter(([type]) => type === "text_message_send")
+
+    it("queues a message written offline and sends it after the reconnect", async () => {
+      vi.useFakeTimers()
+      try {
+        const store = useTextChatStore()
+        ws.isGlobalConnected.mockReturnValue(false)
+        store.sendMessage(ROOM, "first")
+        store.sendMessage(ROOM, "second")
+        expect(store.pending.map((p) => p.status)).toEqual(["queued", "queued"])
+        expect(sends()).toHaveLength(0)
+
+        ws.isGlobalConnected.mockReturnValue(true)
+        const flushing = store.flushOutbox()
+        await vi.advanceTimersByTimeAsync(2000)
+        await flushing
+
+        const sent = sends().map(([, data]) => (data as { content: string }).content)
+        expect(sent).toEqual(["first", "second"])
+        expect(store.pending.every((p) => p.status === "sending")).toBe(true)
+
+        // The echo with the nonce confirms the message.
+        const nonce = store.pending[0].nonce
+        store.onMessageNew({ room_id: ROOM, message: message(1), nonce })
+        expect(store.pending.map((p) => p.content)).toEqual(["second"])
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("puts an unconfirmed send back in the queue when the socket drops", () => {
+      const store = useTextChatStore()
+      store.sendMessage(ROOM, "hello")
+      expect(store.pending[0].status).toBe("sending")
+
+      store.onConnectionLost()
+      expect(store.pending[0].status).toBe("queued")
+    })
+
+    it("keeps the same nonce when a queued message is resent", async () => {
+      vi.useFakeTimers()
+      try {
+        const store = useTextChatStore()
+        store.sendMessage(ROOM, "hello")
+        const firstNonce = (sends()[0][1] as { nonce: string }).nonce
+        store.onConnectionLost()
+
+        const flushing = store.flushOutbox()
+        await vi.advanceTimersByTimeAsync(2000)
+        await flushing
+        const resentNonce = (sends()[1][1] as { nonce: string }).nonce
+        // The server dedupes by nonce, so a resend never duplicates.
+        expect(resentNonce).toBe(firstNonce)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
   })
 })

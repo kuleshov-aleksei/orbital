@@ -2,7 +2,6 @@ import { ipcMain } from "electron"
 import log from "electron-log"
 import {
   startOAuthCallbackServer,
-  stopOAuthCallbackServer,
   resolveOAuthCallback,
   OAUTH_CALLBACK_PORT,
 } from "../features/oauth"

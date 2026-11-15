@@ -36,9 +36,10 @@ import AppOutdatedScreen from "@/components/appupdate/AppOutdatedScreen.vue"
 import AppUpdatePrompt from "@/components/appupdate/AppUpdatePrompt.vue"
 import { setOnClientOutdated } from "@/services/appVersion"
 import { isCapacitor } from "@/services/platform"
+import { setupMediaCacheLogRelay } from "@/services/attachments/mediaCache"
 import { listenForMessageJumps } from "@/services/attachments/jumps"
 import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts"
-import { useThumbarButtons, useWebSocketHandlers } from "@/composables"
+import { useCallNotificationControls, useThumbarButtons, useWebSocketHandlers } from "@/composables"
 import { useNativeShell } from "@/composables/useNativeShell"
 import { wsService } from "@/services/websocket"
 import { isElectron, onDeepLink, onOAuthToken, setupMainProcessLogRelay } from "@/services/electron"
@@ -63,6 +64,7 @@ const appUpdateStore = useAppUpdateStore()
 
 useKeyboardShortcuts()
 useThumbarButtons()
+useCallNotificationControls()
 useWebSocketHandlers()
 
 const SESSION_REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000
@@ -197,6 +199,8 @@ onMounted(() => {
     () => void refreshSessionIfNeeded(),
     SESSION_REFRESH_INTERVAL_MS,
   )
+
+  if (isCapacitor()) setupMediaCacheLogRelay()
 
   if (isElectron()) {
     setupMainProcessLogRelay()

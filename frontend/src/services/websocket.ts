@@ -29,6 +29,12 @@ function toMediaStatePayload(state: LocalMediaState) {
 // memory without limit. Oldest messages are dropped first.
 const MAX_QUEUED_MESSAGES = 100
 
+// A handshake that hasn't opened by then is abandoned (closed and retried), so
+// a dead mobile link can't hold a join or the startup sync forever.
+const CONNECT_TIMEOUT_MS = 10_000
+// The global socket retries forever while signed in; the backoff caps here.
+const MAX_GLOBAL_RECONNECT_DELAY_MS = 10_000
+
 // No input for this long marks the session idle (client_state).
 const IDLE_AFTER_MS = 10 * 60 * 1000
 const IDLE_CHECK_MS = 60 * 1000
@@ -46,8 +52,8 @@ export class WebSocketService {
   private maxReconnectAttempts = 7
   private reconnectDelay = 200
   private globalReconnectAttempts = 0
-  private maxGlobalReconnectAttempts = 7
   private globalReconnectDelay = 200
+  private globalReconnectTimer: ReturnType<typeof setTimeout> | null = null
   private roomId: string = ""
   private userId: string = ""
   private globalConnectionPromise: Promise<void> | null = null
@@ -85,9 +91,17 @@ export class WebSocketService {
         const wsUrl = this.getWebSocketUrl(roomId)
         console.log(`Connecting to WebSocket: ${wsUrl.substring(0, wsUrl.indexOf("?"))}`)
 
-        this.ws = new WebSocket(wsUrl)
+        const ws = new WebSocket(wsUrl)
+        this.ws = ws
+        const openTimer = setTimeout(() => {
+          if (ws.readyState === WebSocket.OPEN) return
+          console.warn("WebSocket handshake timed out")
+          reject(new Error("WebSocket connection timed out"))
+          ws.close()
+        }, CONNECT_TIMEOUT_MS)
 
         this.ws.onopen = (event) => {
+          clearTimeout(openTimer)
           console.log("WebSocket connected:", event)
           this.reconnectAttempts = 0
 
@@ -111,6 +125,7 @@ export class WebSocketService {
         }
 
         this.ws.onerror = (error) => {
+          clearTimeout(openTimer)
           console.error("WebSocket error:", error)
           reject(new Error("WebSocket connection failed"))
         }
@@ -120,6 +135,7 @@ export class WebSocketService {
         }
 
         this.ws.onclose = (event) => {
+          clearTimeout(openTimer)
           console.log("WebSocket closed:", event)
           this.notifyDisconnectionCallbacks(event)
           if (event.code === WS_CLOSE_CLIENT_OUTDATED) {
@@ -158,9 +174,18 @@ export class WebSocketService {
         const wsUrl = this.getGlobalWebSocketUrl()
         console.log(`Connecting to global WebSocket: ${wsUrl.substring(0, wsUrl.indexOf("?"))}`)
 
-        this.globalWs = new WebSocket(wsUrl)
+        const ws = new WebSocket(wsUrl)
+        this.globalWs = ws
+        const openTimer = setTimeout(() => {
+          if (ws.readyState === WebSocket.OPEN) return
+          console.warn("Global WebSocket handshake timed out")
+          this.globalConnectionPromise = null
+          reject(new Error("Global WebSocket connection timed out"))
+          ws.close() // onclose schedules the next attempt
+        }, CONNECT_TIMEOUT_MS)
 
         this.globalWs.onopen = (event) => {
+          clearTimeout(openTimer)
           console.log("Global WebSocket connected:", event)
           this.globalConnectionPromise = null
           this.globalReconnectAttempts = 0
@@ -171,6 +196,7 @@ export class WebSocketService {
         }
 
         this.globalWs.onerror = (error) => {
+          clearTimeout(openTimer)
           console.error("Global WebSocket error:", error)
           this.globalConnectionPromise = null
           reject(new Error("Global WebSocket connection failed"))
@@ -181,6 +207,7 @@ export class WebSocketService {
         }
 
         this.globalWs.onclose = (event) => {
+          clearTimeout(openTimer)
           console.log("Global WebSocket closed:", event)
           this.globalConnectionPromise = null
           this.notifyGlobalDisconnectionCallbacks(event)
@@ -219,6 +246,10 @@ export class WebSocketService {
   // Disconnect from global WebSocket
   async disconnectGlobal(): Promise<void> {
     this.globalQueue = []
+    if (this.globalReconnectTimer) {
+      clearTimeout(this.globalReconnectTimer)
+      this.globalReconnectTimer = null
+    }
     // If connection is in progress, wait for it to complete or fail
     if (this.globalConnectionPromise) {
       try {
@@ -592,24 +623,52 @@ export class WebSocketService {
       return
     }
 
-    if (this.globalReconnectAttempts >= this.maxGlobalReconnectAttempts) {
-      console.log("Max global WebSocket reconnection attempts reached")
-      return
-    }
-
+    // Never give up while signed in: on a phone the network can be gone for
+    // minutes, and the app should come back on its own when it returns.
+    if (this.globalReconnectTimer) return
     this.globalReconnectAttempts++
+    const delay = Math.min(
+      this.globalReconnectDelay * Math.pow(2, this.globalReconnectAttempts - 1),
+      MAX_GLOBAL_RECONNECT_DELAY_MS,
+    )
     console.log(
-      `Attempting to reconnect global WebSocket... (${this.globalReconnectAttempts}/${this.maxGlobalReconnectAttempts})`,
+      `Attempting to reconnect global WebSocket in ${delay}ms (attempt ${this.globalReconnectAttempts})`,
     )
 
-    setTimeout(
-      () => {
-        this.connectGlobal().catch((error) => {
-          console.error("Global reconnection failed:", error)
-        })
-      },
-      this.globalReconnectDelay * Math.pow(2, this.globalReconnectAttempts - 1),
-    )
+    this.globalReconnectTimer = setTimeout(() => {
+      this.globalReconnectTimer = null
+      if (this.globalManualClose) return
+      this.connectGlobal().catch((error) => {
+        console.error("Global reconnection failed:", error)
+      })
+    }, delay)
+  }
+
+  /**
+   * Closes a global socket that looks dead (unanswered ping) without marking
+   * the close as manual, so the usual reconnect loop takes over.
+   */
+  dropGlobal(): void {
+    const ws = this.globalWs
+    if (!ws || this.globalManualClose) return
+    // A half-dead socket may never fire onclose; detach and reconnect now.
+    ws.onclose = null
+    ws.onerror = null
+    ws.onmessage = null
+    try {
+      ws.close()
+    } catch {
+      // already closing
+    }
+    this.globalWs = null
+    this.globalConnectionPromise = null
+    this.notifyGlobalDisconnectionCallbacks(new CloseEvent("close", { code: 4000 }))
+    this.attemptGlobalReconnect()
+  }
+
+  /** True while the global socket is being closed on purpose (logout). */
+  isGlobalManualClose(): boolean {
+    return this.globalManualClose
   }
 
   private handleGlobalMessage(event: MessageEvent<unknown>): void {
@@ -650,6 +709,10 @@ export class WebSocketService {
     }
     if (!this.isGlobalConnected() && !this.globalManualClose) {
       this.globalReconnectAttempts = 0
+      if (this.globalReconnectTimer) {
+        clearTimeout(this.globalReconnectTimer)
+        this.globalReconnectTimer = null
+      }
       this.connectGlobal().catch((error) => {
         console.error("Failed to reconnect global WebSocket:", error)
       })

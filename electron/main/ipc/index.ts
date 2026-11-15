@@ -6,6 +6,7 @@ import { registerVenmicIpc } from "./venmic"
 import { registerWinAudioIpc } from "./winAudio"
 import { registerUpdateIpc } from "./update"
 import { registerOauthIpc } from "./oauth"
+import { registerMediaCacheIpc } from "./mediaCache"
 
 export function setupIPC() {
   registerWindowIpc()
@@ -16,4 +17,5 @@ export function setupIPC() {
   registerWinAudioIpc()
   registerUpdateIpc()
   registerOauthIpc()
+  registerMediaCacheIpc()
 }

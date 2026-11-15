@@ -2,7 +2,7 @@ import { createApp, type Component } from "vue"
 import { createPinia } from "pinia"
 import App from "./App.vue"
 import router from "./router"
-import { useConfigStore, useSoundPackStore } from "./stores"
+import { useConfigStore, useConnectionStore, useSoundPackStore } from "./stores"
 import "./style.css"
 
 // Log frontend version at startup
@@ -15,13 +15,19 @@ const pinia = createPinia()
 app.use(pinia)
 app.use(router)
 
-// Load configuration before mounting the app
+// Starts tracking server reachability before the first request.
+useConnectionStore(pinia)
+
+// Load configuration before mounting the app. With a cached config the app
+// mounts right away (an unreachable server must not keep the screen blank)
+// and the fresh config replaces it when it arrives.
 const configStore = useConfigStore(pinia)
 const soundPackStore = useSoundPackStore(pinia)
 soundPackStore.loadFromStorage()
 console.log("[Orbital] Loading config...")
-configStore
-  .loadConfig()
+const configLoad = configStore.loadConfig()
+const hasCachedConfig = configStore.hydrateFromCache()
+;(hasCachedConfig ? Promise.resolve() : configLoad)
   .then(() => {
     console.log("[Orbital] Config loaded, mounting app...")
     app.mount("#app")

@@ -1,12 +1,32 @@
 import { Capacitor, registerPlugin } from "@capacitor/core"
+import type { PluginListenerHandle } from "@capacitor/core"
 import * as electron from "@/services/electron"
+
+export type CallNotificationAction = "mute" | "deafen"
 
 /** Local Android plugin (mobile/android/.../CallKeepAlivePlugin.java). */
 interface CallKeepAlivePlugin {
-  start(options: { title: string; text: string }): Promise<void>
+  start(options: { title: string }): Promise<void>
+  update(options: { muted: boolean; deafened: boolean }): Promise<void>
   stop(): Promise<void>
+  addListener(
+    eventName: "action",
+    listener: (event: { action: CallNotificationAction }) => void,
+  ): Promise<PluginListenerHandle>
 }
 const CallKeepAlive = registerPlugin<CallKeepAlivePlugin>("CallKeepAlive")
+
+/** Local Android plugin (mobile/android/.../MediaCachePlugin.java). */
+interface MediaCachePlugin {
+  list(): Promise<{ keys: string[] }>
+  evict(options: { id: string }): Promise<void>
+  clear(): Promise<void>
+  addListener(
+    eventName: "log",
+    listener: (event: { level: string; message: string }) => void,
+  ): Promise<PluginListenerHandle>
+}
+const MediaCache = registerPlugin<MediaCachePlugin>("MediaCache")
 
 /**
  * Platform layer over the three shells the frontend runs in:
@@ -65,7 +85,6 @@ export async function setCallKeepAlive(active: boolean, roomName = ""): Promise<
     if (active) {
       await CallKeepAlive.start({
         title: roomName ? `In voice: ${roomName}` : "In a voice call",
-        text: "Tap to return to the call",
       })
     } else {
       await CallKeepAlive.stop()
@@ -73,6 +92,36 @@ export async function setCallKeepAlive(active: boolean, roomName = ""): Promise<
   } catch (err) {
     console.warn("Call keep-alive service failed:", err)
   }
+}
+
+/**
+ * Pushes the mute/deafen state to the ongoing call notification (Android), which
+ * shows matching Mute/Unmute and Deafen/Undeafen buttons. Safe to call before the
+ * call starts: the state is kept for the next notification. No-op elsewhere.
+ */
+export async function setCallNotificationState(state: {
+  muted: boolean
+  deafened: boolean
+}): Promise<void> {
+  if (!isCapacitor()) return
+  try {
+    await CallKeepAlive.update(state)
+  } catch (err) {
+    console.warn("Call notification update failed:", err)
+  }
+}
+
+/**
+ * Listens for taps on the ongoing call notification buttons (Android). The
+ * listener should toggle the state; the notification follows through
+ * setCallNotificationState. Returns a function that removes the listener.
+ */
+export async function onCallNotificationAction(
+  listener: (action: CallNotificationAction) => void,
+): Promise<() => void> {
+  if (!isCapacitor()) return () => {}
+  const handle = await CallKeepAlive.addListener("action", (event) => listener(event.action))
+  return () => void handle.remove()
 }
 
 /** Light haptic feedback on Android (mute/deafen toggles); no-op elsewhere. */
@@ -84,4 +133,41 @@ export async function haptic(style: "light" | "medium" = "light"): Promise<void>
   } catch {
     // Haptics are cosmetic; ignore devices without a vibrator.
   }
+}
+
+/**
+ * Native side of the chat media cache (services/attachments/mediaCache.ts):
+ * electron/main/features/mediaCache.ts on desktop, MediaCache.java on Android.
+ */
+export const mediaCacheNative = {
+  /** True when this shell serves cached media (older Electron builds don't). */
+  available(): boolean {
+    if (electron.isElectron()) return !!window.electronAPI?.mediaCacheList
+    return isCapacitor()
+  },
+  /** Base URL that serves a cache key (append ?src=... on a miss). */
+  urlFor(key: string): string {
+    return electron.isElectron() ? `orbital-media://cache/${key}` : `/_media/${key}`
+  },
+  async list(): Promise<string[]> {
+    if (electron.isElectron()) return (await window.electronAPI?.mediaCacheList?.()) ?? []
+    if (isCapacitor()) return (await MediaCache.list()).keys
+    return []
+  },
+  async evict(id: string): Promise<void> {
+    if (electron.isElectron()) await window.electronAPI?.mediaCacheEvict?.(id)
+    else if (isCapacitor()) await MediaCache.evict({ id })
+  },
+  async clear(): Promise<void> {
+    if (electron.isElectron()) await window.electronAPI?.mediaCacheClear?.()
+    else if (isCapacitor()) await MediaCache.clear()
+  },
+  /**
+   * Native log lines (Android). Electron's main process logs already reach the
+   * debug log through setupMainProcessLogRelay.
+   */
+  async onLog(listener: (level: string, message: string) => void): Promise<void> {
+    if (!isCapacitor()) return
+    await MediaCache.addListener("log", (event) => listener(event.level, event.message))
+  },
 }

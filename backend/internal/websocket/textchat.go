@@ -40,8 +40,8 @@ type TextChat struct {
 	ML *immichml.Client
 	// SemanticThreshold is the minimum score of images found by meaning.
 	SemanticThreshold float64
-	// Push notifies mentioned users who have no active session; nil or
-	// disabled sends nothing.
+	// Push notifies users with no active session about new messages
+	// (textchat_push.go); nil or disabled sends nothing.
 	Push *push.Service
 	// UserName resolves a user id to a display name for push text.
 	UserName func(userID string) string
@@ -53,6 +53,12 @@ func (h *Hub) SetTextChat(tc *TextChat) {
 	h.textChat = tc
 	if h.textLimiter == nil {
 		h.textLimiter = ratelimit.New()
+	}
+	if h.textNonces == nil {
+		h.textNonces = newSentNonces()
+	}
+	if h.textPushes == nil {
+		h.textPushes = newPushThrottle(pushCooldown)
 	}
 	h.mu.Unlock()
 	if tc != nil && tc.Store != nil {

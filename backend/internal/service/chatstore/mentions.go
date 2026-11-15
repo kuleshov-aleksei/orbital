@@ -95,10 +95,11 @@ func contains(list []string, v string) bool {
 }
 
 // PlainText renders message content for plain-text sinks (push
-// notifications): mentions become "@name", custom emoji ":shortcode:".
+// notifications): mentions become "@name" and custom emoji are dropped (a
+// system notification can't show their images; unicode emoji stay).
 // userName and roleName return "" for unknown ids.
 func PlainText(content string, userName, roleName func(id string) string) string {
-	s := customEmojiTokenRe.ReplaceAllString(content, ":$1:")
+	s := customEmojiTokenRe.ReplaceAllString(content, "")
 	return mentionCaptureRe.ReplaceAllStringFunc(s, func(tok string) string {
 		m := mentionCaptureRe.FindStringSubmatch(tok)
 		name := ""

@@ -1,7 +1,10 @@
 <template>
   <main
     v-if="!appStore.isMobile || appStore.mobileView === 'room'"
-    class="flex-1 flex flex-col min-h-0 min-w-0 bg-theme-bg-primary">
+    class="relative flex-1 flex flex-col min-h-0 min-w-0 bg-theme-bg-primary">
+    <!-- Drops down from under the channel header while the server is unreachable. -->
+    <ConnectionStatusPill />
+
     <!-- An open text channel is shown instead of the call view. The call view
          stays mounted (hidden): unmounting it would disconnect from LiveKit. -->
     <TextChannelView v-if="textChatStore.activeChannel" :channel="textChatStore.activeChannel" />
@@ -15,8 +18,11 @@
       v-if="roomStore.activeRoomId"
       v-show="!textChatStore.activeChannel"
       class="flex-1 flex flex-col min-h-0">
+      <!-- Keyed by room: each room gets a fresh LiveKit session (useLiveKit
+           captures the room id once). -->
       <VoiceCallView
         v-if="roomStore.activeRoom?.type !== 'spatial_audio'"
+        :key="roomStore.activeRoomId"
         ref="voiceCallViewRef"
         v-model:model-value-muted="callStore.isMuted"
         v-model:model-value-deafened="callStore.isDeafened"
@@ -35,6 +41,7 @@
 
       <SpatialWorldView
         v-else
+        :key="roomStore.activeRoomId"
         v-model:model-value-muted="callStore.isMuted"
         v-model:model-value-deafened="callStore.isDeafened"
         :room-id="roomStore.activeRoomId"
@@ -54,6 +61,7 @@
 import { defineAsyncComponent, useTemplateRef } from "vue"
 import { useRoomStore, useAppStore, useCallStore, useTextChatStore } from "@/stores"
 import WelcomeView from "@/views/WelcomeView.vue"
+import ConnectionStatusPill from "@/components/common/ConnectionStatusPill.vue"
 
 defineEmits<{
   (e: "room-selected", roomId: string): void

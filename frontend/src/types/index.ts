@@ -597,6 +597,10 @@ export interface ElectronAPI {
   getSystemInfo: () => Promise<ElectronSystemInfoData>
   minimizeWindow: () => void
   flashWindow?: () => void
+  /** Chat media cache (electron/main/features/mediaCache.ts); missing in older builds. */
+  mediaCacheList?: () => Promise<string[]>
+  mediaCacheEvict?: (id: string) => Promise<void>
+  mediaCacheClear?: () => Promise<void>
   maximizeWindow: () => void
   closeWindow: () => void
   onDeepLink: (callback: (url: string) => void) => void

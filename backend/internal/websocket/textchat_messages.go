@@ -43,6 +43,23 @@ func (c *Client) handleTextMessageSend(data interface{}) {
 		c.sendTextError(textErrForbidden, "You don't have permission to send messages here", req.Nonce, "")
 		return
 	}
+	if req.Nonce != "" {
+		switch existingID, state := c.hub.textNonces.claim(userID, req.Nonce); state {
+		case nonceDone:
+			// A resend after a lost echo: confirm the original message.
+			c.ackExistingMessage(tc, existingID, req.Nonce)
+			return
+		case nonceInFlight:
+			// The first copy is still being stored; its broadcast is the answer.
+			return
+		}
+	}
+	created := false
+	defer func() {
+		if req.Nonce != "" && !created {
+			c.hub.textNonces.release(userID, req.Nonce)
+		}
+	}()
 	if ok, _ := c.hub.textLimiter.Allow(userID+"|"+req.RoomID, textSendLimit, textSendWindow); !ok {
 		c.sendTextError(textErrRateLimited, "You are sending messages too fast", req.Nonce, "")
 		return
@@ -91,6 +108,10 @@ func (c *Client) handleTextMessageSend(data interface{}) {
 		c.sendStoreError(err, req.Nonce, "")
 		return
 	}
+	if req.Nonce != "" {
+		created = true
+		c.hub.textNonces.complete(userID, req.Nonce, msg.ID)
+	}
 	payload := map[string]any{"room_id": msg.RoomID, "message": msg.Public()}
 	if req.Nonce != "" {
 		payload["nonce"] = req.Nonce
@@ -101,7 +122,25 @@ func (c *Client) handleTextMessageSend(data interface{}) {
 		}
 	}
 	c.hub.broadcastText(msg.RoomID, models.WebSocketMessage{Type: "text_message_new", Data: payload})
-	c.hub.pingMentions(tc, msg)
+	c.hub.pushMessage(tc, msg, c.hub.pingMentions(tc, msg))
+}
+
+// ackExistingMessage answers a duplicate send with the message the nonce
+// already created, to this client only (everyone else has it already).
+func (c *Client) ackExistingMessage(tc *TextChat, messageID, nonce string) {
+	msg, err := c.visibleMessage(tc, messageID)
+	if err != nil {
+		// Deleted (or hidden) since: nothing to resend, and nothing to retry.
+		c.sendTextError(textErrNotFound, "Message not found", nonce, messageID)
+		return
+	}
+	payload := map[string]any{"room_id": msg.RoomID, "message": msg.Public(), "nonce": nonce}
+	if msg.ReplyToID != nil {
+		if replied, err := tc.Store.Replied(context.Background(), msg); err == nil {
+			payload["replied"] = replied
+		}
+	}
+	c.hub.trySend(c, marshalMessage(models.WebSocketMessage{Type: "text_message_new", Data: payload}))
 }
 
 type textEditRequest struct {
@@ -219,6 +258,8 @@ func (c *Client) handleTextChannelRead(data interface{}) {
 		log.Printf("[TextChat] Failed to store read state for %s in %s: %v", userID, req.RoomID, err)
 		return
 	}
+	// Reading the channel anywhere ends its push summaries.
+	c.hub.textPushes.reset(pushKey{userID: userID, roomID: req.RoomID})
 	c.hub.sendTextToUser(userID, models.WebSocketMessage{
 		Type: "text_read_state",
 		Data: map[string]any{"room_id": req.RoomID, "last_read_seq": stored},

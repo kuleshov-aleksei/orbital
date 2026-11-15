@@ -22,19 +22,25 @@
     <button
       v-if="canReact && reactions.length < MAX_REACTIONS"
       type="button"
-      class="h-6 w-7 flex items-center justify-center rounded-md bg-theme-bg-tertiary text-theme-text-muted hover:text-theme-text-primary opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+      class="flex items-center justify-center rounded-md bg-theme-bg-tertiary text-theme-text-muted hover:text-theme-text-primary"
+      :class="
+        appStore.isMobile
+          ? 'h-6 w-9'
+          : 'h-6 w-7 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity'
+      "
       title="Add reaction"
       aria-label="Add reaction"
+      data-testid="reaction-bar-add"
       @click="$emit('add', $event)">
-      <PhSmileyWink class="w-4 h-4" />
+      <SmileyPlusIcon :size="16" />
     </button>
   </div>
 </template>
 
 <script setup lang="ts">
-import { PhSmileyWink } from "@phosphor-icons/vue"
 import EmojiGlyph from "@/components/EmojiGlyph.vue"
-import { useUsersStore } from "@/stores"
+import SmileyPlusIcon from "./SmileyPlusIcon.vue"
+import { useAppStore, useUsersStore } from "@/stores"
 import type { TextReaction } from "@/types/textChat"
 
 const props = defineProps<{
@@ -50,6 +56,7 @@ defineEmits<{
 
 const MAX_REACTIONS = 20
 const usersStore = useUsersStore()
+const appStore = useAppStore()
 
 function mine(r: TextReaction): boolean {
   return r.user_ids.includes(props.myUserId)

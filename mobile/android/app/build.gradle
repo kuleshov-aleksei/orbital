@@ -6,6 +6,10 @@ android {
     // `make build-android-dev` passes -PorbitalDev: a separate "Orbital Dev" app
     // (app.orbital.dev) that installs next to the production one.
     def orbitalDev = project.hasProperty("orbitalDev")
+    // AGP 9 disables resValues by default; the app name below needs it.
+    buildFeatures {
+        resValues = true
+    }
     defaultConfig {
         applicationId orbitalDev ? "app.orbital.dev" : "app.orbital"
         resValue "string", "app_name", orbitalDev ? "Orbital Dev" : "The Orbital"
@@ -47,7 +51,7 @@ android {
                 signingConfig signingConfigs.release
             }
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }

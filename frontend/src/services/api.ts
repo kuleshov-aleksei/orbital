@@ -162,6 +162,46 @@ export function setOnSessionExpired(handler: SessionExpiredHandler | null) {
   sessionExpiredHandler = handler
 }
 
+// Reachability of the server, reported from every request: any HTTP response
+// (even an error status) means "online", a network failure or timeout means
+// "offline". The connection store registers the handler (stores/connection.ts).
+type NetworkStatusHandler = (online: boolean) => void
+let networkStatusHandler: NetworkStatusHandler | null = null
+
+export function setOnNetworkStatus(handler: NetworkStatusHandler | null) {
+  networkStatusHandler = handler
+}
+
+// Requests (except uploads) give up after this long, so a dead mobile link
+// can't hold a spinner or a join flow forever.
+const REQUEST_TIMEOUT_MS = 15_000
+
+/**
+ * The caller's signal plus a deadline. Hand-rolled instead of AbortSignal.any /
+ * AbortSignal.timeout, which older Android WebViews lack.
+ */
+function withTimeout(callerSignal: AbortSignal | undefined, ms: number): AbortSignal {
+  const controller = new AbortController()
+  const timer = setTimeout(() => {
+    controller.abort(new DOMException("Request timed out", "TimeoutError"))
+  }, ms)
+  const abortFromCaller = () => {
+    clearTimeout(timer)
+    controller.abort(callerSignal?.reason)
+  }
+  if (callerSignal?.aborted) abortFromCaller()
+  else callerSignal?.addEventListener("abort", abortFromCaller, { once: true })
+  // A deadline firing after the response is read aborts nothing.
+  return controller.signal
+}
+
+/** True for a fetch that never got an HTTP response (offline, DNS, timeout). */
+export function isNetworkError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  if ((error as ApiError).status !== undefined) return false
+  return error.name === "TypeError" || error.name === "TimeoutError"
+}
+
 function notifySessionExpired() {
   setAuthToken(null)
   setTokenExpiry(null)
@@ -511,10 +551,25 @@ export async function apiRequest<T>(
       headers[CLIENT_HEADER] = client
     }
 
-    const response = await fetch(`${API_BASE}${endpoint}`, {
-      headers,
-      ...options,
-    })
+    // Uploads may legitimately take minutes; everything else gets a deadline.
+    const callerSignal = options.signal ?? undefined
+    const signal = isMultipart ? callerSignal : withTimeout(callerSignal, REQUEST_TIMEOUT_MS)
+
+    let response: Response
+    try {
+      // Merged headers go last: options.headers is already folded into them,
+      // and spreading options after would drop auth/JSON/client headers.
+      response = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
+        headers,
+        signal,
+      })
+    } catch (error) {
+      // A caller abort is not a network problem; a timeout or failed fetch is.
+      if (!callerSignal?.aborted) networkStatusHandler?.(false)
+      throw error
+    }
+    networkStatusHandler?.(true)
 
     // This app version is below the minimum: show the "update required" screen.
     if (response.status === 426) {
