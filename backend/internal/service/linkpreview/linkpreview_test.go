@@ -19,6 +19,7 @@ import (
 
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatmedia"
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatstore"
+	"github.com/kuleshov-aleksei/orbital/internal/service/outbound"
 	"github.com/kuleshov-aleksei/orbital/internal/storage"
 )
 
@@ -102,7 +103,7 @@ func TestFetcherBlocksPrivateAddresses(t *testing.T) {
 		_, _ = w.Write([]byte("<title>secret</title>"))
 	}))
 	defer srv.Close()
-	f := NewFetcher(false)
+	f := NewFetcher(false, nil)
 	if _, err := f.get(context.Background(), srv.URL, "text/html"); err == nil {
 		t.Fatal("fetching a loopback server must fail")
 	}
@@ -171,7 +172,7 @@ func newFixture(t *testing.T) *fixture {
 	})
 	f.srv = httptest.NewServer(mux)
 	t.Cleanup(f.srv.Close)
-	f.svc = New(Options{DB: db, Messages: f.store, Media: f.media, Fetcher: NewFetcher(true)})
+	f.svc = New(Options{DB: db, Messages: f.store, Media: f.media, Fetcher: NewFetcher(true, nil)})
 	return f
 }
 
@@ -227,5 +228,56 @@ func TestScheduleStoresAndBroadcasts(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("no previews stored")
+	}
+}
+
+// fakeStore is an in-memory outbound.SettingsStore.
+type fakeStore map[string]string
+
+func (m fakeStore) Get(k string) (string, error) { return m[k], nil }
+func (m fakeStore) Set(k, v string) error        { m[k] = v; return nil }
+
+func TestFetcherThroughProxy(t *testing.T) {
+	// A forward proxy on loopback: it answers every request itself.
+	var seen []string
+	proxySrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = append(seen, r.URL.String())
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte(`<title>via proxy</title>`))
+	}))
+	defer proxySrv.Close()
+
+	proxy, err := outbound.New(fakeStore{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := proxy.Set(proxySrv.URL); err != nil {
+		t.Fatal(err)
+	}
+	f := NewFetcher(false, proxy)
+
+	// Public target: goes to the proxy, although the proxy is on loopback.
+	resp, err := f.get(context.Background(), "http://93.184.216.34/page", "text/html")
+	if err != nil {
+		t.Fatalf("public target via proxy: %v", err)
+	}
+	if m := parseHead(resp.body, resp.contentType, ""); m.title != "via proxy" {
+		t.Fatalf("title = %q", m.title)
+	}
+	// Private targets are refused before the proxy sees them.
+	for _, u := range []string{"http://127.0.0.1:8080/", "http://10.0.0.5/", "http://localhost/"} {
+		if _, err := f.get(context.Background(), u, "text/html"); err == nil {
+			t.Errorf("%s via proxy: want an error", u)
+		}
+	}
+	if len(seen) != 1 || seen[0] != "http://93.184.216.34/page" {
+		t.Fatalf("proxy saw %v, want only the public request", seen)
+	}
+
+	// Cleared: direct again, and the loopback proxy is now refused like any
+	// private address.
+	_ = proxy.Set("")
+	if _, err := f.get(context.Background(), proxySrv.URL, "text/html"); err == nil {
+		t.Fatal("direct loopback fetch must fail")
 	}
 }

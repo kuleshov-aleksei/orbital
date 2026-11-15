@@ -62,7 +62,7 @@ type Service struct {
 // New creates a Service.
 func New(o Options) *Service {
 	if o.Fetcher == nil {
-		o.Fetcher = NewFetcher(false)
+		o.Fetcher = NewFetcher(false, nil)
 	}
 	if o.Now == nil {
 		o.Now = time.Now

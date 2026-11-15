@@ -17,6 +17,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/kuleshov-aleksei/orbital/internal/service/outbound"
 )
 
 const (
@@ -44,16 +46,23 @@ func publicAddr(a netip.Addr) bool {
 		!a.IsLoopback() && !a.IsLinkLocalUnicast()
 }
 
-// Fetcher downloads pages and images. Every connection is checked after
-// DNS resolution (in the dialer), which covers redirects and DNS rebinding.
+// Fetcher downloads pages and images. Only public addresses are fetched:
+//   - direct connections are checked after DNS resolution, in the dialer,
+//     which covers redirects and DNS rebinding;
+//   - through the admin-set outbound proxy, the target host is resolved and
+//     checked before each request (redirects included) and the proxy
+//     connects. The proxy resolves the name again, so a rebinding DNS server
+//     could still win that race; the proxy itself may be on a private
+//     address (it is set by a super admin).
 type Fetcher struct {
 	client *http.Client
 }
 
-// NewFetcher returns a Fetcher. allowPrivate turns the address check off
-// (tests against httptest servers only).
-func NewFetcher(allowPrivate bool) *Fetcher {
-	dialer := &net.Dialer{
+// NewFetcher returns a Fetcher. proxy may be nil (always direct).
+// allowPrivate turns the address check off (tests against httptest servers
+// only).
+func NewFetcher(allowPrivate bool, proxy *outbound.Proxy) *Fetcher {
+	checked := &net.Dialer{
 		Timeout: fetchTimeout,
 		Control: func(_, address string, _ syscall.RawConn) error {
 			if allowPrivate {
@@ -66,9 +75,27 @@ func NewFetcher(allowPrivate bool) *Fetcher {
 			return nil
 		},
 	}
+	plain := &net.Dialer{Timeout: fetchTimeout}
 	transport := &http.Transport{
-		Proxy:                 nil, // a proxy would hide the real destination from the check
-		DialContext:           dialer.DialContext,
+		Proxy: func(req *http.Request) (*url.URL, error) {
+			pu := proxy.URL()
+			if pu == nil {
+				return nil, nil
+			}
+			if !allowPrivate {
+				if err := checkHost(req.Context(), req.URL.Hostname()); err != nil {
+					return nil, err
+				}
+			}
+			return pu, nil
+		},
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			// The connection to the proxy itself is not checked.
+			if pu := proxy.URL(); pu != nil && strings.EqualFold(addr, pu.Host) {
+				return plain.DialContext(ctx, network, addr)
+			}
+			return checked.DialContext(ctx, network, addr)
+		},
 		TLSHandshakeTimeout:   fetchTimeout,
 		ResponseHeaderTimeout: fetchTimeout,
 		MaxIdleConns:          16,
@@ -87,6 +114,29 @@ func NewFetcher(allowPrivate bool) *Fetcher {
 			return nil
 		},
 	}}
+}
+
+// checkHost resolves a host and refuses it unless every address is public.
+func checkHost(ctx context.Context, host string) error {
+	if a, err := netip.ParseAddr(host); err == nil {
+		if !publicAddr(a) {
+			return errBlockedAddress
+		}
+		return nil
+	}
+	addrs, err := net.DefaultResolver.LookupNetIP(ctx, "ip", host)
+	if err != nil {
+		return err
+	}
+	if len(addrs) == 0 {
+		return errBlockedAddress
+	}
+	for _, a := range addrs {
+		if !publicAddr(a) {
+			return errBlockedAddress
+		}
+	}
+	return nil
 }
 
 // allowedURL accepts http(s) URLs without credentials.

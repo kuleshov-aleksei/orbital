@@ -465,6 +465,19 @@ export interface ClientVersions {
   latest_version: string
 }
 
+/** Proxy for the server's calls to the internet (admin Network tab). */
+export interface OutboundProxy {
+  /** "" = direct connections. The password is masked as "xxxxx". */
+  proxy_url: string
+}
+
+export interface OutboundProxyTestResult {
+  ok: boolean
+  status?: number
+  elapsed_ms: number
+  error?: string
+}
+
 // LiveKit token response types
 export interface LiveKitTokenResponse {
   token: string
@@ -830,6 +843,25 @@ export const apiService = {
     return apiRequest<ClientVersions>("/admin/client-versions", {
       method: "PUT",
       body: JSON.stringify({ android_min_version: androidMinVersion }),
+    })
+  },
+
+  async getOutboundProxy(): Promise<OutboundProxy> {
+    return apiRequest<OutboundProxy>("/admin/outbound-proxy")
+  },
+
+  async updateOutboundProxy(proxyUrl: string): Promise<OutboundProxy> {
+    return apiRequest<OutboundProxy>("/admin/outbound-proxy", {
+      method: "PUT",
+      body: JSON.stringify({ proxy_url: proxyUrl }),
+    })
+  },
+
+  /** Fetches url through proxyUrl (unsaved; "" = direct) on the server. */
+  async testOutboundProxy(proxyUrl: string, url: string): Promise<OutboundProxyTestResult> {
+    return apiRequest<OutboundProxyTestResult>("/admin/outbound-proxy/test", {
+      method: "POST",
+      body: JSON.stringify({ proxy_url: proxyUrl, url }),
     })
   },
 

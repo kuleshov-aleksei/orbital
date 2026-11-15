@@ -341,6 +341,56 @@ async function linkPreviewChecks() {
   )
 }
 
+// Outbound proxy (admin Network tab). E2E_PROXY_URL (e.g.
+// http://127.0.0.1:1081) also checks a YouTube preview through it.
+async function outboundProxyChecks() {
+  const denied = await api("PUT", "/api/admin/outbound-proxy", alice.token, {
+    proxy_url: "http://127.0.0.1:1081",
+  })
+  check("proxy: non-admin rejected", denied.status === 403, String(denied.status))
+  const bad = await api("PUT", "/api/admin/outbound-proxy", owner.token, { proxy_url: "ftp://x:21" })
+  check("proxy: invalid URL rejected", bad.status === 400, bad.text)
+  const masked = await api("PUT", "/api/admin/outbound-proxy", owner.token, {
+    proxy_url: "socks5://u:secret@127.0.0.1:1",
+  })
+  check("proxy: password masked", masked.json?.proxy_url === "socks5://u:xxxxx@127.0.0.1:1", masked.text)
+
+  const proxyUrl = process.env.E2E_PROXY_URL
+  if (!proxyUrl) {
+    await api("PUT", "/api/admin/outbound-proxy", owner.token, { proxy_url: "" })
+    console.log("SKIP preview through a proxy — set E2E_PROXY_URL")
+    return
+  }
+  const tested = await api("POST", "/api/admin/outbound-proxy/test", owner.token, {
+    proxy_url: proxyUrl,
+    url: "https://www.youtube.com/",
+  })
+  check("proxy: test connection", tested.json?.ok === true, tested.text)
+  await api("PUT", "/api/admin/outbound-proxy", owner.token, { proxy_url: proxyUrl })
+
+  wsAlice.send("text_message_send", {
+    room_id: roomId,
+    content: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    nonce: "px1",
+  })
+  await sleep(400)
+  const msg = wsAlice.take("text_message_new").find((m) => m.data.nonce === "px1")?.data?.message
+  let embed = null
+  for (let i = 0; i < 60 && !embed; i++) {
+    await sleep(250)
+    embed = wsBob
+      .take("text_message_updated")
+      .map((m) => m.data.message)
+      .find((m) => m.id === msg?.id && m.embeds?.length)?.embeds[0]
+  }
+  check(
+    "proxy: YouTube preview has title and thumbnail",
+    embed?.kind === "video" && !!embed.title && !!embed.image_id,
+    JSON.stringify(embed),
+  )
+  await api("PUT", "/api/admin/outbound-proxy", owner.token, { proxy_url: "" })
+}
+
 const owner = await user("owner")
 const alice = await user("alice")
 const bob = await user("bob")
@@ -454,6 +504,7 @@ try {
   )
 
   await linkPreviewChecks()
+  await outboundProxyChecks()
   await attachmentChecks()
   await contentSearchChecks()
 } finally {

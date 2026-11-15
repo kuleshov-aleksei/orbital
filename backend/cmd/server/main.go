@@ -21,6 +21,7 @@ import (
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatstore"
 	"github.com/kuleshov-aleksei/orbital/internal/service/immichml"
 	"github.com/kuleshov-aleksei/orbital/internal/service/linkpreview"
+	"github.com/kuleshov-aleksei/orbital/internal/service/outbound"
 	"github.com/kuleshov-aleksei/orbital/internal/service/push"
 	"github.com/kuleshov-aleksei/orbital/internal/storage"
 	"github.com/kuleshov-aleksei/orbital/internal/version"
@@ -211,6 +212,13 @@ func main() {
 	}
 	wsHub.SetClientVersionService(clientVersions)
 	clientVersions.OnChange(wsHub.OnClientVersionChanged)
+
+	// Proxy for the server's calls to the internet, set in the admin panel
+	// (Network tab).
+	outboundProxy, err := outbound.New(appSettings)
+	if err != nil {
+		log.Fatalf("Failed to initialize outbound proxy: %v", err)
+	}
 	if soundboardService != nil {
 		wsHub.SetSoundboard(soundboardService)
 	}
@@ -251,7 +259,9 @@ func main() {
 			if textChat.Media != nil {
 				media = textChat.Media.Store()
 			}
-			textChat.Previews = linkpreview.New(linkpreview.Options{DB: appDB, Messages: store, Media: media})
+			textChat.Previews = linkpreview.New(linkpreview.Options{
+				DB: appDB, Messages: store, Media: media, Fetcher: linkpreview.NewFetcher(false, outboundProxy),
+			})
 		}
 		wsHub.SetTextChat(textChat)
 		if textChat.Media != nil {
@@ -377,7 +387,7 @@ func main() {
 	r.Handle("/api/auth/google/url", withRateLimit("oauth-url", cfg.RateLimit.OAuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.GetOAuthUrl))).Methods("GET")
 	r.HandleFunc("/api/auth/google/electron/callback", authHandler.GoogleElectronCallback).Methods("GET")
 	r.Handle("/api/auth/exchange", withRateLimit("auth-exchange", cfg.RateLimit.AuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.ExchangeAppCode))).Methods("POST")
-	r.Handle("/api/auth/guest",withRateLimit("guest-login", cfg.RateLimit.GuestPerHour, time.Hour, clientIPKey, http.HandlerFunc(authHandler.GuestLogin))).Methods("POST")
+	r.Handle("/api/auth/guest", withRateLimit("guest-login", cfg.RateLimit.GuestPerHour, time.Hour, clientIPKey, http.HandlerFunc(authHandler.GuestLogin))).Methods("POST")
 	r.Handle("/api/auth/logout", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.Logout))).Methods("POST")
 	r.Handle("/api/auth/me", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.GetCurrentUser))).Methods("GET")
 	r.Handle("/api/auth/refresh", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.RefreshToken))).Methods("POST")
@@ -591,6 +601,10 @@ func main() {
 	superAdminRouter.HandleFunc("/logs/{id}", adminHandler.GetDebugLog).Methods("GET")
 	superAdminRouter.HandleFunc("/client-versions", clientVersionHandler.Get).Methods("GET")
 	superAdminRouter.HandleFunc("/client-versions", clientVersionHandler.Update).Methods("PUT")
+	outboundProxyHandler := handlers.NewOutboundProxyHandler(outboundProxy)
+	superAdminRouter.HandleFunc("/outbound-proxy", outboundProxyHandler.Get).Methods("GET")
+	superAdminRouter.HandleFunc("/outbound-proxy", outboundProxyHandler.Update).Methods("PUT")
+	superAdminRouter.HandleFunc("/outbound-proxy/test", outboundProxyHandler.Test).Methods("POST")
 	superAdminRouter.HandleFunc("/logs/{id}", adminHandler.DeleteDebugLog).Methods("DELETE")
 
 	// Stats collection routes (super_admin only)
