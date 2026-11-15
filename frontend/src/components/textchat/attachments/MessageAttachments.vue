@@ -108,6 +108,7 @@ import AttachmentContentModal from "./AttachmentContentModal.vue"
 import { useConfigStore } from "@/stores/config"
 import { apiService } from "@/services/api"
 import { forgetAttachmentUrls, openAttachment, openStoragePage } from "@/services/attachments/urls"
+import { evictMedia } from "@/services/attachments/mediaCache"
 import { formatBytes } from "@/utils/formatBytes"
 import type { TextAttachment } from "@/types/textChat"
 
@@ -179,6 +180,7 @@ async function onAction(action: AttachmentAction) {
       case "delete":
         await apiService.deleteAttachment(att.id)
         forgetAttachmentUrls(att.id)
+        evictMedia(att.id)
         break
     }
   } catch {

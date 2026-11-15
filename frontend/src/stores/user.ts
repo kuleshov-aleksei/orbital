@@ -9,6 +9,7 @@ import {
 } from "@/services/api"
 import { setUserSoundPack } from "@/services/sounds"
 import { unregisterPush } from "@/services/push"
+import { clearMediaCache } from "@/services/attachments/mediaCache"
 import type { UserRole } from "@/types"
 
 export type AuthProvider = "guest" | "discord" | "google" | "password"
@@ -331,6 +332,8 @@ export const useUserStore = defineStore("user", () => {
     } catch {
       console.warn("Logout API call failed, clearing locally anyway")
     }
+    // Cached chat media must not outlive the account on a shared device.
+    await clearMediaCache()
     clearUser()
   }
 

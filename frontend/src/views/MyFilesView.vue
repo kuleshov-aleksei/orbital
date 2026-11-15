@@ -285,6 +285,7 @@ import FileThumb from "@/components/textchat/attachments/FileThumb.vue"
 import { apiService } from "@/services/api"
 import { emojiTextToPlain } from "@/services/emoji"
 import { forgetAttachmentUrls, openAttachment } from "@/services/attachments/urls"
+import { evictMedia } from "@/services/attachments/mediaCache"
 import { requestMessageJump } from "@/services/attachments/jumps"
 import { useConfigStore } from "@/stores"
 import type { Room } from "@/types"
@@ -467,6 +468,7 @@ async function remove(f: MyAttachment) {
   try {
     await apiService.deleteAttachment(f.id)
     forgetAttachmentUrls(f.id)
+    evictMedia(f.id)
     refresh()
   } catch {
     error.value = "That file could not be deleted."
@@ -482,7 +484,12 @@ async function bulk(action: AttachmentBulkAction) {
       const res = await apiService.bulkMyAttachments(ids.slice(i, i + 100), action)
       usage.value = res.usage
     }
-    if (action === "delete") ids.forEach(forgetAttachmentUrls)
+    if (action === "delete") {
+      ids.forEach((id) => {
+        forgetAttachmentUrls(id)
+        evictMedia(id)
+      })
+    }
     clearSelection()
     refresh()
   } catch {

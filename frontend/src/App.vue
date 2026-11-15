@@ -36,6 +36,7 @@ import AppOutdatedScreen from "@/components/appupdate/AppOutdatedScreen.vue"
 import AppUpdatePrompt from "@/components/appupdate/AppUpdatePrompt.vue"
 import { setOnClientOutdated } from "@/services/appVersion"
 import { isCapacitor } from "@/services/platform"
+import { setupMediaCacheLogRelay } from "@/services/attachments/mediaCache"
 import { listenForMessageJumps } from "@/services/attachments/jumps"
 import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts"
 import { useCallNotificationControls, useThumbarButtons, useWebSocketHandlers } from "@/composables"
@@ -198,6 +199,8 @@ onMounted(() => {
     () => void refreshSessionIfNeeded(),
     SESSION_REFRESH_INTERVAL_MS,
   )
+
+  if (isCapacitor()) setupMediaCacheLogRelay()
 
   if (isElectron()) {
     setupMainProcessLogRelay()

@@ -5,6 +5,7 @@ import { registerScreenshareIpc } from "./screenshare"
 import { registerVenmicIpc } from "./venmic"
 import { registerUpdateIpc } from "./update"
 import { registerOauthIpc } from "./oauth"
+import { registerMediaCacheIpc } from "./mediaCache"
 
 export function setupIPC() {
   registerWindowIpc()
@@ -14,4 +15,5 @@ export function setupIPC() {
   registerVenmicIpc()
   registerUpdateIpc()
   registerOauthIpc()
+  registerMediaCacheIpc()
 }

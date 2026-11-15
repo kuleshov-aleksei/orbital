@@ -6,6 +6,7 @@ import { getMainWindow, setIsQuitting } from "./state"
 import { loadConfig, getConfig } from "./features/config"
 import { setupMainProcessLogRelay, flushPendingLogEntries } from "./features/logRelay"
 import { setupAppProtocol } from "./features/protocol"
+import { setupMediaCache } from "./features/mediaCache"
 import { createWindow } from "./features/window"
 import { createTray } from "./features/tray"
 import { setupDeepLink } from "./features/deeplink"
@@ -29,6 +30,16 @@ protocol.registerSchemesAsPrivileged([
       secure: true,
       supportFetchAPI: true,
       corsEnabled: true,
+    },
+  },
+  {
+    // Chat media cache (features/mediaCache.ts); stream enables <video> seeking.
+    scheme: "orbital-media",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
     },
   },
 ])
@@ -64,6 +75,7 @@ app.whenReady().then(() => {
   log.info("App ready")
   loadConfig()
   setupAppProtocol()
+  setupMediaCache()
   createWindow()
   flushPendingLogEntries()
   createTray()

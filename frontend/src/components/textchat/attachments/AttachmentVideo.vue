@@ -4,9 +4,12 @@
     :style="boxStyle"
     data-testid="attachment-video"
     @contextmenu.prevent="$emit('menu', $event)">
+    <!-- The #t fragment seeks on load, which clears the "show poster" flag:
+         Android WebView otherwise covers the decoded first frame with its
+         built-in grey play-icon poster until playback starts. -->
     <video
       v-if="url && !failed"
-      :src="url"
+      :src="`${url}#t=0.001`"
       controls
       preload="metadata"
       playsinline
@@ -30,6 +33,7 @@
 import { computed, ref } from "vue"
 import { PhFilmSlate } from "@phosphor-icons/vue"
 import { useAttachmentUrl } from "@/services/attachments/urls"
+import { debugWarn } from "@/utils/debug"
 import type { TextAttachment } from "@/types/textChat"
 
 const props = defineProps<{ attachment: TextAttachment }>()
@@ -44,12 +48,17 @@ const { url, onError } = useAttachmentUrl(
 
 // An expired link is refetched once; a second error means the codec is
 // unsupported (e.g. HEVC), so offer the download instead.
-function onVideoError() {
+function onVideoError(event: Event) {
   if (!refetched) {
     refetched = true
-    onError()
+    onError(event)
     return
   }
+  const media = (event.target as HTMLVideoElement).error
+  debugWarn(
+    `[MediaCache] ${props.attachment.id}: video failed twice, showing download`,
+    media ? `mediaError=${media.code} ${media.message}` : "",
+  )
   failed.value = true
 }
 

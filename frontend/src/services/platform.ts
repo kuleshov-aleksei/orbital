@@ -16,6 +16,18 @@ interface CallKeepAlivePlugin {
 }
 const CallKeepAlive = registerPlugin<CallKeepAlivePlugin>("CallKeepAlive")
 
+/** Local Android plugin (mobile/android/.../MediaCachePlugin.java). */
+interface MediaCachePlugin {
+  list(): Promise<{ keys: string[] }>
+  evict(options: { id: string }): Promise<void>
+  clear(): Promise<void>
+  addListener(
+    eventName: "log",
+    listener: (event: { level: string; message: string }) => void,
+  ): Promise<PluginListenerHandle>
+}
+const MediaCache = registerPlugin<MediaCachePlugin>("MediaCache")
+
 /**
  * Platform layer over the three shells the frontend runs in:
  * plain browser, Electron (services/electron.ts) and the Android app (Capacitor).
@@ -121,4 +133,41 @@ export async function haptic(style: "light" | "medium" = "light"): Promise<void>
   } catch {
     // Haptics are cosmetic; ignore devices without a vibrator.
   }
+}
+
+/**
+ * Native side of the chat media cache (services/attachments/mediaCache.ts):
+ * electron/main/features/mediaCache.ts on desktop, MediaCache.java on Android.
+ */
+export const mediaCacheNative = {
+  /** True when this shell serves cached media (older Electron builds don't). */
+  available(): boolean {
+    if (electron.isElectron()) return !!window.electronAPI?.mediaCacheList
+    return isCapacitor()
+  },
+  /** Base URL that serves a cache key (append ?src=... on a miss). */
+  urlFor(key: string): string {
+    return electron.isElectron() ? `orbital-media://cache/${key}` : `/_media/${key}`
+  },
+  async list(): Promise<string[]> {
+    if (electron.isElectron()) return (await window.electronAPI?.mediaCacheList?.()) ?? []
+    if (isCapacitor()) return (await MediaCache.list()).keys
+    return []
+  },
+  async evict(id: string): Promise<void> {
+    if (electron.isElectron()) await window.electronAPI?.mediaCacheEvict?.(id)
+    else if (isCapacitor()) await MediaCache.evict({ id })
+  },
+  async clear(): Promise<void> {
+    if (electron.isElectron()) await window.electronAPI?.mediaCacheClear?.()
+    else if (isCapacitor()) await MediaCache.clear()
+  },
+  /**
+   * Native log lines (Android). Electron's main process logs already reach the
+   * debug log through setupMainProcessLogRelay.
+   */
+  async onLog(listener: (level: string, message: string) => void): Promise<void> {
+    if (!isCapacitor()) return
+    await MediaCache.addListener("log", (event) => listener(event.level, event.message))
+  },
 }

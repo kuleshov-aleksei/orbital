@@ -50,10 +50,10 @@ const { url, onError } = useAttachmentUrl(
 // decode it (e.g. HEVC), so fall back to the icon.
 const videoFailed = ref(false)
 let refetched = false
-function onVideoError() {
+function onVideoError(event: Event) {
   if (!refetched) {
     refetched = true
-    onError()
+    onError(event)
     return
   }
   videoFailed.value = true
