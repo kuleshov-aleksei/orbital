@@ -38,6 +38,7 @@ services:
       # FCM_CREDENTIALS_FILE=/root/data/fcm-service-account.json in .env.
     volumes:
       - ./data/backend/:/root/data/
+      - /opt/orbital-secure/orbital-4fd77-efc096789ab7.json:/root/orbital-4fd77-efc096789ab7.json:ro
     depends_on:
       - livekit
       - meilisearch

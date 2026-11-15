@@ -2,6 +2,7 @@ import { defineStore } from "pinia"
 import { computed, ref, shallowRef } from "vue"
 import type { CustomEmojiDto } from "@/types"
 import { apiService } from "@/services/api"
+import { emojiMediaKey, mediaCacheAvailable, mediaUrl } from "@/services/attachments/mediaCache"
 import {
   CUSTOM_EMOJI_PREFIX,
   registerEmojiProvider,
@@ -20,18 +21,35 @@ const LOOKUP_BATCH = 100
 // Recent search queries kept so typing back and forth doesn't refetch.
 const SEARCH_CACHE_SIZE = 20
 
+/** Resolved emojis kept in the offline cache (services/offlineCache.ts). */
+export interface CustomEmojiSnapshot {
+  emojis: CustomEmojiDto[]
+  shortcodes: Record<string, string>
+}
+
+/** Image URLs; in the apps they go through the on-device media cache, so they work offline. */
+function emojiImageUrls(dto: CustomEmojiDto): { imageUrl: string; stillUrl?: string } {
+  const src = apiService.getCustomEmojiImageUrl(dto)
+  const stillSrc = dto.animated ? `${src}&still=1` : undefined
+  if (!mediaCacheAvailable()) return { imageUrl: src, ...(stillSrc ? { stillUrl: stillSrc } : {}) }
+  const version = new URL(dto.image_url, "http://x").searchParams.get("v") ?? "0"
+  return {
+    // A cached key is served from disk; src is only fetched (and stored) on a miss.
+    imageUrl: mediaUrl(emojiMediaKey(dto.id, version), src),
+    ...(stillSrc ? { stillUrl: mediaUrl(emojiMediaKey(dto.id, version, true), stillSrc) } : {}),
+  }
+}
+
 /** Maps a backend emoji to the picker model; name words and aliases are search keywords. */
 export function toCustomEmoji(dto: CustomEmojiDto): CustomEmoji {
   const name = dto.name.toLowerCase()
   const keywords = [...new Set([name, ...name.split(/\s+/), ...dto.aliases])].filter(Boolean)
-  const imageUrl = apiService.getCustomEmojiImageUrl(dto)
   return {
     kind: "custom",
     ref: `${CUSTOM_EMOJI_PREFIX}${dto.id}`,
     name: dto.name,
     keywords,
-    imageUrl,
-    ...(dto.animated ? { stillUrl: `${imageUrl}&still=1` } : {}),
+    ...emojiImageUrls(dto),
   }
 }
 
@@ -90,6 +108,8 @@ export const useCustomEmojisStore = defineStore("customEmojis", () => {
   // Shortcode -> id, only as resolved by the server (it alone knows which
   // emoji wins a shortcode across the whole library).
   const shortcodeIds = shallowRef(new Map<string, string>())
+  // The DTOs behind byId, for the offline snapshot (URLs are rebuilt on hydrate).
+  let dtoById = new Map<string, CustomEmojiDto>()
   // Bumped on every cache change; watch it to react to newly resolved emojis.
   const version = ref(0)
   // Lookups the server answered with "not found", so they aren't retried.
@@ -123,6 +143,7 @@ export const useCustomEmojisStore = defineStore("customEmojis", () => {
     const next = new Map(byId.value)
     for (const dto of dtos) {
       next.set(dto.id, toCustomEmoji(dto))
+      dtoById.set(dto.id, dto)
       missingIds.delete(dto.id)
     }
     byId.value = next
@@ -285,12 +306,17 @@ export const useCustomEmojisStore = defineStore("customEmojis", () => {
       ])
       if (gen !== generation) return
       const next = new Map<string, CustomEmoji>()
+      const nextDtos = new Map<string, CustomEmojiDto>()
       const nextCodes = new Map<string, string>()
       for (const res of [...byIdRes, ...byCodeRes]) {
-        for (const dto of res.emojis) next.set(dto.id, toCustomEmoji(dto))
+        for (const dto of res.emojis) {
+          next.set(dto.id, toCustomEmoji(dto))
+          nextDtos.set(dto.id, dto)
+        }
         for (const [code, id] of Object.entries(res.shortcodes ?? {})) nextCodes.set(code, id)
       }
       byId.value = next
+      dtoById = nextDtos
       shortcodeIds.value = nextCodes
       version.value++
     } catch (err) {
@@ -324,9 +350,45 @@ export const useCustomEmojisStore = defineStore("customEmojis", () => {
     const next = new Map(byId.value)
     next.delete(id)
     byId.value = next
+    dtoById.delete(id)
     missingIds.add(id)
     browseIds.value = browseIds.value.filter((b) => b !== id)
     total.value = Math.max(0, total.value - 1)
+    version.value++
+  }
+
+  /** Everything resolved so far, for the offline cache. */
+  function snapshot(): CustomEmojiSnapshot {
+    return {
+      emojis: [...dtoById.values()],
+      shortcodes: Object.fromEntries(shortcodeIds.value),
+    }
+  }
+
+  /**
+   * Restores emojis resolved in an earlier session, so `custom:<id>` refs and
+   * shortcodes render while the server is unreachable. Entries already loaded
+   * from the server win; the cache only fills gaps.
+   */
+  function hydrateFromCache(snap: CustomEmojiSnapshot): void {
+    const fresh = (snap.emojis ?? []).filter((dto) => dto?.id && !byId.value.has(dto.id))
+    const codes = Object.entries(snap.shortcodes ?? {}).filter(
+      ([code, id]) => id && !shortcodeIds.value.has(code),
+    )
+    if (fresh.length === 0 && codes.length === 0) return
+    if (fresh.length) {
+      const next = new Map(byId.value)
+      for (const dto of fresh) {
+        next.set(dto.id, toCustomEmoji(dto))
+        dtoById.set(dto.id, dto)
+      }
+      byId.value = next
+    }
+    if (codes.length) {
+      const next = new Map(shortcodeIds.value)
+      for (const [code, id] of codes) next.set(code, id)
+      shortcodeIds.value = next
+    }
     version.value++
   }
 
@@ -334,6 +396,7 @@ export const useCustomEmojisStore = defineStore("customEmojis", () => {
   function reset(): void {
     generation++
     byId.value = new Map()
+    dtoById = new Map()
     shortcodeIds.value = new Map()
     missingIds = new Set()
     missingShortcodes = new Set()
@@ -371,5 +434,7 @@ export const useCustomEmojisStore = defineStore("customEmojis", () => {
     update,
     remove,
     reset,
+    snapshot,
+    hydrateFromCache,
   }
 })

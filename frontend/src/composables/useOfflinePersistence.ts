@@ -1,6 +1,7 @@
 import { watch } from "vue"
 import {
   useCategoryStore,
+  useCustomEmojisStore,
   usePermissionsStore,
   useRoomStore,
   useTextChatStore,
@@ -8,12 +9,13 @@ import {
   useUsersStore,
 } from "@/stores"
 import type { PermissionsSnapshot } from "@/stores/permissions"
+import type { CustomEmojiSnapshot } from "@/stores/customEmojis"
 import type { Category, PublicUser, Room } from "@/types"
 import { cacheGet, cachePutDebounced, offlineCacheUser } from "@/services/offlineCache"
 
 /**
- * Offline snapshot of the sidebar data: rooms, categories, users and the
- * user's permissions (text channel messages are cached by stores/textChat.ts).
+ * Offline snapshot of the sidebar data: rooms, categories, users, the user's
+ * permissions and every custom emoji resolved so far (text channel messages are cached by stores/textChat.ts).
  *
  * hydrate() shows the snapshot when the server hasn't answered yet; the
  * watchers keep it current from both REST loads and WebSocket updates.
@@ -25,14 +27,16 @@ export function useOfflinePersistence() {
   const permissionsStore = usePermissionsStore()
   const userStore = useUserStore()
   const textChatStore = useTextChatStore()
+  const customEmojisStore = useCustomEmojisStore()
 
   async function hydrate() {
     if (!userStore.hasCompletedAuth || !offlineCacheUser()) return
-    const [rooms, categories, users, permissions] = await Promise.all([
+    const [rooms, categories, users, permissions, emojis] = await Promise.all([
       cacheGet<Room[]>("kv", "rooms"),
       cacheGet<Category[]>("kv", "categories"),
       cacheGet<PublicUser[]>("kv", "users"),
       cacheGet<PermissionsSnapshot>("kv", "permissions"),
+      cacheGet<CustomEmojiSnapshot>("kv", "customEmojis"),
     ])
     // Fresh server data may already be here; never overwrite it.
     if (rooms?.length && !roomStore.rooms.length) roomStore.setRooms(rooms, false)
@@ -41,6 +45,7 @@ export function useOfflinePersistence() {
     }
     if (users?.length) usersStore.hydrateFromCache(users)
     if (permissions) permissionsStore.hydrateFromCache(permissions)
+    if (emojis) customEmojisStore.hydrateFromCache(emojis)
     // Messages written offline in an earlier session show as queued again.
     void textChatStore.restoreOutbox()
   }
@@ -79,6 +84,17 @@ export function useOfflinePersistence() {
       if (permissionsStore.me) {
         cachePutDebounced("kv", "permissions", () => permissionsStore.snapshot())
       }
+    },
+  )
+
+  // Custom emojis resolved so far: without them, offline text shows `:shortcode:`.
+  watch(
+    () => customEmojisStore.version,
+    () => {
+      cachePutDebounced("kv", "customEmojis", () => {
+        const snap = customEmojisStore.snapshot()
+        return snap.emojis.length || Object.keys(snap.shortcodes).length ? snap : undefined
+      })
     },
   )
 

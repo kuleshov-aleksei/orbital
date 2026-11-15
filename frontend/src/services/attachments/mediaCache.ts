@@ -48,6 +48,16 @@ export function setupMediaCacheLogRelay() {
 
 export const mediaKey = (id: string, variant: AttachmentVariant) => `${id}_${variant}`
 
+/** Native key validators allow only these characters before the variant suffix. */
+const keySafe = (s: string) => s.replace(/[^A-Za-z0-9=-]/g, "-")
+
+/**
+ * Cache key of a custom emoji image. The version (the image_url `v` param)
+ * is part of the key, so a re-encoded image is cached anew.
+ */
+export const emojiMediaKey = (id: string, version: string, still = false) =>
+  `emoji-${keySafe(id)}-${keySafe(version)}_${still ? "emojistill" : "emoji"}`
+
 export function isMediaCached(key: string): boolean {
   return cached.has(key)
 }

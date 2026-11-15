@@ -31,7 +31,8 @@ import java.util.regex.Pattern;
 import org.json.JSONObject;
 
 /**
- * On-disk LRU cache for chat attachment media (images, video, audio).
+ * On-disk LRU cache for chat attachment media (images, video, audio) and
+ * custom emoji images (keys emoji-&lt;id&gt;-&lt;version&gt;_emoji[still], from the backend).
  *
  * The WebView loads https://localhost/_media/&lt;key&gt; (served by MediaCacheWebViewClient),
  * adding ?src=&lt;presigned S3 URL&gt; when the key isn't cached. Complete files are served
@@ -60,7 +61,7 @@ final class MediaCache {
     private static final long WARM_SKIP_MS = 4 * 60 * 1000;
     private static final int INDEX_VERSION = 1;
     private static final String INDEX_FILE = "index.json";
-    static final Pattern KEY_PATTERN = Pattern.compile("^[A-Za-z0-9=-]+_(original|thumb)$");
+    static final Pattern KEY_PATTERN = Pattern.compile("^[A-Za-z0-9=-]+_(original|thumb|emoji|emojistill)$");
     private static final Pattern RANGE = Pattern.compile("^bytes=(\\d*)-(\\d*)$");
     private static final Pattern CONTENT_RANGE = Pattern.compile("^bytes (\\d+)-(\\d+)/(\\d+)$");
 
@@ -468,7 +469,8 @@ final class MediaCache {
         conn.setRequestProperty("Accept-Encoding", "identity");
         if (range != null) conn.setRequestProperty("Range", range);
         int status = conn.getResponseCode();
-        noteUpstream(conn.getURL());
+        // Custom emojis come from the backend, not S3: they must not move the warm-up origin.
+        if (!key.startsWith("emoji-")) noteUpstream(conn.getURL());
         String reason = conn.getResponseMessage();
         if (reason == null || reason.isEmpty()) reason = status < 400 ? "OK" : "Error";
         String mime = conn.getContentType();

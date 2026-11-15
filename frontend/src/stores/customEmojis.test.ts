@@ -11,6 +11,15 @@ const api = vi.hoisted(() => ({
 }))
 vi.mock("@/services/api", () => ({ apiService: api }))
 
+// Toggled per test: true simulates the Electron/Android on-device media cache.
+const native = vi.hoisted(() => ({ available: false }))
+vi.mock("@/services/attachments/mediaCache", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/services/attachments/mediaCache")>()),
+  mediaCacheAvailable: () => native.available,
+  mediaUrl: (key: string, src?: string) =>
+    `orbital-media://cache/${key}${src ? `?src=${encodeURIComponent(src)}` : ""}`,
+}))
+
 import { getEmojiCategories, resolveEmoji, searchEmojis } from "@/services/emoji"
 import { toCustomEmoji, useCustomEmojisStore } from "./customEmojis"
 
@@ -42,7 +51,10 @@ describe("custom emojis store", () => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
   })
-  afterEach(() => useCustomEmojisStore().reset())
+  afterEach(() => {
+    useCustomEmojisStore().reset()
+    native.available = false
+  })
 
   it("maps name words and aliases to keywords", () => {
     const emoji = toCustomEmoji(dto("a", "Party Parrot", ["pp"]))
@@ -186,5 +198,61 @@ describe("custom emojis store", () => {
     expect(resolveEmoji(`custom:${ID_B}`)).toBeNull()
     await flush()
     expect(api.getCustomEmojisByIds).not.toHaveBeenCalled()
+  })
+
+  it("loads images through the on-device media cache in the apps", () => {
+    native.available = true
+    const emoji = toCustomEmoji({
+      ...dto(ID_A, "Spin"),
+      image_url: `/api/emojis/${ID_A}/image?v=${ID_B}`,
+      animated: true,
+    })
+    const src = `http://backend/api/emojis/${ID_A}/image?v=${ID_B}`
+    expect(emoji.imageUrl).toBe(
+      `orbital-media://cache/emoji-${ID_A}-${ID_B}_emoji?src=${encodeURIComponent(src)}`,
+    )
+    expect(emoji.stillUrl).toBe(
+      `orbital-media://cache/emoji-${ID_A}-${ID_B}_emojistill?src=${encodeURIComponent(`${src}&still=1`)}`,
+    )
+    // Native key validators: [A-Za-z0-9=-]+_(original|thumb|emoji|emojistill)
+    const key = decodeURIComponent(emoji.imageUrl.split("?")[0].split("/").pop()!)
+    expect(key).toMatch(/^[A-Za-z0-9=-]+_(original|thumb|emoji|emojistill)$/)
+  })
+
+  it("snapshots resolved emojis and restores them offline without a server", async () => {
+    api.getCustomEmojisByShortcodes.mockResolvedValue({
+      emojis: [dto(ID_A, "Party Parrot")],
+      shortcodes: { party_parrot: ID_A },
+    })
+    api.getCustomEmojiPage.mockResolvedValue(page([dto(ID_B, "Blob")]))
+    const store = useCustomEmojisStore()
+    await store.ensureLoaded()
+    await store.resolveShortcodes(["party_parrot"])
+    const snap = JSON.parse(JSON.stringify(store.snapshot()))
+    expect(snap.emojis.map((e: CustomEmojiDto) => e.id).sort()).toEqual([ID_A, ID_B].sort())
+    expect(snap.shortcodes).toEqual({ party_parrot: ID_A })
+
+    // A new session that can't reach the server.
+    store.reset()
+    vi.clearAllMocks()
+    store.hydrateFromCache(snap)
+    expect(resolveEmoji(`custom:${ID_A}`)).toMatchObject({ name: "Party Parrot" })
+    expect(resolveEmoji(`custom:${ID_B}`)).toMatchObject({ name: "Blob" })
+    expect(store.idForShortcode("party_parrot")).toBe(ID_A)
+    await flush()
+    expect(api.getCustomEmojisByIds).not.toHaveBeenCalled()
+  })
+
+  it("never lets the offline snapshot overwrite fresher server data", async () => {
+    api.getCustomEmojiPage.mockResolvedValue(page([dto(ID_A, "New name")]))
+    const store = useCustomEmojisStore()
+    await store.ensureLoaded()
+    store.hydrateFromCache({
+      emojis: [dto(ID_A, "Old name"), dto(ID_C, "Cached")],
+      shortcodes: {},
+    })
+    expect(resolveEmoji(`custom:${ID_A}`)).toMatchObject({ name: "New name" })
+    expect(resolveEmoji(`custom:${ID_C}`)).toMatchObject({ name: "Cached" })
+    expect(store.snapshot().emojis.find((e) => e.id === ID_A)?.name).toBe("New name")
   })
 })
