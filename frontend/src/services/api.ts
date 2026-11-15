@@ -557,9 +557,11 @@ export async function apiRequest<T>(
 
     let response: Response
     try {
+      // Merged headers go last: options.headers is already folded into them,
+      // and spreading options after would drop auth/JSON/client headers.
       response = await fetch(`${API_BASE}${endpoint}`, {
-        headers,
         ...options,
+        headers,
         signal,
       })
     } catch (error) {

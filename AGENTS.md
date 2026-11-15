@@ -146,6 +146,7 @@ Types coming FROM backend to frontend should have **snake_case**. Do not follow 
 - Test WebSocket connections
 - Use integration tests for API endpoints
 - Never commit raw debug logs, credentials, or secrets from user reports
+- `apiRequest` builds the final headers from `options.headers` plus auth/JSON/client headers. Pass extra headers through `options.headers`; they are merged, not replaced.
 
 ### Modals opened from popovers
 
@@ -170,6 +171,17 @@ Spec and decisions: [`docs/specs/CHAT_SYSTEM.md`](./docs/specs/CHAT_SYSTEM.md). 
 - **Never unmount the call view** (`VoiceCallView` / `SpatialWorldView`) to show something else: `useLiveKit` disconnects from LiveKit in `onUnmounted`. `MainContent.vue` keeps it mounted and hides it with `v-show` while a text channel is open.
 - Tests that need Meilisearch or Garage use the `integration` build tag and run with `make test-integration` (starts both; the S3 test reads `GARAGE_DEFAULT_*` from `.env` and skips without it); PR CI runs only `go test ./...` (unit tests).
 - `make e2e-textchat` runs a live REST/WebSocket check (`scripts/e2e-textchat.mjs`) against a throwaway backend with its own database and index, then cleans up. It includes an attachment pass against the dev Garage (skipped when `GARAGE_DEFAULT_*` is missing from `.env`). The browser side is covered by `frontend/tests/e2e/text-attachments.spec.ts` (Playwright; skips unless Meilisearch and Garage are up; its backend uses the `text_messages_playwright` index). `CHAT_ML_URL=http://127.0.0.1:3003 make e2e-textchat` (after `make ml-up`) adds the search-by-image-contents pass (Cyrillic OCR, image found by meaning). Run it after changes to `chatstore`, `websocket/textchat.go` or the text chat handlers.
+
+### Offline behaviour (unreliable networks)
+
+The Android app runs on flaky mobile data, so the client must never assume the server answers. This applies to every platform.
+
+- **Reachability**: `stores/connection.ts` (`status: connecting | online | offline`) is fed by `apiRequest` (any HTTP response means online; a network error or timeout means offline) and by the global socket. It drives `ConnectionStatusPill` and the sidebar status line. Check `connectionStore.isOnline` before network-only actions (uploads), never `navigator.onLine`.
+- **Timeouts**: `apiRequest` aborts after 15 s (multipart uploads are exempt), WebSocket handshakes after 10 s, a LiveKit join after 25 s, and a room switch after 20 s. A new await on the network inside a flow that shows an overlay or spinner needs a deadline too. A hung promise in such a flow is what froze the room buttons.
+- **Offline cache**: `services/offlineCache.ts` (IndexedDB, keys scoped to the signed-in user, cleared on logout) holds rooms, categories, users, permissions, unread badges, the newest 50 messages per opened channel and the message outbox. Hydrate from it before the network loads, and never overwrite fresh server data with it (`roomStore.roomsFromServer`). Don't add new `localStorage` keys for server data. The server config is the exception: it is cached in `localStorage` (`orbital_config_cache`) because `main.ts` needs it before Pinia hydration.
+- **Outbox**: text messages are always written to the outbox first, then sent; offline they show as `queued` and are flushed on reconnect (`textChatStore.flushOutbox`). **Every send must carry a client `nonce`**: the backend dedupes resends per (user, nonce) (`websocket/textchat_nonce.go`), answering a duplicate with the original message, so an outbox resend after a lost echo never duplicates.
+- **Voice failures** set `connectionFailed` (Retry/Leave banner, mirrored as `callStore.voiceConnectionFailed`). Clicking the active room again retries. Never cover the sidebar with a full-screen overlay while waiting on the network.
+- Browser coverage: `frontend/tests/e2e/offline.spec.ts` simulates an unreachable server with `page.route` + `page.routeWebSocket`. Use those, not `context.setOffline`, which also blocks the dev server and doesn't drop open sockets.
 
 ### Electron Development
 - Electron desktop app is in the `electron/` directory

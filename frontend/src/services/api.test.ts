@@ -60,6 +60,22 @@ describe("token lifecycle", () => {
 })
 
 describe("apiRequest", () => {
+  it("keeps auth and JSON headers when the caller passes its own headers", async () => {
+    setAuthToken("token-1")
+    fetchMock.mockImplementation(async () => jsonResponse({ ok: true }))
+
+    await apiRequest("/auth/exchange", {
+      method: "POST",
+      headers: { "Cache-Control": "no-store" },
+      body: "{}",
+    })
+
+    const headers = fetchMock.mock.calls[0][1]?.headers as Record<string, string>
+    expect(headers["Cache-Control"]).toBe("no-store")
+    expect(headers["Content-Type"]).toBe("application/json")
+    expect(headers.Authorization).toBe("Bearer token-1")
+  })
+
   it("attaches auth and JSON headers but leaves multipart content type alone", async () => {
     setAuthToken("token-1")
     fetchMock.mockImplementation(async () => jsonResponse({ ok: true }))
