@@ -1,6 +1,7 @@
 <template>
   <!-- data-no-long-press: attachments keep their own long-press (contextmenu) menu. -->
   <div
+    ref="rootEl"
     class="mt-1 flex flex-col gap-1.5 items-start max-w-full"
     data-testid="message-attachments"
     data-no-long-press>
@@ -91,13 +92,14 @@
       v-if="lightboxIndex !== null"
       :images="images"
       :start-index="lightboxIndex"
+      :origin-root="rootEl"
       @close="lightboxIndex = null" />
     <AttachmentContentModal v-if="contentFor" :attachment="contentFor" @close="contentFor = null" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue"
+import { computed, ref, useTemplateRef } from "vue"
 import { PhDotsThree, PhDownloadSimple, PhLock, PhPaperclip } from "@phosphor-icons/vue"
 import AttachmentImageTile from "./AttachmentImageTile.vue"
 import AttachmentVideo from "./AttachmentVideo.vue"
@@ -130,6 +132,7 @@ const images = computed(() => live.value.filter((a) => a.kind === "image"))
 const others = computed(() => live.value.filter((a) => a.kind !== "image"))
 const removed = computed(() => props.attachments.filter((a) => a.removed))
 
+const rootEl = useTemplateRef<HTMLElement>("rootEl")
 const lightboxIndex = ref<number | null>(null)
 const menu = ref<{ attachment: TextAttachment; x: number; y: number } | null>(null)
 const actionError = ref<string | null>(null)
