@@ -590,6 +590,35 @@ Images only (phase 4). Audio/video transcripts are not planned yet; an OpenAI-co
 - Opening a muted channel works normally: read state still advances and history is unaffected.
 - The global sound setting (§7.4, mention sound on/off and volume) stays a separate, app-wide switch on top of this.
 
+### 7.15 Link previews (embeds)
+
+Telegram/Discord-style cards under a message for the links in it: site name, title, description, image; YouTube links get an inline player. Decided on 2026-11-15.
+
+- **The server makes them** (`backend/internal/service/linkpreview`), never the client: viewers' IPs never reach third-party sites.
+  - After `text_message_send` and `text_message_edit` the hub calls `Previews.Schedule`. A background worker (4 messages at a time, 20 s per message) fetches the links and stores the result with `chatstore.SetEmbeds`. Then it broadcasts `text_message_updated`.
+  - `SetEmbeds` drops the result (`ErrStale`) if the message was edited meanwhile or its previews were removed.
+- **Which links** (`chatstore.PreviewURLs`): autolinked http(s) URLs (the same rules as the frontend autolinker), at most 3, without duplicates. There are two exceptions:
+  - `<https://…>` gets no preview; the frontend still renders it as a link, without the brackets.
+  - Links inside `||spoilers||` get no preview either.
+- **Edits** keep the previews of links that are still in the text and drop the rest. New links are fetched.
+- **Fetching** (`linkpreview/fetch.go`):
+  - Only `http`/`https` URLs without credentials, through no proxy.
+  - The dialer refuses non-public addresses *after DNS resolution*: loopback, RFC 1918, link-local (cloud metadata), CGNAT 100.64/10 (Headscale), ULA, multicast and unspecified. This also covers redirects (at most 3) and DNS rebinding.
+  - 6 s timeout; reads at most 1 MB of HTML and 8 MB per image.
+- **Parsing**: the `<head>` only, in any charset (`x/net/html/charset`, e.g. windows-1251). Sources in order: `og:*`, then `twitter:*`, then `<title>` / `meta description`. Titles are cut to 256 runes and descriptions to 350.
+  - A response that is itself an image becomes `kind: "image"`.
+  - YouTube watch/short/live/youtu.be links become `kind: "video"` with `video_provider: "youtube"` and `video_id`. They still get a card when the page fetch fails, using the `i.ytimg.com` thumbnail.
+  - A link with no title, description or image gets no card.
+- **Images** are proxied: the server downloads `og:image`, renders a WebP that fits 480 px (`chatmedia.EmbedThumbnail`; same decompression-bomb guards, first frame only) and stores it in the chat media bucket at `embeds/<random id>.webp`.
+  - `GET /api/embeds/{id}/image` serves it publicly (like emoji images, since `<img>` has no Bearer header; the ids are 128-bit random), cached forever.
+  - Without S3 there are no images. Thumbnails are never deleted: they are small, and the cache shares them between messages.
+- **Cache**: SQLite `link_previews (url, embed, fetched_at)`. Successes are kept for 24 h and failures for 1 h, so the same link posted again is not fetched again; rows older than 7 days are pruned.
+- **Message fields**: `embeds: [{url, kind, site_name, title, description, image_id, image_width, image_height, video_provider, video_id}]` and `embeds_suppressed`. They are not searchable.
+- **Removing**: `text_message_suppress_embeds {message_id}`. The author may always; others need `ManageMessages` in the channel (otherwise `permission_denied`). It sets `embeds_suppressed`, clears `embeds` and broadcasts `text_message_updated`. No new previews are made for that message afterwards, edits included.
+- **Client** (`components/textchat/embeds/`): the card has an accent border; wide images go under the text and small ones to the side. YouTube shows a thumbnail with a play button, and a click swaps in a `youtube-nocookie.com` iframe (allowed by `frame-src` in `index.html`). A ✕ removes the previews.
+- `CHAT_LINK_PREVIEWS_ENABLED` (default true) turns the feature off.
+- Known limits: preview images are not in the Electron/Android on-device media cache (they use the HTTP cache). The YouTube player in the Android WebView may refuse to play without a Referer.
+
 ## 8. API
 
 JSON is snake_case (see AGENTS.md). Types go in `frontend/src/types/index.ts`; API calls go in `frontend/src/services/api.ts`.
@@ -609,6 +638,7 @@ REST
 | `PATCH /api/attachments/{id}` `{protected}` (phase 3) | Protect / unprotect; uploader only |
 | `DELETE /api/attachments/{id}` (phase 3) | Remove one file; uploader or `ManageMessages` |
 | `GET /api/attachments/{id}/content[?q=]` (phase 4) | OCR text, embedding and job state of an image; with `q`, how the phrase scores (§7.13) |
+| `GET /api/embeds/{id}/image` (public) | Link preview thumbnail (WebP, §7.15) |
 | `POST /api/attachments/{id}/content/retry` (phase 4) | Re-run extraction of an image; uploader or `ManageMessages` |
 | `GET /api/admin/attachments/extraction` (phase 4) | Image indexing queue counts, worker state, recent errors; super admin |
 | `POST /api/admin/attachments/extraction/retry-failed` (phase 4) | Re-queue all failed images; super admin |
@@ -620,6 +650,7 @@ WebSocket. Client → server:
 - `text_message_send {room_id, content, reply_to_id?, reply_ping?, upload_ids?, nonce}`. The `nonce` lets the client match its optimistic message to the ack.
 - `text_message_edit {message_id, content}`
 - `text_message_delete {message_id}`
+- `text_message_suppress_embeds {message_id}` (§7.15)
 - `text_reaction_toggle {message_id, emoji}`
 - `text_pin {message_id, pinned}`
 - `text_channel_read {room_id, seq}`

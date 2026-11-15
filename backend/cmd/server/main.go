@@ -20,6 +20,7 @@ import (
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatmedia"
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatstore"
 	"github.com/kuleshov-aleksei/orbital/internal/service/immichml"
+	"github.com/kuleshov-aleksei/orbital/internal/service/linkpreview"
 	"github.com/kuleshov-aleksei/orbital/internal/service/push"
 	"github.com/kuleshov-aleksei/orbital/internal/storage"
 	"github.com/kuleshov-aleksei/orbital/internal/version"
@@ -244,6 +245,13 @@ func main() {
 		}
 		if textChat.Media != nil {
 			textChat.ML, textChat.SemanticThreshold = newChatML(cfg), cfg.ChatML.SemanticThreshold
+		}
+		if cfg.Chat.LinkPreviews {
+			var media chatmedia.MediaStore
+			if textChat.Media != nil {
+				media = textChat.Media.Store()
+			}
+			textChat.Previews = linkpreview.New(linkpreview.Options{DB: appDB, Messages: store, Media: media})
 		}
 		wsHub.SetTextChat(textChat)
 		if textChat.Media != nil {
@@ -550,6 +558,14 @@ func main() {
 	if emojiHandler != nil {
 		r.Handle("/api/emojis", auth(http.HandlerFunc(emojiHandler.ListEmojis))).Methods("GET")
 		r.HandleFunc("/api/emojis/{id}/image", emojiHandler.GetEmojiImage).Methods("GET")
+		// Link preview thumbnails: public like emoji images (<img> sends no
+		// Authorization header; ids are random).
+		r.HandleFunc("/api/embeds/{id}/image", handlers.EmbedImage(func() *linkpreview.Service {
+			if textChat == nil {
+				return nil
+			}
+			return textChat.Previews
+		}())).Methods("GET")
 		emojiUploadHandler := limiter.Middleware("emoji-upload", emojiUploadLimit, userOrIPKey, http.HandlerFunc(emojiHandler.UploadEmoji))
 		r.Handle("/api/emojis", auth(emojiUploadHandler)).Methods("POST")
 		r.Handle("/api/admin/emojis/{id}", auth(http.HandlerFunc(emojiHandler.UpdateEmoji))).Methods("PATCH")

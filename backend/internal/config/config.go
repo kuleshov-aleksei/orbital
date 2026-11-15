@@ -60,6 +60,9 @@ type ChatConfig struct {
 	MeiliURL    string `yaml:"meili_url"`
 	MeiliAPIKey string `yaml:"meili_api_key"`
 	MeiliIndex  string `yaml:"meili_index"`
+	// LinkPreviews: the server fetches previews of links in messages
+	// (CHAT_LINK_PREVIEWS_ENABLED, default true).
+	LinkPreviews bool `yaml:"link_previews"`
 }
 
 // Development defaults match the meilisearch service in docker-compose.dev.yml,
@@ -265,7 +268,8 @@ func DefaultConfig() *Config {
 		},
 		LiveKit: DefaultLiveKitConfig(),
 		Chat: ChatConfig{
-			MeiliIndex: "text_messages",
+			MeiliIndex:   "text_messages",
+			LinkPreviews: true,
 		},
 		ChatMedia: ChatMediaConfig{
 			Bucket:         "orbital-chat-media",
@@ -505,8 +509,9 @@ func (c *Config) loadFromEnv() {
 		}
 	}
 	for key, dst := range map[string]*bool{
-		"CHAT_ML_OCR_ENABLED":  &c.ChatML.OCREnabled,
-		"CHAT_ML_CLIP_ENABLED": &c.ChatML.CLIPEnabled,
+		"CHAT_ML_OCR_ENABLED":        &c.ChatML.OCREnabled,
+		"CHAT_ML_CLIP_ENABLED":       &c.ChatML.CLIPEnabled,
+		"CHAT_LINK_PREVIEWS_ENABLED": &c.Chat.LinkPreviews,
 	} {
 		if v, err := strconv.ParseBool(os.Getenv(key)); err == nil {
 			*dst = v

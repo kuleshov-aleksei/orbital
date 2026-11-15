@@ -667,6 +667,11 @@ export const useTextChatStore = defineStore("textChat", () => {
     wsService.sendGlobalMessage("text_message_delete", { message_id: messageId })
   }
 
+  /** Removes a message's link previews (author or ManageMessages). */
+  function suppressEmbeds(messageId: string) {
+    wsService.sendGlobalMessage("text_message_suppress_embeds", { message_id: messageId })
+  }
+
   function toggleReaction(messageId: string, emoji: string) {
     // Adding (not removing) a reaction moves it to the front of the quick reactions.
     let adding = true
@@ -1016,6 +1021,7 @@ export const useTextChatStore = defineStore("textChat", () => {
     discardPending,
     editMessage,
     deleteMessage,
+    suppressEmbeds,
     startReply,
     cancelReply,
     startEdit,

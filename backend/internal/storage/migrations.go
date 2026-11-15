@@ -601,6 +601,19 @@ CREATE INDEX IF NOT EXISTS idx_push_devices_user ON push_devices(user_id);`,
 			updated_at INTEGER NOT NULL
 		);`,
 	},
+	{
+		Version: 49,
+		Name:    "create_link_previews",
+		// Cache of fetched link previews (docs/specs/CHAT_SYSTEM.md §7.15),
+		// so a link posted again is not fetched again. embed is the JSON
+		// chatstore.Embed, or empty when the fetch failed.
+		SQL: `CREATE TABLE IF NOT EXISTS link_previews (
+			url TEXT PRIMARY KEY,
+			embed TEXT NOT NULL DEFAULT '',
+			fetched_at INTEGER NOT NULL
+		);
+CREATE INDEX IF NOT EXISTS idx_link_previews_fetched ON link_previews(fetched_at);`,
+	},
 }
 
 // RunMigrationsUpTo applies migrations up to and including maxVersion.

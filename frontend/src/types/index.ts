@@ -113,6 +113,7 @@ export type WebSocketMessageType =
   | "text_message_send"
   | "text_message_edit"
   | "text_message_delete"
+  | "text_message_suppress_embeds"
   | "text_channel_read"
   | "text_reaction_toggle"
   | "text_pin"

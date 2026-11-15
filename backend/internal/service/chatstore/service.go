@@ -339,9 +339,12 @@ func (s *Service) Edit(ctx context.Context, id, actorID, content string) (*Messa
 		m.ContentSearch = SearchText(text)
 		m.EditedAtTS = &now
 		m.MentionUserIDs, m.MentionRoleIDs = users, roles
+		// Previews of links that are gone go too; new links get theirs from
+		// the link preview worker.
+		m.Embeds = keepEmbeds(m.Embeds, text)
 		return map[string]any{
 			"content": m.Content, "content_search": m.ContentSearch, "edited_at_ts": now,
-			"mention_user_ids": users, "mention_role_ids": roles,
+			"mention_user_ids": users, "mention_role_ids": roles, "embeds": m.Embeds,
 		}, nil
 	})
 }

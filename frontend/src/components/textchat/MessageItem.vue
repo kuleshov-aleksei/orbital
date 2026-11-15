@@ -120,6 +120,11 @@
           :is-own="isOwn"
           :can-manage="canManage"
           :pending="!!pendingStatus" />
+        <MessageEmbeds
+          v-if="message.embeds?.length && !message.embeds_suppressed && !editing"
+          :embeds="message.embeds"
+          :removable="(isOwn || canManage) && !pendingStatus"
+          @remove="$emit('remove-embeds')" />
 
         <ReactionBar
           v-if="message.reactions.length && !pendingStatus"
@@ -265,6 +270,7 @@ import EmojiGlyph from "@/components/EmojiGlyph.vue"
 import MessageContent from "./MessageContent.vue"
 import ReactionBar from "./ReactionBar.vue"
 import MessageAttachments from "./attachments/MessageAttachments.vue"
+import MessageEmbeds from "./embeds/MessageEmbeds.vue"
 import { useAppStore, useCustomEmojisStore, usePermissionsStore, useUsersStore } from "@/stores"
 import { useLongPress } from "@/composables/useLongPress"
 import {
@@ -322,6 +328,8 @@ const emit = defineEmits<{
   react: [emoji: string]
   "add-reaction": [event: MouseEvent]
   pin: [pinned: boolean]
+  /** Remove the message's link previews. */
+  "remove-embeds": []
   /** Mobile long press: open the message action sheet. */
   "open-actions": []
 }>()

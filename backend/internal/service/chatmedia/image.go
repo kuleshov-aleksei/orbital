@@ -202,3 +202,40 @@ func extractionImage(data []byte) ([]byte, error) {
 	}
 	return out, nil
 }
+
+// Link preview thumbnails (docs/specs/CHAT_SYSTEM.md §7.15).
+const (
+	embedThumbBox     = 480
+	embedThumbQuality = 75
+)
+
+// EmbedThumbnail renders a link preview image (png, jpeg, gif, webp) as a
+// WebP that fits embedThumbBox, metadata stripped, first frame only. It
+// returns the WebP and its size.
+func EmbedThumbnail(data []byte) ([]byte, int, int, error) {
+	ft, ok := sniff(data)
+	if !ok || ft.kind != KindImage {
+		return nil, 0, 0, errBadImage
+	}
+	bimg.Initialize()
+	meta, err := bimg.NewImage(data).Metadata()
+	if err != nil {
+		return nil, 0, 0, errBadImage
+	}
+	w, h := meta.Size.Width, meta.Size.Height
+	if w <= 0 || h <= 0 || w > maxImageDimension || h > maxImageDimension || w*h > maxImagePixels {
+		return nil, 0, 0, errBadImage
+	}
+	if meta.Orientation >= 5 && meta.Orientation <= 8 {
+		w, h = h, w
+	}
+	tw, th := fitBox(w, h, embedThumbBox)
+	out, err := bimg.NewImage(data).Process(bimg.Options{
+		Width: tw, Height: th, Force: true,
+		Type: bimg.WEBP, Quality: embedThumbQuality, StripMetadata: true,
+	})
+	if err != nil {
+		return nil, 0, 0, errBadImage
+	}
+	return out, tw, th, nil
+}

@@ -77,6 +77,7 @@
           @add-reaction="(e) => openReactionPicker(item.message.id, e)"
           @open-actions="actionsFor = item.message"
           @pin="(pinned) => textChatStore.setPinned(item.message.id, pinned)"
+          @remove-embeds="textChatStore.suppressEmbeds(item.message.id)"
           @reply="textChatStore.startReply(item.message)"
           @edit="textChatStore.startEdit(item.message.id)"
           @delete="(skip) => requestDelete(item.message, skip)"

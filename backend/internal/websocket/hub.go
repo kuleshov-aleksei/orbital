@@ -729,6 +729,8 @@ func (c *Client) handleMessage(message models.WebSocketMessage) {
 		c.handleTextMessageEdit(message.Data)
 	case "text_message_delete":
 		c.handleTextMessageDelete(message.Data)
+	case "text_message_suppress_embeds":
+		c.handleTextMessageSuppressEmbeds(message.Data)
 	case "text_channel_read":
 		c.handleTextChannelRead(message.Data)
 	case "text_reaction_toggle":

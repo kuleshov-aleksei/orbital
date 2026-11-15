@@ -123,6 +123,7 @@ func (c *Client) handleTextMessageSend(data interface{}) {
 	}
 	c.hub.broadcastText(msg.RoomID, models.WebSocketMessage{Type: "text_message_new", Data: payload})
 	c.hub.pushMessage(tc, msg, c.hub.pingMentions(tc, msg))
+	tc.Previews.Schedule(msg, c.hub.broadcastUpdated)
 }
 
 // ackExistingMessage answers a duplicate send with the message the nonce
@@ -184,6 +185,42 @@ func (c *Client) handleTextMessageEdit(data interface{}) {
 	}
 	msg, err := tc.Store.Edit(context.Background(), req.MessageID, userID, req.Content)
 	if err != nil {
+		c.sendStoreError(err, "", req.MessageID)
+		return
+	}
+	c.hub.broadcastUpdated(msg)
+	tc.Previews.Schedule(msg, c.hub.broadcastUpdated)
+}
+
+type textSuppressEmbedsRequest struct {
+	MessageID string `json:"message_id"`
+}
+
+// handleTextMessageSuppressEmbeds removes a message's link previews. The
+// author may always; others need ManageMessages in the channel.
+func (c *Client) handleTextMessageSuppressEmbeds(data interface{}) {
+	tc := c.hub.textChatService()
+	userID := c.identity()
+	var req textSuppressEmbedsRequest
+	if err := decodeData(data, &req); err != nil || userID == "" || req.MessageID == "" {
+		return
+	}
+	if tc == nil {
+		c.sendTextError(textErrUnavailable, "Text channels are disabled", "", req.MessageID)
+		return
+	}
+	if _, err := c.visibleMessage(tc, req.MessageID); err != nil {
+		c.sendStoreError(err, "", req.MessageID)
+		return
+	}
+	ps := c.hub.permissionService()
+	msg, err := tc.Store.SuppressEmbeds(context.Background(), req.MessageID, userID, func(roomID string) bool {
+		return c.hub.canInRoom(ps, c, roomID, permissions.ManageMessages)
+	})
+	if err != nil {
+		if errors.Is(err, chatstore.ErrForbidden) {
+			sendPermissionDenied(c, "text_message_suppress_embeds", "")
+		}
 		c.sendStoreError(err, "", req.MessageID)
 		return
 	}

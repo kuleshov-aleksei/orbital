@@ -22,6 +22,28 @@ export interface TextMessage {
   pinned_at_ts: number | null
   pinned_by: string | null
   attachments: TextAttachment[]
+  /** Link previews, filled in by the server after the message is sent.
+   * Missing on messages cached before link previews existed. */
+  embeds?: TextEmbed[]
+  /** The author or a moderator removed the previews. */
+  embeds_suppressed?: boolean
+}
+
+export type EmbedKind = "link" | "image" | "video"
+
+/** Preview of one link (docs/specs/CHAT_SYSTEM.md §7.15). */
+export interface TextEmbed {
+  url: string
+  kind: EmbedKind
+  site_name?: string
+  title?: string
+  description?: string
+  /** Proxied thumbnail, served at /api/embeds/{image_id}/image. */
+  image_id?: string
+  image_width?: number
+  image_height?: number
+  video_provider?: "youtube"
+  video_id?: string
 }
 
 export type AttachmentKind = "image" | "video" | "audio"

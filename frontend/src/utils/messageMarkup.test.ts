@@ -51,6 +51,7 @@ describe("parseMessage", () => {
     ["see https://example.com/a?b=1.", "see link(https://example.com/a?b=1)."],
     ["(https://example.com)", "(link(https://example.com))"],
     ["**https://x.io**", "bold(link(https://x.io))"],
+    ["no preview <https://x.io/a> here", "no preview link(https://x.io/a) here"],
     ["javascript:alert(1)", "javascript:alert(1)"],
     [`hi <:wave:${EMOJI_ID}>!`, "hi emoji(wave)!"],
     ["<@user_1> and <@&mods>", "user(user_1) and role(mods)"],

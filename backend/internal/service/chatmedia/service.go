@@ -119,6 +119,9 @@ func (s *Service) SetMessageHook(h MessageHook) {
 // Limits returns the configured limits.
 func (s *Service) Limits() Limits { return s.limits }
 
+// Store is the object storage (link previews keep their thumbnails there).
+func (s *Service) Store() MediaStore { return s.media }
+
 func (s *Service) userLock(userID string) *sync.Mutex {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(userID))

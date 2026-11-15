@@ -284,6 +284,63 @@ async function contentSearchChecks() {
   check("indexing status: super admin only", statsDenied.status === 403, String(statsDenied.status))
 }
 
+// Link previews (spec §7.15): made by the backend after a send.
+async function linkPreviewChecks() {
+  /** Waits for the text_message_updated of one message that carries embeds. */
+  async function embedsOf(ws, id, ms) {
+    for (let waited = 0; waited < ms; waited += 250) {
+      await sleep(250)
+      const hit = ws
+        .take("text_message_updated")
+        .map((m) => m.data.message)
+        .find((m) => m.id === id && m.embeds?.length)
+      if (hit) return hit
+    }
+    return null
+  }
+  async function send(content, nonce) {
+    wsAlice.send("text_message_send", { room_id: roomId, content, nonce })
+    await sleep(400)
+    return wsAlice.take("text_message_new").find((m) => m.data.nonce === nonce)?.data?.message
+  }
+
+  // The backend itself is a private address: never fetched (SSRF guard).
+  const local = await send(`see ${BASE}/api/config`, "lp1")
+  check("link preview: new message has no embeds yet", Array.isArray(local?.embeds) && local.embeds.length === 0)
+  check("link preview: private address not fetched", !(await embedsOf(wsBob, local.id, 2000)))
+
+  // A public page needs internet access on this machine.
+  const pub = await send("docs: https://example.com and <https://example.org>", "lp2")
+  const withEmbeds = await embedsOf(wsBob, pub.id, 10000)
+  if (!withEmbeds) {
+    console.log("SKIP link preview of a public page — no internet access from the backend?")
+    return
+  }
+  check(
+    "link preview: public page, <url> skipped",
+    withEmbeds.embeds.length === 1 && withEmbeds.embeds[0].url === "https://example.com" &&
+      !!withEmbeds.embeds[0].title,
+    JSON.stringify(withEmbeds.embeds),
+  )
+  wsBob.send("text_message_suppress_embeds", { message_id: pub.id })
+  await sleep(300)
+  check(
+    "link preview: removal by non-author rejected",
+    wsBob.take("text_error").some((m) => m.data.code === "forbidden"),
+  )
+  wsAlice.send("text_message_suppress_embeds", { message_id: pub.id })
+  await sleep(300)
+  const removed = wsBob
+    .take("text_message_updated")
+    .map((m) => m.data.message)
+    .find((m) => m.id === pub.id)
+  check(
+    "link preview: author removes previews",
+    removed?.embeds_suppressed === true && removed.embeds.length === 0,
+    JSON.stringify(removed),
+  )
+}
+
 const owner = await user("owner")
 const alice = await user("alice")
 const bob = await user("bob")
@@ -396,6 +453,7 @@ try {
     wsBob.take("text_error").some((m) => m.data.code === "forbidden"),
   )
 
+  await linkPreviewChecks()
   await attachmentChecks()
   await contentSearchChecks()
 } finally {

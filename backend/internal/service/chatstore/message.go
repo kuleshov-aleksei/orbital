@@ -20,6 +20,9 @@ var (
 	ErrForbidden = errors.New("not allowed")
 	// ErrInvalid: the request is malformed (empty content, too long, ...).
 	ErrInvalid = errors.New("invalid message")
+	// ErrStale: the message changed while derived data (link previews) was
+	// being made; the result was dropped.
+	ErrStale = errors.New("message changed")
 	// ErrUnavailable: Meilisearch is down or not bootstrapped yet.
 	ErrUnavailable = errors.New("chat unavailable")
 )
@@ -64,6 +67,11 @@ type Message struct {
 	AttachmentKinds []string     `json:"attachment_kinds"`
 	AttachmentNames []string     `json:"attachment_names"`
 	AttachmentText  string       `json:"attachment_text"`
+	// Link previews (docs/specs/CHAT_SYSTEM.md §7.15), filled in after the
+	// message is stored. EmbedsSuppressed: the author or a moderator removed
+	// them; no new ones are made.
+	Embeds           []Embed `json:"embeds"`
+	EmbedsSuppressed bool    `json:"embeds_suppressed"`
 }
 
 // PublicMessage is what clients receive: no search-only or moderation fields.
@@ -83,6 +91,9 @@ type PublicMessage struct {
 	PinnedAtTS     *int64       `json:"pinned_at_ts"`
 	PinnedBy       *string      `json:"pinned_by"`
 	Attachments    []Attachment `json:"attachments"`
+	Embeds         []Embed      `json:"embeds"`
+	// EmbedsSuppressed lets clients tell "no previews yet" from "removed".
+	EmbedsSuppressed bool `json:"embeds_suppressed"`
 }
 
 // Public converts a stored message to its client representation.
@@ -93,6 +104,7 @@ func (m *Message) Public() PublicMessage {
 		ReplyToID: m.ReplyToID, MentionUserIDs: nonNil(m.MentionUserIDs), MentionRoleIDs: nonNil(m.MentionRoleIDs),
 		Reactions: nonNilReactions(m.Reactions), Pinned: m.Pinned, PinnedAtTS: m.PinnedAtTS, PinnedBy: m.PinnedBy,
 		Attachments: nonNilAttachments(m.Attachments),
+		Embeds:      nonNilEmbeds(m.Embeds), EmbedsSuppressed: m.EmbedsSuppressed,
 	}
 }
 
@@ -104,6 +116,7 @@ func (m *Message) normalize() {
 	m.Attachments = nonNilAttachments(m.Attachments)
 	m.AttachmentKinds = nonNil(m.AttachmentKinds)
 	m.AttachmentNames = nonNil(m.AttachmentNames)
+	m.Embeds = nonNilEmbeds(m.Embeds)
 }
 
 func (m *Message) clone() *Message {
@@ -120,6 +133,7 @@ func (m *Message) clone() *Message {
 	}
 	c.AttachmentKinds = append([]string(nil), m.AttachmentKinds...)
 	c.AttachmentNames = append([]string(nil), m.AttachmentNames...)
+	c.Embeds = append([]Embed(nil), m.Embeds...)
 	c.normalize()
 	return &c
 }

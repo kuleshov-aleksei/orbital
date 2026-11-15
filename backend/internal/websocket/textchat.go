@@ -13,6 +13,7 @@ import (
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatmedia"
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatstore"
 	"github.com/kuleshov-aleksei/orbital/internal/service/immichml"
+	"github.com/kuleshov-aleksei/orbital/internal/service/linkpreview"
 	"github.com/kuleshov-aleksei/orbital/internal/service/push"
 )
 
@@ -45,6 +46,8 @@ type TextChat struct {
 	Push *push.Service
 	// UserName resolves a user id to a display name for push text.
 	UserName func(userID string) string
+	// Previews makes link previews (embeds); nil disables them.
+	Previews *linkpreview.Service
 }
 
 // SetTextChat enables text channel messaging over WebSocket.
