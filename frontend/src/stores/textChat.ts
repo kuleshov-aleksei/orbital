@@ -1,7 +1,15 @@
 import { defineStore } from "pinia"
 import { computed, ref, watch } from "vue"
-import { apiService } from "@/services/api"
+import { apiService, isNetworkError } from "@/services/api"
 import { wsService } from "@/services/websocket"
+import {
+  cacheDelete,
+  cacheGet,
+  cacheGetAll,
+  cachePut,
+  cachePutDebounced,
+  offlineCacheUser,
+} from "@/services/offlineCache"
 import { addRecentReaction } from "@/services/emoji"
 import { useRoomStore } from "./room"
 import { useUserStore } from "./user"
@@ -16,6 +24,7 @@ import type {
   TextMessageUpdatedEvent,
   TextReadStateEvent,
   TextTypingEvent,
+  TextUnreadResponse,
 } from "@/types/textChat"
 
 /** Messages kept in memory per channel; the far end is trimmed beyond this. */
@@ -23,6 +32,13 @@ export const MAX_MESSAGES_IN_MEMORY = 300
 const PAGE_SIZE = 50
 const READ_DEBOUNCE_MS = 1000
 const SEND_TIMEOUT_MS = 15000
+/** Newest messages per channel kept in the offline cache. */
+const CACHED_MESSAGES = PAGE_SIZE
+/**
+ * Gap between queued messages sent after a reconnect: the server allows five
+ * messages per five seconds per channel.
+ */
+const OUTBOX_SEND_GAP_MS = 1100
 /** Client throttle for text_typing (the server allows one per 3 s). */
 const TYPING_SEND_MS = 3000
 /** How long "X is typing" shows without a new event. */
@@ -49,8 +65,17 @@ export interface PendingTextMessage {
   upload_ids: string[]
   attachments: TextAttachment[]
   created_at_ts: number
-  status: "sending" | "failed"
+  /** queued: written offline (or the link dropped), sent on reconnect. */
+  status: "queued" | "sending" | "failed"
   error?: string
+}
+
+/** Offline copy of a channel's newest messages (services/offlineCache.ts). */
+interface CachedChannel {
+  room_id: string
+  messages: TextMessage[]
+  replied: Record<string, TextMessage>
+  saved_at: number
 }
 
 /** Where the message list should scroll after a load or jump. */
@@ -73,6 +98,8 @@ export interface ChannelView {
   scrollRequest: ScrollRequest | null
   /** Set by the list: the user is scrolled to the newest message. */
   atBottom: boolean
+  /** Showing the offline snapshot until the server answers. */
+  fromCache: boolean
 }
 
 interface ReadState {
@@ -94,6 +121,7 @@ function newView(): ChannelView {
     highlightId: null,
     scrollRequest: null,
     atBottom: true,
+    fromCache: false,
   }
 }
 
@@ -162,7 +190,18 @@ export const useTextChatStore = defineStore("textChat", () => {
     const live = new Set<string>()
     liveDuringUnread = live
     try {
-      const resp = await apiService.getTextUnread()
+      let resp: TextUnreadResponse
+      try {
+        resp = await apiService.getTextUnread()
+        void cachePut("kv", "unread", resp)
+      } catch (error) {
+        // Offline: last known badges, unless live state is already here.
+        const cached = isNetworkError(error)
+          ? await cacheGet<TextUnreadResponse>("kv", "unread")
+          : undefined
+        if (!cached || Object.keys(readState.value).length) throw error
+        resp = cached
+      }
       available.value = resp.available
       const next: Record<string, ReadState> = {}
       for (const ch of resp.channels) {
@@ -222,6 +261,47 @@ export const useTextChatStore = defineStore("textChat", () => {
     view.replied = { ...page.replied }
     view.hasMoreBefore = page.has_more_before
     view.hasMoreAfter = page.has_more_after
+    view.fromCache = false
+  }
+
+  // --- Offline cache ------------------------------------------------------
+
+  /** Saves the newest messages of a view that shows the live tail. */
+  function persistView(roomId: string) {
+    const view = views.value[roomId]
+    if (!view || view.fromCache || view.hasMoreAfter || !view.messages.length) return
+    cachePutDebounced("channels", roomId, (): CachedChannel | undefined => {
+      const v = views.value[roomId]
+      if (!v || v.fromCache || v.hasMoreAfter) return undefined
+      const messages = v.messages.slice(-CACHED_MESSAGES)
+      const replied: Record<string, TextMessage> = {}
+      for (const m of messages) {
+        if (m.reply_to_id && v.replied[m.reply_to_id]) {
+          replied[m.reply_to_id] = v.replied[m.reply_to_id]
+        }
+      }
+      return { room_id: roomId, messages, replied, saved_at: Date.now() }
+    })
+  }
+
+  /** Fills an empty view from the offline cache; true when it did. */
+  async function seedFromCache(roomId: string): Promise<boolean> {
+    const cached = await cacheGet<CachedChannel>("channels", roomId)
+    const view = views.value[roomId]
+    if (!cached?.messages?.length || !view || view.messages.length) return false
+    view.messages = cached.messages
+    view.replied = { ...cached.replied }
+    view.hasMoreBefore = true
+    view.hasMoreAfter = false
+    view.fromCache = true
+    view.scrollRequest = { kind: "bottom" }
+    return true
+  }
+
+  /** A failed load keeps a cached snapshot on screen instead of an error. */
+  function loadFailed(view: ChannelView, error: unknown) {
+    if (view.fromCache && view.messages.length && isNetworkError(error)) return
+    view.error = describeLoadError(error)
   }
 
   /** Live messages that arrived while a channel's page was loading. */
@@ -245,8 +325,10 @@ export const useTextChatStore = defineStore("textChat", () => {
     view.loading = false
     const missed = missedWhileLoading.get(roomId)
     missedWhileLoading.delete(roomId)
-    if (!missed || view.hasMoreAfter) return
-    for (const data of missed) appendLive(view, data)
+    if (missed && !view.hasMoreAfter) {
+      for (const data of missed) appendLive(view, data)
+    }
+    persistView(roomId)
   }
 
   async function loadLatest(roomId: string, scroll: ScrollRequest | null = { kind: "bottom" }) {
@@ -258,7 +340,7 @@ export const useTextChatStore = defineStore("textChat", () => {
       applyPage(view, page)
       view.scrollRequest = scroll
     } catch (error) {
-      view.error = describeLoadError(error)
+      loadFailed(view, error)
     } finally {
       finishLoading(roomId, view)
     }
@@ -273,7 +355,7 @@ export const useTextChatStore = defineStore("textChat", () => {
       applyPage(view, page)
       view.scrollRequest = scroll
     } catch (error) {
-      view.error = describeLoadError(error)
+      loadFailed(view, error)
     } finally {
       finishLoading(roomId, view)
     }
@@ -292,9 +374,15 @@ export const useTextChatStore = defineStore("textChat", () => {
     view.dividerSeq = hasUnread ? s.lastReadSeq : null
 
     // A loaded view showing the newest messages is kept live by events.
-    if (view.messages.length > 0 && !view.hasMoreAfter && !view.error) {
+    if (view.messages.length > 0 && !view.hasMoreAfter && !view.error && !view.fromCache) {
       view.scrollRequest = hasUnread ? { kind: "divider" } : { kind: "bottom" }
       return
+    }
+    // Show the offline snapshot right away; the load below replaces it.
+    // Marked loading first so live messages arriving meanwhile are kept.
+    if (!view.messages.length) {
+      view.loading = true
+      await seedFromCache(roomId)
     }
     if (hasUnread) {
       await loadAround(roomId, s.lastReadSeq, { kind: "divider" })
@@ -372,6 +460,7 @@ export const useTextChatStore = defineStore("textChat", () => {
       console.warn("[TextChat] Failed to load newer messages:", error)
     } finally {
       view.loadingNewer = false
+      persistView(roomId)
     }
   }
 
@@ -420,6 +509,18 @@ export const useTextChatStore = defineStore("textChat", () => {
 
   const sendTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
+  /** Sends now when the socket is up; otherwise leaves it in the outbox. */
+  function transmitOrQueue(p: PendingTextMessage) {
+    if (!wsService.isGlobalConnected()) {
+      p.status = "queued"
+      p.error = undefined
+      return
+    }
+    p.status = "sending"
+    p.error = undefined
+    transmit(p)
+  }
+
   function transmit(p: PendingTextMessage) {
     wsService.sendGlobalMessage("text_message_send", {
       room_id: p.room_id,
@@ -430,6 +531,12 @@ export const useTextChatStore = defineStore("textChat", () => {
     })
     const timer = setTimeout(() => {
       sendTimers.delete(p.nonce)
+      // The link died under it: resend (same nonce) after the reconnect.
+      if (!wsService.isGlobalConnected()) {
+        const current = pending.value.find((x) => x.nonce === p.nonce)
+        if (current) current.status = "queued"
+        return
+      }
       markFailed(p.nonce, "Not delivered. The connection may be down.")
     }, SEND_TIMEOUT_MS)
     sendTimers.set(p.nonce, timer)
@@ -460,7 +567,64 @@ export const useTextChatStore = defineStore("textChat", () => {
     const view = viewFor(roomId)
     if (view.hasMoreAfter) void loadLatest(roomId)
     else view.scrollRequest = { kind: "bottom" }
-    transmit(p)
+    // Kept on disk until the server confirms it, so an app kill or a dead
+    // link never loses what the user wrote.
+    void cachePut("outbox", p.nonce, p)
+    transmitOrQueue(pending.value[pending.value.length - 1])
+  }
+
+  /** Socket dropped: unconfirmed sends go back to the outbox. */
+  function onConnectionLost() {
+    for (const p of pending.value) {
+      if (p.status !== "sending") continue
+      clearSendTimer(p.nonce)
+      p.status = "queued"
+    }
+  }
+
+  let outboxRestore: Promise<void> | null = null
+  let outboxUser = ""
+
+  /** Loads messages queued in an earlier session (once per account). */
+  function restoreOutbox(): Promise<void> {
+    const user = offlineCacheUser()
+    if (outboxRestore && outboxUser === user) return outboxRestore
+    outboxUser = user
+    outboxRestore = (async () => {
+      const saved = await cacheGetAll<PendingTextMessage>("outbox")
+      const known = new Set(pending.value.map((p) => p.nonce))
+      for (const p of saved.sort((a, b) => a.created_at_ts - b.created_at_ts)) {
+        if (known.has(p.nonce)) continue
+        pending.value.push({ ...p, status: p.status === "failed" ? "failed" : "queued" })
+      }
+    })()
+    return outboxRestore
+  }
+
+  let flushing = false
+
+  /** Sends queued messages, oldest first, after a reconnect. */
+  async function flushOutbox() {
+    if (flushing) return
+    flushing = true
+    try {
+      await restoreOutbox()
+      const queue = pending.value
+        .filter((p) => p.status === "queued")
+        .sort((a, b) => a.created_at_ts - b.created_at_ts)
+      for (let i = 0; i < queue.length; i++) {
+        if (!wsService.isGlobalConnected()) return
+        const p = pending.value.find((x) => x.nonce === queue[i].nonce)
+        if (!p || p.status !== "queued") continue
+        p.status = "sending"
+        transmit(p)
+        if (i < queue.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, OUTBOX_SEND_GAP_MS))
+        }
+      }
+    } finally {
+      flushing = false
+    }
   }
 
   function clearSendTimer(nonce: string) {
@@ -477,20 +641,21 @@ export const useTextChatStore = defineStore("textChat", () => {
     if (p) {
       p.status = "failed"
       p.error = error
+      void cachePut("outbox", p.nonce, p)
     }
   }
 
   function retrySend(nonce: string) {
     const p = pending.value.find((x) => x.nonce === nonce)
     if (!p) return
-    p.status = "sending"
-    p.error = undefined
-    transmit(p)
+    transmitOrQueue(p)
+    void cachePut("outbox", p.nonce, p)
   }
 
   function discardPending(nonce: string) {
     clearSendTimer(nonce)
     pending.value = pending.value.filter((x) => x.nonce !== nonce)
+    void cacheDelete("outbox", nonce)
   }
 
   function editMessage(messageId: string, content: string) {
@@ -620,7 +785,10 @@ export const useTextChatStore = defineStore("textChat", () => {
     const msg = data.message
     if (data.nonce) {
       clearSendTimer(data.nonce)
-      pending.value = pending.value.filter((p) => p.nonce !== data.nonce)
+      if (pending.value.some((p) => p.nonce === data.nonce)) {
+        pending.value = pending.value.filter((p) => p.nonce !== data.nonce)
+        void cacheDelete("outbox", data.nonce)
+      }
     }
     const s = readState.value[msg.room_id] ?? { lastReadSeq: 0, newestSeq: 0 }
     readState.value[msg.room_id] = { ...s, newestSeq: Math.max(s.newestSeq, msg.seq) }
@@ -645,6 +813,7 @@ export const useTextChatStore = defineStore("textChat", () => {
     if (view.hasMoreAfter) return
     appendLive(view, data)
     if (view.atBottom) trimOldest(view)
+    persistView(msg.room_id)
   }
 
   function onMessageUpdated(data: TextMessageUpdatedEvent) {
@@ -654,6 +823,7 @@ export const useTextChatStore = defineStore("textChat", () => {
       if (i !== -1) view.messages[i] = msg
       if (view.replied[data.id]) view.replied[data.id] = msg
     })
+    persistView(msg.room_id)
     updatePins(msg)
   }
 
@@ -695,6 +865,7 @@ export const useTextChatStore = defineStore("textChat", () => {
     if (list) pins.value[data.room_id] = list.filter((m) => m.id !== data.id)
     if (replyTarget.value?.id === data.id) replyTarget.value = null
     if (editingId.value === data.id) editingId.value = null
+    persistView(data.room_id)
     // A message deleted during a page load must not be appended afterwards.
     const missed = missedWhileLoading.get(data.room_id)
     if (missed) {
@@ -766,6 +937,15 @@ export const useTextChatStore = defineStore("textChat", () => {
       if (activeChannelId.value && !ids.has(activeChannelId.value) && roomStore.rooms.length) {
         closeChannel()
       }
+      // Forget cached messages of channels that are really gone (the list
+      // comes from the server, not from the offline snapshot).
+      if (roomStore.roomsFromServer && roomStore.rooms.length) {
+        void (async () => {
+          for (const c of await cacheGetAll<CachedChannel>("channels")) {
+            if (!ids.has(c.room_id)) void cacheDelete("channels", c.room_id)
+          }
+        })()
+      }
     },
   )
 
@@ -792,6 +972,7 @@ export const useTextChatStore = defineStore("textChat", () => {
     for (const t of sendTimers.values()) clearTimeout(t)
     sendTimers.clear()
     pending.value = []
+    outboxRestore = null
     pins.value = {}
     systemLines.value = {}
     typing.value = {}
@@ -828,6 +1009,9 @@ export const useTextChatStore = defineStore("textChat", () => {
     jumpToPresent,
     jumpToMessage,
     sendMessage,
+    flushOutbox,
+    restoreOutbox,
+    onConnectionLost,
     retrySend,
     discardPending,
     editMessage,

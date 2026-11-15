@@ -6,6 +6,7 @@ import { onBeforeUnmount, ref, watch, type Ref } from "vue"
 import { apiService } from "@/services/api"
 import { isElectron } from "@/services/electron"
 import { debugWarn } from "@/utils/debug"
+import { useConnectionStore } from "@/stores/connection"
 import {
   initMediaCache,
   isMediaCached,
@@ -160,6 +161,8 @@ export function useAttachmentUrl(
   const gone = ref(false)
   let retried = false
   let alive = true
+  // The lookup failed for lack of a connection: retried when it comes back.
+  let failedOffline = false
   onBeforeUnmount(() => (alive = false))
 
   async function load() {
@@ -191,7 +194,9 @@ export function useAttachmentUrl(
       url.value = next
       gone.value = next === null
     } catch (err) {
-      // Transient (offline); the element shows its fallback.
+      // Transient (offline); the element shows its fallback until the
+      // connection returns.
+      failedOffline = true
       debugWarn(`[MediaCache] ${current}:${v} URL lookup failed:`, err)
     }
   }
@@ -200,9 +205,20 @@ export function useAttachmentUrl(
     [id, variant],
     () => {
       retried = false
+      failedOffline = false
       void load()
     },
     { immediate: true },
+  )
+
+  const connection = useConnectionStore()
+  watch(
+    () => connection.isOnline,
+    (online) => {
+      if (!online || !failedOffline) return
+      failedOffline = false
+      void load()
+    },
   )
 
   function onError(event?: Event) {

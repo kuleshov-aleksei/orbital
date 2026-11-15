@@ -14,6 +14,7 @@ import {
   useTextChatStore,
   useTextNotifyStore,
   useConfigStore,
+  useConnectionStore,
 } from "@/stores"
 import { wsService } from "@/services/websocket"
 import type {
@@ -65,6 +66,7 @@ export function useWebSocketHandlers() {
   const textChatStore = useTextChatStore()
   const textNotifyStore = useTextNotifyStore()
   const configStore = useConfigStore()
+  const connectionStore = useConnectionStore()
   const hasConnected = ref(false)
 
   const cleanupFns: Array<() => void> = []
@@ -387,7 +389,7 @@ export function useWebSocketHandlers() {
       startGlobalPing()
       void usersStore.fetchAllUsers()
       void syncRoomsData()
-      if (configStore.textChannelsEnabled) void textChatStore.resync()
+      void resyncTextChat()
     }
     wsService.onGlobalConnection(onGlobalConnected)
     onCleanup(() => wsService.removeGlobalConnectionCallback(onGlobalConnected))
@@ -395,11 +397,13 @@ export function useWebSocketHandlers() {
     const onGlobalDisconnected: DisconnectionCallback = (event) => {
       debugLog("Global WebSocket disconnected:", event)
       stopGlobalPing()
+      textChatStore.onConnectionLost()
     }
     wsService.onGlobalDisconnection(onGlobalDisconnected)
     onCleanup(() => wsService.removeGlobalDisconnectionCallback(onGlobalDisconnected))
 
     const onPong: MessageCallback = (message) => {
+      clearPongTimer()
       const data = message.data as { timestamp: number }
       const latency = Date.now() - data.timestamp
       if (latency > 1000) {
@@ -568,6 +572,15 @@ export function useWebSocketHandlers() {
     }
   }
 
+  // After a reconnect: the config may never have loaded (app started offline),
+  // then catch up on text channels and send what was queued offline.
+  const resyncTextChat = async () => {
+    if (!configStore.isLoaded) await configStore.loadConfig()
+    if (!configStore.textChannelsEnabled) return
+    await textChatStore.resync()
+    textChatStore.flushOutbox()
+  }
+
   const syncRoomsData = async () => {
     try {
       const rooms = await apiService.getRooms(true)
@@ -600,12 +613,31 @@ export function useWebSocketHandlers() {
   const GLOBAL_PING_INTERVAL = 20000
   let globalPingInterval: ReturnType<typeof setInterval> | null = null
 
+  // A mobile link can die without the socket noticing (no FIN ever arrives).
+  // A ping left unanswered this long drops the socket so it reconnects.
+  const PONG_TIMEOUT = 10000
+  let pongTimer: ReturnType<typeof setTimeout> | null = null
+
+  const clearPongTimer = () => {
+    if (pongTimer) {
+      clearTimeout(pongTimer)
+      pongTimer = null
+    }
+  }
+
   const sendGlobalPing = () => {
     if (wsService.isGlobalConnected()) {
       wsService.sendGlobalMessage("ping", {
         user_id: userStore.userId,
         timestamp: Date.now(),
       })
+      if (!pongTimer) {
+        pongTimer = setTimeout(() => {
+          pongTimer = null
+          debugLog("Global WebSocket ping unanswered, reconnecting")
+          wsService.dropGlobal()
+        }, PONG_TIMEOUT)
+      }
     }
   }
 
@@ -619,6 +651,7 @@ export function useWebSocketHandlers() {
   }
 
   const stopGlobalPing = () => {
+    clearPongTimer()
     if (globalPingInterval) {
       clearInterval(globalPingInterval)
       globalPingInterval = null
@@ -627,6 +660,7 @@ export function useWebSocketHandlers() {
 
   // Connect to WebSocket only after auth is complete
   const connectIfAuthenticated = () => {
+    connectionStore.setSocketExpected(userStore.hasCompletedAuth)
     if (userStore.hasCompletedAuth && !hasConnected.value) {
       hasConnected.value = true
       void connectGlobalWebSocket()
@@ -658,6 +692,7 @@ export function useWebSocketHandlers() {
       if (hasCompleted) {
         connectIfAuthenticated()
       } else {
+        connectionStore.setSocketExpected(false)
         stopGlobalPing()
         wsService.disconnectGlobal()
         hasConnected.value = false

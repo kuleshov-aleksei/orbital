@@ -10,6 +10,8 @@ export const useUsersStore = defineStore("users", () => {
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   const lastOnlineUpdate = ref<number>(0)
+  // The list is the offline snapshot: names and avatars only, presence unknown.
+  let fromCache = false
 
   // Getters
   const userCount = computed(() => allUsers.value.length)
@@ -54,7 +56,11 @@ export const useUsersStore = defineStore("users", () => {
       const hasRecentWebSocketUpdate = now - lastOnlineUpdate.value < 5000 // 5 seconds
 
       // Create a map of existing users to preserve their online status
-      const existingUsersMap = new Map(allUsers.value.map((u) => [u.id, u]))
+      // (a cached snapshot has no presence worth preserving).
+      const existingUsersMap = new Map(
+        fromCache ? [] : allUsers.value.map((u) => [u.id, u] as const),
+      )
+      fromCache = false
 
       // Merge new users with existing ones, preserving online status from WebSocket
       // If we received WebSocket update in last 5 seconds, trust it over API
@@ -92,6 +98,13 @@ export const useUsersStore = defineStore("users", () => {
     } finally {
       isLoading.value = false
     }
+  }
+
+  /** Shows the cached user list (everyone offline) until the server answers. */
+  function hydrateFromCache(users: PublicUser[]) {
+    if (allUsers.value.length) return
+    allUsers.value = users.map((u) => ({ ...u, is_online: false, status: undefined }))
+    fromCache = true
   }
 
   function updateOnlineStatus(userId: string, isOnline: boolean) {
@@ -226,6 +239,7 @@ export const useUsersStore = defineStore("users", () => {
     displayName,
     // Actions
     fetchAllUsers,
+    hydrateFromCache,
     addUser,
     updateUser,
     removeUser,

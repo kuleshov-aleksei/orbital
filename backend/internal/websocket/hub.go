@@ -53,6 +53,8 @@ type Hub struct {
 	// Text channels (see textchat.go)
 	textChat    *TextChat
 	textLimiter *ratelimit.Limiter
+	// Messages created per (user, nonce), so outbox resends don't duplicate.
+	textNonces *sentNonces
 
 	// Presence: users shown as "away" (see presence.go)
 	awayMu    sync.Mutex

@@ -4,7 +4,7 @@
     :class="[
       compact ? 'py-0.5' : 'pt-2 pb-0.5 mt-2',
       highlighted ? 'message-flash' : isMobile ? '' : 'hover:bg-theme-bg-secondary/60',
-      pendingStatus === 'sending' ? 'opacity-60' : '',
+      pendingStatus === 'sending' || pendingStatus === 'queued' ? 'opacity-60' : '',
       mentionsMe ? 'mention-me' : '',
       isMobile && !editing ? 'touch-message' : '',
     ]"
@@ -129,6 +129,27 @@
           @toggle="(emoji) => $emit('react', emoji)"
           @add="(e) => $emit('add-reaction', e)" />
 
+        <div
+          v-if="pendingStatus === 'queued'"
+          class="text-xs text-theme-text-muted mt-0.5 flex items-center gap-1"
+          data-testid="queued-message">
+          <svg
+            class="w-3 h-3"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2">
+            <circle cx="12" cy="12" r="9" />
+            <path stroke-linecap="round" d="M12 7v5l3 2" />
+          </svg>
+          <span>Waiting for connection</span>
+          <button
+            type="button"
+            class="underline hover:text-theme-text-secondary ml-1"
+            @click="$emit('discard')">
+            Discard
+          </button>
+        </div>
         <div v-if="pendingStatus === 'failed'" class="text-xs text-red-400 mt-0.5 flex gap-2">
           <span>{{ pendingError || "Not delivered." }}</span>
           <button
@@ -271,7 +292,7 @@ const props = withDefaults(
     canReply?: boolean
     highlighted?: boolean
     editing?: boolean
-    pendingStatus?: "sending" | "failed" | null
+    pendingStatus?: "queued" | "sending" | "failed" | null
     pendingError?: string
     myUserId?: string
   }>(),

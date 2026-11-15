@@ -7,6 +7,8 @@ import { USER_VOLUMES_STORAGE_KEY } from "@/types/audio"
 export const useRoomStore = defineStore("room", () => {
   // State
   const rooms = ref<Room[]>([])
+  // False while the list is the offline snapshot (services/offlineCache.ts).
+  const roomsFromServer = ref(false)
   const activeRoomId = ref<string | null>(null)
   const currentRoomUsers = ref<User[]>([])
   const remoteStreamVolumes = ref<Map<string, number>>(new Map())
@@ -42,8 +44,9 @@ export const useRoomStore = defineStore("room", () => {
   })
 
   // Actions
-  function setRooms(newRooms: Room[]) {
+  function setRooms(newRooms: Room[], fromServer = true) {
     rooms.value = newRooms
+    roomsFromServer.value = fromServer
   }
 
   function addRoom(room: Room) {
@@ -320,6 +323,7 @@ export const useRoomStore = defineStore("room", () => {
 
   return {
     rooms,
+    roomsFromServer,
     activeRoomId,
     currentRoomUsers,
     remoteStreamVolumes,

@@ -18,6 +18,11 @@ export interface UseLiveKitConnectionDependencies {
 // multi-minute network blackouts at the SDK level.
 const MAX_RECONNECT_ATTEMPTS = 100
 
+// A whole join (token + signal + PC + presence + mic publish) that hasn't
+// finished by then is abandoned: the user gets the Retry banner instead of a
+// spinner that never ends.
+const JOIN_DEADLINE_MS = 25_000
+
 class OrbitalReconnectPolicy implements ReconnectPolicy {
   nextRetryDelayInMs(context: ReconnectContext): number | null {
     if (context.retryCount >= MAX_RECONNECT_ATTEMPTS) return null
@@ -29,14 +34,32 @@ export function useLiveKitConnection(state: LiveKitState, deps: UseLiveKitConnec
   // True once the user (or unmount) asked to leave - distinguishes an expected
   // CLIENT_INITIATED disconnect from an unexpected drop.
   let manualLeave = false
+  // Each join attempt gets a number; a newer attempt, a deadline or cleanup
+  // makes an older one stale, and a stale attempt bails out after every await
+  // (no mic publish, join sound or state writes from a join nobody wants).
+  let attempt = 0
+  // The Room of the attempt in progress, before it lands in state.room.
+  let pendingRoom: Room | null = null
 
   const isManualLeave = (): boolean => manualLeave
+
+  const disconnectQuietly = (lkRoom: Room | null) => {
+    if (!lkRoom) return
+    try {
+      void lkRoom.disconnect()
+    } catch {
+      // already gone
+    }
+  }
   const connectToRoom = async (
     token: string,
     url: string,
     startTime?: number,
+    attemptId = attempt,
   ): Promise<boolean> => {
     const connectStart = startTime || performance.now()
+    const stale = () => manualLeave || attemptId !== attempt
+    let lkRoom: Room | null = null
     try {
       state.isConnecting.value = true
       state.connectionError.value = null
@@ -45,7 +68,7 @@ export function useLiveKitConnection(state: LiveKitState, deps: UseLiveKitConnec
         `[LiveKit][INFO]: Connecting to LiveKit room at ${url} (t=${(performance.now() - connectStart).toFixed(0)}ms)`,
       )
 
-      const lkRoom = new Room({
+      lkRoom = new Room({
         adaptiveStream: true,
         dynacast: true,
         disconnectOnPageLeave: false,
@@ -61,6 +84,7 @@ export function useLiveKitConnection(state: LiveKitState, deps: UseLiveKitConnec
       })
 
       deps.setupRoomEventListeners(lkRoom)
+      pendingRoom = lkRoom
 
       await lkRoom.connect(url, token, {
         autoSubscribe: false,
@@ -68,6 +92,12 @@ export function useLiveKitConnection(state: LiveKitState, deps: UseLiveKitConnec
         websocketTimeout: 4000,
         peerConnectionTimeout: 8000,
       })
+      if (stale()) {
+        debugLog(`[LiveKit][INFO]: Join abandoned after connect, disconnecting`)
+        disconnectQuietly(lkRoom)
+        return false
+      }
+      if (pendingRoom === lkRoom) pendingRoom = null
 
       debugLog(
         `[LiveKit][INFO]: Room connected (t=${(performance.now() - connectStart).toFixed(0)}ms)`,
@@ -118,8 +148,10 @@ export function useLiveKitConnection(state: LiveKitState, deps: UseLiveKitConnec
 
       const presenceStore = usePresenceStore()
       await presenceStore.initializePresence(lkRoom)
+      if (stale()) return false
 
       await deps.publishAudioTrack()
+      if (stale()) return false
 
       const callStore = useCallStore()
       if (callStore.isMuted) {
@@ -129,6 +161,10 @@ export function useLiveKitConnection(state: LiveKitState, deps: UseLiveKitConnec
       return true
     } catch (error) {
       console.error("Failed to connect to LiveKit room:", error)
+      // A Room that never connected is still holding sockets and listeners.
+      if (lkRoom && state.room.value !== lkRoom) disconnectQuietly(lkRoom)
+      if (pendingRoom === lkRoom) pendingRoom = null
+      if (stale()) return false
       state.connectionError.value = (error as Error).message
       console.error(`[LiveKit][ERROR]: Connection failed: ${(error as Error).message}`)
       state.isConnecting.value = false
@@ -145,13 +181,43 @@ export function useLiveKitConnection(state: LiveKitState, deps: UseLiveKitConnec
       manualLeave = false
       state.connectionFailed.value = false
 
-      const response = await apiService.getLiveKitToken(roomId)
-      const tokenTime = performance.now() - startTime
-      debugLog(
-        `[LiveKit][INFO]: Token received (t=${tokenTime.toFixed(0)}ms), connecting to ${response.room_url}`,
-      )
+      const attemptId = ++attempt
+      const join = (async () => {
+        const response = await apiService.getLiveKitToken(roomId)
+        if (attemptId !== attempt || manualLeave) return false
+        const tokenTime = performance.now() - startTime
+        debugLog(
+          `[LiveKit][INFO]: Token received (t=${tokenTime.toFixed(0)}ms), connecting to ${response.room_url}`,
+        )
+        return connectToRoom(response.token, response.room_url, startTime, attemptId)
+      })()
 
-      const connected = await connectToRoom(response.token, response.room_url, startTime)
+      let deadline: ReturnType<typeof setTimeout> | undefined
+      const timedOut = new Promise<"timeout">((resolve) => {
+        deadline = setTimeout(() => resolve("timeout"), JOIN_DEADLINE_MS)
+      })
+      const outcome = await Promise.race([join, timedOut]).finally(() => clearTimeout(deadline))
+
+      if (outcome === "timeout") {
+        console.error(`[LiveKit][ERROR]: Join timed out after ${JOIN_DEADLINE_MS}ms`)
+        // Make the attempt stale and drop whatever it had opened.
+        attempt++
+        disconnectQuietly(pendingRoom)
+        pendingRoom = null
+        const joinedRoom = state.room.value
+        if (joinedRoom) {
+          state.room.value = null
+          state.isConnected.value = false
+          state.localParticipant.value = null
+          disconnectQuietly(joinedRoom)
+        }
+        state.isConnecting.value = false
+        state.connectionError.value = "Connection timed out"
+        // The losing join may still reject later; nobody is listening.
+        join.catch(() => {})
+        return false
+      }
+      const connected = outcome
 
       if (connected) {
         const totalTime = performance.now() - startTime
@@ -170,8 +236,13 @@ export function useLiveKitConnection(state: LiveKitState, deps: UseLiveKitConnec
     debugLog(`[LiveKit][INFO]: 'Cleaning up LiveKit...'`)
 
     manualLeave = true
+    attempt++ // any join still in flight is abandoned
     state.connectionFailed.value = false
+    state.isConnecting.value = false
     stopReconnectingLoop()
+
+    disconnectQuietly(pendingRoom)
+    pendingRoom = null
 
     const currentRoom = state.room.value
 

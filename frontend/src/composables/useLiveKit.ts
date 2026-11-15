@@ -1,4 +1,4 @@
-import { onUnmounted } from "vue"
+import { onUnmounted, watch } from "vue"
 import type { User, ScreenShareQuality } from "@/types"
 import { useCallStore } from "@/stores/call"
 import { stopReconnectingLoop, playReconnected } from "@/services/sounds"
@@ -63,10 +63,28 @@ export function useLiveKit(options: UseLiveKitOptions) {
     return connection.initializeLiveKit(options.roomId)
   }
 
+  // The sidebar needs to know voice is down: clicking the room again retries.
+  watch(state.connectionFailed, (failed) => callStore.setVoiceConnectionFailed(failed), {
+    immediate: true,
+  })
+
   const initializeLiveKit = async (): Promise<boolean> => {
     supervisor.reset()
     state.connectionFailed.value = false
-    const connected = await rawJoin()
+    let connected = false
+    try {
+      connected = await rawJoin()
+    } catch (error) {
+      console.error("[LiveKit][ERROR]: Join failed:", error)
+    }
+    // Left meanwhile (unmount / room switch): nothing to report or keep alive.
+    if (connection.isManualLeave()) return false
+    if (!connected) {
+      // Token request failed, timed out or the SDK gave up: show the Retry
+      // banner instead of a call view that silently does nothing.
+      state.connectionFailed.value = true
+      return false
+    }
     // Android: keep the process/network alive in the background for the whole call
     // (including reconnects). Started after rawJoin so the mic permission prompt has
     // run and the service can claim the microphone type. Stopped in cleanup().
@@ -90,6 +108,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
   const cleanup = async () => {
     supervisor.reset()
     state.connectionFailed.value = false
+    callStore.setVoiceConnectionFailed(false)
     if (state.isScreenSharing.value) {
       await screenShare.stopScreenShare()
     }

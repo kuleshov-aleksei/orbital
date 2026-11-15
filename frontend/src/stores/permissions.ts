@@ -9,6 +9,13 @@ import { Permission, hasPermission, type MyPermissions, type Role } from "@/type
  * Client-side mirror of the backend RBAC state. Used ONLY to hide/disable UI;
  * every action is re-authorized by the backend (REST, WebSocket and LiveKit grants).
  */
+export interface PermissionsSnapshot {
+  me: MyPermissions | null
+  roles: Role[]
+  userRoles: Record<string, string[]>
+  colorRoles: Record<string, string>
+}
+
 export const usePermissionsStore = defineStore("permissions", () => {
   const userStore = useUserStore()
   const usersStore = useUsersStore()
@@ -232,6 +239,25 @@ export const usePermissionsStore = defineStore("permissions", () => {
     // permissions_updated over WebSocket refreshes everyone else (and our own perms).
   }
 
+  /** Last known permissions (offline start); refresh() replaces them. */
+  function hydrateFromCache(snapshot: PermissionsSnapshot) {
+    if (loaded.value) return
+    me.value = snapshot.me
+    roles.value = snapshot.roles
+    userRoles.value = snapshot.userRoles
+    colorRoles.value = snapshot.colorRoles
+    loaded.value = snapshot.me !== null
+  }
+
+  function snapshot(): PermissionsSnapshot {
+    return {
+      me: me.value,
+      roles: roles.value,
+      userRoles: userRoles.value,
+      colorRoles: colorRoles.value,
+    }
+  }
+
   function reset() {
     me.value = null
     roles.value = []
@@ -241,6 +267,8 @@ export const usePermissionsStore = defineStore("permissions", () => {
   }
 
   return {
+    hydrateFromCache,
+    snapshot,
     me,
     roles,
     userRoles,

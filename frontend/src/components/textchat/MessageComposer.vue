@@ -83,9 +83,14 @@
         <button
           v-if="canAttach"
           type="button"
-          class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded text-theme-text-muted hover:text-theme-text-primary hover:bg-theme-bg-hover transition-colors"
-          title="Attach files (images, audio, mp4 video)"
+          class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded text-theme-text-muted hover:text-theme-text-primary hover:bg-theme-bg-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          :title="
+            serverOnline
+              ? 'Attach files (images, audio, mp4 video)'
+              : 'Attachments need a connection'
+          "
           aria-label="Attach files"
+          :disabled="!serverOnline"
           data-testid="attach-button"
           @click="fileInput?.click()">
           <PhPlusCircle class="w-5 h-5" />
@@ -242,6 +247,7 @@ import {
   usePermissionsStore,
   useTextChatStore,
   useUsersStore,
+  useConnectionStore,
 } from "@/stores"
 
 const props = defineProps<{
@@ -266,6 +272,7 @@ const appStore = useAppStore()
 const usersStore = useUsersStore()
 const permissionsStore = usePermissionsStore()
 const attachmentsStore = useAttachmentsStore()
+const connectionStore = useConnectionStore()
 
 const input = useTemplateRef<HTMLTextAreaElement>("input")
 const box = useTemplateRef<HTMLDivElement>("box")
@@ -385,8 +392,15 @@ const showSend = computed(
 const quotaWarning = computed(() => canAttach.value && attachmentsStore.usageRatio >= 0.9)
 watch(canAttach, (can) => can && void attachmentsStore.loadUsage(), { immediate: true })
 
+// Messages queue offline (outbox); uploads can't.
+const serverOnline = computed(() => connectionStore.isOnline)
+
 function addFiles(files: File[]) {
   if (!files.length) return
+  if (canAttach.value && !serverOnline.value) {
+    attachmentsStore.composerError = "Attachments need a connection."
+    return
+  }
   if (!canAttach.value) {
     attachmentsStore.composerError = attachmentsStore.enabled
       ? "You don't have permission to attach files in this channel."

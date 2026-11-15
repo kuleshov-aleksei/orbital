@@ -33,6 +33,10 @@ export const useCallStore = defineStore("call", () => {
   // Transient connection state, mirrors the LiveKit room reconnect cycle.
   // Not persisted - always starts false.
   const isReconnecting = ref(false)
+  // Voice (LiveKit) is not connected for the active room: the join failed or
+  // reconnection gave up. Clicking the room again retries (retryRequest).
+  const voiceConnectionFailed = ref(false)
+  const retryRequest = ref(0)
   const wasMutedBeforeDeafen = ref(false)
   const watchingUserIds = ref<Set<string>>(new Set())
 
@@ -135,7 +139,17 @@ export const useCallStore = defineStore("call", () => {
     isScreenSharing.value = false
     isCameraEnabled.value = false
     isReconnecting.value = false
+    voiceConnectionFailed.value = false
     watchingUserIds.value = new Set()
+  }
+
+  function setVoiceConnectionFailed(failed: boolean) {
+    voiceConnectionFailed.value = failed
+  }
+
+  /** Asks the mounted call view to rejoin LiveKit. */
+  function requestVoiceRetry() {
+    retryRequest.value++
   }
 
   function setReconnecting(reconnecting: boolean) {
@@ -148,6 +162,10 @@ export const useCallStore = defineStore("call", () => {
     isScreenSharing,
     isCameraEnabled,
     isReconnecting,
+    voiceConnectionFailed,
+    retryRequest,
+    setVoiceConnectionFailed,
+    requestVoiceRetry,
     watchingUserIds,
     setMuted,
     setDeafened,

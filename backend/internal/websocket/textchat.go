@@ -54,6 +54,9 @@ func (h *Hub) SetTextChat(tc *TextChat) {
 	if h.textLimiter == nil {
 		h.textLimiter = ratelimit.New()
 	}
+	if h.textNonces == nil {
+		h.textNonces = newSentNonces()
+	}
 	h.mu.Unlock()
 	if tc != nil && tc.Store != nil {
 		tc.Store.SetRevertHandler(h.onTextRevert)

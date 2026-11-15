@@ -6,18 +6,6 @@
     {{ appStore.errorMessage }}
   </div>
 
-  <!-- Connecting Overlay -->
-  <div
-    v-if="appStore.isConnecting"
-    class="fixed inset-0 bg-black/60 z-40 flex items-center justify-center">
-    <div class="bg-theme-bg-secondary rounded-lg p-6 flex items-center space-x-3">
-      <div
-        class="animate-spin rounded-full h-6 w-6 border-b-2 border-t-2 border-theme-text-primary"></div>
-
-      <span class="text-theme-text-primary">Connecting to voice server...</span>
-    </div>
-  </div>
-
   <!-- Loading Overlay -->
   <div
     v-if="appStore.isLoading"
