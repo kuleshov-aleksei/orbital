@@ -3,7 +3,7 @@ import type { ReconnectPolicy, ReconnectContext } from "livekit-client"
 import { apiService } from "@/services/api"
 import { usePresenceStore } from "@/stores/presence"
 import { useCallStore } from "@/stores/call"
-import { debugLog } from "@/utils/debug"
+import { debugLog, debugError } from "@/utils/debug"
 import { playJoinRoom, playLeaveRoom, stopReconnectingLoop } from "@/services/sounds"
 import type { LiveKitState } from "./useLiveKitState"
 
@@ -160,13 +160,15 @@ export function useLiveKitConnection(state: LiveKitState, deps: UseLiveKitConnec
 
       return true
     } catch (error) {
-      console.error("Failed to connect to LiveKit room:", error)
+      // debugError, not console.error: only debug* calls reach the log users send us.
+      debugError(
+        `[LiveKit][ERROR]: Connection failed (t=${(performance.now() - connectStart).toFixed(0)}ms): ${(error as Error).message}`,
+      )
       // A Room that never connected is still holding sockets and listeners.
       if (lkRoom && state.room.value !== lkRoom) disconnectQuietly(lkRoom)
       if (pendingRoom === lkRoom) pendingRoom = null
       if (stale()) return false
       state.connectionError.value = (error as Error).message
-      console.error(`[LiveKit][ERROR]: Connection failed: ${(error as Error).message}`)
       state.isConnecting.value = false
       return false
     }
@@ -199,7 +201,7 @@ export function useLiveKitConnection(state: LiveKitState, deps: UseLiveKitConnec
       const outcome = await Promise.race([join, timedOut]).finally(() => clearTimeout(deadline))
 
       if (outcome === "timeout") {
-        console.error(`[LiveKit][ERROR]: Join timed out after ${JOIN_DEADLINE_MS}ms`)
+        debugError(`[LiveKit][ERROR]: Join timed out after ${JOIN_DEADLINE_MS}ms`)
         // Make the attempt stale and drop whatever it had opened.
         attempt++
         disconnectQuietly(pendingRoom)
@@ -226,8 +228,7 @@ export function useLiveKitConnection(state: LiveKitState, deps: UseLiveKitConnec
 
       return connected
     } catch (error) {
-      console.error("Failed to initialize LiveKit:", error)
-      console.error(`[LiveKit][ERROR]: Initialization failed: ${(error as Error).message}`)
+      debugError(`[LiveKit][ERROR]: Initialization failed: ${(error as Error).message}`)
       return false
     }
   }

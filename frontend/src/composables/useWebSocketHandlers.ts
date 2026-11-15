@@ -15,6 +15,7 @@ import {
   useTextNotifyStore,
   useConfigStore,
   useConnectionStore,
+  useCallStore,
 } from "@/stores"
 import { wsService } from "@/services/websocket"
 import type {
@@ -67,7 +68,17 @@ export function useWebSocketHandlers() {
   const textNotifyStore = useTextNotifyStore()
   const configStore = useConfigStore()
   const connectionStore = useConnectionStore()
+  const callStore = useCallStore()
   const hasConnected = ref(false)
+
+  // The server dropped us from the active room without us asking. reason is
+  // "kicked" / "permission_revoked" (Hub.RemoveUserFromRoom); it is absent for
+  // a ping timeout or a /leave sent by another session of the same account.
+  const logRemovedFromRoom = (roomId: string, reason?: string) => {
+    debugLog(
+      `[WebSocket] Current user was removed from room ${roomId} (reason: ${reason || "none: ping timeout or another session left"}), cleaning up...`,
+    )
+  }
 
   const cleanupFns: Array<() => void> = []
 
@@ -109,11 +120,13 @@ export function useWebSocketHandlers() {
     onCleanup(() => wsService.off("nickname_change", onNicknameChange))
 
     const onRoomUserLeft: MessageCallback = (message) => {
-      const data = message.data as { room_id: string; user: User }
+      const data = message.data as { room_id: string; user: User; reason?: string }
       roomStore.removeUserFromRoom(data.room_id, data.user.id)
 
       if (data.user.id === userStore.userId && roomStore.activeRoomId === data.room_id) {
-        debugLog("[WebSocket] Current user was kicked from room, cleaning up...")
+        // The echo of our own leave: handleLeaveRoom finishes the cleanup.
+        if (callStore.isLeavingRoom) return
+        logRemovedFromRoom(data.room_id, data.reason)
         roomStore.setActiveRoom(null)
         if (appStore.isMobile) {
           appStore.showRoomsView()
@@ -268,11 +281,13 @@ export function useWebSocketHandlers() {
     onCleanup(() => wsService.offGlobal("room_user_joined", onRoomUserJoined))
 
     const onGlobalRoomUserLeft: MessageCallback = (message) => {
-      const data = message.data as { room_id: string; user: User }
+      const data = message.data as { room_id: string; user: User; reason?: string }
       roomStore.removeUserFromRoom(data.room_id, data.user.id)
 
       if (data.user.id === userStore.userId && roomStore.activeRoomId === data.room_id) {
-        debugLog("[WebSocket] Current user was kicked from room, cleaning up...")
+        // The echo of our own leave: handleLeaveRoom finishes the cleanup.
+        if (callStore.isLeavingRoom) return
+        logRemovedFromRoom(data.room_id, data.reason)
         roomStore.setActiveRoom(null)
         if (appStore.isMobile) {
           appStore.showRoomsView()

@@ -12,6 +12,7 @@ import { apiService, generateNickname, isNetworkError, type ApiError } from "@/s
 import { collectSystemInfo } from "@/services/systemInfo"
 import type { CreateRoomData, UpdateRoomData, RoomType } from "@/types"
 import { loadWorld } from "@/world/WorldData"
+import { debugLog } from "@/utils/debug"
 
 // Room ping interval (20 seconds - must be less than backend timeout of 30s)
 const ROOM_PING_INTERVAL = 20000
@@ -92,6 +93,8 @@ export function useRoomManager() {
 
     // Disconnect existing connection if any
     wsService.disconnect()
+    // A new join: removals from here on are not our own leave.
+    callStore.setLeavingRoom(false)
 
     try {
       await apiService.joinRoom(roomId, {
@@ -129,6 +132,11 @@ export function useRoomManager() {
     const userId = userStore.userId
 
     if (!roomId || !userId) return
+
+    debugLog(`[RoomManager] Leaving room ${roomId}`)
+    // Must be set before the POST: the server removes us from LiveKit and
+    // broadcasts room_user_left while the request is still in flight.
+    callStore.setLeavingRoom(true)
 
     try {
       // Stop room ping interval before disconnecting

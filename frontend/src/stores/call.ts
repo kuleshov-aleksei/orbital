@@ -37,6 +37,11 @@ export const useCallStore = defineStore("call", () => {
   // reconnection gave up. Clicking the room again retries (retryRequest).
   const voiceConnectionFailed = ref(false)
   const retryRequest = ref(0)
+  // Our own leave (Leave button / room switch) is in flight. The backend's
+  // POST /leave removes us from LiveKit (PARTICIPANT_REMOVED) and broadcasts
+  // room_user_left before the call view tears down, so both look like a kick
+  // unless we know we asked for it. Cleared when the next join starts.
+  const isLeavingRoom = ref(false)
   const wasMutedBeforeDeafen = ref(false)
   const watchingUserIds = ref<Set<string>>(new Set())
 
@@ -156,6 +161,10 @@ export const useCallStore = defineStore("call", () => {
     isReconnecting.value = reconnecting
   }
 
+  function setLeavingRoom(leaving: boolean) {
+    isLeavingRoom.value = leaving
+  }
+
   return {
     isMuted,
     isDeafened,
@@ -164,6 +173,8 @@ export const useCallStore = defineStore("call", () => {
     isReconnecting,
     voiceConnectionFailed,
     retryRequest,
+    isLeavingRoom,
+    setLeavingRoom,
     setVoiceConnectionFailed,
     requestVoiceRetry,
     watchingUserIds,

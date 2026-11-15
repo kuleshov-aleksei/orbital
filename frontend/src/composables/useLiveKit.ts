@@ -12,6 +12,7 @@ import { useLiveKitSupervisor } from "./useLiveKitSupervisor"
 import { usePresenceBroadcast } from "./usePresenceBroadcast"
 import { setCallKeepAlive } from "@/services/platform"
 import { emojiTextToPlain } from "@/services/emoji/inlineText"
+import { debugError } from "@/utils/debug"
 
 export interface UseLiveKitOptions {
   roomId: string
@@ -75,7 +76,7 @@ export function useLiveKit(options: UseLiveKitOptions) {
     try {
       connected = await rawJoin()
     } catch (error) {
-      console.error("[LiveKit][ERROR]: Join failed:", error)
+      debugError(`[LiveKit][ERROR]: Join failed: ${(error as Error).message}`)
     }
     // Left meanwhile (unmount / room switch): nothing to report or keep alive.
     if (connection.isManualLeave()) return false

@@ -1,7 +1,6 @@
 import { defineStore } from "pinia"
 import { ref, computed } from "vue"
 import type { Room, User } from "@/types"
-import { debugLog } from "@/utils/debug"
 import { USER_VOLUMES_STORAGE_KEY } from "@/types/audio"
 
 export const useRoomStore = defineStore("room", () => {
@@ -100,8 +99,6 @@ export const useRoomStore = defineStore("room", () => {
   // Patch a user's presence flags in the sidebar room list. When roomId is
   // given only that room's entry is touched (media state is per room member).
   function updateUserStatus(userId: string, status: UserStatusUpdate, roomId?: string) {
-    debugLog("[RoomStore] updateUserStatus:", userId, roomId ?? "(any room)", status)
-
     let hasChanges = false
     const updatedRooms = rooms.value.map((room) => {
       if (roomId && room.id !== roomId) return room

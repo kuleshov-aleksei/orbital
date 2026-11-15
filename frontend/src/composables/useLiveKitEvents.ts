@@ -412,7 +412,15 @@ export function useLiveKitEvents(state: LiveKitState, deps?: UseLiveKitEventsDep
       state.isConnected.value = false
 
       // User-initiated leave (room switch / unmount / leave button) - full stop.
-      if (reason === DisconnectReason.CLIENT_INITIATED && deps?.isManualLeave?.()) {
+      // Our own POST /leave makes the server remove us (PARTICIPANT_REMOVED)
+      // before the call view disconnects, so that counts as a manual leave too.
+      const ownLeave =
+        (reason === DisconnectReason.CLIENT_INITIATED && deps?.isManualLeave?.()) ||
+        (reason === DisconnectReason.PARTICIPANT_REMOVED && callStore.isLeavingRoom)
+      if (ownLeave) {
+        if (reason === DisconnectReason.PARTICIPANT_REMOVED) {
+          debugLog(`[LiveKit][INFO]: Removed by our own leave request`)
+        }
         stopReconnectingLoop()
         state.isReconnecting.value = false
         state.connectionFailed.value = false
