@@ -98,7 +98,7 @@ export interface ElectronAPI {
   onDeepLink: (callback: (url: string) => void) => void
   openExternal: (url: string) => Promise<boolean>
   oauthAuthenticate: (state: string) => Promise<void>
-  oauthCallback: (token) => Promise<boolean>
+  oauthCallback: (token: string) => Promise<boolean>
   onOAuthToken: (callback: (data: { token: string; expires: string }) => void) => void
   venmicHasVenmic: () => Promise<boolean>
   venmicHasPipeWire: () => Promise<boolean>

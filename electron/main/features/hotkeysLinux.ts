@@ -50,7 +50,6 @@ const MOD_CONTROL = 0x04000000
 const MOD_ALT = 0x08000000
 const MOD_META = 0x10000000
 const MOD_KEYPAD = 0x20000000
-const MOD_MASK = MOD_SHIFT | MOD_CONTROL | MOD_ALT | MOD_META | MOD_KEYPAD
 
 // Qt::Key codes used by KGlobalAccel shortcuts
 const KEY_F1 = 0xffb1

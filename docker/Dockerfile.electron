@@ -51,6 +51,9 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 # Electron source
 COPY electron/ .
 
+# Release quality gate: main/preload type errors fail the build too
+RUN pnpm run typecheck
+
 # Generate licenses
 RUN node scripts/generate-licenses.js
 

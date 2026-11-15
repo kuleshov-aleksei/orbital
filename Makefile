@@ -9,7 +9,7 @@ help:
 	@echo "  dev-public        - Run development servers on all interfaces (0.0.0.0)"
 	@echo "  dev-electron      - Run Electron in development mode (starts backend + LiveKit)"
 	@echo "  lint              - Run linters for frontend and backend"
-	@echo "  check             - Release quality gate: frontend typecheck + full backend lint"
+	@echo "  check             - Release quality gate: frontend + electron typecheck, full backend lint"
 	@echo "  test              - Run tests (Playwright e2e in Docker)"
 	@echo "  test-unit         - Run frontend unit tests (Vitest)"
 	@echo "  test-backend      - Run backend Go unit tests (hermetic, what PR CI runs)"
@@ -148,6 +148,8 @@ lint:
 check:
 	@echo "Running frontend typecheck..."
 	cd frontend && pnpm run typecheck
+	@echo "Running electron typecheck..."
+	cd electron && pnpm run typecheck
 	@echo "Running backend linter..."
 	cd backend && golangci-lint run
 

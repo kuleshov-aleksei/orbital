@@ -3,7 +3,7 @@ import path from "node:path"
 import fs from "node:fs"
 import os from "node:os"
 import log from "electron-log"
-import { __dirname, VITE_DEV_SERVER_URL } from "../paths"
+import { __dirname } from "../paths"
 import { isWayland } from "../platform"
 import { getHotkeyBackend } from "../features/hotkeys"
 

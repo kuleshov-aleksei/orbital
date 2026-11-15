@@ -51,13 +51,6 @@ interface UpdateInfo {
   releaseNotes?: string
 }
 
-interface UpdateProgressInfo {
-  percent: number
-  bytesPerSecond: number
-  total: number
-  transferred: number
-}
-
 interface CachedUpdateState {
   status: "idle" | "checking" | "downloading" | "ready" | "error"
   version?: string

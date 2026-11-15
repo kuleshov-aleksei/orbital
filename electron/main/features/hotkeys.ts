@@ -24,7 +24,6 @@ let registeredAccelerators: {
   ptt: null,
 }
 
-let hotkeysPaused = false
 
 function resolveBackend(): Promise<HotkeyBackend> {
   if (!backendPromise) {
@@ -131,13 +130,11 @@ export async function unregisterAllHotkeys(): Promise<void> {
 
 export async function pauseHotkeys(): Promise<boolean> {
   await unregisterAllHotkeys()
-  hotkeysPaused = true
   log.info("[Hotkey] Hotkeys paused")
   return true
 }
 
 export async function resumeHotkeys(): Promise<boolean> {
-  hotkeysPaused = false
   await registerAllHotkeys()
   log.info("[Hotkey] Hotkeys resumed")
   return true
