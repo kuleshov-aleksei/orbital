@@ -1,9 +1,10 @@
-.PHONY: help install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-backend test-integration e2e-textchat meili-up meili-down ml-up ml-down garage-up garage-down test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all build-android-web build-android build-android-dev check-android-jdk dev-android balance-drift balance-check
+.PHONY: help hooks install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-ota test-backend test-integration e2e-textchat meili-up meili-down ml-up ml-down garage-up garage-down test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all build-android-web build-android build-android-dev check-android-jdk dev-android balance-drift balance-check
 
 # Default target
 help:
 	@echo "Available commands:"
-	@echo "  install           - Install dependencies for frontend and backend"
+	@echo "  install           - Install dependencies for frontend and backend (+ git hooks)"
+	@echo "  hooks             - Install git hooks from .githooks (pre-commit shell-api check)"
 	@echo "  build             - Build frontend and backend"
 	@echo "  dev               - Run development servers"
 	@echo "  dev-public        - Run development servers on all interfaces (0.0.0.0)"
@@ -37,7 +38,7 @@ help:
 	@echo "  dev-android          - Run the Android app against a live dev server (CAP_SERVER_URL=http://<lan-ip>:3000)"
 
 # Install dependencies
-install:
+install: hooks
 	@echo "Installing frontend dependencies..."
 	cd frontend && pnpm install
 	@echo "Installing electron dependencies..."
@@ -139,6 +140,8 @@ dev-public: certs
 
 # Run linters
 lint:
+	@echo "Checking shell-api.json bumps..."
+	./scripts/check-shell-api.sh
 	@echo "Running frontend linter..."
 	cd frontend && pnpm run lint
 	@echo "Running backend linter..."
@@ -174,6 +177,15 @@ test-e2e-docker: docker-build-test
 # Run tests
 test: docker-build-test
 	@PLAYWRIGHT_TEST_IMAGE=$(PLAYWRIGHT_TEST_IMAGE) PLAYWRIGHT_TEST_ARGS="$(PLAYWRIGHT_TEST_ARGS)" bash scripts/run-tests.sh all
+
+# Git hooks from .githooks/ (pre-commit: scripts/check-shell-api.sh --staged)
+hooks:
+	git config core.hooksPath .githooks
+	@echo "Git hooks installed (.githooks)"
+
+# Over-the-air frontend update logic (Electron decisions + bundle generator)
+test-ota:
+	node --test electron/main/features/otaPlan.test.ts scripts/ota-manifest.test.mjs
 
 # Run backend unit tests (no external services; integration tests are excluded
 # by build tag, see test-integration)
