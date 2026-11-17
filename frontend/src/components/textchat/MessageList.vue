@@ -372,6 +372,26 @@ watch(
   },
 )
 
+// The list shrinks when the on-screen keyboard opens (Android) or the composer
+// grows. scrollTop doesn't change then, so the newest messages would slide
+// under the composer: stay at the bottom if the user was there, otherwise
+// keep the message at the bottom edge in place.
+let resizeObserver: ResizeObserver | null = null
+let lastClientHeight = 0
+
+function onScrollerResize() {
+  const el = scroller.value
+  // 0 = hidden by v-show (mobile side panel): nothing to keep in view.
+  if (!el || el.clientHeight === 0 || el.clientHeight === lastClientHeight) return
+  const delta = lastClientHeight - el.clientHeight
+  lastClientHeight = el.clientHeight
+  // atBottom is still the pre-resize value: a resize alone fires no scroll event.
+  if (props.view.atBottom) scrollToBottom()
+  else el.scrollTop += delta
+  measure()
+  updateReadPosition()
+}
+
 function onFocus() {
   updateReadPosition()
 }
@@ -379,10 +399,16 @@ function onFocus() {
 onMounted(() => {
   window.addEventListener("focus", onFocus)
   measure()
+  if (scroller.value) {
+    lastClientHeight = scroller.value.clientHeight
+    resizeObserver = new ResizeObserver(onScrollerResize)
+    resizeObserver.observe(scroller.value)
+  }
 })
 onBeforeUnmount(() => {
   window.removeEventListener("focus", onFocus)
   if (scrollFrame) cancelAnimationFrame(scrollFrame)
+  resizeObserver?.disconnect()
 })
 
 function jumpToPresent() {
