@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/kuleshov-aleksei/orbital/internal/models"
+	"github.com/kuleshov-aleksei/orbital/internal/service"
 )
 
 // StatusAway marks an online user with no active session.
@@ -30,7 +31,7 @@ func (c *Client) handleClientState(data any) {
 	c.inactive = !req.Active
 	c.mu.Unlock()
 	if c.userID != "" {
-		c.hub.refreshAway(c.userID)
+		c.hub.refreshPresence(c.userID)
 	}
 }
 
@@ -108,61 +109,99 @@ func (h *Hub) userIsAway(userID string) bool {
 	return !h.userInOpenMicCall(userID)
 }
 
-// refreshAway recomputes a user's away state and broadcasts
-// user_status {user_id, status: "away"|"online"} when it changed.
-func (h *Hub) refreshAway(userID string) {
-	away := h.userIsAway(userID)
-	h.awayMu.Lock()
-	if h.awayUsers == nil {
-		h.awayUsers = map[string]bool{}
+// presenceState is what clients know about an online user beyond "online".
+// The zero value (active, not mobile-only) is what user_online implies.
+type presenceState struct {
+	Away   bool
+	Mobile bool
+}
+
+// userOnMobileOnly reports whether userID has any socket, and whether all of
+// them come from the mobile app (?client=android/<version>). A desktop or web
+// session next to the phone hides the mobile indicator, as in Discord.
+func (h *Hub) userOnMobileOnly(userID string) (hasSockets, mobileOnly bool) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	for client := range h.clients {
+		if client.userID != userID {
+			continue
+		}
+		// clientID is set once when the socket is created.
+		if platform, _ := service.ParseClientID(client.clientID); platform != service.PlatformAndroid {
+			return true, false
+		}
+		hasSockets = true
 	}
-	if h.awayUsers[userID] == away {
-		h.awayMu.Unlock()
+	return hasSockets, hasSockets
+}
+
+// refreshPresence recomputes a user's presence and broadcasts
+// user_status {user_id, status: "away"|"online", mobile} when it changed.
+func (h *Hub) refreshPresence(userID string) {
+	online := h.IsUserOnline(userID)
+	hasSockets, mobileOnly := h.userOnMobileOnly(userID)
+	state := presenceState{Away: h.userIsAway(userID), Mobile: online && mobileOnly}
+
+	h.presenceMu.Lock()
+	if h.presence == nil {
+		h.presence = map[string]presenceState{}
+	}
+	// A user whose sockets all closed stays online until the last ping
+	// expires (30 s). Keep the mobile flag for that lingering time, so closing
+	// the app doesn't flip the user to "desktop" before they go offline.
+	if online && !hasSockets {
+		state.Mobile = h.presence[userID].Mobile
+	}
+	if h.presence[userID] == state {
+		h.presenceMu.Unlock()
 		return
 	}
-	if away {
-		h.awayUsers[userID] = true
+	if state == (presenceState{}) {
+		delete(h.presence, userID)
 	} else {
-		delete(h.awayUsers, userID)
+		h.presence[userID] = state
 	}
-	h.awayMu.Unlock()
+	h.presenceMu.Unlock()
 
 	status := "online"
-	if away {
+	if state.Away {
 		status = StatusAway
 	}
 	h.BroadcastToAll(models.WebSocketMessage{
 		Type: "user_status",
-		Data: map[string]any{"user_id": userID, "status": status},
+		Data: map[string]any{"user_id": userID, "status": status, "mobile": state.Mobile},
 	})
 }
 
-// forgetAway drops the away state of a user who went offline (user_offline
-// already told everyone).
-func (h *Hub) forgetAway(userID string) {
-	h.awayMu.Lock()
-	delete(h.awayUsers, userID)
-	h.awayMu.Unlock()
+// forgetPresence drops the presence state of a user who went offline
+// (user_offline already told everyone).
+func (h *Hub) forgetPresence(userID string) {
+	h.presenceMu.Lock()
+	delete(h.presence, userID)
+	h.presenceMu.Unlock()
 }
 
-// resyncAway follows a user_online broadcast, which clients read as "not
-// away": reset the cached state and announce away again if it still holds.
-func (h *Hub) resyncAway(userID string) {
-	h.forgetAway(userID)
-	h.refreshAway(userID)
+// resyncPresence follows a user_online broadcast, which clients read as "not
+// away, not mobile": reset the cached state and announce it again if needed.
+func (h *Hub) resyncPresence(userID string) {
+	h.forgetPresence(userID)
+	h.refreshPresence(userID)
 }
 
-func (h *Hub) isAway(userID string) bool {
-	h.awayMu.Lock()
-	defer h.awayMu.Unlock()
-	return h.awayUsers[userID]
+func (h *Hub) presenceOf(userID string) presenceState {
+	h.presenceMu.Lock()
+	defer h.presenceMu.Unlock()
+	return h.presence[userID]
 }
 
-// onlinePublicUser is the public view of an online user, with away status.
+// onlinePublicUser is the public view of an online user, with away status
+// and the mobile flag.
 func (h *Hub) onlinePublicUser(user *models.User) models.PublicUser {
 	pu := models.NewPublicUser(user, true)
-	if h.isAway(user.ID) {
+	state := h.presenceOf(user.ID)
+	if state.Away {
 		pu.Status = StatusAway
 	}
+	pu.Mobile = state.Mobile
 	return pu
 }

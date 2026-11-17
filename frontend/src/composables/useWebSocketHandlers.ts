@@ -485,6 +485,7 @@ export function useWebSocketHandlers() {
           custom_status_emoji?: string
           created_at?: string
           status?: "away"
+          mobile?: boolean
         }>
       }
 
@@ -499,6 +500,7 @@ export function useWebSocketHandlers() {
           custom_status_emoji: user.custom_status_emoji,
           created_at: user.created_at,
           status: user.status,
+          mobile: user.mobile,
         })
       })
 
@@ -512,10 +514,18 @@ export function useWebSocketHandlers() {
     wsService.onGlobal("online_users", onOnlineUsers)
     onCleanup(() => wsService.offGlobal("online_users", onOnlineUsers))
 
-    // Online but no session in use (backend websocket/presence.go).
+    // Away (no session in use) and mobile (only the mobile app is connected);
+    // backend websocket/presence.go.
     const onUserStatus: MessageCallback = (message) => {
-      const data = message.data as { user_id: string; status: "online" | "away" }
-      usersStore.setUserAway(data.user_id, data.status === "away")
+      const data = message.data as {
+        user_id: string
+        status: "online" | "away"
+        mobile?: boolean
+      }
+      usersStore.setUserPresence(data.user_id, {
+        away: data.status === "away",
+        mobile: data.mobile === true,
+      })
     }
     wsService.onGlobal("user_status", onUserStatus)
     onCleanup(() => wsService.offGlobal("user_status", onUserStatus))

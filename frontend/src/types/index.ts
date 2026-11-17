@@ -45,6 +45,8 @@ export interface PublicUser {
   created_at?: string // ISO timestamp of registration
   // "away": online but no session in use (hidden or idle 10 min everywhere)
   status?: "away"
+  // true: online, and every session is the mobile app
+  mobile?: boolean
 }
 
 // Screen sharing quality options

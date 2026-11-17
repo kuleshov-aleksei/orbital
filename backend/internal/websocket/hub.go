@@ -58,9 +58,9 @@ type Hub struct {
 	// Per (user, channel) push cooldown (see textchat_push.go).
 	textPushes *pushThrottle
 
-	// Presence: users shown as "away" (see presence.go)
-	awayMu    sync.Mutex
-	awayUsers map[string]bool
+	// Presence: users shown as "away" or "on mobile" (see presence.go)
+	presenceMu sync.Mutex
+	presence   map[string]presenceState
 }
 
 // Client represents a WebSocket client
@@ -283,7 +283,7 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 		log.Printf("[WebSocket] Cannot broadcast user_online: authService is nil")
 	}
 	// user_online reads as "not away" on clients; a new socket starts active.
-	h.resyncAway(userID)
+	h.resyncPresence(userID)
 
 	// Start goroutines for this client FIRST so they can receive messages
 	go client.writePump()
@@ -645,9 +645,9 @@ func (c *Client) readPump() {
 			}
 			if isStillOnline {
 				// The closed socket may have been the only active one.
-				c.hub.refreshAway(userID)
+				c.hub.refreshPresence(userID)
 			} else {
-				c.hub.forgetAway(userID)
+				c.hub.forgetPresence(userID)
 			}
 		}
 
@@ -836,7 +836,7 @@ func (c *Client) handleJoinRoom(data interface{}) {
 	}
 
 	c.hub.subscribeClientToRoom(c, c.roomID)
-	c.hub.refreshAway(userID)
+	c.hub.refreshPresence(userID)
 
 	// Track the call session (1 row per user per call)
 	c.hub.recordSessionStart(userID, c.roomID, req.DeviceInfo)
@@ -904,7 +904,7 @@ func (c *Client) handleLeaveRoom(data interface{}) {
 
 	c.hub.unsubscribeClientFromRoom(c, roomID)
 	c.hub.roomService.LeaveRoom(roomID, userID)
-	c.hub.refreshAway(userID)
+	c.hub.refreshPresence(userID)
 
 	// Finalize the call session last_seen so short calls get accurate durations
 	c.hub.updateSessionLastSeen(userID, roomID)
@@ -1073,7 +1073,7 @@ func (c *Client) applyMediaState(req models.UpdateMediaStateRequest) {
 		},
 	})
 	// An open mic in a call counts as active (presence.go).
-	c.hub.refreshAway(userID)
+	c.hub.refreshPresence(userID)
 }
 
 // handlePing handles ping messages and responds with pong
@@ -1134,7 +1134,7 @@ func (c *Client) handlePing(data interface{}) {
 					Type: "user_online",
 					Data: models.NewPublicUser(user, true),
 				})
-				c.hub.resyncAway(userID)
+				c.hub.resyncPresence(userID)
 			} else {
 				log.Printf("[WebSocket] Cannot broadcast user_online for %s: auth error=%v, user=%v", userID, err, user)
 			}
@@ -1326,6 +1326,9 @@ func (h *Hub) checkGlobalPresenceTimeouts() {
 	// Remove offline users - their offline status will be propagated via the next online_users broadcast
 	for _, userID := range offlineUsers {
 		delete(h.onlineUsers, userID)
+		// Drop the lingering presence (e.g. the mobile flag kept after the
+		// app closed); clients clear it when the user goes offline.
+		h.forgetPresence(userID)
 		log.Printf("User %s marked offline due to inactivity (30s timeout), will be synced via online_users broadcast", userID)
 	}
 }
@@ -1351,7 +1354,7 @@ func (h *Hub) disconnectUserDueToTimeout(roomID, userID string) {
 
 	// Remove user from room service
 	h.roomService.LeaveRoom(roomID, userID)
-	h.refreshAway(userID)
+	h.refreshPresence(userID)
 
 	// Finalize the call session last_seen (ping timeout)
 	h.updateSessionLastSeen(userID, roomID)

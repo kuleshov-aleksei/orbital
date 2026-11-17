@@ -60,7 +60,10 @@ type PublicUser struct {
 	CustomStatusEmoji string `json:"custom_status_emoji,omitempty"`
 	// Status is "away" for an online user with no active session (hidden or
 	// idle everywhere); omitted otherwise.
-	Status    string    `json:"status,omitempty"`
+	Status string `json:"status,omitempty"`
+	// Mobile is true for an online user whose every session is the mobile
+	// app (see websocket/presence.go); omitted otherwise.
+	Mobile    bool      `json:"mobile,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 }
 

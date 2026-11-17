@@ -99,22 +99,41 @@ describe("users store away status", () => {
     const store = useUsersStore()
     store.setUsers([publicUser({ id: ID })])
 
-    store.setUserAway(ID, true)
+    store.setUserPresence(ID, { away: true, mobile: false })
     expect(statusOf(store)).toBe("away")
-    store.setUserAway(ID, false)
+    store.setUserPresence(ID, { away: false, mobile: false })
     expect(statusOf(store)).toBeUndefined()
 
-    store.setUserAway(ID, true)
+    store.setUserPresence(ID, { away: true, mobile: false })
     store.updateOnlineStatus(ID, false)
     expect(statusOf(store)).toBeUndefined()
   })
 
-  it("keeps away across a REST refetch of the user list", async () => {
+  it("sets mobile independently of away and clears it on offline", () => {
     const store = useUsersStore()
     store.setUsers([publicUser({ id: ID })])
-    store.setUserAway(ID, true)
+    const mobileOf = () => store.allUsers.find((u) => u.id === ID)?.mobile
+
+    store.setUserPresence(ID, { away: false, mobile: true })
+    expect(mobileOf()).toBe(true)
+    store.setUserPresence(ID, { away: true, mobile: true })
+    expect(mobileOf()).toBe(true)
+    expect(statusOf(store)).toBe("away")
+    store.setUserPresence(ID, { away: true, mobile: false })
+    expect(mobileOf()).toBeUndefined()
+
+    store.setUserPresence(ID, { away: false, mobile: true })
+    store.updateOnlineStatus(ID, false)
+    expect(mobileOf()).toBeUndefined()
+  })
+
+  it("keeps away and mobile across a REST refetch of the user list", async () => {
+    const store = useUsersStore()
+    store.setUsers([publicUser({ id: ID })])
+    store.setUserPresence(ID, { away: true, mobile: true })
     vi.spyOn(apiService, "getAllUsers").mockResolvedValue([publicUser({ id: ID })])
     await store.fetchAllUsers()
     expect(statusOf(store)).toBe("away")
+    expect(store.allUsers.find((u) => u.id === ID)?.mobile).toBe(true)
   })
 })
