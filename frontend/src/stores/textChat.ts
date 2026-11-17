@@ -70,6 +70,11 @@ export interface PendingTextMessage {
   /** queued: written offline (or the link dropped), sent on reconnect. */
   status: "queued" | "sending" | "failed"
   error?: string
+  /** The sender's time zone when they hit Send (slash commands only). */
+  tz?: string
+  /** The server refused a slash command (bad arguments): resending gives the
+   * same answer, so the next send in the channel clears it. */
+  rejected?: boolean
 }
 
 /** Offline copy of a channel's newest messages (services/offlineCache.ts). */
@@ -132,6 +137,14 @@ function makeNonce(): string {
     return crypto.randomUUID()
   }
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function currentTimeZone(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined
+  } catch {
+    return undefined
+  }
 }
 
 function describeLoadError(error: unknown): string {
@@ -557,6 +570,7 @@ export const useTextChatStore = defineStore("textChat", () => {
       ...(p.upload_ids.length ? { upload_ids: p.upload_ids } : {}),
       ...(p.spoiler_ids?.length ? { spoiler_ids: p.spoiler_ids } : {}),
       ...(p.reply_to_id ? { reply_to_id: p.reply_to_id, reply_ping: p.reply_ping } : {}),
+      ...(p.tz ? { tz: p.tz } : {}),
     })
     const timer = setTimeout(() => {
       sendTimers.delete(p.nonce)
@@ -582,6 +596,10 @@ export const useTextChatStore = defineStore("textChat", () => {
     const text = content.trim()
     if (!text && !files.ids.length) return
     const reply = replyTarget.value?.room_id === roomId ? replyTarget.value : null
+    // A rejected command's usage error has been read once the user sends again.
+    for (const old of pending.value.filter((x) => x.room_id === roomId && x.rejected)) {
+      discardPending(old.nonce)
+    }
     const p: PendingTextMessage = {
       nonce: makeNonce(),
       room_id: roomId,
@@ -593,6 +611,8 @@ export const useTextChatStore = defineStore("textChat", () => {
       attachments: files.attachments,
       created_at_ts: Date.now(),
       status: "sending",
+      // /remindme reads times in the zone the user is in right now.
+      ...(text.startsWith("/") ? { tz: currentTimeZone() } : {}),
     }
     pending.value.push(p)
     replyTarget.value = null
@@ -668,12 +688,13 @@ export const useTextChatStore = defineStore("textChat", () => {
     }
   }
 
-  function markFailed(nonce: string, error: string) {
+  function markFailed(nonce: string, error: string, rejected = false) {
     clearSendTimer(nonce)
     const p = pending.value.find((x) => x.nonce === nonce)
     if (p) {
       p.status = "failed"
       p.error = error
+      if (rejected) p.rejected = true
       void cachePut("outbox", p.nonce, p)
     }
   }
@@ -681,6 +702,7 @@ export const useTextChatStore = defineStore("textChat", () => {
   function retrySend(nonce: string) {
     const p = pending.value.find((x) => x.nonce === nonce)
     if (!p) return
+    p.rejected = undefined
     transmitOrQueue(p)
     void cachePut("outbox", p.nonce, p)
   }
@@ -819,8 +841,18 @@ export const useTextChatStore = defineStore("textChat", () => {
     for (const view of Object.values(views.value)) fn(view)
   }
 
+  /** Command messages that arrived live (not from history): their
+   * animation (the /vrandom wheel) plays once. Not persisted. */
+  const liveCommandIds = new Set<string>()
+
+  /** True once for a command message that arrived live. */
+  function consumeLiveCommand(id: string): boolean {
+    return liveCommandIds.delete(id)
+  }
+
   function onMessageNew(data: TextMessageNewEvent) {
     const msg = data.message
+    if (msg.command) liveCommandIds.add(msg.id)
     if (data.nonce) {
       clearSendTimer(data.nonce)
       if (pending.value.some((p) => p.nonce === data.nonce)) {
@@ -930,7 +962,8 @@ export const useTextChatStore = defineStore("textChat", () => {
 
   function onError(data: TextErrorEvent) {
     if (data.nonce) {
-      markFailed(data.nonce, data.message)
+      const p = pending.value.find((x) => x.nonce === data.nonce)
+      markFailed(data.nonce, data.message, data.code === "invalid" && !!p?.content.startsWith("/"))
       return
     }
     lastError.value = data.message
@@ -1020,6 +1053,7 @@ export const useTextChatStore = defineStore("textChat", () => {
   }
 
   return {
+    consumeLiveCommand,
     activeChannelId,
     activeChannel,
     activeView,

@@ -78,6 +78,7 @@ func main() {
 	var rbacRepo *repository.RBACRepository
 	var textReadState chatstore.ReadStateStore
 	var textNotify chatstore.NotifyStore
+	var textReminders chatstore.ReminderStore
 	var pushDevices *repository.PushDeviceRepository
 	var authSessions *repository.AuthSessionRepository
 	var appDB *storage.DB
@@ -106,6 +107,7 @@ func main() {
 		rbacRepo = repository.NewRBACRepository(db)
 		textReadState = repository.NewTextReadStateRepository(db)
 		textNotify = repository.NewTextNotifyRepository(db)
+		textReminders = repository.NewTextReminderRepository(db)
 		pushDevices = repository.NewPushDeviceRepository(db)
 		authSessions = repository.NewAuthSessionRepository(db)
 		appSettings = repository.NewAppSettingsRepository(db)
@@ -245,7 +247,7 @@ func main() {
 			return ids
 		})
 		textChat = &websocket.TextChat{
-			Store: store, ReadState: textReadState, Notify: textNotify,
+			Store: store, ReadState: textReadState, Notify: textNotify, Reminders: textReminders,
 			UserExists: func(id string) bool { return userLookup(id) != nil },
 			Media:      newChatMedia(cfg, appDB),
 			Push:       newPush(cfg, pushDevices),
@@ -273,6 +275,7 @@ func main() {
 			textChat.Media.Start(context.Background()) // after SetTextChat wired the hooks
 		}
 		wsHub.StartMuteExpiry(context.Background())
+		wsHub.StartReminders(context.Background())
 		log.Printf("Text channels enabled (Meilisearch at %s, index %s)", cfg.Chat.MeiliURL, cfg.Chat.MeiliIndex)
 	} else {
 		log.Println("MEILI_URL is not set, text channels are disabled")

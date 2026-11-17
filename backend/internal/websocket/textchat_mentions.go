@@ -60,11 +60,22 @@ func (h *Hub) mentionTargets(tc *TextChat, msg *chatstore.Message) []string {
 			}
 		}
 	}
+	// A fired reminder always pings its owner, even in a muted channel:
+	// they asked for it.
+	reminderFor := ""
+	if msg.Command != nil && msg.Command.Name == chatstore.CommandReminder {
+		reminderFor = msg.Command.ReminderFor
+		targets[reminderFor] = true
+	}
 	delete(targets, msg.SenderID)
 	now := tc.Store.Now()
 	out := make([]string, 0, len(targets))
 	for userID := range targets {
 		if ps != nil && !ps.CanInRoom(ps.SubjectByID(userID), msg.RoomID, permissions.ViewRoom) {
+			continue
+		}
+		if userID == reminderFor {
+			out = append(out, userID)
 			continue
 		}
 		setting, err := tc.Notify.Get(userID, msg.RoomID)

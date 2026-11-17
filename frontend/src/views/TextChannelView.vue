@@ -160,7 +160,8 @@ const canManage = computed(() =>
 )
 
 function editLast() {
-  const mine = view.value?.messages.filter((m) => m.sender_id === userStore.userId)
+  // Command results can't be edited.
+  const mine = view.value?.messages.filter((m) => m.sender_id === userStore.userId && !m.command)
   const last = mine?.[mine.length - 1]
   if (last) textChatStore.startEdit(last.id)
 }

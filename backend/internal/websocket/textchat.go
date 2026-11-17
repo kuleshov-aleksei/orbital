@@ -33,6 +33,8 @@ type TextChat struct {
 	Store     *chatstore.Service
 	ReadState chatstore.ReadStateStore
 	Notify    chatstore.NotifyStore
+	// Reminders holds pending /remindme reminders (textchat_reminders.go).
+	Reminders chatstore.ReminderStore
 	// UserExists filters mentions of unknown users; nil accepts every id.
 	UserExists func(userID string) bool
 	// Media stores attachments; nil when S3 is not configured.
@@ -72,6 +74,9 @@ func (h *Hub) SetTextChat(tc *TextChat) {
 	}
 	if tc != nil && tc.Notify == nil {
 		tc.Notify = chatstore.NewMemoryNotify()
+	}
+	if tc != nil && tc.Reminders == nil {
+		tc.Reminders = chatstore.NewMemoryReminders()
 	}
 	if tc != nil && tc.Media != nil && tc.Store != nil {
 		tc.Media.SetMessageHook(func(ctx context.Context, rec *chatmedia.Record, apply func(a *chatstore.Attachment) bool) {

@@ -227,6 +227,7 @@ import {
   type MentionMap,
 } from "@/utils/mentionText"
 import { wrapSelection } from "@/utils/wrapSelection"
+import { activeCommandQuery, matchCommands } from "@/utils/chatCommands"
 import { isCapacitor } from "@/services/platform"
 import {
   CUSTOM_EMOJI_PREFIX,
@@ -546,8 +547,21 @@ function updateSuggestions() {
   const el = input.value
   if (!el || el.selectionStart !== el.selectionEnd) return closeSuggestions()
   const caret = el.selectionStart
-  const mention = activeMentionQuery(draft.value, caret)
-  if (mention) {
+  const command = activeCommandQuery(draft.value, caret)
+  const mention = command ? null : activeMentionQuery(draft.value, caret)
+  if (command) {
+    emojiSearchQuery = ""
+    suggestions.value = matchCommands(command.query).map((c) => ({
+      key: `c:${c.name}`,
+      kind: "command",
+      id: c.name,
+      label: `/${c.name}`,
+      insert: `/${c.name}`,
+      hint: c.description,
+    }))
+    suggestionTitle.value = "Commands"
+    suggestionStart = 0
+  } else if (mention) {
     emojiSearchQuery = ""
     suggestions.value = mentionSuggestions(mention.query)
     suggestionTitle.value = "Members and roles"

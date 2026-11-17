@@ -72,6 +72,9 @@ type Message struct {
 	// them; no new ones are made.
 	Embeds           []Embed `json:"embeds"`
 	EmbedsSuppressed bool    `json:"embeds_suppressed"`
+	// Command is the result of a slash command (service/chatcmd); nil for
+	// plain messages.
+	Command *Command `json:"command,omitempty"`
 }
 
 // PublicMessage is what clients receive: no search-only or moderation fields.
@@ -93,7 +96,8 @@ type PublicMessage struct {
 	Attachments    []Attachment `json:"attachments"`
 	Embeds         []Embed      `json:"embeds"`
 	// EmbedsSuppressed lets clients tell "no previews yet" from "removed".
-	EmbedsSuppressed bool `json:"embeds_suppressed"`
+	EmbedsSuppressed bool     `json:"embeds_suppressed"`
+	Command          *Command `json:"command,omitempty"`
 }
 
 // Public converts a stored message to its client representation.
@@ -105,6 +109,7 @@ func (m *Message) Public() PublicMessage {
 		Reactions: nonNilReactions(m.Reactions), Pinned: m.Pinned, PinnedAtTS: m.PinnedAtTS, PinnedBy: m.PinnedBy,
 		Attachments: nonNilAttachments(m.Attachments),
 		Embeds:      nonNilEmbeds(m.Embeds), EmbedsSuppressed: m.EmbedsSuppressed,
+		Command: m.Command.clone(),
 	}
 }
 
@@ -134,6 +139,7 @@ func (m *Message) clone() *Message {
 	c.AttachmentKinds = append([]string(nil), m.AttachmentKinds...)
 	c.AttachmentNames = append([]string(nil), m.AttachmentNames...)
 	c.Embeds = append([]Embed(nil), m.Embeds...)
+	c.Command = m.Command.clone()
 	c.normalize()
 	return &c
 }

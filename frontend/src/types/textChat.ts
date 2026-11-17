@@ -27,7 +27,33 @@ export interface TextMessage {
   embeds?: TextEmbed[]
   /** The author or a moderator removed the previews. */
   embeds_suppressed?: boolean
+  /** Server-computed result of a slash command (/random, /d20, ...). */
+  command?: TextCommand
 }
+
+export type TextCommandName = "random" | "vrandom" | "d20" | "remindme" | "reminder"
+
+/** Result of a slash command, fixed when the message was created. */
+export interface TextCommand {
+  name: TextCommandName
+  /** Numeric range and the value drawn (random, vrandom, d20). */
+  min?: number
+  max?: number
+  result?: number
+  /** Option pick (random, vrandom): result_index points into options. */
+  options?: string[]
+  result_index?: number
+  label?: "critical_success" | "critical_failure"
+  /** Reminders: when it fires (unix ms), the sender's time zone and note. */
+  due_at_ts?: number
+  tz?: string
+  note?: string
+  /** On a fired reminder: the user it reminds. */
+  reminder_for?: string
+}
+
+/** Sender of messages the server posts (fired reminders). */
+export const SYSTEM_SENDER_ID = "system"
 
 export type EmbedKind = "link" | "image" | "video"
 

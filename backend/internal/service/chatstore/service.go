@@ -217,6 +217,8 @@ type CreateInput struct {
 	// Attachments are validated uploads (service/chatmedia); with any,
 	// the content may be empty.
 	Attachments []Attachment
+	// Command is a slash command result (service/chatcmd).
+	Command *Command
 }
 
 // Create stores a message and returns it once Meilisearch accepted the write.
@@ -271,6 +273,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*Message, error) 
 		MentionUserIDs: mentionUsers,
 		MentionRoleIDs: mentionRoles,
 		Attachments:    in.Attachments,
+		Command:        in.Command.clone(),
 	}
 	msg.AttachmentKinds, msg.AttachmentNames = attachmentIndexFields(in.Attachments)
 	msg.normalize()
@@ -322,7 +325,8 @@ func (s *Service) mutate(ctx context.Context, id string, fn func(m *Message) (ma
 // Edit changes a message's text. Only the author may edit.
 func (s *Service) Edit(ctx context.Context, id, actorID, content string) (*Message, error) {
 	return s.mutate(ctx, id, func(m *Message) (map[string]any, error) {
-		if m.SenderID != actorID {
+		// A command result is fixed once posted (an edit can't re-roll).
+		if m.SenderID != actorID || m.Command != nil {
 			return nil, ErrForbidden
 		}
 		text, err := NormalizeContent(content, len(m.Attachments) > 0)
@@ -353,7 +357,7 @@ func (s *Service) Edit(ctx context.Context, id, actorID, content string) (*Messa
 // canManage(roomID) (ManageMessages in that channel).
 func (s *Service) Delete(ctx context.Context, id, actorID string, canManage func(roomID string) bool) (*Message, error) {
 	m, err := s.mutate(ctx, id, func(m *Message) (map[string]any, error) {
-		if m.SenderID != actorID && (canManage == nil || !canManage(m.RoomID)) {
+		if m.SenderID != actorID && !isReminderFor(m, actorID) && (canManage == nil || !canManage(m.RoomID)) {
 			return nil, ErrForbidden
 		}
 		now := s.opts.Now().UnixMilli()
@@ -374,6 +378,11 @@ func (s *Service) Delete(ctx context.Context, id, actorID string, canManage func
 		cancel()
 	}
 	return m, nil
+}
+
+// isReminderFor: a fired reminder may be dismissed by the user it reminds.
+func isReminderFor(m *Message, userID string) bool {
+	return m.SenderID == SystemSenderID && m.Command != nil && m.Command.ReminderFor == userID
 }
 
 // DeleteRoom removes every message of a deleted channel.

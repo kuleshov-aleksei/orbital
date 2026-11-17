@@ -25,6 +25,9 @@
       @click="$emit('pick', item)">
       <UserAvatar v-if="item.kind === 'user'" :user-id="item.id" :size="20" :show-status="false" />
       <PhAt v-else-if="item.kind === 'role'" class="w-5 h-5" :style="{ color: item.color }" />
+      <PhTerminal
+        v-else-if="item.kind === 'command'"
+        class="w-5 h-5 shrink-0 text-theme-text-muted" />
       <EmojiGlyph v-else :emoji-ref="item.id" :size="20" />
       <span class="truncate font-medium" :style="item.color ? { color: item.color } : undefined">{{
         item.label
@@ -37,14 +40,14 @@
 </template>
 
 <script setup lang="ts">
-import { PhAt } from "@phosphor-icons/vue"
+import { PhAt, PhTerminal } from "@phosphor-icons/vue"
 import UserAvatar from "@/components/UserAvatar.vue"
 import EmojiGlyph from "@/components/EmojiGlyph.vue"
 
 export interface Suggestion {
   key: string
-  kind: "user" | "role" | "emoji"
-  /** User id, role id, or emoji ref. */
+  kind: "user" | "role" | "emoji" | "command"
+  /** User id, role id, emoji ref, or command name. */
   id: string
   label: string
   /** Text inserted into the textarea. */

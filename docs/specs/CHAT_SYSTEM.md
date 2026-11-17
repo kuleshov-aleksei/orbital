@@ -622,6 +622,16 @@ Telegram/Discord-style cards under a message for the links in it: site name, tit
 - `CHAT_LINK_PREVIEWS_ENABLED` (default true) turns the feature off.
 - Known limits: preview images are not in the Electron/Android on-device media cache (they use the HTTP cache). The YouTube player in the Android WebView may refuse to play without a Referer.
 
+### 7.16 Slash commands
+
+`/random`, `/vrandom`, `/d20` and `/remindme` run on the **server** (`service/chatcmd`) inside `text_message_send`, so every client sees the same result. The raw command stays in `content` (searchable); the result goes in the message's `command` field (`chatstore.Command`), which never changes: command messages can't be edited, and a resend with the same nonce returns the original roll. Unknown `/words` are plain text; a known command with bad arguments gets `text_error invalid` with a usage line.
+
+- `/random` → 1..100, `/random N` → 1..N, `/random A B` → A..B; anything else is a list of options (split by commas if any, else whitespace; `"quotes"` keep spaces). Randomness: `crypto/rand`.
+- `/vrandom` takes the same arguments, limited to 24 wheel segments. The client spins the wheel only for messages that arrived live (`textChatStore.consumeLiveCommand`); history shows it stopped.
+- `/d20` adds the label `critical_failure` (1) / `critical_success` (20).
+- `/remindme <time> [note]`: `2h`, `30min`, `2d6h`, `1w`, `2m`/`2mo` (months, clamped to month end), `1y`; or `DD.MM [HH:MM]`, `DD.MM.YYYY HH:MM`, `HH:MM`. The client sends its IANA zone as `tz`; the time is read in that zone and stored as UTC ms with the zone (SQLite `chat_reminders`). 1 minute to 1 year ahead, 25 pending per user. Deleting the `/remindme` message cancels it.
+- A due reminder (ticker every 15 s, `Hub.FireReminders`) is posted by the sender `system` as a reply to the `/remindme` message that mentions its owner. It always pings the owner, even in a muted channel, and the owner may delete it. It is dropped if the channel is gone or the owner lost `VIEW_ROOM`.
+
 ## 8. API
 
 JSON is snake_case (see AGENTS.md). Types go in `frontend/src/types/index.ts`; API calls go in `frontend/src/services/api.ts`.

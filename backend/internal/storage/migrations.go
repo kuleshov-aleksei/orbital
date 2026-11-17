@@ -634,6 +634,26 @@ CREATE INDEX IF NOT EXISTS idx_link_previews_fetched ON link_previews(fetched_at
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id);
 ALTER TABLE push_devices ADD COLUMN session_id TEXT NOT NULL DEFAULT '';`,
 	},
+	{
+		Version: 51,
+		Name:    "create_chat_reminders",
+		// Pending /remindme reminders (service/chatcmd). due_at is unix ms
+		// (UTC); tz is the sender's IANA zone at send time. A row is deleted
+		// when it fires or when its /remindme message is deleted.
+		SQL: `CREATE TABLE IF NOT EXISTS chat_reminders (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id TEXT NOT NULL,
+			room_id TEXT NOT NULL,
+			message_id TEXT NOT NULL,
+			due_at INTEGER NOT NULL,
+			tz TEXT NOT NULL DEFAULT 'UTC',
+			note TEXT NOT NULL DEFAULT '',
+			created_at INTEGER NOT NULL
+		);
+CREATE INDEX IF NOT EXISTS idx_chat_reminders_due ON chat_reminders(due_at);
+CREATE INDEX IF NOT EXISTS idx_chat_reminders_user ON chat_reminders(user_id);
+CREATE INDEX IF NOT EXISTS idx_chat_reminders_message ON chat_reminders(message_id);`,
+	},
 }
 
 // RunMigrationsUpTo applies migrations up to and including maxVersion.

@@ -1,6 +1,7 @@
 import { defineStore } from "pinia"
 import { ref, computed } from "vue"
 import type { PublicUser } from "@/types"
+import { SYSTEM_SENDER_ID } from "@/types/textChat"
 import { apiService } from "@/services/api"
 import { useSoundPackStore } from "./soundPack"
 
@@ -219,6 +220,7 @@ export const useUsersStore = defineStore("users", () => {
    * user list belongs to a deleted user.
    */
   function displayName(userId: string): string {
+    if (userId === SYSTEM_SENDER_ID) return "Reminder"
     const user = allUsers.value.find((u) => u.id === userId)
     if (user) return user.nickname
     // Nothing loaded yet: the user may well exist.

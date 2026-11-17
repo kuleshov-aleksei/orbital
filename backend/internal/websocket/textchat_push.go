@@ -284,10 +284,17 @@ func (h *Hub) messageNotification(tc *TextChat, msg *chatstore.Message, mention 
 	roleName := func(id string) string { return roleNames[id] }
 
 	sender := userName(msg.SenderID)
+	if msg.SenderID == chatstore.SystemSenderID {
+		sender = "Reminder"
+	}
 	if sender == "" {
 		sender = "Someone"
 	}
 	text := strings.Join(strings.Fields(chatstore.PlainText(msg.Content, userName, roleName)), " ")
+	if msg.Command != nil {
+		note := strings.Join(strings.Fields(chatstore.PlainText(msg.Command.Note, userName, roleName)), " ")
+		text = commandSummary(msg.Command, note)
+	}
 	switch {
 	case text != "":
 	case len(msg.Attachments) > 0:
@@ -316,4 +323,37 @@ func (h *Hub) messageNotification(tc *TextChat, msg *chatstore.Message, mention 
 		n.ChannelID = push.AndroidChannelID
 	}
 	return n
+}
+
+// commandSummary is the push text of a slash command result.
+func commandSummary(c *chatstore.Command, note string) string {
+	switch c.Name {
+	case chatstore.CommandD20:
+		if c.Result == nil {
+			return "rolled a d20"
+		}
+		text := fmt.Sprintf("rolled a d20: %d", *c.Result)
+		switch c.Label {
+		case chatstore.LabelCriticalSuccess:
+			text += " — Critical Success"
+		case chatstore.LabelCriticalFailure:
+			text += " — Critical Failure"
+		}
+		return text
+	case chatstore.CommandRandom, chatstore.CommandVRandom:
+		if c.ResultIndex != nil && *c.ResultIndex < len(c.Options) {
+			return "picked " + c.Options[*c.ResultIndex]
+		}
+		if c.Result != nil && c.Min != nil && c.Max != nil {
+			return fmt.Sprintf("rolled %d (%d–%d)", *c.Result, *c.Min, *c.Max)
+		}
+	case chatstore.CommandRemindMe:
+		return "set a reminder"
+	case chatstore.CommandReminder:
+		if note == "" {
+			return "you asked to be reminded"
+		}
+		return note
+	}
+	return ""
 }

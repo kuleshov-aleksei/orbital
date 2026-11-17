@@ -7,6 +7,7 @@ import (
 
 	"github.com/kuleshov-aleksei/orbital/internal/models"
 	"github.com/kuleshov-aleksei/orbital/internal/permissions"
+	"github.com/kuleshov-aleksei/orbital/internal/service/chatcmd"
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatmedia"
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatstore"
 )
@@ -21,6 +22,8 @@ type textSendRequest struct {
 	// a spoiler cover; other ids are ignored.
 	SpoilerIDs []string `json:"spoiler_ids"`
 	Nonce      string   `json:"nonce"`
+	// TZ is the sender's IANA time zone, used by /remindme.
+	TZ string `json:"tz"`
 }
 
 func (c *Client) handleTextMessageSend(data interface{}) {
@@ -73,6 +76,10 @@ func (c *Client) handleTextMessageSend(data interface{}) {
 		RoomID: req.RoomID, SenderID: userID, Content: req.Content,
 		ReplyToID: req.ReplyToID, ReplyPing: replyPing,
 	}
+	reminder, ok := c.runCommand(tc, userID, &req, &in)
+	if !ok {
+		return
+	}
 	var msg *chatstore.Message
 	var err error
 	if len(req.UploadIDs) == 0 {
@@ -116,18 +123,76 @@ func (c *Client) handleTextMessageSend(data interface{}) {
 		created = true
 		c.hub.textNonces.complete(userID, req.Nonce, msg.ID)
 	}
+	if reminder != nil {
+		err := tc.Reminders.Add(chatstore.Reminder{
+			UserID: userID, RoomID: msg.RoomID, MessageID: msg.ID,
+			DueAtMS: reminder.DueAt.UnixMilli(), TZ: reminder.TZ, Note: reminder.Note,
+		})
+		if err != nil {
+			log.Printf("[TextChat] Failed to store reminder of message %s: %v", msg.ID, err)
+		}
+	}
+	c.hub.publishNewMessage(tc, msg, req.Nonce)
+}
+
+// publishNewMessage broadcasts a stored message and sends its mention pings
+// and pushes (user sends and fired reminders).
+func (h *Hub) publishNewMessage(tc *TextChat, msg *chatstore.Message, nonce string) {
 	payload := map[string]any{"room_id": msg.RoomID, "message": msg.Public()}
-	if req.Nonce != "" {
-		payload["nonce"] = req.Nonce
+	if nonce != "" {
+		payload["nonce"] = nonce
 	}
 	if msg.ReplyToID != nil {
 		if replied, err := tc.Store.Replied(context.Background(), msg); err == nil {
 			payload["replied"] = replied
 		}
 	}
-	c.hub.broadcastText(msg.RoomID, models.WebSocketMessage{Type: "text_message_new", Data: payload})
-	c.hub.pushMessage(tc, msg, c.hub.pingMentions(tc, msg))
-	tc.Previews.Schedule(msg, c.hub.broadcastUpdated)
+	h.broadcastText(msg.RoomID, models.WebSocketMessage{Type: "text_message_new", Data: payload})
+	h.pushMessage(tc, msg, h.pingMentions(tc, msg))
+	if msg.Command == nil {
+		tc.Previews.Schedule(msg, h.broadcastUpdated)
+	}
+}
+
+// maxPendingReminders caps /remindme per user.
+const maxPendingReminders = 25
+
+// runCommand turns a slash command into its result on in.Command. It
+// returns false after answering the sender with an error. A /remindme
+// returns the reminder to store once the message exists.
+func (c *Client) runCommand(tc *TextChat, userID string, req *textSendRequest, in *chatstore.CreateInput) (*chatcmd.ReminderSpec, bool) {
+	inv, ok := chatcmd.Parse(req.Content)
+	if !ok {
+		return nil, true
+	}
+	if len(req.UploadIDs) > 0 {
+		c.sendTextError(textErrInvalid, "Commands can't have attachments", req.Nonce, "")
+		return nil, false
+	}
+	if inv.Name == chatstore.CommandRemindMe {
+		n, err := tc.Reminders.CountPending(userID)
+		if err != nil {
+			log.Printf("[TextChat] Failed to count reminders of %s: %v", userID, err)
+			c.sendTextError(textErrWriteFailed, "Couldn't save the reminder", req.Nonce, "")
+			return nil, false
+		}
+		if n >= maxPendingReminders {
+			c.sendTextError(textErrInvalid, "You have too many pending reminders", req.Nonce, "")
+			return nil, false
+		}
+	}
+	cmd, reminder, err := chatcmd.Execute(inv, tc.Store.Now(), req.TZ)
+	if err != nil {
+		if chatcmd.IsUsage(err) {
+			c.sendTextError(textErrInvalid, err.Error(), req.Nonce, "")
+		} else {
+			log.Printf("[TextChat] Command /%s failed: %v", inv.Name, err)
+			c.sendTextError(textErrWriteFailed, "The command failed", req.Nonce, "")
+		}
+		return nil, false
+	}
+	in.Command = cmd
+	return reminder, true
 }
 
 // markSpoilers flags the images and videos whose ids the sender listed.
@@ -277,6 +342,12 @@ func (c *Client) handleTextMessageDelete(data interface{}) {
 		}
 		c.sendStoreError(err, "", req.MessageID)
 		return
+	}
+	if msg.Command != nil && msg.Command.Name == chatstore.CommandRemindMe {
+		// Deleting a /remindme cancels it.
+		if err := tc.Reminders.DeleteByMessage(msg.ID); err != nil {
+			log.Printf("[TextChat] Failed to cancel reminder of message %s: %v", msg.ID, err)
+		}
 	}
 	c.hub.broadcastText(msg.RoomID, models.WebSocketMessage{
 		Type: "text_message_deleted",
