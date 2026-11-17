@@ -37,7 +37,6 @@ import {
   usePermissionsStore,
   useTextChatStore,
 } from "@/stores"
-import { apiService } from "@/services/api"
 import UserSidebar from "@/components/UserSidebar.vue"
 
 const roomStore = useRoomStore()
@@ -47,39 +46,24 @@ const permissionsStore = usePermissionsStore()
 const textChatStore = useTextChatStore()
 
 // While a text channel is open, list only the users who can see it.
-const viewers = ref<{ roomId: string; ids: Set<string> } | null>(null)
-const channelId = computed(() => textChatStore.activeChannel?.id ?? null)
-
 const visibleUsers = computed(() => {
-  const id = channelId.value
+  const ids = textChatStore.activeViewerIds
   // Until this channel's viewers arrive, keep the full list (no empty flash).
-  if (!id || viewers.value?.roomId !== id) return usersStore.sortedUsers
-  const ids = viewers.value.ids
+  if (!ids) return usersStore.sortedUsers
   return usersStore.sortedUsers.filter((u) => ids.has(u.id))
 })
 
-let requestSeq = 0
-async function loadViewers() {
-  const id = channelId.value
-  const seq = ++requestSeq
-  if (!id) {
-    viewers.value = null
-    return
-  }
-  try {
-    const res = await apiService.getRoomViewers(id)
-    if (seq === requestSeq) viewers.value = { roomId: id, ids: new Set(res.user_ids) }
-  } catch (error) {
-    console.error("Failed to load channel viewers:", error)
-  }
-}
-
 // Refetch on channel switch, on any permission change (permissions_updated
 // reloads permissionsStore.me: overwrites, role assignments, room moves) and
-// when users join the server.
+// when users join the server. The composer's "@" autocomplete reads the same
+// list from the store.
 watch(
-  [channelId, () => permissionsStore.me, () => usersStore.userCount],
-  () => void loadViewers(),
+  [
+    () => textChatStore.activeChannel?.id ?? null,
+    () => permissionsStore.me,
+    () => usersStore.userCount,
+  ],
+  () => void textChatStore.loadActiveViewers(),
   { immediate: true },
 )
 

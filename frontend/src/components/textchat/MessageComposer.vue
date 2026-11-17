@@ -467,7 +467,12 @@ function mentionSuggestions(query: string): Suggestion[] {
     const n = name.toLowerCase()
     return n.startsWith(q) ? 0 : n.includes(q) ? 1 : -1
   }
+  // Only users who can see this channel, like the user sidebar (everyone
+  // until the viewer list for this channel has loaded).
+  const viewerIds =
+    textChatStore.activeChannelId === props.roomId ? textChatStore.activeViewerIds : null
   const users = usersStore.allUsers
+    .filter((u) => !viewerIds || viewerIds.has(u.id))
     .map((u) => ({ u, r: rank(u.nickname) }))
     .filter((x) => x.r >= 0 && x.u.id !== props.myUserId)
     .sort((a, b) => a.r - b.r || a.u.nickname.localeCompare(b.u.nickname))

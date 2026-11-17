@@ -168,6 +168,32 @@ export const useTextChatStore = defineStore("textChat", () => {
   const activeView = computed(() =>
     activeChannelId.value ? (views.value[activeChannelId.value] ?? null) : null,
   )
+
+  // Users who can see the open channel: the user sidebar and the "@"
+  // autocomplete list only them. Loaded by UserSidebarWrapper, which also
+  // refetches on permission changes.
+  const viewers = ref<{ roomId: string; ids: Set<string> } | null>(null)
+  /** Viewer ids of the open channel, or null until they arrive (show everyone). */
+  const activeViewerIds = computed(() =>
+    activeChannelId.value && viewers.value?.roomId === activeChannelId.value
+      ? viewers.value.ids
+      : null,
+  )
+  let viewersSeq = 0
+  async function loadActiveViewers() {
+    const id = activeChannel.value?.id ?? null
+    const seq = ++viewersSeq
+    if (!id) {
+      viewers.value = null
+      return
+    }
+    try {
+      const res = await apiService.getRoomViewers(id)
+      if (seq === viewersSeq) viewers.value = { roomId: id, ids: new Set(res.user_ids) }
+    } catch (error) {
+      console.error("Failed to load channel viewers:", error)
+    }
+  }
   const activePending = computed(() =>
     pending.value.filter((p) => p.room_id === activeChannelId.value),
   )
@@ -988,6 +1014,8 @@ export const useTextChatStore = defineStore("textChat", () => {
     pins.value = {}
     systemLines.value = {}
     typing.value = {}
+    viewers.value = null
+    viewersSeq++
     useTextNotifyStore().reset()
   }
 
@@ -996,6 +1024,8 @@ export const useTextChatStore = defineStore("textChat", () => {
     activeChannel,
     activeView,
     activePending,
+    activeViewerIds,
+    loadActiveViewers,
     views,
     readState,
     pending,
