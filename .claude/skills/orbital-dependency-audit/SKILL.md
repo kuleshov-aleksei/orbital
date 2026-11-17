@@ -113,5 +113,5 @@ Enumerate **every** bump (including transitive duplicates) and classify patch/mi
 - `backend/go.mod`, `backend/go.sum`
 - `mobile/android/build.gradle`, `mobile/android/app/build.gradle`, `mobile/android/gradle/wrapper/gradle-wrapper.properties`
 - `docker-compose.dev.yml`, `docker/docker-compose.deploy.yml`, `docker/Dockerfile.playwright`, `docker/Dockerfile.android`
-- `.opencode/skills/orbital-verify/SKILL.md`
+- `.claude/skills/orbital-verify/SKILL.md`
 - `docs/notes/MIGRATION_TO_S3.md`

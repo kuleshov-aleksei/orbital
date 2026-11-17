@@ -10,7 +10,7 @@ Follow sub-agents instructions. If sub-agent instruction says save patch notes t
 
 ## Skills
 
-Project skills live in `.opencode/skills/`. Load the matching skill before starting work in its area:
+Project skills live in `.claude/skills/<name>/SKILL.md`, the one copy both tools read: Claude Code natively, OpenCode through its `.claude/skills` compatibility source. Don't add a `.opencode/skills/` copy: a skill with the same name there overrides this one. Load the matching skill before starting work in its area:
 
 | Skill | Use when |
 |---|---|
@@ -119,6 +119,15 @@ Besides the bit itself, a new server permission touches several easy-to-miss pla
 2. `backend/internal/storage/migrations.go`: a new migration that ORs the bit into existing roles (`UPDATE roles SET permissions = permissions | X WHERE id = '...'`). Changing `Default*` only affects fresh databases — see the soundboard/emoji grant migrations.
 3. `frontend/src/types/permissions.ts`: the bit, `ROLE_ONLY_PERMISSIONS`, and a `PERMISSION_INFO` entry (otherwise it never shows in the roles editor).
 4. If it unlocks an admin panel tab: the tab + default tab in `frontend/src/views/AdminPanel.vue`, the route guard in `frontend/src/router/index.ts` (`requiresAdminPanel`), and `canOpenAdminPanel` in `frontend/src/components/settings/AccountSettings.vue`.
+
+### Auth sessions (per-device sign-in)
+
+Every signed-in device is a row in `auth_sessions`, and its JWT carries the row id as the `sid` claim (`service/authsessions.go`). Deleting the row signs out that device only; `/api/auth/logout` ends just the current one.
+
+- Issue tokens for a sign-in with `AuthService.StartSession(user, sessionMetaFromRequest(r))` and refresh them with `RefreshSession`. Never use `GenerateJWT` for a new sign-in path: it makes a legacy token with no `sid`, which can't be listed or signed out on its own.
+- Check a token with `CheckSession` (REST `AuthMiddleware` and the WS handshake). Legacy tokens fall back to `users.token_version`, which "sign out all other sessions" bumps. `RevokeTokens` signs out everything, legacy tokens included.
+- Ending sessions also drops the push tokens they registered (`push_devices.session_id`) and closes their sockets with close code **4401** (`websocket/sessions.go`). The frontend treats 4401 as an expired session and stops reconnecting (`services/websocket.ts`).
+- Settings → Security lists the sessions (`GET /api/auth/sessions`). Last-active is written at most once a minute (`AuthSessionTouchInterval`).
 
 ### ⚠️ CRITICAL: API Naming Convention
 **Backend (Go)** uses **snake_case** for JSON field names (`max_users`)
