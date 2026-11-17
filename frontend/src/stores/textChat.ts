@@ -63,6 +63,8 @@ export interface PendingTextMessage {
   reply_ping: boolean
   /** Pending upload ids and their display copies (shown while sending). */
   upload_ids: string[]
+  /** The uploads sent as spoilers (missing on outbox entries from before). */
+  spoiler_ids?: string[]
   attachments: TextAttachment[]
   created_at_ts: number
   /** queued: written offline (or the link dropped), sent on reconnect. */
@@ -527,6 +529,7 @@ export const useTextChatStore = defineStore("textChat", () => {
       content: p.content,
       nonce: p.nonce,
       ...(p.upload_ids.length ? { upload_ids: p.upload_ids } : {}),
+      ...(p.spoiler_ids?.length ? { spoiler_ids: p.spoiler_ids } : {}),
       ...(p.reply_to_id ? { reply_to_id: p.reply_to_id, reply_ping: p.reply_ping } : {}),
     })
     const timer = setTimeout(() => {
@@ -545,7 +548,10 @@ export const useTextChatStore = defineStore("textChat", () => {
   function sendMessage(
     roomId: string,
     content: string,
-    files: { ids: string[]; attachments: TextAttachment[] } = { ids: [], attachments: [] },
+    files: { ids: string[]; attachments: TextAttachment[]; spoilerIds?: string[] } = {
+      ids: [],
+      attachments: [],
+    },
   ) {
     const text = content.trim()
     if (!text && !files.ids.length) return
@@ -557,6 +563,7 @@ export const useTextChatStore = defineStore("textChat", () => {
       reply_to_id: reply?.id ?? null,
       reply_ping: replyPing.value,
       upload_ids: files.ids,
+      ...(files.spoilerIds?.length ? { spoiler_ids: files.spoilerIds } : {}),
       attachments: files.attachments,
       created_at_ts: Date.now(),
       status: "sending",

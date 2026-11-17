@@ -17,7 +17,10 @@ type textSendRequest struct {
 	ReplyToID string   `json:"reply_to_id"`
 	ReplyPing *bool    `json:"reply_ping"`
 	UploadIDs []string `json:"upload_ids"`
-	Nonce     string   `json:"nonce"`
+	// SpoilerIDs is the subset of UploadIDs (images and videos) shown behind
+	// a spoiler cover; other ids are ignored.
+	SpoilerIDs []string `json:"spoiler_ids"`
+	Nonce      string   `json:"nonce"`
 }
 
 func (c *Client) handleTextMessageSend(data interface{}) {
@@ -86,6 +89,7 @@ func (c *Client) handleTextMessageSend(data interface{}) {
 		}
 		err = tc.Media.Attach(context.Background(), userID, req.RoomID, req.UploadIDs,
 			func(atts []chatstore.Attachment) (string, error) {
+				markSpoilers(atts, req.SpoilerIDs)
 				in.Attachments = atts
 				m, err := tc.Store.Create(context.Background(), in)
 				if err != nil {
@@ -124,6 +128,23 @@ func (c *Client) handleTextMessageSend(data interface{}) {
 	c.hub.broadcastText(msg.RoomID, models.WebSocketMessage{Type: "text_message_new", Data: payload})
 	c.hub.pushMessage(tc, msg, c.hub.pingMentions(tc, msg))
 	tc.Previews.Schedule(msg, c.hub.broadcastUpdated)
+}
+
+// markSpoilers flags the images and videos whose ids the sender listed.
+func markSpoilers(atts []chatstore.Attachment, ids []string) {
+	if len(ids) == 0 {
+		return
+	}
+	set := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		set[id] = true
+	}
+	for i := range atts {
+		k := atts[i].Kind
+		if set[atts[i].ID] && (k == chatmedia.KindImage || k == chatmedia.KindVideo) {
+			atts[i].Spoiler = true
+		}
+	}
 }
 
 // ackExistingMessage answers a duplicate send with the message the nonce

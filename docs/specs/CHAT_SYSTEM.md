@@ -116,7 +116,7 @@ The production prototype writes only to Meilisearch. The dual writes in `experim
   "is_deleted": false, "deleted_at_ts": null, "deleted_by": null,
   // phase 3/4 (attachments), present but empty until then:
   "attachments": [],                 // see §7.12: {id, kind, mime, size, filename, width, height,
-                                     //   duration_ms, has_thumb, peaks, protected, removed?}
+                                     //   duration_ms, has_thumb, peaks, protected, removed?, spoiler?}
   "attachment_kinds": [],            // ["image","video","audio"] for has: filters
   "attachment_names": [],            // original filenames (searchable)
   "attachment_text": "",             // OCR text of the images (searchable, filled by §7.13)
@@ -403,6 +403,7 @@ New package `backend/internal/service/chatstore/`: the Meilisearch client (port 
    - **Images:** strip EXIF and render a thumbnail with bimg/libvips (as `emojivips.go` does). Record width and height.
      - **Compression (default):** still images are stored as WebP q85 with the long edge at most 2560 px (EXIF rotation applied first; alpha kept). The stored mime, extension and filename become `.webp`. GIFs and animated WebPs are kept byte-for-byte. A WebP that already fits and has at most 1 byte per pixel only has its `EXIF`/`XMP ` chunks dropped (no re-encode), so a client-compressed upload is not compressed twice. Constants: `maxStoredEdge` / `storedWebPQuality` in `chatmedia/image.go`.
      - **Client pre-compression:** the client (`frontend/src/utils/compressImage.ts`, same constants) re-encodes the image with a canvas before uploading to save bandwidth on mobile data. It sends the original instead when the result is not smaller, when no WebP encoder is available (Safari), or when decoding fails or takes more than 10 s. The server rule still applies to whatever arrives.
+     - **Crop / rotate:** the crop button on a composer tile opens an editor (`ImageEditModal.vue`, `utils/editImage.ts`): quarter-turn rotation, a crop box with Free/1:1/4:3/3:4/16:9/9:16 presets, and "Reset to original". It works on the EXIF-upright image and re-encodes in the source format (JPEG/WebP q95, PNG), which then goes through the normal pre-compression (or `HD`). Edits always start from the picked file; applying one deletes the pending upload and sends the edited file. GIFs and animated WebP can't be edited. The server never sees the unedited image.
      - **Original quality:** the `HD` toggle on a composer tile sends the untouched file with the multipart field `original=1`. The server then keeps the format and resolution (JPEG q92 / lossless PNG / WebP q90, metadata stripped). Switching after the upload finished deletes the pending upload and sends again.
    - **Audio:** stored as-is, with no transcoding and no server-side probing. A waveform is precomputed on the client:
      - Before uploading, the client decodes the picked file locally (`file.arrayBuffer()`, then `AudioContext.decodeAudioData`). It downsamples to **200 peaks** (the max of `|sample|` per bucket, mono, normalized, quantized to 0–255) and takes `duration_ms` from the decoded buffer.
@@ -416,9 +417,10 @@ New package `backend/internal/service/chatstore/`: the Meilisearch client (port 
 7. PUT the original (and thumb) to S3. If that fails, delete the row; the reservation is released.
 8. Return `{upload_id, kind, meta, evicted: [{id, filename, stored_bytes}], usage}`. `usage` has the same shape as `GET /api/me/attachments/usage`.
 
-- **Send:** `text_message_send {…, upload_ids: [≤10]}` (requires `AttachFiles` when `upload_ids` is non-empty). The server:
+- **Send:** `text_message_send {…, upload_ids: [≤10], spoiler_ids?}` (requires `AttachFiles` when `upload_ids` is non-empty). The server:
   - validates that the uploads belong to the sender, are in the same room and are still pending;
-  - embeds the metadata into `attachments[]` (`{id, kind, mime, size, filename, width, height, duration_ms, has_thumb, peaks, protected}`);
+  - embeds the metadata into `attachments[]` (`{id, kind, mime, size, filename, width, height, duration_ms, has_thumb, peaks, protected, spoiler?}`);
+  - sets `spoiler: true` on the images and videos listed in `spoiler_ids` (other ids are ignored). The flag lives only in the message document (not in `chat_attachments`) and can't be changed after sending. Clients show a blurred cover with a "SPOILER" label; a click reveals it for that viewer, and the lightbox never pages onto an unrevealed spoiler. Search thumbnails stay blurred;
   - sets `attachment_kinds` and `attachment_names`;
   - marks the rows `attached` (`message_id`, `attached_at`).
 - **Pending GC:** pending rows older than 24 h are removed (reason `pending_expired`) and purged like any other removal (§7.12.4).
@@ -648,7 +650,7 @@ REST
 | `POST /api/me/attachments/bulk` `{ids, action}` (phase 3) | Bulk delete / protect / unprotect of own files (≤100) |
 
 WebSocket. Client → server:
-- `text_message_send {room_id, content, reply_to_id?, reply_ping?, upload_ids?, nonce}`. The `nonce` lets the client match its optimistic message to the ack.
+- `text_message_send {room_id, content, reply_to_id?, reply_ping?, upload_ids?, spoiler_ids?, nonce}`. The `nonce` lets the client match its optimistic message to the ack.
 - `text_message_edit {message_id, content}`
 - `text_message_delete {message_id}`
 - `text_message_suppress_embeds {message_id}` (§7.15)

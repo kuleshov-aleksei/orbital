@@ -9,11 +9,13 @@
     <div
       v-if="images.length"
       :class="images.length === 1 ? 'max-w-full' : 'grid grid-cols-2 gap-1 w-full max-w-[400px]'">
-      <div v-for="(img, i) in images" :key="img.id" class="relative group/att max-w-full">
+      <div v-for="img in images" :key="img.id" class="relative group/att max-w-full">
         <AttachmentImageTile
           :attachment="img"
           :single="images.length === 1"
-          @open="lightboxIndex = i"
+          :hidden="isHidden(img)"
+          @open="openLightbox(img)"
+          @reveal="reveal(img)"
           @menu="(e) => openMenu(img, e)" />
         <div class="absolute top-1 right-1 flex gap-1">
           <PhLock
@@ -37,6 +39,8 @@
       <AttachmentVideo
         v-if="att.kind === 'video'"
         :attachment="att"
+        :hidden="isHidden(att)"
+        @reveal="reveal(att)"
         @menu="(e) => openMenu(att, e)"
         @download="openAttachment(att.id, 'download')" />
       <AttachmentAudio v-else :attachment="att" @menu="(e) => openMenu(att, e)" />
@@ -90,7 +94,7 @@
       @close="menu = null" />
     <AttachmentLightbox
       v-if="lightboxIndex !== null"
-      :images="images"
+      :images="visibleImages"
       :start-index="lightboxIndex"
       :origin-root="rootEl"
       @close="lightboxIndex = null" />
@@ -132,6 +136,21 @@ const images = computed(() => live.value.filter((a) => a.kind === "image"))
 const others = computed(() => live.value.filter((a) => a.kind !== "image"))
 const removed = computed(() => props.attachments.filter((a) => a.removed))
 
+// Spoilers this viewer revealed (per mounted message, like text spoilers).
+const revealed = ref(new Set<string>())
+function isHidden(att: TextAttachment): boolean {
+  return !!att.spoiler && !revealed.value.has(att.id)
+}
+function reveal(att: TextAttachment) {
+  revealed.value = new Set(revealed.value).add(att.id)
+}
+// The lightbox never pages onto an unrevealed spoiler.
+const visibleImages = computed(() => images.value.filter((a) => !isHidden(a)))
+function openLightbox(att: TextAttachment) {
+  reveal(att)
+  lightboxIndex.value = visibleImages.value.findIndex((a) => a.id === att.id)
+}
+
 const rootEl = useTemplateRef<HTMLElement>("rootEl")
 const lightboxIndex = ref<number | null>(null)
 const menu = ref<{ attachment: TextAttachment; x: number; y: number } | null>(null)
@@ -163,8 +182,7 @@ async function onAction(action: AttachmentAction) {
   try {
     switch (action) {
       case "open":
-        if (att.kind === "image")
-          lightboxIndex.value = images.value.findIndex((a) => a.id === att.id)
+        if (att.kind === "image") openLightbox(att)
         else await openAttachment(att.id, "original")
         break
       case "download":

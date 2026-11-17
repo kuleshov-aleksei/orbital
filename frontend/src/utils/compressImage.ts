@@ -28,7 +28,7 @@ export function isAnimatedWebP(head: Uint8Array): boolean {
 }
 
 /** Files the server keeps byte-for-byte (animations): never re-encode. */
-async function keepAsIs(file: File): Promise<boolean> {
+export async function isAnimatedImage(file: File): Promise<boolean> {
   if (file.type === "image/gif" || /\.gif$/i.test(file.name)) return true
   const head = new Uint8Array(await file.slice(0, 32).arrayBuffer())
   if (String.fromCharCode(...head.subarray(0, 6)).startsWith("GIF8")) return true
@@ -60,7 +60,7 @@ async function encode(bitmap: ImageBitmap, w: number, h: number): Promise<Blob |
 }
 
 async function compress(file: File): Promise<File | null> {
-  if (await keepAsIs(file)) return null
+  if (await isAnimatedImage(file)) return null
   // from-image applies the EXIF orientation, so the result is upright.
   const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" })
   try {

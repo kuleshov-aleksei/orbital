@@ -11,6 +11,7 @@ import {
 } from "@/services/api"
 import { analyzeAudioFile, analyzeVideoFile } from "@/utils/audioPeaks"
 import { compressImage } from "@/utils/compressImage"
+import { editImage, type ImageEdit } from "@/utils/editImage"
 import { formatBytes } from "@/utils/formatBytes"
 import type {
   AttachmentKind,
@@ -23,7 +24,14 @@ import { useConfigStore } from "./config"
 export interface ComposerUpload {
   localId: string
   roomId: string
+  /** What gets uploaded: the picked file, or its edited copy. */
   file: File
+  /** The file as picked; edits always start from it. */
+  sourceFile: File
+  /** The current image edit (crop/rotation), null when unedited. */
+  edit: ImageEdit | null
+  /** Images and videos: shown behind a spoiler cover. */
+  spoiler: boolean
   kind: AttachmentKind
   /** Object URL for local image previews. */
   previewUrl: string | null
@@ -42,6 +50,24 @@ export interface ComposerUpload {
 /** Images the user can choose to send uncompressed (not GIFs, which are kept as is). */
 export function canSendOriginal(u: ComposerUpload): boolean {
   return u.kind === "image" && u.file.type !== "image/gif" && !/\.gif$/i.test(u.file.name)
+}
+
+/** Images and videos can be sent as spoilers. */
+export function canSpoiler(u: ComposerUpload): boolean {
+  return u.kind === "image" || u.kind === "video"
+}
+
+/** Still images can be cropped/rotated (GIFs would lose their animation). */
+export function canEdit(u: ComposerUpload): boolean {
+  return canSendOriginal(u)
+}
+
+/** Finished uploads handed to a message being sent. */
+export interface ReadyFiles {
+  ids: string[]
+  attachments: TextAttachment[]
+  /** The subset of ids sent as spoilers. */
+  spoilerIds: string[]
 }
 
 export interface EvictionNotice {
@@ -206,6 +232,9 @@ export const useAttachmentsStore = defineStore("attachments", () => {
         localId: `u${nextLocalId++}`,
         roomId,
         file,
+        sourceFile: file,
+        edit: null,
+        spoiler: false,
         kind,
         previewUrl: kind === "image" ? URL.createObjectURL(file) : null,
         progress: 0,
@@ -246,18 +275,15 @@ export const useAttachmentsStore = defineStore("attachments", () => {
   }
 
   /**
-   * Switch an image between compressed and original quality: drop the
-   * current upload (deleting a finished one frees its quota) and send again.
+   * Drop the current upload (deleting a finished one frees its quota) and
+   * send the item again, after its file or quality changed.
    */
-  function setOriginal(localId: string, original: boolean) {
-    const item = find(localId)
-    if (!item || item.original === original || !canSendOriginal(item)) return
+  function restart(item: ComposerUpload) {
     if (item.status === "uploading") item.abort.abort()
     if (item.uploadId) {
       const id = item.uploadId
       void apiService.deleteAttachment(id).catch(() => {}) // expires on the server anyway
     }
-    item.original = original
     item.status = "uploading"
     item.error = null
     item.progress = 0
@@ -268,15 +294,58 @@ export const useAttachmentsStore = defineStore("attachments", () => {
     void start(item)
   }
 
+  /** Switch an image between compressed and original quality. */
+  function setOriginal(localId: string, original: boolean) {
+    const item = find(localId)
+    if (!item || item.original === original || !canSendOriginal(item)) return
+    item.original = original
+    restart(item)
+  }
+
+  function setSpoiler(localId: string, spoiler: boolean) {
+    const item = find(localId)
+    if (item && canSpoiler(item)) item.spoiler = spoiler
+  }
+
+  /**
+   * Crop/rotate an image (null resets to the picked file) and upload the
+   * result instead. Throws when the image can't be edited.
+   */
+  async function applyEdit(localId: string, edit: ImageEdit | null) {
+    const item = find(localId)
+    if (!item || !canEdit(item)) return
+    const file = edit ? await editImage(item.sourceFile, edit) : item.sourceFile
+    const cur = find(localId)
+    if (!cur) return // removed while encoding
+    const unchanged = file === cur.sourceFile
+    if (file === cur.file) {
+      cur.edit = unchanged ? null : edit
+      return
+    }
+    if (cur.previewUrl) URL.revokeObjectURL(cur.previewUrl)
+    cur.file = file
+    cur.edit = unchanged ? null : edit
+    cur.previewUrl = URL.createObjectURL(file)
+    restart(cur)
+  }
+
   const busy = (roomId: string) => forRoom(roomId).some((u) => u.status === "uploading")
 
   /** Hand the finished uploads of a room to a message being sent. */
-  function takeReady(roomId: string): { ids: string[]; attachments: TextAttachment[] } {
+  function takeReady(roomId: string): ReadyFiles {
     const ready = forRoom(roomId).filter((u) => u.status === "done" && u.uploadId && u.attachment)
     ready.forEach(release)
     const ids = new Set(ready.map((u) => u.localId))
     uploads.value = uploads.value.filter((u) => !ids.has(u.localId))
-    return { ids: ready.map((u) => u.uploadId!), attachments: ready.map((u) => u.attachment!) }
+    const spoilers = ready.filter((u) => u.spoiler && canSpoiler(u))
+    return {
+      ids: ready.map((u) => u.uploadId!),
+      // The optimistic message renders these, so they carry the flag too.
+      attachments: ready.map((u) =>
+        u.spoiler && canSpoiler(u) ? { ...u.attachment!, spoiler: true } : u.attachment!,
+      ),
+      spoilerIds: spoilers.map((u) => u.uploadId!),
+    }
   }
 
   let usageLoading = false
@@ -309,6 +378,8 @@ export const useAttachmentsStore = defineStore("attachments", () => {
     remove,
     retry,
     setOriginal,
+    setSpoiler,
+    applyEdit,
     busy,
     takeReady,
     loadUsage,

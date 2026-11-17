@@ -65,6 +65,8 @@ export interface TextAttachment {
   protected: boolean
   /** Set once the file is gone; the message shows a tombstone. */
   removed?: AttachmentRemovedReason
+  /** Images/videos: hidden behind a cover until the viewer reveals it. */
+  spoiler?: boolean
 }
 
 export type AttachmentVariant = "original" | "thumb" | "download"

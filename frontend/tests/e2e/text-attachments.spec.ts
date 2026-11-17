@@ -105,3 +105,84 @@ test("attach an image, view, protect, list on /files, delete", async ({ page, re
     await deleteRoom(request, room.id, admin.token)
   }
 })
+
+test("crop/rotate an image and send it as a spoiler", async ({ page, request }) => {
+  const health = await (await request.get(`${BACKEND_URL}/api/health`)).text()
+  test.skip(!health.includes('"text_channels":"ok"'), "text channels are off (make meili-up)")
+  const config = (await (await request.get(`${BACKEND_URL}/api/config`)).json()) as {
+    attachments?: unknown
+  }
+  test.skip(!config.attachments, "attachments are off (make garage-up, GARAGE_DEFAULT_* in .env)")
+
+  const admin = await ensureAdmin(request)
+  const name = `e2e-spoiler-${Date.now().toString(36)}`
+  const res = await request.post(`${BACKEND_URL}/api/rooms`, {
+    data: { name, type: "text", max_users: 10 },
+    headers: { Authorization: `Bearer ${admin.token}` },
+  })
+  expect(res.ok(), await res.text()).toBeTruthy()
+  const room = (await res.json()) as { id: string }
+
+  try {
+    await loginViaUi(page, ADMIN_EMAIL, TEST_PASSWORD)
+    await page.locator(".room-card").filter({ hasText: name }).click()
+    await expect(page.getByTestId("text-channel-view")).toBeVisible()
+
+    // A 300x200 PNG.
+    const png = await page.evaluate(async () => {
+      const canvas = document.createElement("canvas")
+      canvas.width = 300
+      canvas.height = 200
+      const ctx = canvas.getContext("2d")!
+      ctx.fillStyle = "#3a7"
+      ctx.fillRect(0, 0, 300, 200)
+      ctx.fillStyle = "#e33"
+      ctx.fillRect(0, 0, 150, 100)
+      const blob = await new Promise<Blob>((r) => canvas.toBlob((b) => r(b!), "image/png"))
+      const bytes = new Uint8Array(await blob.arrayBuffer())
+      let bin = ""
+      for (const b of bytes) bin += String.fromCharCode(b)
+      return btoa(bin)
+    })
+    await page
+      .getByTestId("attach-input")
+      .setInputFiles({ name: "pic.png", mimeType: "image/png", buffer: Buffer.from(png, "base64") })
+    const chip = page.getByTestId("composer-upload")
+    await expect(chip.getByRole("progressbar")).toHaveCount(0)
+
+    // Rotate right (200x300), then a 1:1 crop (200x200).
+    await chip.getByTestId("composer-upload-edit").click()
+    const editor = page.getByTestId("image-edit-modal")
+    await expect(editor).toBeVisible()
+    await editor.getByTestId("image-edit-rotate-right").click()
+    await editor.getByTestId("image-edit-ratio-1:1").click()
+    await expect(editor).toContainText("200 × 200")
+    await editor.getByTestId("image-edit-apply").click()
+    await expect(editor).toHaveCount(0)
+    await expect(chip).toContainText("Edited")
+    await expect(chip.getByRole("progressbar")).toHaveCount(0)
+    await expect(chip).not.toContainText("Retry")
+
+    await chip.getByTestId("composer-upload-spoiler").click()
+    await expect(chip.getByTestId("composer-upload-spoiler")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    )
+    await page.getByTestId("text-composer").press("Enter")
+    await expect(page.getByTestId("composer-upload")).toHaveCount(0)
+
+    // The sent tile is hidden until clicked; the first click only reveals it.
+    const tile = page.getByTestId("text-message").getByTestId("attachment-image")
+    await expect(tile).toHaveAttribute("data-spoiler", "hidden")
+    await expect(tile.getByTestId("attachment-spoiler")).toBeVisible()
+    // The server-side copy carries the crop.
+    await expect(tile).toHaveAttribute("style", /aspect-ratio: 200 \/ 200/)
+    await tile.click()
+    await expect(tile).not.toHaveAttribute("data-spoiler", "hidden")
+    await expect(page.getByTestId("attachment-lightbox")).toHaveCount(0)
+    await tile.click()
+    await expect(page.getByTestId("attachment-lightbox")).toBeVisible()
+  } finally {
+    await deleteRoom(request, room.id, admin.token)
+  }
+})

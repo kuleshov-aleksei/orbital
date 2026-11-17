@@ -6,10 +6,26 @@
       class="relative w-28 rounded-md border bg-theme-bg-secondary overflow-hidden"
       :class="u.status === 'error' ? 'border-red-500/60' : 'border-theme-border'"
       data-testid="composer-upload">
-      <div class="h-16 flex items-center justify-center bg-theme-bg-tertiary text-theme-text-muted">
-        <img v-if="u.previewUrl" :src="u.previewUrl" alt="" class="w-full h-full object-cover" />
+      <div
+        class="relative h-16 flex items-center justify-center overflow-hidden bg-theme-bg-tertiary text-theme-text-muted">
+        <img
+          v-if="u.previewUrl"
+          :src="u.previewUrl"
+          alt=""
+          class="w-full h-full object-cover"
+          :class="{ 'blur-md scale-125': u.spoiler }" />
         <PhFilmSlate v-else-if="u.kind === 'video'" class="w-7 h-7" />
         <PhWaveform v-else class="w-7 h-7" />
+        <span
+          v-if="u.spoiler"
+          class="absolute bottom-1 left-1 px-1 rounded bg-black/70 text-[9px] font-bold tracking-wider text-white"
+          >SPOILER</span
+        >
+        <span
+          v-if="u.edit"
+          class="absolute bottom-1 right-1 px-1 rounded bg-black/70 text-[9px] font-semibold text-white"
+          >Edited</span
+        >
       </div>
       <div class="px-1.5 py-1">
         <div class="text-[11px] truncate text-theme-text-primary" :title="u.file.name">
@@ -50,6 +66,31 @@
         HD
       </button>
       <button
+        v-if="canSpoiler(u)"
+        type="button"
+        class="absolute top-1 w-5 h-5 flex items-center justify-center rounded-full transition-colors"
+        :class="[
+          canEdit(u) ? 'right-[3.25rem]' : 'right-7',
+          u.spoiler ? 'bg-theme-accent text-white' : 'bg-black/60 text-white/70 hover:text-white',
+        ]"
+        :aria-pressed="u.spoiler"
+        :aria-label="u.spoiler ? `Show ${u.file.name} normally` : `Mark ${u.file.name} as spoiler`"
+        :title="u.spoiler ? 'Spoiler: hidden until clicked. Click to undo.' : 'Mark as spoiler'"
+        data-testid="composer-upload-spoiler"
+        @click="store.setSpoiler(u.localId, !u.spoiler)">
+        <PhEyeSlash class="w-3 h-3" weight="bold" />
+      </button>
+      <button
+        v-if="canEdit(u)"
+        type="button"
+        class="absolute top-1 right-7 w-5 h-5 flex items-center justify-center rounded-full bg-black/60 text-white/70 hover:text-white"
+        :aria-label="`Crop or rotate ${u.file.name}`"
+        title="Crop / rotate"
+        data-testid="composer-upload-edit"
+        @click="editing = u.localId">
+        <PhCrop class="w-3 h-3" weight="bold" />
+      </button>
+      <button
         type="button"
         class="absolute top-1 right-1 w-5 h-5 flex items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
         :aria-label="`Remove ${u.file.name}`"
@@ -57,16 +98,29 @@
         <PhX class="w-3 h-3" />
       </button>
     </div>
+    <ImageEditModal v-if="editingUpload" :upload="editingUpload" @close="editing = null" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { PhFilmSlate, PhWaveform, PhX } from "@phosphor-icons/vue"
-import { canSendOriginal, useAttachmentsStore, type ComposerUpload } from "@/stores/attachments"
+import { computed, ref } from "vue"
+import { PhCrop, PhEyeSlash, PhFilmSlate, PhWaveform, PhX } from "@phosphor-icons/vue"
+import ImageEditModal from "./ImageEditModal.vue"
+import {
+  canEdit,
+  canSendOriginal,
+  canSpoiler,
+  useAttachmentsStore,
+  type ComposerUpload,
+} from "@/stores/attachments"
 import { formatBytes } from "@/utils/formatBytes"
 
-defineProps<{ uploads: ComposerUpload[] }>()
+const props = defineProps<{ uploads: ComposerUpload[] }>()
 const store = useAttachmentsStore()
+
+/** The upload open in the image editor (closes if it is removed or sent). */
+const editing = ref<string | null>(null)
+const editingUpload = computed(() => props.uploads.find((u) => u.localId === editing.value))
 
 function hdTitle(u: ComposerUpload): string {
   const full = formatBytes(u.file.size)
