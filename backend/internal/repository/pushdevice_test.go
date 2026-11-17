@@ -19,16 +19,16 @@ func TestPushDevices(t *testing.T) {
 	r := NewPushDeviceRepository(db)
 	const alice, bob = "qkUrdzLDoqslx8EEy2cM7Q==", "Z9n-x_2LDoqslx8EEy2cM7Q="
 
-	if err := r.Upsert("tok-1", alice, "android"); err != nil {
+	if err := r.Upsert("tok-1", alice, "android", ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.Upsert("tok-1", alice, "android"); err != nil { // repeat registration
+	if err := r.Upsert("tok-1", alice, "android", ""); err != nil { // repeat registration
 		t.Fatal(err)
 	}
 	if toks, _ := r.TokensForUser(alice); len(toks) != 1 {
 		t.Fatalf("alice tokens = %v", toks)
 	}
-	if err := r.Upsert("tok-2", alice, "android"); err != nil {
+	if err := r.Upsert("tok-2", alice, "android", ""); err != nil {
 		t.Fatal(err)
 	}
 	if ids, _ := r.UserIDs(); len(ids) != 1 || ids[0] != alice {
@@ -36,7 +36,7 @@ func TestPushDevices(t *testing.T) {
 	}
 	_ = r.Delete("tok-2")
 	// The device switches accounts: the token moves to bob.
-	if err := r.Upsert("tok-1", bob, "android"); err != nil {
+	if err := r.Upsert("tok-1", bob, "android", ""); err != nil {
 		t.Fatal(err)
 	}
 	if toks, _ := r.TokensForUser(alice); len(toks) != 0 {

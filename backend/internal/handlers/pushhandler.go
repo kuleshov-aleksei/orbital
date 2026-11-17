@@ -8,7 +8,7 @@ import (
 
 // PushDeviceStore stores push tokens (repository.PushDeviceRepository).
 type PushDeviceStore interface {
-	Upsert(token, userID, platform string) error
+	Upsert(token, userID, platform, sessionID string) error
 	DeleteForUser(userID, token string) error
 }
 
@@ -57,7 +57,7 @@ func (h *PushHandler) RegisterDevice(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "platform must be android", http.StatusBadRequest)
 		return
 	}
-	if err := h.devices.Upsert(req.Token, userID, req.Platform); err != nil {
+	if err := h.devices.Upsert(req.Token, userID, req.Platform, SessionIDFromContext(r.Context())); err != nil {
 		log.Printf("[Push] Failed to register device of %s: %v", userID, err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return

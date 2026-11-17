@@ -79,6 +79,7 @@ func main() {
 	var textReadState chatstore.ReadStateStore
 	var textNotify chatstore.NotifyStore
 	var pushDevices *repository.PushDeviceRepository
+	var authSessions *repository.AuthSessionRepository
 	var appDB *storage.DB
 	var appSettings service.AppSettingsStore = service.NewMemoryAppSettings()
 
@@ -106,6 +107,7 @@ func main() {
 		textReadState = repository.NewTextReadStateRepository(db)
 		textNotify = repository.NewTextNotifyRepository(db)
 		pushDevices = repository.NewPushDeviceRepository(db)
+		authSessions = repository.NewAuthSessionRepository(db)
 		appSettings = repository.NewAppSettingsRepository(db)
 
 		// Initialize services with repositories
@@ -172,6 +174,9 @@ func main() {
 
 	// Initialize auth service and role service
 	authService := service.NewAuthService(cfg.GetAuthConfig(), userRepo)
+	if authSessions != nil {
+		authService.SetSessionRepository(authSessions)
+	}
 	roleService := service.NewRoleService(userRepo)
 
 	// QR device linking needs the database; it stays disabled in memory-only mode
@@ -283,6 +288,11 @@ func main() {
 	}
 	categoryHandler := handlers.NewCategoryHandler(categoryService, roomService, livekitService, permissionService, wsHub)
 	authHandler := handlers.NewAuthHandler(authService, roleService, cfg.Server.ExternalURL, cfg.Server.ElectronRedirectURL)
+	if pushDevices != nil {
+		authHandler.SetSessionHooks(pushDevices, wsHub)
+	} else {
+		authHandler.SetSessionHooks(nil, wsHub)
+	}
 	adminHandler := handlers.NewAdminHandlerWithHub(roleService, userRepo, debugLogService, analyticsService, halloweenService, wsHub)
 	adminHandler.SetPermissionService(permissionService)
 	securityHandler := handlers.NewSecurityHandler(cfg)
@@ -391,6 +401,9 @@ func main() {
 	r.Handle("/api/auth/logout", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.Logout))).Methods("POST")
 	r.Handle("/api/auth/me", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.GetCurrentUser))).Methods("GET")
 	r.Handle("/api/auth/refresh", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.RefreshToken))).Methods("POST")
+	r.Handle("/api/auth/sessions", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.ListSessions))).Methods("GET")
+	r.Handle("/api/auth/sessions/revoke-others", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.RevokeOtherSessions))).Methods("POST")
+	r.Handle("/api/auth/sessions/{id}", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.RevokeSession))).Methods("DELETE")
 	r.HandleFunc("/api/auth/status", authHandler.GetAuthStatus).Methods("GET")
 	r.Handle("/api/auth/register", withRateLimit("auth-register", cfg.RateLimit.AuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.Register))).Methods("POST")
 	r.Handle("/api/auth/login", withRateLimit("auth-login", cfg.RateLimit.AuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.LoginPassword))).Methods("POST")

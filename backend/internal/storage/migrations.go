@@ -614,6 +614,26 @@ CREATE INDEX IF NOT EXISTS idx_push_devices_user ON push_devices(user_id);`,
 		);
 CREATE INDEX IF NOT EXISTS idx_link_previews_fetched ON link_previews(fetched_at);`,
 	},
+	{
+		Version: 50,
+		Name:    "create_auth_sessions",
+		// One row per signed-in device. Every JWT carries its row id ("sid");
+		// deleting the row signs that device out without touching the others.
+		// Push tokens remember the session that registered them, so a revoked
+		// device stops receiving notifications.
+		SQL: `CREATE TABLE IF NOT EXISTS auth_sessions (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			created_at INTEGER NOT NULL,
+			last_active_at INTEGER NOT NULL,
+			expires_at INTEGER NOT NULL,
+			user_agent TEXT NOT NULL DEFAULT '',
+			client TEXT NOT NULL DEFAULT '',
+			ip TEXT NOT NULL DEFAULT ''
+		);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id);
+ALTER TABLE push_devices ADD COLUMN session_id TEXT NOT NULL DEFAULT '';`,
+	},
 }
 
 // RunMigrationsUpTo applies migrations up to and including maxVersion.

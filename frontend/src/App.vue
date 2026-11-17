@@ -59,6 +59,7 @@ import {
   getAuthToken,
   isTokenExpired,
   tokenNeedsRefresh,
+  tokenHasSession,
   setOnSessionExpired,
 } from "@/services/api"
 
@@ -89,7 +90,9 @@ const refreshSessionIfNeeded = async () => {
     userStore.handleSessionExpired()
     return
   }
-  if (tokenNeedsRefresh()) {
+  // A token from before per-device sessions is moved onto one, so this device
+  // shows up in Settings → Security and can be signed out on its own.
+  if (tokenNeedsRefresh() || !tokenHasSession()) {
     try {
       await apiService.refreshToken()
       console.log("[Auth] Session token refreshed")

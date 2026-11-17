@@ -140,7 +140,9 @@ func (s *QRLoginService) ApproveChallenge(id, publicKeyB64 string, user *models.
 		return ErrQRPublicKeyMismatch
 	}
 
-	token, expiry, err := s.auth.GenerateJWT(user)
+	// The approving device makes this request, so the new session starts
+	// without device info; its first request fills it in (TouchSession).
+	token, expiry, err := s.auth.StartSession(user, SessionMeta{})
 	if err != nil {
 		return fmt.Errorf("failed to generate token: %w", err)
 	}

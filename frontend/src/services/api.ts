@@ -202,10 +202,27 @@ export function isNetworkError(error: unknown): boolean {
   return error.name === "TypeError" || error.name === "TimeoutError"
 }
 
-function notifySessionExpired() {
+export function notifySessionExpired() {
   setAuthToken(null)
   setTokenExpiry(null)
   sessionExpiredHandler?.()
+}
+
+/**
+ * True when the stored token belongs to a per-device session ("sid" claim).
+ * Tokens issued before sessions existed lack it; App.vue refreshes them once
+ * so this device can be listed and signed out on its own.
+ */
+export function tokenHasSession(): boolean {
+  const token = getAuthToken()
+  if (!token) return false
+  try {
+    const payload = token.split(".")[1] ?? ""
+    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"))
+    return typeof (JSON.parse(json) as { sid?: unknown }).sid === "string"
+  } catch {
+    return false
+  }
 }
 
 // TURN server configuration types
@@ -221,6 +238,18 @@ export interface TURNConfigResponse {
 }
 
 // Auth response types
+/** A signed-in device (GET /api/auth/sessions), snake_case from the backend. */
+export interface AuthSessionInfo {
+  id: string
+  platform: "web" | "desktop" | "android"
+  device_name: string
+  ip: string
+  created_at: string
+  last_active_at: string
+  expires_at: string
+  current: boolean
+}
+
 export interface AuthResponse {
   token: string
   user: User
@@ -1161,6 +1190,21 @@ export const apiService = {
       method: "DELETE",
       body: JSON.stringify({ token }),
     })
+  },
+
+  /** The signed-in devices of the current user (Settings → Security). */
+  async listSessions(): Promise<AuthSessionInfo[]> {
+    return apiRequest<AuthSessionInfo[]>("/auth/sessions")
+  },
+
+  /** Signs out one of the user's other devices. */
+  async revokeSession(id: string): Promise<void> {
+    await apiRequest<void>(`/auth/sessions/${encodeURIComponent(id)}`, { method: "DELETE" })
+  },
+
+  /** Signs out every device of the user except this one. */
+  async revokeOtherSessions(): Promise<{ revoked: number }> {
+    return apiRequest<{ revoked: number }>("/auth/sessions/revoke-others", { method: "POST" })
   },
 
   async logout(): Promise<{ status: string; message: string }> {

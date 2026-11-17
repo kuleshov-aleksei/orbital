@@ -247,7 +247,12 @@ export const useUserStore = defineStore("user", () => {
   // Called by the API layer when a request is rejected with 401 and the token
   // could not be refreshed: drop all local auth state and surface the reason so
   // the AuthView can explain why the user landed back on the login screen.
+  // Set while logout() runs: the server closes this device's sockets as part
+  // of the logout, which must not read as "session expired".
+  let loggingOut = false
+
   function handleSessionExpired() {
+    if (loggingOut) return
     console.warn("Session expired, returning to authentication")
     clearUser()
     sessionExpired.value = true
@@ -329,17 +334,23 @@ export const useUserStore = defineStore("user", () => {
   }
 
   async function logout() {
-    // While the session is still valid, so the server drops this device.
-    await unregisterPush()
+    loggingOut = true
     try {
-      await apiService.logout()
-    } catch {
-      console.warn("Logout API call failed, clearing locally anyway")
+      // While the session is still valid, so the server drops this device.
+      await unregisterPush()
+      try {
+        // Ends this device's session only; other devices stay signed in.
+        await apiService.logout()
+      } catch {
+        console.warn("Logout API call failed, clearing locally anyway")
+      }
+      // Cached chat media must not outlive the account on a shared device.
+      await clearMediaCache()
+      await clearOfflineCache()
+      clearUser()
+    } finally {
+      loggingOut = false
     }
-    // Cached chat media must not outlive the account on a shared device.
-    await clearMediaCache()
-    await clearOfflineCache()
-    clearUser()
   }
 
   // Handle OAuth callback

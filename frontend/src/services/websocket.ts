@@ -1,6 +1,11 @@
 import { WebSocketMessage } from "@/types"
-import { getAuthToken, isTokenExpired } from "./api"
-import { clientId, notifyClientOutdated, WS_CLOSE_CLIENT_OUTDATED } from "./appVersion"
+import { getAuthToken, isTokenExpired, notifySessionExpired } from "./api"
+import {
+  clientId,
+  notifyClientOutdated,
+  WS_CLOSE_CLIENT_OUTDATED,
+  WS_CLOSE_SESSION_REVOKED,
+} from "./appVersion"
 
 declare const __BACKEND_WS_URL__: string | undefined
 
@@ -144,6 +149,13 @@ export class WebSocketService {
             notifyClientOutdated()
             return
           }
+          if (event.code === WS_CLOSE_SESSION_REVOKED) {
+            // Signed out from another device: retrying can't help.
+            this.reconnectAttempts = this.maxReconnectAttempts
+            // No token left means this device logged out itself.
+            if (getAuthToken()) notifySessionExpired()
+            return
+          }
           this.attemptReconnect()
         }
       } catch (error) {
@@ -218,6 +230,12 @@ export class WebSocketService {
           if (event.code === WS_CLOSE_CLIENT_OUTDATED) {
             // App below the minimum version: retrying can't help.
             notifyClientOutdated()
+            return
+          }
+          if (event.code === WS_CLOSE_SESSION_REVOKED) {
+            // Signed out from another device: retrying can't help.
+            // No token left means this device logged out itself.
+            if (getAuthToken()) notifySessionExpired()
             return
           }
           this.attemptGlobalReconnect()

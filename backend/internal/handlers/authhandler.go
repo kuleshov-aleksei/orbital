@@ -20,6 +20,8 @@ type AuthHandler struct {
 	roleService         *service.RoleService
 	externalURL         string
 	electronRedirectURL string
+	sessionPush         SessionPushStore
+	sessionCloser       SessionCloser
 }
 
 // NewAuthHandler creates a new auth handler
@@ -204,7 +206,7 @@ func (h *AuthHandler) handleCallback(w http.ResponseWriter, r *http.Request, pro
 	}
 
 	// Generate JWT token
-	token, expiry, err := h.authService.GenerateJWT(user)
+	token, expiry, err := h.authService.StartSession(user, sessionMetaFromRequest(r))
 	if err != nil {
 		http.Error(w, "Failed to generate token: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -298,7 +300,7 @@ func (h *AuthHandler) handleElectronCallback(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Generate JWT token
-	token, expiry, err := h.authService.GenerateJWT(user)
+	token, expiry, err := h.authService.StartSession(user, sessionMetaFromRequest(r))
 	if err != nil {
 		http.Error(w, "Failed to generate token: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -345,7 +347,7 @@ func (h *AuthHandler) ExchangeAppCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, expiry, err := h.authService.GenerateJWT(user)
+	token, expiry, err := h.authService.StartSession(user, sessionMetaFromRequest(r))
 	if err != nil {
 		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
 		return
@@ -369,7 +371,7 @@ func (h *AuthHandler) GuestLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate JWT token
-	token, expiry, err := h.authService.GenerateJWT(user)
+	token, expiry, err := h.authService.StartSession(user, sessionMetaFromRequest(r))
 	if err != nil {
 		http.Error(w, "Failed to generate token: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -421,7 +423,7 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, expiry, err := h.authService.GenerateJWT(user)
+	token, expiry, err := h.authService.RefreshSession(claims, user, sessionMetaFromRequest(r))
 	if err != nil {
 		http.Error(w, "Failed to generate token: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -435,9 +437,9 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Logout revokes every JWT issued for the current user and clears the client
-// token. Logout requires a valid session so an attacker cannot revoke other
-// users' sessions.
+// Logout signs out the current device only: its session is deleted, along
+// with the push tokens it registered and its open sockets. A legacy token
+// (no session) has nothing to revoke server-side; the client drops it.
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 	if !ok || claims == nil || claims.UserID == "" {
@@ -445,9 +447,12 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.authService.RevokeTokens(claims.UserID); err != nil {
-		http.Error(w, "Failed to revoke session", http.StatusInternalServerError)
-		return
+	if claims.SessionID != "" {
+		if _, err := h.authService.EndSession(claims.UserID, claims.SessionID); err != nil {
+			http.Error(w, "Failed to revoke session", http.StatusInternalServerError)
+			return
+		}
+		h.afterSessionsEnded(claims.UserID, []string{claims.SessionID})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -490,14 +495,17 @@ func (h *AuthHandler) AuthMiddleware(next http.Handler) http.Handler {
 			http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
 			return
 		}
-		if claims.TokenVersion != user.TokenVersion {
+		if err := h.authService.CheckSession(claims, user); err != nil {
 			http.Error(w, "Session has been revoked", http.StatusUnauthorized)
 			return
 		}
+		h.authService.TouchSession(claims.SessionID, sessionMetaFromRequest(r))
 
 		// Add fresh claims to request context (never trust stale token roles).
+		fresh := service.ClaimsFromUser(user)
+		fresh.SessionID = claims.SessionID
 		ctx := r.Context()
-		ctx = context.WithValue(ctx, userContextKey, service.ClaimsFromUser(user))
+		ctx = context.WithValue(ctx, userContextKey, fresh)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -576,7 +584,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	// Generate JWT after the bootstrap role assignment so the first
 	// super_admin receives a token with the correct role.
-	token, expiry, err := h.authService.GenerateJWTWithExpiry(user, 60*24*time.Hour)
+	token, expiry, err := h.authService.StartSession(user, sessionMetaFromRequest(r))
 	if err != nil {
 		http.Error(w, "Failed to generate token: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -646,7 +654,7 @@ func (h *AuthHandler) LoginPassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate JWT token (2 months expiry for password users)
-	token, expiry, err := h.authService.GenerateJWTWithExpiry(user, 60*24*time.Hour)
+	token, expiry, err := h.authService.StartSession(user, sessionMetaFromRequest(r))
 	if err != nil {
 		http.Error(w, "Failed to generate token: "+err.Error(), http.StatusInternalServerError)
 		return

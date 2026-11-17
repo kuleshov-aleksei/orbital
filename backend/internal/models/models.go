@@ -336,6 +336,29 @@ type JWTClaims struct {
 	IsGuest      bool         `json:"is_guest"`
 	Role         string       `json:"role"`
 	TokenVersion int64        `json:"token_version"`
+	// SessionID is the auth_sessions row the token belongs to ("sid" claim).
+	// Empty for legacy tokens issued before per-device sessions existed.
+	SessionID string `json:"sid,omitempty"`
+}
+
+// AuthSession is one signed-in device (auth_sessions row).
+type AuthSession struct {
+	ID           string    `json:"id"`
+	UserID       string    `json:"-"`
+	CreatedAt    time.Time `json:"created_at"`
+	LastActiveAt time.Time `json:"last_active_at"`
+	ExpiresAt    time.Time `json:"expires_at"`
+	UserAgent    string    `json:"-"`
+	Client       string    `json:"-"`
+	IP           string    `json:"ip"`
+}
+
+// AuthSessionInfo is an AuthSession as listed in Settings → Security.
+type AuthSessionInfo struct {
+	AuthSession
+	Platform   string `json:"platform"` // "web" | "desktop" | "android"
+	DeviceName string `json:"device_name"`
+	Current    bool   `json:"current"`
 }
 
 // AuthResponse represents the response after successful authentication

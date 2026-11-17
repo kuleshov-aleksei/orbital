@@ -72,6 +72,7 @@ type Client struct {
 	userID            string
 	subject           service.Subject // RBAC identity, resolved at connect
 	clientID          string          // "<platform>/<version>" from ?client= (app builds only)
+	sessionID         string          // auth session of the token ("" for legacy tokens)
 	lastPingTime      time.Time
 	firstPingReceived bool
 	// inactive is set by client_state when the user isn't looking at this
@@ -231,13 +232,16 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 		_ = conn.Close()
 		return
 	}
-	if claims.TokenVersion != user.TokenVersion {
-		log.Printf("WebSocket connection rejected (roomID=%q): token has been revoked", roomID)
+	if err := h.authService.CheckSession(claims, user); err != nil {
+		log.Printf("WebSocket connection rejected (roomID=%q): %v", roomID, err)
+		closeSessionRevoked(conn)
 		_ = conn.Close()
 		return
 	}
+	h.authService.TouchSession(claims.SessionID, service.SessionMeta{})
 	client.mu.Lock()
 	client.userID = claims.UserID
+	client.sessionID = claims.SessionID
 	client.subject = service.SubjectFromUser(user)
 	client.mu.Unlock()
 	userID := claims.UserID
@@ -1078,6 +1082,11 @@ func (c *Client) applyMediaState(req models.UpdateMediaStateRequest) {
 
 // handlePing handles ping messages and responds with pong
 func (c *Client) handlePing(data interface{}) {
+	if c.hub.authService != nil {
+		// Keeps "last active" in Settings → Security current for a device
+		// that only talks over the socket (throttled in the repository).
+		c.hub.authService.TouchSession(c.sessionID, service.SessionMeta{})
+	}
 	var pingData struct {
 		UserID    string `json:"user_id"`
 		Timestamp int64  `json:"timestamp"`
