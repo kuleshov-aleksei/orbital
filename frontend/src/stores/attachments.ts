@@ -374,6 +374,7 @@ export const useAttachmentsStore = defineStore("attachments", () => {
     composerError,
     enabled,
     forRoom,
+    maxBytes,
     addFiles,
     remove,
     retry,

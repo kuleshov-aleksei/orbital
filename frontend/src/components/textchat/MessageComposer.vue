@@ -124,6 +124,7 @@
           @mouseup="updateFormatBar"
           @keyup="updateFormatBar"
           @paste="onPaste"
+          @focus="onInputFocus"
           @blur="onBlur" />
         <span
           v-if="quotaWarning"
@@ -200,7 +201,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, useTemplateRef, watch } from "vue"
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from "vue"
 import {
   PhEyeSlash,
   PhInfo,
@@ -228,7 +229,14 @@ import {
 } from "@/utils/mentionText"
 import { wrapSelection } from "@/utils/wrapSelection"
 import { activeCommandQuery, matchCommands } from "@/utils/chatCommands"
-import { isCapacitor } from "@/services/platform"
+import {
+  isCapacitor,
+  onKeyboardImage,
+  releaseKeyboardImage,
+  setKeyboardContentEnabled,
+  type KeyboardImageEvent,
+} from "@/services/platform"
+import { readKeyboardImage } from "@/services/attachments/keyboardContent"
 import {
   CUSTOM_EMOJI_PREFIX,
   emojiShortcode,
@@ -411,6 +419,63 @@ function addFiles(files: File[]) {
   attachmentsStore.addFiles(props.roomId, files)
   focus()
 }
+
+let keyboardInputFocused = false
+let composerDisposed = false
+let stopKeyboardImages: (() => void) | null = null
+
+function syncKeyboardContent() {
+  const enabled = !composerDisposed && keyboardInputFocused && canAttach.value && serverOnline.value
+  void setKeyboardContentEnabled(enabled, Math.max(1, attachmentsStore.maxBytes("image")))
+}
+
+function onInputFocus() {
+  keyboardInputFocused = true
+  syncKeyboardContent()
+}
+
+async function receiveKeyboardImage(event: KeyboardImageEvent) {
+  if ("error" in event) {
+    if (composerDisposed || !keyboardInputFocused) return
+    attachmentsStore.composerError =
+      event.error === "too_large"
+        ? `This GIF is larger than the ${formatBytes(attachmentsStore.maxBytes("image"))} image limit.`
+        : "The GIF from your keyboard could not be read."
+    return
+  }
+  if (composerDisposed || !keyboardInputFocused) {
+    await releaseKeyboardImage(event.uri)
+    return
+  }
+
+  const roomId = props.roomId
+  try {
+    const file = await readKeyboardImage(event)
+    // Do not add a delayed keyboard event to a different composer.
+    if (composerDisposed || !keyboardInputFocused || roomId !== props.roomId) return
+    addFiles([file])
+  } catch {
+    if (!composerDisposed && roomId === props.roomId) {
+      attachmentsStore.composerError = "The GIF from your keyboard could not be read."
+    }
+  }
+}
+
+watch([canAttach, serverOnline, () => props.roomId], syncKeyboardContent)
+
+onMounted(() => {
+  void onKeyboardImage((event) => void receiveKeyboardImage(event)).then((stop) => {
+    if (composerDisposed) stop()
+    else stopKeyboardImages = stop
+  })
+})
+
+onBeforeUnmount(() => {
+  composerDisposed = true
+  keyboardInputFocused = false
+  syncKeyboardContent()
+  stopKeyboardImages?.()
+})
 
 function onPick(e: Event) {
   const el = e.target as HTMLInputElement
@@ -701,6 +766,8 @@ function onFormatKey(event: KeyboardEvent): boolean {
 }
 
 function onBlur() {
+  keyboardInputFocused = false
+  syncKeyboardContent()
   closeSuggestions()
   formatBarLeft.value = null
 }

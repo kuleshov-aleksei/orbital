@@ -228,6 +228,7 @@ docs/_book
 
 # TODO: where does this rule come from?
 test/
+!mobile/android/app/src/test/
 
 # End of https://www.toptal.com/developers/gitignore/api/go,vue,node
 

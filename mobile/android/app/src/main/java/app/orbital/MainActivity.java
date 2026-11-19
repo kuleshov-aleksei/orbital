@@ -9,6 +9,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         // Local plugins must be registered before super.onCreate builds the bridge.
         registerPlugin(CallKeepAlivePlugin.class);
+        registerPlugin(KeyboardContentPlugin.class);
         registerPlugin(MediaCachePlugin.class);
         registerPlugin(OtaBundlePlugin.class);
         super.onCreate(savedInstanceState);
