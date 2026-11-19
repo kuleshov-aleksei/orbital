@@ -15,7 +15,7 @@ import { debugLog, debugWarn } from "@/utils/debug"
  * or on the next launch, never in the middle of a call.
  */
 
-export type StageResult = "staged" | "native" | "none" | "unsupported"
+export type StageResult = "staged" | "native" | "none" | "unsupported" | "failed"
 
 /** Local Android plugin (mobile/android/.../OtaBundlePlugin.java). */
 interface OtaBundlePlugin {
@@ -71,8 +71,10 @@ export function onReady(callback: (version: string) => void): void {
 
 /**
  * Android: checks the release manifest and downloads a newer bundle.
- * "native" = the release needs a newer APK; "unsupported" = this APK has no plugin.
- * Electron checks by itself (main process), so this is Android-only.
+ * "native" = the release needs a newer APK; "unsupported" = this APK has no plugin;
+ * "failed" = the download or the write broke (the next check retries; it must not
+ * turn into an APK download prompt). Electron checks by itself (main process), so
+ * this is Android-only.
  */
 export async function stage(
   manifestUrl: string,
@@ -88,7 +90,7 @@ export async function stage(
     const msg = err instanceof Error ? err.message : String(err)
     if (/not implemented/i.test(msg)) return { result: "unsupported" }
     debugWarn("[OTA] stage failed", err)
-    return { result: "none" }
+    return { result: "failed" }
   }
 }
 

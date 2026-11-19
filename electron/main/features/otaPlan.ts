@@ -129,6 +129,44 @@ export function resolveStartupState(
   return next
 }
 
+/**
+ * Runs tasks one at a time, in call order. Staging and cleanup share one of
+ * these: a cleanup that overlaps a stage deletes the `.tmp` directory the stage
+ * is still writing into (every file after that point fails with ENOENT).
+ */
+export function createLock(): <T>(task: () => Promise<T>) => Promise<T> {
+  let tail: Promise<unknown> = Promise.resolve()
+  return <T>(task: () => Promise<T>): Promise<T> => {
+    const run = tail.then(task, task)
+    tail = run.then(
+      () => undefined,
+      () => undefined,
+    )
+    return run
+  }
+}
+
+/**
+ * Bundle-dir entries that can be deleted: everything except the active and
+ * pending bundles and the version being staged right now (with its `.tmp`).
+ * Without `inFlight`, a `<version>.tmp` left behind by a killed run is stale and
+ * gets removed.
+ */
+export function staleBundleNames(
+  entries: readonly string[],
+  state: Pick<OtaState, "active" | "pending">,
+  inFlight: string | null,
+): string[] {
+  const keep = new Set<string>()
+  if (state.active) keep.add(state.active)
+  if (state.pending) keep.add(state.pending)
+  if (inFlight) {
+    keep.add(inFlight)
+    keep.add(`${inFlight}.tmp`)
+  }
+  return entries.filter((name) => !keep.has(name))
+}
+
 export function normalizeState(raw: unknown): OtaState {
   const s = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>
   const str = (v: unknown) => (typeof v === "string" && parseVersion(v) ? v : null)

@@ -3,11 +3,13 @@ import { test } from "node:test"
 import assert from "node:assert/strict"
 import {
   compareVersions,
+  createLock,
   decide,
   isSafeBundlePath,
   normalizeState,
   parseManifest,
   resolveStartupState,
+  staleBundleNames,
   type OtaContext,
   type OtaManifest,
 } from "./otaPlan.ts"
@@ -114,4 +116,47 @@ test("normalizeState tolerates garbage", () => {
     pending: null,
     bad: ["1.0.0"],
   })
+})
+
+test("staleBundleNames keeps active, pending and the bundle being staged", () => {
+  const entries = ["1.8.0", "1.9.0", "1.9.0.tmp", "1.9.1.tmp", "not-a-version"]
+  // 1.9.0 is mid-stage: neither it nor its .tmp may be deleted (the cleanup used
+  // to remove them, which made staging fail with ENOENT).
+  assert.deepEqual(staleBundleNames(entries, { active: "1.8.0", pending: null }, "1.9.0"), [
+    "1.9.1.tmp",
+    "not-a-version",
+  ])
+  // Nothing in flight: a .tmp left by a killed run is stale and goes away.
+  assert.deepEqual(staleBundleNames(entries, { active: null, pending: null }, null), [
+    "1.8.0",
+    "1.9.0",
+    "1.9.0.tmp",
+    "1.9.1.tmp",
+    "not-a-version",
+  ])
+  // A pending bundle is kept until it becomes active.
+  assert.deepEqual(staleBundleNames(["1.8.0", "1.9.0"], { active: "1.8.0", pending: "1.9.0" }, null), [])
+  assert.deepEqual(staleBundleNames([], { active: "1.8.0", pending: null }, null), [])
+})
+
+test("createLock serializes tasks and survives a rejection", async () => {
+  const withLock = createLock()
+  const order: string[] = []
+  let running = 0
+  let maxRunning = 0
+  const task = (name: string) =>
+    withLock(async () => {
+      running++
+      maxRunning = Math.max(maxRunning, running)
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      order.push(name)
+      running--
+    })
+  const failing = withLock(async () => {
+    throw new Error("boom")
+  })
+  const results = await Promise.allSettled([task("a"), failing, task("b"), task("c")])
+  assert.equal(results[1].status, "rejected")
+  assert.equal(maxRunning, 1, "tasks must not overlap")
+  assert.deepEqual(order, ["a", "b", "c"], "a rejection must not stall the queue")
 })

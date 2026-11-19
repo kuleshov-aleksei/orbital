@@ -18,8 +18,7 @@ it never touches the production bucket or the production installer.
 ### 0.1 Automated tests (must be green)
 
 ```bash
-cd ~/github/orbital && make test-ota
-cd ~/github/orbital/frontend && pnpm exec vitest run src/stores/ota.test.ts
+cd ~/github/orbital && make test-ota          # electron decisions + manifest generator + ota stores
 cd ~/github/orbital/backend && go test ./internal/handlers/ -run Release
 ```
 
@@ -32,6 +31,11 @@ cd ~/github/orbital/backend && go test ./internal/handlers/ -run Release
 | Feed port | `8765` |
 | Host IP reachable from the phone (Headscale/LAN) | `100.111.0.8` (adjust) |
 | Built-in version | `1.0.0` |
+| Desktop userData | `~/.config/orbital-desktop` (log: `logs/main.log`, OTA state: `ota/`) |
+
+Reset the desktop app's OTA state between runs with `make ota-reset` (removes
+`~/.config/orbital-desktop/ota` and the electron-updater cache, so the app behaves
+like a fresh launch). Override `OTA_USER_DATA` for another product name.
 
 Every "new" bundle is the built-in build with two changes, made by the helper
 below: the version baked into its JS is replaced with the bundle version (as a
@@ -42,7 +46,7 @@ chunks plus `index.html`), which is how the delta-download checks work.
 Bundles made with an older copy of the helper still report `1.0.0` from their JS,
 so the app shows the APK prompt ("You have 1.0.0") right after applying them.
 Re-create the helper (0.3), then run `adb shell pm clear app.orbital.dev` (or, on
-desktop, `rm -rf ~/.config/Orbital/ota`) and rebuild the bundles.
+desktop, `rm -rf ~/.config/orbital-desktop/ota`) and rebuild the bundles.
 
 ### 0.3 Helper script
 
@@ -121,17 +125,17 @@ Commands used throughout Part A:
 # Quit the app
 pkill -f 'Orbital-.*\.AppImage'
 # Empty the app log (only while the app is not running)
-: > ~/.config/Orbital/logs/main.log
+: > ~/.config/orbital-desktop/logs/main.log
 # Launch
 ~/github/orbital/electron/release/Orbital-1.0.0.AppImage &
 # OTA log lines
-grep '\[OTA\]' ~/.config/Orbital/logs/main.log
+grep '\[OTA\]' ~/.config/orbital-desktop/logs/main.log
 # OTA state
-cat ~/.config/Orbital/ota/state.json; echo
+cat ~/.config/orbital-desktop/ota/state.json; echo
 # Downloaded bundles
-ls ~/.config/Orbital/ota/bundles/
+ls ~/.config/orbital-desktop/ota/bundles/
 # Reset OTA to the built-in bundle (keeps login and other data)
-rm -rf ~/.config/Orbital/ota
+rm -rf ~/.config/orbital-desktop/ota
 ```
 
 > `ORBITAL_OTA_URL=http://127.0.0.1:8765/` overrides the baked feed for the OTA
@@ -141,12 +145,12 @@ rm -rf ~/.config/Orbital/ota
 ### A1. No manifest: falls back to the old updater
 
 ```bash
-pkill -f 'Orbital-.*\.AppImage'; rm -rf ~/.config/Orbital/ota
-rm -rf ~/ota-test/feed/* && : > ~/.config/Orbital/logs/main.log
+pkill -f 'Orbital-.*\.AppImage'; rm -rf ~/.config/orbital-desktop/ota
+rm -rf ~/ota-test/feed/* && : > ~/.config/orbital-desktop/logs/main.log
 ~/github/orbital/electron/release/Orbital-1.0.0.AppImage &
 ```
 
-- [ ] `grep -E '\[OTA\]|Checking for update' ~/.config/Orbital/logs/main.log` shows
+- [ ] `grep -E '\[OTA\]|Checking for update' ~/.config/orbital-desktop/logs/main.log` shows
   `[OTA] Manifest fetch failed`, then `Checking for update`.
 - [ ] The update overlay appears and ends in an error (there is no `latest-linux.yml`).
 - [ ] After dismissing the error ("Try Again" / reload) the app works normally.
@@ -157,29 +161,29 @@ rm -rf ~/ota-test/feed/* && : > ~/.config/Orbital/logs/main.log
    ```bash
    pkill -f 'Orbital-.*\.AppImage'
    ~/ota-test/make-bundle.sh ~/github/orbital/electron/dist electron 1.0.1 https://orb.encamy.com "OTA 1.0.1"
-   : > ~/ota-test/feed.log; : > ~/.config/Orbital/logs/main.log
+   : > ~/ota-test/feed.log; : > ~/.config/orbital-desktop/logs/main.log
    ~/github/orbital/electron/release/Orbital-1.0.0.AppImage &
    ```
 2. Sign in. Don't join a voice room.
-   - [ ] `grep '\[OTA\] Staged' ~/.config/Orbital/logs/main.log` shows
+   - [ ] `grep '\[OTA\] Staged' ~/.config/orbital-desktop/logs/main.log` shows
      `Staged 1.0.1: K of N files downloaded`, with K about 7 and N about 250.
    - [ ] `grep -c 'GET /ota/electron/files/' ~/ota-test/feed.log` prints the same K.
-   - [ ] `cat ~/.config/Orbital/ota/state.json` shows `"pending": "1.0.1"`.
+   - [ ] `cat ~/.config/orbital-desktop/ota/state.json` shows `"pending": "1.0.1"`.
    - [ ] The "Orbital 1.0.1 is ready. Reload to update." toast appears at the bottom.
 3. Click **Reload**.
    - [ ] The red **OTA 1.0.1** banner is visible.
-   - [ ] `grep -E 'Applying|booted' ~/.config/Orbital/logs/main.log` shows
+   - [ ] `grep -E 'Applying|booted' ~/.config/orbital-desktop/logs/main.log` shows
      `[OTA] Applying 1.0.1`, then `[OTA] Bundle 1.0.1 booted`.
    - [ ] You are still signed in. A text channel you opened before still shows
      its cached messages (IndexedDB kept, same `orbital://app` origin).
 4. Relaunch:
    ```bash
-   pkill -f 'Orbital-.*\.AppImage'; : > ~/.config/Orbital/logs/main.log
+   pkill -f 'Orbital-.*\.AppImage'; : > ~/.config/orbital-desktop/logs/main.log
    ~/github/orbital/electron/release/Orbital-1.0.0.AppImage &
    ```
    - [ ] The banner is still there.
-   - [ ] `cat ~/.config/Orbital/ota/state.json` shows `"active": "1.0.1"`.
-   - [ ] `grep '\[OTA\] Latest' ~/.config/Orbital/logs/main.log` shows `nothing to do (up to date)`.
+   - [ ] `cat ~/.config/orbital-desktop/ota/state.json` shows `"active": "1.0.1"`.
+   - [ ] `grep '\[OTA\] Latest' ~/.config/orbital-desktop/logs/main.log` shows `nothing to do (up to date)`.
 
 ### A3. "Later" applies on the next launch
 
@@ -187,20 +191,20 @@ rm -rf ~/ota-test/feed/* && : > ~/.config/Orbital/logs/main.log
    ```bash
    pkill -f 'Orbital-.*\.AppImage'
    ~/ota-test/make-bundle.sh ~/github/orbital/electron/dist electron 1.0.2 https://orb.encamy.com "OTA 1.0.2"
-   : > ~/ota-test/feed.log; : > ~/.config/Orbital/logs/main.log
+   : > ~/ota-test/feed.log; : > ~/.config/orbital-desktop/logs/main.log
    ~/github/orbital/electron/release/Orbital-1.0.0.AppImage &
    ```
 2. When the toast appears, click **Later**.
    - [ ] The toast hides, and the app still shows **OTA 1.0.1**.
    - [ ] `grep -c 'GET /ota/electron/files/' ~/ota-test/feed.log` prints about 7,
-     the K in `grep '\[OTA\] Staged 1.0.2' ~/.config/Orbital/logs/main.log`
+     the K in `grep '\[OTA\] Staged 1.0.2' ~/.config/orbital-desktop/logs/main.log`
      (everything else reused from bundle 1.0.1).
 3. Relaunch:
    ```bash
    pkill -f 'Orbital-.*\.AppImage'; ~/github/orbital/electron/release/Orbital-1.0.0.AppImage &
    ```
    - [ ] The banner shows **OTA 1.0.2** without any prompt.
-   - [ ] `ls ~/.config/Orbital/ota/bundles/` shows only `1.0.2` (after the boot is confirmed).
+   - [ ] `ls ~/.config/orbital-desktop/ota/bundles/` shows only `1.0.2` (after the boot is confirmed).
 
 ### A4. Never during a call
 
@@ -213,7 +217,7 @@ rm -rf ~/ota-test/feed/* && : > ~/.config/Orbital/logs/main.log
 2. **Join a voice room right away**, before the toast appears (the check runs at
    startup).
    - [ ] No toast while in the call.
-   - [ ] `grep '\[OTA\] Staged 1.0.3' ~/.config/Orbital/logs/main.log` shows the
+   - [ ] `grep '\[OTA\] Staged 1.0.3' ~/.config/orbital-desktop/logs/main.log` shows the
      line, and the call was not interrupted.
 3. Leave the call.
    - [ ] The toast appears, and **Reload** switches to **OTA 1.0.3**.
@@ -228,14 +232,14 @@ pkill -f 'Orbital-.*\.AppImage'
 ~/ota-test/make-bundle.sh ~/github/orbital/electron/dist electron 1.0.4 https://orb.encamy.com "OTA 1.0.4"
 sed -i 's/"shell_api": [0-9]*/"shell_api": 99/' ~/ota-test/feed/ota-electron.json
 jq '{version, shell_api}' ~/ota-test/feed/ota-electron.json   # must show 1.0.4 / 99
-: > ~/ota-test/feed.log; : > ~/.config/Orbital/logs/main.log
+: > ~/ota-test/feed.log; : > ~/.config/orbital-desktop/logs/main.log
 ~/github/orbital/electron/release/Orbital-1.0.0.AppImage &
 ```
 
-- [ ] `grep '\[OTA\]' ~/.config/Orbital/logs/main.log` shows
+- [ ] `grep '\[OTA\]' ~/.config/orbital-desktop/logs/main.log` shows
   `Latest 1.0.4 needs shell API 99 (have 1)`.
 - [ ] `grep -c 'GET /ota/electron/files/' ~/ota-test/feed.log` prints `0`.
-- [ ] `grep 'Checking for update' ~/.config/Orbital/logs/main.log` shows the
+- [ ] `grep 'Checking for update' ~/.config/orbital-desktop/logs/main.log` shows the
   line, and the overlay runs (ending in an error: no `latest-linux.yml`).
 - [ ] The app keeps showing **OTA 1.0.3**.
 
@@ -244,7 +248,7 @@ jq '{version, shell_api}' ~/ota-test/feed/ota-electron.json   # must show 1.0.4 
 Run each case on its own. Each one starts from a quit app and ends with a relaunch:
 
 ```bash
-pkill -f 'Orbital-.*\.AppImage'; : > ~/.config/Orbital/logs/main.log
+pkill -f 'Orbital-.*\.AppImage'; : > ~/.config/orbital-desktop/logs/main.log
 # ... the case's commands ...
 ~/github/orbital/electron/release/Orbital-1.0.0.AppImage &
 ```
@@ -254,13 +258,13 @@ pkill -f 'Orbital-.*\.AppImage'; : > ~/.config/Orbital/logs/main.log
    ~/ota-test/make-bundle.sh ~/github/orbital/electron/dist electron 1.0.5 https://orb.encamy.com "OTA 1.0.5"
    sed -i 's/"shell_api": [0-9]*/"shell_api": 0/' ~/ota-test/feed/ota-electron.json
    ```
-   - [ ] `grep '\[OTA\] Latest' ~/.config/Orbital/logs/main.log` shows
+   - [ ] `grep '\[OTA\] Latest' ~/.config/orbital-desktop/logs/main.log` shows
      `nothing to do (shell is newer than the bundle)`. No overlay.
 2. **Other backend:**
    ```bash
    ~/ota-test/make-bundle.sh ~/github/orbital/electron/dist electron 1.0.6 https://other.example.com "OTA 1.0.6"
    ```
-   - [ ] `grep '\[OTA\] Latest' ~/.config/Orbital/logs/main.log` shows
+   - [ ] `grep '\[OTA\] Latest' ~/.config/orbital-desktop/logs/main.log` shows
      `nothing to do (bundle is built for another backend)`.
 3. **Corrupt blob:**
    ```bash
@@ -268,16 +272,16 @@ pkill -f 'Orbital-.*\.AppImage'; : > ~/.config/Orbital/logs/main.log
    H=$(jq -r '.files[] | select(.path=="index.html") | .sha256' ~/ota-test/feed/ota-electron.json)
    echo tampered > ~/ota-test/feed/ota/electron/files/$H
    ```
-   - [ ] `grep '\[OTA\] Staging' ~/.config/Orbital/logs/main.log` shows
+   - [ ] `grep '\[OTA\] Staging' ~/.config/orbital-desktop/logs/main.log` shows
      `Staging 1.0.7 failed: ... checksum mismatch for index.html`.
-   - [ ] No toast, and `cat ~/.config/Orbital/ota/state.json` has no `"pending": "1.0.7"`.
-   - [ ] After another relaunch, `ls ~/.config/Orbital/ota/bundles/` shows no `*.tmp` folder.
+   - [ ] No toast, and `cat ~/.config/orbital-desktop/ota/state.json` has no `"pending": "1.0.7"`.
+   - [ ] After another relaunch, `ls ~/.config/orbital-desktop/ota/bundles/` shows no `*.tmp` folder.
 4. **Invalid manifest:**
    ```bash
    ~/ota-test/make-bundle.sh ~/github/orbital/electron/dist electron 1.0.8 https://orb.encamy.com "OTA 1.0.8"
    sed -i 's|"path": "index.html"|"path": "../index.html"|' ~/ota-test/feed/ota-electron.json
    ```
-   - [ ] `grep -E '\[OTA\] Invalid manifest|Checking for update' ~/.config/Orbital/logs/main.log`
+   - [ ] `grep -E '\[OTA\] Invalid manifest|Checking for update' ~/.config/orbital-desktop/logs/main.log`
      shows `[OTA] Invalid manifest`, then `Checking for update` (fallback as in A1).
 
 ### A7. A broken bundle rolls back
@@ -286,21 +290,21 @@ pkill -f 'Orbital-.*\.AppImage'; : > ~/.config/Orbital/logs/main.log
    ```bash
    pkill -f 'Orbital-.*\.AppImage'
    ~/ota-test/make-bundle.sh ~/github/orbital/electron/dist electron 1.1.0 https://orb.encamy.com x broken
-   : > ~/.config/Orbital/logs/main.log
+   : > ~/.config/orbital-desktop/logs/main.log
    ~/github/orbital/electron/release/Orbital-1.0.0.AppImage &
    ```
 2. Click **Reload** on the toast.
    - [ ] The window shows "broken 1.1.0".
    - [ ] Within **30 s** it goes back by itself to the **built-in** bundle (no banner).
-   - [ ] `grep 'failed to boot' ~/.config/Orbital/logs/main.log` shows
+   - [ ] `grep 'failed to boot' ~/.config/orbital-desktop/logs/main.log` shows
      `Bundle 1.1.0 failed to boot (no boot confirmation)`.
-   - [ ] `cat ~/.config/Orbital/ota/state.json` shows `"active": null` and `"bad": ["1.1.0"]`.
+   - [ ] `cat ~/.config/orbital-desktop/ota/state.json` shows `"active": null` and `"bad": ["1.1.0"]`.
 3. Relaunch:
    ```bash
-   pkill -f 'Orbital-.*\.AppImage'; : > ~/.config/Orbital/logs/main.log
+   pkill -f 'Orbital-.*\.AppImage'; : > ~/.config/orbital-desktop/logs/main.log
    ~/github/orbital/electron/release/Orbital-1.0.0.AppImage &
    ```
-   - [ ] `grep '\[OTA\] Latest' ~/.config/Orbital/logs/main.log` shows
+   - [ ] `grep '\[OTA\] Latest' ~/.config/orbital-desktop/logs/main.log` shows
      `nothing to do (bundle failed to boot before)`.
 
 ### A8. A native update replaces OTA bundles
@@ -313,13 +317,13 @@ pkill -f 'Orbital-.*\.AppImage'; : > ~/.config/Orbital/logs/main.log
    sed -i 's/"version": "1.0.0"/"version": "1.2.0"/' electron/package.json
    make build-electron UPDATE_URL=http://127.0.0.1:8765/
    git checkout electron/package.json      # revert the version right away
-   : > ~/.config/Orbital/logs/main.log
+   : > ~/.config/orbital-desktop/logs/main.log
    ~/github/orbital/electron/release/Orbital-1.2.0.AppImage &
    ```
    - [ ] It runs the built-in 1.2.0 (no banner).
-   - [ ] `grep '\[OTA\] Built-in' ~/.config/Orbital/logs/main.log` shows
+   - [ ] `grep '\[OTA\] Built-in' ~/.config/orbital-desktop/logs/main.log` shows
      `Built-in 1.2.0, active built-in`.
-   - [ ] `ls ~/.config/Orbital/ota/bundles/` is empty.
+   - [ ] `ls ~/.config/orbital-desktop/ota/bundles/` is empty.
    - [ ] `git diff --stat electron/package.json` prints nothing.
 
 ### A9. Dev mode is untouched
@@ -329,6 +333,42 @@ cd ~/github/orbital && make dev-electron 2>&1 | tee ~/ota-test/dev-electron.log
 ```
 
 - [ ] `grep -c '\[OTA\]' ~/ota-test/dev-electron.log` prints `0`, and no update overlay shows.
+
+### A10. Cleanup and transfer failures never cost a reinstall
+
+This is the 3.4.0 → 3.5.0 regression: `removeUnusedBundles` (called from
+`confirmBoot` right after the renderer mounts) deleted `bundles/<version>.tmp`
+while staging was writing into it, so staging died with ENOENT and the app fell
+back to the full installer download.
+
+1. Leftover temp dir is cleaned, not fatal:
+   ```bash
+   pkill -f 'Orbital-.*\.AppImage'
+   mkdir -p ~/.config/orbital-desktop/ota/bundles/1.0.1.tmp/assets
+   ~/ota-test/make-bundle.sh ~/github/orbital/electron/dist electron 1.0.1 https://orb.encamy.com "OTA 1.0.1"
+   : > ~/.config/orbital-desktop/logs/main.log
+   ~/github/orbital/electron/release/Orbital-1.0.0.AppImage &
+   ```
+   - [ ] `grep -E 'Removed unused bundle|Staged 1.0.1' ~/.config/orbital-desktop/logs/main.log`
+     shows `Removed unused bundle 1.0.1.tmp` **and** a later `Staged 1.0.1`.
+   - [ ] The toast appears; nothing is written to `latest-linux.yml`'s updater path
+     (`grep -c 'Checking for update' …/main.log` prints `0`).
+2. A file that 404s must retry and must **not** start the installer:
+   ```bash
+   pkill -f 'Orbital-.*\.AppImage'; rm -rf ~/.config/orbital-desktop/ota
+   ~/ota-test/make-bundle.sh ~/github/orbital/electron/dist electron 1.0.3 https://orb.encamy.com "OTA 1.0.3"
+   SHA=$(node -e 'const m=require(process.env.HOME+"/ota-test/feed/ota-electron.json");console.log(m.files.find(f=>f.path.startsWith("assets/")).sha256)')
+   mv ~/ota-test/feed/ota/electron/files/$SHA ~/ota-test/feed/$SHA.away
+   : > ~/.config/orbital-desktop/logs/main.log
+   ~/github/orbital/electron/release/Orbital-1.0.0.AppImage &
+   ```
+   - [ ] `grep 'Staging 1.0.3 failed' ~/.config/orbital-desktop/logs/main.log` shows
+     `HTTP 404`, preceded by two `failed (attempt 1/3)` / `(attempt 2/3)` lines.
+   - [ ] `grep -c 'Checking for update' ~/.config/orbital-desktop/logs/main.log` prints
+     `0` — **no 200 MB installer download** (the old build printed `1`).
+   - [ ] `grep 'Retrying the bundle' …/main.log` shows the 60 s retry; move the
+     blob back (`mv ~/ota-test/feed/$SHA.away ~/ota-test/feed/ota/electron/files/$SHA`)
+     and within ~60 s `[OTA] Staged 1.0.3` appears and the toast shows.
 
 ---
 
@@ -546,6 +586,28 @@ derives from `RELEASES_URL` and the `latest.yml` found there.
      logs on, there is no `[OTA] stage failed` line (the JS side treats the
      missing plugin as "unsupported").
 
+### B9. Cleanup during staging
+
+`OtaBundlePlugin.removeUnusedBundles` must never delete the bundle being staged
+(nor its `<version>.tmp`). Staging and cleanup share one executor today, so this
+is a guard against future reordering — check it stays green:
+
+1. Leave a leftover temp dir and stage a bundle:
+   ```bash
+   adb logcat -c
+   adb shell run-as app.orbital.dev mkdir -p files/ota/bundles/1.4.0.tmp/assets 2>/dev/null \
+     || echo "run-as unavailable on a release APK; skip the leftover check"
+   ~/ota-test/make-bundle.sh ~/ota-test/android-dist android 1.4.0 https://orb-dev.encamy.com "OTA 1.4.0"
+   # restart the backend, then:
+   adb shell am force-stop app.orbital.dev
+   adb shell monkey -p app.orbital.dev -c android.intent.category.LAUNCHER 1
+   ```
+   - [ ] `adb logcat -d -s OtaBundle` shows `Staged 1.4.0: … files downloaded`
+     with no `Staging failed` / `No such file or directory` lines.
+   - [ ] `adb logcat -d -s OtaBundle | grep -c 'Staged'` prints `1` (a single,
+     complete stage — no retry storm).
+   - [ ] The 1.4.0 toast appears; the app never offers the APK prompt.
+
 ---
 
 ## Part C: Release pipeline (dry run, optional)
@@ -569,7 +631,7 @@ Without publishing anything:
 # Stop the feed server (Ctrl+C in its terminal), then restart the backend without the override:
 cd ~/github/orbital && make dev
 # Desktop
-pkill -f 'Orbital-.*\.AppImage'; rm -rf ~/.config/Orbital/ota
+pkill -f 'Orbital-.*\.AppImage'; rm -rf ~/.config/orbital-desktop/ota
 git -C ~/github/orbital diff --stat electron/package.json   # must print nothing
 # Android
 adb shell pm clear app.orbital.dev        # or: adb uninstall app.orbital.dev

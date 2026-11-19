@@ -43,6 +43,8 @@ export const useAppUpdateStore = defineStore("appUpdate", () => {
   const refused = ref(false)
   const dismissedVersion = ref<string | null>(readDismissed())
   const checking = ref(false)
+  /** The bundle download broke this time: retry it instead of offering the APK. */
+  const stageFailed = ref(false)
 
   const belowMinimum = computed(
     () => !!minVersion.value && compareVersions(currentVersion, minVersion.value) === -1,
@@ -54,6 +56,7 @@ export const useAppUpdateStore = defineStore("appUpdate", () => {
   const updateAvailable = computed(
     () =>
       !required.value &&
+      !stageFailed.value &&
       !!latestVersion.value &&
       !!downloadUrl.value &&
       latestVersion.value !== dismissedVersion.value &&
@@ -83,12 +86,16 @@ export const useAppUpdateStore = defineStore("appUpdate", () => {
   async function check(): Promise<void> {
     if (!isCapacitor() || checking.value) return
     checking.value = true
+    stageFailed.value = false
     try {
       const release = await apiService.getLatestRelease()
       // Try the over-the-air bundle before deciding on the APK prompt.
       if (release.android_ota_manifest_url && release.version !== currentVersion) {
         const res = await stageOta(release.android_ota_manifest_url)
         if (res.result === "staged" && res.version) otaStore.setReady(res.version)
+        // A broken download retries on the next check; the APK prompt would send
+        // the user through a full reinstall for a transient error.
+        if (res.result === "failed") stageFailed.value = true
       }
       applyRelease(release)
       // Below the minimum but the new bundle is here: switch to it right away.

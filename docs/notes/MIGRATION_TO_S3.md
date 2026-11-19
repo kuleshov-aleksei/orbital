@@ -140,10 +140,23 @@ The installer/APK update runs only when the **shell** changed.
   - Lower `shell_api`, a different `backend_url`, or a bundle that failed to boot
     before: ignore it.
   - Dev builds (`dev-unknown`) never update over the air.
+- **Staging is the only path that may retry; only an unreadable feed goes native**:
+  - Staging and bundle cleanup share one lock (`createLock` in `otaPlan.ts`).
+    `removeUnusedBundles` used to run fire-and-forget from `confirmBoot`, which
+    lands right after the renderer mounts — deleting `bundles/<version>.tmp` in
+    the middle of a stage. Every file written after that failed with ENOENT, the
+    check reported a failure, and `checkForUpdates` escalated to a full installer
+    download (3.4.0 → 3.5.0 shipped exactly that way). Cleanup now takes the lock
+    and never touches the version being staged or its `.tmp`.
+  - A stage that still fails returns `"staging-failed"`: one retry after 60 s,
+    then the regular poll. **It never starts the installer download.** Only
+    `"native"` (newer shell) and `"unreachable"` (no feed, manifest 4xx/5xx, or an
+    invalid manifest) reach electron-updater.
+  - Each blob is retried up to 3 times on transient errors (timeout, 5xx,
+    connection reset, checksum mismatch) before the stage gives up.
 - **Electron** (`electron/main/features/ota.ts`): checks the feed at startup and
   every 30 min. Bundles go to `userData/ota/bundles/<version>/` and are served by
-  the `orbital://` protocol (same origin, so IndexedDB is kept). If the OTA
-  manifest can't be read, the app falls back to the old electron-updater check.
+  the `orbital://` protocol (same origin, so IndexedDB is kept).
   `ORBITAL_OTA_URL=<feed root>` overrides the baked `UPDATE_URL` for local testing.
 - **Android** (`OtaBundlePlugin.java`): the app learns the manifest URL from
   `GET /api/releases/latest` (`android_ota_manifest_url`). Bundles go to

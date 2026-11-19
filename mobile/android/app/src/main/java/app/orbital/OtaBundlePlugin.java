@@ -65,6 +65,8 @@ public class OtaBundlePlugin extends Plugin {
 
     private static final long BOOT_TIMEOUT_MS = 30_000;
     private static final int TIMEOUT_MS = 30_000;
+    /** Attempts per downloaded file (transient network errors only). */
+    private static final int FILE_ATTEMPTS = 3;
     private static final String INDEX_FILE = ".ota-manifest.json";
     private static final Pattern VERSION = Pattern.compile("^v?(\\d+)\\.(\\d+)\\.(\\d+)(?:-.*)?$");
     private static final Pattern SHA256 = Pattern.compile("^[0-9a-f]{64}$");
@@ -74,6 +76,9 @@ public class OtaBundlePlugin extends Plugin {
     @Nullable
     private Runnable bootTimeout;
     private volatile boolean staging = false;
+    /** Version whose bundle is being written right now; cleanup must leave it alone. */
+    @Nullable
+    private volatile String stagingVersion = null;
 
     // ── startup ───────────────────────────────────────────────────────────
 
@@ -274,10 +279,17 @@ public class OtaBundlePlugin extends Plugin {
         if (readBad().contains(version)) return none(ret, "bundle failed to boot before");
 
         String blobBase = manifestUrl.substring(0, manifestUrl.lastIndexOf('/') + 1) + "ota/android/files/";
-        stageBundle(version, files, blobBase, manifest.toString());
-
-        prefs().edit().putString(KEY_PENDING, version).apply();
-        if (pending != null && !pending.equals(version)) deleteRecursive(bundleDir(pending));
+        // Cleanup (confirmBoot / startup) runs on the same executor today, but the
+        // temp dir must never be deletable while it is being written: that turned a
+        // staging failure into a full APK download once on desktop.
+        stagingVersion = version;
+        try {
+            stageBundle(version, files, blobBase, manifest.toString());
+            prefs().edit().putString(KEY_PENDING, version).apply();
+            if (pending != null && !pending.equals(version)) deleteRecursive(bundleDir(pending));
+        } finally {
+            stagingVersion = null;
+        }
         ret.put("result", "staged");
         return ret;
     }
@@ -335,7 +347,7 @@ public class OtaBundlePlugin extends Plugin {
             if (local != null) data = readFile(local);
             if (data == null || !sha256(data).equals(f.sha256)) data = readBuiltIn(f);
             if (data == null) {
-                data = download(blobBase + f.sha256);
+                data = downloadWithRetries(blobBase + f.sha256, f.path);
                 downloaded++;
                 bytes += data.length;
             }
@@ -351,7 +363,31 @@ public class OtaBundlePlugin extends Plugin {
         }
         deleteRecursive(target);
         if (!tmp.renameTo(target)) throw new IOException("cannot rename " + tmp);
+        if (!new File(target, "index.html").isFile() || !new File(target, INDEX_FILE).isFile()) {
+            throw new IOException("staged bundle " + version + " is incomplete");
+        }
         Log.i(TAG, "Staged " + version + ": " + downloaded + " of " + files.size() + " files downloaded (" + bytes / 1024 + " KiB)");
+    }
+
+    /** A blob fetch, retried a couple of times: one hiccup used to lose the whole bundle. */
+    private static byte[] downloadWithRetries(String url, String path) throws IOException {
+        IOException last = null;
+        for (int attempt = 1; attempt <= FILE_ATTEMPTS; attempt++) {
+            try {
+                return download(url);
+            } catch (IOException e) {
+                last = e;
+                if (attempt == FILE_ATTEMPTS) break;
+                Log.w(TAG, "GET " + path + " failed (attempt " + attempt + "/" + FILE_ATTEMPTS + "), retrying: " + e);
+                try {
+                    Thread.sleep(500L * attempt);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw last;
+                }
+            }
+        }
+        throw last != null ? last : new IOException("cannot download " + path);
     }
 
     /** Files of the active OTA bundle by sha256 (from its stored manifest). */
@@ -411,9 +447,12 @@ public class OtaBundlePlugin extends Plugin {
     private void removeUnusedBundles(@Nullable String keepA, @Nullable String keepB) {
         File[] entries = bundlesDir().listFiles();
         if (entries == null) return;
+        String staging = stagingVersion;
         for (File f : entries) {
             String name = f.getName();
             if (name.equals(keepA) || name.equals(keepB)) continue;
+            // Never delete the bundle being staged, nor its "<version>.tmp".
+            if (staging != null && (name.equals(staging) || name.equals(staging + ".tmp"))) continue;
             deleteRecursive(f);
         }
     }

@@ -16,10 +16,12 @@ import log from "electron-log"
 import { RENDERER_DIST, VITE_DEV_SERVER_URL } from "../paths"
 import { getMainWindow } from "../state"
 import {
+  createLock,
   decide,
   normalizeState,
   parseManifest,
   resolveStartupState,
+  staleBundleNames,
   type OtaManifest,
   type OtaState,
 } from "./otaPlan"
@@ -28,8 +30,18 @@ const BOOT_TIMEOUT_MS = 30_000
 const FETCH_TIMEOUT_MS = 30_000
 const CHECK_INTERVAL_MS = 30 * 60 * 1000
 const APP_URL = "orbital://app/"
+/** One quick retry after a staging failure; the periodic poll follows after that. */
+const STAGING_RETRY_MS = 60_000
+const MAX_STAGING_RETRIES = 1
+/** Attempts per downloaded file (transient network errors only). */
+const FILE_ATTEMPTS = 3
 
-export type OtaCheckResult = "native" | "staged" | "none" | "failed"
+/**
+ * Result of one OTA check. Only "native" and "unreachable" may fall back to
+ * electron-updater: the feed answered but a file didn't land (disk error, a 404,
+ * a deleted temp dir) must never cost the user a full installer download.
+ */
+export type OtaCheckResult = "native" | "staged" | "none" | "unreachable" | "staging-failed"
 
 export interface OtaStatus {
   shellApi: number
@@ -43,6 +55,12 @@ let checking: Promise<OtaCheckResult> | null = null
 let bootTimer: ReturnType<typeof setTimeout> | null = null
 /** Version whose boot we are waiting to be confirmed; null when none. */
 let bootingVersion: string | null = null
+/** Serializes bundle-directory work: staging must never race cleanup. */
+const withBundleLock = createLock()
+/** Version being staged right now; cleanup must leave its dir (and `.tmp`) alone. */
+let stagingVersion: string | null = null
+let stagingRetry: ReturnType<typeof setTimeout> | null = null
+let stagingRetries = 0
 
 const otaRoot = () => path.join(app.getPath("userData"), "ota")
 const bundlesDir = () => path.join(otaRoot(), "bundles")
@@ -102,23 +120,33 @@ export function initOta(): void {
     state = { active: null, pending: null, bad: [] }
   }
   saveState()
-  removeUnusedBundles()
+  void removeUnusedBundles()
   log.info(`[OTA] Built-in ${app.getVersion()}, active ${state.active ?? "built-in"}, shell API ${__SHELL_API__}`)
 }
 
-function removeUnusedBundles(): void {
-  let entries: string[] = []
-  try {
-    entries = fs.readdirSync(bundlesDir())
-  } catch {
-    return
-  }
-  for (const name of entries) {
-    if (name === state.active || name === state.pending) continue
-    fs.rm(path.join(bundlesDir(), name), { recursive: true, force: true }, (err) => {
-      if (err) log.warn(`[OTA] Failed to remove ${name}:`, err)
-    })
-  }
+/**
+ * Drops bundles nothing points at (and a `<version>.tmp` left by a killed run).
+ * Takes the same lock as staging: it used to delete the `.tmp` dir out from under
+ * an in-progress stage, which turned every staging failure into a full installer
+ * download.
+ */
+async function removeUnusedBundles(): Promise<void> {
+  await withBundleLock(async () => {
+    let entries: string[] = []
+    try {
+      entries = await fs.promises.readdir(bundlesDir())
+    } catch {
+      return
+    }
+    for (const name of staleBundleNames(entries, state, stagingVersion)) {
+      try {
+        await fs.promises.rm(path.join(bundlesDir(), name), { recursive: true, force: true })
+        log.info(`[OTA] Removed unused bundle ${name}`)
+      } catch (err) {
+        log.warn(`[OTA] Failed to remove ${name}:`, err)
+      }
+    }
+  })
 }
 
 async function fetchWithTimeout(url: string): Promise<Response> {
@@ -128,6 +156,27 @@ async function fetchWithTimeout(url: string): Promise<Response> {
 }
 
 const sha256 = (data: Buffer) => crypto.createHash("sha256").update(data).digest("hex")
+
+/** Worth another attempt: network hiccups, 5xx and corrupt transfers — not 4xx or a disk error. */
+function isTransient(err: unknown): boolean {
+  if (!(err instanceof Error)) return false
+  if (err.name === "AbortError" || err.name === "TimeoutError") return true
+  return /HTTP 5\d\d|checksum mismatch|fetch failed|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|ENETUNREACH|socket hang up/.test(
+    err.message,
+  )
+}
+
+async function withRetries<T>(what: string, attempt: () => Promise<T>): Promise<T> {
+  for (let n = 1; ; n++) {
+    try {
+      return await attempt()
+    } catch (err) {
+      if (n >= FILE_ATTEMPTS || !isTransient(err)) throw err
+      log.warn(`[OTA] ${what} failed (attempt ${n}/${FILE_ATTEMPTS}), retrying:`, err)
+      await new Promise((resolve) => setTimeout(resolve, 500 * n))
+    }
+  }
+}
 
 /** Files we already have, by sha256 → absolute path. */
 function localFiles(manifest: OtaManifest): Map<string, string> {
@@ -161,11 +210,30 @@ function localFiles(manifest: OtaManifest): Map<string, string> {
   return found
 }
 
-/** Downloads and verifies a bundle into bundles/<version>/ (atomic rename). */
+/**
+ * Downloads and verifies a bundle into bundles/<version>/ (atomic rename), then
+ * records it as pending. Holds the bundle lock for the whole write, so cleanup
+ * can't delete the temp dir mid-stage.
+ */
 async function stageBundle(manifest: OtaManifest): Promise<void> {
-  const target = bundleDir(manifest.version)
-  if (bundleExists(manifest.version)) return
+  await withBundleLock(async () => {
+    stagingVersion = manifest.version
+    try {
+      if (!bundleExists(manifest.version)) await writeBundle(manifest)
+      const previous = state.pending
+      state.pending = manifest.version
+      saveState()
+      if (previous && previous !== manifest.version) {
+        await fs.promises.rm(bundleDir(previous), { recursive: true, force: true })
+      }
+    } finally {
+      stagingVersion = null
+    }
+  })
+}
 
+async function writeBundle(manifest: OtaManifest): Promise<void> {
+  const target = bundleDir(manifest.version)
   const tmp = `${target}.tmp`
   await fs.promises.rm(tmp, { recursive: true, force: true })
   await fs.promises.mkdir(tmp, { recursive: true })
@@ -173,6 +241,7 @@ async function stageBundle(manifest: OtaManifest): Promise<void> {
   const have = localFiles(manifest)
   const blobBase = `${feedUrl()}ota/electron/files/`
   let downloaded = 0
+  let done = 0
   let bytes = 0
 
   for (const file of manifest.files) {
@@ -183,20 +252,29 @@ async function stageBundle(manifest: OtaManifest): Promise<void> {
     const local = have.get(file.sha256)
     if (local) {
       await fs.promises.copyFile(local, dest)
-      continue
+    } else {
+      const data = await withRetries(`GET ${file.path}`, async () => {
+        const buf = Buffer.from(await (await fetchWithTimeout(blobBase + file.sha256)).arrayBuffer())
+        if (buf.length !== file.size || sha256(buf) !== file.sha256) {
+          throw new Error(`checksum mismatch for ${file.path}`)
+        }
+        return buf
+      })
+      await fs.promises.writeFile(dest, data)
+      downloaded++
+      bytes += data.length
     }
-    const data = Buffer.from(await (await fetchWithTimeout(blobBase + file.sha256)).arrayBuffer())
-    if (data.length !== file.size || sha256(data) !== file.sha256) {
-      throw new Error(`checksum mismatch for ${file.path}`)
+
+    done++
+    if (done % 25 === 0 || done === manifest.files.length) {
+      log.info(`[OTA] Staging ${manifest.version}: ${done}/${manifest.files.length} files`)
     }
-    await fs.promises.writeFile(dest, data)
-    downloaded++
-    bytes += data.length
   }
 
   await fs.promises.writeFile(path.join(tmp, ".ota-manifest.json"), JSON.stringify(manifest))
   await fs.promises.rm(target, { recursive: true, force: true })
   await fs.promises.rename(tmp, target)
+  if (!bundleExists(manifest.version)) throw new Error(`staged bundle ${manifest.version} is incomplete`)
   log.info(
     `[OTA] Staged ${manifest.version}: ${downloaded} of ${manifest.files.length} files downloaded (${(bytes / 1048576).toFixed(1)} MiB)`,
   )
@@ -211,18 +289,18 @@ async function runCheck(): Promise<OtaCheckResult> {
   const feed = feedUrl()
   if (!feed) {
     log.info("[OTA] No update feed configured, skipping")
-    return "failed"
+    return "unreachable"
   }
   let manifest: OtaManifest | null
   try {
     manifest = parseManifest(await (await fetchWithTimeout(`${feed}ota-electron.json`)).json())
   } catch (err) {
     log.warn("[OTA] Manifest fetch failed:", err)
-    return "failed"
+    return "unreachable"
   }
   if (!manifest) {
     log.warn("[OTA] Invalid manifest")
-    return "failed"
+    return "unreachable"
   }
 
   const decision = decide(manifest, {
@@ -245,13 +323,7 @@ async function runCheck(): Promise<OtaCheckResult> {
     await stageBundle(manifest)
   } catch (err) {
     log.error(`[OTA] Staging ${manifest.version} failed:`, err)
-    return "failed"
-  }
-  const previous = state.pending
-  state.pending = manifest.version
-  saveState()
-  if (previous && previous !== manifest.version) {
-    fs.rm(bundleDir(previous), { recursive: true, force: true }, () => {})
+    return "staging-failed"
   }
   notifyReady(manifest.version)
   return "staged"
@@ -260,10 +332,30 @@ async function runCheck(): Promise<OtaCheckResult> {
 /** Looks for a newer bundle; concurrent calls share one check. */
 export function checkOta(): Promise<OtaCheckResult> {
   if (VITE_DEV_SERVER_URL) return Promise.resolve("none")
-  checking ??= runCheck().finally(() => {
-    checking = null
-  })
+  checking ??= runCheck()
+    .then((result) => {
+      if (result === "staging-failed") {
+        if (stagingRetries < MAX_STAGING_RETRIES) scheduleStagingRetry()
+      } else {
+        stagingRetries = 0
+      }
+      return result
+    })
+    .finally(() => {
+      checking = null
+    })
   return checking
+}
+
+/** One quick retry after a staging failure; the periodic poll covers the rest. */
+function scheduleStagingRetry(): void {
+  if (stagingRetry) return
+  stagingRetries++
+  log.info(`[OTA] Retrying the bundle in ${STAGING_RETRY_MS / 1000}s`)
+  stagingRetry = setTimeout(() => {
+    stagingRetry = null
+    void checkOta()
+  }, STAGING_RETRY_MS)
 }
 
 /** Periodic checks in the background (staging only; native updates wait for the next launch). */
@@ -290,9 +382,10 @@ export function confirmOtaBoot(): void {
   if (bootTimer) clearTimeout(bootTimer)
   bootTimer = null
   if (bootingVersion) log.info(`[OTA] Bundle ${bootingVersion} booted`)
+  else log.info(`[OTA] confirmBoot (active: ${state.active ?? "built-in"})`)
   bootingVersion = null
-  // Old bundles (anything but active/pending) can go now.
-  removeUnusedBundles()
+  // Old bundles (anything but active/pending and the one being staged) can go now.
+  void removeUnusedBundles()
 }
 
 function rollBack(win: BrowserWindow, reason: string): void {

@@ -9,6 +9,15 @@ vi.mock("@/services/appVersion", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/appVersion")>()),
   appVersion: () => "1.5.0",
 }))
+const otaStage = vi.hoisted(() => vi.fn())
+vi.mock("@/services/ota", () => ({
+  stage: otaStage,
+  otaSupported: () => true,
+  confirmBoot: vi.fn(),
+  pendingVersion: vi.fn(async () => null),
+  onReady: vi.fn(),
+  apply: vi.fn(async () => false),
+}))
 
 import { useAppUpdateStore } from "./appUpdate"
 
@@ -88,5 +97,28 @@ describe("app update store", () => {
     api.getLatestRelease.mockRejectedValueOnce(new Error("offline"))
     await store.check()
     expect(store.required).toBe(true)
+  })
+
+  it("retries a broken OTA download instead of offering the APK", async () => {
+    api.getLatestRelease.mockResolvedValue(
+      release({ android_ota_manifest_url: "https://updates.example/ota-android.json" }),
+    )
+    // A download or write error must not turn into a full APK reinstall prompt.
+    otaStage.mockResolvedValueOnce({ result: "failed" })
+    const store = useAppUpdateStore()
+    await store.check()
+    expect(store.updateAvailable).toBe(false)
+
+    // The next check retries: staged → the OTA toast offers it, still no APK prompt.
+    otaStage.mockResolvedValueOnce({ result: "staged", version: "1.6.0" })
+    await store.check()
+    expect(store.updateAvailable).toBe(false)
+
+    // A release that needs a newer APK does prompt.
+    setActivePinia(createPinia())
+    otaStage.mockResolvedValueOnce({ result: "native", version: "1.6.0" })
+    const relaunched = useAppUpdateStore()
+    await relaunched.check()
+    expect(relaunched.updateAvailable).toBe(true)
   })
 })

@@ -1,4 +1,4 @@
-.PHONY: help hooks install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-ota test-backend test-integration e2e-textchat meili-up meili-down ml-up ml-down garage-up garage-down test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all build-android-web build-android build-android-dev check-android-jdk dev-android balance-drift balance-check
+.PHONY: help hooks install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-ota test-backend test-integration e2e-textchat ota-reset meili-up meili-down ml-up ml-down garage-up garage-down test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all build-android-web build-android build-android-dev check-android-jdk dev-android balance-drift balance-check
 
 # Default target
 help:
@@ -15,6 +15,8 @@ help:
 	@echo "  test-unit         - Run frontend unit tests (Vitest)"
 	@echo "  test-backend      - Run backend Go unit tests (hermetic, what PR CI runs)"
 	@echo "  test-integration  - Run backend integration tests against Meilisearch + Garage (starts them)"
+	@echo "  test-ota          - Run OTA update tests (electron decisions, bundle generator, ota stores)"
+	@echo "  ota-reset         - Clear local desktop OTA state (bundles, state.json, updater cache)"
 	@echo "  e2e-textchat      - Live text channel check on a throwaway backend + index (starts Meilisearch + Garage)"
 	@echo "  meili-up          - Start the dev Meilisearch container (text channels)"
 	@echo "  meili-down        - Stop the dev Meilisearch container"
@@ -183,9 +185,19 @@ hooks:
 	git config core.hooksPath .githooks
 	@echo "Git hooks installed (.githooks)"
 
-# Over-the-air frontend update logic (Electron decisions + bundle generator)
+# Over-the-air frontend update logic (Electron decisions + bundle generator +
+# the ota/appUpdate stores that decide when to apply or prompt for an APK)
 test-ota:
 	node --test electron/main/features/otaPlan.test.ts scripts/ota-manifest.test.mjs
+	cd frontend && pnpm exec vitest run src/stores/ota.test.ts src/stores/appUpdate.test.ts
+
+# Desktop OTA state (docs/notes/OTA_TEST_PLAN.md): bundles, state.json and the
+# electron-updater download cache. Cleared, the app behaves like a fresh launch.
+OTA_USER_DATA ?= $(HOME)/.config/orbital-desktop
+ota-reset:
+	@echo "Removing OTA state from $(OTA_USER_DATA) and the electron-updater cache"
+	rm -rf "$(OTA_USER_DATA)/ota" "$(HOME)/.cache/orbital-desktop-updater"
+	@echo "Done: the next launch runs the built-in bundle and checks the feed again."
 
 # Run backend unit tests (no external services; integration tests are excluded
 # by build tag, see test-integration)
