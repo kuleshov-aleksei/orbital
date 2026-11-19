@@ -75,7 +75,9 @@
               :key="emoji.ref"
               type="button"
               class="emoji-cell"
-              :title="emoji.name"
+              :aria-label="emoji.name"
+              @mouseenter="showPreview(emoji.ref, $event)"
+              @mouseleave="hidePreview"
               @click="pick(emoji.ref)">
               <EmojiGlyph :emoji-ref="emoji.ref" :size="20" />
             </button>
@@ -86,6 +88,9 @@
         </template>
       </RecycleScroller>
     </div>
+
+    <!-- Enlarges the hovered cell; teleported, so the scroller can't clip it -->
+    <EmojiHoverPreview :emoji-ref="previewEmoji" :anchor="previewAnchor" />
   </div>
 </template>
 
@@ -95,6 +100,7 @@ import { PhClockCounterClockwise, PhPlus } from "@phosphor-icons/vue"
 import { RecycleScroller } from "vue-virtual-scroller"
 import "vue-virtual-scroller/index.css"
 import EmojiGlyph from "@/components/EmojiGlyph.vue"
+import EmojiHoverPreview from "@/components/common/EmojiHoverPreview.vue"
 import { useAppStore, useCustomEmojisStore, usePermissionsStore, useUserStore } from "@/stores"
 import { Permission } from "@/types/permissions"
 import {
@@ -143,6 +149,21 @@ const query = ref("")
 const recent = ref<EmojiRef[]>(getRecentEmojis())
 const activeTab = ref<string>("")
 
+// Hover preview of the cell under the pointer (EmojiHoverPreview owns the
+// delay and positioning). No hover on touch screens: a tap picks immediately.
+const previewEmoji = ref<EmojiRef | null>(null)
+const previewAnchor = ref<HTMLElement | null>(null)
+
+function showPreview(emojiRef: EmojiRef, event: MouseEvent) {
+  if (appStore.isMobile) return
+  previewEmoji.value = emojiRef
+  previewAnchor.value = event.currentTarget as HTMLElement
+}
+
+function hidePreview() {
+  previewAnchor.value = null
+}
+
 const isSearching = computed(() => query.value.trim().length > 0)
 
 // Custom emojis outside the loaded pages are searched on the server
@@ -156,6 +177,8 @@ const isServerSearching = computed(
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 watch(query, (value) => {
   clearTimeout(searchTimer)
+  // The hovered cell may be filtered out or recycled by the new results.
+  hidePreview()
   const q = value.trim()
   if (!q || props.unicodeOnly) {
     serverResults.value = []
@@ -284,6 +307,7 @@ function onUpdate(_start: number, end: number, visibleStart: number) {
 watch(isSearching, () => void nextTick(() => scroller.value?.scrollToItem(0)))
 
 const pick = (emojiRef: EmojiRef) => {
+  hidePreview()
   recent.value = addRecentEmoji(emojiRef)
   emit("select", emojiRef)
 }

@@ -38,45 +38,22 @@
       <SmileyPlusIcon :size="16" />
     </button>
 
-    <!-- Teleported so the scrolling message list doesn't clip it -->
-    <Teleport v-if="preview" to="body">
-      <div
-        ref="popupEl"
-        role="tooltip"
-        class="fixed z-50 max-w-64 px-3 py-2 rounded-lg border border-theme-border bg-theme-bg-secondary shadow-lg pointer-events-none"
-        :style="{
-          left: `${popupPos.left}px`,
-          top: `${popupPos.top}px`,
-          visibility: popupPos.ready ? 'visible' : 'hidden',
-        }"
-        data-testid="reaction-preview">
-        <div class="flex flex-col items-center gap-1">
-          <span class="max-w-full text-xs text-theme-text-muted truncate">{{
-            shortcode(preview.reaction.emoji)
-          }}</span>
-          <EmojiGlyph :emoji-ref="preview.reaction.emoji" :size="64" class="shrink-0" />
-        </div>
-        <ul
-          class="mt-1.5 text-sm text-theme-text-primary space-y-0.5"
-          data-testid="reaction-preview-users">
-          <li v-for="name in previewNames.names" :key="name.id" class="truncate">
-            {{ name.label }}
-          </li>
-          <li v-if="previewNames.more > 0" class="text-xs text-theme-text-muted">
-            and {{ previewNames.more }} more
-          </li>
-        </ul>
-      </div>
-    </Teleport>
+    <!-- Teleported by EmojiHoverPreview so the message list can't clip it -->
+    <EmojiHoverPreview
+      :emoji-ref="previewRef"
+      :anchor="anchorEl"
+      :caption="previewCaption"
+      test-id="reaction-preview" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, reactive, ref, useTemplateRef } from "vue"
+import { computed, ref } from "vue"
 import EmojiGlyph from "@/components/EmojiGlyph.vue"
+import EmojiHoverPreview from "@/components/common/EmojiHoverPreview.vue"
 import SmileyPlusIcon from "./SmileyPlusIcon.vue"
 import { useAppStore, useUsersStore } from "@/stores"
-import { emojiShortcode, resolveEmoji } from "@/services/emoji"
+import { resolveEmoji } from "@/services/emoji"
 import type { TextReaction } from "@/types/textChat"
 
 const props = defineProps<{
@@ -93,8 +70,6 @@ defineEmits<{
 const MAX_REACTIONS = 20
 // Names listed in the hover preview before collapsing to "and N more"
 const MAX_PREVIEW_NAMES = 15
-const HOVER_DELAY_MS = 250
-const VIEWPORT_MARGIN = 8
 const usersStore = useUsersStore()
 const appStore = useAppStore()
 
@@ -102,78 +77,60 @@ function mine(r: TextReaction): boolean {
   return r.user_ids.includes(props.myUserId)
 }
 
+// "You", "You and Alice", "Alice, Bob and Carol", "Alice, Bob and 5 more"
+function reactorNames(userIds: string[]): string[] {
+  // The current user first, as "You"
+  const ordered = userIds.includes(props.myUserId)
+    ? [props.myUserId, ...userIds.filter((id) => id !== props.myUserId)]
+    : userIds
+  const names = ordered
+    .slice(0, MAX_PREVIEW_NAMES)
+    .map((id) => (id === props.myUserId ? "You" : usersStore.displayName(id)))
+  const more = ordered.length - names.length
+  if (more > 0) names.push(`${more} more`)
+  return names
+}
+
+function joinNames(names: string[]): string {
+  if (names.length <= 2) return names.join(" and ")
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
+}
+
 function whoReacted(r: TextReaction): string {
-  const names = r.user_ids.slice(0, 10).map((id) => usersStore.displayName(id))
-  const more = r.user_ids.length - names.length
-  return more > 0 ? `${names.join(", ")} and ${more} more` : names.join(", ")
+  return joinNames(reactorNames(r.user_ids))
 }
 
-function shortcode(emojiRef: string): string {
-  const emoji = resolveEmoji(emojiRef)
-  return emoji ? `:${emojiShortcode(emoji.name)}:` : emojiRef
-}
-
-// Hover preview: the emoji at 2x size plus everyone who reacted with it.
+// Hover preview: the emoji enlarged plus everyone who reacted with it.
 // Keyed by emoji so live reaction updates refresh the open preview.
 const previewEmoji = ref<string | null>(null)
 const anchorEl = ref<HTMLElement | null>(null)
-const popupEl = useTemplateRef<HTMLElement>("popupEl")
-const popupPos = reactive({ left: 0, top: 0, ready: false })
-let showTimer: ReturnType<typeof setTimeout> | undefined
 
 const preview = computed(() => {
   const reaction = props.reactions.find((r) => r.emoji === previewEmoji.value)
   return reaction ? { reaction } : null
 })
 
-const previewNames = computed(() => {
-  const ids = preview.value?.reaction.user_ids ?? []
-  // The current user first, as "You"
-  const ordered = ids.includes(props.myUserId)
-    ? [props.myUserId, ...ids.filter((id) => id !== props.myUserId)]
-    : ids
-  const names = ordered.slice(0, MAX_PREVIEW_NAMES).map((id) => ({
-    id,
-    label: id === props.myUserId ? "You" : usersStore.displayName(id),
-  }))
-  return { names, more: ids.length - names.length }
+// Null once the last reactor removes the emoji: the chip is gone, so the card
+// must go with it.
+const previewRef = computed(() => preview.value?.reaction.emoji ?? null)
+
+// "You and Alice reacted with thumbs up" — the card's caption for a reaction.
+const previewCaption = computed(() => {
+  const reaction = preview.value?.reaction
+  if (!reaction) return ""
+  const title = resolveEmoji(reaction.emoji)?.name ?? reaction.emoji
+  return `${joinNames(reactorNames(reaction.user_ids))} reacted with ${title}`
 })
 
 function showPreview(emoji: string, event: Event) {
   // No hover on touch: the long-press action sheet covers mobile
   if (appStore.isMobile) return
-  clearTimeout(showTimer)
-  const target = event.currentTarget as HTMLElement
-  showTimer = setTimeout(async () => {
-    anchorEl.value = target
-    previewEmoji.value = emoji
-    popupPos.ready = false
-    await nextTick()
-    positionPopup()
-  }, HOVER_DELAY_MS)
+  previewEmoji.value = emoji
+  anchorEl.value = event.currentTarget as HTMLElement
 }
 
 function hidePreview() {
-  clearTimeout(showTimer)
   previewEmoji.value = null
   anchorEl.value = null
 }
-
-// Centered above the chip, flipped below when there's no room, clamped to the viewport
-function positionPopup() {
-  const anchor = anchorEl.value
-  const popup = popupEl.value
-  if (!anchor || !popup || !anchor.isConnected) return hidePreview()
-  const a = anchor.getBoundingClientRect()
-  const p = popup.getBoundingClientRect()
-  let top = a.top - p.height - 6
-  if (top < VIEWPORT_MARGIN) top = a.bottom + 6
-  const maxLeft = window.innerWidth - p.width - VIEWPORT_MARGIN
-  const left = Math.min(Math.max(a.left + a.width / 2 - p.width / 2, VIEWPORT_MARGIN), maxLeft)
-  popupPos.left = left
-  popupPos.top = top
-  popupPos.ready = true
-}
-
-onBeforeUnmount(hidePreview)
 </script>
