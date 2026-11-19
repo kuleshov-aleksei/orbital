@@ -439,8 +439,8 @@ async function receiveKeyboardImage(event: KeyboardImageEvent) {
     if (composerDisposed || !keyboardInputFocused) return
     attachmentsStore.composerError =
       event.error === "too_large"
-        ? `This GIF is larger than the ${formatBytes(attachmentsStore.maxBytes("image"))} image limit.`
-        : "The GIF from your keyboard could not be read."
+        ? `This image is larger than the ${formatBytes(attachmentsStore.maxBytes("image"))} image limit.`
+        : "The keyboard image or sticker could not be read."
     return
   }
   if (composerDisposed || !keyboardInputFocused) {
@@ -456,7 +456,7 @@ async function receiveKeyboardImage(event: KeyboardImageEvent) {
     addFiles([file])
   } catch {
     if (!composerDisposed && roomId === props.roomId) {
-      attachmentsStore.composerError = "The GIF from your keyboard could not be read."
+      attachmentsStore.composerError = "The keyboard image or sticker could not be read."
     }
   }
 }

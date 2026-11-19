@@ -7,7 +7,7 @@ vi.mock("@capacitor/core", () => ({
 }))
 
 import { Capacitor } from "@capacitor/core"
-import { keyboardGifName, readKeyboardImage } from "./keyboardContent"
+import { keyboardImageName, readKeyboardImage } from "./keyboardContent"
 
 const IMAGE = {
   uri: "file:///data/user/0/app.orbital/cache/keyboard-content/keyboard-1.gif",
@@ -20,11 +20,13 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe("keyboard GIF attachments", () => {
-  it("uses a safe GIF filename", () => {
-    expect(keyboardGifName("folder/reaction.png")).toBe("reaction.gif")
-    expect(keyboardGifName("../..")).toBe("keyboard.gif")
-    expect(keyboardGifName("party.gif")).toBe("party.gif")
+describe("keyboard image attachments", () => {
+  it("uses a safe filename and the actual image extension", () => {
+    expect(keyboardImageName("folder/reaction.png", "image/gif")).toBe("reaction.gif")
+    expect(keyboardImageName("sticker.gif", "image/webp")).toBe("sticker.webp")
+    expect(keyboardImageName("photo.webp", "image/png")).toBe("photo.png")
+    expect(keyboardImageName("photo.png", "image/jpeg")).toBe("photo.jpg")
+    expect(keyboardImageName("../..", "image/webp")).toBe("keyboard.webp")
   })
 
   it("reads the native file and always releases it", async () => {
@@ -41,6 +43,20 @@ describe("keyboard GIF attachments", () => {
     expect(file.type).toBe("image/gif")
     expect(new Uint8Array(await file.arrayBuffer())).toEqual(bytes)
     expect(platform.releaseKeyboardImage).toHaveBeenCalledWith(IMAGE.uri)
+  })
+
+  it("preserves the native MIME type for stickers", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(new Uint8Array(6))),
+    )
+    const sticker = { ...IMAGE, name: "Sticker.png", mime: "image/webp" }
+
+    const file = await readKeyboardImage(sticker)
+
+    expect(file.name).toBe("Sticker.webp")
+    expect(file.type).toBe("image/webp")
+    expect(platform.releaseKeyboardImage).toHaveBeenCalledWith(sticker.uri)
   })
 
   it("releases the native file after a failed read", async () => {

@@ -27,16 +27,19 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Receives GIFs committed by Android keyboards (Gboard and similar) and hands
- * them to the text composer as temporary files. Enabled only while that
- * composer is focused, so unrelated WebView inputs keep their normal behavior.
+ * Receives images and stickers committed by Android keyboards (Gboard and
+ * similar) and hands them to the text composer as temporary files. Enabled
+ * only while that composer is focused, so unrelated WebView inputs keep their
+ * normal behavior.
  */
 @CapacitorPlugin(name = "KeyboardContent")
 public class KeyboardContentPlugin extends Plugin {
 
     private static final long DEFAULT_MAX_BYTES = 20L * 1024 * 1024;
     private static final long TEMP_TTL_MINUTES = 10;
-    private static final String[] GIF_MIME_TYPES = new String[] { "image/gif" };
+    private static final String[] IMAGE_MIME_TYPES = new String[] {
+        "image/gif", "image/webp", "image/png", "image/jpeg"
+    };
 
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
     private volatile boolean enabled = false;
@@ -54,7 +57,7 @@ public class KeyboardContentPlugin extends Plugin {
         getActivity().runOnUiThread(() -> {
             WebView webView = getBridge().getWebView();
             if (enabled) {
-                ViewCompat.setOnReceiveContentListener(webView, GIF_MIME_TYPES, this::receiveContent);
+                ViewCompat.setOnReceiveContentListener(webView, IMAGE_MIME_TYPES, this::receiveContent);
                 // Focus was established before the WebView knew about GIFs.
                 // Recreate its InputConnection so Gboard sees the MIME types.
                 InputMethodManager imm = webView.getContext().getSystemService(InputMethodManager.class);
@@ -74,7 +77,9 @@ public class KeyboardContentPlugin extends Plugin {
         ContentResolver resolver = getContext().getContentResolver();
         for (int i = 0; i < clip.getItemCount(); i++) {
             Uri uri = clip.getItemAt(i).getUri();
-            if (uri == null || !isGif(payload, resolver, uri)) continue;
+            if (uri == null) continue;
+            String mime = supportedMime(payload, resolver, uri);
+            if (mime == null) continue;
 
             Pair<ContentInfoCompat, ContentInfoCompat> split = payload.partition(
                     item -> uri.equals(item.getUri()));
@@ -91,29 +96,53 @@ public class KeyboardContentPlugin extends Plugin {
                 emitError("read_failed");
                 return split.second;
             }
-            executor.execute(() -> copyAndEmit(uri, input, maxBytes));
+            executor.execute(() -> copyAndEmit(uri, input, mime, maxBytes));
             return split.second;
         }
         return payload;
     }
 
-    private boolean isGif(ContentInfoCompat payload, ContentResolver resolver, Uri uri) {
-        if (payload.getClip().getDescription().hasMimeType("image/gif")) return true;
+    @Nullable
+    private String supportedMime(ContentInfoCompat payload, ContentResolver resolver, Uri uri) {
         try {
-            return "image/gif".equals(resolver.getType(uri));
-        } catch (RuntimeException e) {
-            return false;
+            String providerMime = resolver.getType(uri);
+            if (extensionForMime(providerMime) != null) return providerMime;
+        } catch (RuntimeException ignored) {
+            // Fall back to the keyboard's clip description.
+        }
+        for (String mime : IMAGE_MIME_TYPES) {
+            if (payload.getClip().getDescription().hasMimeType(mime)) return mime;
+        }
+        return null;
+    }
+
+    @Nullable
+    static String extensionForMime(@Nullable String mime) {
+        if (mime == null) return null;
+        switch (mime) {
+            case "image/gif":
+                return "gif";
+            case "image/webp":
+                return "webp";
+            case "image/png":
+                return "png";
+            case "image/jpeg":
+                return "jpg";
+            default:
+                return null;
         }
     }
 
-    private void copyAndEmit(Uri source, InputStream input, long limit) {
+    private void copyAndEmit(Uri source, InputStream input, String mime, long limit) {
         File output = null;
         try (InputStream in = input) {
+            String extension = extensionForMime(mime);
+            if (extension == null) throw new IOException("Unsupported keyboard image type");
             File dir = temporaryDirectory();
             if (!dir.isDirectory() && !dir.mkdirs() && !dir.isDirectory()) {
                 throw new IOException("Could not create keyboard cache directory");
             }
-            output = File.createTempFile("keyboard-", ".gif", dir);
+            output = File.createTempFile("keyboard-", "." + extension, dir);
             long size;
             try (OutputStream out = new FileOutputStream(output)) {
                 size = copyBounded(in, out, limit);
@@ -122,7 +151,7 @@ public class KeyboardContentPlugin extends Plugin {
             JSObject data = new JSObject();
             data.put("uri", Uri.fromFile(output).toString());
             data.put("name", displayName(source));
-            data.put("mime", "image/gif");
+            data.put("mime", mime);
             data.put("size", size);
             notifyListeners("image", data);
 

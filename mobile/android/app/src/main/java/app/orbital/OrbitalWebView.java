@@ -22,8 +22,8 @@ public class OrbitalWebView extends CapacitorWebView {
         if (inputConnection == null) return null;
 
         // Setting OnReceiveContentListener alone is not enough for a WebView:
-        // Gboard checks these MIME types before it enables GIF insertion, and
-        // the wrapper dispatches commitContent() to that listener.
+        // Gboard checks these MIME types before it enables image/sticker
+        // insertion, and the wrapper dispatches commitContent() to that listener.
         String[] mimeTypes = ViewCompat.getOnReceiveContentMimeTypes(this);
         if (mimeTypes != null) {
             EditorInfoCompat.setContentMimeTypes(outAttrs, mimeTypes);

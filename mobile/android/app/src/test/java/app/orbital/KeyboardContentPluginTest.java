@@ -2,6 +2,7 @@ package app.orbital;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThrows;
 
 import java.io.ByteArrayInputStream;
@@ -30,5 +31,15 @@ public class KeyboardContentPluginTest {
                 KeyboardContentPlugin.copyBounded(
                         new ByteArrayInputStream(new byte[] { 1, 2, 3, 4, 5 }), output, 4));
         assertEquals(0, output.size());
+    }
+
+    @Test
+    public void extensionForMimeCoversKeyboardImagesAndStickers() {
+        assertEquals("gif", KeyboardContentPlugin.extensionForMime("image/gif"));
+        assertEquals("webp", KeyboardContentPlugin.extensionForMime("image/webp"));
+        assertEquals("png", KeyboardContentPlugin.extensionForMime("image/png"));
+        assertEquals("jpg", KeyboardContentPlugin.extensionForMime("image/jpeg"));
+        assertNull(KeyboardContentPlugin.extensionForMime("image/avif"));
+        assertNull(KeyboardContentPlugin.extensionForMime(null));
     }
 }
