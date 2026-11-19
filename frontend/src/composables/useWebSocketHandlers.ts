@@ -239,7 +239,7 @@ export function useWebSocketHandlers() {
     const onSoundPlayed: MessageCallback = (message) => {
       const data = message.data as SoundPlayedData
       if (data.room_id !== roomStore.activeRoomId) return
-      void soundboardStore.onSoundPlayed(data.sound_id)
+      void soundboardStore.onSoundPlayed(data)
     }
     wsService.on("sound_played", onSoundPlayed)
     onCleanup(() => wsService.off("sound_played", onSoundPlayed))

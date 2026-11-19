@@ -448,7 +448,13 @@ import {
   PhMonitor,
   PhPlay,
 } from "@phosphor-icons/vue"
-import { useRoomStore, usePresenceStore, useCallStore, usePermissionsStore } from "@/stores"
+import {
+  useRoomStore,
+  usePresenceStore,
+  useCallStore,
+  usePermissionsStore,
+  useSoundboardStore,
+} from "@/stores"
 import UserAvatar from "@/components/UserAvatar.vue"
 import UserContextMenu from "@/components/UserContextMenu.vue"
 import { useUserContextMenu } from "@/composables/useUserContextMenu"
@@ -511,6 +517,7 @@ const roomStore = useRoomStore()
 const presenceStore = usePresenceStore()
 const callStore = useCallStore()
 const permissionsStore = usePermissionsStore()
+const soundboardStore = useSoundboardStore()
 // Nickname takes the colour of the user's highest coloured role
 const nameStyle = computed(() => permissionsStore.nameStyleOf(props.userId))
 
@@ -592,6 +599,9 @@ const isSpeaking = computed(() => {
   return presenceStore.getParticipant(props.userId)?.isSpeaking ?? false
 })
 
+// Purple highlight while this user's soundboard clip is playing.
+const isPlayingSoundboard = computed(() => soundboardStore.isUserPlayingSound(props.userId))
+
 const cardClasses = computed(() => {
   const classes: string[] = []
 
@@ -602,19 +612,22 @@ const cardClasses = computed(() => {
     classes.push("aspect-square")
   }
 
-  // Background and border
-  if (props.isCurrentUser && (!props.isScreenSharing || props.forceAudioMode)) {
+  const showSpeakingBorder = !props.isScreenSharing || props.forceAudioMode
+
+  // Background and border. The soundboard highlight wins over the usual
+  // background so the card reads purple for as long as the clip plays.
+  if (isPlayingSoundboard.value) {
+    if (!isVideoMode.value) classes.push("bg-purple-600/25")
+    classes.push("border-purple-500 soundboard-playing")
+  } else if (props.isCurrentUser && (!props.isScreenSharing || props.forceAudioMode)) {
     classes.push("bg-theme-accent/30 border-theme-accent")
   } else if (!props.isScreenSharing || props.forceAudioMode) {
     classes.push("bg-theme-bg-secondary border-theme-border")
   }
 
-  // Speaking border
-  const showSpeakingBorder = !props.isScreenSharing || props.forceAudioMode
-  if (isSpeaking.value && props.isCurrentUser && showSpeakingBorder) {
-    classes.push("border-theme-accent")
-  } else if (isSpeaking.value && showSpeakingBorder) {
-    classes.push("border-green-500")
+  // Speaking border (the soundboard purple border takes precedence)
+  if (!isPlayingSoundboard.value && isSpeaking.value && showSpeakingBorder) {
+    classes.push(props.isCurrentUser ? "border-theme-accent" : "border-green-500")
   }
 
   return classes
@@ -842,6 +855,20 @@ onMounted(() => {
 
 .animate-breathe {
   animation: breathe 2s ease-in-out infinite;
+}
+
+@keyframes soundboard-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 16px 2px rgba(168, 85, 247, 0.55);
+  }
+}
+
+.soundboard-playing {
+  animation: soundboard-glow 1.2s ease-in-out infinite;
 }
 
 .participant-card input[type="range"]::-webkit-slider-thumb {

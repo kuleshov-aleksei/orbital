@@ -1,9 +1,11 @@
 import { defineStore } from "pinia"
 import { ref, computed } from "vue"
-import type { SoundboardSound } from "@/types"
+import type { SoundboardSound, SoundPlayedData } from "@/types"
 import { apiService } from "@/services/api"
 import { wsService } from "@/services/websocket"
 import {
+  getSoundboardDurationMs,
+  onSoundboardDuration,
   playSoundboardSound,
   setSoundboardEnabled,
   setSoundboardVolume,
@@ -15,6 +17,10 @@ const ENABLED_KEY = "orbital:soundboard_enabled"
 
 // Mirrors the backend per-user cooldown (SoundPlayCooldown).
 export const SOUNDBOARD_COOLDOWN_MS = 2000
+
+// How long a user's card stays highlighted when the clip length is not known
+// yet (still loading, or the library has not been fetched).
+export const SOUNDBOARD_HIGHLIGHT_FALLBACK_MS = 3000
 
 function readStoredVolume(): number {
   try {
@@ -52,7 +58,60 @@ export const useSoundboardStore = defineStore("soundboard", () => {
   setSoundboardVolume(volume.value)
   setSoundboardEnabled(enabled.value)
 
+  // Users whose soundboard clip is currently playing, keyed by user id. Drives
+  // the purple highlight around their card in the call.
+  const activePlays = ref<
+    Record<string, { soundId: string; startedAt: number; durationMs: number }>
+  >({})
+  const highlightTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
   const soundsById = computed(() => new Map(sounds.value.map((s) => [s.id, s])))
+
+  function clearHighlight(userId: string): void {
+    const timer = highlightTimers.get(userId)
+    if (timer) {
+      clearTimeout(timer)
+      highlightTimers.delete(userId)
+    }
+    if (!(userId in activePlays.value)) return
+    const next = { ...activePlays.value }
+    delete next[userId]
+    activePlays.value = next
+  }
+
+  /**
+   * Marks a user as playing a clip until the clip ends. Called on arrival with
+   * a fallback length and again once the real clip length is known, so the
+   * deadline is always anchored to `startedAt`.
+   */
+  function markPlaying(userId: string, soundId: string, startedAt: number): void {
+    if (!userId) return
+    const current = activePlays.value[userId]
+    // Ignore a late "duration known" callback for a clip the user has already
+    // replaced with a newer one (or, within the same millisecond, a clip the
+    // highlight moved on from).
+    if (current) {
+      if (current.startedAt > startedAt) return
+      if (current.startedAt === startedAt && current.soundId !== soundId) return
+    }
+
+    const known = getSoundboardDurationMs(soundId)
+    const durationMs = known > 0 ? known : SOUNDBOARD_HIGHLIGHT_FALLBACK_MS
+    activePlays.value = { ...activePlays.value, [userId]: { soundId, startedAt, durationMs } }
+
+    const previous = highlightTimers.get(userId)
+    if (previous) clearTimeout(previous)
+    const remaining = Math.max(0, startedAt + durationMs - Date.now())
+    highlightTimers.set(
+      userId,
+      setTimeout(() => clearHighlight(userId), remaining),
+    )
+  }
+
+  /** True while this user's clip is playing (their card shows the highlight). */
+  function isUserPlayingSound(userId: string): boolean {
+    return userId in activePlays.value
+  }
 
   function search(query: string): SoundboardSound[] {
     const q = query.trim().toLowerCase()
@@ -111,13 +170,16 @@ export const useSoundboardStore = defineStore("soundboard", () => {
   }
 
   /** sound_played from the server (including our own plays). */
-  async function onSoundPlayed(soundId: string): Promise<void> {
+  async function onSoundPlayed(data: SoundPlayedData): Promise<void> {
     const receivedAt = Date.now()
-    if (!soundsById.value.has(soundId)) {
+    markPlaying(data.user_id, data.sound_id, receivedAt)
+    if (!soundsById.value.has(data.sound_id)) {
       // A clip we have not seen yet (library not loaded or just uploaded).
       await fetchSounds()
     }
-    playSoundboardSound(soundId, receivedAt)
+    // Correct the highlight to the real clip length once it is known.
+    onSoundboardDuration(data.sound_id, () => markPlaying(data.user_id, data.sound_id, receivedAt))
+    playSoundboardSound(data.sound_id, receivedAt)
   }
 
   function setVolume(next: number): void {
@@ -183,6 +245,7 @@ export const useSoundboardStore = defineStore("soundboard", () => {
     onLibraryChanged,
     play,
     onSoundPlayed,
+    isUserPlayingSound,
     setVolume,
     setEnabled,
     upload,
