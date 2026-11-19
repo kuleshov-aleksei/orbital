@@ -808,6 +808,35 @@ export const apiService = {
     })
   },
 
+  /**
+   * The original file's bytes, read same-origin. Copying an image to the
+   * clipboard needs the bytes in JavaScript, and the presigned URL is
+   * cross-origin without CORS headers, so the backend serves them here.
+   */
+  async getAttachmentFile(id: string): Promise<Blob> {
+    const load = () => {
+      const token = getAuthToken()
+      const client = clientId()
+      return fetch(`${API_BASE}/attachments/${encodeURIComponent(id)}/file`, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(client ? { [CLIENT_HEADER]: client } : {}),
+        },
+        signal: withTimeout(undefined, REQUEST_TIMEOUT_MS),
+      })
+    }
+    let response = await load()
+    if (response.status === 401 && !isTokenExpired() && (await refreshAuthToken())) {
+      response = await load()
+    }
+    if (response.status === 401) notifySessionExpired()
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw apiError(errorText || `Download failed (${response.status})`, response.status)
+    }
+    return await response.blob()
+  },
+
   async setAttachmentProtected(id: string, isProtected: boolean): Promise<TextAttachment> {
     const res = await apiRequest<{ attachment: TextAttachment }>(
       `/attachments/${encodeURIComponent(id)}`,

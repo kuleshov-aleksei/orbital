@@ -381,7 +381,7 @@ New package `backend/internal/service/chatstore/`: the Meilisearch client (port 
 ### 7.12 Attachments (F13): phase 3
 
 #### 7.12.1 Storage backend
-- **Bucket:** a private bucket `orbital-chat-media` on Garage S3. It is never public, and no CORS is needed (media elements and `<img>` follow redirects without it, and audio waveforms come from stored peaks, §7.12.2).
+- **Bucket:** a private bucket `orbital-chat-media` on Garage S3. It is never public, and no CORS is needed (media elements and `<img>` follow redirects without it, and audio waveforms come from stored peaks, §7.12.2). The one exception is copying an image to the clipboard, which needs the bytes in JavaScript; it goes through a same-origin backend endpoint (§7.12.6), not the presigned URL.
   - Object keys: `rooms/{room_id}/{attachment_id}/original.{ext}`, plus the derived `thumb.webp` (images, and the first frame of a GIF). A `poster.webp` for video is reserved for later, if server-side probing is ever added.
 - **Environments:**
   - Development: `make garage-up` starts `dxflrs/garage:v2.5.0` from `docker-compose.dev.yml` in single-node mode. On first start it creates the layout, a fixed dev key and the bucket (`garage/garage-dev.toml`). The backend's development defaults match it, following the Meilisearch precedent.
@@ -485,6 +485,7 @@ Removal reasons:
   - anyone else needs `ViewRoom` on the channel and an `attached` file (deleted messages purge their files, so no message lookup is needed).
 - Variants: `original`, `thumb` (falls back to the original without a thumbnail), and `download`, which presigns with `ResponseContentDisposition: attachment; filename*=UTF-8''<filename>`.
 - `PATCH`/`DELETE /api/attachments/{id}` return `410 Gone` for removed files and `404` for files the caller cannot see.
+- `GET /api/attachments/{id}/file` returns the original bytes with the same visibility rules. It exists for the clipboard copy (§7.12.7): the presigned URL is cross-origin and the bucket sends no CORS headers, so JavaScript cannot read it. The response is `Cache-Control: private, no-store`.
 - In Electron, opening or downloading a presigned URL goes to the system browser (the main window sends every external `window.open`/navigation there).
 
 #### 7.12.7 Rendering
@@ -497,12 +498,13 @@ Removal reasons:
     - without peaks, it shows a plain seek bar, and the duration appears from the metadata once loaded;
   - a filename and size row for each.
 - **Attachment context menu:** opened by right-click, a `⋯` button on hover, or long-press on mobile.
-  - Everyone: Open, Download.
+  - Everyone: Open, Download. Images that are not an unrevealed spoiler also get "Copy image".
   - The uploader:
     - "Protect from auto-removal" / "Allow auto-removal";
     - Delete file;
     - Manage my storage.
   - `ManageMessages`: Delete file.
+- **Copying:** "Copy image" (also a button in the lightbox and Ctrl/Cmd+C there) fetches the original through `GET /api/attachments/{id}/file` and writes `image/png` through the Async Clipboard API, rasterizing JPEG/WebP/AVIF/SVG (and a GIF's first frame) on a canvas. It is hidden in the Android app, whose WebView does not reliably write images, and where the Clipboard API is unavailable.
 - **Tombstone:** a removed file renders as a compact row: "📎 filename — removed (storage limit | by uploader | by moderator)".
 
 #### 7.12.8 Storage page (`/files`)

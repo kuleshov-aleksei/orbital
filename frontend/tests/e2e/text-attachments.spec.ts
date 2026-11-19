@@ -83,6 +83,21 @@ test("attach an image, view, protect, list on /files, delete", async ({ page, re
     await page.keyboard.press("Escape")
     await expect(page.getByTestId("attachment-lightbox")).toHaveCount(0)
 
+    // Copy image: the clipboard receives real PNG bytes (WebP is rasterized).
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"])
+    await tile.click({ button: "right" })
+    await page.getByTestId("attachment-copy").click()
+    await expect(page.getByTestId("attachment-note")).toHaveText("Copied image to clipboard")
+    const copied = await page.evaluate(async () => {
+      const items = await navigator.clipboard.read()
+      const item = items.find((i) => i.types.includes("image/png"))
+      if (!item) return null
+      const blob = await item.getType("image/png")
+      return { type: blob.type, size: blob.size }
+    })
+    expect(copied?.type).toBe("image/png")
+    expect(copied?.size ?? 0).toBeGreaterThan(0)
+
     // Protect from the context menu: the lock badge comes back via the socket.
     await tile.click({ button: "right" })
     await page.getByTestId("attachment-protect").click()
@@ -177,9 +192,20 @@ test("crop/rotate an image and send it as a spoiler", async ({ page, request }) 
     await expect(tile.getByTestId("attachment-spoiler")).toBeVisible()
     // The server-side copy carries the crop.
     await expect(tile).toHaveAttribute("style", /aspect-ratio: 200 \/ 200/)
+    // A hidden spoiler cannot be copied: that would bypass the cover.
+    await tile.click({ button: "right" })
+    await expect(page.getByTestId("attachment-menu")).toBeVisible()
+    await expect(page.getByTestId("attachment-copy")).toHaveCount(0)
+    await page.keyboard.press("Escape")
+    await expect(page.getByTestId("attachment-menu")).toHaveCount(0)
     await tile.click()
     await expect(tile).not.toHaveAttribute("data-spoiler", "hidden")
     await expect(page.getByTestId("attachment-lightbox")).toHaveCount(0)
+    // Once revealed, the image can be copied.
+    await tile.click({ button: "right" })
+    await expect(page.getByTestId("attachment-copy")).toHaveCount(1)
+    await page.keyboard.press("Escape")
+    await expect(page.getByTestId("attachment-menu")).toHaveCount(0)
     await tile.click()
     await expect(page.getByTestId("attachment-lightbox")).toBeVisible()
   } finally {

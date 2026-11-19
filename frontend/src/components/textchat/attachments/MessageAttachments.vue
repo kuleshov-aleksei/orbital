@@ -80,7 +80,14 @@
       <span>— removed ({{ removedLabel(att) }})</span>
     </div>
 
-    <p v-if="actionError" class="text-xs text-red-400">{{ actionError }}</p>
+    <p v-if="actionError" class="text-xs text-red-400" role="alert">{{ actionError }}</p>
+    <p
+      v-else-if="actionNote"
+      class="text-xs text-green-400"
+      role="status"
+      data-testid="attachment-note">
+      {{ actionNote }}
+    </p>
 
     <AttachmentMenu
       v-if="menu"
@@ -89,6 +96,7 @@
       :y="menu.y"
       :is-own="isOwn"
       :can-manage="canManage"
+      :show-copy="canCopyImages && menu.attachment.kind === 'image' && !isHidden(menu.attachment)"
       :show-content="contentSearch && menu.attachment.kind === 'image'"
       @action="onAction"
       @close="menu = null" />
@@ -103,7 +111,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, useTemplateRef } from "vue"
+import { computed, onBeforeUnmount, ref, useTemplateRef } from "vue"
 import { PhDotsThree, PhDownloadSimple, PhLock, PhPaperclip } from "@phosphor-icons/vue"
 import AttachmentImageTile from "./AttachmentImageTile.vue"
 import AttachmentVideo from "./AttachmentVideo.vue"
@@ -115,6 +123,11 @@ import { useConfigStore } from "@/stores/config"
 import { apiService } from "@/services/api"
 import { forgetAttachmentUrls, openAttachment, openStoragePage } from "@/services/attachments/urls"
 import { evictMedia } from "@/services/attachments/mediaCache"
+import {
+  clipboardImageSupported,
+  copyImageErrorText,
+  copyImageToClipboard,
+} from "@/services/attachments/clipboard"
 import { formatBytes } from "@/utils/formatBytes"
 import type { TextAttachment } from "@/types/textChat"
 
@@ -155,9 +168,26 @@ const rootEl = useTemplateRef<HTMLElement>("rootEl")
 const lightboxIndex = ref<number | null>(null)
 const menu = ref<{ attachment: TextAttachment; x: number; y: number } | null>(null)
 const actionError = ref<string | null>(null)
+const actionNote = ref<string | null>(null)
+let noteTimer: ReturnType<typeof setTimeout> | null = null
 const contentFor = ref<TextAttachment | null>(null)
 const configStore = useConfigStore()
 const contentSearch = computed(() => !!configStore.attachments?.content_search)
+// Feature detection is static for the session; calling it per render would be noise.
+const canCopyImages = clipboardImageSupported()
+
+onBeforeUnmount(() => {
+  if (noteTimer) clearTimeout(noteTimer)
+})
+
+function showNote(text: string) {
+  actionNote.value = text
+  if (noteTimer) clearTimeout(noteTimer)
+  noteTimer = setTimeout(() => {
+    noteTimer = null
+    actionNote.value = null
+  }, 3000)
+}
 
 function openMenu(attachment: TextAttachment, e: MouseEvent) {
   if (props.pending) return
@@ -179,11 +209,16 @@ async function onAction(action: AttachmentAction) {
   const att = menu.value?.attachment
   if (!att) return
   actionError.value = null
+  actionNote.value = null
   try {
     switch (action) {
       case "open":
         if (att.kind === "image") openLightbox(att)
         else await openAttachment(att.id, "original")
+        break
+      case "copy":
+        await copyImageToClipboard(att.id)
+        showNote("Copied image to clipboard")
         break
       case "download":
         await openAttachment(att.id, "download")
@@ -204,9 +239,13 @@ async function onAction(action: AttachmentAction) {
         evictMedia(att.id)
         break
     }
-  } catch {
+  } catch (err) {
     actionError.value =
-      action === "delete" ? "The file could not be deleted." : "That didn't work. Try again."
+      action === "copy"
+        ? copyImageErrorText(err)
+        : action === "delete"
+          ? "The file could not be deleted."
+          : "That didn't work. Try again."
   }
 }
 </script>

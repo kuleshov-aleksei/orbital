@@ -179,6 +179,51 @@ func TestAttachmentURLsRespectViewRoom(t *testing.T) {
 	}
 }
 
+func TestAttachmentFilePermissions(t *testing.T) {
+	f := newMediaFixture(t)
+	_, id := f.sentFile(t)
+	vars := map[string]string{"id": id}
+
+	rec := f.do(t, "mod", f.text.AttachmentFile, http.MethodGet, vars, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("viewer: %d %s", rec.Code, rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "audio/mpeg" {
+		t.Fatalf("content type = %q", ct)
+	}
+	if rec.Header().Get("Cache-Control") != "private, no-store" {
+		t.Fatalf("cache control = %q", rec.Header().Get("Cache-Control"))
+	}
+	if rec.Body.Len() != 103 {
+		t.Fatalf("body = %d bytes, want 103", rec.Body.Len())
+	}
+
+	// Without view_room the file is a 404 (no existence leak); the uploader
+	// still reaches their own file.
+	if _, err := f.ps.SetOverwrite(f.ownerSub, models.PermissionOverwrite{TargetType: models.OverwriteTargetRoom, TargetID: f.openText.ID,
+		SubjectType: models.OverwriteSubjectRole, SubjectID: models.SystemRoleEveryone, Deny: uint64(permissions.ViewRoom)}); err != nil {
+		t.Fatal(err)
+	}
+	if rec := f.do(t, "mod", f.text.AttachmentFile, http.MethodGet, vars, nil); rec.Code != http.StatusNotFound {
+		t.Fatalf("non-viewer: %d, want 404", rec.Code)
+	}
+	if rec := f.do(t, "user", f.text.AttachmentFile, http.MethodGet, vars, nil); rec.Code != http.StatusOK {
+		t.Fatalf("uploader without view_room: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAttachmentFileRemoved(t *testing.T) {
+	f := newMediaFixture(t)
+	_, id := f.sentFile(t)
+	vars := map[string]string{"id": id}
+	if rec := f.do(t, "mod", f.text.DeleteAttachment, http.MethodDelete, vars, nil); rec.Code != http.StatusNoContent {
+		t.Fatalf("delete: %d %s", rec.Code, rec.Body.String())
+	}
+	if rec := f.do(t, "user", f.text.AttachmentFile, http.MethodGet, vars, nil); rec.Code != http.StatusGone {
+		t.Fatalf("removed file: %d, want 410", rec.Code)
+	}
+}
+
 func TestMyAttachmentsListsOnlyOwnFiles(t *testing.T) {
 	f := newMediaFixture(t)
 	_, id := f.sentFile(t)

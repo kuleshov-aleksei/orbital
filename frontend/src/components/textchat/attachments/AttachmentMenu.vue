@@ -18,6 +18,15 @@
       <button type="button" role="menuitem" :class="item" @click="act('open')">
         <PhArrowSquareOut class="w-4 h-4" /> Open
       </button>
+      <button
+        v-if="showCopy"
+        type="button"
+        role="menuitem"
+        :class="item"
+        data-testid="attachment-copy"
+        @click="act('copy')">
+        <PhCopy class="w-4 h-4" /> Copy image
+      </button>
       <button type="button" role="menuitem" :class="item" @click="act('download')">
         <PhDownloadSimple class="w-4 h-4" /> Download
       </button>
@@ -67,6 +76,7 @@
 import { nextTick, onMounted, reactive, ref, useTemplateRef } from "vue"
 import {
   PhArrowSquareOut,
+  PhCopy,
   PhDownloadSimple,
   PhHardDrives,
   PhLock,
@@ -77,7 +87,8 @@ import {
 import { formatBytes } from "@/utils/formatBytes"
 import type { TextAttachment } from "@/types/textChat"
 
-export type AttachmentAction = "open" | "download" | "content" | "protect" | "storage" | "delete"
+export type AttachmentAction =
+  "open" | "copy" | "download" | "content" | "protect" | "storage" | "delete"
 
 const props = defineProps<{
   attachment: TextAttachment
@@ -85,6 +96,8 @@ const props = defineProps<{
   y: number
   isOwn: boolean
   canManage: boolean
+  /** Offer "Copy image" (an image, revealed, and the clipboard can take one). */
+  showCopy?: boolean
   /** Offer the OCR/CLIP view (content search enabled, image file). */
   showContent?: boolean
 }>()

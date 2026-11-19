@@ -16,6 +16,19 @@
         >
         <div class="ml-auto flex items-center gap-1">
           <button
+            v-if="canCopy"
+            type="button"
+            :class="btn"
+            :title="copyTitle"
+            aria-label="Copy image"
+            data-testid="lightbox-copy"
+            :disabled="copyState === 'busy'"
+            @click="copyCurrent">
+            <PhSpinner v-if="copyState === 'busy'" class="w-5 h-5 animate-spin" />
+            <PhCheck v-else-if="copyState === 'done'" class="w-5 h-5 text-green-400" />
+            <PhCopy v-else class="w-5 h-5" :class="{ 'text-red-400': copyState === 'error' }" />
+          </button>
+          <button
             type="button"
             :class="btn"
             title="Open original"
@@ -128,12 +141,15 @@ import {
   PhArrowSquareOut,
   PhCaretLeft,
   PhCaretRight,
+  PhCheck,
+  PhCopy,
   PhDownloadSimple,
   PhSpinner,
   PhX,
 } from "@phosphor-icons/vue"
 import { openAttachment, useAttachmentUrl } from "@/services/attachments/urls"
 import { isMediaCached, mediaKey } from "@/services/attachments/mediaCache"
+import { clipboardImageSupported, copyImageToClipboard } from "@/services/attachments/clipboard"
 import { pushBackHandler } from "@/services/backButton"
 import { formatBytes } from "@/utils/formatBytes"
 import type { TextAttachment } from "@/types/textChat"
@@ -160,6 +176,33 @@ const closeBtn = useTemplateRef<HTMLButtonElement>("closeBtn")
 const backdrop = useTemplateRef<HTMLDivElement>("backdrop")
 const stage = useTemplateRef<HTMLDivElement>("stage")
 const frameEl = useTemplateRef<HTMLDivElement>("frameEl")
+
+// Copying the shown image (web Clipboard API; hidden in the Android app).
+const canCopy = clipboardImageSupported()
+const copyState = ref<"idle" | "busy" | "done" | "error">("idle")
+const copyTitle = computed(() => {
+  if (copyState.value === "error") return "Could not copy the image"
+  if (copyState.value === "done") return "Copied to clipboard"
+  return "Copy image (Ctrl+C)"
+})
+let copyTimer: ReturnType<typeof setTimeout> | null = null
+
+async function copyCurrent() {
+  const att = current.value
+  if (!att || !canCopy || copyState.value === "busy") return
+  copyState.value = "busy"
+  try {
+    await copyImageToClipboard(att.id)
+    copyState.value = "done"
+  } catch {
+    copyState.value = "error"
+  }
+  if (copyTimer) clearTimeout(copyTimer)
+  copyTimer = setTimeout(() => {
+    copyTimer = null
+    copyState.value = "idle"
+  }, 1800)
+}
 
 // Progressive loading: the thumbnail fills in while the original downloads. Skipped
 // when the original is already cached on the device (it loads at once).
@@ -196,6 +239,11 @@ watch(
   () => {
     originalLoaded.value = false
     natural.value = null
+    if (copyTimer) {
+      clearTimeout(copyTimer)
+      copyTimer = null
+    }
+    copyState.value = "idle"
     resetZoom(false)
   },
 )
@@ -448,6 +496,10 @@ function onKey(e: KeyboardEvent) {
     e.preventDefault()
     e.stopPropagation()
     close()
+  } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+    if (!canCopy) return
+    e.preventDefault()
+    void copyCurrent()
   } else if (e.key === "ArrowLeft") step(-1)
   else if (e.key === "ArrowRight") step(1)
 }
@@ -470,6 +522,7 @@ onMounted(async () => {
 })
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onKey, true)
+  if (copyTimer) clearTimeout(copyTimer)
   removeBack?.()
   resizeObserver?.disconnect()
 })

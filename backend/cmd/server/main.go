@@ -522,6 +522,7 @@ func main() {
 			uploadHandler := limiter.Middleware("chat-upload", chatUploadLimit, userOrIPKey, http.HandlerFunc(textChatHandler.UploadAttachment))
 			r.Handle("/api/rooms/{id}/attachments", auth(uploadHandler)).Methods("POST")
 			r.Handle("/api/attachments/urls", auth(http.HandlerFunc(textChatHandler.AttachmentURLs))).Methods("POST")
+			r.Handle("/api/attachments/{id}/file", auth(http.HandlerFunc(textChatHandler.AttachmentFile))).Methods("GET")
 			r.Handle("/api/attachments/{id}", auth(http.HandlerFunc(textChatHandler.UpdateAttachment))).Methods("PATCH")
 			r.Handle("/api/attachments/{id}", auth(http.HandlerFunc(textChatHandler.DeleteAttachment))).Methods("DELETE")
 			r.Handle("/api/attachments/{id}/content", auth(http.HandlerFunc(textChatHandler.AttachmentContent))).Methods("GET")

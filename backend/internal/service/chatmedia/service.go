@@ -621,6 +621,18 @@ func (s *Service) URL(ctx context.Context, rec *Record, variant string) (string,
 	return u, s.now().Add(urlTTL), nil
 }
 
+// ReadOriginal returns the stored bytes of a record's original file. The app
+// uses it when it must read the bytes itself (copying an image to the
+// clipboard): the presigned URL is cross-origin, and the bucket does not send
+// CORS headers.
+func (s *Service) ReadOriginal(ctx context.Context, rec *Record) ([]byte, error) {
+	data, err := s.media.Get(ctx, rec.originalKey())
+	if err != nil {
+		return nil, errors.Join(ErrUnavailable, err)
+	}
+	return data, nil
+}
+
 // Start runs the janitor (and the extraction worker, when an Extractor is
 // set) until ctx ends.
 func (s *Service) Start(ctx context.Context) {

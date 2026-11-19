@@ -213,6 +213,29 @@ func (h *TextChatHandler) AttachmentURLs(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, map[string]any{"urls": urls, "gone": gone})
 }
 
+// AttachmentFile handles GET /api/attachments/{id}/file: the original bytes,
+// served same-origin for callers that must read them in JavaScript (copying an
+// image to the clipboard). The presigned URL cannot be used for that: it is
+// cross-origin and the bucket sends no CORS headers. Same visibility rules as
+// the presigned URL.
+func (h *TextChatHandler) AttachmentFile(w http.ResponseWriter, r *http.Request) {
+	rec, ok := h.loadVisible(w, r, mux.Vars(r)["id"])
+	if !ok {
+		return
+	}
+	data, err := h.media.ReadOriginal(r.Context(), rec)
+	if err != nil {
+		writeMediaError(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", rec.Mime)
+	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	// Per-user content: never keep it in the browser or a shared cache.
+	w.Header().Set("Cache-Control", "private, no-store")
+	_, _ = w.Write(data)
+}
+
 // loadVisible loads a file for PATCH/DELETE; files the subject cannot see
 // are 404 (no existence leak), removed ones 410.
 func (h *TextChatHandler) loadVisible(w http.ResponseWriter, r *http.Request, id string) (*chatmedia.Record, bool) {
