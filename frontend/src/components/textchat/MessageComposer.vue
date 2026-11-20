@@ -1,6 +1,8 @@
 <template>
   <div
-    class="px-4 pb-4 pt-1 flex-shrink-0"
+    ref="composerRoot"
+    class="px-4 pt-1 flex-shrink-0"
+    :class="composerPanel ? 'pb-0' : 'pb-4'"
     @dragover="onDragOver"
     @dragleave="dragging = false"
     @drop="onDrop">
@@ -160,10 +162,10 @@
           v-if="gifSearchEnabled"
           type="button"
           class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded text-theme-text-muted hover:text-theme-text-primary hover:bg-theme-bg-hover transition-colors"
-          :class="{ 'text-theme-text-primary bg-theme-bg-hover': isGifPickerOpen }"
+          :class="{ 'text-theme-text-primary bg-theme-bg-hover': gifPickerVisible }"
           title="GIF"
           aria-label="Insert GIF"
-          :aria-expanded="isGifPickerOpen"
+          :aria-expanded="gifPickerVisible"
           :disabled="!canSend"
           data-testid="gif-button"
           @mousedown.prevent
@@ -173,11 +175,12 @@
         <button
           type="button"
           class="w-8 h-8 flex items-center justify-center rounded text-theme-text-muted hover:text-theme-text-primary hover:bg-theme-bg-hover transition-colors"
-          :class="{ 'text-theme-text-primary bg-theme-bg-hover': isPickerOpen }"
+          :class="{ 'text-theme-text-primary bg-theme-bg-hover': emojiPickerVisible }"
           title="Emoji"
           aria-label="Insert emoji"
-          :aria-expanded="isPickerOpen"
+          :aria-expanded="emojiPickerVisible"
           :disabled="!canSend"
+          data-testid="emoji-button"
           @mousedown.prevent
           @click="toggleEmojiPicker">
           <PhSmiley class="w-5 h-5" />
@@ -233,6 +236,47 @@
         </div>
       </div>
     </div>
+
+    <!-- Mobile layout (Android app, narrow window): the emoji/GIF pickers dock
+         under the composer instead of floating over the chat. Collapsing to 0
+         height gives the chat its space back; the panel keeps the height it had
+         when opened while the soft keyboard is up, so the keyboard covers the
+         chat instead of squeezing the panel. The handle drags it taller, over
+         the chat, or smaller (drag far enough down to close it). -->
+    <div
+      v-if="appStore.isMobile"
+      ref="dockSlot"
+      class="composer-dock -mx-4"
+      :class="{
+        'composer-dock--open': composerPanel,
+        'composer-dock--dragging': isDraggingDock,
+      }"
+      :style="{ '--composer-dock-h': `${isDraggingDock ? dragHeight : dockHeight}px` }"
+      :inert="composerPanel ? undefined : true"
+      :aria-hidden="!composerPanel"
+      data-testid="composer-dock">
+      <div
+        v-if="dockMounted"
+        class="composer-dock-inner flex flex-col overflow-hidden rounded-t-2xl border border-b-0 border-theme-border bg-theme-bg-primary">
+        <div
+          class="dock-handle"
+          title="Drag to resize"
+          data-testid="composer-dock-handle"
+          @pointerdown="onDockHandleDown"
+          @pointermove="onDockHandleMove"
+          @pointerup="onDockHandleUp"
+          @pointercancel="onDockHandleUp">
+          <span class="dock-grabber" aria-hidden="true" />
+        </div>
+        <ComposerPickerDock
+          :tab="composerPanel ?? 'emoji'"
+          :gif-provider="gifProvider"
+          @update:tab="textChatStore.openComposerPanel($event)"
+          @select-emoji="insertEmoji"
+          @select-gif="pickGif"
+          @close="closeComposerPanel" />
+      </div>
+    </div>
   </div>
 </template>
 
@@ -252,9 +296,11 @@ import {
 } from "@phosphor-icons/vue"
 import EmojiPicker from "@/components/EmojiPicker.vue"
 import GifPicker from "./GifPicker.vue"
+import ComposerPickerDock from "./ComposerPickerDock.vue"
 import ComposerSuggestions, { type Suggestion } from "./ComposerSuggestions.vue"
 import ComposerUploads from "./ComposerUploads.vue"
 import { useGifSearch } from "@/composables/useGifSearch"
+import { pushBackHandler } from "@/services/backButton"
 import type { TextGIF } from "@/types/textChat"
 import { openStoragePage } from "@/services/attachments/urls"
 import { formatBytes } from "@/utils/formatBytes"
@@ -340,6 +386,159 @@ const pendingGif = computed({
 })
 void ensureGifSearch()
 
+// --- Mobile emoji/GIF dock ------------------------------------------------
+// On the mobile layout the pickers are a panel under the composer instead of a
+// popover over the chat (see the template and ComposerPickerDock).
+const composerPanel = computed(() => textChatStore.composerPanel)
+const emojiPickerVisible = computed(() =>
+  appStore.isMobile ? composerPanel.value === "emoji" : isPickerOpen.value,
+)
+const gifPickerVisible = computed(() =>
+  appStore.isMobile ? composerPanel.value === "gif" : isGifPickerOpen.value,
+)
+/** Created on the first open, then kept mounted (clipped to 0 height) so each
+ * tab keeps its search, scroll position and loaded pages. */
+const dockMounted = ref(false)
+/** Panel height in px: 44 % of the viewport when it opens. It is deliberately
+ * not re-measured while the soft keyboard shrinks the viewport: the panel keeps
+ * its size and moves up with the composer, covering the chat, instead of being
+ * squeezed. */
+const DOCK_HEIGHT_RATIO = 0.44
+const DOCK_HEIGHT_MAX_PX = 416
+/** Below this the panel can't show anything useful: releasing there closes it. */
+const DOCK_MIN_HEIGHT_PX = 150
+/** Channel header height (h-16): the composer never slides above it. */
+const CHANNEL_HEADER_PX = 64
+const dockHeight = ref(0)
+/** True once the user resized the panel by hand (keep that height on re-measure). */
+let dockResized = false
+let dockBaseline = { width: 0, height: 0 }
+let stopDockBackHandler: (() => void) | null = null
+/** Caret in the text composer while the dock holds focus (the textarea is
+ * blurred so the keyboard doesn't cover the panel). */
+const savedCaret = ref<{ start: number; end: number } | null>(null)
+
+// Drag handle: pull the panel taller over the chat, or smaller.
+const dockSlot = useTemplateRef<HTMLDivElement>("dockSlot")
+const composerRoot = useTemplateRef<HTMLDivElement>("composerRoot")
+const isDraggingDock = ref(false)
+const dragHeight = ref(0)
+let dragPointerId: number | null = null
+let dragStartY = 0
+let dragStartHeight = 0
+let dragMaxHeight = 0
+let dragMoved = false
+
+function measureDockHeight() {
+  dockResized = false
+  dockHeight.value = Math.round(
+    Math.min(window.innerHeight * DOCK_HEIGHT_RATIO, DOCK_HEIGHT_MAX_PX),
+  )
+}
+
+/** The height the panel is actually rendered at (the CSS caps it on tiny screens). */
+function renderedDockHeight(): number {
+  return dockSlot.value?.getBoundingClientRect().height ?? dockHeight.value
+}
+
+/** Tallest the panel may get while keeping the composer on screen: the composer
+ * block's bottom stays put, so growing the panel moves its top up until it
+ * reaches the channel header. */
+function maxDockHeight(): number {
+  const rendered = renderedDockHeight()
+  const root = composerRoot.value?.getBoundingClientRect()
+  if (!root) return Math.round(window.innerHeight * 0.8)
+  return Math.max(DOCK_MIN_HEIGHT_PX, rendered, Math.round(rendered + root.top - CHANNEL_HEADER_PX))
+}
+
+function onDockHandleDown(event: PointerEvent) {
+  if (event.pointerType === "mouse" && event.button !== 0) return
+  // No text selection / focus changes while dragging the panel.
+  event.preventDefault()
+  dragPointerId = event.pointerId
+  dragStartY = event.clientY
+  dragStartHeight = renderedDockHeight()
+  dragMaxHeight = Math.max(dragStartHeight, maxDockHeight())
+  dragHeight.value = dragStartHeight
+  dragMoved = false
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+}
+
+function onDockHandleMove(event: PointerEvent) {
+  if (dragPointerId !== event.pointerId) return
+  const dy = event.clientY - dragStartY
+  if (!dragMoved) {
+    // A tap on the handle must not resize the panel by a pixel.
+    if (Math.abs(dy) < 4) return
+    dragMoved = true
+    isDraggingDock.value = true
+  }
+  dragHeight.value = Math.min(dragMaxHeight, Math.max(0, dragStartHeight - dy))
+}
+
+function onDockHandleUp(event: PointerEvent) {
+  if (dragPointerId !== event.pointerId) return
+  dragPointerId = null
+  if (!dragMoved) return
+  dragMoved = false
+  isDraggingDock.value = false
+  const released = dragHeight.value
+  // Pulled down most of the way (or to nothing): dismiss like a sheet.
+  if (released < DOCK_MIN_HEIGHT_PX || released < dragStartHeight * 0.5) {
+    textChatStore.closeComposerPanel()
+    return
+  }
+  dockHeight.value = Math.round(released)
+  dockResized = true
+}
+
+function onDockResize() {
+  if (!composerPanel.value) return
+  const { innerWidth: width, innerHeight: height } = window
+  // The keyboard is the only thing that shrinks the viewport without changing
+  // the width; keep the panel as it was then. A growing viewport (keyboard
+  // closed again) or a rotation/window resize re-measures.
+  if (width === dockBaseline.width && height <= dockBaseline.height) return
+  dockBaseline = { width, height }
+  if (dockResized) {
+    // Keep the size the user dragged to, just inside the new limits.
+    dockHeight.value = Math.round(Math.min(dockHeight.value, maxDockHeight()))
+  } else {
+    measureDockHeight()
+  }
+}
+
+function closeComposerPanel() {
+  textChatStore.closeComposerPanel()
+}
+
+watch(composerPanel, (panel) => {
+  if (!panel) {
+    stopDockBackHandler?.()
+    stopDockBackHandler = null
+    isDraggingDock.value = false
+    dragPointerId = null
+    dragMoved = false
+    // Focus follows the input into the collapsing panel; drop the keyboard too.
+    const active = document.activeElement
+    if (active instanceof HTMLElement && active.closest("[data-testid='composer-dock']")) {
+      active.blur()
+    }
+    return
+  }
+  dockMounted.value = true
+  const el = input.value
+  // Remember where the caret was, then hide the keyboard so it can't cover the
+  // panel (emoji insertion continues from the saved caret).
+  savedCaret.value =
+    el && document.activeElement === el ? { start: el.selectionStart, end: el.selectionEnd } : null
+  el?.blur()
+  dockBaseline = { width: window.innerWidth, height: window.innerHeight }
+  measureDockHeight()
+  // Android back closes the panel before it leaves the channel.
+  stopDockBackHandler = pushBackHandler(() => textChatStore.closeComposerPanel())
+})
+
 // Drafts survive switching channels (kept for this app session).
 const drafts = draftStore()
 const draft = ref(drafts.get(props.roomId) ?? "")
@@ -351,6 +550,7 @@ watch(
     // A picked GIF belongs to the channel it was picked in.
     textChatStore.pendingGif = null
     isGifPickerOpen.value = false
+    closeComposerPanel()
     closeSuggestions()
     await nextTick()
     autosize()
@@ -432,6 +632,7 @@ async function send() {
   textChatStore.sendMessage(props.roomId, content, files, gif)
   pendingGif.value = null
   isGifPickerOpen.value = false
+  closeComposerPanel()
   draft.value = ""
   mentionMap().clear()
   closeSuggestions()
@@ -525,6 +726,8 @@ async function receiveKeyboardImage(event: KeyboardImageEvent) {
 watch([canAttach, serverOnline, () => props.roomId], syncKeyboardContent)
 
 onMounted(() => {
+  window.addEventListener("resize", onDockResize)
+  window.addEventListener("orientationchange", onDockResize)
   void onKeyboardImage((event) => void receiveKeyboardImage(event)).then((stop) => {
     if (composerDisposed) stop()
     else stopKeyboardImages = stop
@@ -532,6 +735,10 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener("resize", onDockResize)
+  window.removeEventListener("orientationchange", onDockResize)
+  stopDockBackHandler?.()
+  stopDockBackHandler = null
   composerDisposed = true
   keyboardInputFocused = false
   syncKeyboardContent()
@@ -763,7 +970,9 @@ function onKeydown(event: KeyboardEvent) {
   } else if (event.key === "Escape") {
     // Handled here; the channel view ignores prevented Escapes.
     event.preventDefault()
-    if (isGifPickerOpen.value) {
+    if (composerPanel.value) {
+      closeComposerPanel()
+    } else if (isGifPickerOpen.value) {
       isGifPickerOpen.value = false
     } else if (isPickerOpen.value) {
       isPickerOpen.value = false
@@ -842,18 +1051,33 @@ function textFor(ref: EmojiRef): string {
 }
 
 async function insertEmoji(ref: EmojiRef) {
-  isPickerOpen.value = false
   const text = textFor(ref)
   if (!text) return
   const el = input.value
   const value = draft.value
-  const start = el?.selectionStart ?? value.length
-  const end = el?.selectionEnd ?? value.length
+  // In the mobile dock the textarea is blurred (keyboard away), so the caret
+  // comes from the snapshot taken when the dock opened or from the last insert.
+  const docked = appStore.isMobile && !!composerPanel.value
+  if (!docked) isPickerOpen.value = false
+  // Without a saved caret the emoji goes to the end of the draft, not to the
+  // textarea's default selection (0 when it was never focused, e.g. Android).
+  const start = docked
+    ? Math.min(savedCaret.value?.start ?? value.length, value.length)
+    : Math.min(el?.selectionStart ?? value.length, value.length)
+  const end = docked
+    ? Math.min(savedCaret.value?.end ?? value.length, value.length)
+    : Math.min(el?.selectionEnd ?? value.length, value.length)
   draft.value = value.slice(0, start) + text + value.slice(end)
   await nextTick()
-  const caret = start + text.length
-  el?.focus()
-  el?.setSelectionRange(caret, caret)
+  const next = start + text.length
+  if (docked) {
+    // Keep the dock (and the chat) open for more emojis; no focus, or the
+    // keyboard would cover the panel.
+    savedCaret.value = { start: next, end: next }
+  } else {
+    el?.focus()
+    el?.setSelectionRange(next, next)
+  }
   autosize()
 }
 
@@ -862,13 +1086,22 @@ function closePicker() {
   focus()
 }
 
-/** Emoji and GIF pickers share the same spot above the composer. */
+/** Emoji and GIF pickers share the same spot above the composer (desktop) or
+ * the same dock (mobile). */
 function toggleEmojiPicker() {
+  if (appStore.isMobile) {
+    textChatStore.toggleComposerPanel("emoji")
+    return
+  }
   isGifPickerOpen.value = false
   isPickerOpen.value = !isPickerOpen.value
 }
 
 function toggleGifPicker() {
+  if (appStore.isMobile) {
+    textChatStore.toggleComposerPanel("gif")
+    return
+  }
   isPickerOpen.value = false
   isGifPickerOpen.value = !isGifPickerOpen.value
 }
@@ -876,6 +1109,11 @@ function toggleGifPicker() {
 /** The picked GIF waits in the composer until the message is sent. */
 function pickGif(gif: TextGIF) {
   textChatStore.pendingGif = gif
+  if (appStore.isMobile) {
+    // A GIF is one per message: close the dock, but keep the keyboard away.
+    closeComposerPanel()
+    return
+  }
   isGifPickerOpen.value = false
   focus()
 }
@@ -901,5 +1139,64 @@ function draftStore() {
    Tailwind's layered outline utilities; the surrounding box shows focus. */
 .composer-input:focus-visible {
   outline: none;
+}
+
+/* Mobile emoji/GIF dock. The slot collapses to 0 and clips the full-height
+   panel, so opening slides the panel up (the message list gives its height
+   back) and closing slides it down. The panel keeps the height it had when it
+   opened while the keyboard is up: only the chat is covered. */
+.composer-dock {
+  height: 0;
+  overflow: hidden;
+  transition:
+    height 220ms var(--ease-out-smooth, cubic-bezier(0.22, 1, 0.36, 1)),
+    margin-top 220ms var(--ease-out-smooth, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.composer-dock--open {
+  /* A gap under the composer, and the panel reads as its own sheet. */
+  margin-top: 0.75rem;
+  height: min(var(--composer-dock-h, 0px), calc(100dvh - 8rem));
+}
+
+.composer-dock-inner {
+  /* Fixed, so the content slides in and out with the slot instead of
+     squashing. Never taller than the space under the header: on short
+     viewports (landscape, keyboard up) the composer must stay reachable. */
+  height: min(var(--composer-dock-h, 0px), calc(100dvh - 8rem));
+}
+
+.composer-dock--dragging,
+.composer-dock--dragging .composer-dock-inner {
+  transition: none;
+}
+
+/* Grab handle: a full-width strip so the target is easy to hit. */
+.dock-handle {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  height: 1.25rem;
+  cursor: grab;
+  touch-action: none;
+}
+
+.dock-handle:active {
+  cursor: grabbing;
+}
+
+.dock-grabber {
+  width: 2.5rem;
+  height: 0.25rem;
+  border-radius: 9999px;
+  background-color: var(--color-theme-text-muted);
+  opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-dock {
+    transition: none;
+  }
 }
 </style>

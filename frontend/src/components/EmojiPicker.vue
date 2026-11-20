@@ -1,9 +1,14 @@
 <template>
   <div
-    class="w-full rounded-lg border border-theme-border bg-theme-bg-primary shadow-lg flex flex-col"
+    class="w-full flex flex-col"
+    :class="
+      docked
+        ? 'h-full bg-theme-bg-primary'
+        : 'rounded-lg border border-theme-border bg-theme-bg-primary shadow-lg'
+    "
     data-testid="emoji-picker"
     @keydown.escape.stop="emit('close')">
-    <div class="p-2 border-b border-theme-border flex items-center gap-1.5">
+    <div class="p-2 border-b border-theme-border flex items-center gap-1.5 shrink-0">
       <input
         ref="searchInput"
         v-model="query"
@@ -25,7 +30,7 @@
     </div>
 
     <!-- Category tabs -->
-    <div v-if="!isSearching" class="flex gap-0.5 px-1 pt-1 overflow-x-auto">
+    <div v-if="!isSearching" class="flex gap-0.5 px-1 pt-1 overflow-x-auto shrink-0">
       <button
         v-for="tab in tabs"
         :key="tab.id"
@@ -47,7 +52,7 @@
     </div>
 
     <!-- Grid: virtualized rows of 8; the Server section pages in on scroll -->
-    <div class="relative">
+    <div class="relative" :class="docked ? 'flex-1 min-h-0' : ''">
       <div
         v-if="!isSearching && currentLabel"
         class="pointer-events-none absolute top-0 left-2 right-2 z-10 h-6 flex items-end pb-1 bg-theme-bg-primary text-[10px] font-semibold uppercase tracking-wide text-theme-text-muted">
@@ -55,7 +60,8 @@
       </div>
       <RecycleScroller
         ref="scroller"
-        class="h-52 px-2 pb-2"
+        class="px-2 pb-2"
+        :class="docked ? 'h-full' : 'h-52'"
         :items="rows"
         :item-size="null"
         key-field="id"
@@ -115,7 +121,12 @@ import {
 
 // unicodeOnly: for plain-text fields (e.g. room names) where a "custom:<id>"
 // ref cannot be rendered; hides custom emojis and the upload button.
-const props = withDefaults(defineProps<{ unicodeOnly?: boolean }>(), { unicodeOnly: false })
+// docked: fills a bottom panel under the composer (mobile) instead of the
+// floating popover look.
+const props = withDefaults(defineProps<{ unicodeOnly?: boolean; docked?: boolean }>(), {
+  unicodeOnly: false,
+  docked: false,
+})
 
 const emit = defineEmits<{
   select: [ref: EmojiRef]

@@ -1,9 +1,14 @@
 <template>
   <div
-    class="w-full rounded-lg border border-theme-border bg-theme-bg-primary shadow-lg flex flex-col"
+    class="w-full flex flex-col"
+    :class="
+      docked
+        ? 'h-full bg-theme-bg-primary'
+        : 'rounded-lg border border-theme-border bg-theme-bg-primary shadow-lg'
+    "
     data-testid="gif-picker"
     @keydown.escape.stop="emit('close')">
-    <div class="p-2 border-b border-theme-border">
+    <div class="p-2 border-b border-theme-border shrink-0">
       <input
         ref="searchInput"
         v-model="query"
@@ -16,7 +21,8 @@
 
     <div
       ref="scroller"
-      class="h-[25rem] max-h-[60vh] overflow-y-auto p-2"
+      class="overflow-y-auto p-2"
+      :class="docked ? 'flex-1 min-h-0' : 'h-[25rem] max-h-[60vh]'"
       data-testid="gif-results"
       @scroll.passive="onScroll">
       <div
@@ -62,7 +68,7 @@
     </div>
 
     <div
-      class="flex items-center gap-1.5 px-3 py-2 border-t border-theme-border text-[10px] text-theme-text-muted select-none"
+      class="flex items-center gap-1.5 px-3 py-2 border-t border-theme-border text-[10px] text-theme-text-muted select-none shrink-0"
       data-testid="gif-attribution">
       <span>Powered by</span>
       <img
@@ -86,7 +92,11 @@ import {
   type GifTile,
 } from "@/services/gif"
 
-const props = defineProps<{ provider: GifProvider }>()
+// docked: fills a bottom panel under the composer (mobile) instead of the
+// floating popover look.
+const props = withDefaults(defineProps<{ provider: GifProvider; docked?: boolean }>(), {
+  docked: false,
+})
 const emit = defineEmits<{ select: [gif: Gif]; close: [] }>()
 
 /** Typing pause before a search request (the KLIPY dev key allows 100/h). */

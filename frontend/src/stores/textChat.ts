@@ -177,6 +177,8 @@ export const useTextChatStore = defineStore("textChat", () => {
   const pinsLoading = ref(false)
   /** Right-side panel of the channel view. */
   const sidePanel = ref<"pins" | "search" | null>(null)
+  /** Docked emoji/GIF panel under the composer (mobile layout only). */
+  const composerPanel = ref<"emoji" | "gif" | null>(null)
   const systemLines = ref<Record<string, TextSystemLine[]>>({})
   /** room -> user -> time the indicator expires. */
   const typing = ref<Record<string, Record<string, number>>>({})
@@ -413,6 +415,7 @@ export const useTextChatStore = defineStore("textChat", () => {
     if (activeChannelId.value !== roomId) {
       replyTarget.value = null
       editingId.value = null
+      composerPanel.value = null
     }
     activeChannelId.value = roomId
     const s = readState.value[roomId]
@@ -443,6 +446,7 @@ export const useTextChatStore = defineStore("textChat", () => {
     if (activeChannelId.value !== roomId) {
       replyTarget.value = null
       editingId.value = null
+      composerPanel.value = null
     }
     activeChannelId.value = roomId
     await jumpToMessage(roomId, messageId)
@@ -453,6 +457,7 @@ export const useTextChatStore = defineStore("textChat", () => {
     replyTarget.value = null
     editingId.value = null
     sidePanel.value = null
+    composerPanel.value = null
   }
 
   async function loadOlder(roomId: string) {
@@ -775,6 +780,19 @@ export const useTextChatStore = defineStore("textChat", () => {
     sidePanel.value = null
   }
 
+  /** Opens the docked emoji/GIF panel, or closes it when that tab is open. */
+  function toggleComposerPanel(panel: "emoji" | "gif") {
+    composerPanel.value = composerPanel.value === panel ? null : panel
+  }
+
+  function openComposerPanel(panel: "emoji" | "gif") {
+    composerPanel.value = panel
+  }
+
+  function closeComposerPanel() {
+    composerPanel.value = null
+  }
+
   const lastTypingSent = new Map<string, number>()
 
   /** Called on composer input; throttled. */
@@ -1083,6 +1101,10 @@ export const useTextChatStore = defineStore("textChat", () => {
     sidePanel,
     systemLines,
     typing,
+    composerPanel,
+    toggleComposerPanel,
+    openComposerPanel,
+    closeComposerPanel,
     isUnread,
     loadUnread,
     markRead,

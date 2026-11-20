@@ -250,4 +250,33 @@ describe("text chat store", () => {
       expect((sends()[0][1] as { gif: unknown }).gif).toEqual(gif)
     })
   })
+
+  describe("composer picker dock", () => {
+    it("toggles the emoji and GIF tabs like a pair", () => {
+      const store = useTextChatStore()
+      expect(store.composerPanel).toBeNull()
+
+      store.toggleComposerPanel("emoji")
+      expect(store.composerPanel).toBe("emoji")
+
+      // The other tab switches instead of closing the panel.
+      store.toggleComposerPanel("gif")
+      expect(store.composerPanel).toBe("gif")
+
+      // The active tab closes it.
+      store.toggleComposerPanel("gif")
+      expect(store.composerPanel).toBeNull()
+    })
+
+    it("closes with the channel and through closeComposerPanel", () => {
+      const store = useTextChatStore()
+      store.openComposerPanel("emoji")
+      store.closeChannel()
+      expect(store.composerPanel).toBeNull()
+
+      store.openComposerPanel("gif")
+      store.closeComposerPanel()
+      expect(store.composerPanel).toBeNull()
+    })
+  })
 })
