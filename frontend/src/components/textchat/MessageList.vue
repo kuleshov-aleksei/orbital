@@ -327,6 +327,26 @@ function scrollToBottom() {
   if (el) el.scrollTop = el.scrollHeight
 }
 
+// Media has no stable size until its bytes arrive, so it can grow the list
+// after a scroll-to-bottom already ran (the open scroll, a send). While the
+// user is still at the bottom, keep the newest message in view. `load` and
+// `loadeddata` don't bubble, hence the capture listener on the scroller.
+// atBottom is the pre-load value: a late load fires no scroll event.
+let repinFrame = 0
+
+function onContentMediaLoad(event: Event) {
+  if (repinFrame) return
+  const target = event.target
+  if (!(target instanceof HTMLElement) || !target.closest("[data-message-id]")) return
+  if (!props.view.atBottom) return
+  repinFrame = requestAnimationFrame(() => {
+    repinFrame = 0
+    scrollToBottom()
+    measure()
+    updateReadPosition()
+  })
+}
+
 // Scroll requests from the store (open, jump, send).
 watch(
   () => props.view.scrollRequest,
@@ -404,11 +424,16 @@ onMounted(() => {
     lastClientHeight = scroller.value.clientHeight
     resizeObserver = new ResizeObserver(onScrollerResize)
     resizeObserver.observe(scroller.value)
+    scroller.value.addEventListener("load", onContentMediaLoad, true)
+    scroller.value.addEventListener("loadeddata", onContentMediaLoad, true)
   }
 })
 onBeforeUnmount(() => {
   window.removeEventListener("focus", onFocus)
   if (scrollFrame) cancelAnimationFrame(scrollFrame)
+  if (repinFrame) cancelAnimationFrame(repinFrame)
+  scroller.value?.removeEventListener("load", onContentMediaLoad, true)
+  scroller.value?.removeEventListener("loadeddata", onContentMediaLoad, true)
   resizeObserver?.disconnect()
 })
 

@@ -7,12 +7,12 @@
       <PhImageBroken class="w-4 h-4" />
       GIF unavailable
     </div>
-    <div v-else class="relative inline-block max-w-full">
+    <div v-else class="relative inline-block max-w-full" :style="boxStyle">
       <video
         v-if="isVideo && animated"
         :src="gif.url"
         :poster="gif.preview_url"
-        class="block max-h-[320px] max-w-full rounded-lg bg-theme-bg-tertiary"
+        class="block w-full h-full object-contain rounded-lg bg-theme-bg-tertiary"
         autoplay
         muted
         loop
@@ -25,7 +25,7 @@
         v-else
         :src="animated ? gif.url : gif.preview_url"
         :alt="gif.title || 'GIF'"
-        class="block max-h-[320px] max-w-full rounded-lg bg-theme-bg-tertiary"
+        class="block w-full h-full object-contain rounded-lg bg-theme-bg-tertiary"
         loading="lazy"
         referrerpolicy="no-referrer"
         data-testid="message-gif-media"
@@ -61,4 +61,19 @@ const reducedMotion =
 const started = ref(false)
 const animated = computed(() => started.value || (!reducedMotion && !appSettings.reduceEmojiMotion))
 const failed = ref(false)
+
+// The box is sized from the stored rendition metadata (like attachments and
+// link previews), so the media can't grow the list when its bytes arrive.
+// Otherwise a page of GIFs expands after MessageList's scroll-to-bottom ran,
+// pushing the newest message out of view on every channel open.
+const MAX_H = 320
+const boxStyle = computed(() => {
+  const w = props.gif.width
+  const h = props.gif.height
+  // References without metadata (provider omitted it): a placeholder box is
+  // still better than a 0-height one that jumps once the still loads.
+  if (!w || !h) return { width: "300px", aspectRatio: "4 / 3", maxWidth: "100%" }
+  const scale = Math.min(1, MAX_H / h)
+  return { width: `${Math.round(w * scale)}px`, aspectRatio: `${w} / ${h}`, maxWidth: "100%" }
+})
 </script>
