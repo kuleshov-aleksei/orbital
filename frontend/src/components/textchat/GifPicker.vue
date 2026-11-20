@@ -16,7 +16,7 @@
 
     <div
       ref="scroller"
-      class="h-60 overflow-y-auto p-2"
+      class="h-[25rem] max-h-[60vh] overflow-y-auto p-2"
       data-testid="gif-results"
       @scroll.passive="onScroll">
       <div
@@ -62,14 +62,14 @@
     </div>
 
     <div
-      class="flex items-center gap-1 px-2.5 pb-1.5 text-[10px] text-theme-text-muted select-none"
+      class="flex items-center gap-1.5 px-3 py-2 border-t border-theme-border text-[10px] text-theme-text-muted select-none"
       data-testid="gif-attribution">
       <span>Powered by</span>
       <img
         v-if="provider.attributionLogo"
         :src="provider.attributionLogo"
         :alt="provider.name.toUpperCase()"
-        class="h-3.5 w-auto flex-shrink-0"
+        class="h-4 w-auto flex-shrink-0"
         data-testid="gif-attribution-logo" />
       <span v-else class="font-semibold">{{ provider.name.toUpperCase() }}</span>
     </div>
