@@ -170,6 +170,67 @@
       <div v-if="colorError" class="text-xs text-red-400">{{ colorError }}</div>
     </div>
 
+    <!-- Displayed badge: the one achievement shown next to the nickname -->
+    <div v-if="userStore.isLoggedIn" class="space-y-3 pt-2" data-testid="displayed-badge-settings">
+      <div>
+        <span class="text-sm font-medium text-theme-text-primary block">Displayed badge</span>
+        <p class="text-xs text-theme-text-muted mt-0.5">
+          The achievement shown next to your name in the member list.
+        </p>
+      </div>
+
+      <p
+        v-if="!myBadges.length"
+        class="text-xs text-theme-text-muted bg-theme-bg-tertiary rounded-lg p-3"
+        data-testid="displayed-badge-hint">
+        You don't have any badges yet.
+      </p>
+
+      <div v-else class="space-y-2" role="radiogroup" aria-label="Displayed badge">
+        <button
+          v-for="option in badgeOptions"
+          :key="option.id || 'auto'"
+          type="button"
+          role="radio"
+          :aria-checked="selectedBadge === option.id"
+          :disabled="isSavingBadge"
+          class="w-full flex items-center gap-3 p-3 rounded-lg border-2 transition-all duration-200 disabled:cursor-wait"
+          :class="
+            selectedBadge === option.id
+              ? 'border-theme-accent bg-theme-accent/10'
+              : 'border-theme-border hover:border-theme-bg-hover hover:bg-theme-bg-hover'
+          "
+          :data-testid="`displayed-badge-option-${option.id || 'auto'}`"
+          @click="pickBadge(option.id)">
+          <BadgeIcon v-if="option.badge" :badge="option.badge" :size="28" class="flex-shrink-0" />
+          <span
+            v-else
+            class="w-7 h-7 rounded-full bg-theme-bg-tertiary border border-theme-border flex items-center justify-center flex-shrink-0">
+            <PhMedal class="w-4 h-4 text-theme-text-muted" />
+          </span>
+
+          <div class="flex-1 min-w-0 text-left">
+            <div class="text-sm font-medium text-theme-text-primary truncate">
+              {{ option.label }}
+            </div>
+            <div class="text-xs text-theme-text-muted mt-0.5 break-words">
+              {{ option.detail }}
+            </div>
+          </div>
+
+          <div
+            v-if="selectedBadge === option.id"
+            class="w-5 h-5 rounded-full bg-theme-accent flex items-center justify-center flex-shrink-0">
+            <PhCheck class="w-3 h-3 text-white" />
+          </div>
+        </button>
+      </div>
+
+      <div v-if="badgeError" class="text-xs text-red-400" data-testid="displayed-badge-error">
+        {{ badgeError }}
+      </div>
+    </div>
+
     <!-- Avatar Crop Modal -->
     <AvatarCropModal
       v-if="showCropModal"
@@ -180,11 +241,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, useTemplateRef } from "vue"
-import { useUserStore, usePermissionsStore } from "@/stores"
+import { ref, computed, nextTick, onMounted, useTemplateRef } from "vue"
+import { useUserStore, usePermissionsStore, useBadgesStore } from "@/stores"
 import UserAvatar from "@/components/UserAvatar.vue"
+import BadgeIcon from "@/components/badges/BadgeIcon.vue"
 import AvatarCropModal from "@/components/AvatarCropModal.vue"
-import { PhUserCircle, PhPencil, PhCamera, PhSpinner, PhCheck } from "@phosphor-icons/vue"
+import { PhUserCircle, PhPencil, PhCamera, PhSpinner, PhCheck, PhMedal } from "@phosphor-icons/vue"
 
 defineProps<{
   hideHeader?: boolean
@@ -192,6 +254,7 @@ defineProps<{
 
 const userStore = useUserStore()
 const permissionsStore = usePermissionsStore()
+const badgesStore = useBadgesStore()
 
 // ---- Name colour -----------------------------------------------------------
 
@@ -230,6 +293,62 @@ async function pickColorRole(roleId: string) {
     isSavingColor.value = false
   }
 }
+
+// ---- Displayed badge -------------------------------------------------------
+
+const isSavingBadge = ref(false)
+const badgeError = ref("")
+
+const myBadges = computed(() => badgesStore.badgesOf(userStore.userId))
+
+/** Current pin; no pin means "automatic: newest award". */
+const selectedBadge = computed(() => myBadges.value.find((b) => b.displayed)?.id ?? "")
+
+const badgeOptions = computed(() => {
+  const newest = myBadges.value[0]
+  return [
+    {
+      id: "",
+      label: "Automatic",
+      detail: newest ? `Newest badge: ${newest.name}` : "Your newest badge",
+      badge: null,
+    },
+    ...myBadges.value.map((b) => ({
+      id: b.id,
+      label: b.name,
+      detail: b.description || awardedLabel(b.assignedAt),
+      badge: b,
+    })),
+  ]
+})
+
+function awardedLabel(assignedAt: string): string {
+  const date = new Date(assignedAt)
+  if (isNaN(date.getTime())) return "Awarded"
+  return `Awarded ${date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  })}`
+}
+
+async function pickBadge(badgeId: string) {
+  if (badgeId === selectedBadge.value || isSavingBadge.value) return
+  isSavingBadge.value = true
+  badgeError.value = ""
+  try {
+    await badgesStore.setDisplayedBadge(badgeId || null)
+  } catch {
+    badgeError.value = "Failed to update displayed badge"
+  } finally {
+    isSavingBadge.value = false
+  }
+}
+
+onMounted(() => {
+  // Settings can open before the member list loaded the library.
+  void badgesStore.ensureLoaded()
+})
 
 // ---- Nickname --------------------------------------------------------------
 

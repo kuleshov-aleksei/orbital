@@ -38,6 +38,7 @@
           :data-testid="`user-mobile-icon-${user.id}`">
           <PhDeviceMobile class="w-3.5 h-3.5" weight="bold" />
         </span>
+        <UserBadges :user-id="user.id" :size="15" featured />
       </div>
 
       <div class="text-xs text-theme-text-muted truncate">
@@ -106,6 +107,7 @@ import { PhDeviceMobile, PhMicrophoneSlash, PhSpeakerHigh } from "@phosphor-icon
 import UserAvatar from "@/components/UserAvatar.vue"
 import EmojiGlyph from "@/components/EmojiGlyph.vue"
 import UserContextMenu from "@/components/UserContextMenu.vue"
+import UserBadges from "@/components/badges/UserBadges.vue"
 import { usePermissionsStore } from "@/stores"
 import type { UserRole } from "@/types"
 

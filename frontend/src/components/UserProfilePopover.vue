@@ -149,6 +149,12 @@
 
           <!-- Stats -->
           <div class="border-t border-theme-border pt-3 space-y-2">
+            <div v-if="hasBadges" data-testid="profile-badges">
+              <div class="text-[11px] font-semibold uppercase tracking-wide text-theme-text-muted">
+                Badges
+              </div>
+              <UserBadges class="mt-1" :user-id="user.id" :size="26" wrap />
+            </div>
             <div v-if="memberSince">
               <div class="text-[11px] font-semibold uppercase tracking-wide text-theme-text-muted">
                 Member since
@@ -261,8 +267,15 @@ import {
 import UserAvatar from "@/components/UserAvatar.vue"
 import EmojiGlyph from "@/components/EmojiGlyph.vue"
 import EmojiPicker from "@/components/EmojiPicker.vue"
+import UserBadges from "@/components/badges/UserBadges.vue"
 import type { EmojiRef } from "@/services/emoji"
-import { useUserStore, useUsersStore, useRoomStore, usePermissionsStore } from "@/stores"
+import {
+  useUserStore,
+  useUsersStore,
+  useRoomStore,
+  usePermissionsStore,
+  useBadgesStore,
+} from "@/stores"
 import type { PublicUser } from "@/types"
 
 const props = defineProps<{
@@ -280,6 +293,7 @@ const userStore = useUserStore()
 const usersStore = useUsersStore()
 const permissionsStore = usePermissionsStore()
 const roomStore = useRoomStore()
+const badgesStore = useBadgesStore()
 
 const popoverRef = useTemplateRef<HTMLElement>("popoverRef")
 const statusInput = useTemplateRef<HTMLInputElement>("statusInput")
@@ -296,6 +310,8 @@ const user = computed<PublicUser | null>(() => {
 })
 
 const hasStatus = computed(() => !!(user.value?.custom_status || user.value?.custom_status_emoji))
+
+const hasBadges = computed(() => !!user.value && badgesStore.badgesOf(user.value.id).length > 0)
 
 const status = computed(() => (user.value?.is_online ? "online" : "offline"))
 

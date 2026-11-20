@@ -665,6 +665,39 @@ DROP TABLE IF EXISTS halloween_game_results;
 DROP TABLE IF EXISTS halloween_pumpkins;
 DROP TABLE IF EXISTS halloween_items;`,
 	},
+	{
+		Version: 53,
+		Name:    "create_badges",
+		// Profile badges (achievements): one definition awarded to many users.
+		// Images live next to emoji images, in data/badges.
+		SQL: `CREATE TABLE IF NOT EXISTS badges (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			description TEXT NOT NULL DEFAULT '',
+			filename TEXT NOT NULL,
+			file_size INTEGER NOT NULL DEFAULT 0,
+			created_by TEXT,
+			created_at DATETIME NOT NULL
+		);
+CREATE TABLE IF NOT EXISTS user_badges (
+			user_id TEXT NOT NULL,
+			badge_id TEXT NOT NULL,
+			assigned_by TEXT,
+			assigned_at DATETIME NOT NULL,
+			PRIMARY KEY (user_id, badge_id)
+		);
+CREATE INDEX IF NOT EXISTS idx_user_badges_badge ON user_badges(badge_id);
+CREATE INDEX IF NOT EXISTS idx_badges_created ON badges(created_at);`,
+	},
+	{
+		Version: 54,
+		Name:    "badge_displayed",
+		// One badge per user can be pinned next to their nickname. Without a
+		// pin, clients show the newest award. The partial unique index makes
+		// "at most one displayed badge" a database guarantee.
+		SQL: `ALTER TABLE user_badges ADD COLUMN displayed INTEGER NOT NULL DEFAULT 0;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_badges_displayed ON user_badges(user_id) WHERE displayed = 1;`,
+	},
 }
 
 // RunMigrationsUpTo applies migrations up to and including maxVersion.

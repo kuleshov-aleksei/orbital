@@ -707,6 +707,30 @@ export interface CustomEmojiLookupDto {
   shortcodes?: Record<string, string>
 }
 
+// Profile badge (shared achievement definition), super-admin managed
+export interface BadgeDto {
+  id: string
+  name: string
+  description: string
+  file_size: number
+  created_by?: string
+  created_at: string
+  image_url: string
+}
+
+// One user's hold on a badge
+export interface UserBadgeDto {
+  badge_id: string
+  assigned_at: string
+  // true for the one badge the user pinned next to their nickname
+  displayed?: boolean
+}
+
+// GET /api/badges/assignments: every user's badges, keyed by user id
+export interface BadgeAssignmentsDto {
+  assignments: Record<string, UserBadgeDto[]>
+}
+
 // Payload of the "sound_played" WebSocket event
 export interface SoundPlayedData {
   room_id: string

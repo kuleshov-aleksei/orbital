@@ -14,6 +14,9 @@ import {
   CustomEmojiDto,
   CustomEmojiLookupDto,
   CustomEmojiPageDto,
+  BadgeDto,
+  BadgeAssignmentsDto,
+  UserBadgeDto,
   StatsStatus,
   AnalyticsReport,
   SecuritySelfCheckReport,
@@ -1530,6 +1533,72 @@ export const apiService = {
       return `${API_BASE}${emoji.image_url.slice("/api".length)}`
     }
     return resolveUrl(emoji.image_url)
+  },
+
+  // Badge API calls (the library and assignments are readable by every
+  // signed-in user; mutations require the super admin)
+  async getBadges(): Promise<BadgeDto[]> {
+    return apiRequest<BadgeDto[]>("/badges")
+  },
+
+  async getBadgeAssignments(): Promise<BadgeAssignmentsDto> {
+    return apiRequest<BadgeAssignmentsDto>("/badges/assignments")
+  },
+
+  async uploadBadge(input: { file: File; name: string; description: string }): Promise<BadgeDto> {
+    const form = new FormData()
+    form.append("image", input.file)
+    form.append("name", input.name)
+    form.append("description", input.description)
+    return apiRequest<BadgeDto>("/admin/badges", { method: "POST", body: form })
+  },
+
+  async updateBadge(id: string, patch: { name?: string; description?: string }): Promise<BadgeDto> {
+    return apiRequest<BadgeDto>(`/admin/badges/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    })
+  },
+
+  async replaceBadgeImage(id: string, file: File): Promise<BadgeDto> {
+    const form = new FormData()
+    form.append("image", file)
+    return apiRequest<BadgeDto>(`/admin/badges/${id}/image`, { method: "PUT", body: form })
+  },
+
+  async deleteBadge(id: string): Promise<void> {
+    await apiRequest<{ status: string }>(`/admin/badges/${id}`, { method: "DELETE" })
+  },
+
+  /** Replaces one user's whole badge set (super admin only). */
+  async setUserBadges(
+    userId: string,
+    badgeIds: string[],
+  ): Promise<{ user_id: string; badges: UserBadgeDto[] }> {
+    return apiRequest<{ user_id: string; badges: UserBadgeDto[] }>(
+      `/admin/users/${userId}/badges`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ badge_ids: badgeIds }),
+      },
+    )
+  },
+
+  getBadgeImageUrl(badge: BadgeDto): string {
+    if (badge.image_url.startsWith("/api/")) {
+      return `${API_BASE}${badge.image_url.slice("/api".length)}`
+    }
+    return resolveUrl(badge.image_url)
+  },
+
+  /** Pins one of the caller's badges next to their nickname ("" = newest award). */
+  async setDisplayedBadge(
+    badgeId: string | null,
+  ): Promise<{ user_id: string; badges: UserBadgeDto[] }> {
+    return apiRequest<{ user_id: string; badges: UserBadgeDto[] }>("/users/me/displayed-badge", {
+      method: "PUT",
+      body: JSON.stringify({ badge_id: badgeId ?? "" }),
+    })
   },
 
   async deleteSoundboardSound(id: string): Promise<void> {

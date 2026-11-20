@@ -58,6 +58,13 @@ const keySafe = (s: string) => s.replace(/[^A-Za-z0-9=-]/g, "-")
 export const emojiMediaKey = (id: string, version: string, still = false) =>
   `emoji-${keySafe(id)}-${keySafe(version)}_${still ? "emojistill" : "emoji"}`
 
+/**
+ * Cache key of a badge image. Like emojis, the image URL's `v` param (a fresh
+ * filename per upload) is part of the key, so a replaced image is cached anew.
+ */
+export const badgeMediaKey = (id: string, version: string) =>
+  `badge-${keySafe(id)}-${keySafe(version)}_badge`
+
 export function isMediaCached(key: string): boolean {
   return cached.has(key)
 }

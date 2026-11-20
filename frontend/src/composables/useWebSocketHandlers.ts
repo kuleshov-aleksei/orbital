@@ -10,6 +10,7 @@ import {
   usePermissionsStore,
   useSoundboardStore,
   useCustomEmojisStore,
+  useBadgesStore,
   useTextChatStore,
   useTextNotifyStore,
   useConfigStore,
@@ -62,6 +63,7 @@ export function useWebSocketHandlers() {
   const permissionsStore = usePermissionsStore()
   const soundboardStore = useSoundboardStore()
   const customEmojisStore = useCustomEmojisStore()
+  const badgesStore = useBadgesStore()
   const textChatStore = useTextChatStore()
   const textNotifyStore = useTextNotifyStore()
   const configStore = useConfigStore()
@@ -246,6 +248,27 @@ export function useWebSocketHandlers() {
     }
     wsService.onGlobal("custom_emojis_updated", onCustomEmojisUpdated)
     onCleanup(() => wsService.offGlobal("custom_emojis_updated", onCustomEmojisUpdated))
+
+    // Badge library changed (created/edited/deleted): definitions and the
+    // assignments can both have changed (a delete drops its holders).
+    const onBadgesUpdated: MessageCallback = () => {
+      void badgesStore.onLibraryChanged()
+    }
+    wsService.onGlobal("badges_updated", onBadgesUpdated)
+    onCleanup(() => wsService.offGlobal("badges_updated", onBadgesUpdated))
+
+    // One user's badges changed: patch that user in place.
+    const onUserBadgesUpdated: MessageCallback = (message) => {
+      const data = message.data as
+        | {
+            user_id?: string
+            badges?: { badge_id: string; assigned_at: string; displayed?: boolean }[]
+          }
+        | undefined
+      if (data?.user_id) badgesStore.applyUserBadges(data.user_id, data.badges ?? [])
+    }
+    wsService.onGlobal("user_badges_updated", onUserBadgesUpdated)
+    onCleanup(() => wsService.offGlobal("user_badges_updated", onUserBadgesUpdated))
 
     const onRoomCreated: MessageCallback = (message) => {
       const newRoom = message.data as Room

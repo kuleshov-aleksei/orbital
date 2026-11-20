@@ -263,6 +263,11 @@
           <EmojiAdmin />
         </div>
 
+        <!-- Badges Section (owner only) -->
+        <div v-if="activeTab === 'badges' && isSuperAdmin">
+          <BadgeAdmin />
+        </div>
+
         <!-- Audio Section -->
         <div
           v-if="activeTab === 'audio' && canManageAudio"
@@ -608,6 +613,7 @@ import { Permission } from "@/types/permissions"
 import RolesAdmin from "@/components/admin/RolesAdmin.vue"
 import SoundboardAdmin from "@/components/admin/SoundboardAdmin.vue"
 import EmojiAdmin from "@/components/admin/EmojiAdmin.vue"
+import BadgeAdmin from "@/components/admin/BadgeAdmin.vue"
 import { apiService } from "@/services/api"
 import { useAdminStats } from "@/composables/useAdminStats"
 import StatsMap from "@/components/admin/StatsMap.vue"
@@ -634,6 +640,7 @@ import {
   PhMagnifyingGlass,
   PhSpeakerHigh,
   PhSmiley,
+  PhMedal,
   PhChartBar,
   PhChartLine,
 } from "@phosphor-icons/vue"
@@ -666,6 +673,7 @@ type AdminTab =
   | "audio"
   | "soundboard"
   | "emojis"
+  | "badges"
   | "stats"
   | "analytics"
 
@@ -695,6 +703,13 @@ const tabs = computed<AdminTabDef[]>(() => {
       icon: PhIdentificationBadge,
       group: "Members",
       visible: permissionsStore.canManageRoles,
+    },
+    {
+      id: "badges",
+      label: "Badges",
+      icon: PhMedal,
+      group: "Members",
+      visible: owner,
     },
     {
       id: "audio",

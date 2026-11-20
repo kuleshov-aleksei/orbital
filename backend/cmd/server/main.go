@@ -70,6 +70,7 @@ func main() {
 	var audioService *service.AudioService
 	var soundboardService *service.SoundboardService
 	var emojiService *service.EmojiService
+	var badgeService *service.BadgeService
 	var sessionRepo *repository.SessionRepository
 	var qrLoginRepo *repository.QRLoginRepository
 	var analyticsService *service.AnalyticsService
@@ -120,6 +121,7 @@ func main() {
 		audioService = service.NewAudioService(repository.NewAudioRepository(db), "data", cfg.RateLimit.AudioQuotaBytes())
 		soundboardService = service.NewSoundboardService(repository.NewSoundboardRepository(db), "data")
 		emojiService = service.NewEmojiService(repository.NewEmojiRepository(db), "data", cfg.Emoji.MaxCustom)
+		badgeService = service.NewBadgeService(repository.NewBadgeRepository(db), userRepo, "data")
 		analyticsService = service.NewAnalyticsService(sessionRepo)
 
 		// Load data from database
@@ -328,6 +330,11 @@ func main() {
 		if soundboardHandler != nil {
 			soundboardHandler.SetEmojiLookup(emojiService)
 		}
+	}
+
+	var badgeHandler *handlers.BadgeHandler
+	if badgeService != nil {
+		badgeHandler = handlers.NewBadgeHandler(badgeService, wsHub)
 	}
 
 	// Setup router
@@ -562,6 +569,16 @@ func main() {
 		r.Handle("/api/admin/emojis/{id}", auth(http.HandlerFunc(emojiHandler.DeleteEmoji))).Methods("DELETE")
 	}
 
+	// Badges: definitions and who holds them are visible to every signed-in
+	// user (profile cards, member list); images are public like emoji images.
+	// Mutations live on the super-admin router below.
+	if badgeHandler != nil {
+		r.Handle("/api/badges", auth(http.HandlerFunc(badgeHandler.ListBadges))).Methods("GET")
+		r.Handle("/api/badges/assignments", auth(http.HandlerFunc(badgeHandler.GetAssignments))).Methods("GET")
+		r.HandleFunc("/api/badges/{id}/image", badgeHandler.GetBadgeImage).Methods("GET")
+		r.Handle("/api/users/me/displayed-badge", auth(http.HandlerFunc(badgeHandler.SetMyDisplayedBadge))).Methods("PUT")
+	}
+
 	// Shared audio management (manage_audio)
 	if audioHandler != nil {
 		r.Handle("/api/admin/audio/{id}", requirePerm(permissions.ManageAudio, audioHandler.DeleteAudio)).Methods("DELETE")
@@ -586,6 +603,15 @@ func main() {
 	superAdminRouter.HandleFunc("/outbound-proxy", outboundProxyHandler.Update).Methods("PUT")
 	superAdminRouter.HandleFunc("/outbound-proxy/test", outboundProxyHandler.Test).Methods("POST")
 	superAdminRouter.HandleFunc("/logs/{id}", adminHandler.DeleteDebugLog).Methods("DELETE")
+	if badgeHandler != nil {
+		badgeUploadHandler := limiter.Middleware("badge-upload", emojiUploadLimit, userOrIPKey, http.HandlerFunc(badgeHandler.UploadBadge))
+		superAdminRouter.Handle("/badges", badgeUploadHandler).Methods("POST")
+		superAdminRouter.HandleFunc("/badges/{id}", badgeHandler.UpdateBadge).Methods("PATCH")
+		badgeImageHandler := limiter.Middleware("badge-upload", emojiUploadLimit, userOrIPKey, http.HandlerFunc(badgeHandler.ReplaceBadgeImage))
+		superAdminRouter.Handle("/badges/{id}/image", badgeImageHandler).Methods("PUT")
+		superAdminRouter.HandleFunc("/badges/{id}", badgeHandler.DeleteBadge).Methods("DELETE")
+		superAdminRouter.HandleFunc("/users/{id}/badges", badgeHandler.SetUserBadges).Methods("PUT")
+	}
 
 	// Stats collection routes (super_admin only)
 	superAdminRouter.HandleFunc("/stats/rooms/{id}/enable", adminHandler.EnableStats).Methods("POST")

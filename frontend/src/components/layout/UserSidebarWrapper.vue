@@ -36,6 +36,7 @@ import {
   useUsersStore,
   usePermissionsStore,
   useTextChatStore,
+  useBadgesStore,
 } from "@/stores"
 import UserSidebar from "@/components/UserSidebar.vue"
 
@@ -44,6 +45,7 @@ const appStore = useAppStore()
 const usersStore = useUsersStore()
 const permissionsStore = usePermissionsStore()
 const textChatStore = useTextChatStore()
+const badgesStore = useBadgesStore()
 
 // While a text channel is open, list only the users who can see it.
 const visibleUsers = computed(() => {
@@ -73,5 +75,7 @@ const isCollapsed = ref(false)
 // Fetch users when component is mounted
 onMounted(() => {
   void usersStore.fetchAllUsers()
+  // Badge definitions and who holds them: the member list renders them.
+  void badgesStore.ensureLoaded()
 })
 </script>
