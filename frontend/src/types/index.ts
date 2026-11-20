@@ -81,6 +81,9 @@ export interface User {
   last_seen?: string
   role: UserRole
   sound_pack?: string
+  // When the Terms/Privacy Policy were accepted; null = not yet accepted.
+  // Only sent for the signed-in user's own record.
+  accepted_terms_at?: string | null
 }
 
 // WebSocket message types

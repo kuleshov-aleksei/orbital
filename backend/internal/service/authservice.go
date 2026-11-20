@@ -465,6 +465,22 @@ func (s *AuthService) CreateGuestUser() (*models.User, error) {
 	return user, nil
 }
 
+// AcceptTerms records that the user accepted the Terms of Service and
+// Privacy Policy now, and returns the updated user.
+func (s *AuthService) AcceptTerms(userID string) (*models.User, error) {
+	if err := s.userRepo.SetAcceptedTermsAt(userID, time.Now().UTC()); err != nil {
+		return nil, fmt.Errorf("failed to record terms acceptance: %w", err)
+	}
+	user, err := s.userRepo.GetByID(userID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, fmt.Errorf("user not found")
+	}
+	return user, nil
+}
+
 // TokenLifetime is how long an issued JWT (and its session) stays valid
 // without a refresh.
 const TokenLifetime = 60 * 24 * time.Hour

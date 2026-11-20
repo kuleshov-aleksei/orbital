@@ -265,6 +265,7 @@ interface RegisterRequest {
   email: string
   nickname: string
   password: string
+  accepted_terms: boolean
 }
 
 // QR device linking types (snake_case for backend)
@@ -1018,9 +1019,10 @@ export const apiService = {
     void this.initiateOAuthLogin("google")
   },
 
-  async guestLogin(): Promise<AuthResponse> {
+  async guestLogin(acceptedTerms: boolean): Promise<AuthResponse> {
     const response = await apiRequest<AuthResponse>("/auth/guest", {
       method: "POST",
+      body: JSON.stringify({ accepted_terms: acceptedTerms }),
     })
     // Store token
     setAuthToken(response.token)
@@ -1028,12 +1030,18 @@ export const apiService = {
     return response
   },
 
-  async register(email: string, nickname: string, password: string): Promise<AuthResponse> {
+  async register(
+    email: string,
+    nickname: string,
+    password: string,
+    acceptedTerms: boolean,
+  ): Promise<AuthResponse> {
     // Backend expects snake_case (per AGENTS.md convention)
     const request: RegisterRequest = {
       email,
       nickname,
       password,
+      accepted_terms: acceptedTerms,
     }
     const response = await apiRequest<LoginResponse>("/auth/register", {
       method: "POST",
@@ -1157,6 +1165,12 @@ export const apiService = {
 
   async getCurrentUser(): Promise<User> {
     return apiRequest<User>("/auth/me")
+  },
+
+  // Records that the signed-in user accepted the Terms of Service and
+  // Privacy Policy; returns the updated user.
+  async acceptTerms(): Promise<User> {
+    return apiRequest<User>("/auth/accept-terms", { method: "POST" })
   },
 
   async getAuthStatus(): Promise<AuthStatus> {

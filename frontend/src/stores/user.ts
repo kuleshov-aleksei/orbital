@@ -23,6 +23,33 @@ export interface UserSession {
   avatarUrl?: string
   isGuest: boolean
   role: UserRole
+  /**
+   * When the Terms of Service and Privacy Policy were accepted. `null`: the
+   * server says not yet (the acceptance screen is shown). `undefined`: not
+   * known yet (e.g. offline), which never blocks the app.
+   */
+  acceptedTermsAt?: string | null
+}
+
+// Set when the user ticks the terms checkbox and leaves for an OAuth provider,
+// so the acceptance is recorded once the redirect brings them back signed in.
+const TERMS_PENDING_KEY = "orbital_terms_accept_pending"
+
+function readTermsPending(): boolean {
+  try {
+    return sessionStorage.getItem(TERMS_PENDING_KEY) === "1"
+  } catch {
+    return false
+  }
+}
+
+function writeTermsPending(pending: boolean) {
+  try {
+    if (pending) sessionStorage.setItem(TERMS_PENDING_KEY, "1")
+    else sessionStorage.removeItem(TERMS_PENDING_KEY)
+  } catch {
+    // Storage unavailable: the acceptance screen asks after sign-in instead.
+  }
 }
 
 export const useUserStore = defineStore("user", () => {
@@ -47,6 +74,9 @@ export const useUserStore = defineStore("user", () => {
   const avatarUrl = computed(() => currentUser.value?.avatarUrl)
   const role = computed(() => currentUser.value?.role || "guest")
   const isSuperAdmin = computed(() => role.value === "super_admin")
+  const needsTermsAcceptance = computed(
+    () => isAuthenticated.value && currentUser.value?.acceptedTermsAt === null,
+  )
 
   // Offline snapshots (rooms, messages, outbox) belong to this account only.
   watch(userId, (id) => setOfflineCacheUser(id), { immediate: true, flush: "sync" })
@@ -194,6 +224,7 @@ export const useUserStore = defineStore("user", () => {
         user.avatarUrl = freshUser.avatar_url
         user.nickname = freshUser.nickname
         user.role = freshUser.role
+        user.acceptedTermsAt = freshUser.accepted_terms_at
         localStorage.setItem("orbital_user_role", freshUser.role)
 
         // Load user's sound pack preference
@@ -258,7 +289,42 @@ export const useUserStore = defineStore("user", () => {
     sessionExpired.value = true
   }
 
-  function loginWithProvider(provider: "discord" | "google") {
+  function setAcceptedTermsAt(value: string | null | undefined) {
+    if (currentUser.value) currentUser.value = { ...currentUser.value, acceptedTermsAt: value }
+  }
+
+  /** Records acceptance of the Terms of Service and Privacy Policy. */
+  async function acceptTerms() {
+    const user = await apiService.acceptTerms()
+    writeTermsPending(false)
+    setAcceptedTermsAt(user.accepted_terms_at ?? new Date().toISOString())
+  }
+
+  // Sign-ins that don't return our user record (OAuth, QR) learn the
+  // acceptance state here, and record the acceptance ticked before an OAuth
+  // redirect.
+  async function syncTermsAcceptance() {
+    if (!currentUser.value || currentUser.value.acceptedTermsAt) {
+      writeTermsPending(false)
+      return
+    }
+    try {
+      if (readTermsPending()) {
+        await acceptTerms()
+        return
+      }
+      if (currentUser.value.acceptedTermsAt === undefined) {
+        const freshUser = await apiService.getCurrentUser()
+        setAcceptedTermsAt(freshUser.accepted_terms_at)
+      }
+    } catch (error) {
+      // Unknown stays unknown: the next startup's /auth/me check asks again.
+      console.warn("Could not sync terms acceptance:", error)
+    }
+  }
+
+  function loginWithProvider(provider: "discord" | "google", acceptedTerms = false) {
+    writeTermsPending(acceptedTerms)
     // Redirect to OAuth provider
     if (provider === "discord") {
       apiService.initiateDiscordLogin()
@@ -267,9 +333,9 @@ export const useUserStore = defineStore("user", () => {
     }
   }
 
-  async function continueAsGuest() {
+  async function continueAsGuest(acceptedTerms = false) {
     try {
-      const response = await apiService.guestLogin()
+      const response = await apiService.guestLogin(acceptedTerms)
       const user: UserSession = {
         id: response.user.id,
         nickname: response.user.nickname,
@@ -278,6 +344,7 @@ export const useUserStore = defineStore("user", () => {
         role: response.user.role || "guest",
         email: response.user.email,
         avatarUrl: response.user.avatar_url,
+        acceptedTermsAt: response.user.accepted_terms_at,
       }
       sessionExpired.value = false
       setUser(user, response.token, response.expires_at)
@@ -300,6 +367,7 @@ export const useUserStore = defineStore("user", () => {
         role: response.user.role || "user",
         email: response.user.email,
         avatarUrl: response.user.avatar_url,
+        acceptedTermsAt: response.user.accepted_terms_at,
       }
       sessionExpired.value = false
       setUser(user, response.token, response.expires_at)
@@ -311,9 +379,14 @@ export const useUserStore = defineStore("user", () => {
     }
   }
 
-  async function register(email: string, nickname: string, password: string) {
+  async function register(
+    email: string,
+    nickname: string,
+    password: string,
+    acceptedTerms: boolean,
+  ) {
     try {
-      const response = await apiService.register(email, nickname, password)
+      const response = await apiService.register(email, nickname, password, acceptedTerms)
       const user: UserSession = {
         id: response.user.id,
         nickname: response.user.nickname,
@@ -322,6 +395,7 @@ export const useUserStore = defineStore("user", () => {
         role: response.user.role || "user",
         email: response.user.email,
         avatarUrl: response.user.avatar_url,
+        acceptedTermsAt: response.user.accepted_terms_at,
       }
       sessionExpired.value = false
       setUser(user, response.token, response.expires_at)
@@ -359,6 +433,7 @@ export const useUserStore = defineStore("user", () => {
     setUser(userData, tokenStr, expiresAt)
     hasCompletedAuth.value = true
     localStorage.setItem("orbital_has_completed_auth", "true")
+    void syncTermsAcceptance()
   }
 
   return {
@@ -374,6 +449,8 @@ export const useUserStore = defineStore("user", () => {
     isGuest,
     role,
     isSuperAdmin,
+    needsTermsAcceptance,
+    acceptTerms,
     hasCompletedAuth,
     sessionExpired,
     nicknameUpdateStatus,

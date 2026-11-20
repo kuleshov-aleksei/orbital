@@ -241,6 +241,14 @@
                 </p>
               </div>
 
+              <!-- Terms acceptance (register mode): unchecked by default, required -->
+              <div v-if="isRegisterMode" class="mt-4 mb-1">
+                <TermsCheckbox
+                  v-model="acceptedTerms"
+                  testid="auth-accept-terms"
+                  @open="legalDoc = $event" />
+              </div>
+
               <!-- Submit Button -->
               <button
                 type="submit"
@@ -259,11 +267,21 @@
                 <div class="flex-1 border-t border-theme-border" />
               </div>
 
+              <!-- These buttons can create an account, so they need the same
+                   explicit consent as registration. Unchecked by default. -->
+              <div class="mb-3">
+                <TermsCheckbox
+                  v-model="acceptedTerms"
+                  testid="auth-accept-terms-quick"
+                  @open="legalDoc = $event" />
+              </div>
+
               <div class="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   data-testid="auth-oauth-discord"
-                  class="flex items-center justify-center gap-2 px-3 py-3 bg-[#5865F2] hover:bg-[#4752C4] text-white rounded-lg transition-colors duration-200 font-medium"
+                  :disabled="!acceptedTerms"
+                  class="flex items-center justify-center gap-2 px-3 py-3 bg-[#5865F2] hover:bg-[#4752C4] text-white rounded-lg transition-colors duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   @click="handleLoginWithDiscord">
                   <DiscordIcon class="w-5 h-5" />
                   Discord
@@ -271,7 +289,8 @@
                 <button
                   type="button"
                   data-testid="auth-oauth-google"
-                  class="flex items-center justify-center gap-2 px-3 py-3 bg-theme-text-primary hover:bg-theme-text-secondary text-theme-bg-primary rounded-lg transition-colors duration-200 font-medium"
+                  :disabled="!acceptedTerms"
+                  class="flex items-center justify-center gap-2 px-3 py-3 bg-theme-text-primary hover:bg-theme-text-secondary text-theme-bg-primary rounded-lg transition-colors duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   @click="handleLoginWithGoogle">
                   <GoogleIcon class="w-5 h-5" />
                   Google
@@ -281,7 +300,8 @@
               <button
                 type="button"
                 data-testid="auth-guest"
-                class="mt-2 w-full flex items-center justify-center gap-2 px-4 py-3 bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-primary rounded-lg transition-colors duration-200 font-medium"
+                :disabled="!acceptedTerms"
+                class="mt-2 w-full flex items-center justify-center gap-2 px-4 py-3 bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-primary rounded-lg transition-colors duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 @click="handleContinueAsGuest">
                 <PhUser class="w-5 h-5" />
                 Continue as guest
@@ -317,6 +337,8 @@
         </div>
       </div>
     </div>
+
+    <LegalModal v-if="legalDoc" :doc="legalDoc" @close="legalDoc = null" />
   </div>
 </template>
 
@@ -337,6 +359,9 @@ import DiscordIcon from "~icons/simple-icons/discord"
 import GoogleIcon from "~icons/logos/google-icon"
 import QRLoginPanel from "@/components/auth/QRLoginPanel.vue"
 import { appOAuthError } from "@/services/oauthApp"
+import LegalModal from "@/components/legal/LegalModal.vue"
+import TermsCheckbox from "@/components/legal/TermsCheckbox.vue"
+import type { LegalDocId } from "@/components/legal/legal"
 
 const userStore = useUserStore()
 const appStore = useAppStore()
@@ -372,6 +397,10 @@ const nicknameTouched = ref(false)
 const emailTouched = ref(false)
 const passwordTouched = ref(false)
 const confirmPasswordTouched = ref(false)
+// Registration needs an explicit opt-in to the Terms and Privacy Policy.
+const acceptedTerms = ref(false)
+// Shown in a modal so the half-filled form survives reading the documents.
+const legalDoc = ref<LegalDocId | null>(null)
 
 const nicknameError = computed(() => nicknameTouched.value && !nickname.value)
 const emailError = computed(() => emailTouched.value && !email.value)
@@ -399,7 +428,8 @@ const canSubmit = computed(() => {
     email.value &&
     isEmailValid.value &&
     isPasswordValid.value &&
-    passwordsMatch.value
+    passwordsMatch.value &&
+    acceptedTerms.value
   )
 })
 
@@ -414,17 +444,31 @@ const isPasswordValid = computed(() => {
   return passwordLengthValid.value && passwordNumberValid.value && passwordSpecialValid.value
 })
 
+const termsRequiredMessage = "Please accept the Terms of Service and Privacy Policy"
+
 const handleLoginWithDiscord = () => {
-  userStore.loginWithProvider("discord")
+  if (!acceptedTerms.value) {
+    errorMessage.value = termsRequiredMessage
+    return
+  }
+  userStore.loginWithProvider("discord", true)
 }
 
 const handleLoginWithGoogle = () => {
-  userStore.loginWithProvider("google")
+  if (!acceptedTerms.value) {
+    errorMessage.value = termsRequiredMessage
+    return
+  }
+  userStore.loginWithProvider("google", true)
 }
 
 const handleContinueAsGuest = async () => {
   try {
-    await userStore.continueAsGuest()
+    if (!acceptedTerms.value) {
+      errorMessage.value = termsRequiredMessage
+      return
+    }
+    await userStore.continueAsGuest(true)
   } catch (error: unknown) {
     const err = error as Error
     errorMessage.value = err.message || "Guest login failed. Please try again."
@@ -474,10 +518,14 @@ const handlePasswordSubmit = async () => {
       errorMessage.value = "Please fill in all fields"
       return
     }
+    if (!acceptedTerms.value) {
+      errorMessage.value = termsRequiredMessage
+      return
+    }
 
     isLoading.value = true
     try {
-      await userStore.register(email.value, nickname.value, password.value)
+      await userStore.register(email.value, nickname.value, password.value, true)
     } catch (error: unknown) {
       const err = error as Error
       errorMessage.value = err.message || "Registration failed. Please try again."

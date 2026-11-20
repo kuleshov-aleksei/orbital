@@ -364,10 +364,25 @@ func (h *AuthHandler) ExchangeAppCode(w http.ResponseWriter, r *http.Request) {
 
 // GuestLogin creates a new guest user
 func (h *AuthHandler) GuestLogin(w http.ResponseWriter, r *http.Request) {
+	// The body is optional: older clients send none, and their guests are
+	// asked to accept the terms after sign-in instead.
+	var req models.GuestLoginRequest
+	if r.Body != nil {
+		_ = json.NewDecoder(r.Body).Decode(&req)
+	}
+
 	user, err := h.authService.CreateGuestUser()
 	if err != nil {
 		http.Error(w, "Failed to create guest user: "+err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	if req.AcceptedTerms {
+		if accepted, err := h.authService.AcceptTerms(user.ID); err != nil {
+			log.Printf("Failed to record terms acceptance for guest %s: %v", user.ID, err)
+		} else {
+			user = accepted
+		}
 	}
 
 	// Generate JWT token
@@ -398,6 +413,26 @@ func (h *AuthHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	user, err := h.authService.GetUserByID(claims.UserID)
 	if err != nil || user == nil {
 		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	writeJSON(w, user)
+}
+
+// AcceptTerms records that the signed-in user accepted the Terms of Service
+// and Privacy Policy (sign-ins without the registration form, and accounts
+// created before the documents existed). Returns the updated user.
+func (h *AuthHandler) AcceptTerms(w http.ResponseWriter, r *http.Request) {
+	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
+	if !ok || claims == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	user, err := h.authService.AcceptTerms(claims.UserID)
+	if err != nil {
+		http.Error(w, "Failed to record acceptance", http.StatusInternalServerError)
 		return
 	}
 
@@ -575,7 +610,14 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Failed to assign super admin if first: %v", err)
 	}
 
-	// Refresh user data in case role was changed
+	if req.AcceptedTerms {
+		if _, err := h.authService.AcceptTerms(user.ID); err != nil {
+			// The client asks again after sign-in while it is still NULL.
+			log.Printf("Failed to record terms acceptance for %s: %v", user.ID, err)
+		}
+	}
+
+	// Refresh user data in case role or terms acceptance changed
 	user, err = h.authService.GetUserByID(user.ID)
 	if err != nil || user == nil {
 		http.Error(w, "Failed to get user", http.StatusInternalServerError)

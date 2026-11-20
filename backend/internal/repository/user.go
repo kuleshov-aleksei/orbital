@@ -21,10 +21,10 @@ func NewUserRepository(db *storage.DB) *UserRepository {
 // Create inserts a new user into the database
 func (r *UserRepository) Create(user *models.User) error {
 	_, err := r.db.Exec(
-		`INSERT INTO users (id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji) 
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO users (id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at) 
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		user.ID, user.Nickname, user.OriginalNickname, user.CreatedAt, user.LastSeen,
-		user.AuthProvider, user.ProviderID, user.Email, user.AvatarURL, user.IsGuest, user.Role, user.PasswordHash, user.SoundPack, user.TokenVersion, user.CustomStatus, user.CustomStatusEmoji,
+		user.AuthProvider, user.ProviderID, user.Email, user.AvatarURL, user.IsGuest, user.Role, user.PasswordHash, user.SoundPack, user.TokenVersion, user.CustomStatus, user.CustomStatusEmoji, user.AcceptedTermsAt,
 	)
 	return err
 }
@@ -38,6 +38,7 @@ func scanUser(scanner interface {
 	var authProvider sql.NullString
 	var isGuest sql.NullBool
 	var tokenVersion sql.NullInt64
+	var acceptedTermsAt sql.NullTime
 
 	err := scanner.Scan(
 		&user.ID,
@@ -56,6 +57,7 @@ func scanUser(scanner interface {
 		&tokenVersion,
 		&customStatus,
 		&customStatusEmoji,
+		&acceptedTermsAt,
 	)
 	if err != nil {
 		return nil, err
@@ -106,6 +108,10 @@ func scanUser(scanner interface {
 	if customStatusEmoji.Valid {
 		user.CustomStatusEmoji = customStatusEmoji.String
 	}
+	if acceptedTermsAt.Valid {
+		t := acceptedTermsAt.Time
+		user.AcceptedTermsAt = &t
+	}
 
 	return user, nil
 }
@@ -113,7 +119,7 @@ func scanUser(scanner interface {
 // GetByID retrieves a user by ID
 func (r *UserRepository) GetByID(id string) (*models.User, error) {
 	user, err := scanUser(r.db.QueryRow(
-		`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji 
+		`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at 
 		 FROM users WHERE id = ?`,
 		id,
 	))
@@ -135,7 +141,7 @@ func (r *UserRepository) GetByProviderID(provider string, providerID string) (*m
 	}
 
 	user, err := scanUser(r.db.QueryRow(
-		`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji 
+		`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at 
 		 FROM users WHERE auth_provider = ? AND provider_id = ?`,
 		provider, providerID,
 	))
@@ -210,7 +216,7 @@ func (r *UserRepository) Delete(id string) error {
 
 // GetAll retrieves all users from the database
 func (r *UserRepository) GetAll() ([]*models.User, error) {
-	rows, err := r.db.Query(`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji FROM users`)
+	rows, err := r.db.Query(`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at FROM users`)
 	if err != nil {
 		return nil, err
 	}
@@ -242,6 +248,16 @@ func (r *UserRepository) IncrementTokenVersion(userID string) error {
 	_, err := r.db.Exec(
 		`UPDATE users SET token_version = token_version + 1 WHERE id = ?`,
 		userID,
+	)
+	return err
+}
+
+// SetAcceptedTermsAt records when the user accepted the Terms of Service and
+// Privacy Policy. NULL means they have not accepted the current documents.
+func (r *UserRepository) SetAcceptedTermsAt(userID string, at time.Time) error {
+	_, err := r.db.Exec(
+		`UPDATE users SET accepted_terms_at = ? WHERE id = ?`,
+		at, userID,
 	)
 	return err
 }
@@ -313,11 +329,11 @@ func (r *UserRepository) GetByEmail(email string, authProvider *models.AuthProvi
 	var args []interface{}
 
 	if authProvider != nil {
-		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji 
+		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at 
 		 FROM users WHERE LOWER(email) = LOWER(?) AND auth_provider = ?`
 		args = []interface{}{email, *authProvider}
 	} else {
-		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji 
+		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at 
 		 FROM users WHERE LOWER(email) = LOWER(?)`
 		args = []interface{}{email}
 	}
@@ -344,11 +360,11 @@ func (r *UserRepository) GetByOriginalNickname(originalNickname string, authProv
 	var args []interface{}
 
 	if authProvider != nil {
-		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji 
+		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at 
 		 FROM users WHERE LOWER(original_nickname) = LOWER(?) AND auth_provider = ?`
 		args = []interface{}{originalNickname, *authProvider}
 	} else {
-		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji 
+		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at 
 		 FROM users WHERE LOWER(original_nickname) = LOWER(?)`
 		args = []interface{}{originalNickname}
 	}

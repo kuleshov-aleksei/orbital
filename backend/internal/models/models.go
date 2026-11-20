@@ -45,6 +45,10 @@ type User struct {
 	Role              string       `json:"role"` // guest, user, super_admin (owner)
 	PasswordHash      string       `json:"-"`    // Never exposed to frontend
 	TokenVersion      int64        `json:"-"`    // Bumped to revoke all issued tokens
+	// When the user accepted the Terms of Service and Privacy Policy; nil
+	// until they do (accounts created before the documents existed, or after
+	// an operator resets it to ask everyone to accept new versions).
+	AcceptedTermsAt *time.Time `json:"accepted_terms_at"`
 }
 
 // PublicUser represents a user with limited public information
@@ -382,6 +386,13 @@ type RegisterRequest struct {
 	Email    string `json:"email"`
 	Nickname string `json:"nickname"`
 	Password string `json:"password"`
+	// AcceptedTerms records the registration form's Terms/Privacy checkbox.
+	AcceptedTerms bool `json:"accepted_terms"`
+}
+
+// GuestLoginRequest is the optional body of POST /api/auth/guest.
+type GuestLoginRequest struct {
+	AcceptedTerms bool `json:"accepted_terms"`
 }
 
 // LoginRequest represents a request to login with email or nickname and password

@@ -28,6 +28,7 @@ interface AuthResponse {
     email?: string
     is_guest?: boolean
     auth_provider?: string
+    accepted_terms_at?: string | null
   }
 }
 
@@ -58,6 +59,13 @@ async function login(
   }
 
   const data = (await res.json()) as AuthResponse
+  // Accounts made before the terms existed would otherwise get the
+  // acceptance screen over the whole UI (TermsAcceptanceGate).
+  if (!data.user.accepted_terms_at) {
+    await request.post(`${BACKEND_URL}/api/auth/accept-terms`, {
+      headers: { Authorization: `Bearer ${data.token}` },
+    })
+  }
   return toTestUser(data, login, password)
 }
 
@@ -68,7 +76,7 @@ async function register(
   password: string,
 ): Promise<TestUser | null> {
   const res = await request.post(`${BACKEND_URL}/api/auth/register`, {
-    data: { email, nickname, password },
+    data: { email, nickname, password, accepted_terms: true },
   })
 
   if (!res.ok()) {
@@ -198,7 +206,9 @@ export async function registerUser(
 }
 
 export async function guestLogin(request: APIRequestContext) {
-  const res = await request.post(`${BACKEND_URL}/api/auth/guest`)
+  const res = await request.post(`${BACKEND_URL}/api/auth/guest`, {
+    data: { accepted_terms: true },
+  })
 
   if (!res.ok()) {
     throw new Error(`Failed to guest login: ${res.status()} ${await res.text()}`)

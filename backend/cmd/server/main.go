@@ -403,6 +403,7 @@ func main() {
 	r.Handle("/api/auth/guest", withRateLimit("guest-login", cfg.RateLimit.GuestPerHour, time.Hour, clientIPKey, http.HandlerFunc(authHandler.GuestLogin))).Methods("POST")
 	r.Handle("/api/auth/logout", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.Logout))).Methods("POST")
 	r.Handle("/api/auth/me", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.GetCurrentUser))).Methods("GET")
+	r.Handle("/api/auth/accept-terms", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.AcceptTerms))).Methods("POST")
 	r.Handle("/api/auth/refresh", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.RefreshToken))).Methods("POST")
 	r.Handle("/api/auth/sessions", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.ListSessions))).Methods("GET")
 	r.Handle("/api/auth/sessions/revoke-others", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.RevokeOtherSessions))).Methods("POST")

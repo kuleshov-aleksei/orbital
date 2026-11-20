@@ -698,6 +698,14 @@ CREATE INDEX IF NOT EXISTS idx_badges_created ON badges(created_at);`,
 		SQL: `ALTER TABLE user_badges ADD COLUMN displayed INTEGER NOT NULL DEFAULT 0;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_user_badges_displayed ON user_badges(user_id) WHERE displayed = 1;`,
 	},
+	{
+		Version: 55,
+		Name:    "users_accepted_terms_at",
+		// Proof that a user accepted the Terms of Service and Privacy Policy.
+		// NULL for existing users: the client asks them to accept on their
+		// next sign-in. Setting it back to NULL asks again (new versions).
+		SQL: `ALTER TABLE users ADD COLUMN accepted_terms_at DATETIME;`,
+	},
 }
 
 // RunMigrationsUpTo applies migrations up to and including maxVersion.

@@ -19,6 +19,16 @@ const router = createRouter({
       component: () => import("@/views/DownloadView.vue"),
     },
     {
+      // Public: linked from registration and usable as the store privacy URL.
+      path: "/legal/:doc(terms|privacy)",
+      name: "legal",
+      component: () => import("@/views/LegalView.vue"),
+    },
+    {
+      path: "/legal",
+      redirect: "/legal/terms",
+    },
+    {
       path: "/admin",
       name: "admin",
       component: () => import("@/views/AdminPanel.vue"),
