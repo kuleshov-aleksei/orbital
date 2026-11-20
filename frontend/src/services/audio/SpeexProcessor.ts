@@ -83,19 +83,25 @@ export class SpeexProcessor implements TrackProcessor<Track.Kind.Audio, AudioPro
       await ensureWorkletLoaded(audioContext)
       const wasmBinary = await ensureWasmLoaded()
 
-      const trackSettings = track.getSettings()
-      const channelCount = trackSettings.channelCount ?? 1
+      debugLog(`[Speex][INFO]: Creating mono processor`)
 
-      debugLog(`[Speex][INFO]: Creating processor with ${channelCount} channels`)
-
+      // Same as RNNoise: the worklet only fills `maxChannels` output channels,
+      // so a stereo capture would come out with a silent right channel. Pin the
+      // graph to mono instead of trusting getSettings().channelCount.
       this.source = audioContext.createMediaStreamSource(new MediaStream([track]))
 
       this.workletNode = new SpeexWorkletNode(audioContext, {
         wasmBinary: wasmBinary,
-        maxChannels: channelCount,
+        maxChannels: 1,
       })
+      this.workletNode.channelCount = 1
+      this.workletNode.channelCountMode = "explicit"
+      this.workletNode.channelInterpretation = "speakers"
 
       this.destination = audioContext.createMediaStreamDestination()
+      this.destination.channelCount = 1
+      this.destination.channelCountMode = "explicit"
+      this.destination.channelInterpretation = "speakers"
 
       this.source.connect(this.workletNode)
       this.workletNode.connect(this.destination)
@@ -104,7 +110,9 @@ export class SpeexProcessor implements TrackProcessor<Track.Kind.Audio, AudioPro
 
       this.processedTrack = processedTrack
 
-      debugLog(`[Speex][INFO]: Speex processor initialized successfully`)
+      debugLog(
+        `[Speex][INFO]: Speex processor initialized successfully (capture ${track.getSettings().channelCount ?? "?"}ch -> processed ${processedTrack?.getSettings().channelCount ?? "?"}ch)`,
+      )
     } catch (error) {
       debugError("[Speex][ERROR]: Failed to initialize Speex processor", error)
       throw error
