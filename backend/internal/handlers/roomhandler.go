@@ -614,6 +614,8 @@ type AppConfigResponse struct {
 	TextChannels bool `json:"text_channels"`
 	// Attachments reports whether text channel attachments are enabled (S3 configured).
 	Attachments *AttachmentsConfig `json:"attachments,omitempty"`
+	// GIFProvider is the configured GIF search provider; empty when off (§7.17).
+	GIFProvider string `json:"gif_provider,omitempty"`
 }
 
 // AttachmentsConfig is the client view of the attachment limits.
@@ -644,6 +646,9 @@ func (h *RoomHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
 			QuotaBytes: l.QuotaBytes, MaxPerMessage: chatstore.MaxAttachmentsPerMessage,
 			ContentSearch: h.textChat.Media.ExtractionEnabled(),
 		}
+	}
+	if h.textChat != nil {
+		cfg.GIFProvider = h.textChat.GIFProvider
 	}
 
 	w.Header().Set("Content-Type", "application/json")

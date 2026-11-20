@@ -17,6 +17,7 @@ import { useTextNotifyStore } from "./textNotify"
 import type {
   TextAttachment,
   TextErrorEvent,
+  TextGIF,
   TextHistoryPage,
   TextMessage,
   TextMessageDeletedEvent,
@@ -66,6 +67,8 @@ export interface PendingTextMessage {
   /** The uploads sent as spoilers (missing on outbox entries from before). */
   spoiler_ids?: string[]
   attachments: TextAttachment[]
+  /** A third-party GIF sent with this message (docs/specs/CHAT_SYSTEM.md §7.17). */
+  gif?: TextGIF
   created_at_ts: number
   /** queued: written offline (or the link dropped), sent on reconnect. */
   status: "queued" | "sending" | "failed"
@@ -164,6 +167,9 @@ export const useTextChatStore = defineStore("textChat", () => {
   const pending = ref<PendingTextMessage[]>([])
   const available = ref(true)
   const replyTarget = ref<TextMessage | null>(null)
+  /** A picked third-party GIF waiting to be sent with the next message
+   * (docs/specs/CHAT_SYSTEM.md §7.17). */
+  const pendingGif = ref<TextGIF | null>(null)
   const editingId = ref<string | null>(null)
   const lastError = ref<string | null>(null)
   /** Pinned messages per channel, loaded when the pins panel opens. */
@@ -569,6 +575,7 @@ export const useTextChatStore = defineStore("textChat", () => {
       nonce: p.nonce,
       ...(p.upload_ids.length ? { upload_ids: p.upload_ids } : {}),
       ...(p.spoiler_ids?.length ? { spoiler_ids: p.spoiler_ids } : {}),
+      ...(p.gif ? { gif: p.gif } : {}),
       ...(p.reply_to_id ? { reply_to_id: p.reply_to_id, reply_ping: p.reply_ping } : {}),
       ...(p.tz ? { tz: p.tz } : {}),
     })
@@ -592,9 +599,10 @@ export const useTextChatStore = defineStore("textChat", () => {
       ids: [],
       attachments: [],
     },
+    gif: TextGIF | null = null,
   ) {
     const text = content.trim()
-    if (!text && !files.ids.length) return
+    if (!text && !files.ids.length && !gif) return
     const reply = replyTarget.value?.room_id === roomId ? replyTarget.value : null
     // A rejected command's usage error has been read once the user sends again.
     for (const old of pending.value.filter((x) => x.room_id === roomId && x.rejected)) {
@@ -609,6 +617,7 @@ export const useTextChatStore = defineStore("textChat", () => {
       upload_ids: files.ids,
       ...(files.spoilerIds?.length ? { spoiler_ids: files.spoilerIds } : {}),
       attachments: files.attachments,
+      ...(gif ? { gif } : {}),
       created_at_ts: Date.now(),
       status: "sending",
       // /remindme reads times in the zone the user is in right now.
@@ -1066,6 +1075,7 @@ export const useTextChatStore = defineStore("textChat", () => {
     available,
     replyTarget,
     replyPing,
+    pendingGif,
     editingId,
     lastError,
     pins,

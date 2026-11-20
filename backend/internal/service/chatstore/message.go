@@ -5,8 +5,11 @@ package chatstore
 
 import (
 	"errors"
+	"net"
+	"net/url"
 	"regexp"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -39,6 +42,28 @@ func invalid(msg string) error { return invalidError{msg} }
 type Reaction struct {
 	Emoji   string   `json:"emoji"`
 	UserIDs []string `json:"user_ids"`
+}
+
+// GIF is a shared third-party GIF (docs/specs/CHAT_SYSTEM.md §7.17). The
+// media is loaded by each client straight from the provider, because the
+// provider terms forbid proxying or re-hosting it; the server stores only
+// the reference and checks that its URLs point at that provider.
+type GIF struct {
+	Provider   string `json:"provider"`
+	ID         string `json:"id"`
+	URL        string `json:"url"`
+	PreviewURL string `json:"preview_url"`
+	Width      int    `json:"width"`
+	Height     int    `json:"height"`
+	Title      string `json:"title"`
+}
+
+func (g *GIF) clone() *GIF {
+	if g == nil {
+		return nil
+	}
+	c := *g
+	return &c
 }
 
 // Message is the stored document (index `text_messages`).
@@ -75,6 +100,8 @@ type Message struct {
 	// Command is the result of a slash command (service/chatcmd); nil for
 	// plain messages.
 	Command *Command `json:"command,omitempty"`
+	// GIF is a shared third-party GIF (docs/specs/CHAT_SYSTEM.md §7.17).
+	GIF *GIF `json:"gif"`
 }
 
 // PublicMessage is what clients receive: no search-only or moderation fields.
@@ -98,6 +125,7 @@ type PublicMessage struct {
 	// EmbedsSuppressed lets clients tell "no previews yet" from "removed".
 	EmbedsSuppressed bool     `json:"embeds_suppressed"`
 	Command          *Command `json:"command,omitempty"`
+	GIF              *GIF     `json:"gif"`
 }
 
 // Public converts a stored message to its client representation.
@@ -110,6 +138,7 @@ func (m *Message) Public() PublicMessage {
 		Attachments: nonNilAttachments(m.Attachments),
 		Embeds:      nonNilEmbeds(m.Embeds), EmbedsSuppressed: m.EmbedsSuppressed,
 		Command: m.Command.clone(),
+		GIF:     m.GIF.clone(),
 	}
 }
 
@@ -140,6 +169,7 @@ func (m *Message) clone() *Message {
 	c.AttachmentNames = append([]string(nil), m.AttachmentNames...)
 	c.Embeds = append([]Embed(nil), m.Embeds...)
 	c.Command = m.Command.clone()
+	c.GIF = m.GIF.clone()
 	c.normalize()
 	return &c
 }
@@ -206,4 +236,105 @@ const maxContentBytes = 32 * 1024
 // token counted as one, as the frontend emojiTextLength does.
 func EmojiTextLength(s string) int {
 	return utf8.RuneCountInString(customEmojiTokenRe.ReplaceAllString(s, "x"))
+}
+
+// Third-party GIF search (docs/specs/CHAT_SYSTEM.md §7.17).
+
+const (
+	// maxGIFURLLen bounds a stored media URL (provider URLs carry delivery
+	// parameters, so they are not rewritten).
+	maxGIFURLLen = 1024
+	// maxGIFDimension bounds the reported size of the animation.
+	maxGIFDimension = 4096
+	// maxGIFTitleRunes bounds the provider title (alt text).
+	maxGIFTitleRunes = 200
+)
+
+// gifProviderDomains are the domains a provider's references may point at.
+// Anything else (a tracking pixel, an arbitrary host) would make every
+// viewer's browser contact it, so the list stays strict; subdomains of the
+// provider's own domain are allowed because the media host varies between
+// renditions.
+var gifProviderDomains = map[string][]string{
+	"klipy": {"klipy.com"},
+	"giphy": {"giphy.com"},
+}
+
+var gifIDRe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+
+// NormalizeGIF validates a GIF reference sent by a client. A nil input stays
+// nil (a message without a GIF).
+func NormalizeGIF(g *GIF) (*GIF, error) {
+	if g == nil {
+		return nil, nil
+	}
+	provider := strings.ToLower(strings.TrimSpace(g.Provider))
+	domains, ok := gifProviderDomains[provider]
+	if !ok {
+		return nil, invalid("unknown GIF provider")
+	}
+	id := strings.TrimSpace(g.ID)
+	if !gifIDRe.MatchString(id) {
+		return nil, invalid("invalid GIF id")
+	}
+	media, err := normalizeGIFURL(g.URL, domains)
+	if err != nil {
+		return nil, err
+	}
+	preview, err := normalizeGIFURL(g.PreviewURL, domains)
+	if err != nil {
+		return nil, err
+	}
+	width, height := g.Width, g.Height
+	if width < 1 || height < 1 || width > maxGIFDimension || height > maxGIFDimension {
+		// Layout hints only; the client falls back to the intrinsic size.
+		width, height = 0, 0
+	}
+	title := gifTitle(g.Title)
+	return &GIF{
+		Provider: provider, ID: id, URL: media, PreviewURL: preview,
+		Width: width, Height: height, Title: title,
+	}, nil
+}
+
+// normalizeGIFURL keeps an https URL on one of the provider's domains.
+func normalizeGIFURL(raw string, domains []string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || len(raw) > maxGIFURLLen {
+		return "", invalid("invalid GIF URL")
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.Port() != "" {
+		return "", invalid("invalid GIF URL")
+	}
+	host := strings.ToLower(u.Hostname())
+	if host == "" || net.ParseIP(host) != nil {
+		return "", invalid("invalid GIF URL")
+	}
+	for _, domain := range domains {
+		if host == domain || strings.HasSuffix(host, "."+domain) {
+			return u.String(), nil
+		}
+	}
+	return "", invalid("invalid GIF URL")
+}
+
+// gifTitle keeps a plain-text title: line breaks become spaces, other
+// control characters are dropped, and the length is bounded.
+func gifTitle(s string) string {
+	s = strings.Map(func(r rune) rune {
+		switch r {
+		case '\n', '\r', '\t':
+			return ' '
+		}
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, s)
+	s = strings.Join(strings.Fields(s), " ")
+	if r := []rune(s); len(r) > maxGIFTitleRunes {
+		s = strings.TrimSpace(string(r[:maxGIFTitleRunes]))
+	}
+	return s
 }

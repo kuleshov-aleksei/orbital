@@ -219,6 +219,9 @@ type CreateInput struct {
 	Attachments []Attachment
 	// Command is a slash command result (service/chatcmd).
 	Command *Command
+	// GIF is a validated reference to a third-party GIF; with one, the
+	// content may be empty.
+	GIF *GIF
 }
 
 // Create stores a message and returns it once Meilisearch accepted the write.
@@ -231,7 +234,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*Message, error) 
 	if len(in.Attachments) > MaxAttachmentsPerMessage {
 		return nil, invalid("too many attachments")
 	}
-	content, err := NormalizeContent(in.Content, len(in.Attachments) > 0)
+	content, err := NormalizeContent(in.Content, len(in.Attachments) > 0 || in.GIF != nil)
 	if err != nil {
 		return nil, err
 	}
@@ -274,6 +277,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*Message, error) 
 		MentionRoleIDs: mentionRoles,
 		Attachments:    in.Attachments,
 		Command:        in.Command.clone(),
+		GIF:            in.GIF.clone(),
 	}
 	msg.AttachmentKinds, msg.AttachmentNames = attachmentIndexFields(in.Attachments)
 	msg.normalize()
@@ -329,7 +333,7 @@ func (s *Service) Edit(ctx context.Context, id, actorID, content string) (*Messa
 		if m.SenderID != actorID || m.Command != nil {
 			return nil, ErrForbidden
 		}
-		text, err := NormalizeContent(content, len(m.Attachments) > 0)
+		text, err := NormalizeContent(content, len(m.Attachments) > 0 || m.GIF != nil)
 		if err != nil {
 			return nil, err
 		}

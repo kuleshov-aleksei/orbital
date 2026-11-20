@@ -79,6 +79,22 @@
         dragging ? 'border-theme-accent border-dashed' : 'border-theme-border',
       ]">
       <ComposerUploads v-if="roomUploads.length" :uploads="roomUploads" />
+      <!-- A GIF picked from the provider, sent with the next message -->
+      <div v-if="pendingGif" class="flex items-center gap-2 px-3 pt-2" data-testid="composer-gif">
+        <div
+          class="relative w-24 rounded-md border border-theme-border bg-theme-bg-secondary overflow-hidden">
+          <img :src="pendingGif.preview_url" alt="" class="block w-full h-16 object-cover" />
+          <button
+            type="button"
+            class="absolute top-1 right-1 w-5 h-5 flex items-center justify-center rounded-full bg-black/70 text-white hover:bg-black/90"
+            aria-label="Remove GIF"
+            data-testid="composer-gif-remove"
+            @click="pendingGif = null">
+            <PhX class="w-3 h-3" />
+          </button>
+        </div>
+        <span class="text-[11px] text-theme-text-muted"> GIF · send with your message </span>
+      </div>
       <div ref="box" class="relative flex items-end gap-2 px-3 py-2">
         <button
           v-if="canAttach"
@@ -141,6 +157,20 @@
           >{{ MAX_CHARS - charCount }}</span
         >
         <button
+          v-if="gifSearchEnabled"
+          type="button"
+          class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded text-theme-text-muted hover:text-theme-text-primary hover:bg-theme-bg-hover transition-colors"
+          :class="{ 'text-theme-text-primary bg-theme-bg-hover': isGifPickerOpen }"
+          title="GIF"
+          aria-label="Insert GIF"
+          :aria-expanded="isGifPickerOpen"
+          :disabled="!canSend"
+          data-testid="gif-button"
+          @mousedown.prevent
+          @click="toggleGifPicker">
+          <PhGif class="w-5 h-5" />
+        </button>
+        <button
           type="button"
           class="w-8 h-8 flex items-center justify-center rounded text-theme-text-muted hover:text-theme-text-primary hover:bg-theme-bg-hover transition-colors"
           :class="{ 'text-theme-text-primary bg-theme-bg-hover': isPickerOpen }"
@@ -149,7 +179,7 @@
           :aria-expanded="isPickerOpen"
           :disabled="!canSend"
           @mousedown.prevent
-          @click="isPickerOpen = !isPickerOpen">
+          @click="toggleEmojiPicker">
           <PhSmiley class="w-5 h-5" />
         </button>
         <button
@@ -173,6 +203,12 @@
           @pick="applySuggestion" />
         <div v-if="isPickerOpen" class="absolute bottom-full right-0 mb-2 z-20 w-[320px]">
           <EmojiPicker @select="insertEmoji" @close="closePicker" />
+        </div>
+        <div
+          v-if="isGifPickerOpen && gifProvider"
+          class="absolute bottom-full right-0 mb-2 z-20 w-[320px] max-w-[calc(100vw-2rem)]"
+          data-testid="gif-picker-popover">
+          <GifPicker :provider="gifProvider" @select="pickGif" @close="closeGifPicker" />
         </div>
         <!-- Formatting for the selected text -->
         <div
@@ -204,6 +240,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from "vue"
 import {
   PhEyeSlash,
+  PhGif,
   PhInfo,
   PhPaperPlaneRight,
   PhPlusCircle,
@@ -214,8 +251,11 @@ import {
   PhX,
 } from "@phosphor-icons/vue"
 import EmojiPicker from "@/components/EmojiPicker.vue"
+import GifPicker from "./GifPicker.vue"
 import ComposerSuggestions, { type Suggestion } from "./ComposerSuggestions.vue"
 import ComposerUploads from "./ComposerUploads.vue"
+import { useGifSearch } from "@/composables/useGifSearch"
+import type { TextGIF } from "@/types/textChat"
 import { openStoragePage } from "@/services/attachments/urls"
 import { formatBytes } from "@/utils/formatBytes"
 import { Permission } from "@/types/permissions"
@@ -286,6 +326,19 @@ const connectionStore = useConnectionStore()
 const input = useTemplateRef<HTMLTextAreaElement>("input")
 const box = useTemplateRef<HTMLDivElement>("box")
 const isPickerOpen = ref(false)
+// Third-party GIF search (docs/specs/CHAT_SYSTEM.md §7.17): settings load
+// once per app session; the button stays hidden while unknown/disabled.
+const {
+  provider: gifProvider,
+  enabled: gifSearchEnabled,
+  ensureLoaded: ensureGifSearch,
+} = useGifSearch()
+const isGifPickerOpen = ref(false)
+const pendingGif = computed({
+  get: () => textChatStore.pendingGif,
+  set: (gif: TextGIF | null) => (textChatStore.pendingGif = gif),
+})
+void ensureGifSearch()
 
 // Drafts survive switching channels (kept for this app session).
 const drafts = draftStore()
@@ -295,6 +348,9 @@ watch(
   async (roomId, previous) => {
     if (previous) drafts.set(previous, draft.value)
     draft.value = drafts.get(roomId) ?? ""
+    // A picked GIF belongs to the channel it was picked in.
+    textChatStore.pendingGif = null
+    isGifPickerOpen.value = false
     closeSuggestions()
     await nextTick()
     autosize()
@@ -369,10 +425,13 @@ async function send() {
     return
   }
   const hasFiles = roomUploads.value.some((u) => u.status === "done")
-  if (!content && !hasFiles) return
+  const gif = pendingGif.value
+  if (!content && !hasFiles && !gif) return
   const files = attachmentsStore.takeReady(props.roomId)
   attachmentsStore.composerError = null
-  textChatStore.sendMessage(props.roomId, content, files)
+  textChatStore.sendMessage(props.roomId, content, files, gif)
+  pendingGif.value = null
+  isGifPickerOpen.value = false
   draft.value = ""
   mentionMap().clear()
   closeSuggestions()
@@ -394,9 +453,11 @@ const canAttach = computed(
     attachmentsStore.enabled &&
     permissionsStore.can(Permission.AttachFiles, { roomId: props.roomId }),
 )
-/** Send button: shown once there is text or an attachment to send. */
+/** Send button: shown once there is text, an attachment or a GIF to send. */
 const showSend = computed(
-  () => props.canSend && (draft.value.trim() !== "" || roomUploads.value.length > 0),
+  () =>
+    props.canSend &&
+    (draft.value.trim() !== "" || roomUploads.value.length > 0 || !!pendingGif.value),
 )
 const quotaWarning = computed(() => canAttach.value && attachmentsStore.usageRatio >= 0.9)
 watch(canAttach, (can) => can && void attachmentsStore.loadUsage(), { immediate: true })
@@ -702,7 +763,9 @@ function onKeydown(event: KeyboardEvent) {
   } else if (event.key === "Escape") {
     // Handled here; the channel view ignores prevented Escapes.
     event.preventDefault()
-    if (isPickerOpen.value) {
+    if (isGifPickerOpen.value) {
+      isGifPickerOpen.value = false
+    } else if (isPickerOpen.value) {
       isPickerOpen.value = false
     } else if (formatBarLeft.value !== null) {
       formatBarLeft.value = null
@@ -796,6 +859,29 @@ async function insertEmoji(ref: EmojiRef) {
 
 function closePicker() {
   isPickerOpen.value = false
+  focus()
+}
+
+/** Emoji and GIF pickers share the same spot above the composer. */
+function toggleEmojiPicker() {
+  isGifPickerOpen.value = false
+  isPickerOpen.value = !isPickerOpen.value
+}
+
+function toggleGifPicker() {
+  isPickerOpen.value = false
+  isGifPickerOpen.value = !isGifPickerOpen.value
+}
+
+/** The picked GIF waits in the composer until the message is sent. */
+function pickGif(gif: TextGIF) {
+  textChatStore.pendingGif = gif
+  isGifPickerOpen.value = false
+  focus()
+}
+
+function closeGifPicker() {
+  isGifPickerOpen.value = false
   focus()
 }
 

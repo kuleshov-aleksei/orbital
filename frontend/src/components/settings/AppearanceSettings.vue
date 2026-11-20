@@ -52,7 +52,8 @@
           Reduce emoji motion
         </label>
         <p class="text-xs text-theme-text-muted mt-0.5">
-          Pause animated emojis in room names and user statuses until you hover over them.
+          Pause animated emojis in room names and user statuses until you hover over them, and show
+          GIFs as stills until you press play.
         </p>
       </div>
       <button

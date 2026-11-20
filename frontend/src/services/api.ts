@@ -307,6 +307,8 @@ export interface AppConfig {
   text_channels?: boolean
   /** Present when text channel attachments are enabled (S3 configured). */
   attachments?: AttachmentsConfig
+  /** `klipy` or `giphy` when third-party GIF search is configured (§7.17). */
+  gif_provider?: string
 }
 
 export interface AttachmentsConfig {
@@ -317,6 +319,13 @@ export interface AttachmentsConfig {
   max_per_message: number
   /** Images are read by OCR/CLIP for search (backend CHAT_ML_URL set). */
   content_search?: boolean
+}
+
+/** GET /api/chat/gif-config: the client key for third-party GIF search. */
+export interface GIFSearchConfig {
+  provider: "klipy" | "giphy"
+  api_key: string
+  rating: string
 }
 
 /** GET /api/admin/attachments/extraction: the image content queue. */
@@ -734,6 +743,12 @@ export const apiService = {
   // Get general application configuration
   async getConfig(): Promise<AppConfig> {
     return apiRequest<AppConfig>("/config")
+  },
+
+  // Third-party GIF search (the search itself runs in this client: the
+  // providers forbid proxying their API). 404 when the server has no key.
+  async getGifConfig(): Promise<GIFSearchConfig> {
+    return apiRequest<GIFSearchConfig>("/chat/gif-config")
   },
 
   // Text channels (history over REST; writes go over the global WebSocket)

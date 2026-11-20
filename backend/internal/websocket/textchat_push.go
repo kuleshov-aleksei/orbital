@@ -299,6 +299,8 @@ func (h *Hub) messageNotification(tc *TextChat, msg *chatstore.Message, mention 
 	case text != "":
 	case len(msg.Attachments) > 0:
 		text = "sent an attachment"
+	case msg.GIF != nil:
+		text = "sent a GIF"
 	case strings.TrimSpace(msg.Content) != "":
 		// Only custom emoji, which a notification can't show.
 		text = "sent an emoji"

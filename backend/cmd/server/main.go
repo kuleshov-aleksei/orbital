@@ -240,6 +240,12 @@ func main() {
 			UserExists: func(id string) bool { return userLookup(id) != nil },
 			Media:      newChatMedia(cfg, appDB),
 			Push:       newPush(cfg, pushDevices),
+			GIFProvider: func() string {
+				if cfg.Chat.GIFSearchEnabled() {
+					return cfg.Chat.GIFProvider
+				}
+				return ""
+			}(),
 			UserName: func(id string) string {
 				if u := userLookup(id); u != nil {
 					return u.Nickname
@@ -478,6 +484,10 @@ func main() {
 		r.Handle("/api/messages/{id}/context", auth(http.HandlerFunc(textChatHandler.GetMessageContext))).Methods("GET")
 		r.Handle("/api/chat/unread", auth(http.HandlerFunc(textChatHandler.GetUnread))).Methods("GET")
 		r.Handle("/api/chat/search", auth(http.HandlerFunc(textChatHandler.Search))).Methods("GET")
+		// Third-party GIF search config: the search itself runs in the client
+		// (docs/specs/CHAT_SYSTEM.md §7.17).
+		gifHandler := handlers.NewGIFSearchHandler(cfg.Chat)
+		r.Handle("/api/chat/gif-config", auth(http.HandlerFunc(gifHandler.Get))).Methods("GET")
 		r.Handle("/api/rooms/{id}/pins", auth(http.HandlerFunc(textChatHandler.GetPins))).Methods("GET")
 		r.Handle("/api/rooms/{id}/notify", auth(http.HandlerFunc(textChatHandler.SetNotify))).Methods("PUT")
 		if pushDevices != nil {

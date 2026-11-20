@@ -33,6 +33,8 @@ services:
       # Search by image contents reuses an existing Immich ML: set CHAT_ML_URL in
       # .env and make it reachable from this container (e.g. join Immich's network);
       # without it the feature is off (docs/specs/CHAT_SYSTEM.md §7.13).
+      # GIF search runs in the browser: set CHAT_GIF_PROVIDER and
+      # CHAT_GIF_API_KEY in .env (docs/specs/CHAT_SYSTEM.md §7.17).
       # Android mention pushes: put the Firebase service account key in
       # ./data/backend/fcm-service-account.json (chmod 600) and set
       # FCM_CREDENTIALS_FILE=/root/data/fcm-service-account.json in .env.

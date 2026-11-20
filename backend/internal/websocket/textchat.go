@@ -50,6 +50,10 @@ type TextChat struct {
 	UserName func(userID string) string
 	// Previews makes link previews (embeds); nil disables them.
 	Previews *linkpreview.Service
+	// GIFProvider is the configured third-party GIF search provider ("klipy"
+	// or "giphy"; empty when GIF search is off). The search itself runs in
+	// the client, see docs/specs/CHAT_SYSTEM.md §7.17.
+	GIFProvider string
 }
 
 // SetTextChat enables text channel messaging over WebSocket.

@@ -120,7 +120,8 @@ The production prototype writes only to Meilisearch. The dual writes in `experim
   "attachment_kinds": [],            // ["image","video","audio"] for has: filters
   "attachment_names": [],            // original filenames (searchable)
   "attachment_text": "",             // OCR text of the images (searchable, filled by §7.13)
-  "_vectors": { "image": null }      // phase 4: CLIP embeddings of the images, or null (§7.13)
+  "_vectors": { "image": null },     // phase 4: CLIP embeddings of the images, or null (§7.13)
+  "gif": null                        // §7.17: {provider, id, url, preview_url, width, height, title}
 }
 ```
 
@@ -636,6 +637,26 @@ Telegram/Discord-style cards under a message for the links in it: site name, tit
 - `/remindme <time> [note]`: `2h`, `30min`, `2d6h`, `1w`, `2m`/`2mo` (months, clamped to month end), `1y`; or `DD.MM [HH:MM]`, `DD.MM.YYYY HH:MM`, `HH:MM`. The client sends its IANA zone as `tz`; the time is read in that zone and stored as UTC ms with the zone (SQLite `chat_reminders`). 1 minute to 1 year ahead, 25 pending per user. Deleting the `/remindme` message cancels it.
 - A due reminder (ticker every 15 s, `Hub.FireReminders`) is posted by the sender `system` as a reply to the `/remindme` message that mentions its owner. It always pings the owner, even in a muted channel, and the owner may delete it. It is dropped if the channel is gone or the owner lost `VIEW_ROOM`.
 
+### 7.17 GIF search (KLIPY / GIPHY)
+
+Search a third-party GIF catalogue from the composer and post the picked animation. Decided on 2026-11-20.
+
+- **Provider:** KLIPY by default (`CHAT_GIF_PROVIDER=klipy`, key from partner.klipy.com), GIPHY as the second adapter (`giphy`). Tenor is not an option: Google shut its API down on 2026-06-30. With no provider or key the feature is off and the composer has no GIF button.
+- **The search and the media load run in the client**, unlike link previews. Both providers require API requests and media loads to come from the end-user client and forbid proxying, mirroring or re-hosting their content without written approval. So the server never fetches a GIF and never stores one.
+  - `GET /api/config` advertises `gif_provider` only (public, no key), so the composer knows whether to offer the button. `GET /api/chat/gif-config` (authenticated) returns `{provider, api_key, rating}`; 404 when disabled. The key is a client key and lives in memory only (never `localStorage`, never logged — KLIPY puts it in the request path).
+  - Adapters live in `frontend/src/services/gif/` behind a `GifProvider` interface (`search`, `trending`). KLIPY: `/api/v1/{key}/gifs/search|trending?q=&page=&per_page=`; GIPHY: `/v1/gifs/search|trending?api_key=&offset=&limit=&rating=`. Both map to `{provider, id, url, preview_url, width, height, title}`, preferring the small mp4/webp rendition over the full-size gif and a still jpg for the poster.
+  - Requests time out after 6 s; pages are cached in memory per picker for the session only (the KLIPY testing key allows 100 requests/hour).
+- **The message stores only the reference** (`gif` field above). `text_message_send` accepts `gif`; `chatstore.NormalizeGIF` checks:
+  - `provider` is one of the known providers;
+  - `id` is `[A-Za-z0-9_-]{1,64}`;
+  - `url`/`preview_url` are `https`, without credentials or an explicit port, on the provider's own domain only (`klipy.com`, `giphy.com`, subdomains included) — every viewer's browser will request them, so an arbitrary host would be a tracking pixel;
+  - dimensions are clamped to 4096 (0 = let the client use the intrinsic size); the title becomes single-line plain text, at most 200 runes.
+- A GIF is content on its own, so the message text may be empty. Editing keeps the GIF; deleting removes the message as usual. A message can carry a GIF and an attachment, though the composer sends one GIF at a time.
+- **Not stored, not cached:** no S3 object, no quota use, no media cache in Electron/Android (`attachments/mediaCache.ts` is not involved; the browser HTTP cache is all there is). A GIF that the provider removes stops rendering, and history GIFs need network.
+- **Client:** a GIF button next to the emoji one (hidden until the config loads and a provider exists), opening `GifPicker.vue`: debounced search, trending when empty, infinite scroll, retry on rate limit. Grid tiles use a small animated webp/gif rendition (`picker_url`, kept in the picker only and never stored); the full rendition and the still (`url`, `preview_url`) go into the message. The pick becomes a chip above the composer (`textChatStore.pendingGif`) and is sent with the message. `MessageGif.vue` renders `<video autoplay muted loop playsinline>` (or `<img>`), shows the still instead under `prefers-reduced-motion` or the app's "Reduce emoji motion" setting (a play button starts it), and shows "GIF unavailable" if the media is gone. Reply previews show "GIF"; pushes for a GIF-only message say "sent a GIF".
+- **Attribution:** the search placeholder must read "Search KLIPY"; GIPHY additionally requires a "Powered by GIPHY" mark. The picker footer shows "Powered by" plus the KLIPY wordmark (`frontend/public/assets/attribution/klipy-logo.svg`, via `GifProvider.attributionLogo`) or the provider name when it has no logo.
+- **Privacy:** search terms go to the provider; media requests come from each viewer's device (the provider sees their IP). The client sends no user, room or message identifiers. This is the deliberate cost of using these APIs under their terms.
+
 ## 8. API
 
 JSON is snake_case (see AGENTS.md). Types go in `frontend/src/types/index.ts`; API calls go in `frontend/src/services/api.ts`.
@@ -649,6 +670,7 @@ REST
 | `GET /api/rooms/{id}/viewers` | `user_ids` of everyone with `ViewRoom` (404 unless the caller has it). The user list shows only them while the channel is open and refetches on `permissions_updated`. |
 | `GET /api/chat/search?q=&tz=&sort=&limit=&offset=` | Search; `q` contains the inline filters (§7.11). Returns `hits`, `total`, `hints`, `took_ms`. |
 | `GET /api/chat/unread` | Per channel: `last_read_seq`, `newest_seq`, `mention_count`, `notify_mode`, `muted_until` (for the sidebar on load) |
+| `GET /api/chat/gif-config` | `{provider, api_key, rating}` for client-side GIF search; 404 when disabled (§7.17). `/api/config` carries just `gif_provider` |
 | `PUT /api/rooms/{id}/notify` `{mode, mute_duration: "1h"\|"4h"\|"1d"\|"1w"\|"forever"}` | Change the notification setting (`mute_duration` only with `mode: "muted"`); requires `ViewRoom` |
 | `POST /api/rooms/{id}/attachments` (phase 3) | Upload (multipart; audio adds `peaks`, `duration_ms`; video adds `width`, `height`, `duration_ms`). Returns `upload_id`, `meta`, `evicted`, `usage`. 413 `file_exceeds_quota` / `quota_protected_full`. |
 | `POST /api/attachments/urls` `{items: [{id, variant}]}` (phase 3) | Batched presigned URLs (`original`, `thumb`, `download`); removed or invisible files in `gone` |
@@ -664,7 +686,7 @@ REST
 | `POST /api/me/attachments/bulk` `{ids, action}` (phase 3) | Bulk delete / protect / unprotect of own files (≤100) |
 
 WebSocket. Client → server:
-- `text_message_send {room_id, content, reply_to_id?, reply_ping?, upload_ids?, spoiler_ids?, nonce}`. The `nonce` lets the client match its optimistic message to the ack.
+- `text_message_send {room_id, content, reply_to_id?, reply_ping?, upload_ids?, spoiler_ids?, gif?, nonce}`. The `nonce` lets the client match its optimistic message to the ack. `gif` is a provider reference (§7.17); with one, `content` may be empty.
 - `text_message_edit {message_id, content}`
 - `text_message_delete {message_id}`
 - `text_message_suppress_embeds {message_id}` (§7.15)
@@ -765,6 +787,9 @@ Denied-path tests:
 | `CHAT_ML_CLIP_MODEL` | `XLM-Roberta-Large-Vit-B-16Plus` | Phase 4. Must be multilingual; a change re-indexes every image |
 | `CHAT_ML_SEMANTIC_THRESHOLD` | 0.6 | Phase 4. Minimum ranking score (0..1) of images found by meaning only |
 | `CHAT_ML_TIMEOUT_SECONDS` | 120 | Phase 4. Per request (the first one may wait for a model download) |
+| `CHAT_GIF_PROVIDER` | none | `klipy` or `giphy`. Unset (or no key) = no GIF search (§7.17) |
+| `CHAT_GIF_API_KEY` | none | Client key, handed to signed-in users; it cannot be kept secret |
+| `CHAT_GIF_RATING` | `pg-13` | GIPHY content rating (`g`, `pg`, `pg-13`, `r`) |
 
 Immich ML (phase 4): production reuses the existing Immich instance's machine-learning container. It usually listens only on Immich's internal compose network, so either attach the backend to that network or publish port 3003 on a private interface; never expose it publicly. Asking it for a CLIP model other than the one Immich uses loads that model next to Immich's own (RAM). Immich unloads idle models after `MACHINE_LEARNING_MODEL_TTL`.
 
@@ -860,6 +885,11 @@ Original plan:
 
 **Phase 4: content search (ML)**
 - Image OCR and CLIP embeddings from an existing Immich ML (§7.13), the `chat_attachment_jobs` queue and worker, the `userProvided` embedder, and the federated keyword + vector search. Transcripts are not planned yet.
+
+**GIF search (§7.17, 2026-11-20)**
+- `chatstore.GIF` with `NormalizeGIF` (provider/host allowlist, https only, bounded id, dimensions and title); `text_message_send` accepts `gif` and allows a GIF-only message.
+- `GET /api/chat/gif-config` behind `CHAT_GIF_*`; the KLIPY and GIPHY adapters, `GifPicker.vue`, the composer chip and `MessageGif.vue`. No S3, no quota, no media cache.
+- Tests: `chatstore/gif_test.go`, `websocket/textchat_gif_test.go`, `handlers/gifsearchhandler_test.go`, `services/gif/{klipy,giphy}.test.ts`, and `tests/e2e/gif-search.spec.ts` (the provider is mocked, so CI needs no key).
 
 ## 14. Open questions
 

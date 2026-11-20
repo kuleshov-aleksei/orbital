@@ -217,6 +217,7 @@ const pendingAsMessages = computed<TextMessage[]>(() =>
         pinned_at_ts: null,
         pinned_by: null,
         attachments: p.attachments,
+        gif: p.gif ?? null,
       })),
 )
 const pendingById = computed(() => new Map(props.pending.map((p) => [p.nonce, p])))

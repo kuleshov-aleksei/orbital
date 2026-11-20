@@ -124,6 +124,7 @@
           v-else-if="message.content || message.edited_at_ts"
           :content="message.content"
           :edited-at="message.edited_at_ts" />
+        <MessageGif v-if="message.gif" :gif="message.gif" />
         <MessageCommand
           v-if="message.command && !editing && !pendingStatus"
           :command="message.command"
@@ -284,6 +285,7 @@ import {
 import UserAvatar from "@/components/UserAvatar.vue"
 import EmojiGlyph from "@/components/EmojiGlyph.vue"
 import MessageContent from "./MessageContent.vue"
+import MessageGif from "./MessageGif.vue"
 import ReactionBar from "./ReactionBar.vue"
 import MessageAttachments from "./attachments/MessageAttachments.vue"
 import MessageEmbeds from "./embeds/MessageEmbeds.vue"
@@ -421,6 +423,7 @@ const replyPreview = computed(() => {
     kind === "user" ? nameOf(id) : (roleName(id) ?? "unknown-role"),
   ).slice(0, 200)
   if (text) return text
+  if (props.replied.gif) return "GIF"
   const n = props.replied.attachments.length
   return n ? `📎 ${n === 1 ? props.replied.attachments[0].filename : `${n} files`}` : ""
 })
@@ -475,7 +478,7 @@ async function saveEdit() {
     encodeShortcodes(text, (code) => customEmojisStore.idForShortcode(code)),
     editMentions,
   )
-  if (!content && !props.message.attachments.some((a) => !a.removed)) {
+  if (!content && !props.message.attachments.some((a) => !a.removed) && !props.message.gif) {
     editError.value = "A message can't be empty. Delete it instead."
     return
   }

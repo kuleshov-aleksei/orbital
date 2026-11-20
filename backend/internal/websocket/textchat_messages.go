@@ -24,6 +24,8 @@ type textSendRequest struct {
 	Nonce      string   `json:"nonce"`
 	// TZ is the sender's IANA time zone, used by /remindme.
 	TZ string `json:"tz"`
+	// GIF is a shared third-party GIF (docs/specs/CHAT_SYSTEM.md §7.17).
+	GIF *chatstore.GIF `json:"gif"`
 }
 
 func (c *Client) handleTextMessageSend(data interface{}) {
@@ -72,16 +74,20 @@ func (c *Client) handleTextMessageSend(data interface{}) {
 	}
 
 	replyPing := req.ReplyPing == nil || *req.ReplyPing
+	gif, err := chatstore.NormalizeGIF(req.GIF)
+	if err != nil {
+		c.sendTextError(textErrInvalid, err.Error(), req.Nonce, "")
+		return
+	}
 	in := chatstore.CreateInput{
 		RoomID: req.RoomID, SenderID: userID, Content: req.Content,
-		ReplyToID: req.ReplyToID, ReplyPing: replyPing,
+		ReplyToID: req.ReplyToID, ReplyPing: replyPing, GIF: gif,
 	}
 	reminder, ok := c.runCommand(tc, userID, &req, &in)
 	if !ok {
 		return
 	}
 	var msg *chatstore.Message
-	var err error
 	if len(req.UploadIDs) == 0 {
 		msg, err = tc.Store.Create(context.Background(), in)
 	} else {

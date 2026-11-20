@@ -231,5 +231,23 @@ describe("text chat store", () => {
         vi.useRealTimers()
       }
     })
+
+    it("sends a GIF reference with an otherwise empty message", () => {
+      const gif = {
+        provider: "klipy",
+        id: "8041071659142944",
+        url: "https://static.klipy.com/ii/e2e/aa/clip.mp4",
+        preview_url: "https://static.klipy.com/ii/e2e/aa/poster.jpg",
+        width: 498,
+        height: 498,
+        title: "Hello",
+      } as const
+      const store = useTextChatStore()
+      store.sendMessage(ROOM, "", { ids: [], attachments: [] }, gif)
+
+      expect(store.pending).toHaveLength(1)
+      expect(store.pending[0].content).toBe("")
+      expect((sends()[0][1] as { gif: unknown }).gif).toEqual(gif)
+    })
   })
 })

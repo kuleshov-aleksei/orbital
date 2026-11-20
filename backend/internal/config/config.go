@@ -63,6 +63,21 @@ type ChatConfig struct {
 	// LinkPreviews: the server fetches previews of links in messages
 	// (CHAT_LINK_PREVIEWS_ENABLED, default true).
 	LinkPreviews bool `yaml:"link_previews"`
+	// GIFProvider selects the third-party GIF search ("klipy" or "giphy";
+	// empty disables it). Search runs in the client because the providers
+	// forbid proxying their API; the server only hands out the client key
+	// and validates the references stored in messages.
+	GIFProvider string `yaml:"gif_provider"`
+	// GIFAPIKey is the provider's client key (CHAT_GIF_API_KEY).
+	GIFAPIKey string `yaml:"gif_api_key"`
+	// GIFRating is the content rating asked from the provider (Giphy:
+	// g, pg, pg-13, r; CHAT_GIF_RATING, default pg-13).
+	GIFRating string `yaml:"gif_rating"`
+}
+
+// GIFSearchEnabled reports whether a GIF provider and its key are configured.
+func (c ChatConfig) GIFSearchEnabled() bool {
+	return c.GIFAPIKey != "" && (c.GIFProvider == "klipy" || c.GIFProvider == "giphy")
 }
 
 // Development defaults match the meilisearch service in docker-compose.dev.yml,
@@ -270,6 +285,7 @@ func DefaultConfig() *Config {
 		Chat: ChatConfig{
 			MeiliIndex:   "text_messages",
 			LinkPreviews: true,
+			GIFRating:    "pg-13",
 		},
 		ChatMedia: ChatMediaConfig{
 			Bucket:         "orbital-chat-media",
@@ -463,6 +479,17 @@ func (c *Config) loadFromEnv() {
 	}
 	if v := os.Getenv("MEILI_INDEX"); v != "" {
 		c.Chat.MeiliIndex = v
+	}
+
+	// Third-party GIF search (docs/specs/CHAT_SYSTEM.md §7.17)
+	for key, dst := range map[string]*string{
+		"CHAT_GIF_PROVIDER": &c.Chat.GIFProvider,
+		"CHAT_GIF_API_KEY":  &c.Chat.GIFAPIKey,
+		"CHAT_GIF_RATING":   &c.Chat.GIFRating,
+	} {
+		if v := os.Getenv(key); v != "" {
+			*dst = v
+		}
 	}
 
 	// Text channel attachments (S3)

@@ -27,8 +27,24 @@ export interface TextMessage {
   embeds?: TextEmbed[]
   /** The author or a moderator removed the previews. */
   embeds_suppressed?: boolean
+  /** A shared third-party GIF (docs/specs/CHAT_SYSTEM.md §7.17); the media
+   * is loaded from the provider, never from our storage. */
+  gif?: TextGIF | null
   /** Server-computed result of a slash command (/random, /d20, ...). */
   command?: TextCommand
+}
+
+/** A third-party GIF reference. Field names mirror the backend. */
+export interface TextGIF {
+  provider: "klipy" | "giphy"
+  id: string
+  /** Playback rendition (mp4/webp/gif), loaded from the provider. */
+  url: string
+  /** Poster still, shown before the media loads. */
+  preview_url: string
+  width: number
+  height: number
+  title: string
 }
 
 export type TextCommandName = "random" | "vrandom" | "d20" | "remindme" | "reminder"
