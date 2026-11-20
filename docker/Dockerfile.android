@@ -52,7 +52,6 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 
 # Sources. No typecheck here: the Electron build that runs just before this one
 # in CI is the release quality gate.
-COPY tools/halloween-balance/ /app/tools/halloween-balance/
 COPY frontend/ .
 COPY mobile/android/ /app/mobile/android/
 # Shell API version (read by app/build.gradle) and the OTA bundle generator.

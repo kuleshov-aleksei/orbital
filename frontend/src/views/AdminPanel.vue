@@ -446,16 +446,6 @@
           <UsageAnalytics />
         </div>
 
-        <!-- Halloween Section (Super Admin Only) -->
-        <div v-if="activeTab === 'halloween' && isSuperAdmin">
-          <HalloweenAdmin :users="users" />
-        </div>
-
-        <!-- Halloween Assets Section (Super Admin Only) -->
-        <div v-if="activeTab === 'halloween-assets' && isSuperAdmin">
-          <HalloweenPumpkinStudio />
-        </div>
-
         <!-- Info Section -->
         <div
           v-if="activeTab === 'users'"
@@ -627,8 +617,6 @@ import AppVersionsAdmin from "@/components/admin/AppVersionsAdmin.vue"
 import NetworkAdmin from "@/components/admin/NetworkAdmin.vue"
 import SearchIndexingAdmin from "@/components/admin/SearchIndexingAdmin.vue"
 import { useConfigStore } from "@/stores/config"
-import HalloweenAdmin from "@/components/admin/HalloweenAdmin.vue"
-import HalloweenPumpkinStudio from "@/components/admin/HalloweenPumpkinStudio.vue"
 import { wsService } from "@/services/websocket"
 import type { RoomStatsMessage } from "@/types"
 import type { User, DebugLog, AudioFile } from "@/types"
@@ -648,8 +636,6 @@ import {
   PhSmiley,
   PhChartBar,
   PhChartLine,
-  PhGhost,
-  PhPaintBrush,
 } from "@phosphor-icons/vue"
 
 const userStore = useUserStore()
@@ -682,8 +668,6 @@ type AdminTab =
   | "emojis"
   | "stats"
   | "analytics"
-  | "halloween"
-  | "halloween-assets"
 
 interface AdminTabDef {
   id: AdminTab
@@ -781,20 +765,6 @@ const tabs = computed<AdminTabDef[]>(() => {
       icon: PhMagnifyingGlass,
       group: "System",
       visible: owner && !!configStore.attachments,
-    },
-    {
-      id: "halloween",
-      label: "Halloween",
-      icon: PhGhost,
-      group: "Seasonal",
-      visible: owner,
-    },
-    {
-      id: "halloween-assets",
-      label: "Halloween assets",
-      icon: PhPaintBrush,
-      group: "Seasonal",
-      visible: owner,
     },
   ]
 })

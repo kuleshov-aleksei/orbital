@@ -1,4 +1,4 @@
-.PHONY: help hooks install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-ota test-backend test-integration e2e-textchat ota-reset meili-up meili-down ml-up ml-down garage-up garage-down test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all build-android-web build-android build-android-dev check-android-jdk dev-android balance-drift balance-check
+.PHONY: help hooks install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-ota test-backend test-integration e2e-textchat ota-reset meili-up meili-down ml-up ml-down garage-up garage-down test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all build-android-web build-android build-android-dev check-android-jdk dev-android
 
 # Default target
 help:
@@ -377,19 +377,6 @@ build-electron-linux:
 	else \
 		cd electron && VITE_BACKEND_URL=$$VITE_BACKEND_URL UPDATE_URL=$(UPDATE_URL) pnpm run build:linux; \
 	fi
-
-# Halloween balance sims (no new installs — runs through frontend jiti)
-balance-drift:
-	@echo "Checking balance fixture vs backend Config()..."
-	node tools/halloween-balance/check-drift.cjs
-
-balance-check: balance-drift
-	@echo "Running heuristic balance gates (200 games)..."
-	./frontend/node_modules/.bin/jiti tools/halloween-balance/run.cjs -- --policy heuristic --games 200 --seed 1 --check-gates
-
-balance-systemone:
-	@echo "Running systemone decider games (10 games, sequential)..."
-	./frontend/node_modules/.bin/jiti tools/halloween-balance/run.cjs -- --policy systemone --games 10 --seed 1 --concurrency 1 --model winnow:e4b --submit
 
 build-electron-all:
 	@echo "Installing electron dependencies..."

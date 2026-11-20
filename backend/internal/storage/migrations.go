@@ -654,6 +654,17 @@ CREATE INDEX IF NOT EXISTS idx_chat_reminders_due ON chat_reminders(due_at);
 CREATE INDEX IF NOT EXISTS idx_chat_reminders_user ON chat_reminders(user_id);
 CREATE INDEX IF NOT EXISTS idx_chat_reminders_message ON chat_reminders(message_id);`,
 	},
+	{
+		Version: 52,
+		Name:    "drop_halloween_tables",
+		// The Halloween 2026 seasonal update is gone; remove its storage.
+		// Child tables first so the foreign keys never dangle.
+		SQL: `DROP TABLE IF EXISTS halloween_rewards;
+DROP TABLE IF EXISTS halloween_base_sockets;
+DROP TABLE IF EXISTS halloween_game_results;
+DROP TABLE IF EXISTS halloween_pumpkins;
+DROP TABLE IF EXISTS halloween_items;`,
+	},
 }
 
 // RunMigrationsUpTo applies migrations up to and including maxVersion.

@@ -3,7 +3,6 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 	"strconv"
 
@@ -155,7 +154,6 @@ type AdminHandler struct {
 	userRepo         *repository.UserRepository
 	debugLogService  *service.DebugLogService
 	analyticsService *service.AnalyticsService
-	halloweenService *service.HalloweenService
 	permissions      *service.PermissionService
 	wsHub            *websocket.Hub
 }
@@ -184,13 +182,12 @@ func NewAdminHandlerWithDebugLog(roleService *service.RoleService, userRepo *rep
 }
 
 // NewAdminHandlerWithHub creates a new admin handler with hub and debug log service
-func NewAdminHandlerWithHub(roleService *service.RoleService, userRepo *repository.UserRepository, debugLogService *service.DebugLogService, analyticsService *service.AnalyticsService, halloweenService *service.HalloweenService, wsHub *websocket.Hub) *AdminHandler {
+func NewAdminHandlerWithHub(roleService *service.RoleService, userRepo *repository.UserRepository, debugLogService *service.DebugLogService, analyticsService *service.AnalyticsService, wsHub *websocket.Hub) *AdminHandler {
 	return &AdminHandler{
 		roleService:      roleService,
 		userRepo:         userRepo,
 		debugLogService:  debugLogService,
 		analyticsService: analyticsService,
-		halloweenService: halloweenService,
 		wsHub:            wsHub,
 	}
 }
@@ -272,12 +269,6 @@ func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		h.permissions.ForgetUser(targetUserID)
 	}
 
-	if h.halloweenService != nil {
-		if err := h.halloweenService.PurgeUser(targetUserID); err != nil {
-			log.Printf("Failed to purge halloween data for deleted user %s: %v", targetUserID, err)
-		}
-	}
-
 	w.Header().Set("Content-Type", "application/json")
 	writeJSON(w, map[string]string{
 		"status":  "success",
@@ -308,14 +299,6 @@ func (h *AdminHandler) DeleteAllGuests(w http.ResponseWriter, r *http.Request) {
 	if h.permissions != nil {
 		for _, id := range guestIDs {
 			h.permissions.ForgetUser(id)
-		}
-	}
-
-	if h.halloweenService != nil {
-		for _, id := range guestIDs {
-			if err := h.halloweenService.PurgeUser(id); err != nil {
-				log.Printf("Failed to purge halloween data for deleted guest %s: %v", id, err)
-			}
 		}
 	}
 

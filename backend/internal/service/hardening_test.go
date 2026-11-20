@@ -47,21 +47,6 @@ func TestSafeAudioFilename(t *testing.T) {
 	}
 }
 
-func TestPumpkinAssetPathRejectsTraversal(t *testing.T) {
-	svc := NewPumpkinAssetService(t.TempDir(), t.TempDir())
-	if _, err := svc.AssetPath("../../etc/passwd"); err == nil {
-		t.Fatal("expected traversal asset id to be rejected")
-	}
-	if !ValidPumpkinAssetID("base_1-ok") {
-		t.Fatal("expected valid catalog id")
-	}
-	for _, id := range []string{"../x", "a/b", "a\\b", "", strings.Repeat("a", 65)} {
-		if ValidPumpkinAssetID(id) {
-			t.Fatalf("ValidPumpkinAssetID(%q) unexpectedly succeeded", id)
-		}
-	}
-}
-
 func TestDebugLogStoredFilenameTraversalRejected(t *testing.T) {
 	db, err := storage.NewDB(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {

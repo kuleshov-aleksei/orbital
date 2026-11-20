@@ -1,8 +1,6 @@
 # Frontend Dockerfile
 FROM node:26.13.0-alpine AS builder
 
-# Mirror the repo layout (/app/frontend + /app/tools): the dev-only balance
-# visualizer imports from tools/halloween-balance, and vue-tsc checks it too
 WORKDIR /app/frontend
 COPY frontend/package.json ./
 COPY frontend/pnpm-*.yaml ./
@@ -12,7 +10,6 @@ RUN npm install -g pnpm@12.18.0
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile --store-dir /pnpm/store
 
-COPY tools/halloween-balance/ /app/tools/halloween-balance/
 COPY frontend/ .
 # Release quality gate: fail the image build on type errors
 RUN pnpm run typecheck

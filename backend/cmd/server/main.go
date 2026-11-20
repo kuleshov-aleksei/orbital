@@ -73,8 +73,6 @@ func main() {
 	var sessionRepo *repository.SessionRepository
 	var qrLoginRepo *repository.QRLoginRepository
 	var analyticsService *service.AnalyticsService
-	var halloweenService *service.HalloweenService
-	var pumpkinAssetService *service.PumpkinAssetService
 	var rbacRepo *repository.RBACRepository
 	var textReadState chatstore.ReadStateStore
 	var textNotify chatstore.NotifyStore
@@ -123,8 +121,6 @@ func main() {
 		soundboardService = service.NewSoundboardService(repository.NewSoundboardRepository(db), "data")
 		emojiService = service.NewEmojiService(repository.NewEmojiRepository(db), "data", cfg.Emoji.MaxCustom)
 		analyticsService = service.NewAnalyticsService(sessionRepo)
-		halloweenService = service.NewHalloweenService(repository.NewHalloweenRepository(db))
-		pumpkinAssetService = service.NewPumpkinAssetService("data", "assets")
 
 		// Load data from database
 		if err := categoryService.LoadFromDB(); err != nil {
@@ -132,15 +128,6 @@ func main() {
 		}
 		if err := roomService.LoadFromDB(); err != nil {
 			log.Fatalf("Failed to load rooms from database: %v", err)
-		}
-
-		// Seed pumpkin art into the data dir (never overwrites uploads).
-		if catalog, err := halloweenService.GetAdminCatalog(); err != nil {
-			log.Printf("Warning: Failed to load halloween catalog for art seeding: %v", err)
-		} else if seeded, err := pumpkinAssetService.SeedPlaceholders(catalog); err != nil {
-			log.Printf("Warning: Failed to seed pumpkin art: %v", err)
-		} else if seeded > 0 {
-			log.Printf("Seeded %d pumpkin art files", seeded)
 		}
 	} else {
 		// Initialize services without database (memory-only mode)
@@ -296,7 +283,7 @@ func main() {
 	} else {
 		authHandler.SetSessionHooks(nil, wsHub)
 	}
-	adminHandler := handlers.NewAdminHandlerWithHub(roleService, userRepo, debugLogService, analyticsService, halloweenService, wsHub)
+	adminHandler := handlers.NewAdminHandlerWithHub(roleService, userRepo, debugLogService, analyticsService, wsHub)
 	adminHandler.SetPermissionService(permissionService)
 	securityHandler := handlers.NewSecurityHandler(cfg)
 	usersHandler := handlers.NewUsersHandler(userRepo, wsHub)
@@ -341,11 +328,6 @@ func main() {
 		if soundboardHandler != nil {
 			soundboardHandler.SetEmojiLookup(emojiService)
 		}
-	}
-
-	var halloweenHandler *handlers.HalloweenHandler
-	if halloweenService != nil {
-		halloweenHandler = handlers.NewHalloweenHandlerWithAssets(halloweenService, pumpkinAssetService, wsHub)
 	}
 
 	// Setup router
@@ -443,25 +425,6 @@ func main() {
 
 	// General configuration route (public)
 	r.HandleFunc("/api/config", roomHandler.GetConfig).Methods("GET")
-
-	// Halloween routes (protected)
-	if halloweenHandler != nil {
-		halloweenRouter := r.PathPrefix("/api/halloween").Subrouter()
-		halloweenRouter.Use(authHandler.AuthMiddleware)
-		halloweenRouter.HandleFunc("/state", halloweenHandler.GetState).Methods("GET")
-		halloweenRouter.HandleFunc("/pumpkin-states", halloweenHandler.GetPumpkinStates).Methods("GET")
-		halloweenRouter.HandleFunc("/pumpkin", halloweenHandler.UpdatePumpkin).Methods("PUT")
-		halloweenRouter.HandleFunc("/game/config", halloweenHandler.GetConfig).Methods("GET")
-		halloweenRouter.HandleFunc("/game/report", halloweenHandler.SubmitGame).Methods("POST")
-		halloweenRouter.HandleFunc("/leaderboard", halloweenHandler.GetLeaderboard).Methods("GET")
-		// Pumpkin art is public (like audio/avatars): <img> and Pixi loaders
-		// cannot send Authorization headers.
-		r.HandleFunc("/api/halloween/assets/{id}", halloweenHandler.GetAsset).Methods("GET")
-		// Decider submissions from the balance harness (development only, no auth).
-		if cfg.IsDevelopment() {
-			r.HandleFunc("/api/halloween/game/report/bot", halloweenHandler.SubmitBotGame).Methods("POST")
-		}
-	}
 
 	// Latest desktop release (public, resolved from the update feed)
 	r.HandleFunc("/api/releases/latest", releaseHandler.GetLatest).Methods("GET")
@@ -631,23 +594,6 @@ func main() {
 	superAdminRouter.HandleFunc("/stats/rooms/{id}/unsubscribe", adminHandler.StatsUnsubscribe).Methods("POST")
 	superAdminRouter.HandleFunc("/stats/status", adminHandler.GetStatsStatus).Methods("GET")
 	superAdminRouter.HandleFunc("/analytics/report", adminHandler.GetAnalyticsReport).Methods("GET")
-
-	// Halloween admin routes (super_admin only)
-	if halloweenHandler != nil {
-		superAdminRouter.HandleFunc("/halloween/games", halloweenHandler.AdminGetGames).Methods("GET")
-		superAdminRouter.HandleFunc("/halloween/items", halloweenHandler.AdminGetItems).Methods("GET")
-		superAdminRouter.HandleFunc("/halloween/items", halloweenHandler.AdminCreateItem).Methods("POST")
-		superAdminRouter.HandleFunc("/halloween/items/{id}", halloweenHandler.AdminUpdateItem).Methods("PATCH")
-		superAdminRouter.HandleFunc("/halloween/items/{id}", halloweenHandler.AdminDeleteItem).Methods("DELETE")
-		superAdminRouter.HandleFunc("/halloween/items/{id}/restore", halloweenHandler.AdminRestoreItem).Methods("POST")
-		superAdminRouter.HandleFunc("/halloween/items/{id}/asset", halloweenHandler.AdminUploadAsset).Methods("POST")
-		superAdminRouter.HandleFunc("/halloween/layouts", halloweenHandler.AdminGetLayouts).Methods("GET")
-		superAdminRouter.HandleFunc("/halloween/layouts", halloweenHandler.AdminUpsertLayouts).Methods("PUT")
-		superAdminRouter.HandleFunc("/halloween/rewards", halloweenHandler.AdminGetRewards).Methods("GET")
-		superAdminRouter.HandleFunc("/halloween/rewards", halloweenHandler.AdminIssueReward).Methods("POST")
-		superAdminRouter.HandleFunc("/halloween/config/export", halloweenHandler.AdminExportConfig).Methods("GET")
-		superAdminRouter.HandleFunc("/halloween/config/import", halloweenHandler.AdminImportConfig).Methods("POST")
-	}
 
 	// Debug log upload route (authenticated users)
 	debugLogUploadHandler := limiter.Middleware("debug-log-upload", ratelimit.Every(cfg.RateLimit.DebugLogPerMinute, time.Minute), userOrIPKey, http.HandlerFunc(adminHandler.UploadDebugLog))

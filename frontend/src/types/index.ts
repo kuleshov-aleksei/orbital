@@ -110,7 +110,6 @@ export type WebSocketMessageType =
   | "request_stats_state"
   | "room_stats"
   | "request_logs"
-  | "halloween_pumpkin_state"
   | "play_sound"
   | "text_message_send"
   | "text_message_edit"
