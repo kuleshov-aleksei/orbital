@@ -44,7 +44,6 @@ WORKDIR /root/
 RUN mkdir -p /root/data/avatars /root/data/audio
 
 COPY --from=builder /app/orbital .
-COPY --from=builder /app/assets ./assets
 
 EXPOSE 8080
 CMD ["./orbital"]
