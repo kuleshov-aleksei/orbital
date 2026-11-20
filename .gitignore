@@ -242,6 +242,7 @@ backend/data/avatars
 backend/data/logs
 backend/data/audio
 backend/data/soundboard
+backend/data/badges
 backend/data/emojis
 # Meilisearch data (text channel messages)
 data/meilisearch/
