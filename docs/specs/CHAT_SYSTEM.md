@@ -365,7 +365,7 @@ New package `backend/internal/service/chatstore/`: the Meilisearch client (port 
 | `mentions:@user`, `pinned:true` | Optional extras (cheap; the filters already exist) |
 | anything else | Free text, fuzzy (typo-tolerant, last word treated as a prefix) |
 
-- **Time zone:** dates are interpreted in the user's IANA time zone, sent as `tz=Europe/Moscow`.
+- **Time zone:** dates are interpreted in the user's IANA time zone, sent as `tz=Europe/Belgrade`.
 - **Errors:** unknown keys are treated as text. An unresolvable `from:` or `in:` returns zero results with a `hints` entry ("no user named …").
 - **Text query:** passed raw with `matchingStrategy: "all"`, plus the `typoTolerance` settings from §5.1. Quoted phrases (`"exact phrase"`) are passed through as Meilisearch phrase search.
 - **Forced filter:** `room_id IN [viewable text channels] AND is_deleted = false` is **always** added. User-supplied `in:` values are intersected with that set.

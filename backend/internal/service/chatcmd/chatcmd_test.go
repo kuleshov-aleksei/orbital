@@ -12,7 +12,9 @@ func mustLoc(t *testing.T, name string) *time.Location {
 	t.Helper()
 	loc, err := time.LoadLocation(name)
 	if err != nil {
-		t.Skipf("no tzdata for %s: %v", name, err)
+		// The package embeds time/tzdata, so this must never happen: a skip
+		// here is how the alpine image's missing database went unnoticed.
+		t.Fatalf("no tzdata for %s: %v", name, err)
 	}
 	return loc
 }

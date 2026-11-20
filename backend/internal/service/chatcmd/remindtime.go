@@ -2,11 +2,16 @@ package chatcmd
 
 import (
 	"fmt"
+	"log"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	// Reminder times are wall-clock times in the sender's zone, so the IANA
+	// database must be available wherever this runs (the alpine image has none).
+	_ "time/tzdata"
 
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatstore"
 )
@@ -34,6 +39,9 @@ func LoadZone(tz string) (*time.Location, string) {
 	}
 	loc, err := time.LoadLocation(tz)
 	if err != nil {
+		// Never silent: a missing tz database would schedule every reminder in
+		// UTC, which is impossible to spot from the message alone.
+		log.Printf("[ChatCmd] Unknown time zone %q, using UTC: %v", tz, err)
 		return time.UTC, "UTC"
 	}
 	return loc, tz

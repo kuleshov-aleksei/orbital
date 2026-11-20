@@ -230,7 +230,7 @@ async function contentSearchChecks() {
 
   // The worker is kicked on attach; the first run may still load models.
   const hitIds = async (q) => {
-    const r = await api("GET", `/api/chat/search?q=${encodeURIComponent(q)}&tz=Europe/Moscow`, bob.token)
+    const r = await api("GET", `/api/chat/search?q=${encodeURIComponent(q)}&tz=Europe/Belgrade`, bob.token)
     return (r.json?.hits ?? []).map((h) => h.message?.id ?? h.id)
   }
   let ocr = []
@@ -452,7 +452,7 @@ try {
   check("pins endpoint", pins.json?.messages?.length === 1, pins.text)
 
   const search = (q, extra = "") =>
-    api("GET", `/api/chat/search?q=${encodeURIComponent(q)}&tz=Europe/Moscow${extra}`, bob.token)
+    api("GET", `/api/chat/search?q=${encodeURIComponent(q)}&tz=Europe/Belgrade${extra}`, bob.token)
   const s1 = await search("квитонция from:alice in:e2e-chat")
   check(
     "search: typo + from + in, highlighted",

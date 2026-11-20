@@ -20,7 +20,7 @@ type searchResponse struct {
 
 func (f *textHandlerFixture) search(t *testing.T, as, q string) searchResponse {
 	t.Helper()
-	rec := f.query(t, as, f.text.Search, http.MethodGet, nil, url.Values{"q": {q}, "tz": {"Europe/Moscow"}}, nil)
+	rec := f.query(t, as, f.text.Search, http.MethodGet, nil, url.Values{"q": {q}, "tz": {"Europe/Belgrade"}}, nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("search %q as %s: %d %s", q, as, rec.Code, rec.Body.String())
 	}

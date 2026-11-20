@@ -8,6 +8,11 @@ import (
 	"net/http"
 	"time"
 
+	// The runtime image is alpine, which ships no /usr/share/zoneinfo: without
+	// this, time.LoadLocation fails for every IANA zone and /remindme (and chat
+	// search) silently fall back to UTC.
+	_ "time/tzdata"
+
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 	"github.com/kuleshov-aleksei/orbital/internal/config"
