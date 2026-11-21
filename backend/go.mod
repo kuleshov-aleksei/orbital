@@ -1,6 +1,6 @@
 module github.com/kuleshov-aleksei/orbital
 
-go 1.27.3
+go 1.27.4
 
 require (
 	firebase.google.com/go/v4 v4.23.0
@@ -13,15 +13,15 @@ require (
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/h2non/bimg v1.1.9
 	github.com/joho/godotenv v1.5.1
-	github.com/livekit/protocol v1.53.2
+	github.com/livekit/protocol v1.54.0
 	github.com/livekit/server-sdk-go/v2 v2.19.0
 	github.com/pion/rtp v1.10.6
 	github.com/pion/webrtc/v4 v4.2.26
-	golang.org/x/crypto v0.58.0
+	golang.org/x/crypto v0.59.0
 	golang.org/x/net v0.62.0
 	golang.org/x/oauth2 v0.38.0
 	golang.org/x/text v0.44.0
-	google.golang.org/api v0.311.0
+	google.golang.org/api v0.315.0
 	gopkg.in/hraban/opus.v2 v2.0.0-20230925203106-0188a62cb302
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.62.0
