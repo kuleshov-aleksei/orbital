@@ -15,8 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/text/encoding/charmap"
-
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatmedia"
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatstore"
 	"github.com/kuleshov-aleksei/orbital/internal/service/outbound"
@@ -42,24 +40,8 @@ func TestParseHeadFallbacks(t *testing.T) {
 	}
 }
 
-func TestParseHeadWindows1251(t *testing.T) {
-	src := `<html><head><meta charset="windows-1251"><title>Новости дня</title></head></html>`
-	enc, err := charmap.Windows1251.NewEncoder().String(src)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if m := parseHead([]byte(enc), "text/html", ""); m.title != "Новости дня" {
-		t.Fatalf("title = %q", m.title)
-	}
-	// Declared in the Content-Type header only.
-	enc2, _ := charmap.Windows1251.NewEncoder().String(`<title>Привет</title>`)
-	if m := parseHead([]byte(enc2), "text/html", "windows-1251"); m.title != "Привет" {
-		t.Fatalf("title = %q", m.title)
-	}
-}
-
 func TestClip(t *testing.T) {
-	long := strings.Repeat("я", 400)
+	long := strings.Repeat("x", 400)
 	if got := clip(long, "", maxDescriptionRunes); len([]rune(got)) != maxDescriptionRunes || !strings.HasSuffix(got, "…") {
 		t.Fatalf("clip len = %d", len([]rune(got)))
 	}

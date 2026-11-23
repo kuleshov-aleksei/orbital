@@ -26,6 +26,8 @@ type textSendRequest struct {
 	TZ string `json:"tz"`
 	// GIF is a shared third-party GIF (docs/specs/CHAT_SYSTEM.md §7.17).
 	GIF *chatstore.GIF `json:"gif"`
+	// Poll makes the message a poll (docs/specs/CHAT_SYSTEM.md §7.18).
+	Poll *chatstore.PollInput `json:"poll"`
 }
 
 func (c *Client) handleTextMessageSend(data interface{}) {
@@ -79,13 +81,26 @@ func (c *Client) handleTextMessageSend(data interface{}) {
 		c.sendTextError(textErrInvalid, err.Error(), req.Nonce, "")
 		return
 	}
+	poll, err := chatstore.NormalizePoll(req.Poll, tc.Store.Now())
+	if err != nil {
+		c.sendTextError(textErrInvalid, err.Error(), req.Nonce, "")
+		return
+	}
+	if poll != nil && (len(req.UploadIDs) > 0 || gif != nil) {
+		c.sendTextError(textErrInvalid, "Polls can't have attachments or GIFs", req.Nonce, "")
+		return
+	}
 	in := chatstore.CreateInput{
 		RoomID: req.RoomID, SenderID: userID, Content: req.Content,
-		ReplyToID: req.ReplyToID, ReplyPing: replyPing, GIF: gif,
+		ReplyToID: req.ReplyToID, ReplyPing: replyPing, GIF: gif, Poll: poll,
 	}
-	reminder, ok := c.runCommand(tc, userID, &req, &in)
-	if !ok {
-		return
+	var reminder *chatcmd.ReminderSpec
+	if poll == nil {
+		// A poll's text is a caption, never a slash command.
+		var ok bool
+		if reminder, ok = c.runCommand(tc, userID, &req, &in); !ok {
+			return
+		}
 	}
 	var msg *chatstore.Message
 	if len(req.UploadIDs) == 0 {
@@ -138,24 +153,36 @@ func (c *Client) handleTextMessageSend(data interface{}) {
 			log.Printf("[TextChat] Failed to store reminder of message %s: %v", msg.ID, err)
 		}
 	}
+	if msg.Poll != nil && msg.Poll.ClosesAtTS != nil {
+		err := tc.PollDeadlines.Add(chatstore.PollDeadline{MessageID: msg.ID, RoomID: msg.RoomID, DueAtMS: *msg.Poll.ClosesAtTS})
+		if err != nil {
+			log.Printf("[TextChat] Failed to store the due date of poll %s: %v", msg.ID, err)
+		}
+	}
 	c.hub.publishNewMessage(tc, msg, req.Nonce)
 }
 
 // publishNewMessage broadcasts a stored message and sends its mention pings
 // and pushes (user sends and fired reminders).
 func (h *Hub) publishNewMessage(tc *TextChat, msg *chatstore.Message, nonce string) {
-	payload := map[string]any{"room_id": msg.RoomID, "message": msg.Public()}
-	if nonce != "" {
-		payload["nonce"] = nonce
-	}
+	var replied map[string]chatstore.PublicMessage
 	if msg.ReplyToID != nil {
-		if replied, err := tc.Store.Replied(context.Background(), msg); err == nil {
-			payload["replied"] = replied
+		if r, err := tc.Store.Replied(context.Background(), msg); err == nil {
+			replied = r
 		}
 	}
-	h.broadcastText(msg.RoomID, models.WebSocketMessage{Type: "text_message_new", Data: payload})
+	h.broadcastMessageEvent(msg, "text_message_new", func(pub chatstore.PublicMessage) map[string]any {
+		payload := map[string]any{"room_id": msg.RoomID, "message": pub}
+		if nonce != "" {
+			payload["nonce"] = nonce
+		}
+		if replied != nil {
+			payload["replied"] = replied
+		}
+		return payload
+	})
 	h.pushMessage(tc, msg, h.pingMentions(tc, msg))
-	if msg.Command == nil {
+	if msg.Command == nil && msg.Poll == nil {
 		tc.Previews.Schedule(msg, h.broadcastUpdated)
 	}
 }
@@ -227,7 +254,7 @@ func (c *Client) ackExistingMessage(tc *TextChat, messageID, nonce string) {
 		c.sendTextError(textErrNotFound, "Message not found", nonce, messageID)
 		return
 	}
-	payload := map[string]any{"room_id": msg.RoomID, "message": msg.Public(), "nonce": nonce}
+	payload := map[string]any{"room_id": msg.RoomID, "message": msg.PublicFor(c.identity()), "nonce": nonce}
 	if msg.ReplyToID != nil {
 		if replied, err := tc.Store.Replied(context.Background(), msg); err == nil {
 			payload["replied"] = replied
@@ -348,6 +375,11 @@ func (c *Client) handleTextMessageDelete(data interface{}) {
 		}
 		c.sendStoreError(err, "", req.MessageID)
 		return
+	}
+	if msg.Poll != nil {
+		if err := tc.PollDeadlines.DeleteByMessage(msg.ID); err != nil {
+			log.Printf("[TextChat] Failed to cancel the due date of poll %s: %v", msg.ID, err)
+		}
 	}
 	if msg.Command != nil && msg.Command.Name == chatstore.CommandRemindMe {
 		// Deleting a /remindme cancels it.

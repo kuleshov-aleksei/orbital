@@ -80,7 +80,7 @@ Decisions (2026-11-10):
 - Any role can be mentioned; there is no `@everyone` / `@here`.
 - Per-channel notification settings with timed mute (§7.14).
 
-Benchmark: 1M synthetic messages (6 users, 5 rooms, 1 year, mixed Russian and English, 5% typos), `make bench`, **Meilisearch v1.56.2**:
+Benchmark: 1M synthetic messages (6 users, 5 rooms, 1 year, 5% typos), `make bench`, **Meilisearch v1.56.2**:
 
 | | SQLite FTS5 (custom typo logic) | Meilisearch v1.56.2 |
 |---|---|---|
@@ -544,7 +544,7 @@ Removal reasons:
 Images only (phase 4). Audio/video transcripts are not planned yet; an OpenAI-compatible Whisper server (e.g. speaches) could be a second `Extractor` later.
 
 - **ML service: an existing Immich ML** (`ghcr.io/immich-app/immich-machine-learning`), called over HTTP (`backend/internal/service/immichml`). We write no ML code and manage no models: Immich downloads and caches them itself. Decided on 2026-11-12. The alternatives were PaddleX serving for OCR plus Infinity for embeddings, Tika/Tesseract, and hosted embedding APIs.
-  - Models: OCR `ESLAV__PP-OCRv5_mobile` (East Slavic recognition: ru/be/uk + en; Immich lists it as "PP-OCRv5_mobile (Russian, Belarusian, Ukrainian and English)"). Plain `PP-OCRv5_mobile` reads Cyrillic as Latin look-alikes ("ИТОГО" → "MTOTO"). Other prefixes in `immich_ml/models/constants.py`: `EN__`, `LATIN__`, `CH__`, …. CLIP `XLM-Roberta-Large-Vit-B-16Plus` (multilingual text encoder, so Russian queries work).
+  - Models: OCR `PP-OCRv5_mobile`.
   - API (Immich-internal, no versioned docs; `immichml/client_test.go` pins it): `GET /ping`; `POST /predict` as multipart `entries` (JSON) + `image` or `text`. OCR and CLIP visual go in one request; CLIP embeddings come back as a JSON array **inside a string**.
   - Its errors: transport, timeout and 5xx (a model still downloading) mean "unavailable" and pause the worker without using attempts; 4xx counts as a failed attempt.
   - Pin the Immich tag (dev: `docker-compose.dev.yml`) and run the `immichml` integration test before an upgrade.
@@ -658,6 +658,19 @@ Search a third-party GIF catalogue from the composer and post the picked animati
 - **Attribution:** the search placeholder must read "Search KLIPY"; GIPHY additionally requires a "Powered by GIPHY" mark. The picker footer shows "Powered by" plus the KLIPY wordmark (`frontend/public/assets/attribution/klipy-logo.svg`, via `GifProvider.attributionLogo`) or the provider name when it has no logo.
 - **Privacy:** search terms go to the provider; media requests come from each viewer's device (the provider sees their IP). The client sends no user, room or message identifiers. This is the deliberate cost of using these APIs under their terms.
 
+### 7.18 Polls
+
+A poll is a message with a `poll` field, created from the composer's ➕ menu ("Create a poll", desktop popover / mobile bottom sheet) through `CreatePollModal`. Decided on 2026-11-23.
+
+- **Create:** `text_message_send {..., poll: {question, options[], multiple, anonymous, allow_change, closes_at_ts}}` with `content` empty (a caption is allowed but never run as a slash command). Needs `SendMessages`, like any message, and goes through the outbox and nonce dedupe, so a poll made offline is sent on reconnect. `chatstore.NormalizePoll`: question 1–300 characters, 2–10 distinct options of 1–100 characters (single-line plain text, custom emoji tokens count as one), due date 30 s to 31 days ahead (the client asks for at least 1 minute). Option ids are `o1`…`o10`. No attachments, GIF or command on a poll message; poll messages can't be edited.
+- **Stored** in the message document (Meilisearch, like reactions): options, flags, due date, `closed`/`closed_at_ts`/`closed_by`, and `votes: [{option_id, user_ids}]`. `content_search` includes the question and options. Votes keep user ids even in anonymous polls, so a vote can be changed; nobody else ever receives them.
+- **Per-viewer view** (`Message.PublicFor(viewerID)` → `PublicPoll`): question, options, flags, `voter_count`, `my_votes`, `results_visible`. Counts (`options[].count`) are sent only when the viewer voted or the poll is closed; `options[].user_ids` additionally needs a non-anonymous poll. `Public()` is the view of nobody (results hidden unless closed). Poll events are therefore built per recipient (`Hub.broadcastMessageEvent`), and REST history/context/pins/search use the requester's view.
+- **Vote:** `text_poll_vote {message_id, option_ids[]}` replaces the user's choice; an empty list retracts. Needs `SendMessages` (rate limit 10 per 5 s). Rejected (`invalid`): closed or past due, unknown option, more than one option in a single-choice poll, any change after the first vote when `allow_change` is off.
+- **End early:** `text_poll_close {message_id}` — the author, or `ManageMessages` in the channel (`forbidden` otherwise). Idempotent.
+- **Due date:** stored in SQLite `chat_poll_deadlines` (`repository.TextPollRepository`); the reminder ticker (`Hub.ClosePollsDue`, every 15 s) closes due polls as `system`, re-queueing on a Meilisearch failure. Votes are refused from the due time even if the ticker hasn't run yet. Deleting the poll cancels its deadline.
+- **Announcement:** closing (either way) posts a `system` message replying to the poll (no ping): content `Poll ended: <question>`, `command {name: "poll_closed", poll_id, options: <leading option(s)>, result: <their votes>, voters}`. Pushes read "created a poll: …" and "Poll: Poll ended: … — <winner> (N votes)".
+- **Client:** `MessagePoll.vue` (single choice votes on tap, multiple choice ticks then "Vote"; change/retract/end actions; "Vote to see results" until voted), `PollVotersModal.vue` (voters per option, public polls only, mounted from `MessageList`), the `poll_closed` card in `MessageCommand.vue`. Voting needs a connection.
+
 ## 8. API
 
 JSON is snake_case (see AGENTS.md). Types go in `frontend/src/types/index.ts`; API calls go in `frontend/src/services/api.ts`.
@@ -692,6 +705,7 @@ WebSocket. Client → server:
 - `text_message_delete {message_id}`
 - `text_message_suppress_embeds {message_id}` (§7.15)
 - `text_reaction_toggle {message_id, emoji}`
+- `text_poll_vote {message_id, option_ids}`, `text_poll_close {message_id}` (§7.18)
 - `text_pin {message_id, pinned}`
 - `text_channel_read {room_id, seq}`
 - `text_typing {room_id}` (optional; typing indicator; throttled to 1 every 3 s)
@@ -784,7 +798,7 @@ Denied-path tests:
 | `RATE_LIMIT_CHAT_UPLOAD_PER_HOUR` | 120 | Phase 3. Per-user upload rate |
 | `CHAT_ML_URL` | none | Phase 4. Immich ML base URL (port 3003). Unset = no search by image contents. Needs attachments. Dev: `make ml-up`, then `http://localhost:3003` |
 | `CHAT_ML_OCR_ENABLED` / `CHAT_ML_CLIP_ENABLED` | true / true | Phase 4. Turn OCR or image embeddings off separately |
-| `CHAT_ML_OCR_MODEL` | `ESLAV__PP-OCRv5_mobile` | Phase 4. Language-prefixed name, see §7.13 |
+| `CHAT_ML_OCR_MODEL` | `PP-OCRv5_mobile` | Phase 4. see §7.13 |
 | `CHAT_ML_CLIP_MODEL` | `XLM-Roberta-Large-Vit-B-16Plus` | Phase 4. Must be multilingual; a change re-indexes every image |
 | `CHAT_ML_SEMANTIC_THRESHOLD` | 0.6 | Phase 4. Minimum ranking score (0..1) of images found by meaning only |
 | `CHAT_ML_TIMEOUT_SECONDS` | 120 | Phase 4. Per request (the first one may wait for a model download) |
@@ -854,7 +868,7 @@ Original plan:
 - Backend:
   - `chatstore`: `mentions.go` (`ParseMentions`, `MentionResolver`, cap 20, the reply ping survives edits), `reactions.go` (`ToggleReaction`, `SetPinned`, `Pins`), `query.go` (`ParseQuery`, `TimeBounds`), `search.go` (`Search`, `MentionCounts`), `notify.go` (`NotifyStore`, lazy expiry).
   - `repository/textnotify.go` with migration 43 (`text_notify_settings`).
-  - `websocket/textchat_*.go`, one file per role (`textchat.go` holds the wiring and shared helpers): `textchat_messages.go` (send/edit/delete/read), `textchat_mentions.go` (mention fan-out, `mentionTargets`), `textchat_reactions.go` (`text_reaction_toggle`), `textchat_pins.go` (`text_pin`), `textchat_typing.go` (`text_typing`), `textchat_notify.go` (`StartMuteExpiry`, a 10 s ticker that deletes expired mutes and pushes `text_notify_settings`).
+  - `websocket/textchat_*.go`, one file per role (`textchat.go` holds the wiring and shared helpers): `textchat_messages.go` (send/edit/delete/read), `textchat_mentions.go` (mention fan-out, `mentionTargets`), `textchat_reactions.go` (`text_reaction_toggle`), `textchat_polls.go` (`text_poll_vote`, `text_poll_close`, `ClosePollsDue`), `textchat_pins.go` (`text_pin`), `textchat_typing.go` (`text_typing`), `textchat_notify.go` (`StartMuteExpiry`, a 10 s ticker that deletes expired mutes and pushes `text_notify_settings`).
   - `handlers/textchat*.go`, also one file per role: `textchathandler.go` (type, deps, shared helpers), `textchatmessages.go` (history, context, pins), `textchatunread.go`, `textchatnotify.go`, `textchatsearch.go`.
 - **Mention token ids are padded URL-safe base64** (`…Wg==`), so the token charset is `[A-Za-z0-9_=+/-]` (`chatstore.mentionIDChars`, frontend `MENTION_ID`). Unit tests with short ids did not catch this; the live check did.
 - `has:` returned no results plus a hint until phase 3.

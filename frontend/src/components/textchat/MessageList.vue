@@ -85,7 +85,8 @@
           @save-edit="(content) => textChatStore.editMessage(item.message.id, content)"
           @cancel-edit="textChatStore.cancelEdit()"
           @retry="textChatStore.retrySend(item.message.id)"
-          @discard="textChatStore.discardPending(item.message.id)" />
+          @discard="textChatStore.discardPending(item.message.id)"
+          @show-voters="votersFor = item.message.id" />
       </template>
 
       <div v-if="view.loadingNewer" class="py-3 flex justify-center">
@@ -150,6 +151,8 @@
       @copy="withActionsMessage(copyMessage)"
       @delete="withActionsMessage((m) => requestDelete(m, false))" />
 
+    <PollVotersModal v-if="votersPoll" :poll="votersPoll" @close="votersFor = null" />
+
     <DeleteMessageModal
       v-if="deleting"
       :message="deleting"
@@ -169,9 +172,10 @@ import { emojiTextToPlain } from "@/services/emoji"
 import MessageItem from "./MessageItem.vue"
 import MessageActionSheet from "./MessageActionSheet.vue"
 import DeleteMessageModal from "./DeleteMessageModal.vue"
+import PollVotersModal from "./polls/PollVotersModal.vue"
 import { useTextChatStore, type ChannelView, type PendingTextMessage } from "@/stores/textChat"
 import { buildTimeline, formatDay } from "@/utils/messageGrouping"
-import type { TextMessage } from "@/types/textChat"
+import type { TextMessage, TextPoll, TextPollInput } from "@/types/textChat"
 
 const props = defineProps<{
   roomId: string
@@ -218,7 +222,32 @@ const pendingAsMessages = computed<TextMessage[]>(() =>
         pinned_by: null,
         attachments: p.attachments,
         gif: p.gif ?? null,
+        ...(p.poll ? { poll: pendingPoll(p.poll) } : {}),
       })),
+)
+
+/** How a poll not sent yet looks: no votes, nothing to click. */
+function pendingPoll(input: TextPollInput): TextPoll {
+  return {
+    question: input.question,
+    options: input.options.map((text, i) => ({ id: `o${i + 1}`, text })),
+    multiple: input.multiple,
+    anonymous: input.anonymous,
+    allow_change: input.allow_change,
+    closes_at_ts: input.closes_at_ts,
+    closed: false,
+    closed_at_ts: null,
+    closed_by: null,
+    voter_count: 0,
+    my_votes: [],
+    results_visible: false,
+  }
+}
+
+// The poll whose voters are shown; looked up live so new votes appear.
+const votersFor = ref<string | null>(null)
+const votersPoll = computed(
+  () => props.view.messages.find((m) => m.id === votersFor.value)?.poll ?? null,
 )
 const pendingById = computed(() => new Map(props.pending.map((p) => [p.nonce, p])))
 

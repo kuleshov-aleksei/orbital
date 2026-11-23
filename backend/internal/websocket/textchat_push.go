@@ -286,12 +286,23 @@ func (h *Hub) messageNotification(tc *TextChat, msg *chatstore.Message, mention 
 	sender := userName(msg.SenderID)
 	if msg.SenderID == chatstore.SystemSenderID {
 		sender = "Reminder"
+		if msg.Command != nil && msg.Command.Name == chatstore.CommandPollClosed {
+			sender = "Poll"
+		}
 	}
 	if sender == "" {
 		sender = "Someone"
 	}
 	text := strings.Join(strings.Fields(chatstore.PlainText(msg.Content, userName, roleName)), " ")
-	if msg.Command != nil {
+	switch {
+	case msg.Poll != nil:
+		text = "created a poll: " + strings.Join(strings.Fields(chatstore.PlainText(msg.Poll.Question, userName, roleName)), " ")
+	case msg.Command != nil && msg.Command.Name == chatstore.CommandPollClosed:
+		// "Poll ended: <question>" plus the leading option.
+		text += pollWinnerSummary(msg.Command, func(s string) string {
+			return strings.Join(strings.Fields(chatstore.PlainText(s, userName, roleName)), " ")
+		})
+	case msg.Command != nil:
 		note := strings.Join(strings.Fields(chatstore.PlainText(msg.Command.Note, userName, roleName)), " ")
 		text = commandSummary(msg.Command, note)
 	}
@@ -325,6 +336,17 @@ func (h *Hub) messageNotification(tc *TextChat, msg *chatstore.Message, mention 
 		n.ChannelID = push.AndroidChannelID
 	}
 	return n
+}
+
+// pollWinnerSummary is " — <winner> (N votes)" for a closed poll.
+func pollWinnerSummary(c *chatstore.Command, plain func(string) string) string {
+	if len(c.Options) == 0 || c.Result == nil {
+		return " — no votes"
+	}
+	if len(c.Options) > 1 {
+		return fmt.Sprintf(" — tie, %d votes each", *c.Result)
+	}
+	return fmt.Sprintf(" — %s (%d votes)", plain(c.Options[0]), *c.Result)
 }
 
 // commandSummary is the push text of a slash command result.

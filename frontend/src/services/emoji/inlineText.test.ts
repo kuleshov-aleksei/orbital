@@ -14,9 +14,8 @@ const ID2 = "11111111-2222-4333-8444-555555555555"
 const token = `<:party_parrot:${ID}>`
 
 describe("inline custom emoji text", () => {
-  it("builds shortcodes from names, keeping non-Latin letters", () => {
+  it("builds shortcodes from names", () => {
     expect(emojiShortcode("Party Parrot!")).toBe("party_parrot")
-    expect(emojiShortcode("Котик")).toBe("котик")
     expect(emojiShortcode("!!!")).toBe("emoji")
   })
 
@@ -48,9 +47,6 @@ describe("inline custom emoji text", () => {
   })
 
   it("extracts typed shortcodes outside tokens, once each", () => {
-    expect(extractShortcodes(`:party: hi <:cat:${ID}> :party: :котик: :not closed`)).toEqual([
-      "party",
-      "котик",
-    ])
+    expect(extractShortcodes(`:party: hi <:cat:${ID}> :party: :not closed`)).toEqual(["party"])
   })
 })

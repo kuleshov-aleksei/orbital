@@ -17,6 +17,8 @@ const (
 	CommandRemindMe = "remindme"
 	// CommandReminder marks the message a fired reminder posts.
 	CommandReminder = "reminder"
+	// CommandPollClosed marks the system message announcing a closed poll.
+	CommandPollClosed = "poll_closed"
 )
 
 // d20 labels.
@@ -45,6 +47,10 @@ type Command struct {
 	TZ          string `json:"tz,omitempty"`
 	Note        string `json:"note,omitempty"`
 	ReminderFor string `json:"reminder_for,omitempty"`
+	// Closed poll announcement: the poll message, its voters; the leading
+	// option(s) are in Options and their vote count in Result.
+	PollID string `json:"poll_id,omitempty"`
+	Voters *int64 `json:"voters,omitempty"`
 }
 
 func (c *Command) clone() *Command {
@@ -53,6 +59,10 @@ func (c *Command) clone() *Command {
 	}
 	out := *c
 	out.Options = append([]string(nil), c.Options...)
+	if c.Voters != nil {
+		v := *c.Voters
+		out.Voters = &v
+	}
 	return &out
 }
 

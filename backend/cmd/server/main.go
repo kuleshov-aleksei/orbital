@@ -83,6 +83,7 @@ func main() {
 	var textReadState chatstore.ReadStateStore
 	var textNotify chatstore.NotifyStore
 	var textReminders chatstore.ReminderStore
+	var textPolls chatstore.PollDeadlineStore
 	var pushDevices *repository.PushDeviceRepository
 	var authSessions *repository.AuthSessionRepository
 	var appDB *storage.DB
@@ -112,6 +113,7 @@ func main() {
 		textReadState = repository.NewTextReadStateRepository(db)
 		textNotify = repository.NewTextNotifyRepository(db)
 		textReminders = repository.NewTextReminderRepository(db)
+		textPolls = repository.NewTextPollRepository(db)
 		pushDevices = repository.NewPushDeviceRepository(db)
 		authSessions = repository.NewAuthSessionRepository(db)
 		appSettings = repository.NewAppSettingsRepository(db)
@@ -242,6 +244,7 @@ func main() {
 		})
 		textChat = &websocket.TextChat{
 			Store: store, ReadState: textReadState, Notify: textNotify, Reminders: textReminders,
+			PollDeadlines: textPolls,
 			UserExists: func(id string) bool { return userLookup(id) != nil },
 			Media:      newChatMedia(cfg, appDB),
 			Push:       newPush(cfg, pushDevices),

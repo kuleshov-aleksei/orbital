@@ -102,6 +102,8 @@ type Message struct {
 	Command *Command `json:"command,omitempty"`
 	// GIF is a shared third-party GIF (docs/specs/CHAT_SYSTEM.md §7.17).
 	GIF *GIF `json:"gif"`
+	// Poll (docs/specs/CHAT_SYSTEM.md §7.18); clients get PublicFor's view.
+	Poll *Poll `json:"poll,omitempty"`
 }
 
 // PublicMessage is what clients receive: no search-only or moderation fields.
@@ -126,10 +128,17 @@ type PublicMessage struct {
 	EmbedsSuppressed bool     `json:"embeds_suppressed"`
 	Command          *Command `json:"command,omitempty"`
 	GIF              *GIF     `json:"gif"`
+	// Poll is the view of one viewer (results hidden until they voted).
+	Poll *PublicPoll `json:"poll,omitempty"`
 }
 
-// Public converts a stored message to its client representation.
-func (m *Message) Public() PublicMessage {
+// Public converts a stored message to its client representation for no
+// viewer in particular (poll results stay hidden unless the poll closed).
+// Send poll messages to a user with PublicFor.
+func (m *Message) Public() PublicMessage { return m.PublicFor("") }
+
+// PublicFor converts a stored message to what viewerID may see.
+func (m *Message) PublicFor(viewerID string) PublicMessage {
 	return PublicMessage{
 		ID: m.ID, Seq: m.Seq, RoomID: m.RoomID, SenderID: m.SenderID,
 		Content: m.Content, CreatedAtTS: m.CreatedAtTS, EditedAtTS: m.EditedAtTS,
@@ -139,6 +148,7 @@ func (m *Message) Public() PublicMessage {
 		Embeds:      nonNilEmbeds(m.Embeds), EmbedsSuppressed: m.EmbedsSuppressed,
 		Command: m.Command.clone(),
 		GIF:     m.GIF.clone(),
+		Poll:    m.Poll.public(viewerID),
 	}
 }
 
@@ -170,6 +180,7 @@ func (m *Message) clone() *Message {
 	c.Embeds = append([]Embed(nil), m.Embeds...)
 	c.Command = m.Command.clone()
 	c.GIF = m.GIF.clone()
+	c.Poll = m.Poll.clone()
 	c.normalize()
 	return &c
 }
@@ -322,6 +333,16 @@ func normalizeGIFURL(raw string, domains []string) (string, error) {
 // gifTitle keeps a plain-text title: line breaks become spaces, other
 // control characters are dropped, and the length is bounded.
 func gifTitle(s string) string {
+	s = oneLine(s)
+	if r := []rune(s); len(r) > maxGIFTitleRunes {
+		s = strings.TrimSpace(string(r[:maxGIFTitleRunes]))
+	}
+	return s
+}
+
+// oneLine makes single-line plain text: line breaks become spaces, other
+// control characters are dropped, runs of spaces collapse.
+func oneLine(s string) string {
 	s = strings.Map(func(r rune) rune {
 		switch r {
 		case '\n', '\r', '\t':
@@ -332,9 +353,5 @@ func gifTitle(s string) string {
 		}
 		return r
 	}, s)
-	s = strings.Join(strings.Fields(s), " ")
-	if r := []rune(s); len(r) > maxGIFTitleRunes {
-		s = strings.TrimSpace(string(r[:maxGIFTitleRunes]))
-	}
-	return s
+	return strings.Join(strings.Fields(strings.ToValidUTF8(s, "�")), " ")
 }

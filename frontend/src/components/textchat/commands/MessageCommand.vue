@@ -51,6 +51,32 @@
       </span>
     </div>
 
+    <!-- Closed poll: the result -->
+    <div
+      v-else-if="command.name === 'poll_closed'"
+      class="inline-flex items-start gap-2 rounded-lg border border-theme-border bg-theme-bg-secondary px-3 py-2 max-w-full text-sm"
+      data-testid="poll-closed-card">
+      <PhTrophy
+        class="w-5 h-5 flex-shrink-0 mt-0.5"
+        :class="command.options?.length ? 'text-amber-400' : 'text-theme-text-muted'"
+        weight="fill" />
+      <div class="min-w-0">
+        <div v-if="!command.options?.length" class="text-theme-text-secondary">
+          No votes were cast.
+        </div>
+        <div v-else class="text-theme-text-primary break-words">
+          <span class="text-theme-text-muted">{{
+            command.options.length > 1 ? "Tie: " : "Winner: "
+          }}</span>
+          <template v-for="(opt, i) in command.options" :key="i">
+            <span v-if="i" class="text-theme-text-muted">, </span>
+            <EmojiText :text="opt" class="font-semibold" />
+          </template>
+        </div>
+        <div class="text-xs text-theme-text-muted">{{ pollResultDetail }}</div>
+      </div>
+    </div>
+
     <!-- Fired reminder -->
     <div
       v-else-if="command.name === 'reminder'"
@@ -63,8 +89,9 @@
 
 <script setup lang="ts">
 import { computed } from "vue"
-import { PhAlarm, PhDiceFive } from "@phosphor-icons/vue"
+import { PhAlarm, PhDiceFive, PhTrophy } from "@phosphor-icons/vue"
 import WheelSpin from "./WheelSpin.vue"
+import EmojiText from "@/components/common/EmojiText.vue"
 import { useUsersStore } from "@/stores"
 import { formatFullTime } from "@/utils/messageGrouping"
 import type { TextCommand } from "@/types/textChat"
@@ -77,6 +104,14 @@ const props = defineProps<{
 }>()
 
 const usersStore = useUsersStore()
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`
+const pollResultDetail = computed(() => {
+  const c = props.command
+  const voters = plural(c.voters ?? 0, "voter")
+  if (!c.options?.length) return voters
+  return `${plural(c.result ?? 0, "vote")}${c.options.length > 1 ? " each" : ""} · ${voters}`
+})
 
 const isOptionPick = computed(
   () => props.command.options?.length && props.command.result_index !== undefined,

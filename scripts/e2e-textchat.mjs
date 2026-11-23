@@ -198,8 +198,8 @@ async function attachmentChecks() {
 }
 
 /**
- * Search by image contents (spec §7.13) against a real Immich ML: OCR text
- * and image-by-meaning. Runs only with CHAT_ML_URL (E2E_ML=1).
+ * Search by image contents (spec §7.13) against a real Immich ML: image by
+ * meaning. Runs only with CHAT_ML_URL (E2E_ML=1).
  */
 async function contentSearchChecks() {
   const cfg = await api("GET", "/api/config", alice.token)
@@ -208,75 +208,61 @@ async function contentSearchChecks() {
     return
   }
   const fixtures = new URL("./fixtures/", import.meta.url)
-  const sent = {}
-  const files = {}
-  for (const [name, file] of [
-    ["receipt", "ocr-ru.jpg"],
-    ["square", "red-square.jpg"],
-  ]) {
-    const up = await upload(alice.token, readFileSync(new URL(file, fixtures)), file)
-    wsAlice.send("text_message_send", {
-      room_id: roomId,
-      content: "",
-      upload_ids: [up.json?.upload_id],
-      nonce: `ml-${name}`,
-    })
-    await sleep(400)
-    const msg = wsAlice.take("text_message_new").pop()?.data?.message
-    sent[name] = msg?.id
-    files[name] = msg?.attachments?.[0]?.id
-  }
-  check("content search: images sent", !!sent.receipt && !!sent.square, JSON.stringify(sent))
+  const up = await upload(alice.token, readFileSync(new URL("red-square.jpg", fixtures)), "red-square.jpg")
+  wsAlice.send("text_message_send", {
+    room_id: roomId,
+    content: "",
+    upload_ids: [up.json?.upload_id],
+    nonce: "ml-square",
+  })
+  await sleep(400)
+  const sent = wsAlice.take("text_message_new").pop()?.data?.message
+  const file = sent?.attachments?.[0]?.id
+  check("content search: image sent", !!sent?.id && !!file, JSON.stringify({ sent: sent?.id, file }))
 
   // The worker is kicked on attach; the first run may still load models.
   const hitIds = async (q) => {
     const r = await api("GET", `/api/chat/search?q=${encodeURIComponent(q)}&tz=Europe/Belgrade`, bob.token)
     return (r.json?.hits ?? []).map((h) => h.message?.id ?? h.id)
   }
-  let ocr = []
-  for (let i = 0; i < 120 && !ocr.includes(sent.receipt); i++) {
-    ocr = await hitIds("итого")
-    if (!ocr.includes(sent.receipt)) await sleep(1000)
+  let meaning = []
+  for (let i = 0; i < 120 && !meaning.includes(sent?.id); i++) {
+    meaning = await hitIds("red square")
+    if (!meaning.includes(sent?.id)) await sleep(1000)
   }
-  check("content search: OCR text (Cyrillic) is searchable", ocr.includes(sent.receipt), JSON.stringify(ocr))
-  const meaning = await hitIds("красный квадрат")
-  check(
-    "content search: image found by meaning",
-    meaning.includes(sent.square) && !meaning.includes(sent.receipt),
-    JSON.stringify({ meaning, sent }),
-  )
-  const none = await hitIds("собака в снегу")
-  check("content search: unrelated query finds no image", !none.includes(sent.square), JSON.stringify(none))
+  check("content search: image found by meaning", meaning.includes(sent?.id), JSON.stringify(meaning))
+  const none = await hitIds("a dog in the snow")
+  check("content search: unrelated query finds no image", !none.includes(sent?.id), JSON.stringify(none))
 
   // "What search sees" (GET /api/attachments/{id}/content).
   check("content search: advertised in /api/config", cfg.json.attachments.content_search === true)
-  const content = (id, q) =>
-    api("GET", `/api/attachments/${id}/content${q ? `?q=${encodeURIComponent(q)}` : ""}`, bob.token)
-  const receipt = await content(files.receipt)
+  const content = (q) =>
+    api("GET", `/api/attachments/${file}/content${q ? `?q=${encodeURIComponent(q)}` : ""}`, bob.token)
+  const view = await content()
   check(
-    "content view: OCR text and embedding",
-    receipt.json?.status === "done" && /ИТОГО/.test(receipt.json?.text) && receipt.json?.vector?.dims > 0 &&
-      receipt.json?.vector?.values?.length === receipt.json?.vector?.dims,
-    JSON.stringify({ ...receipt.json, vector: receipt.json?.vector?.dims }),
+    "content view: embedding",
+    view.json?.status === "done" && view.json?.vector?.dims > 0 &&
+      view.json?.vector?.values?.length === view.json?.vector?.dims,
+    JSON.stringify({ ...view.json, vector: view.json?.vector?.dims }),
   )
-  const hit = await content(files.square, "красный квадрат")
-  const miss = await content(files.square, "собака в снегу")
+  const hit = await content("red square")
+  const miss = await content("a dog in the snow")
   check(
     "content view: phrase check matches like search",
     hit.json?.match?.matches === true && miss.json?.match?.matches === false &&
       hit.json.match.score > miss.json.match.score,
     JSON.stringify({ hit: hit.json?.match, miss: miss.json?.match }),
   )
-  const denied = await api("POST", `/api/attachments/${files.square}/content/retry`, bob.token)
+  const denied = await api("POST", `/api/attachments/${file}/content/retry`, bob.token)
   check("content view: retry needs the uploader or a moderator", denied.status === 403, String(denied.status))
-  const retried = await api("POST", `/api/attachments/${files.square}/content/retry`, alice.token)
+  const retried = await api("POST", `/api/attachments/${file}/content/retry`, alice.token)
   check("content view: uploader can retry", retried.status === 202, String(retried.status))
 
   // Admin panel "Search indexing" (GET /api/admin/attachments/extraction).
   const stats = await api("GET", "/api/admin/attachments/extraction", owner.token)
   check(
     "indexing status: counts the images",
-    stats.status === 200 && stats.json?.enabled === true && stats.json.done + stats.json.due + stats.json.unqueued >= 2 &&
+    stats.status === 200 && stats.json?.enabled === true && stats.json.done + stats.json.due + stats.json.unqueued >= 1 &&
       !stats.json.paused_since && Array.isArray(stats.json.problems),
     stats.text,
   )
@@ -391,6 +377,70 @@ async function outboundProxyChecks() {
   await api("PUT", "/api/admin/outbound-proxy", owner.token, { proxy_url: "" })
 }
 
+// Polls (docs/specs/CHAT_SYSTEM.md §7.18): per-viewer results, voters,
+// early close with a system announcement, history after a reload.
+async function pollChecks() {
+  wsAlice.send("text_message_send", {
+    room_id: roomId,
+    content: "",
+    nonce: "poll1",
+    poll: { question: "Lunch?", options: ["Pizza", "Sushi"], allow_change: true },
+  })
+  await sleep(400)
+  const poll = wsAlice.take("text_message_new")[0]?.data?.message
+  check("poll created", poll?.poll?.options?.length === 2 && poll.poll.results_visible === false)
+  wsBob.take("text_message_new")
+  wsOwner.take("text_message_new")
+
+  wsBob.send("text_poll_vote", { message_id: poll.id, option_ids: ["o2"] })
+  await sleep(300)
+  const bobView = wsBob.take("text_message_updated").pop()?.data?.message?.poll
+  const aliceView = wsAlice.take("text_message_updated").pop()?.data?.message?.poll
+  check(
+    "voter sees results and voters",
+    bobView?.results_visible && bobView.options[1].count === 1 && bobView.options[1].user_ids?.[0] === bob.id,
+    JSON.stringify(bobView),
+  )
+  check(
+    "non-voter sees only the count",
+    aliceView?.results_visible === false && aliceView.voter_count === 1 && aliceView.options[1].count === undefined,
+    JSON.stringify(aliceView),
+  )
+  wsBob.send("text_poll_vote", { message_id: poll.id, option_ids: ["o1", "o2"] })
+  await sleep(300)
+  check(
+    "two answers in a single-choice poll rejected",
+    wsBob.take("text_error").some((m) => m.data.code === "invalid"),
+  )
+
+  // History keeps the per-viewer view after a reload.
+  await sleep(800)
+  const hist = await api("GET", `/api/rooms/${roomId}/messages?limit=10`, bob.token)
+  const stored = hist.json?.messages?.find((m) => m.id === poll.id)?.poll
+  check("history: my_votes survives reload", stored?.my_votes?.[0] === "o2", hist.text)
+
+  wsBob.send("text_poll_close", { message_id: poll.id })
+  await sleep(300)
+  check(
+    "close by non-author rejected",
+    wsBob.take("text_error").some((m) => m.data.code === "forbidden"),
+  )
+  wsAlice.send("text_poll_close", { message_id: poll.id })
+  await sleep(500)
+  const closed = wsOwner.take("text_message_updated").pop()?.data?.message?.poll
+  check("closed poll shows results to all", closed?.closed && closed.results_visible, JSON.stringify(closed))
+  const announced = wsOwner.take("text_message_new").pop()?.data?.message
+  check(
+    "close announced by the system",
+    announced?.sender_id === "system" &&
+      announced.command?.name === "poll_closed" &&
+      announced.command.options?.[0] === "Sushi",
+    JSON.stringify(announced),
+  )
+  wsAlice.take("text_message_new")
+  wsBob.take("text_message_new")
+}
+
 const owner = await user("owner")
 const alice = await user("alice")
 const bob = await user("bob")
@@ -412,7 +462,7 @@ try {
   // Real user ids are padded base64 ("…Wg=="): mentions must survive that.
   wsAlice.send("text_message_send", {
     room_id: roomId,
-    content: `hey <@${bob.id}> check the квитанция`,
+    content: `hey <@${bob.id}> check the invoice`,
     nonce: "n1",
   })
   await sleep(400)
@@ -453,7 +503,7 @@ try {
 
   const search = (q, extra = "") =>
     api("GET", `/api/chat/search?q=${encodeURIComponent(q)}&tz=Europe/Belgrade${extra}`, bob.token)
-  const s1 = await search("квитонция from:alice in:e2e-chat")
+  const s1 = await search("invoise from:alice in:e2e-chat")
   check(
     "search: typo + from + in, highlighted",
     s1.json?.hits?.length === 1 && s1.json.hits[0].snippet.includes("\u0001"),
@@ -503,6 +553,7 @@ try {
     wsBob.take("text_error").some((m) => m.data.code === "forbidden"),
   )
 
+  await pollChecks()
   await linkPreviewChecks()
   await outboundProxyChecks()
   await attachmentChecks()

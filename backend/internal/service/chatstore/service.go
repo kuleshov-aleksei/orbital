@@ -6,6 +6,7 @@ import (
 	"hash/fnv"
 	"log"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -222,6 +223,9 @@ type CreateInput struct {
 	// GIF is a validated reference to a third-party GIF; with one, the
 	// content may be empty.
 	GIF *GIF
+	// Poll is a validated poll (NormalizePoll); with one, the content may
+	// be empty, and attachments, GIFs and commands are not allowed.
+	Poll *Poll
 }
 
 // Create stores a message and returns it once Meilisearch accepted the write.
@@ -234,7 +238,10 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*Message, error) 
 	if len(in.Attachments) > MaxAttachmentsPerMessage {
 		return nil, invalid("too many attachments")
 	}
-	content, err := NormalizeContent(in.Content, len(in.Attachments) > 0 || in.GIF != nil)
+	if in.Poll != nil && (len(in.Attachments) > 0 || in.GIF != nil || in.Command != nil) {
+		return nil, invalid("polls can't have attachments, GIFs or commands")
+	}
+	content, err := NormalizeContent(in.Content, len(in.Attachments) > 0 || in.GIF != nil || in.Poll != nil)
 	if err != nil {
 		return nil, err
 	}
@@ -278,6 +285,10 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*Message, error) 
 		Attachments:    in.Attachments,
 		Command:        in.Command.clone(),
 		GIF:            in.GIF.clone(),
+		Poll:           in.Poll.clone(),
+	}
+	if msg.Poll != nil {
+		msg.ContentSearch = strings.TrimSpace(SearchText(content + "\n" + msg.Poll.searchText()))
 	}
 	msg.AttachmentKinds, msg.AttachmentNames = attachmentIndexFields(in.Attachments)
 	msg.normalize()
@@ -330,7 +341,7 @@ func (s *Service) mutate(ctx context.Context, id string, fn func(m *Message) (ma
 func (s *Service) Edit(ctx context.Context, id, actorID, content string) (*Message, error) {
 	return s.mutate(ctx, id, func(m *Message) (map[string]any, error) {
 		// A command result is fixed once posted (an edit can't re-roll).
-		if m.SenderID != actorID || m.Command != nil {
+		if m.SenderID != actorID || m.Command != nil || m.Poll != nil {
 			return nil, ErrForbidden
 		}
 		text, err := NormalizeContent(content, len(m.Attachments) > 0 || m.GIF != nil)
@@ -448,6 +459,8 @@ type HistoryQuery struct {
 	AroundSeq int64
 	BeforeTS  int64
 	Limit     int
+	// ViewerID is who asks (per-viewer poll results).
+	ViewerID string
 }
 
 // Page is a history window, oldest first, plus previews of replied messages.
@@ -517,7 +530,7 @@ func (s *Service) History(ctx context.Context, q HistoryQuery) (*Page, error) {
 
 	page.Messages = make([]PublicMessage, len(msgs))
 	for i, m := range msgs {
-		page.Messages[i] = m.Public()
+		page.Messages[i] = m.PublicFor(q.ViewerID)
 	}
 	replied, err := s.replied(ctx, msgs)
 	if err != nil {

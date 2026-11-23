@@ -13,7 +13,7 @@ import (
 // reminderInterval is how often due /remindme reminders are fired.
 const reminderInterval = 15 * time.Second
 
-// StartReminders runs FireReminders periodically until ctx ends. Reminders
+// StartReminders runs FireReminders (and ClosePollsDue) periodically until ctx ends. Reminders
 // that came due while the server was down fire on the first tick.
 func (h *Hub) StartReminders(ctx context.Context) {
 	go func() {
@@ -25,6 +25,7 @@ func (h *Hub) StartReminders(ctx context.Context) {
 				return
 			case now := <-ticker.C:
 				h.FireReminders(now)
+				h.ClosePollsDue(now)
 			}
 		}
 	}()

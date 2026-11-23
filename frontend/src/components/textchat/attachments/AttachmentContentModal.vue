@@ -90,7 +90,7 @@
                   v-model="phrase"
                   type="text"
                   maxlength="200"
-                  placeholder="Try a search phrase, e.g. «кот на диване»"
+                  placeholder="Try a search phrase, e.g. a cat on the couch"
                   data-testid="attachment-content-phrase"
                   class="flex-1 min-w-0 px-2.5 py-1.5 rounded bg-theme-bg-tertiary border border-theme-border text-theme-text-primary placeholder:text-theme-text-muted focus:outline-none focus:border-theme-accent" />
                 <button

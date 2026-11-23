@@ -47,7 +47,7 @@
               <PhArrowBendUpLeft class="w-5 h-5" /> Reply
             </button>
             <button
-              v-if="isOwn && !message.command"
+              v-if="isOwn && !message.command && !message.poll"
               type="button"
               role="menuitem"
               :class="row"

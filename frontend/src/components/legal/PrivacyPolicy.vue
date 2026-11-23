@@ -6,8 +6,8 @@
       <p><strong>TL;DR</strong></p>
       <ul>
         <li>
-          Orbital is a small, free service run by private individuals. No ads, no
-          trackers, no third-party analytics, and we never sell your data.
+          Orbital is a small, free service run by private individuals. No ads, no trackers, no
+          third-party analytics, and we never sell your data.
         </li>
         <li>
           We store your account, profile, messages and files, the devices you sign in on (with IP
@@ -36,8 +36,7 @@
       This policy explains what is collected when you use the Orbital server at
       <a :href="LEGAL.serviceUrl" target="_blank" rel="noopener">{{ serviceHost }}</a>
       through the web app, the desktop app or the Android app, and what we do with it. "We" means
-      the people who run that server. We are the data controller; you can reach us
-      at
+      the people who run that server. We are the data controller; you can reach us at
       <a :href="`mailto:${LEGAL.contactEmail}`">{{ LEGAL.contactEmail }}</a
       >.
     </p>
@@ -101,13 +100,19 @@
       our server so other members can read them. We also store how far you have read in each channel
       and your notification settings.
     </p>
+    <p>
+      When you vote in a poll, we store which answers you picked together with your account, so you
+      can see and change your vote. In a public poll other members can see who voted for what. In an
+      anonymous poll they only see the totals: who voted for what is kept on the server, never shown
+      to other members. Votes are deleted with the poll.
+    </p>
 
     <h3>2.7 Attachments</h3>
     <p>
       Files you upload are kept in file storage on our server, along with their name, size, type,
       dimensions or duration. To let members search images by their contents, our server extracts
-      text from images (OCR) and computes an image description vector. This runs on our own local machine
-      learning service; your files are not sent to any outside AI provider.
+      text from images (OCR) and computes an image description vector. This runs on our own local
+      machine learning service; your files are not sent to any outside AI provider.
     </p>
 
     <h3>2.8 Link previews</h3>
@@ -243,8 +248,8 @@
     <p>
       Apart from these, the app server, database, search index, file storage, media server and image
       recognition run on infrastructure we administer ourselves, and your data is not sent to any
-      other online service. Google, Firebase, Discord, Klipy and Giphy may process data outside
-      of the EU, including in the United States, under their own safeguards.
+      other online service. Google, Firebase, Discord, Klipy and Giphy may process data outside of
+      the EU, including in the United States, under their own safeguards.
     </p>
     <p>We do not sell your personal data or share it with advertisers or data brokers.</p>
 
@@ -296,9 +301,7 @@
       to your account, or tell us your nickname. Orbital is a small, privately run service, so we
       handle these requests by hand. We answer within one month, as GDPR require.
     </p>
-    <p>
-      You can complain to the your local data protection authority.
-    </p>
+    <p>You can complain to the your local data protection authority.</p>
 
     <h2>8. Security</h2>
     <p>

@@ -53,7 +53,7 @@ func (f *fakeML) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, ok := f.entries["ocr"]; ok {
 		out["ocr"] = map[string]any{
-			"text": []string{"Привет, мир", "hello"}, "box": []float64{0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1},
+			"text": []string{"Hello, world", "hello"}, "box": []float64{0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1},
 			"boxScore": []float64{0.9, 0.8}, "textScore": []float64{0.95, 0.9},
 		}
 	}
@@ -67,7 +67,7 @@ func newFake(t *testing.T) (*fakeML, *Client) {
 	f := &fakeML{t: t}
 	srv := httptest.NewServer(f)
 	t.Cleanup(srv.Close)
-	return f, New(Options{URL: srv.URL + "/", OCRModel: "ESLAV__PP-OCRv5_mobile", CLIPModel: "XLM-Roberta-Large-Vit-B-16Plus"})
+	return f, New(Options{URL: srv.URL + "/", OCRModel: "PP-OCRv5_mobile", CLIPModel: "XLM-Roberta-Large-Vit-B-16Plus"})
 }
 
 func path(m map[string]any, keys ...string) any {
@@ -94,8 +94,8 @@ func TestImageSendsOCRAndCLIPInOneRequest(t *testing.T) {
 	if got := path(f.entries, "clip", "visual", "modelName"); got != "XLM-Roberta-Large-Vit-B-16Plus" {
 		t.Fatalf("clip visual model = %v (entries %v)", got, f.entries)
 	}
-	if path(f.entries, "ocr", "detection", "modelName") != "ESLAV__PP-OCRv5_mobile" ||
-		path(f.entries, "ocr", "recognition", "modelName") != "ESLAV__PP-OCRv5_mobile" {
+	if path(f.entries, "ocr", "detection", "modelName") != "PP-OCRv5_mobile" ||
+		path(f.entries, "ocr", "recognition", "modelName") != "PP-OCRv5_mobile" {
 		t.Fatalf("ocr entries = %v", f.entries["ocr"])
 	}
 	if path(f.entries, "ocr", "detection", "options", "maxResolution") != float64(736) ||
@@ -103,7 +103,7 @@ func TestImageSendsOCRAndCLIPInOneRequest(t *testing.T) {
 		path(f.entries, "ocr", "recognition", "options", "minScore") != 0.8 {
 		t.Fatalf("ocr options = %v", f.entries["ocr"])
 	}
-	if len(res.Lines) != 2 || res.Lines[0] != "Привет, мир" {
+	if len(res.Lines) != 2 || res.Lines[0] != "Hello, world" {
 		t.Fatalf("lines = %v", res.Lines)
 	}
 	if len(res.Vector) != 3 || res.Vector[0] != 0.25 || res.Vector[1] != -0.5 {
@@ -125,11 +125,11 @@ func TestImageWithOnlyOCR(t *testing.T) {
 
 func TestEmbedTextSendsTextField(t *testing.T) {
 	f, c := newFake(t)
-	v, err := c.EmbedText(context.Background(), "кот на диване")
+	v, err := c.EmbedText(context.Background(), "cat on the couch")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if f.text != "кот на диване" || f.image != nil {
+	if f.text != "cat on the couch" || f.image != nil {
 		t.Fatalf("text = %q, image = %q", f.text, f.image)
 	}
 	if path(f.entries, "clip", "textual", "modelName") != "XLM-Roberta-Large-Vit-B-16Plus" {

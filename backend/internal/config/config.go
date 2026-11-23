@@ -299,7 +299,7 @@ func DefaultConfig() *Config {
 		ChatML: ChatMLConfig{
 			OCREnabled:        true,
 			CLIPEnabled:       true,
-			OCRModel:          "ESLAV__PP-OCRv5_mobile",
+			OCRModel:          "PP-OCRv5_mobile",
 			CLIPModel:         "XLM-Roberta-Large-Vit-B-16Plus",
 			SemanticThreshold: 0.6,
 			TimeoutSeconds:    120,

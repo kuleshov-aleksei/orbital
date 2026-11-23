@@ -35,6 +35,8 @@ type TextChat struct {
 	Notify    chatstore.NotifyStore
 	// Reminders holds pending /remindme reminders (textchat_reminders.go).
 	Reminders chatstore.ReminderStore
+	// PollDeadlines holds the due dates of open polls (textchat_polls.go).
+	PollDeadlines chatstore.PollDeadlineStore
 	// UserExists filters mentions of unknown users; nil accepts every id.
 	UserExists func(userID string) bool
 	// Media stores attachments; nil when S3 is not configured.
@@ -81,6 +83,9 @@ func (h *Hub) SetTextChat(tc *TextChat) {
 	}
 	if tc != nil && tc.Reminders == nil {
 		tc.Reminders = chatstore.NewMemoryReminders()
+	}
+	if tc != nil && tc.PollDeadlines == nil {
+		tc.PollDeadlines = chatstore.NewMemoryPollDeadlines()
 	}
 	if tc != nil && tc.Media != nil && tc.Store != nil {
 		tc.Media.SetMessageHook(func(ctx context.Context, rec *chatmedia.Record, apply func(a *chatstore.Attachment) bool) {
@@ -142,6 +147,37 @@ func (h *Hub) broadcastText(roomID string, message models.WebSocketMessage) {
 		}
 		h.trySend(client, data)
 	}
+}
+
+// broadcastTextFor is broadcastText with a payload built per recipient
+// (poll messages: each viewer gets their own results view).
+func (h *Hub) broadcastTextFor(roomID string, build func(c *Client) models.WebSocketMessage) {
+	ps := h.permissionService()
+	h.mu.RLock()
+	targets := make([]*Client, 0, len(h.clients))
+	for client := range h.clients {
+		targets = append(targets, client)
+	}
+	h.mu.RUnlock()
+	for _, client := range targets {
+		if !isGlobalClient(client) || !h.canInRoom(ps, client, roomID, permissions.ViewRoom) {
+			continue
+		}
+		h.trySend(client, marshalMessage(build(client)))
+	}
+}
+
+// broadcastMessageEvent sends an event carrying a message. Poll messages
+// are rendered per viewer (never broadcast Public() for them: it would hide
+// the results from voters); others are marshaled once.
+func (h *Hub) broadcastMessageEvent(msg *chatstore.Message, typ string, data func(pub chatstore.PublicMessage) map[string]any) {
+	if msg.Poll == nil {
+		h.broadcastText(msg.RoomID, models.WebSocketMessage{Type: typ, Data: data(msg.Public())})
+		return
+	}
+	h.broadcastTextFor(msg.RoomID, func(c *Client) models.WebSocketMessage {
+		return models.WebSocketMessage{Type: typ, Data: data(msg.PublicFor(c.identity()))}
+	})
 }
 
 // sendTextToUser sends an event to all global sockets of one user.
@@ -237,9 +273,8 @@ func (h *Hub) onTextRevert(rv chatstore.Revert) {
 		}
 		h.broadcastText(rv.RoomID, models.WebSocketMessage{Type: "text_message_deleted", Data: data})
 	} else {
-		h.broadcastText(rv.RoomID, models.WebSocketMessage{
-			Type: "text_message_updated",
-			Data: map[string]any{"room_id": rv.RoomID, "id": rv.ID, "message": rv.Message.Public()},
+		h.broadcastMessageEvent(rv.Message, "text_message_updated", func(pub chatstore.PublicMessage) map[string]any {
+			return map[string]any{"room_id": rv.RoomID, "id": rv.ID, "message": pub}
 		})
 	}
 	if rv.SenderID != "" {
@@ -272,8 +307,7 @@ func containsString(list []string, v string) bool {
 }
 
 func (h *Hub) broadcastUpdated(msg *chatstore.Message) {
-	h.broadcastText(msg.RoomID, models.WebSocketMessage{
-		Type: "text_message_updated",
-		Data: map[string]any{"room_id": msg.RoomID, "id": msg.ID, "message": msg.Public()},
+	h.broadcastMessageEvent(msg, "text_message_updated", func(pub chatstore.PublicMessage) map[string]any {
+		return map[string]any{"room_id": msg.RoomID, "id": msg.ID, "message": pub}
 	})
 }

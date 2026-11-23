@@ -5,7 +5,7 @@
  * the software.
  */
 export const LEGAL = {
-  lastUpdated: "20 November 2026",
+  lastUpdated: "23 November 2026",
   serviceUrl: "https://orb.encamy.com",
   contactEmail: "admin@encamy.com",
   securityEmail: "orb-security@encamy.com",

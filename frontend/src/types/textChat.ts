@@ -32,7 +32,56 @@ export interface TextMessage {
   gif?: TextGIF | null
   /** Server-computed result of a slash command (/random, /d20, ...). */
   command?: TextCommand
+  /** A poll (docs/specs/CHAT_SYSTEM.md §7.18), as this user may see it. */
+  poll?: TextPoll
 }
+
+/** One poll answer. count is present only when results_visible; user_ids
+ * also needs a non-anonymous poll. */
+export interface TextPollOption {
+  id: string
+  text: string
+  count?: number
+  user_ids?: string[]
+}
+
+/** A poll as the server shows it to the current user. Field names mirror
+ * the backend (chatstore.PublicPoll). */
+export interface TextPoll {
+  question: string
+  options: TextPollOption[]
+  multiple: boolean
+  anonymous: boolean
+  allow_change: boolean
+  closes_at_ts: number | null
+  closed: boolean
+  closed_at_ts: number | null
+  closed_by: string | null
+  voter_count: number
+  my_votes: string[]
+  /** The user voted or the poll closed: counts are included. */
+  results_visible: boolean
+}
+
+/** A poll as the client creates it (chatstore.PollInput). */
+export interface TextPollInput {
+  question: string
+  options: string[]
+  multiple: boolean
+  anonymous: boolean
+  allow_change: boolean
+  closes_at_ts: number | null
+}
+
+/** Poll limits; keep in sync with backend chatstore/poll.go. */
+export const POLL_LIMITS = {
+  questionChars: 300,
+  optionChars: 100,
+  minOptions: 2,
+  maxOptions: 10,
+  minDurationMs: 60_000,
+  maxDurationMs: 31 * 24 * 3600_000,
+} as const
 
 /** A third-party GIF reference. Field names mirror the backend. */
 export interface TextGIF {
@@ -47,7 +96,7 @@ export interface TextGIF {
   title: string
 }
 
-export type TextCommandName = "random" | "vrandom" | "d20" | "remindme" | "reminder"
+export type TextCommandName = "random" | "vrandom" | "d20" | "remindme" | "reminder" | "poll_closed"
 
 /** Result of a slash command, fixed when the message was created. */
 export interface TextCommand {
@@ -66,6 +115,10 @@ export interface TextCommand {
   note?: string
   /** On a fired reminder: the user it reminds. */
   reminder_for?: string
+  /** Closed poll announcement: the poll message and its voter count; the
+   * leading option(s) are in options and their vote count in result. */
+  poll_id?: string
+  voters?: number
 }
 
 /** Sender of messages the server posts (fired reminders). */

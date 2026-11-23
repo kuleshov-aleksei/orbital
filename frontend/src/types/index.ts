@@ -120,6 +120,8 @@ export type WebSocketMessageType =
   | "text_message_suppress_embeds"
   | "text_channel_read"
   | "text_reaction_toggle"
+  | "text_poll_vote"
+  | "text_poll_close"
   | "text_pin"
   | "text_typing"
   | "client_state"

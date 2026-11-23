@@ -14,7 +14,7 @@ func (h *TextChatHandler) GetMessages(w http.ResponseWriter, r *http.Request) {
 	if !h.requireTextRoom(w, r, roomID) {
 		return
 	}
-	q := chatstore.HistoryQuery{RoomID: roomID}
+	q := chatstore.HistoryQuery{RoomID: roomID, ViewerID: viewerID(r)}
 	var ok bool
 	if q.BeforeSeq, ok = queryInt64(r, "before_seq"); !ok {
 		http.Error(w, "Invalid before_seq", http.StatusBadRequest)
@@ -77,6 +77,7 @@ func (h *TextChatHandler) GetMessageContext(w http.ResponseWriter, r *http.Reque
 	}
 	page, err := h.store.History(r.Context(), chatstore.HistoryQuery{
 		RoomID: msg.RoomID, AroundSeq: msg.Seq, Limit: int(min(n*2, chatstore.MaxPageSize)),
+		ViewerID: sub.UserID,
 	})
 	if err != nil {
 		writeChatError(w, err)
@@ -106,8 +107,16 @@ func (h *TextChatHandler) GetPins(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]chatstore.PublicMessage, len(pins))
 	for i, m := range pins {
-		out[i] = m.Public()
+		out[i] = m.PublicFor(viewerID(r))
 	}
 	w.Header().Set("Content-Type", "application/json")
 	writeJSON(w, map[string]any{"messages": out})
+}
+
+// viewerID is the requesting user (per-viewer poll results).
+func viewerID(r *http.Request) string {
+	if claims := claimsFromRequest(r); claims != nil {
+		return claims.UserID
+	}
+	return ""
 }

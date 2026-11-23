@@ -46,7 +46,11 @@
           v-if="!compact && isSystem"
           class="w-10 h-10 rounded-full bg-theme-accent flex items-center justify-center text-theme-text-on-accent"
           aria-hidden="true">
-          <PhAlarm class="w-5 h-5" weight="fill" />
+          <PhChartBarHorizontal
+            v-if="message.command?.name === 'poll_closed'"
+            class="w-5 h-5"
+            weight="bold" />
+          <PhAlarm v-else class="w-5 h-5" weight="fill" />
         </div>
         <UserAvatar
           v-else-if="!compact"
@@ -130,6 +134,14 @@
           :command="message.command"
           :message-id="message.id"
           :animate="liveCommand" />
+        <MessagePoll
+          v-if="message.poll"
+          :message-id="message.id"
+          :poll="message.poll"
+          :can-vote="canReply"
+          :can-end="isOwn || canManage"
+          :pending="!!pendingStatus"
+          @show-voters="$emit('show-voters')" />
         <MessageAttachments
           v-if="message.attachments.length"
           :attachments="message.attachments"
@@ -228,7 +240,7 @@
         <PhArrowBendUpLeft class="w-4 h-4" />
       </button>
       <button
-        v-if="isOwn && !message.command"
+        v-if="isOwn && !message.command && !message.poll"
         type="button"
         :class="toolbarBtn"
         title="Edit"
@@ -275,6 +287,7 @@ import { computed, nextTick, ref, useTemplateRef, watch } from "vue"
 import {
   PhAlarm,
   PhArrowBendUpLeft,
+  PhChartBarHorizontal,
   PhCopy,
   PhPencilSimple,
   PhPushPin,
@@ -290,6 +303,7 @@ import ReactionBar from "./ReactionBar.vue"
 import MessageAttachments from "./attachments/MessageAttachments.vue"
 import MessageEmbeds from "./embeds/MessageEmbeds.vue"
 import MessageCommand from "./commands/MessageCommand.vue"
+import MessagePoll from "./polls/MessagePoll.vue"
 import {
   useAppStore,
   useCustomEmojisStore,
@@ -357,6 +371,8 @@ const emit = defineEmits<{
   "remove-embeds": []
   /** Mobile long press: open the message action sheet. */
   "open-actions": []
+  /** Show who voted for what in this message's poll. */
+  "show-voters": []
 }>()
 
 const toolbarBtn =
@@ -423,6 +439,7 @@ const replyPreview = computed(() => {
     kind === "user" ? nameOf(id) : (roleName(id) ?? "unknown-role"),
   ).slice(0, 200)
   if (text) return text
+  if (props.replied.poll) return `📊 ${emojiTextToPlain(props.replied.poll.question)}`
   if (props.replied.gif) return "GIF"
   const n = props.replied.attachments.length
   return n ? `📎 ${n === 1 ? props.replied.attachments[0].filename : `${n} files`}` : ""

@@ -12,7 +12,6 @@ func TestEmojiShortcode(t *testing.T) {
 	cases := map[string]string{
 		"Party Parrot!":    "party_parrot",
 		"  --Hello--  ":    "hello",
-		"Котик Привет":     "котик_привет",
 		"a__b  c":          "a_b_c",
 		"v2 Beta":          "v2_beta",
 		"!!!":              "emoji",

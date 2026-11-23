@@ -67,8 +67,8 @@ Dates use your own time zone. Results are sorted by relevance when you type text
 
 When the server has image search enabled, every image attachment is indexed in the background, including images sent before the feature was turned on:
 
-- **OCR** reads the text in the image (Russian, Ukrainian, Belarusian and English). Searching for a word that appears in a screenshot finds it.
-- **CLIP** understands what the image shows. Searching for `sunset over the sea` or `закат над морем` finds matching photos even when nobody wrote those words. These "by meaning" results only appear when you search by relevance.
+- **OCR** reads the text in the image. Searching for a word that appears in a screenshot finds it.
+- **CLIP** understands what the image shows. Searching for `sunset over the sea` finds matching photos even when nobody wrote those words. These "by meaning" results only appear when you search by relevance.
 
 To see what search knows about an image, open its menu and choose **What search sees**. It shows the recognized text and can test how well a phrase matches. Admins can follow indexing progress in **Admin panel → Search indexing**.
 

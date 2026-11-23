@@ -98,21 +98,13 @@
         <span class="text-[11px] text-theme-text-muted"> GIF · send with your message </span>
       </div>
       <div ref="box" class="relative flex items-end gap-2 px-3 py-2">
-        <button
-          v-if="canAttach"
-          type="button"
-          class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded text-theme-text-muted hover:text-theme-text-primary hover:bg-theme-bg-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          :title="
-            serverOnline
-              ? 'Attach files (images, audio, mp4 video)'
-              : 'Attachments need a connection'
-          "
-          aria-label="Attach files"
-          :disabled="!serverOnline"
-          data-testid="attach-button"
-          @click="fileInput?.click()">
-          <PhPlusCircle class="w-5 h-5" />
-        </button>
+        <ComposerPlusMenu
+          v-if="canAttach || canSend"
+          :can-attach="canAttach"
+          :can-poll="canSend"
+          :online="serverOnline"
+          @attach="fileInput?.click()"
+          @poll="pollModalOpen = true" />
         <input
           ref="fileInput"
           type="file"
@@ -277,6 +269,7 @@
           @close="closeComposerPanel" />
       </div>
     </div>
+    <CreatePollModal v-if="pollModalOpen" @close="pollModalOpen = false" @create="createPoll" />
   </div>
 </template>
 
@@ -287,7 +280,6 @@ import {
   PhGif,
   PhInfo,
   PhPaperPlaneRight,
-  PhPlusCircle,
   PhSmiley,
   PhTextB,
   PhTextItalic,
@@ -299,9 +291,11 @@ import GifPicker from "./GifPicker.vue"
 import ComposerPickerDock from "./ComposerPickerDock.vue"
 import ComposerSuggestions, { type Suggestion } from "./ComposerSuggestions.vue"
 import ComposerUploads from "./ComposerUploads.vue"
+import ComposerPlusMenu from "./ComposerPlusMenu.vue"
+import CreatePollModal from "./polls/CreatePollModal.vue"
 import { useGifSearch } from "@/composables/useGifSearch"
 import { pushBackHandler } from "@/services/backButton"
-import type { TextGIF } from "@/types/textChat"
+import type { TextGIF, TextPollInput } from "@/types/textChat"
 import { openStoragePage } from "@/services/attachments/urls"
 import { formatBytes } from "@/utils/formatBytes"
 import { Permission } from "@/types/permissions"
@@ -665,6 +659,13 @@ watch(canAttach, (can) => can && void attachmentsStore.loadUsage(), { immediate:
 
 // Messages queue offline (outbox); uploads can't.
 const serverOnline = computed(() => connectionStore.isOnline)
+
+// --- Polls ----------------------------------------------------------------
+const pollModalOpen = ref(false)
+function createPoll(poll: TextPollInput) {
+  pollModalOpen.value = false
+  textChatStore.sendPoll(props.roomId, poll)
+}
 
 function addFiles(files: File[]) {
   if (!files.length) return

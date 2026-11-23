@@ -111,7 +111,7 @@ func TestNormalizeGIFDropsUnusableDimensions(t *testing.T) {
 
 func TestNormalizeGIFShortensTitle(t *testing.T) {
 	g := validGIF()
-	g.Title = strings.Repeat("ы", maxGIFTitleRunes+50)
+	g.Title = strings.Repeat("x", maxGIFTitleRunes+50)
 	got, err := NormalizeGIF(g)
 	if err != nil {
 		t.Fatalf("NormalizeGIF: %v", err)

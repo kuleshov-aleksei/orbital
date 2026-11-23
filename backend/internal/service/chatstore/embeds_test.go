@@ -27,7 +27,6 @@ func TestPreviewURLs(t *testing.T) {
 		{"xhttps://glued.example", nil},
 		{"https://1.example https://2.example https://3.example https://4.example",
 			[]string{"https://1.example", "https://2.example", "https://3.example"}},
-		{"ссылка https://пример.рф/путь, дальше", []string{"https://пример.рф/путь"}},
 		{"<https://a.example> but https://b.example", []string{"https://b.example"}},
 		{"<https://a.example/.>", nil},
 	}

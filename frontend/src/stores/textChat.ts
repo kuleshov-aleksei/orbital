@@ -23,6 +23,7 @@ import type {
   TextMessageDeletedEvent,
   TextMessageNewEvent,
   TextMessageUpdatedEvent,
+  TextPollInput,
   TextReadStateEvent,
   TextTypingEvent,
   TextUnreadResponse,
@@ -69,6 +70,8 @@ export interface PendingTextMessage {
   attachments: TextAttachment[]
   /** A third-party GIF sent with this message (docs/specs/CHAT_SYSTEM.md §7.17). */
   gif?: TextGIF
+  /** A poll created with this message (docs/specs/CHAT_SYSTEM.md §7.18). */
+  poll?: TextPollInput
   created_at_ts: number
   /** queued: written offline (or the link dropped), sent on reconnect. */
   status: "queued" | "sending" | "failed"
@@ -581,6 +584,7 @@ export const useTextChatStore = defineStore("textChat", () => {
       ...(p.upload_ids.length ? { upload_ids: p.upload_ids } : {}),
       ...(p.spoiler_ids?.length ? { spoiler_ids: p.spoiler_ids } : {}),
       ...(p.gif ? { gif: p.gif } : {}),
+      ...(p.poll ? { poll: p.poll } : {}),
       ...(p.reply_to_id ? { reply_to_id: p.reply_to_id, reply_ping: p.reply_ping } : {}),
       ...(p.tz ? { tz: p.tz } : {}),
     })
@@ -725,6 +729,49 @@ export const useTextChatStore = defineStore("textChat", () => {
     clearSendTimer(nonce)
     pending.value = pending.value.filter((x) => x.nonce !== nonce)
     void cacheDelete("outbox", nonce)
+  }
+
+  /** Creates a poll. It goes through the outbox like any message, so a
+   * poll made offline is sent on reconnect. */
+  function sendPoll(roomId: string, poll: TextPollInput) {
+    const reply = replyTarget.value?.room_id === roomId ? replyTarget.value : null
+    for (const old of pending.value.filter((x) => x.room_id === roomId && x.rejected)) {
+      discardPending(old.nonce)
+    }
+    const p: PendingTextMessage = {
+      nonce: makeNonce(),
+      room_id: roomId,
+      content: "",
+      reply_to_id: reply?.id ?? null,
+      reply_ping: replyPing.value,
+      upload_ids: [],
+      attachments: [],
+      poll,
+      created_at_ts: Date.now(),
+      status: "sending",
+    }
+    pending.value.push(p)
+    replyTarget.value = null
+    const view = viewFor(roomId)
+    if (view.hasMoreAfter) void loadLatest(roomId)
+    else view.scrollRequest = { kind: "bottom" }
+    void cachePut("outbox", p.nonce, p)
+    transmitOrQueue(pending.value[pending.value.length - 1])
+  }
+
+  /** Polls with a vote or close request in flight (spinner, no double taps). */
+  const pollBusy = ref<Record<string, boolean>>({})
+
+  /** Replaces your vote in a poll; no options retracts it. */
+  function votePoll(messageId: string, optionIds: string[]) {
+    pollBusy.value[messageId] = true
+    wsService.sendGlobalMessage("text_poll_vote", { message_id: messageId, option_ids: optionIds })
+  }
+
+  /** Ends a poll early (author or ManageMessages). */
+  function closePoll(messageId: string) {
+    pollBusy.value[messageId] = true
+    wsService.sendGlobalMessage("text_poll_close", { message_id: messageId })
   }
 
   function editMessage(messageId: string, content: string) {
@@ -915,6 +962,7 @@ export const useTextChatStore = defineStore("textChat", () => {
 
   function onMessageUpdated(data: TextMessageUpdatedEvent) {
     const msg = data.message
+    delete pollBusy.value[data.id]
     forEachView((view) => {
       const i = view.messages.findIndex((m) => m.id === data.id)
       if (i !== -1) view.messages[i] = msg
@@ -990,9 +1038,12 @@ export const useTextChatStore = defineStore("textChat", () => {
   function onError(data: TextErrorEvent) {
     if (data.nonce) {
       const p = pending.value.find((x) => x.nonce === data.nonce)
-      markFailed(data.nonce, data.message, data.code === "invalid" && !!p?.content.startsWith("/"))
+      // A refused command or poll gets the same answer when resent.
+      const refused = !!p && (p.content.startsWith("/") || !!p.poll)
+      markFailed(data.nonce, data.message, data.code === "invalid" && refused)
       return
     }
+    if (data.message_id) delete pollBusy.value[data.message_id]
     lastError.value = data.message
     if (data.code === "chat_unavailable") available.value = false
   }
@@ -1117,6 +1168,10 @@ export const useTextChatStore = defineStore("textChat", () => {
     jumpToPresent,
     jumpToMessage,
     sendMessage,
+    sendPoll,
+    pollBusy,
+    votePoll,
+    closePoll,
     flushOutbox,
     restoreOutbox,
     onConnectionLost,

@@ -706,6 +706,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_user_badges_displayed ON user_badges(user_
 		// next sign-in. Setting it back to NULL asks again (new versions).
 		SQL: `ALTER TABLE users ADD COLUMN accepted_terms_at DATETIME;`,
 	},
+	{
+		Version: 56,
+		Name:    "create_chat_poll_deadlines",
+		// Due dates of open text channel polls (docs/specs/CHAT_SYSTEM.md
+		// §7.18). due_at is unix ms (UTC). A row is deleted when the poll
+		// closes (at its due date or early) or its message is deleted.
+		SQL: `CREATE TABLE IF NOT EXISTS chat_poll_deadlines (
+			message_id TEXT PRIMARY KEY,
+			room_id TEXT NOT NULL,
+			due_at INTEGER NOT NULL
+		);
+CREATE INDEX IF NOT EXISTS idx_chat_poll_deadlines_due ON chat_poll_deadlines(due_at);`,
+	},
 }
 
 // RunMigrationsUpTo applies migrations up to and including maxVersion.

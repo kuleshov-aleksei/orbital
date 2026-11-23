@@ -87,7 +87,7 @@ func TestUpdateCustomStatusValidation(t *testing.T) {
 		t.Errorf("no auth: status = %d, want 401", rec.Code)
 	}
 
-	tooLong := strings.Repeat("я", models.MaxCustomStatusLength+1)
+	tooLong := strings.Repeat("x", models.MaxCustomStatusLength+1)
 	if rec := patchCustomStatus(h, "u1", `{"custom_status":"`+tooLong+`"}`); rec.Code != http.StatusBadRequest {
 		t.Errorf("too long: status = %d, want 400", rec.Code)
 	}

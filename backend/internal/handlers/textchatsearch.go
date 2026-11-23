@@ -182,7 +182,7 @@ func (h *TextChatHandler) Search(w http.ResponseWriter, r *http.Request) {
 	}
 	hits := make([]SearchHit, len(res.Hits))
 	for i, hit := range res.Hits {
-		hits[i] = SearchHit{Message: hit.Message.Public(), Snippet: hit.Snippet}
+		hits[i] = SearchHit{Message: hit.Message.PublicFor(sub.UserID), Snippet: hit.Snippet}
 	}
 	respond(hits, res.Total)
 }

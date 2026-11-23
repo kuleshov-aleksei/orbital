@@ -174,7 +174,7 @@ func TestMentionPushPreviewIsTruncated(t *testing.T) {
 	setActive(f.bob, false)
 	long := "<@bob> "
 	for i := 0; i < 50; i++ {
-		long += "слово "
+		long += "word "
 	}
 	f.send(f.alice, f.text.ID, long)
 	got := sender.take()

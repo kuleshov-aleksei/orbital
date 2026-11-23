@@ -713,6 +713,10 @@ func (c *Client) handleMessage(message models.WebSocketMessage) {
 		c.handleTextChannelRead(message.Data)
 	case "text_reaction_toggle":
 		c.handleTextReactionToggle(message.Data)
+	case "text_poll_vote":
+		c.handleTextPollVote(message.Data)
+	case "text_poll_close":
+		c.handleTextPollClose(message.Data)
 	case "text_pin":
 		c.handleTextPin(message.Data)
 	case "text_typing":

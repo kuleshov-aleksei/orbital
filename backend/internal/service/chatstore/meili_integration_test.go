@@ -39,7 +39,7 @@ func TestMeiliEngineIntegration(t *testing.T) {
 		t.Fatalf("second bootstrap: %v", err)
 	}
 
-	parent, err := s.Create(ctx, CreateInput{RoomID: "r", SenderID: "alice", Content: "привет **мир** <:wave:0b6e6c1e-8a0f-4f3e-9b9a-2b1f6f2e3c4d>"})
+	parent, err := s.Create(ctx, CreateInput{RoomID: "r", SenderID: "alice", Content: "hello **world** <:wave:0b6e6c1e-8a0f-4f3e-9b9a-2b1f6f2e3c4d>"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestMeiliEngineIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := fmt.Sprint(contents(page)); got != "[привет **мир** <:wave:0b6e6c1e-8a0f-4f3e-9b9a-2b1f6f2e3c4d> reply (edited)]" {
+	if got := fmt.Sprint(contents(page)); got != "[hello **world** <:wave:0b6e6c1e-8a0f-4f3e-9b9a-2b1f6f2e3c4d> reply (edited)]" {
 		t.Fatalf("history via overlay = %s", got)
 	}
 
@@ -73,7 +73,7 @@ func TestMeiliEngineIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := fmt.Sprint(contents(page)); got != "[привет **мир** <:wave:0b6e6c1e-8a0f-4f3e-9b9a-2b1f6f2e3c4d> reply (edited)]" {
+	if got := fmt.Sprint(contents(page)); got != "[hello **world** <:wave:0b6e6c1e-8a0f-4f3e-9b9a-2b1f6f2e3c4d> reply (edited)]" {
 		t.Fatalf("history from index = %s", got)
 	}
 	if p, ok := page.Replied[parent.ID]; !ok || p.SenderID != "alice" {
@@ -109,7 +109,7 @@ func TestMeiliEngineIntegration(t *testing.T) {
 	if _, _, err := s.SetPinned(ctx, parent.ID, "mod", true); err != nil {
 		t.Fatal(err)
 	}
-	mention, err := s.Create(ctx, CreateInput{RoomID: "r", SenderID: "bob", Content: "hey <@alice> and <@&mods> look at the квитанция"})
+	mention, err := s.Create(ctx, CreateInput{RoomID: "r", SenderID: "bob", Content: "hey <@alice> and <@&mods> look at the invoice"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,14 +136,14 @@ func TestMeiliEngineIntegration(t *testing.T) {
 	if err != nil || len(pins) != 1 || pins[0].ID != parent.ID || len(pins[0].Reactions) != 1 {
 		t.Fatalf("pins = %+v, %v", pins, err)
 	}
-	res, err := s.Search(ctx, SearchRequest{Text: "квитанци", RoomIDs: []string{"r", "other"}})
+	res, err := s.Search(ctx, SearchRequest{Text: "invoic", RoomIDs: []string{"r", "other"}})
 	if err != nil || len(res.Hits) != 1 || res.Hits[0].Message.ID != mention.ID {
 		t.Fatalf("prefix search = %+v, %v", res, err)
 	}
 	if !strings.Contains(res.Hits[0].Snippet, HighlightPre) {
 		t.Fatalf("snippet without highlight: %q", res.Hits[0].Snippet)
 	}
-	res, err = s.Search(ctx, SearchRequest{Text: "квитонция", RoomIDs: []string{"r"}})
+	res, err = s.Search(ctx, SearchRequest{Text: "invoise", RoomIDs: []string{"r"}})
 	if err != nil || len(res.Hits) != 1 {
 		t.Fatalf("typo search = %+v, %v", res, err)
 	}
@@ -155,7 +155,7 @@ func TestMeiliEngineIntegration(t *testing.T) {
 	if err != nil || len(res.Hits) != 0 {
 		t.Fatalf("deleted message found: %+v, %v", res, err)
 	}
-	res, err = s.Search(ctx, SearchRequest{Text: "квитанция", RoomIDs: []string{"other"}})
+	res, err = s.Search(ctx, SearchRequest{Text: "invoice", RoomIDs: []string{"other"}})
 	if err != nil || len(res.Hits) != 0 {
 		t.Fatalf("room filter leaked: %+v, %v", res, err)
 	}
