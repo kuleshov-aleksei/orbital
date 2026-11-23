@@ -22,6 +22,7 @@ type AuthHandler struct {
 	electronRedirectURL string
 	sessionPush         SessionPushStore
 	sessionCloser       SessionCloser
+	accounts            *service.AccountService
 }
 
 // NewAuthHandler creates a new auth handler

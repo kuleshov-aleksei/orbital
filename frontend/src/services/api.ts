@@ -1110,6 +1110,17 @@ export const apiService = {
     return apiRequest<{ revoked: number }>("/auth/sessions/revoke-others", { method: "POST" })
   },
 
+  /**
+   * Deletes the caller's account. Password accounts confirm with the
+   * password, every other kind with the current nickname (403 on mismatch).
+   */
+  async deleteAccount(confirm: { password?: string; nickname?: string }): Promise<void> {
+    await apiRequest<void>("/auth/account", {
+      method: "DELETE",
+      body: JSON.stringify({ password: confirm.password ?? "", nickname: confirm.nickname ?? "" }),
+    })
+  },
+
   async logout(): Promise<{ status: string; message: string }> {
     const response = await apiRequest<{ status: string; message: string }>("/auth/logout", {
       method: "POST",

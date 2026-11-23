@@ -157,3 +157,17 @@ func (s *DebugLogService) DeleteLog(id int64) error {
 
 	return s.repo.Delete(id)
 }
+
+// DeleteForUser deletes every log a user uploaded, files and rows.
+func (s *DebugLogService) DeleteForUser(userID string) error {
+	ids, err := s.repo.IDsByUserID(userID)
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if err := s.DeleteLog(id); err != nil {
+			return err
+		}
+	}
+	return nil
+}

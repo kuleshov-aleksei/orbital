@@ -160,6 +160,9 @@ func main() {
 				log.Printf("permission lookup for user %s failed: %v", userID, err)
 				return nil
 			}
+			if user != nil && user.DeletedAt != nil {
+				return nil // deleted account: no permissions, not mentionable
+			}
 			return user
 		}
 		user, _ := roomService.GetUserByID(userID)
@@ -301,6 +304,17 @@ func main() {
 	}
 	adminHandler := handlers.NewAdminHandlerWithHub(roleService, userRepo, debugLogService, analyticsService, wsHub)
 	adminHandler.SetPermissionService(permissionService)
+	// Account deletion: one erase path for "Delete my account" and the admin panel.
+	if userRepo != nil {
+		accountService := service.NewAccountService(userRepo, debugLogService, avatarService)
+		if textChat != nil && textChat.Media != nil {
+			accountService.SetMedia(textChat.Media)
+		}
+		accountService.SetLive(wsHub)
+		accountService.SetPermissionForget(permissionService.ForgetUser)
+		authHandler.SetAccountService(accountService)
+		adminHandler.SetAccountService(accountService)
+	}
 	securityHandler := handlers.NewSecurityHandler(cfg)
 	usersHandler := handlers.NewUsersHandler(userRepo, wsHub)
 	usersHandler.SetPermissionService(permissionService)
@@ -407,6 +421,7 @@ func main() {
 	r.Handle("/api/auth/logout", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.Logout))).Methods("POST")
 	r.Handle("/api/auth/me", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.GetCurrentUser))).Methods("GET")
 	r.Handle("/api/auth/accept-terms", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.AcceptTerms))).Methods("POST")
+	r.Handle("/api/auth/account", authHandler.AuthMiddleware(withRateLimit("delete-account", cfg.RateLimit.AuthPerMinute, time.Minute, userOrIPKey, http.HandlerFunc(authHandler.DeleteAccount)))).Methods("DELETE")
 	r.Handle("/api/auth/refresh", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.RefreshToken))).Methods("POST")
 	r.Handle("/api/auth/sessions", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.ListSessions))).Methods("GET")
 	r.Handle("/api/auth/sessions/revoke-others", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.RevokeOtherSessions))).Methods("POST")

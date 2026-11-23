@@ -38,7 +38,7 @@ func scanUser(scanner interface {
 	var authProvider sql.NullString
 	var isGuest sql.NullBool
 	var tokenVersion sql.NullInt64
-	var acceptedTermsAt sql.NullTime
+	var acceptedTermsAt, deletedAt sql.NullTime
 
 	err := scanner.Scan(
 		&user.ID,
@@ -58,6 +58,7 @@ func scanUser(scanner interface {
 		&customStatus,
 		&customStatusEmoji,
 		&acceptedTermsAt,
+		&deletedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -112,6 +113,10 @@ func scanUser(scanner interface {
 		t := acceptedTermsAt.Time
 		user.AcceptedTermsAt = &t
 	}
+	if deletedAt.Valid {
+		t := deletedAt.Time
+		user.DeletedAt = &t
+	}
 
 	return user, nil
 }
@@ -119,7 +124,7 @@ func scanUser(scanner interface {
 // GetByID retrieves a user by ID
 func (r *UserRepository) GetByID(id string) (*models.User, error) {
 	user, err := scanUser(r.db.QueryRow(
-		`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at 
+		`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at, deleted_at 
 		 FROM users WHERE id = ?`,
 		id,
 	))
@@ -141,7 +146,7 @@ func (r *UserRepository) GetByProviderID(provider string, providerID string) (*m
 	}
 
 	user, err := scanUser(r.db.QueryRow(
-		`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at 
+		`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at, deleted_at 
 		 FROM users WHERE auth_provider = ? AND provider_id = ?`,
 		provider, providerID,
 	))
@@ -192,31 +197,55 @@ func (r *UserRepository) UpdateNickname(id string, nickname string, lastSeen tim
 	return err
 }
 
-// Delete removes a user from the database
-func (r *UserRepository) Delete(id string) error {
-	// SQLite foreign keys are not enforced, so clean up RBAC rows explicitly.
-	if _, err := r.db.Exec(`DELETE FROM user_roles WHERE user_id = ?`, id); err != nil {
-		return err
-	}
-	if _, err := r.db.Exec(`DELETE FROM user_color_roles WHERE user_id = ?`, id); err != nil {
-		return err
-	}
-	if _, err := r.db.Exec(`DELETE FROM permission_overwrites WHERE subject_type = 'user' AND subject_id = ?`, id); err != nil {
-		return err
-	}
-	if _, err := r.db.Exec(`DELETE FROM push_devices WHERE user_id = ?`, id); err != nil {
-		return err
-	}
-	if _, err := r.db.Exec(`DELETE FROM user_badges WHERE user_id = ?`, id); err != nil {
-		return err
-	}
-	_, err := r.db.Exec(`DELETE FROM users WHERE id = ?`, id)
-	return err
+// DeletedNickname is the name a deleted account's tombstone row carries.
+const DeletedNickname = "Deleted user"
+
+// eraseStatements remove a user's personal rows. Every table keyed by a
+// user id belongs here unless its rows must outlive the account (call stats
+// in user_sessions, uploads, badge definitions), which keep the tombstone id.
+var eraseStatements = []string{
+	`DELETE FROM auth_sessions WHERE user_id = ?`,
+	`DELETE FROM push_devices WHERE user_id = ?`,
+	`DELETE FROM user_roles WHERE user_id = ?`,
+	`DELETE FROM user_color_roles WHERE user_id = ?`,
+	`DELETE FROM user_badges WHERE user_id = ?`,
+	`DELETE FROM permission_overwrites WHERE subject_type = 'user' AND subject_id = ?`,
+	`DELETE FROM text_read_state WHERE user_id = ?`,
+	`DELETE FROM text_notify_settings WHERE user_id = ?`,
+	`DELETE FROM chat_reminders WHERE user_id = ?`,
+	`DELETE FROM qr_login_challenges WHERE approved_by_user_id = ?`,
+	`DELETE FROM debug_logs WHERE user_id = ?`,
 }
 
-// GetAll retrieves all users from the database
+// Erase turns the user into an anonymous tombstone: the row and its id stay
+// (messages, call history and uploads still point at it), everything
+// personal is cleared and the user's personal rows in other tables are
+// deleted. Debug log files and attachments are removed by the caller
+// (service.AccountService.Erase) before this runs.
+func (r *UserRepository) Erase(id string, now time.Time) error {
+	return r.db.Transaction(func(tx *sql.Tx) error {
+		for _, stmt := range eraseStatements {
+			if _, err := tx.Exec(stmt, id); err != nil {
+				return err
+			}
+		}
+		// original_nickname = NULL frees the (original_nickname, auth_provider)
+		// unique index, so the name can be registered again.
+		_, err := tx.Exec(
+			`UPDATE users SET deleted_at = ?, nickname = ?, original_nickname = NULL, email = NULL,
+			        provider_id = NULL, auth_provider = ?, password_hash = NULL, avatar_url = NULL,
+			        custom_status = '', custom_status_emoji = '', accepted_terms_at = NULL,
+			        role = ?, is_guest = 0, sound_pack = 'default', token_version = token_version + 1
+			  WHERE id = ?`,
+			now, DeletedNickname, models.AuthProviderDeleted, models.RoleUser, id,
+		)
+		return err
+	})
+}
+
+// GetAll retrieves all users from the database (deleted accounts excluded)
 func (r *UserRepository) GetAll() ([]*models.User, error) {
-	rows, err := r.db.Query(`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at FROM users`)
+	rows, err := r.db.Query(`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at, deleted_at FROM users WHERE deleted_at IS NULL`)
 	if err != nil {
 		return nil, err
 	}
@@ -275,30 +304,6 @@ func (r *UserRepository) HasSuperAdmin() (bool, error) {
 	return count > 0, nil
 }
 
-// DeleteAllGuests deletes all guest users and returns the count of deleted users
-func (r *UserRepository) DeleteAllGuests() (int64, error) {
-	if _, err := r.db.Exec(`DELETE FROM user_roles WHERE user_id IN (SELECT id FROM users WHERE is_guest = 1)`); err != nil {
-		return 0, err
-	}
-	if _, err := r.db.Exec(`DELETE FROM user_color_roles WHERE user_id IN (SELECT id FROM users WHERE is_guest = 1)`); err != nil {
-		return 0, err
-	}
-	if _, err := r.db.Exec(`DELETE FROM permission_overwrites WHERE subject_type = 'user' AND subject_id IN (SELECT id FROM users WHERE is_guest = 1)`); err != nil {
-		return 0, err
-	}
-	if _, err := r.db.Exec(`DELETE FROM push_devices WHERE user_id IN (SELECT id FROM users WHERE is_guest = 1)`); err != nil {
-		return 0, err
-	}
-	if _, err := r.db.Exec(`DELETE FROM user_badges WHERE user_id IN (SELECT id FROM users WHERE is_guest = 1)`); err != nil {
-		return 0, err
-	}
-	result, err := r.db.Exec(`DELETE FROM users WHERE is_guest = 1`)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
 // GetGuestIDs returns the IDs of all guest users (used before bulk deletion
 // so related data can be purged).
 func (r *UserRepository) GetGuestIDs() ([]string, error) {
@@ -329,11 +334,11 @@ func (r *UserRepository) GetByEmail(email string, authProvider *models.AuthProvi
 	var args []interface{}
 
 	if authProvider != nil {
-		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at 
+		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at, deleted_at 
 		 FROM users WHERE LOWER(email) = LOWER(?) AND auth_provider = ?`
 		args = []interface{}{email, *authProvider}
 	} else {
-		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at 
+		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at, deleted_at 
 		 FROM users WHERE LOWER(email) = LOWER(?)`
 		args = []interface{}{email}
 	}
@@ -360,11 +365,11 @@ func (r *UserRepository) GetByOriginalNickname(originalNickname string, authProv
 	var args []interface{}
 
 	if authProvider != nil {
-		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at 
+		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at, deleted_at 
 		 FROM users WHERE LOWER(original_nickname) = LOWER(?) AND auth_provider = ?`
 		args = []interface{}{originalNickname, *authProvider}
 	} else {
-		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at 
+		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at, deleted_at 
 		 FROM users WHERE LOWER(original_nickname) = LOWER(?)`
 		args = []interface{}{originalNickname}
 	}

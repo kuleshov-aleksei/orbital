@@ -601,6 +601,14 @@ export function useWebSocketHandlers() {
     }
     wsService.onGlobal("custom_status_change", onCustomStatusChange)
     onCleanup(() => wsService.offGlobal("custom_status_change", onCustomStatusChange))
+
+    // An account was deleted (backend websocket/accounts.go).
+    const onUserDeleted: MessageCallback = (message) => {
+      const data = message.data as { user_id: string }
+      usersStore.forgetUser(data.user_id)
+    }
+    wsService.onGlobal("user_deleted", onUserDeleted)
+    onCleanup(() => wsService.offGlobal("user_deleted", onUserDeleted))
   }
 
   const connectGlobalWebSocket = async () => {

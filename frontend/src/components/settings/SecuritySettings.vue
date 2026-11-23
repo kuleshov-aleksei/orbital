@@ -122,6 +122,68 @@
       </div>
     </div>
 
+    <!-- Delete account -->
+    <div
+      v-if="userStore.isAuthenticated"
+      class="bg-theme-bg-tertiary rounded-lg p-4 border border-red-500/30"
+      data-testid="delete-account-section">
+      <div class="font-medium text-theme-text-primary mb-1">Delete account</div>
+      <p class="text-theme-text-muted text-sm mb-3">
+        Your profile, sign-in sessions, settings and uploaded files are deleted for good. Messages
+        you posted stay visible as written by "Deleted user". This can't be undone.
+      </p>
+
+      <p v-if="userStore.isSuperAdmin" class="text-theme-text-muted text-sm">
+        You own this server, so this account can't be deleted.
+      </p>
+
+      <form v-else-if="confirmingDelete" class="space-y-2" @submit.prevent="deleteAccount">
+        <label class="block text-sm text-theme-text-secondary" for="delete-account-confirm">
+          <template v-if="usesPassword">Enter your password to confirm.</template>
+          <template v-else>
+            Type your nickname
+            <strong class="text-theme-text-primary">{{ userStore.nickname }}</strong>
+            to confirm.
+          </template>
+        </label>
+        <input
+          id="delete-account-confirm"
+          v-model="deleteConfirm"
+          :type="usesPassword ? 'password' : 'text'"
+          :autocomplete="usesPassword ? 'current-password' : 'off'"
+          class="w-full px-3 py-2 bg-theme-bg-secondary border border-theme-border rounded-lg text-theme-text-primary text-sm focus:outline-none focus:border-red-500"
+          data-testid="delete-account-input" />
+        <p v-if="deleteError" class="text-xs text-red-400">{{ deleteError }}</p>
+        <div class="flex gap-2">
+          <button
+            type="submit"
+            class="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="deleting || !deleteConfirm || !connectionStore.isOnline"
+            data-testid="confirm-delete-account">
+            {{ deleting ? "Deleting…" : "Delete my account" }}
+          </button>
+          <button
+            type="button"
+            class="flex-1 px-4 py-2 bg-theme-bg-secondary hover:bg-theme-bg-hover border border-theme-border text-theme-text-primary rounded-lg text-sm font-medium transition-colors duration-200"
+            :disabled="deleting"
+            @click="cancelDelete">
+            Cancel
+          </button>
+        </div>
+      </form>
+
+      <button
+        v-else
+        type="button"
+        class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-theme-bg-secondary hover:bg-red-600 hover:text-white border border-theme-border text-red-400 rounded-lg text-sm font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+        :disabled="!connectionStore.isOnline"
+        data-testid="delete-account"
+        @click="confirmingDelete = true">
+        <PhTrash class="w-4 h-4" />
+        Delete account
+      </button>
+    </div>
+
     <QRScanModal :is-open="showScanner" @close="showScanner = false" />
   </div>
 </template>
@@ -135,12 +197,14 @@ import {
   PhQrCode,
   PhShieldCheck,
   PhSignOut,
+  PhTrash,
 } from "@phosphor-icons/vue"
 import { useConnectionStore, useUserStore } from "@/stores"
 import { apiService, type AuthSessionInfo } from "@/services/api"
 import QRScanModal from "@/components/auth/QRScanModal.vue"
 
 defineProps<{ hideHeader?: boolean }>()
+const emit = defineEmits<{ logout: [] }>()
 
 const userStore = useUserStore()
 const connectionStore = useConnectionStore()
@@ -228,6 +292,42 @@ async function revokeOthers() {
     actionError.value = "Couldn't sign out the other sessions."
   } finally {
     busy.value = false
+  }
+}
+
+// Delete account: password accounts confirm with the password, every other
+// kind (OAuth, guest) by typing the nickname.
+const confirmingDelete = ref(false)
+const deleteConfirm = ref("")
+const deleteError = ref("")
+const deleting = ref(false)
+const usesPassword = computed(() => userStore.authProvider === "password")
+
+function cancelDelete() {
+  confirmingDelete.value = false
+  deleteConfirm.value = ""
+  deleteError.value = ""
+}
+
+async function deleteAccount() {
+  deleting.value = true
+  deleteError.value = ""
+  try {
+    await userStore.deleteAccount(
+      usesPassword.value ? { password: deleteConfirm.value } : { nickname: deleteConfirm.value },
+    )
+    emit("logout")
+  } catch (error) {
+    console.warn("[Security] Failed to delete account:", error)
+    const status = (error as { status?: number }).status
+    deleteError.value =
+      status === 403
+        ? usesPassword.value
+          ? "Wrong password."
+          : "The nickname doesn't match."
+        : "Couldn't delete the account. Try again."
+  } finally {
+    deleting.value = false
   }
 }
 

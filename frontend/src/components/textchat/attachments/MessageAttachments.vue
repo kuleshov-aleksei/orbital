@@ -200,6 +200,8 @@ function removedLabel(att: TextAttachment): string {
       return "storage limit"
     case "moderator":
       return "by a moderator"
+    case "account_deleted":
+      return "account deleted"
     default:
       return "by uploader"
   }

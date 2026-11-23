@@ -156,11 +156,17 @@ type AdminHandler struct {
 	analyticsService *service.AnalyticsService
 	permissions      *service.PermissionService
 	wsHub            *websocket.Hub
+	accounts         *service.AccountService
 }
 
 // SetPermissionService lets user deletion drop cached role assignments.
 func (h *AdminHandler) SetPermissionService(ps *service.PermissionService) {
 	h.permissions = ps
+}
+
+// SetAccountService sets the erase path used to delete users.
+func (h *AdminHandler) SetAccountService(accounts *service.AccountService) {
+	h.accounts = accounts
 }
 
 // NewAdminHandler creates a new admin handler
@@ -250,7 +256,7 @@ func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to get user: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if targetUser == nil {
+	if targetUser == nil || targetUser.DeletedAt != nil {
 		http.Error(w, "User not found", http.StatusNotFound)
 		return
 	}
@@ -260,13 +266,13 @@ func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.userRepo.Delete(targetUserID); err != nil {
-		http.Error(w, "Failed to delete user: "+err.Error(), http.StatusInternalServerError)
+	if h.accounts == nil {
+		http.Error(w, "Account deletion not available", http.StatusServiceUnavailable)
 		return
 	}
-
-	if h.permissions != nil {
-		h.permissions.ForgetUser(targetUserID)
+	if err := h.accounts.Erase(targetUserID); err != nil {
+		http.Error(w, "Failed to delete user: "+err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -290,16 +296,17 @@ func (h *AdminHandler) DeleteAllGuests(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deletedCount, err := h.userRepo.DeleteAllGuests()
-	if err != nil {
-		http.Error(w, "Failed to delete guests: "+err.Error(), http.StatusInternalServerError)
+	if h.accounts == nil {
+		http.Error(w, "Account deletion not available", http.StatusServiceUnavailable)
 		return
 	}
-
-	if h.permissions != nil {
-		for _, id := range guestIDs {
-			h.permissions.ForgetUser(id)
+	var deletedCount int64
+	for _, id := range guestIDs {
+		if err := h.accounts.Erase(id); err != nil {
+			http.Error(w, "Failed to delete guests: "+err.Error(), http.StatusInternalServerError)
+			return
 		}
+		deletedCount++
 	}
 
 	w.Header().Set("Content-Type", "application/json")

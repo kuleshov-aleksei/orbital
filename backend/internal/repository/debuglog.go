@@ -98,3 +98,21 @@ func (r *DebugLogRepository) Delete(id int64) error {
 	_, err := r.db.Exec(`DELETE FROM debug_logs WHERE id = ?`, id)
 	return err
 }
+
+// IDsByUserID returns the ids of a user's logs (account deletion).
+func (r *DebugLogRepository) IDsByUserID(userID string) ([]int64, error) {
+	rows, err := r.db.Query(`SELECT id FROM debug_logs WHERE user_id = ?`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}

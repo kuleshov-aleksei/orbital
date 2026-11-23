@@ -719,6 +719,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_user_badges_displayed ON user_badges(user_
 		);
 CREATE INDEX IF NOT EXISTS idx_chat_poll_deadlines_due ON chat_poll_deadlines(due_at);`,
 	},
+	{
+		Version: 57,
+		Name:    "users_deleted_at",
+		// Deleted accounts stay as anonymous tombstones (UserRepository.Erase)
+		// so messages, call stats and uploads keep a valid user id.
+		SQL: `ALTER TABLE users ADD COLUMN deleted_at DATETIME;`,
+	},
 }
 
 // RunMigrationsUpTo applies migrations up to and including maxVersion.

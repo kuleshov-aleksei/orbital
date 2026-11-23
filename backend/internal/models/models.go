@@ -12,6 +12,9 @@ const (
 	AuthProviderDiscord  AuthProvider = "discord"
 	AuthProviderGoogle   AuthProvider = "google"
 	AuthProviderPassword AuthProvider = "password"
+	// AuthProviderDeleted marks the tombstone of a deleted account; no login
+	// path matches it.
+	AuthProviderDeleted AuthProvider = "deleted"
 )
 
 // Account kind constants stored in users.role. Authorization beyond "is the
@@ -49,6 +52,10 @@ type User struct {
 	// until they do (accounts created before the documents existed, or after
 	// an operator resets it to ask everyone to accept new versions).
 	AcceptedTermsAt *time.Time `json:"accepted_terms_at"`
+	// When the account was deleted. The row stays as an anonymous tombstone
+	// so stored content (messages, call stats, uploads) keeps a valid id;
+	// GetAll and every login lookup skip it (repository.UserRepository.Erase).
+	DeletedAt *time.Time `json:"-"`
 }
 
 // PublicUser represents a user with limited public information

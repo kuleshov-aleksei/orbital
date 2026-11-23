@@ -142,7 +142,7 @@ export interface TextEmbed {
 }
 
 export type AttachmentKind = "image" | "video" | "audio"
-export type AttachmentRemovedReason = "quota" | "owner" | "moderator"
+export type AttachmentRemovedReason = "quota" | "owner" | "moderator" | "account_deleted"
 
 /** Display copy of a file in a message (docs/specs/CHAT_SYSTEM.md §7.12). */
 export interface TextAttachment {

@@ -22,6 +22,7 @@ const (
 	ReasonMessageDeleted = "message_deleted"
 	ReasonChannelDeleted = "channel_deleted"
 	ReasonPendingExpired = "pending_expired"
+	ReasonAccountDeleted = "account_deleted"
 )
 
 // Record is one chat_attachments row. Times are unix ms.

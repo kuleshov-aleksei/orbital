@@ -182,6 +182,14 @@ export const useUsersStore = defineStore("users", () => {
     }
   }
 
+  /**
+   * Drops a deleted account (`user_deleted`): it leaves every list and its
+   * stored content falls back to "Deleted user" (see displayName).
+   */
+  function forgetUser(userId: string) {
+    allUsers.value = allUsers.value.filter((u) => u.id !== userId)
+  }
+
   function removeUser(userId: string) {
     const index = allUsers.value.findIndex((u) => u.id === userId)
     if (index !== -1) {
@@ -260,6 +268,7 @@ export const useUsersStore = defineStore("users", () => {
     addUser,
     updateUser,
     removeUser,
+    forgetUser,
     setUsers,
     updateUserNickname,
     updateUserCustomStatus,

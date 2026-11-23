@@ -510,6 +510,17 @@ func (s *Service) RemoveRoom(roomID string) error {
 	return err
 }
 
+// RemoveForUploader removes every file a user uploaded (account deletion).
+// Pending uploads go too; the janitor deletes the S3 objects.
+func (s *Service) RemoveForUploader(userID string) error {
+	recs, err := queryRecords(s.db, `uploader_id = ? AND status != 'removed'`, userID)
+	if err != nil {
+		return err
+	}
+	_, err = s.Remove(recs, ReasonAccountDeleted)
+	return err
+}
+
 // Usage returns a user's storage.
 func (s *Service) Usage(userID string) (Usage, error) {
 	u, err := usageOf(s.db, userID)

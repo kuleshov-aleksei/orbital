@@ -668,6 +668,13 @@ func (rs *RoomService) UpdateUserPingTime(roomID, userID string) {
 	}
 }
 
+// ForgetUser drops a deleted account from the in-memory user store.
+func (rs *RoomService) ForgetUser(userID string) {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+	delete(rs.users, userID)
+}
+
 // GetUserByID returns a user by their ID from the in-memory store
 func (rs *RoomService) GetUserByID(userID string) (*models.User, bool) {
 	rs.mu.RLock()

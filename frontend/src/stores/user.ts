@@ -427,6 +427,23 @@ export const useUserStore = defineStore("user", () => {
     }
   }
 
+  // Deletes the account, then clears this device like logout(). Throws (and
+  // keeps the user signed in) when the server refuses, e.g. 403 on a wrong
+  // confirmation. The server closes every socket with 4401 as part of it.
+  async function deleteAccount(confirm: { password?: string; nickname?: string }) {
+    loggingOut = true
+    try {
+      await apiService.deleteAccount(confirm)
+      // The server already dropped the push token; this only unregisters FCM.
+      await unregisterPush()
+      await clearMediaCache()
+      await clearOfflineCache()
+      clearUser()
+    } finally {
+      loggingOut = false
+    }
+  }
+
   // Handle OAuth callback
   function handleOAuthCallback(tokenStr: string, userData: UserSession, expiresAt?: string) {
     sessionExpired.value = false
@@ -470,6 +487,7 @@ export const useUserStore = defineStore("user", () => {
     loginWithPassword,
     register,
     logout,
+    deleteAccount,
     handleOAuthCallback,
   }
 })

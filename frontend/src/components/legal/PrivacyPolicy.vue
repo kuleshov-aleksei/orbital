@@ -24,8 +24,8 @@
           access them, and only do so to keep the service running.
         </li>
         <li>
-          To get a copy of your data or delete your account, email
-          <a :href="`mailto:${LEGAL.contactEmail}`">{{ LEGAL.contactEmail }}</a
+          You can delete your account yourself in Settings → Security. To get a copy of your data,
+          email <a :href="`mailto:${LEGAL.contactEmail}`">{{ LEGAL.contactEmail }}</a
           >.
         </li>
       </ul>
@@ -263,7 +263,10 @@
         <strong>Sign-in sessions:</strong> a session you sign out is deleted at once. An expired
         session can stay in our records for some time after it expires.
       </li>
-      <li><strong>Call history:</strong> for as long as your account exists.</li>
+      <li>
+        <strong>Call history:</strong> for as long as your account exists; after deletion it stays
+        for usage statistics, no longer linked to your profile.
+      </li>
       <li><strong>Status and presence:</strong> live only; no history is kept.</li>
       <li>
         <strong>Messages and attachments:</strong> as long as the message and its channel exist.
@@ -284,9 +287,11 @@
       </li>
     </ul>
     <p>
-      When your account is deleted, your account and profile are removed, but messages and files you
-      posted stay visible to other members as written by "Deleted user". If you want them removed
-      too, say so in your deletion request.
+      When your account is deleted, your profile, email, sign-in sessions, push tokens, settings,
+      reminders, diagnostic logs and every file you uploaded are deleted. Messages you posted, your
+      reactions and poll votes stay visible to other members as written by "Deleted user". Call
+      history stays for usage statistics but is no longer linked to anything that identifies you. If
+      you want your messages removed too, delete them before deleting your account, or ask us.
     </p>
 
     <h2>7. Your rights</h2>
@@ -295,8 +300,9 @@
       notification settings, and see and sign out your devices.
     </p>
     <p id="delete-account">
-      To get a copy of your data, correct it, delete it or your whole account, restrict how we use
-      it, or object to it, write to
+      You can delete your whole account in Settings → Security → Delete account. To get a copy of
+      your data, correct it, delete it or your account, restrict how we use it, or object to it,
+      write to
       <a :href="`mailto:${LEGAL.contactEmail}`">{{ LEGAL.contactEmail }}</a> from the email linked
       to your account, or tell us your nickname. Orbital is a small, privately run service, so we
       handle these requests by hand. We answer within one month, as GDPR require.

@@ -93,6 +93,9 @@ func (s *AuthService) RefreshSession(claims *models.JWTClaims, user *models.User
 
 // CheckSession reports whether a validated token is still live for user.
 func (s *AuthService) CheckSession(claims *models.JWTClaims, user *models.User) error {
+	if user.DeletedAt != nil {
+		return ErrSessionRevoked
+	}
 	if claims.SessionID == "" || s.sessions == nil {
 		if claims.TokenVersion != user.TokenVersion {
 			return ErrSessionRevoked
