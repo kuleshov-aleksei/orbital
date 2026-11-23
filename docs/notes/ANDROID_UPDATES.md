@@ -25,8 +25,8 @@ satisfies the minimum-version gate. Details: `MIGRATION_TO_S3.md` "OTA frontend"
   (`frontend/src/stores/appUpdate.ts`, wired in `App.vue`).
 - A newer version shows `AppUpdatePrompt` (not during a call). "Later" hides it
   until an even newer version is out (`orbital_update_dismissed_version` in localStorage).
-- The release only appears once the GitHub draft is **published**: that promotes
-  `latest.yml`, which the backend reads to find the version.
+- The release only appears once the draft release is **published**: that promotes
+  `latest.yml` on S3, which the backend reads to find the version.
 
 ## Minimum version (hard block)
 

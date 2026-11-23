@@ -161,15 +161,14 @@ jobs:
         if: github.ref_type == 'tag'
         run: ./scripts/prune-s3-releases.sh "${S3_BUCKET}" 3
 
-      - name: Upload Release Assets
+      - name: Create draft release
         if: github.ref_type == 'tag'
         uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1.21.0
         with:
-          artifacts: "electron/release/*Setup*.exe,electron/release/*.blockmap,electron/release/latest.yml,electron/release/*.AppImage,electron/release/latest-linux.yml,electron/release/*.apk"
           token: ${{ secrets.UAT_TOKEN }}
           commit: ${{ github.sha }}
           tag: ${{ env.VERSION }}
-          name: Desktop v${{ env.VERSION }}
+          name: Release v${{ env.VERSION }}
           body: "Automated build"
           draft: true
           
