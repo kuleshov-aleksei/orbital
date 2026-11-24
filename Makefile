@@ -1,4 +1,4 @@
-.PHONY: help hooks install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-ota test-backend test-integration e2e-textchat ota-reset meili-up meili-down ml-up ml-down garage-up garage-down mail-up mail-down test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all build-android-web build-android build-android-dev check-android-jdk dev-android
+.PHONY: help hooks install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-ota test-backend test-integration e2e-textchat screenshots-seed ota-reset meili-up meili-down ml-up ml-down garage-up garage-down mail-up mail-down test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all build-android-web build-android build-android-dev check-android-jdk dev-android
 
 # Default target
 help:
@@ -18,6 +18,7 @@ help:
 	@echo "  test-ota          - Run OTA update tests (electron decisions, bundle generator, ota stores)"
 	@echo "  ota-reset         - Clear local desktop OTA state (bundles, state.json, updater cache)"
 	@echo "  e2e-textchat      - Live text channel check on a throwaway backend + index (starts Meilisearch + Garage)"
+	@echo "  screenshots-seed  - Seeded demo server for screenshots on a throwaway backend (frontend on :3090)"
 	@echo "  meili-up          - Start the dev Meilisearch container (text channels)"
 	@echo "  meili-down        - Stop the dev Meilisearch container"
 	@echo "  ml-up             - Start the dev Immich ML container (search by image contents)"
@@ -286,6 +287,12 @@ test-integration: meili-up garage-up
 # WebSocket/handler changes; it is not part of PR CI.
 e2e-textchat: meili-up garage-up
 	@MEILI_URL=$(MEILI_TEST_URL) MEILI_KEY=$(MEILI_TEST_KEY) bash scripts/e2e-textchat.sh
+
+# Demo server for screenshots: throwaway backend (own DB, uploads, index)
+# seeded by frontend/tests/e2e/setup-screenshots.spec.ts, frontend on :3090.
+# Ctrl+C stops it and deletes everything. Env: SEED_PORT, SEED_FRONTEND_PORT.
+screenshots-seed: meili-up
+	@MEILI_URL=$(MEILI_TEST_URL) MEILI_KEY=$(MEILI_TEST_KEY) bash scripts/screenshots-seed.sh
 
 # Run frontend unit tests
 test-unit:

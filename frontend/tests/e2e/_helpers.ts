@@ -1,7 +1,8 @@
 import { expect } from "@playwright/test"
 import type { APIRequestContext, BrowserContext, Page } from "@playwright/test"
 
-const BACKEND_URL = "http://127.0.0.1:8080"
+// make screenshots-seed points the helpers at its throwaway backend.
+const BACKEND_URL = process.env.SEED_BACKEND_URL ?? "http://127.0.0.1:8080"
 const LIVEKIT_URL = "http://127.0.0.1:7880"
 
 export const ADMIN_EMAIL = "admin@orbital-e2e.test"
@@ -219,10 +220,10 @@ export async function guestLogin(request: APIRequestContext) {
 
 export async function loginUser(
   request: APIRequestContext,
-  login: string,
+  loginName: string,
   password: string,
 ): Promise<TestUser | null> {
-  return login(request, login, password)
+  return login(request, loginName, password)
 }
 
 export async function createCategory(request: APIRequestContext, token: string, name: string) {

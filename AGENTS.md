@@ -292,6 +292,7 @@ The project uses a Makefile for common operations:
 - `make test-backend` - Run backend Go unit tests (what PR CI runs)
 - `make test-integration` - Run backend integration tests (starts Meilisearch via `make meili-up`)
 - `make e2e-textchat` - Live text channel check on a throwaway backend + Meilisearch index
+- `make screenshots-seed` - Seeded demo server for screenshots (throwaway backend + index, frontend on :3090; Ctrl+C deletes it)
 - `make test-headed` - Run tests in headed mode
 - `make docker-build` - Build Docker images
 - `make docker-up` - Run with Docker Compose
