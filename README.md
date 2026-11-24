@@ -8,11 +8,16 @@ This project is built by AI (like 90%). AI is not perfect, but MVP was built in 
 
 ## Screenshots
 
-![Room view](docs/images/Screenshot_20260404_154952.png)
+![Room view](docs/images/screenshot-main.png)
 
-![Screensharing](docs/images/Screenshot_20260404_155514.png)
+![Screensharing](docs/images/screenshot-voice.png)
 
-![Talking](docs/images/Screenshot_20260404_155614.png)
+![Chat](docs/images/chat-screenshot.png)
+
+And even apps for Steam OS and Android!
+
+![Devices](docs/images/real-devices.png)
+
 
 ## Features
 
