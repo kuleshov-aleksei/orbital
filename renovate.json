@@ -18,6 +18,11 @@
       "allowedVersions": "<2"
     },
     {
+      "description": "server-sdk-go v2.20.0 needs replace directives (livekit/webrtc-pion fork on dtls/v4) that don't apply to consumers; revisit when upstream pion/webrtc moves to dtls/v4 or the SDK drops the replaces",
+      "matchPackageNames": ["github.com/livekit/server-sdk-go/v2"],
+      "allowedVersions": "<2.20.0"
+    },
+    {
       "matchPackageNames": ["**"],
       "groupName": "all-dependencies",
       "automerge": false,

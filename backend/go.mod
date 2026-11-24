@@ -14,7 +14,7 @@ require (
 	github.com/h2non/bimg v1.1.9
 	github.com/joho/godotenv v1.5.1
 	github.com/livekit/protocol v1.54.1
-	github.com/livekit/server-sdk-go/v2 v2.20.0
+	github.com/livekit/server-sdk-go/v2 v2.19.0
 	github.com/pion/rtp v1.10.6
 	github.com/pion/webrtc/v4 v4.2.26
 	golang.org/x/crypto v0.59.0
