@@ -17,7 +17,7 @@
         <PhCheckCircle class="w-10 h-10 text-green-400 mx-auto mb-2" />
         <h1 class="text-2xl font-bold text-theme-text-primary">Email confirmed</h1>
         <p class="mt-2 text-theme-text-muted">
-          Thanks! If you forget your password, you can now reset it by email.
+          Thanks! Welcome to the Orbital!
         </p>
       </template>
 
