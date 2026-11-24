@@ -53,7 +53,7 @@ services:
   # deploy workflow; restore: docs/notes/BACKUP_RESTORE.md). Upgrades: snapshot + dump first, then
   # start once with MEILI_UPGRADE_DB=true (dumpless upgrades are not atomic).
   meilisearch:
-    image: getmeili/meilisearch:v1.56.2
+    image: getmeili/meilisearch:v1.57.0
     restart: unless-stopped
     environment:
       - MEILI_ENV=production
