@@ -29,6 +29,17 @@ const router = createRouter({
       redirect: "/legal/terms",
     },
     {
+      // Public: opened from the emails, possibly on a device that isn't signed in.
+      path: "/verify-email",
+      name: "verify-email",
+      component: () => import("@/views/VerifyEmailView.vue"),
+    },
+    {
+      path: "/reset-password",
+      name: "reset-password",
+      component: () => import("@/views/ResetPasswordView.vue"),
+    },
+    {
       path: "/admin",
       name: "admin",
       component: () => import("@/views/AdminPanel.vue"),

@@ -6,6 +6,7 @@ import {
   clearAuthToken,
   setTokenExpiry,
   type ApiError,
+  type AuthResponse,
 } from "@/services/api"
 import { setUserSoundPack } from "@/services/sounds"
 import { unregisterPush } from "@/services/push"
@@ -29,6 +30,11 @@ export interface UserSession {
    * known yet (e.g. offline), which never blocks the app.
    */
   acceptedTermsAt?: string | null
+  /**
+   * Password accounts: whether the email was confirmed by a link.
+   * `undefined`: not known (offline, other providers); never shows the banner.
+   */
+  emailVerified?: boolean
 }
 
 // Set when the user ticks the terms checkbox and leaves for an OAuth provider,
@@ -225,6 +231,7 @@ export const useUserStore = defineStore("user", () => {
         user.nickname = freshUser.nickname
         user.role = freshUser.role
         user.acceptedTermsAt = freshUser.accepted_terms_at
+        user.emailVerified = freshUser.email_verified
         localStorage.setItem("orbital_user_role", freshUser.role)
 
         // Load user's sound pack preference
@@ -289,6 +296,37 @@ export const useUserStore = defineStore("user", () => {
     sessionExpired.value = true
   }
 
+  /** Password account whose email isn't confirmed yet (shows the banner). */
+  const needsEmailVerification = computed(
+    () =>
+      isAuthenticated.value &&
+      currentUser.value?.authProvider === "password" &&
+      currentUser.value?.emailVerified === false,
+  )
+
+  function setEmailVerified(value: boolean) {
+    if (currentUser.value) currentUser.value = { ...currentUser.value, emailVerified: value }
+  }
+
+  /** Signs in on this device with the session a password reset returned. */
+  function completePasswordReset(response: AuthResponse) {
+    const user: UserSession = {
+      id: response.user.id,
+      nickname: response.user.nickname,
+      authProvider: "password",
+      isGuest: false,
+      role: response.user.role || "user",
+      email: response.user.email,
+      avatarUrl: response.user.avatar_url,
+      acceptedTermsAt: response.user.accepted_terms_at,
+      emailVerified: response.user.email_verified,
+    }
+    sessionExpired.value = false
+    setUser(user, response.token, response.expires_at)
+    hasCompletedAuth.value = true
+    localStorage.setItem("orbital_has_completed_auth", "true")
+  }
+
   function setAcceptedTermsAt(value: string | null | undefined) {
     if (currentUser.value) currentUser.value = { ...currentUser.value, acceptedTermsAt: value }
   }
@@ -345,6 +383,7 @@ export const useUserStore = defineStore("user", () => {
         email: response.user.email,
         avatarUrl: response.user.avatar_url,
         acceptedTermsAt: response.user.accepted_terms_at,
+        emailVerified: response.user.email_verified,
       }
       sessionExpired.value = false
       setUser(user, response.token, response.expires_at)
@@ -368,6 +407,7 @@ export const useUserStore = defineStore("user", () => {
         email: response.user.email,
         avatarUrl: response.user.avatar_url,
         acceptedTermsAt: response.user.accepted_terms_at,
+        emailVerified: response.user.email_verified,
       }
       sessionExpired.value = false
       setUser(user, response.token, response.expires_at)
@@ -468,6 +508,9 @@ export const useUserStore = defineStore("user", () => {
     isSuperAdmin,
     needsTermsAcceptance,
     acceptTerms,
+    needsEmailVerification,
+    setEmailVerified,
+    completePasswordReset,
     hasCompletedAuth,
     sessionExpired,
     nicknameUpdateStatus,

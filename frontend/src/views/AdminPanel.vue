@@ -370,6 +370,11 @@
           <NetworkAdmin />
         </div>
 
+        <!-- Sent account email log (Super Admin Only) -->
+        <div v-if="activeTab === 'emails' && isSuperAdmin">
+          <EmailLogAdmin />
+        </div>
+
         <!-- Search indexing of attachments (Super Admin Only, needs S3) -->
         <div v-if="activeTab === 'search-indexing' && isSuperAdmin && configStore.attachments">
           <SearchIndexingAdmin />
@@ -621,6 +626,7 @@ import UsageAnalytics from "@/components/admin/UsageAnalytics.vue"
 import SecuritySelfCheck from "@/components/admin/SecuritySelfCheck.vue"
 import AppVersionsAdmin from "@/components/admin/AppVersionsAdmin.vue"
 import NetworkAdmin from "@/components/admin/NetworkAdmin.vue"
+import EmailLogAdmin from "@/components/admin/EmailLogAdmin.vue"
 import SearchIndexingAdmin from "@/components/admin/SearchIndexingAdmin.vue"
 import { useConfigStore } from "@/stores/config"
 import { wsService } from "@/services/websocket"
@@ -637,6 +643,7 @@ import {
   PhShieldCheck,
   PhDeviceMobile,
   PhGlobe,
+  PhEnvelopeSimple,
   PhMagnifyingGlass,
   PhSpeakerHigh,
   PhSmiley,
@@ -669,6 +676,7 @@ type AdminTab =
   | "security"
   | "app-versions"
   | "network"
+  | "emails"
   | "search-indexing"
   | "audio"
   | "soundboard"
@@ -764,6 +772,13 @@ const tabs = computed<AdminTabDef[]>(() => {
       id: "network",
       label: "Network",
       icon: PhGlobe,
+      group: "System",
+      visible: owner,
+    },
+    {
+      id: "emails",
+      label: "Emails",
+      icon: PhEnvelopeSimple,
       group: "System",
       visible: owner,
     },

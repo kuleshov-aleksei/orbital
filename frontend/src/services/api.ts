@@ -247,6 +247,7 @@ export interface AuthStatus {
   discord_enabled: boolean
   google_enabled: boolean
   password_enabled: boolean
+  email_enabled?: boolean
 }
 
 // Login request/response types (snake_case for backend)
@@ -310,6 +311,8 @@ export interface AppConfig {
   attachments?: AttachmentsConfig
   /** `klipy` or `giphy` when third-party GIF search is configured (§7.17). */
   gif_provider?: string
+  /** True when the server can send email (verification, password reset). */
+  email?: boolean
 }
 
 export interface AttachmentsConfig {
@@ -499,6 +502,29 @@ export interface OutboundProxy {
   proxy_url: string
 }
 
+/** One sent (or failed) account email; tokens are redacted by the server. */
+export interface EmailLogEntry {
+  id: number
+  user_id?: string
+  to: string
+  purpose: "verify" | "reset" | "test"
+  subject: string
+  body: string
+  status: "sent" | "failed"
+  error?: string
+  created_at: string
+}
+
+export interface EmailLogResponse {
+  enabled: boolean
+  entries: EmailLogEntry[]
+}
+
+export interface TestEmailResult {
+  ok: boolean
+  error?: string
+}
+
 export interface OutboundProxyTestResult {
   ok: boolean
   status?: number
@@ -532,6 +558,8 @@ const AUTH_ENDPOINTS_NO_RETRY = [
   "/auth/guest",
   "/auth/refresh",
   "/auth/exchange",
+  "/auth/password/",
+  "/auth/verify-email",
 ]
 
 function isCredentialEndpoint(endpoint: string): boolean {
@@ -928,6 +956,20 @@ export const apiService = {
     })
   },
 
+  /** Sent-mail log, newest first (super_admin only). */
+  async getEmailLog(before?: number): Promise<EmailLogResponse> {
+    const query = before ? `?before=${before}` : ""
+    return apiRequest<EmailLogResponse>(`/admin/emails${query}`)
+  },
+
+  /** Sends a test email synchronously and reports the SMTP error. */
+  async sendTestEmail(to: string): Promise<TestEmailResult> {
+    return apiRequest<TestEmailResult>("/admin/emails/test", {
+      method: "POST",
+      body: JSON.stringify({ to }),
+    })
+  },
+
   // Category management
   async getCategories(): Promise<Category[]> {
     return apiRequest<Category[]>("/categories")
@@ -1182,6 +1224,38 @@ export const apiService = {
   // Privacy Policy; returns the updated user.
   async acceptTerms(): Promise<User> {
     return apiRequest<User>("/auth/accept-terms", { method: "POST" })
+  },
+
+  /** Redeems a verification link (no sign-in needed). */
+  async verifyEmail(token: string): Promise<void> {
+    await apiRequest<{ verified: boolean }>("/auth/verify-email", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    })
+  },
+
+  /** Mails a new verification link to the signed-in user. */
+  async resendVerificationEmail(): Promise<void> {
+    await apiRequest<void>("/auth/verify-email/resend", { method: "POST" })
+  },
+
+  /** Always resolves the same way, whether or not the email has an account. */
+  async requestPasswordReset(email: string): Promise<void> {
+    await apiRequest<{ ok: boolean }>("/auth/password/forgot", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    })
+  },
+
+  /** Sets a new password from a reset link and signs in on this device. */
+  async resetPassword(token: string, password: string): Promise<AuthResponse> {
+    const response = await apiRequest<LoginResponse>("/auth/password/reset", {
+      method: "POST",
+      body: JSON.stringify({ token, password }),
+    })
+    setAuthToken(response.token)
+    setTokenExpiry(response.expires_at)
+    return response
   },
 
   async getAuthStatus(): Promise<AuthStatus> {

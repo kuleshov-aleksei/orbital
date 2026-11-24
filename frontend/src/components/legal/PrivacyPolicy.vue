@@ -15,9 +15,9 @@
         </li>
         <li>
           Some things reach other companies: Google or Discord when you sign in with them, Google
-          Firebase for Android notifications, Klipy or Giphy when GIFs are searched or shown,
-          Discord or Google when their profile pictures are shown, and YouTube when you press play
-          on a video.
+          Firebase for Android notifications, our email delivery provider when we send you an
+          account email, Klipy or Giphy when GIFs are searched or shown, Discord or Google when
+          their profile pictures are shown, and YouTube when you press play on a video.
         </li>
         <li>
           Messages and files are not end-to-end encrypted: the people who run the server could
@@ -56,7 +56,10 @@
       </li>
       <li>
         <strong>Email and password:</strong> your email address, nickname and a bcrypt hash of your
-        password. We never store the password itself.
+        password. We never store the password itself. We email you a link to confirm the address,
+        and, if you ask, a link to reset your password; we record whether and when the address was
+        confirmed. We keep a log of these emails (recipient, subject, text, time and whether
+        delivery worked, with the links removed) so the server owner can fix delivery problems.
       </li>
       <li>
         <strong>Google / Discord:</strong> the account identifier, email address, display name and
@@ -215,9 +218,9 @@
         channel as visible to everyone in it.
       </li>
       <li>
-        <strong>Administrators</strong> can see your account record, diagnostic logs you sent and
-        usage totals, and can read channels they have access to. Administrators with extra
-        permissions can delete accounts and content.
+        <strong>Administrators</strong> can see your account record, diagnostic logs you sent, usage
+        totals and (the server owner) the log of account emails sent to you, and can read channels
+        they have access to. Administrators with extra permissions can delete accounts and content.
       </li>
       <li>
         <strong>The people who run the server</strong> have technical access to everything stored on
@@ -227,6 +230,11 @@
       <li>
         <strong>Google Firebase</strong> handles device tokens and notification contents for the
         Android app.
+      </li>
+      <li>
+        <strong>Our email delivery provider</strong> (an SMTP relay) receives your email address,
+        nickname and the content of account emails (address confirmation, password reset) in order
+        to deliver them.
       </li>
       <li>
         <strong>Google and Discord</strong> handle sign-in if you choose them, under their own
@@ -248,8 +256,8 @@
     <p>
       Apart from these, the app server, database, search index, file storage, media server and image
       recognition run on infrastructure we administer ourselves, and your data is not sent to any
-      other online service. Google, Firebase, Discord, Klipy and Giphy may process data outside of
-      the EU, including in the United States, under their own safeguards.
+      other online service. Google, Firebase, Discord, Klipy, Giphy and the email provider may
+      process data outside of the EU, including in the United States, under their own safeguards.
     </p>
     <p>We do not sell your personal data or share it with advertisers or data brokers.</p>
 
@@ -277,6 +285,11 @@
         investigated, normally within about a week.
       </li>
       <li><strong>Link previews:</strong> until the cache is cleaned up.</li>
+      <li>
+        <strong>Account emails:</strong> the log of sent emails is deleted after 30 days. Links in
+        them stop working after 24 hours (address confirmation) or 1 hour (password reset), or once
+        used.
+      </li>
       <li>
         <strong>Push tokens:</strong> until you sign out, turn notifications off, or the token stops
         working.

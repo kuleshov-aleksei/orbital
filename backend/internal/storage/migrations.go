@@ -726,6 +726,39 @@ CREATE INDEX IF NOT EXISTS idx_chat_poll_deadlines_due ON chat_poll_deadlines(du
 		// so messages, call stats and uploads keep a valid user id.
 		SQL: `ALTER TABLE users ADD COLUMN deleted_at DATETIME;`,
 	},
+	{
+		Version: 58,
+		Name:    "email_verification_and_reset",
+		// Email verification and password reset (service.EmailAuthService).
+		// email_verified_at stays NULL for existing accounts: they verify from
+		// the banner. email_tokens stores only the SHA-256 of each token.
+		// email_log is the super-admin view of sent mail, with tokens
+		// redacted; rows are pruned after 30 days. The unique index makes
+		// "one live password account per email" a database guarantee, which
+		// reset-by-email relies on.
+		SQL: `ALTER TABLE users ADD COLUMN email_verified_at DATETIME;
+CREATE TABLE IF NOT EXISTS email_tokens (
+			token_hash TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			purpose TEXT NOT NULL,
+			expires_at DATETIME NOT NULL,
+			created_at DATETIME NOT NULL
+		);
+CREATE INDEX IF NOT EXISTS idx_email_tokens_user ON email_tokens(user_id, purpose);
+CREATE TABLE IF NOT EXISTS email_log (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id TEXT,
+			to_address TEXT NOT NULL,
+			purpose TEXT NOT NULL,
+			subject TEXT NOT NULL,
+			body_text TEXT NOT NULL,
+			status TEXT NOT NULL,
+			error TEXT NOT NULL DEFAULT '',
+			created_at DATETIME NOT NULL
+		);
+CREATE INDEX IF NOT EXISTS idx_email_log_created ON email_log(created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_password_email ON users(LOWER(email)) WHERE auth_provider = 'password' AND deleted_at IS NULL AND email IS NOT NULL AND email != '';`,
+	},
 }
 
 // RunMigrationsUpTo applies migrations up to and including maxVersion.

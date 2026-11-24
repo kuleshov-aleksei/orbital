@@ -63,6 +63,9 @@
       <!-- Update Notification -->
       <UpdateNotification :visible="showUpdateNotification" @reload="handleReload" />
 
+      <!-- Unverified email of a password account -->
+      <EmailVerifyBanner />
+
       <!-- Terms/Privacy acceptance for accounts that haven't accepted yet -->
       <TermsAcceptanceGate v-if="userStore.needsTermsAcceptance" />
     </template>
@@ -83,6 +86,7 @@ import ScreenShareQualityModal from "@/components/ScreenShareQualityModal.vue"
 import UpdateNotification from "@/components/UpdateNotification.vue"
 import AuthView from "@/views/AuthView.vue"
 import TermsAcceptanceGate from "@/components/legal/TermsAcceptanceGate.vue"
+import EmailVerifyBanner from "@/components/auth/EmailVerifyBanner.vue"
 import type { VenmicSource } from "@/types"
 import {
   useRoomStore,

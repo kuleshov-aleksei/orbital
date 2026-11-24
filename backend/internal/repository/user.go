@@ -38,7 +38,7 @@ func scanUser(scanner interface {
 	var authProvider sql.NullString
 	var isGuest sql.NullBool
 	var tokenVersion sql.NullInt64
-	var acceptedTermsAt, deletedAt sql.NullTime
+	var acceptedTermsAt, deletedAt, emailVerifiedAt sql.NullTime
 
 	err := scanner.Scan(
 		&user.ID,
@@ -59,6 +59,7 @@ func scanUser(scanner interface {
 		&customStatusEmoji,
 		&acceptedTermsAt,
 		&deletedAt,
+		&emailVerifiedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -117,6 +118,11 @@ func scanUser(scanner interface {
 		t := deletedAt.Time
 		user.DeletedAt = &t
 	}
+	if emailVerifiedAt.Valid {
+		t := emailVerifiedAt.Time
+		user.EmailVerifiedAt = &t
+		user.EmailVerified = true
+	}
 
 	return user, nil
 }
@@ -124,7 +130,7 @@ func scanUser(scanner interface {
 // GetByID retrieves a user by ID
 func (r *UserRepository) GetByID(id string) (*models.User, error) {
 	user, err := scanUser(r.db.QueryRow(
-		`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at, deleted_at 
+		`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at, deleted_at, email_verified_at 
 		 FROM users WHERE id = ?`,
 		id,
 	))
@@ -146,7 +152,7 @@ func (r *UserRepository) GetByProviderID(provider string, providerID string) (*m
 	}
 
 	user, err := scanUser(r.db.QueryRow(
-		`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at, deleted_at 
+		`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at, deleted_at, email_verified_at 
 		 FROM users WHERE auth_provider = ? AND provider_id = ?`,
 		provider, providerID,
 	))
@@ -164,8 +170,11 @@ func (r *UserRepository) GetByProviderID(provider string, providerID string) (*m
 // Update updates a user's information
 func (r *UserRepository) Update(user *models.User) error {
 	_, err := r.db.Exec(
-		`UPDATE users SET nickname = ?, original_nickname = ?, last_seen = ?, email = ?, avatar_url = ? WHERE id = ?`,
-		user.Nickname, user.OriginalNickname, user.LastSeen, user.Email, user.AvatarURL, user.ID,
+		// A changed email is no longer verified.
+		`UPDATE users SET nickname = ?, original_nickname = ?, last_seen = ?,
+		        email_verified_at = CASE WHEN LOWER(COALESCE(email, '')) = LOWER(?) THEN email_verified_at ELSE NULL END,
+		        email = ?, avatar_url = ? WHERE id = ?`,
+		user.Nickname, user.OriginalNickname, user.LastSeen, user.Email, user.Email, user.AvatarURL, user.ID,
 	)
 	return err
 }
@@ -215,6 +224,8 @@ var eraseStatements = []string{
 	`DELETE FROM chat_reminders WHERE user_id = ?`,
 	`DELETE FROM qr_login_challenges WHERE approved_by_user_id = ?`,
 	`DELETE FROM debug_logs WHERE user_id = ?`,
+	`DELETE FROM email_tokens WHERE user_id = ?`,
+	`DELETE FROM email_log WHERE user_id = ?`,
 }
 
 // Erase turns the user into an anonymous tombstone: the row and its id stay
@@ -234,7 +245,7 @@ func (r *UserRepository) Erase(id string, now time.Time) error {
 		_, err := tx.Exec(
 			`UPDATE users SET deleted_at = ?, nickname = ?, original_nickname = NULL, email = NULL,
 			        provider_id = NULL, auth_provider = ?, password_hash = NULL, avatar_url = NULL,
-			        custom_status = '', custom_status_emoji = '', accepted_terms_at = NULL,
+			        custom_status = '', custom_status_emoji = '', accepted_terms_at = NULL, email_verified_at = NULL,
 			        role = ?, is_guest = 0, sound_pack = 'default', token_version = token_version + 1
 			  WHERE id = ?`,
 			now, DeletedNickname, models.AuthProviderDeleted, models.RoleUser, id,
@@ -245,7 +256,7 @@ func (r *UserRepository) Erase(id string, now time.Time) error {
 
 // GetAll retrieves all users from the database (deleted accounts excluded)
 func (r *UserRepository) GetAll() ([]*models.User, error) {
-	rows, err := r.db.Query(`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at, deleted_at FROM users WHERE deleted_at IS NULL`)
+	rows, err := r.db.Query(`SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at, deleted_at, email_verified_at FROM users WHERE deleted_at IS NULL`)
 	if err != nil {
 		return nil, err
 	}
@@ -278,6 +289,12 @@ func (r *UserRepository) IncrementTokenVersion(userID string) error {
 		`UPDATE users SET token_version = token_version + 1 WHERE id = ?`,
 		userID,
 	)
+	return err
+}
+
+// SetEmailVerifiedAt records that the user proved they own their email.
+func (r *UserRepository) SetEmailVerifiedAt(userID string, at time.Time) error {
+	_, err := r.db.Exec(`UPDATE users SET email_verified_at = ? WHERE id = ?`, at, userID)
 	return err
 }
 
@@ -334,11 +351,11 @@ func (r *UserRepository) GetByEmail(email string, authProvider *models.AuthProvi
 	var args []interface{}
 
 	if authProvider != nil {
-		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at, deleted_at 
+		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at, deleted_at, email_verified_at 
 		 FROM users WHERE LOWER(email) = LOWER(?) AND auth_provider = ?`
 		args = []interface{}{email, *authProvider}
 	} else {
-		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at, deleted_at 
+		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at, deleted_at, email_verified_at 
 		 FROM users WHERE LOWER(email) = LOWER(?)`
 		args = []interface{}{email}
 	}
@@ -365,11 +382,11 @@ func (r *UserRepository) GetByOriginalNickname(originalNickname string, authProv
 	var args []interface{}
 
 	if authProvider != nil {
-		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at, deleted_at 
+		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at, deleted_at, email_verified_at 
 		 FROM users WHERE LOWER(original_nickname) = LOWER(?) AND auth_provider = ?`
 		args = []interface{}{originalNickname, *authProvider}
 	} else {
-		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at, deleted_at 
+		query = `SELECT id, nickname, original_nickname, created_at, last_seen, auth_provider, provider_id, email, avatar_url, is_guest, role, password_hash, sound_pack, token_version, custom_status, custom_status_emoji, accepted_terms_at, deleted_at, email_verified_at 
 		 FROM users WHERE LOWER(original_nickname) = LOWER(?)`
 		args = []interface{}{originalNickname}
 	}

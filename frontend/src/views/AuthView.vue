@@ -57,6 +57,11 @@
             <QRLoginPanel />
           </div>
 
+          <ForgotPasswordPanel
+            v-else-if="view === 'forgot'"
+            :initial-email="login"
+            @back="view = 'form'" />
+
           <template v-else>
             <!-- Heading -->
             <div class="text-center mb-6">
@@ -203,6 +208,15 @@
                   class="text-red-400 text-xs mt-1">
                   Password does not meet requirements
                 </p>
+                <div v-if="!isRegisterMode && configStore.emailEnabled" class="mt-1.5 text-right">
+                  <button
+                    type="button"
+                    data-testid="auth-forgot-password"
+                    class="text-sm text-theme-text-muted hover:text-theme-text-primary transition-colors"
+                    @click="openForgotPassword">
+                    Forgot password?
+                  </button>
+                </div>
               </div>
 
               <!-- Confirm Password (only in register mode) -->
@@ -345,7 +359,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue"
 import { storeToRefs } from "pinia"
-import { useUserStore, useAppStore } from "@/stores"
+import { useUserStore, useAppStore, useConfigStore } from "@/stores"
 import {
   PhUser,
   PhEye,
@@ -358,6 +372,7 @@ import { isElectron } from "@/services/electron"
 import DiscordIcon from "~icons/simple-icons/discord"
 import GoogleIcon from "~icons/logos/google-icon"
 import QRLoginPanel from "@/components/auth/QRLoginPanel.vue"
+import ForgotPasswordPanel from "@/components/auth/ForgotPasswordPanel.vue"
 import { appOAuthError } from "@/services/oauthApp"
 import LegalModal from "@/components/legal/LegalModal.vue"
 import TermsCheckbox from "@/components/legal/TermsCheckbox.vue"
@@ -365,6 +380,7 @@ import type { LegalDocId } from "@/components/legal/legal"
 
 const userStore = useUserStore()
 const appStore = useAppStore()
+const configStore = useConfigStore()
 const { isMobile } = storeToRefs(appStore)
 
 const inputClass =
@@ -372,10 +388,15 @@ const inputClass =
 
 // The QR code is shown on the device that wants to sign in and scanned by a
 // signed-in phone, so the QR view only exists on the desktop layout.
-const view = ref<"form" | "qr">("form")
+const view = ref<"form" | "qr" | "forgot">("form")
 watch(isMobile, (mobile) => {
-  if (mobile) view.value = "form"
+  if (mobile && view.value === "qr") view.value = "form"
 })
+
+function openForgotPassword() {
+  errorMessage.value = ""
+  view.value = "forgot"
+}
 
 const isRegisterMode = ref(false)
 const isLoading = ref(false)

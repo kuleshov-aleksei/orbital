@@ -56,6 +56,24 @@ type User struct {
 	// so stored content (messages, call stats, uploads) keeps a valid id;
 	// GetAll and every login lookup skip it (repository.UserRepository.Erase).
 	DeletedAt *time.Time `json:"-"`
+	// When the user proved they own Email (verification link or a password
+	// reset). nil for unverified and OAuth/guest accounts.
+	EmailVerifiedAt *time.Time `json:"-"`
+	EmailVerified   bool       `json:"email_verified"`
+}
+
+// EmailLogEntry is one sent (or failed) email, as shown to super admins.
+// Body never contains a live token (service/mail redacts it).
+type EmailLogEntry struct {
+	ID        int64     `json:"id"`
+	UserID    string    `json:"user_id,omitempty"`
+	To        string    `json:"to"`
+	Purpose   string    `json:"purpose"`
+	Subject   string    `json:"subject"`
+	Body      string    `json:"body"`
+	Status    string    `json:"status"`
+	Error     string    `json:"error,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // PublicUser represents a user with limited public information

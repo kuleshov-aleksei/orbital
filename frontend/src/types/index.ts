@@ -84,6 +84,8 @@ export interface User {
   // When the Terms/Privacy Policy were accepted; null = not yet accepted.
   // Only sent for the signed-in user's own record.
   accepted_terms_at?: string | null
+  // Password accounts only: whether the email was confirmed by a link.
+  email_verified?: boolean
 }
 
 // WebSocket message types

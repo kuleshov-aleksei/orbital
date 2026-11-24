@@ -23,6 +23,7 @@ type AuthHandler struct {
 	sessionPush         SessionPushStore
 	sessionCloser       SessionCloser
 	accounts            *service.AccountService
+	emailAuth           *service.EmailAuthService
 }
 
 // NewAuthHandler creates a new auth handler
@@ -571,6 +572,7 @@ func (h *AuthHandler) GetAuthStatus(w http.ResponseWriter, r *http.Request) {
 		"discord_enabled":  h.authService.IsProviderConfigured(models.AuthProviderDiscord),
 		"google_enabled":   h.authService.IsProviderConfigured(models.AuthProviderGoogle),
 		"password_enabled": h.authService.IsPasswordEnabled(),
+		"email_enabled":    h.emailEnabled(),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -624,6 +626,8 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to get user", http.StatusInternalServerError)
 		return
 	}
+
+	h.sendVerificationAfterRegister(user)
 
 	// Generate JWT after the bootstrap role assignment so the first
 	// super_admin receives a token with the correct role.

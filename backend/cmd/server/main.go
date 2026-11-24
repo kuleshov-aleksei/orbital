@@ -26,6 +26,7 @@ import (
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatstore"
 	"github.com/kuleshov-aleksei/orbital/internal/service/immichml"
 	"github.com/kuleshov-aleksei/orbital/internal/service/linkpreview"
+	"github.com/kuleshov-aleksei/orbital/internal/service/mail"
 	"github.com/kuleshov-aleksei/orbital/internal/service/outbound"
 	"github.com/kuleshov-aleksei/orbital/internal/service/push"
 	"github.com/kuleshov-aleksei/orbital/internal/storage"
@@ -315,6 +316,30 @@ func main() {
 		authHandler.SetAccountService(accountService)
 		adminHandler.SetAccountService(accountService)
 	}
+	// Email verification and password reset (SMTP; disabled without SMTP_HOST).
+	if appDB != nil {
+		var sender mail.Sender
+		if cfg.SMTP.Enabled() {
+			smtpSender, err := mail.NewSMTPSender(mail.SMTPConfig{
+				Host: cfg.SMTP.Host, Port: cfg.SMTP.Port,
+				Username: cfg.SMTP.Username, Password: cfg.SMTP.Password,
+				From: cfg.SMTP.From, TLS: cfg.SMTP.TLS, Auth: cfg.SMTP.Auth, CAFile: cfg.SMTP.CAFile,
+			})
+			if err != nil {
+				log.Fatalf("Invalid SMTP configuration: %v", err)
+			}
+			sender = smtpSender
+			log.Printf("Email enabled (SMTP %s:%d)", cfg.SMTP.Host, cfg.SMTP.Port)
+		} else {
+			log.Println("SMTP_HOST is not set, email verification and password reset are disabled")
+		}
+		emailLogs := repository.NewEmailLogRepository(appDB)
+		mailer := mail.NewMailer(sender, emailLogs, "Orbital")
+		emailAuth := service.NewEmailAuthService(userRepo, repository.NewEmailTokenRepository(appDB), emailLogs, authService, mailer, cfg.Server.ExternalURL)
+		authHandler.SetEmailAuth(emailAuth)
+		roomHandler.SetEmailEnabled(emailAuth.Enabled())
+		go emailAuth.StartCleanupLoop(time.Hour)
+	}
 	securityHandler := handlers.NewSecurityHandler(cfg)
 	usersHandler := handlers.NewUsersHandler(userRepo, wsHub)
 	usersHandler.SetPermissionService(permissionService)
@@ -429,6 +454,10 @@ func main() {
 	r.HandleFunc("/api/auth/status", authHandler.GetAuthStatus).Methods("GET")
 	r.Handle("/api/auth/register", withRateLimit("auth-register", cfg.RateLimit.AuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.Register))).Methods("POST")
 	r.Handle("/api/auth/login", withRateLimit("auth-login", cfg.RateLimit.AuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.LoginPassword))).Methods("POST")
+	r.Handle("/api/auth/verify-email", withRateLimit("auth-verify-email", cfg.RateLimit.AuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.VerifyEmail))).Methods("POST")
+	r.Handle("/api/auth/verify-email/resend", authHandler.AuthMiddleware(withRateLimit("auth-verify-resend", cfg.RateLimit.AuthPerMinute, time.Minute, userOrIPKey, http.HandlerFunc(authHandler.ResendVerification)))).Methods("POST")
+	r.Handle("/api/auth/password/forgot", withRateLimit("auth-password-forgot", cfg.RateLimit.AuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.ForgotPassword))).Methods("POST")
+	r.Handle("/api/auth/password/reset", withRateLimit("auth-password-reset", cfg.RateLimit.AuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.ResetPassword))).Methods("POST")
 
 	// QR device linking (single-use pairing; disabled without a database)
 	if qrLoginHandler != nil {
@@ -636,6 +665,8 @@ func main() {
 	superAdminRouter.HandleFunc("/outbound-proxy", outboundProxyHandler.Get).Methods("GET")
 	superAdminRouter.HandleFunc("/outbound-proxy", outboundProxyHandler.Update).Methods("PUT")
 	superAdminRouter.HandleFunc("/outbound-proxy/test", outboundProxyHandler.Test).Methods("POST")
+	superAdminRouter.HandleFunc("/emails", authHandler.ListEmailLog).Methods("GET")
+	superAdminRouter.HandleFunc("/emails/test", authHandler.SendTestEmail).Methods("POST")
 	superAdminRouter.HandleFunc("/logs/{id}", adminHandler.DeleteDebugLog).Methods("DELETE")
 	if badgeHandler != nil {
 		badgeUploadHandler := limiter.Middleware("badge-upload", emojiUploadLimit, userOrIPKey, http.HandlerFunc(badgeHandler.UploadBadge))

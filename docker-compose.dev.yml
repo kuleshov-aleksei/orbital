@@ -55,6 +55,26 @@ services:
     volumes:
       - ./data/immich-ml:/cache
 
+  # Mail catcher for account email (verification, password reset). `make mail-up`
+  # creates a self-signed certificate in ./certs/mailpit first: the backend
+  # always requires TLS, so dev runs real STARTTLS + AUTH too. Any username and
+  # password are accepted. Web UI: http://localhost:8025. DEV ONLY.
+  mailpit:
+    image: axllent/mailpit:v1.32.0
+    container_name: orbital-mailpit
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+    environment:
+      MP_SMTP_TLS_CERT: /certs/cert.pem
+      MP_SMTP_TLS_KEY: /certs/key.pem
+      MP_SMTP_REQUIRE_STARTTLS: "true"
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_MAX_MESSAGES: "500"
+    volumes:
+      - ./certs/mailpit:/certs:ro
+
   # Text channel attachments (docs/specs/CHAT_SYSTEM.md §7.12). Single-node mode
   # creates the layout, the key and the bucket on first start. Secrets come from
   # .env (see .env.example); the backend reads the same GARAGE_DEFAULT_* key in

@@ -1,4 +1,4 @@
-.PHONY: help hooks install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-ota test-backend test-integration e2e-textchat ota-reset meili-up meili-down ml-up ml-down garage-up garage-down test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all build-android-web build-android build-android-dev check-android-jdk dev-android
+.PHONY: help hooks install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-ota test-backend test-integration e2e-textchat ota-reset meili-up meili-down ml-up ml-down garage-up garage-down mail-up mail-down test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-electron-all build-android-web build-android build-android-dev check-android-jdk dev-android
 
 # Default target
 help:
@@ -24,6 +24,8 @@ help:
 	@echo "  ml-down           - Stop the dev Immich ML container"
 	@echo "  garage-up         - Start the dev Garage S3 container (chat attachments)"
 	@echo "  garage-down       - Stop the dev Garage S3 container"
+	@echo "  mail-up           - Start the dev Mailpit SMTP catcher (account email, UI :8025)"
+	@echo "  mail-down         - Stop the dev Mailpit container"
 	@echo "  test-e2e-docker   - Run Playwright e2e tests in Docker"
 	@echo "  test-headed       - Run tests in headed mode (local browser required)"
 	@echo "  docker-build-test - Build the Playwright test Docker image"
@@ -246,6 +248,29 @@ garage-up:
 
 garage-down:
 	docker-compose -f docker-compose.dev.yml stop garage
+
+# Dev Mailpit (account email). The backend requires TLS, so a self-signed
+# certificate for localhost is generated once; point SMTP_CA_FILE at it.
+MAILPIT_CERT_DIR := certs/mailpit
+
+mail-up:
+	@if [ ! -f $(MAILPIT_CERT_DIR)/cert.pem ]; then \
+		mkdir -p $(MAILPIT_CERT_DIR) && \
+		openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 3650 \
+			-subj "/CN=localhost" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" \
+			-keyout $(MAILPIT_CERT_DIR)/key.pem -out $(MAILPIT_CERT_DIR)/cert.pem 2>/dev/null && \
+		chmod 644 $(MAILPIT_CERT_DIR)/key.pem && \
+		echo "Created dev SMTP certificate in $(MAILPIT_CERT_DIR)"; \
+	fi
+	docker-compose -f docker-compose.dev.yml up -d mailpit
+	@for i in $$(seq 1 60); do \
+		curl -fsS http://127.0.0.1:8025/livez >/dev/null 2>&1 && \
+			echo "Mailpit is up: SMTP localhost:1025 (STARTTLS), UI http://localhost:8025" && exit 0; \
+		sleep 0.5; \
+	done; echo "Mailpit did not become ready" >&2; exit 1
+
+mail-down:
+	docker-compose -f docker-compose.dev.yml stop mailpit
 
 # Backend integration tests (build tag `integration`), e.g. the Meilisearch
 # engine. Not part of PR CI; each test uses its own throwaway index.

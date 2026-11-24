@@ -17,6 +17,8 @@ export const useConfigStore = defineStore("config", () => {
   const attachments = ref<AttachmentsConfig | null>(null)
   // Third-party GIF search provider (`klipy`/`giphy`); empty when disabled.
   const gifProvider = ref("")
+  // The server can send email (verification, password reset).
+  const emailEnabled = ref(false)
   const isLoaded = ref(false)
   const isLoading = ref(false)
 
@@ -34,6 +36,7 @@ export const useConfigStore = defineStore("config", () => {
     textChannelsEnabled.value = config.text_channels === true
     attachments.value = config.attachments ?? null
     gifProvider.value = config.gif_provider ?? ""
+    emailEnabled.value = config.email === true
   }
 
   /** Applies the cached config; true when there was one. */
@@ -90,6 +93,7 @@ export const useConfigStore = defineStore("config", () => {
     textChannelsEnabled,
     attachments,
     gifProvider,
+    emailEnabled,
     isLoaded,
     isLoading,
     roomConfig,

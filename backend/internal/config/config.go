@@ -31,6 +31,52 @@ type Config struct {
 	ChatML    ChatMLConfig    `yaml:"chat_ml"`
 	Emoji     EmojiConfig     `yaml:"emoji"`
 	Push      PushConfig      `yaml:"push"`
+	SMTP      SMTPConfig      `yaml:"smtp"`
+}
+
+// SMTPConfig configures outgoing email (account verification, password
+// reset). TLS is always required: STARTTLS on 587/2525/25, implicit TLS on
+// 465. Without a host, email is disabled.
+type SMTPConfig struct {
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	Username string `yaml:"username"`
+	Password string `yaml:"-"`
+	// From is the sender, e.g. "Orbital <no-reply@example.com>".
+	From string `yaml:"from"`
+	// TLS is auto|starttls|implicit. auto: implicit on 465, else STARTTLS.
+	TLS string `yaml:"tls"`
+	// Auth is auto|plain|login. auto: PLAIN when advertised, else LOGIN.
+	Auth string `yaml:"auth"`
+	// CAFile adds a trusted root (PEM), e.g. the dev Mailpit certificate.
+	CAFile string `yaml:"ca_file"`
+}
+
+// Enabled reports whether an SMTP server is configured.
+func (s SMTPConfig) Enabled() bool { return s.Host != "" }
+
+// Validate checks the SMTP settings when email is enabled.
+func (s SMTPConfig) Validate() error {
+	if !s.Enabled() {
+		return nil
+	}
+	if s.Port <= 0 || s.Port > 65535 {
+		return fmt.Errorf("SMTP_PORT must be a valid port")
+	}
+	if s.From == "" {
+		return fmt.Errorf("SMTP_FROM is required when SMTP_HOST is set")
+	}
+	switch s.TLS {
+	case "", "auto", "starttls", "implicit":
+	default:
+		return fmt.Errorf("SMTP_TLS must be auto, starttls or implicit")
+	}
+	switch s.Auth {
+	case "", "auto", "plain", "login":
+	default:
+		return fmt.Errorf("SMTP_AUTH must be auto, plain or login")
+	}
+	return nil
 }
 
 // PushConfig configures mobile push notifications through Firebase Cloud
@@ -525,6 +571,29 @@ func (c *Config) loadFromEnv() {
 		c.Push.FCMCredentialsJSON = v
 	}
 
+	// Outgoing email (SMTP)
+	for key, dst := range map[string]*string{
+		"SMTP_HOST":     &c.SMTP.Host,
+		"SMTP_USERNAME": &c.SMTP.Username,
+		"SMTP_PASSWORD": &c.SMTP.Password,
+		"SMTP_FROM":     &c.SMTP.From,
+		"SMTP_TLS":      &c.SMTP.TLS,
+		"SMTP_AUTH":     &c.SMTP.Auth,
+		"SMTP_CA_FILE":  &c.SMTP.CAFile,
+	} {
+		if v := os.Getenv(key); v != "" {
+			*dst = v
+		}
+	}
+	if v, ok := getEnvInt("SMTP_PORT"); ok {
+		c.SMTP.Port = v
+	} else if os.Getenv("SMTP_PORT") != "" {
+		c.SMTP.Port = -1 // rejected by Validate
+	}
+	if c.SMTP.Port == 0 {
+		c.SMTP.Port = 587
+	}
+
 	// Text channel content search (Immich ML)
 	for key, dst := range map[string]*string{
 		"CHAT_ML_URL":        &c.ChatML.URL,
@@ -664,6 +733,9 @@ func (c *Config) Validate() error {
 	}
 	if err := c.LiveKit.Validate(); err != nil {
 		return fmt.Errorf("livekit configuration: %w", err)
+	}
+	if err := c.SMTP.Validate(); err != nil {
+		return err
 	}
 	if c.ChatML.SemanticThreshold <= 0 || c.ChatML.SemanticThreshold >= 1 {
 		return fmt.Errorf("CHAT_ML_SEMANTIC_THRESHOLD must be between 0 and 1")
