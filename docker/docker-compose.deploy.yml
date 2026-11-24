@@ -64,6 +64,7 @@ services:
       # Keep snapshots and their staging copy on the data volume, not in /tmp.
       - MEILI_SNAPSHOT_DIR=/meili_data/snapshots
       - MEILI_DUMP_DIR=/meili_data/dumps
+      - MEILI_UPGRADE_DB=true
       - TMPDIR=/meili_data/tmp
     volumes:
       - ./data/meilisearch:/meili_data
