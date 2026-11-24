@@ -46,6 +46,13 @@ export interface VenmicApp {
   hasAudio: boolean
 }
 
+export interface UiScaleInfo {
+  setting: "auto" | number
+  auto: number
+  effective: number
+  handheld: boolean
+}
+
 export interface HotkeySetting {
   enabled: boolean
   accelerator: string
@@ -124,6 +131,8 @@ export interface ElectronAPI {
   hasSelectedCloseBehavior: () => Promise<boolean>
   setHasSelectedCloseBehavior: (value: boolean) => Promise<void>
   showCloseDialog: () => Promise<boolean>
+  getUiScale: () => Promise<UiScaleInfo>
+  setUiScale: (value: "auto" | number) => Promise<UiScaleInfo>
   getHotkeys: () => Promise<HotkeysConfig>
   setHotkeys: (hotkeys: HotkeysConfig) => Promise<{ requiresRestart: boolean }>
   resetHotkeys: () => Promise<{ requiresRestart: boolean }>
@@ -246,6 +255,9 @@ const electronAPI: ElectronAPI = {
   hasSelectedCloseBehavior: () => ipcRenderer.invoke("has-selected-close-behavior"),
   setHasSelectedCloseBehavior: (value) => ipcRenderer.invoke("set-has-selected-close-behavior", value),
   showCloseDialog: () => ipcRenderer.invoke("show-close-dialog"),
+
+  getUiScale: () => ipcRenderer.invoke("get-ui-scale"),
+  setUiScale: (value) => ipcRenderer.invoke("set-ui-scale", value),
 
   getHotkeys: () => ipcRenderer.invoke("get-hotkeys"),
   setHotkeys: (hotkeys) => ipcRenderer.invoke("set-hotkeys", hotkeys),

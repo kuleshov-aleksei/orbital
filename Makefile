@@ -191,7 +191,7 @@ hooks:
 # Over-the-air frontend update logic (Electron decisions + bundle generator +
 # the ota/appUpdate stores that decide when to apply or prompt for an APK)
 test-ota:
-	node --test electron/main/features/otaPlan.test.ts scripts/ota-manifest.test.mjs
+	node --test electron/main/features/otaPlan.test.ts electron/main/features/uiScalePlan.test.ts scripts/ota-manifest.test.mjs
 	cd frontend && pnpm exec vitest run src/stores/ota.test.ts src/stores/appUpdate.test.ts
 
 # Desktop OTA state (docs/notes/OTA_TEST_PLAN.md): bundles, state.json and the

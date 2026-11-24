@@ -252,6 +252,7 @@ Rules:
 - Features include: system tray, window controls, auto-updates, deep linking (`orbital://`), desktop capture for screen sharing
 - Frontend interacts with Electron via `window.electronAPI` (see `frontend/src/services/electron.ts`)
 - The desktop app shares the same frontend code as the web version
+- **UI scale (handhelds)**: page zoom is owned by the main process (`electron/main/features/uiScale.ts`, pure logic in `uiScalePlan.ts`). It auto-scales on Steam Deck / Legion Go (DMI or SteamOS env) to keep ≥1024 CSS px, honours the `uiScale` config setting (Settings → Application), and is reapplied on every `did-finish-load` because Chromium zoom is per origin. Don't add CSS `zoom` or root font-size scaling on top, and don't drop the Electron desktop-layout pin in `stores/app.ts`.
 
 ### ⚠️ Electron Build Traps (venmic worker / utilityProcess)
 

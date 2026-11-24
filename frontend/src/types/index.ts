@@ -612,6 +612,9 @@ export interface ElectronAPI {
   hasSelectedCloseBehavior: () => Promise<boolean>
   setHasSelectedCloseBehavior: (value: boolean) => Promise<void>
   showCloseDialog: () => Promise<boolean>
+  /** Page zoom for touch handhelds (electron/main/features/uiScale.ts); missing in older builds. */
+  getUiScale?: () => Promise<ElectronUiScaleInfo>
+  setUiScale?: (value: "auto" | number) => Promise<ElectronUiScaleInfo>
   getHotkeys: () => Promise<HotkeysConfig>
   setHotkeys: (hotkeys: HotkeysConfig) => Promise<{ requiresRestart: boolean }>
   resetHotkeys: () => Promise<{ requiresRestart: boolean }>
@@ -631,6 +634,15 @@ export interface ElectronAPI {
   venmicSaveSources?: (sources: VenmicSource[]) => Promise<void>
   venmicStart?: (include: VenmicSource[]) => Promise<boolean>
   venmicStop?: () => Promise<boolean>
+}
+
+export interface ElectronUiScaleInfo {
+  /** "auto" or a fixed factor (1–2). */
+  setting: "auto" | number
+  /** The factor "auto" resolves to on this device (1 unless it is a handheld). */
+  auto: number
+  effective: number
+  handheld: boolean
 }
 
 declare global {

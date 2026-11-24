@@ -2,6 +2,7 @@ import { app } from "electron"
 import path from "node:path"
 import fs from "node:fs"
 import log from "electron-log"
+import { normalizeSetting, type UiScaleSetting } from "./uiScalePlan"
 
 export interface HotkeySetting {
   enabled: boolean
@@ -12,6 +13,8 @@ export interface AppConfig {
   closeToTray: boolean
   hasSelectedCloseBehavior: boolean
   skipUpdates: boolean
+  /** Page zoom; "auto" scales up on touch handhelds (see uiScalePlan.ts). */
+  uiScale: UiScaleSetting
   hotkeys: {
     mute: HotkeySetting
     deafen: HotkeySetting
@@ -29,6 +32,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   closeToTray: true,
   hasSelectedCloseBehavior: false,
   skipUpdates: false,
+  uiScale: "auto",
   hotkeys: DEFAULT_HOTKEYS,
 }
 
@@ -88,6 +92,11 @@ export function setCloseToTray(value: boolean): void {
 
 export function setHasSelectedCloseBehavior(value: boolean): void {
   config.hasSelectedCloseBehavior = value
+  saveConfig()
+}
+
+export function setUiScaleSetting(value: UiScaleSetting): void {
+  config.uiScale = normalizeSetting(value)
   saveConfig()
 }
 

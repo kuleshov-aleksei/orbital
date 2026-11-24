@@ -11,6 +11,7 @@ import { replayCachedEvents } from "./update"
 import { armBootGuard, watchRendererFailures } from "./ota"
 import { consumePendingDeepLink } from "./deeplink"
 import { stopAudioCapture } from "../venmic"
+import { attachUiScale, effectiveZoom } from "./uiScale"
 
 let thumbarIcons: Record<string, NativeImage> = {}
 
@@ -89,6 +90,10 @@ export function createWindow() {
   const primaryDisplay = screen.getPrimaryDisplay()
   const { width: screenW, height: screenH } = primaryDisplay.workAreaSize
 
+  // Bigger UI on touch handhelds (Steam Deck, Legion Go); set up front so the
+  // first paint is already at the right size.
+  const zoomFactor = effectiveZoom()
+
   const win = new BrowserWindow({
     width: screenW,
     height: screenH,
@@ -103,11 +108,14 @@ export function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      zoomFactor,
     },
     autoHideMenuBar: true
   })
 
   setMainWindow(win)
+  attachUiScale(win)
+  win.webContents.on("did-create-window", (child) => attachUiScale(child))
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     // App pages opened in a new tab on the web (the /files storage page)
@@ -131,6 +139,7 @@ export function createWindow() {
             contextIsolation: true,
             nodeIntegration: false,
             sandbox: false,
+            zoomFactor: effectiveZoom(),
           },
         },
       }

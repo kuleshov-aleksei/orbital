@@ -43,6 +43,39 @@
         </button>
       </div>
 
+      <!-- Interface scale (shell API 4+) -->
+      <div v-if="uiScale" class="pt-2 border-t border-theme-border">
+        <label id="ui-scale-label" class="text-sm font-medium text-theme-text-primary block">
+          Interface scale
+        </label>
+        <p class="text-xs text-theme-text-muted mt-0.5">
+          Make everything bigger, for example on a Steam Deck or another touch screen. Larger sizes
+          may make the sidebars cramped on small screens.
+        </p>
+
+        <div
+          role="radiogroup"
+          aria-labelledby="ui-scale-label"
+          class="mt-3 flex flex-wrap gap-2"
+          data-testid="ui-scale-options">
+          <button
+            v-for="option in uiScaleOptions"
+            :key="String(option.value)"
+            type="button"
+            role="radio"
+            :aria-checked="uiScale.setting === option.value"
+            class="min-h-9 px-3 rounded-lg border text-sm transition-colors"
+            :class="
+              uiScale.setting === option.value
+                ? 'border-theme-accent bg-theme-accent/10 text-theme-text-primary'
+                : 'border-theme-border text-theme-text-secondary hover:bg-theme-bg-hover'
+            "
+            @click="chooseUiScale(option.value)">
+            {{ option.label }}
+          </button>
+        </div>
+      </div>
+
       <!-- Taskbar flash on mentions -->
       <div class="flex items-center justify-between pt-2 border-t border-theme-border">
         <div>
@@ -165,8 +198,11 @@ import {
   resumeHotkeys,
   getIsWayland,
   getHotkeyBackend,
+  getUiScale,
+  setUiScale,
   type HotkeysConfig,
 } from "@/services/electron"
+import type { ElectronUiScaleInfo } from "@/types"
 import { PhMonitor, PhWarning } from "@phosphor-icons/vue"
 import HotkeyInput from "./HotkeyInput.vue"
 
@@ -184,6 +220,18 @@ const isWayland = ref(false)
 const showWaylandNotice = ref(false)
 const hotkeyBackend = ref("")
 
+const uiScale = ref<ElectronUiScaleInfo | null>(null)
+const percent = (factor: number) => `${Math.round(factor * 100)}%`
+const uiScaleOptions = computed(() => [
+  { value: "auto" as const, label: `Auto (${percent(uiScale.value?.auto ?? 1)})` },
+  ...[1, 1.25, 1.5, 1.75, 2].map((value) => ({ value, label: percent(value) })),
+])
+
+async function chooseUiScale(value: "auto" | number) {
+  const info = await setUiScale(value)
+  if (info) uiScale.value = info
+}
+
 const defaultHotkeys: HotkeysConfig = {
   mute: { enabled: true, accelerator: "CommandOrControl+M" },
   deafen: { enabled: true, accelerator: "CommandOrControl+D" },
@@ -192,6 +240,7 @@ const defaultHotkeys: HotkeysConfig = {
 
 onMounted(async () => {
   if (isElectron()) {
+    uiScale.value = await getUiScale()
     isWayland.value = await getIsWayland()
     hotkeyBackend.value = await getHotkeyBackend()
 
