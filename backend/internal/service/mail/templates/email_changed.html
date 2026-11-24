@@ -1,0 +1,9 @@
+<!doctype html>
+<html><body style="font-family: -apple-system, Segoe UI, Roboto, sans-serif; color: #1f2328; line-height: 1.5;">
+<p>Hi {{.Nickname}},</p>
+<p>The email of your {{.AppName}} account was changed to <strong>{{.NewEmail}}</strong>. Password reset links now go to that address.</p>
+<p>If this wasn't you, get your account back: this restores this address, asks you for a new password and signs out every device.</p>
+<p><a href="{{.Link}}" style="display: inline-block; padding: 10px 18px; background: #d1242f; color: #ffffff; border-radius: 6px; text-decoration: none;">This wasn't me</a></p>
+<p style="font-size: 13px; color: #59636e;">Or open this link: {{.Link}}</p>
+<p style="font-size: 13px; color: #59636e;">The link is valid for {{.ExpiresIn}} and works once. If you made this change yourself, you can ignore this email.</p>
+</body></html>

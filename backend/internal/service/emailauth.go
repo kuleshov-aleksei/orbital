@@ -111,13 +111,14 @@ func (s *EmailAuthService) SendVerification(user *models.User) error {
 
 // VerifyEmail redeems a verification token.
 func (s *EmailAuthService) VerifyEmail(token string) (*models.User, error) {
-	userID, ok, err := s.tokens.Consume(hashEmailToken(token), mail.PurposeVerify, s.now())
+	tok, err := s.tokens.Consume(hashEmailToken(token), mail.PurposeVerify, s.now())
 	if err != nil {
 		return nil, err
 	}
-	if !ok {
+	if tok == nil {
 		return nil, ErrInvalidEmailToken
 	}
+	userID := tok.UserID
 	user, err := s.users.GetByID(userID)
 	if err != nil {
 		return nil, err
@@ -185,13 +186,14 @@ func (s *EmailAuthService) ResetPassword(token, password string) (*models.User, 
 	if err := ValidatePassword(password); err != nil {
 		return nil, err
 	}
-	userID, ok, err := s.tokens.Consume(hashEmailToken(token), mail.PurposeReset, s.now())
+	tok, err := s.tokens.Consume(hashEmailToken(token), mail.PurposeReset, s.now())
 	if err != nil {
 		return nil, err
 	}
-	if !ok {
+	if tok == nil {
 		return nil, ErrInvalidEmailToken
 	}
+	userID := tok.UserID
 	user, err := s.users.GetByID(userID)
 	if err != nil {
 		return nil, err
@@ -216,7 +218,12 @@ func (s *EmailAuthService) ResetPassword(token, password string) (*models.User, 
 	if err := s.auth.RevokeTokens(userID); err != nil {
 		return nil, fmt.Errorf("failed to sign out sessions: %w", err)
 	}
-	return s.users.GetByID(userID)
+	updated, err := s.users.GetByID(userID)
+	if err != nil {
+		return nil, err
+	}
+	s.notifyPasswordChanged(updated)
+	return updated, nil
 }
 
 // ListLog returns the sent-mail log, newest first.
@@ -251,14 +258,25 @@ func (s *EmailAuthService) StartCleanupLoop(interval time.Duration) {
 	}
 }
 
+// issue makes a token for (user, purpose), replacing older ones.
 func (s *EmailAuthService) issue(userID, purpose string, ttl time.Duration) (string, error) {
+	return s.issueWith(userID, purpose, "", ttl, true)
+}
+
+// issueWith makes a token carrying data. replace false keeps older tokens of
+// the same purpose valid.
+func (s *EmailAuthService) issueWith(userID, purpose, data string, ttl time.Duration, replace bool) (string, error) {
 	buf := make([]byte, 32)
 	if _, err := rand.Read(buf); err != nil {
 		return "", err
 	}
 	token := base64.RawURLEncoding.EncodeToString(buf)
 	now := s.now().UTC()
-	if err := s.tokens.Replace(userID, purpose, hashEmailToken(token), now.Add(ttl), now); err != nil {
+	store := s.tokens.Replace
+	if !replace {
+		store = s.tokens.Add
+	}
+	if err := store(userID, purpose, hashEmailToken(token), data, now.Add(ttl), now); err != nil {
 		return "", fmt.Errorf("failed to store token: %w", err)
 	}
 	return token, nil

@@ -157,11 +157,16 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, service.ErrInvalidEmailToken.Error(), http.StatusBadRequest)
 		return
 	}
+	h.signInAfterRecovery(w, r, user)
+}
 
-	// RevokeTokens deleted every session; drop their push tokens and sockets.
+// signInAfterRecovery finishes a flow that revoked every session (password
+// reset, email restore): it drops the push tokens and sockets of the ended
+// sessions and signs the caller in with a fresh one.
+func (h *AuthHandler) signInAfterRecovery(w http.ResponseWriter, r *http.Request, user *models.User) {
 	if h.sessionPush != nil {
 		if err := h.sessionPush.DeleteForUserExcept(user.ID, ""); err != nil {
-			log.Printf("[Auth] Failed to drop push tokens of %s after reset: %v", user.ID, err)
+			log.Printf("[Auth] Failed to drop push tokens of %s: %v", user.ID, err)
 		}
 	}
 	if h.sessionCloser != nil {

@@ -19,29 +19,51 @@ func NewEmailTokenRepository(db *storage.DB) *EmailTokenRepository {
 }
 
 // Replace stores a new token for (user, purpose), dropping older ones, so
-// only the newest link works.
-func (r *EmailTokenRepository) Replace(userID, purpose, tokenHash string, expiresAt, now time.Time) error {
+// only the newest link works. data is stored with the token (e.g. the new
+// address of an email change).
+func (r *EmailTokenRepository) Replace(userID, purpose, tokenHash, data string, expiresAt, now time.Time) error {
 	return r.db.Transaction(func(tx *sql.Tx) error {
 		if _, err := tx.Exec(`DELETE FROM email_tokens WHERE user_id = ? AND purpose = ?`, userID, purpose); err != nil {
 			return err
 		}
-		_, err := tx.Exec(
-			`INSERT INTO email_tokens (token_hash, user_id, purpose, expires_at, created_at) VALUES (?, ?, ?, ?, ?)`,
-			tokenHash, userID, purpose, expiresAt, now,
-		)
-		return err
+		return insertEmailToken(tx, userID, purpose, tokenHash, data, expiresAt, now)
 	})
 }
 
-// Consume deletes the token and returns its user. ok is false when the token
-// is unknown, of another purpose, or expired.
-func (r *EmailTokenRepository) Consume(tokenHash, purpose string, now time.Time) (userID string, ok bool, err error) {
-	err = r.db.Transaction(func(tx *sql.Tx) error {
+// Add stores a token without dropping older ones of the same purpose. Used for
+// email-change undo links, which a later change must not cancel.
+func (r *EmailTokenRepository) Add(userID, purpose, tokenHash, data string, expiresAt, now time.Time) error {
+	return r.db.Transaction(func(tx *sql.Tx) error {
+		return insertEmailToken(tx, userID, purpose, tokenHash, data, expiresAt, now)
+	})
+}
+
+func insertEmailToken(tx *sql.Tx, userID, purpose, tokenHash, data string, expiresAt, now time.Time) error {
+	_, err := tx.Exec(
+		`INSERT INTO email_tokens (token_hash, user_id, purpose, data, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+		tokenHash, userID, purpose, data, expiresAt, now,
+	)
+	return err
+}
+
+// EmailToken is a redeemed email token.
+type EmailToken struct {
+	UserID    string
+	Data      string
+	CreatedAt time.Time
+}
+
+// Consume deletes the token and returns it. It returns nil when the token is
+// unknown, of another purpose, or expired.
+func (r *EmailTokenRepository) Consume(tokenHash, purpose string, now time.Time) (*EmailToken, error) {
+	var tok EmailToken
+	ok := false
+	err := r.db.Transaction(func(tx *sql.Tx) error {
 		var expiresAt time.Time
 		scanErr := tx.QueryRow(
-			`SELECT user_id, expires_at FROM email_tokens WHERE token_hash = ? AND purpose = ?`,
+			`SELECT user_id, data, expires_at, created_at FROM email_tokens WHERE token_hash = ? AND purpose = ?`,
 			tokenHash, purpose,
-		).Scan(&userID, &expiresAt)
+		).Scan(&tok.UserID, &tok.Data, &expiresAt, &tok.CreatedAt)
 		if scanErr == sql.ErrNoRows {
 			return nil
 		}
@@ -55,16 +77,27 @@ func (r *EmailTokenRepository) Consume(tokenHash, purpose string, now time.Time)
 		return nil
 	})
 	if err != nil || !ok {
-		return "", false, err
+		return nil, err
 	}
-	return userID, true, nil
+	return &tok, nil
 }
 
-// DeleteForUser drops every token of a purpose (e.g. reset links once the
-// password changed).
-func (r *EmailTokenRepository) DeleteForUser(userID, purpose string) error {
-	_, err := r.db.Exec(`DELETE FROM email_tokens WHERE user_id = ? AND purpose = ?`, userID, purpose)
+// DeleteCreatedSince drops a user's tokens of a purpose created at or after
+// since.
+func (r *EmailTokenRepository) DeleteCreatedSince(userID, purpose string, since time.Time) error {
+	_, err := r.db.Exec(`DELETE FROM email_tokens WHERE user_id = ? AND purpose = ? AND created_at >= ?`, userID, purpose, since)
 	return err
+}
+
+// DeleteForUser drops every token of the given purposes (e.g. reset links once
+// the password changed).
+func (r *EmailTokenRepository) DeleteForUser(userID string, purposes ...string) error {
+	for _, purpose := range purposes {
+		if _, err := r.db.Exec(`DELETE FROM email_tokens WHERE user_id = ? AND purpose = ?`, userID, purpose); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // DeleteExpired removes expired tokens.

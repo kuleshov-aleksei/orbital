@@ -2,6 +2,8 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
+	"strings"
 	"time"
 
 	"github.com/kuleshov-aleksei/orbital/internal/models"
@@ -295,6 +297,19 @@ func (r *UserRepository) IncrementTokenVersion(userID string) error {
 // SetEmailVerifiedAt records that the user proved they own their email.
 func (r *UserRepository) SetEmailVerifiedAt(userID string, at time.Time) error {
 	_, err := r.db.Exec(`UPDATE users SET email_verified_at = ? WHERE id = ?`, at, userID)
+	return err
+}
+
+// ErrEmailTaken means another live password account already uses the email
+// (idx_users_password_email).
+var ErrEmailTaken = errors.New("email already in use")
+
+// SetEmail changes the account email. verifiedAt nil leaves it unverified.
+func (r *UserRepository) SetEmail(userID, email string, verifiedAt *time.Time) error {
+	_, err := r.db.Exec(`UPDATE users SET email = ?, email_verified_at = ? WHERE id = ?`, email, verifiedAt, userID)
+	if err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed") {
+		return ErrEmailTaken
+	}
 	return err
 }
 

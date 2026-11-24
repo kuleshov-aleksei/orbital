@@ -759,6 +759,14 @@ CREATE TABLE IF NOT EXISTS email_log (
 CREATE INDEX IF NOT EXISTS idx_email_log_created ON email_log(created_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_password_email ON users(LOWER(email)) WHERE auth_provider = 'password' AND deleted_at IS NULL AND email IS NOT NULL AND email != '';`,
 	},
+	{
+		Version: 59,
+		Name:    "email_tokens_data",
+		// Email change: an email_change token carries the new address, an
+		// email_undo token the old one. The row (and the address) goes away
+		// with the token.
+		SQL: `ALTER TABLE email_tokens ADD COLUMN data TEXT NOT NULL DEFAULT '';`,
+	},
 }
 
 // RunMigrationsUpTo applies migrations up to and including maxVersion.

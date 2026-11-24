@@ -1,0 +1,9 @@
+Hi {{.Nickname}},
+
+Someone asked to use this address for a {{.AppName}} account. To confirm it, open this link:
+
+{{.Link}}
+
+The link is valid for {{.ExpiresIn}} and works once. Until you open it, the account keeps its current email.
+
+If you didn't ask for this, you can ignore this email.

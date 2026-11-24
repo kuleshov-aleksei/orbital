@@ -27,6 +27,11 @@
       </p>
     </div>
 
+    <template v-if="userStore.isAuthenticated && userStore.authProvider === 'password'">
+      <PasswordChangeCard @changed="load" />
+      <EmailChangeCard />
+    </template>
+
     <!-- Active sessions -->
     <div v-if="userStore.isLoggedIn" class="bg-theme-bg-tertiary rounded-lg p-4">
       <div class="font-medium text-theme-text-primary mb-1">Active sessions</div>
@@ -202,6 +207,8 @@ import {
 import { useConnectionStore, useUserStore } from "@/stores"
 import { apiService, type AuthSessionInfo } from "@/services/api"
 import QRScanModal from "@/components/auth/QRScanModal.vue"
+import PasswordChangeCard from "./PasswordChangeCard.vue"
+import EmailChangeCard from "./EmailChangeCard.vue"
 
 defineProps<{ hideHeader?: boolean }>()
 const emit = defineEmits<{ logout: [] }>()

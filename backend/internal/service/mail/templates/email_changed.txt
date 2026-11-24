@@ -1,0 +1,9 @@
+Hi {{.Nickname}},
+
+The email of your {{.AppName}} account was changed to {{.NewEmail}}. Password reset links now go to that address.
+
+If this wasn't you, open this link to get your account back. It restores this address, asks you for a new password and signs out every device:
+
+{{.Link}}
+
+The link is valid for {{.ExpiresIn}} and works once. If you made this change yourself, you can ignore this email.

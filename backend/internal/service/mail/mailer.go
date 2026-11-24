@@ -20,6 +20,12 @@ const (
 	PurposeVerify = "verify"
 	PurposeReset  = "reset"
 	PurposeTest   = "test"
+	// Confirm link sent to the new address of an email change.
+	PurposeEmailChange = "email_change"
+	// Notice with an undo link sent to the old address after an email change.
+	PurposeEmailChanged = "email_changed"
+	// Notice that the password changed (no link to act on).
+	PurposePasswordChanged = "password_changed"
 )
 
 // Log statuses.
@@ -43,6 +49,10 @@ var subjects = map[string]string{
 	PurposeVerify: "Confirm your email for %s",
 	PurposeReset:  "Reset your %s password",
 	PurposeTest:   "%s test email",
+
+	PurposeEmailChange:     "Confirm your new email for %s",
+	PurposeEmailChanged:    "Your %s email was changed",
+	PurposePasswordChanged: "Your %s password was changed",
 }
 
 // Data fills the templates.
@@ -51,6 +61,8 @@ type Data struct {
 	Nickname  string
 	Link      string
 	ExpiresIn string
+	// NewEmail is the (masked) new address in the email-changed notice.
+	NewEmail string
 }
 
 // Render builds the message for a purpose.

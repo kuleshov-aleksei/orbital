@@ -40,6 +40,20 @@ const router = createRouter({
       component: () => import("@/views/ResetPasswordView.vue"),
     },
     {
+      // Public: confirm link mailed to the new address of an email change.
+      path: "/confirm-email",
+      name: "confirm-email",
+      component: () => import("@/views/VerifyEmailView.vue"),
+      props: { mode: "change" },
+    },
+    {
+      // Public: "this wasn't me" link mailed to the old address.
+      path: "/restore-email",
+      name: "restore-email",
+      component: () => import("@/views/ResetPasswordView.vue"),
+      props: { mode: "restore" },
+    },
+    {
       path: "/admin",
       name: "admin",
       component: () => import("@/views/AdminPanel.vue"),

@@ -137,6 +137,7 @@ Plain SMTP (`backend/internal/service/mail`, `SMTP_*` env; unset `SMTP_HOST` = d
 - Tokens: only their SHA-256 is stored (`email_tokens`), single use, verify 24 h / reset 1 h. Verification is soft (a banner, no gate); reset mail goes only to a **verified** email.
 - `POST /api/auth/password/forgot` must stay indistinguishable for every email: the lookup runs in the background and every request waits a random 400 ms–1 s. Don't add a branch that answers differently or faster.
 - Every send is logged in `email_log` for super admins (Admin → Emails), with the token redacted (`Mailer` replaces the secret). Never put a live link in the log or stdout.
+- Settings → Security has change password (ends every *other* session) and change email (`service/accountsecurity.go`). An email change only applies once the link mailed to the new address is opened (`/confirm-email`); a verified old address then gets a "this wasn't me" link (`/restore-email`, 7 days) that restores it, asks for a new password and signs out everywhere. Undo tokens are added with `EmailTokenRepository.Add`, never `Replace`: a later change must not cancel the owner's link. A restore drops undo tokens issued after the one used. "Password changed" notices carry no token. Without SMTP both changes apply directly (email unverified).
 - Dev: `make mail-up` (Mailpit with STARTTLS, UI on :8025), env hints in `.env.example`.
 
 ### Account deletion (tombstones)

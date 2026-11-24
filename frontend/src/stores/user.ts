@@ -308,6 +308,12 @@ export const useUserStore = defineStore("user", () => {
     if (currentUser.value) currentUser.value = { ...currentUser.value, emailVerified: value }
   }
 
+  function setEmail(value: string, verified: boolean) {
+    if (!currentUser.value) return
+    currentUser.value = { ...currentUser.value, email: value, emailVerified: verified }
+    localStorage.setItem("orbital_user_email", value)
+  }
+
   /** Signs in on this device with the session a password reset returned. */
   function completePasswordReset(response: AuthResponse) {
     const user: UserSession = {
@@ -510,6 +516,7 @@ export const useUserStore = defineStore("user", () => {
     acceptTerms,
     needsEmailVerification,
     setEmailVerified,
+    setEmail,
     completePasswordReset,
     hasCompletedAuth,
     sessionExpired,

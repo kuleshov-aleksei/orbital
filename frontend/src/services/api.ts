@@ -525,6 +525,20 @@ export interface TestEmailResult {
   error?: string
 }
 
+export interface EmailChangeResult {
+  pending: boolean
+  new_email: string
+  /** The account email now (unchanged while pending). */
+  email: string
+  email_verified: boolean
+}
+
+export interface EmailConfirmResult {
+  user_id: string
+  email: string
+  email_verified: boolean
+}
+
 export interface OutboundProxyTestResult {
   ok: boolean
   status?: number
@@ -560,6 +574,7 @@ const AUTH_ENDPOINTS_NO_RETRY = [
   "/auth/exchange",
   "/auth/password/",
   "/auth/verify-email",
+  "/auth/email/",
 ]
 
 function isCredentialEndpoint(endpoint: string): boolean {
@@ -1250,6 +1265,47 @@ export const apiService = {
   /** Sets a new password from a reset link and signs in on this device. */
   async resetPassword(token: string, password: string): Promise<AuthResponse> {
     const response = await apiRequest<LoginResponse>("/auth/password/reset", {
+      method: "POST",
+      body: JSON.stringify({ token, password }),
+    })
+    setAuthToken(response.token)
+    setTokenExpiry(response.expires_at)
+    return response
+  },
+
+  /** Changes the password; every other device is signed out. */
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    await apiRequest<void>("/auth/password/change", {
+      method: "POST",
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    })
+  },
+
+  /**
+   * Starts an email change. pending: a confirm link went to the new address and
+   * nothing changed yet; otherwise (email off) the address changed at once.
+   */
+  async requestEmailChange(newEmail: string, password: string): Promise<EmailChangeResult> {
+    return apiRequest<EmailChangeResult>("/auth/email/change", {
+      method: "POST",
+      body: JSON.stringify({ new_email: newEmail, password }),
+    })
+  },
+
+  /** Redeems the confirm link sent to the new address (no sign-in needed). */
+  async confirmEmailChange(token: string): Promise<EmailConfirmResult> {
+    return apiRequest<EmailConfirmResult>("/auth/email/confirm", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    })
+  },
+
+  /**
+   * Redeems the "this wasn't me" link sent to the old address: restores it, sets
+   * a new password, signs out everywhere and signs in on this device.
+   */
+  async restoreEmail(token: string, password: string): Promise<AuthResponse> {
+    const response = await apiRequest<LoginResponse>("/auth/email/restore", {
       method: "POST",
       body: JSON.stringify({ token, password }),
     })

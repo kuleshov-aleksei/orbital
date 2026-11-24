@@ -458,6 +458,10 @@ func main() {
 	r.Handle("/api/auth/verify-email/resend", authHandler.AuthMiddleware(withRateLimit("auth-verify-resend", cfg.RateLimit.AuthPerMinute, time.Minute, userOrIPKey, http.HandlerFunc(authHandler.ResendVerification)))).Methods("POST")
 	r.Handle("/api/auth/password/forgot", withRateLimit("auth-password-forgot", cfg.RateLimit.AuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.ForgotPassword))).Methods("POST")
 	r.Handle("/api/auth/password/reset", withRateLimit("auth-password-reset", cfg.RateLimit.AuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.ResetPassword))).Methods("POST")
+	r.Handle("/api/auth/password/change", authHandler.AuthMiddleware(withRateLimit("auth-password-change", cfg.RateLimit.AuthPerMinute, time.Minute, userOrIPKey, http.HandlerFunc(authHandler.ChangePassword)))).Methods("POST")
+	r.Handle("/api/auth/email/change", authHandler.AuthMiddleware(withRateLimit("auth-email-change", cfg.RateLimit.AuthPerMinute, time.Minute, userOrIPKey, http.HandlerFunc(authHandler.RequestEmailChange)))).Methods("POST")
+	r.Handle("/api/auth/email/confirm", withRateLimit("auth-email-confirm", cfg.RateLimit.AuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.ConfirmEmailChange))).Methods("POST")
+	r.Handle("/api/auth/email/restore", withRateLimit("auth-email-restore", cfg.RateLimit.AuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.RestoreEmail))).Methods("POST")
 
 	// QR device linking (single-use pairing; disabled without a database)
 	if qrLoginHandler != nil {

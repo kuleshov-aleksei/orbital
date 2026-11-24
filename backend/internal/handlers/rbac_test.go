@@ -77,8 +77,12 @@ func newRBACFixture(t *testing.T) *rbacFixture {
 	f.ownerSub = service.SubjectFromClaims(f.claims["owner"])
 
 	general := f.cats.GetGeneralCategoryID()
-	f.open, _ = f.rooms.CreateRoom("open", general, 5, "voice")
-	f.hidden, _ = f.rooms.CreateRoom("hidden", general, 5, "voice")
+	if f.open, err = f.rooms.CreateRoom("open", general, 5, "voice"); err != nil {
+		t.Fatal(err)
+	}
+	if f.hidden, err = f.rooms.CreateRoom("hidden", general, 5, "voice"); err != nil {
+		t.Fatal(err)
+	}
 
 	modPerms := uint64(permissions.ManageRoles | permissions.ManageRooms | permissions.KickMembers)
 	name := "Mod"
