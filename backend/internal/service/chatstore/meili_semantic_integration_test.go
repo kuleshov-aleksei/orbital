@@ -38,7 +38,7 @@ func TestMeiliImageSearchIntegration(t *testing.T) {
 	// embedder must not fail on it.
 	var task taskRef
 	legacy := map[string]any{"id": "1762770000000000", "seq": 1762770000000000, "room_id": semRoom,
-		"sender_id": semSender, "content": "старое", "content_search": "старое", "is_deleted": false}
+		"sender_id": semSender, "content": "older", "content_search": "older", "is_deleted": false}
 	if err := eng.do(ctx, http.MethodPost, eng.indexPath("/documents"), []any{legacy}, &task); err != nil {
 		t.Fatal(err)
 	}
@@ -46,8 +46,8 @@ func TestMeiliImageSearchIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	text := mustCreate(t, s, semRoom, semSender, "отчёт за ноябрь, кот тут ни при чём")
-	cat := imageMessage(t, s, "мой")
+	text := mustCreate(t, s, semRoom, semSender, "november report, cat has nothing to do with it")
+	cat := imageMessage(t, s, "mine")
 	car := imageMessage(t, s, "")
 	receipt := imageMessage(t, s, "")
 	cases := []struct {
@@ -57,7 +57,7 @@ func TestMeiliImageSearchIntegration(t *testing.T) {
 	}{
 		{cat, "", []float32{1, 0, 0}},
 		{car, "", []float32{0, 1, 0}},
-		{receipt, "ИТОГО 1250 руб", []float32{0.1, 0.1, 1}},
+		{receipt, "TOTAL 1250 EUR", []float32{0.1, 0.1, 1}},
 	}
 	for _, c := range cases {
 		if err := s.SetAttachmentContent(ctx, c.m.ID, c.text, [][]float32{c.vec}, true); err != nil {
@@ -66,7 +66,7 @@ func TestMeiliImageSearchIntegration(t *testing.T) {
 	}
 	waitFlushed(t, s)
 
-	queries := map[string][]float32{"кот": {1, 0, 0}, "итого": {0, 0, -1}, "банан": {-1, -1, 0}}
+	queries := map[string][]float32{"cat": {1, 0, 0}, "total": {0, 0, -1}, "banana": {-1, -1, 0}}
 	s.SetQueryEmbedder(func(_ context.Context, q string) ([]float32, error) { return queries[q], nil }, 0.6)
 
 	ids := func(q string) []string {
@@ -93,32 +93,32 @@ func TestMeiliImageSearchIntegration(t *testing.T) {
 
 	// The keyword hit and the close image; the unrelated car (cosine 0) is
 	// cut by the threshold.
-	if got := names(ids("кот")); got != "[cat text]" {
-		t.Fatalf("кот = %s, want [cat text]", got)
+	if got := names(ids("cat")); got != "[cat text]" {
+		t.Fatalf("cat = %s, want [cat text]", got)
 	}
 	// OCR text is searchable by keyword; the opposite vector finds nothing.
-	if got := names(ids("итого")); got != "[receipt]" {
-		t.Fatalf("итого = %s, want [receipt]", got)
+	if got := names(ids("total")); got != "[receipt]" {
+		t.Fatalf("total = %s, want [receipt]", got)
 	}
-	if got := names(ids("банан")); got != "[]" {
-		t.Fatalf("банан = %s, want []", got)
+	if got := names(ids("banana")); got != "[]" {
+		t.Fatalf("banana = %s, want []", got)
 	}
 
 	// A query that finds the same message by keyword and by vector lists it once.
-	queries["итого"] = []float32{0.1, 0.1, 1}
-	if got := names(ids("итого")); got != "[receipt]" {
-		t.Fatalf("итого (both queries) = %s, want [receipt] once", got)
+	queries["total"] = []float32{0.1, 0.1, 1}
+	if got := names(ids("total")); got != "[receipt]" {
+		t.Fatalf("total (both queries) = %s, want [receipt] once", got)
 	}
 
 	// Editing the text keeps the vectors.
-	if _, err := s.Edit(ctx, cat.ID, semSender, "мой питомец"); err != nil {
+	if _, err := s.Edit(ctx, cat.ID, semSender, "mine pet"); err != nil {
 		t.Fatal(err)
 	}
 	waitFlushed(t, s)
-	if got := names(ids("кот")); got != "[cat text]" {
-		t.Fatalf("кот after edit = %s, want [cat text]", got)
+	if got := names(ids("cat")); got != "[cat text]" {
+		t.Fatalf("cat after edit = %s, want [cat text]", got)
 	}
-	if res, err := s.Search(ctx, SearchRequest{Text: "старое", RoomIDs: []string{semRoom}}); err != nil || len(res.Hits) != 1 {
+	if res, err := s.Search(ctx, SearchRequest{Text: "older", RoomIDs: []string{semRoom}}); err != nil || len(res.Hits) != 1 {
 		t.Fatalf("legacy message search = %v, %v", res, err)
 	}
 
@@ -127,8 +127,8 @@ func TestMeiliImageSearchIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitFlushed(t, s)
-	if got := names(ids("кот")); got != "[text]" {
-		t.Fatalf("кот after clearing = %s, want [text]", got)
+	if got := names(ids("cat")); got != "[text]" {
+		t.Fatalf("cat after clearing = %s, want [text]", got)
 	}
 
 	// A model with another size replaces the embedder.

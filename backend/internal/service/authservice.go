@@ -54,6 +54,7 @@ type oauthStateEntry struct {
 type AuthService struct {
 	config               *config.AuthConfig
 	userRepo             *repository.UserRepository
+	sessions             *repository.AuthSessionRepository
 	oauthConfigs         map[models.AuthProvider]*oauth2.Config
 	electronOAuthConfigs map[models.AuthProvider]*oauth2.Config
 	androidOAuthConfigs  map[models.AuthProvider]*oauth2.Config
@@ -464,15 +465,40 @@ func (s *AuthService) CreateGuestUser() (*models.User, error) {
 	return user, nil
 }
 
-// GenerateJWT creates a JWT token for a user
-func (s *AuthService) GenerateJWT(user *models.User) (string, time.Time, error) {
-	return s.GenerateJWTWithExpiry(user, 60*24*time.Hour) // Default 60 days
+// AcceptTerms records that the user accepted the Terms of Service and
+// Privacy Policy now, and returns the updated user.
+func (s *AuthService) AcceptTerms(userID string) (*models.User, error) {
+	if err := s.userRepo.SetAcceptedTermsAt(userID, time.Now().UTC()); err != nil {
+		return nil, fmt.Errorf("failed to record terms acceptance: %w", err)
+	}
+	user, err := s.userRepo.GetByID(userID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, fmt.Errorf("user not found")
+	}
+	return user, nil
 }
 
-// GenerateJWTWithExpiry creates a JWT token for a user with custom expiry
+// TokenLifetime is how long an issued JWT (and its session) stays valid
+// without a refresh.
+const TokenLifetime = 60 * 24 * time.Hour
+
+// GenerateJWT creates a JWT token for a user without a session (legacy token,
+// revocable only through token_version). Sign-ins use StartSession.
+func (s *AuthService) GenerateJWT(user *models.User) (string, time.Time, error) {
+	return s.GenerateJWTWithExpiry(user, TokenLifetime)
+}
+
+// GenerateJWTWithExpiry creates a session-less JWT token with custom expiry.
 func (s *AuthService) GenerateJWTWithExpiry(user *models.User, expiry time.Duration) (string, time.Time, error) {
 	expiryTime := time.Now().Add(expiry)
+	token, err := s.signJWT(user, "", expiryTime)
+	return token, expiryTime, err
+}
 
+func (s *AuthService) signJWT(user *models.User, sessionID string, expiryTime time.Time) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id":       user.ID,
 		"nickname":      user.Nickname,
@@ -485,14 +511,16 @@ func (s *AuthService) GenerateJWTWithExpiry(user *models.User, expiry time.Durat
 		"exp":           expiryTime.Unix(),
 		"iat":           time.Now().Unix(),
 	}
+	if sessionID != "" {
+		claims["sid"] = sessionID
+	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString([]byte(s.config.JWTSecret))
 	if err != nil {
-		return "", time.Time{}, fmt.Errorf("failed to sign token: %w", err)
+		return "", fmt.Errorf("failed to sign token: %w", err)
 	}
-
-	return tokenString, expiryTime, nil
+	return tokenString, nil
 }
 
 // ValidateJWT validates a JWT token and returns the claims
@@ -544,6 +572,9 @@ func (s *AuthService) ValidateJWT(tokenString string) (*models.JWTClaims, error)
 	if tokenVersion, ok := claims["token_version"].(float64); ok {
 		jwtClaims.TokenVersion = int64(tokenVersion)
 	}
+	if sid, ok := claims["sid"].(string); ok {
+		jwtClaims.SessionID = sid
+	}
 
 	return jwtClaims, nil
 }
@@ -563,11 +594,16 @@ func ClaimsFromUser(user *models.User) *models.JWTClaims {
 	}
 }
 
-// RevokeTokens invalidates all JWTs issued for a user by bumping the per-user
-// token version checked by AuthMiddleware.
+// RevokeTokens invalidates every JWT issued for a user: all sessions and,
+// through token_version, all legacy session-less tokens.
 func (s *AuthService) RevokeTokens(userID string) error {
 	if s.userRepo == nil {
 		return fmt.Errorf("user repository unavailable")
+	}
+	if s.sessions != nil {
+		if _, err := s.sessions.DeleteOthers(userID, ""); err != nil {
+			return err
+		}
 	}
 	return s.userRepo.IncrementTokenVersion(userID)
 }

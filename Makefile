@@ -1,9 +1,10 @@
-.PHONY: help install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-backend test-integration e2e-textchat meili-up meili-down ml-up ml-down garage-up garage-down test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-win-audiocap build-electron-all build-android-web build-android build-android-dev check-android-jdk dev-android balance-drift balance-check
+.PHONY: help hooks install build dev dev-public dev-electron lint lint-full check prettier test test-unit test-ota test-backend test-integration e2e-textchat screenshots-seed ota-reset meili-up meili-down ml-up ml-down garage-up garage-down mail-up mail-down test-e2e-docker docker-build-test clean docker-build docker-up certs run-built licenses build-electron build-electron-win build-electron-linux build-win-audiocap build-electron-all build-android-web build-android build-android-dev check-android-jdk dev-android
 
 # Default target
 help:
 	@echo "Available commands:"
-	@echo "  install           - Install dependencies for frontend and backend"
+	@echo "  install           - Install dependencies for frontend and backend (+ git hooks)"
+	@echo "  hooks             - Install git hooks from .githooks (pre-commit shell-api check)"
 	@echo "  build             - Build frontend and backend"
 	@echo "  dev               - Run development servers"
 	@echo "  dev-public        - Run development servers on all interfaces (0.0.0.0)"
@@ -14,13 +15,18 @@ help:
 	@echo "  test-unit         - Run frontend unit tests (Vitest)"
 	@echo "  test-backend      - Run backend Go unit tests (hermetic, what PR CI runs)"
 	@echo "  test-integration  - Run backend integration tests against Meilisearch + Garage (starts them)"
+	@echo "  test-ota          - Run OTA update tests (electron decisions, bundle generator, ota stores)"
+	@echo "  ota-reset         - Clear local desktop OTA state (bundles, state.json, updater cache)"
 	@echo "  e2e-textchat      - Live text channel check on a throwaway backend + index (starts Meilisearch + Garage)"
+	@echo "  screenshots-seed  - Seeded demo server for screenshots on a throwaway backend (frontend on :3090)"
 	@echo "  meili-up          - Start the dev Meilisearch container (text channels)"
 	@echo "  meili-down        - Stop the dev Meilisearch container"
 	@echo "  ml-up             - Start the dev Immich ML container (search by image contents)"
 	@echo "  ml-down           - Stop the dev Immich ML container"
 	@echo "  garage-up         - Start the dev Garage S3 container (chat attachments)"
 	@echo "  garage-down       - Stop the dev Garage S3 container"
+	@echo "  mail-up           - Start the dev Mailpit SMTP catcher (account email, UI :8025)"
+	@echo "  mail-down         - Stop the dev Mailpit container"
 	@echo "  test-e2e-docker   - Run Playwright e2e tests in Docker"
 	@echo "  test-headed       - Run tests in headed mode (local browser required)"
 	@echo "  docker-build-test - Build the Playwright test Docker image"
@@ -38,7 +44,7 @@ help:
 	@echo "  dev-android          - Run the Android app against a live dev server (CAP_SERVER_URL=http://<lan-ip>:3000)"
 
 # Install dependencies
-install:
+install: hooks
 	@echo "Installing frontend dependencies..."
 	cd frontend && pnpm install
 	@echo "Installing electron dependencies..."
@@ -140,6 +146,8 @@ dev-public: certs
 
 # Run linters
 lint:
+	@echo "Checking shell-api.json bumps..."
+	./scripts/check-shell-api.sh
 	@echo "Running frontend linter..."
 	cd frontend && pnpm run lint
 	@echo "Running backend linter..."
@@ -175,6 +183,25 @@ test-e2e-docker: docker-build-test
 # Run tests
 test: docker-build-test
 	@PLAYWRIGHT_TEST_IMAGE=$(PLAYWRIGHT_TEST_IMAGE) PLAYWRIGHT_TEST_ARGS="$(PLAYWRIGHT_TEST_ARGS)" bash scripts/run-tests.sh all
+
+# Git hooks from .githooks/ (pre-commit: scripts/check-shell-api.sh --staged)
+hooks:
+	git config core.hooksPath .githooks
+	@echo "Git hooks installed (.githooks)"
+
+# Over-the-air frontend update logic (Electron decisions + bundle generator +
+# the ota/appUpdate stores that decide when to apply or prompt for an APK)
+test-ota:
+	node --test electron/main/features/otaPlan.test.ts electron/main/features/uiScalePlan.test.ts scripts/ota-manifest.test.mjs
+	cd frontend && pnpm exec vitest run src/stores/ota.test.ts src/stores/appUpdate.test.ts
+
+# Desktop OTA state (docs/notes/OTA_TEST_PLAN.md): bundles, state.json and the
+# electron-updater download cache. Cleared, the app behaves like a fresh launch.
+OTA_USER_DATA ?= $(HOME)/.config/orbital-desktop
+ota-reset:
+	@echo "Removing OTA state from $(OTA_USER_DATA) and the electron-updater cache"
+	rm -rf "$(OTA_USER_DATA)/ota" "$(HOME)/.cache/orbital-desktop-updater"
+	@echo "Done: the next launch runs the built-in bundle and checks the feed again."
 
 # Run backend unit tests (no external services; integration tests are excluded
 # by build tag, see test-integration)
@@ -224,6 +251,29 @@ garage-up:
 garage-down:
 	docker-compose -f docker-compose.dev.yml stop garage
 
+# Dev Mailpit (account email). The backend requires TLS, so a self-signed
+# certificate for localhost is generated once; point SMTP_CA_FILE at it.
+MAILPIT_CERT_DIR := certs/mailpit
+
+mail-up:
+	@if [ ! -f $(MAILPIT_CERT_DIR)/cert.pem ]; then \
+		mkdir -p $(MAILPIT_CERT_DIR) && \
+		openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 3650 \
+			-subj "/CN=localhost" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" \
+			-keyout $(MAILPIT_CERT_DIR)/key.pem -out $(MAILPIT_CERT_DIR)/cert.pem 2>/dev/null && \
+		chmod 644 $(MAILPIT_CERT_DIR)/key.pem && \
+		echo "Created dev SMTP certificate in $(MAILPIT_CERT_DIR)"; \
+	fi
+	docker-compose -f docker-compose.dev.yml up -d mailpit
+	@for i in $$(seq 1 60); do \
+		curl -fsS http://127.0.0.1:8025/livez >/dev/null 2>&1 && \
+			echo "Mailpit is up: SMTP localhost:1025 (STARTTLS), UI http://localhost:8025" && exit 0; \
+		sleep 0.5; \
+	done; echo "Mailpit did not become ready" >&2; exit 1
+
+mail-down:
+	docker-compose -f docker-compose.dev.yml stop mailpit
+
 # Backend integration tests (build tag `integration`), e.g. the Meilisearch
 # engine. Not part of PR CI; each test uses its own throwaway index.
 test-integration: meili-up garage-up
@@ -238,6 +288,12 @@ test-integration: meili-up garage-up
 # WebSocket/handler changes; it is not part of PR CI.
 e2e-textchat: meili-up garage-up
 	@MEILI_URL=$(MEILI_TEST_URL) MEILI_KEY=$(MEILI_TEST_KEY) bash scripts/e2e-textchat.sh
+
+# Demo server for screenshots: throwaway backend (own DB, uploads, index)
+# seeded by frontend/tests/e2e/setup-screenshots.spec.ts, frontend on :3090.
+# Ctrl+C stops it and deletes everything. Env: SEED_PORT, SEED_FRONTEND_PORT.
+screenshots-seed: meili-up
+	@MEILI_URL=$(MEILI_TEST_URL) MEILI_KEY=$(MEILI_TEST_KEY) bash scripts/screenshots-seed.sh
 
 # Run frontend unit tests
 test-unit:
@@ -359,19 +415,6 @@ build-electron-linux:
 	else \
 		cd electron && VITE_BACKEND_URL=$$VITE_BACKEND_URL UPDATE_URL=$(UPDATE_URL) pnpm run build:linux; \
 	fi
-
-# Halloween balance sims (no new installs — runs through frontend jiti)
-balance-drift:
-	@echo "Checking balance fixture vs backend Config()..."
-	node tools/halloween-balance/check-drift.cjs
-
-balance-check: balance-drift
-	@echo "Running heuristic balance gates (200 games)..."
-	./frontend/node_modules/.bin/jiti tools/halloween-balance/run.cjs -- --policy heuristic --games 200 --seed 1 --check-gates
-
-balance-systemone:
-	@echo "Running systemone decider games (10 games, sequential)..."
-	./frontend/node_modules/.bin/jiti tools/halloween-balance/run.cjs -- --policy systemone --games 10 --seed 1 --concurrency 1 --model winnow:e4b --submit
 
 build-electron-all:
 	@echo "Installing electron dependencies..."

@@ -20,6 +20,10 @@ type AuthHandler struct {
 	roleService         *service.RoleService
 	externalURL         string
 	electronRedirectURL string
+	sessionPush         SessionPushStore
+	sessionCloser       SessionCloser
+	accounts            *service.AccountService
+	emailAuth           *service.EmailAuthService
 }
 
 // NewAuthHandler creates a new auth handler
@@ -204,7 +208,7 @@ func (h *AuthHandler) handleCallback(w http.ResponseWriter, r *http.Request, pro
 	}
 
 	// Generate JWT token
-	token, expiry, err := h.authService.GenerateJWT(user)
+	token, expiry, err := h.authService.StartSession(user, sessionMetaFromRequest(r))
 	if err != nil {
 		http.Error(w, "Failed to generate token: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -298,7 +302,7 @@ func (h *AuthHandler) handleElectronCallback(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Generate JWT token
-	token, expiry, err := h.authService.GenerateJWT(user)
+	token, expiry, err := h.authService.StartSession(user, sessionMetaFromRequest(r))
 	if err != nil {
 		http.Error(w, "Failed to generate token: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -345,7 +349,7 @@ func (h *AuthHandler) ExchangeAppCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, expiry, err := h.authService.GenerateJWT(user)
+	token, expiry, err := h.authService.StartSession(user, sessionMetaFromRequest(r))
 	if err != nil {
 		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
 		return
@@ -362,14 +366,29 @@ func (h *AuthHandler) ExchangeAppCode(w http.ResponseWriter, r *http.Request) {
 
 // GuestLogin creates a new guest user
 func (h *AuthHandler) GuestLogin(w http.ResponseWriter, r *http.Request) {
+	// The body is optional: older clients send none, and their guests are
+	// asked to accept the terms after sign-in instead.
+	var req models.GuestLoginRequest
+	if r.Body != nil {
+		_ = json.NewDecoder(r.Body).Decode(&req)
+	}
+
 	user, err := h.authService.CreateGuestUser()
 	if err != nil {
 		http.Error(w, "Failed to create guest user: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	if req.AcceptedTerms {
+		if accepted, err := h.authService.AcceptTerms(user.ID); err != nil {
+			log.Printf("Failed to record terms acceptance for guest %s: %v", user.ID, err)
+		} else {
+			user = accepted
+		}
+	}
+
 	// Generate JWT token
-	token, expiry, err := h.authService.GenerateJWT(user)
+	token, expiry, err := h.authService.StartSession(user, sessionMetaFromRequest(r))
 	if err != nil {
 		http.Error(w, "Failed to generate token: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -403,6 +422,26 @@ func (h *AuthHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, user)
 }
 
+// AcceptTerms records that the signed-in user accepted the Terms of Service
+// and Privacy Policy (sign-ins without the registration form, and accounts
+// created before the documents existed). Returns the updated user.
+func (h *AuthHandler) AcceptTerms(w http.ResponseWriter, r *http.Request) {
+	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
+	if !ok || claims == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	user, err := h.authService.AcceptTerms(claims.UserID)
+	if err != nil {
+		http.Error(w, "Failed to record acceptance", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	writeJSON(w, user)
+}
+
 // RefreshToken slides an authenticated session forward by issuing a new JWT
 // with a fresh expiry. The current token must still be valid (AuthMiddleware
 // rejects expired tokens), so clients must refresh before expiry.
@@ -421,7 +460,7 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, expiry, err := h.authService.GenerateJWT(user)
+	token, expiry, err := h.authService.RefreshSession(claims, user, sessionMetaFromRequest(r))
 	if err != nil {
 		http.Error(w, "Failed to generate token: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -435,9 +474,9 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Logout revokes every JWT issued for the current user and clears the client
-// token. Logout requires a valid session so an attacker cannot revoke other
-// users' sessions.
+// Logout signs out the current device only: its session is deleted, along
+// with the push tokens it registered and its open sockets. A legacy token
+// (no session) has nothing to revoke server-side; the client drops it.
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	claims, ok := r.Context().Value(userContextKey).(*models.JWTClaims)
 	if !ok || claims == nil || claims.UserID == "" {
@@ -445,9 +484,12 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.authService.RevokeTokens(claims.UserID); err != nil {
-		http.Error(w, "Failed to revoke session", http.StatusInternalServerError)
-		return
+	if claims.SessionID != "" {
+		if _, err := h.authService.EndSession(claims.UserID, claims.SessionID); err != nil {
+			http.Error(w, "Failed to revoke session", http.StatusInternalServerError)
+			return
+		}
+		h.afterSessionsEnded(claims.UserID, []string{claims.SessionID})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -490,14 +532,17 @@ func (h *AuthHandler) AuthMiddleware(next http.Handler) http.Handler {
 			http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
 			return
 		}
-		if claims.TokenVersion != user.TokenVersion {
+		if err := h.authService.CheckSession(claims, user); err != nil {
 			http.Error(w, "Session has been revoked", http.StatusUnauthorized)
 			return
 		}
+		h.authService.TouchSession(claims.SessionID, sessionMetaFromRequest(r))
 
 		// Add fresh claims to request context (never trust stale token roles).
+		fresh := service.ClaimsFromUser(user)
+		fresh.SessionID = claims.SessionID
 		ctx := r.Context()
-		ctx = context.WithValue(ctx, userContextKey, service.ClaimsFromUser(user))
+		ctx = context.WithValue(ctx, userContextKey, fresh)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -527,6 +572,7 @@ func (h *AuthHandler) GetAuthStatus(w http.ResponseWriter, r *http.Request) {
 		"discord_enabled":  h.authService.IsProviderConfigured(models.AuthProviderDiscord),
 		"google_enabled":   h.authService.IsProviderConfigured(models.AuthProviderGoogle),
 		"password_enabled": h.authService.IsPasswordEnabled(),
+		"email_enabled":    h.emailEnabled(),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -567,16 +613,25 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Failed to assign super admin if first: %v", err)
 	}
 
-	// Refresh user data in case role was changed
+	if req.AcceptedTerms {
+		if _, err := h.authService.AcceptTerms(user.ID); err != nil {
+			// The client asks again after sign-in while it is still NULL.
+			log.Printf("Failed to record terms acceptance for %s: %v", user.ID, err)
+		}
+	}
+
+	// Refresh user data in case role or terms acceptance changed
 	user, err = h.authService.GetUserByID(user.ID)
 	if err != nil || user == nil {
 		http.Error(w, "Failed to get user", http.StatusInternalServerError)
 		return
 	}
 
+	h.sendVerificationAfterRegister(user)
+
 	// Generate JWT after the bootstrap role assignment so the first
 	// super_admin receives a token with the correct role.
-	token, expiry, err := h.authService.GenerateJWTWithExpiry(user, 60*24*time.Hour)
+	token, expiry, err := h.authService.StartSession(user, sessionMetaFromRequest(r))
 	if err != nil {
 		http.Error(w, "Failed to generate token: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -646,7 +701,7 @@ func (h *AuthHandler) LoginPassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate JWT token (2 months expiry for password users)
-	token, expiry, err := h.authService.GenerateJWTWithExpiry(user, 60*24*time.Hour)
+	token, expiry, err := h.authService.StartSession(user, sessionMetaFromRequest(r))
 	if err != nil {
 		http.Error(w, "Failed to generate token: "+err.Error(), http.StatusInternalServerError)
 		return

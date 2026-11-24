@@ -65,7 +65,8 @@ type evictedFile struct {
 
 // UploadAttachment handles POST /api/rooms/{id}/attachments (multipart:
 // file, plus optional peaks, duration_ms, width, height measured by the
-// client). Needs SendMessages and AttachFiles in the channel.
+// client, and original=1 to store an image uncompressed). Needs SendMessages
+// and AttachFiles in the channel.
 func (h *TextChatHandler) UploadAttachment(w http.ResponseWriter, r *http.Request) {
 	roomID := mux.Vars(r)["id"]
 	if !h.requireTextRoom(w, r, roomID) {
@@ -107,6 +108,7 @@ func (h *TextChatHandler) UploadAttachment(w http.ResponseWriter, r *http.Reques
 	res, err := h.media.Upload(r.Context(), chatmedia.UploadInput{
 		RoomID: roomID, UploaderID: sub.UserID, Filename: header.Filename,
 		File: file, Size: header.Size, Meta: meta,
+		Original: r.FormValue("original") == "1",
 	})
 	if err != nil {
 		writeMediaError(w, err)
@@ -209,6 +211,29 @@ func (h *TextChatHandler) AttachmentURLs(w http.ResponseWriter, r *http.Request)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	writeJSON(w, map[string]any{"urls": urls, "gone": gone})
+}
+
+// AttachmentFile handles GET /api/attachments/{id}/file: the original bytes,
+// served same-origin for callers that must read them in JavaScript (copying an
+// image to the clipboard). The presigned URL cannot be used for that: it is
+// cross-origin and the bucket sends no CORS headers. Same visibility rules as
+// the presigned URL.
+func (h *TextChatHandler) AttachmentFile(w http.ResponseWriter, r *http.Request) {
+	rec, ok := h.loadVisible(w, r, mux.Vars(r)["id"])
+	if !ok {
+		return
+	}
+	data, err := h.media.ReadOriginal(r.Context(), rec)
+	if err != nil {
+		writeMediaError(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", rec.Mime)
+	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	// Per-user content: never keep it in the browser or a shared cache.
+	w.Header().Set("Cache-Control", "private, no-store")
+	_, _ = w.Write(data)
 }
 
 // loadVisible loads a file for PATCH/DELETE; files the subject cannot see

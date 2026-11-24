@@ -57,6 +57,9 @@ func TestGetLatestResolvesRelease(t *testing.T) {
 	if want := upstream.URL + "/Orbital-2.55.4.apk"; resp.AndroidURL != want {
 		t.Errorf("android_url = %q, want %q", resp.AndroidURL, want)
 	}
+	if want := upstream.URL + "/ota-android.json"; resp.AndroidOTAManifestURL != want {
+		t.Errorf("android_ota_manifest_url = %q, want %q", resp.AndroidOTAManifestURL, want)
+	}
 	if resp.AndroidMinVersion != "" {
 		t.Errorf("android_min_version = %q, want empty", resp.AndroidMinVersion)
 	}

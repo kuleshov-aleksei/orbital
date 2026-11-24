@@ -25,6 +25,9 @@ type Attachment struct {
 	// Removed is the removal reason once the file is gone (quota, owner,
 	// moderator); clients render a tombstone.
 	Removed string `json:"removed,omitempty"`
+	// Spoiler hides an image or video behind a cover until the viewer
+	// clicks it. Set by the sender when the message is created.
+	Spoiler bool `json:"spoiler,omitempty"`
 }
 
 func (a Attachment) clone() Attachment {

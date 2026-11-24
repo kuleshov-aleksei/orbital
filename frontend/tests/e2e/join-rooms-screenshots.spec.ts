@@ -1,57 +1,19 @@
 import { test, expect } from "@playwright/test"
-import { setUserIdentity, guestLogin } from "./_helpers"
-
-const NICKNAMES = [
-  "RNGESUS",
-  "Flex Tape",
-  "Chunky Cheese",
-  "Muffin",
-  "Garfield",
-  "Quota, Son of Company",
-  "Zavala's Hair",
-]
+import { setUserIdentity } from "./_helpers"
+import { BACKEND_URL, VOICE_ROOMS, loginAll } from "./_screenshotData"
 
 test("join rooms: 5 users join Room A, 2 users join Room B @screenshot", async ({ browser, request }) => {
-  // Get existing users from the backend
-  const usersRes = await request.get("http://127.0.0.1:8080/api/users")
-  const users = (await usersRes.json()) as Array<{ id: string; nickname: string }>
-
-  // Find our test users
-  const testUsers = users.filter((u) => NICKNAMES.includes(u.nickname))
-
-  if (testUsers.length < 7) {
-    throw new Error(
-      `Expected 7 test users, found ${testUsers.length}. Run setup-screenshots.spec.ts first.`,
-    )
-  }
-
-  // Login as each user and get tokens
-  const userTokens: { id: string; nickname: string; token: string }[] = []
-
-  for (const nickname of NICKNAMES) {
-    const loginRes = await request.post("http://127.0.0.1:8080/api/auth/login", {
-      data: { login: nickname, password: "P@ssword123" },
-    })
-
-    if (!loginRes.ok()) {
-      throw new Error(`Failed to login as ${nickname}`)
-    }
-
-    const loginData = (await loginRes.json()) as { token: string; user: { id: string } }
-    userTokens.push({
-      id: loginData.user.id,
-      nickname,
-      token: loginData.token,
-    })
-  }
+  // Users created by setup-screenshots.spec.ts
+  const { users } = await loginAll(request)
+  const userTokens = users.map((u) => ({ id: u.id, nickname: u.nickname, token: u.token }))
 
   // Get rooms (room lists require auth and are filtered by view_room)
   const authHeaders = { Authorization: `Bearer ${userTokens[0].token}` }
-  const roomsRes = await request.get("http://127.0.0.1:8080/api/rooms", { headers: authHeaders })
+  const roomsRes = await request.get(`${BACKEND_URL}/api/rooms`, { headers: authHeaders })
   const rooms = (await roomsRes.json()) as Array<{ id: string; name: string }>
 
-  const roomA = rooms.find((r) => r.name === "🌠 Late Night Chill")
-  const roomB = rooms.find((r) => r.name === "⛏️ ARC Gaiders")
+  const roomA = rooms.find((r) => r.name === VOICE_ROOMS.lateNight.name)
+  const roomB = rooms.find((r) => r.name === VOICE_ROOMS.arc.name)
 
   if (!roomA || !roomB) {
     throw new Error("Rooms not found. Run setup-screenshots.spec.ts first.")
@@ -109,7 +71,7 @@ test("join rooms: 5 users join Room A, 2 users join Room B @screenshot", async (
   }
 
   // First 5 users join Room A
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 5; i++) {
     await validPages[i].getByTestId(`room-card-${roomA.id}`).click()
     await validPages[i].waitForTimeout(500)
   }
@@ -123,22 +85,22 @@ test("join rooms: 5 users join Room A, 2 users join Room B @screenshot", async (
   // Verify all users are in their rooms
   for (let i = 0; i < 5; i++) {
     await expect(validPages[i].getByTestId("voice-call-view")).toBeVisible({ timeout: 15000 })
-    await expect(validPages[i].getByTestId("room-title")).toHaveText("Valorant Squad")
+    await expect(validPages[i].getByTestId("room-title")).toContainText("Late Night Chill")
   }
 
   await expect(validPages[5].getByTestId("voice-call-view")).toBeVisible({ timeout: 15000 })
-  await expect(validPages[5].getByTestId("room-title")).toHaveText("League Lounge")
+  await expect(validPages[5].getByTestId("room-title")).toContainText("ARC Gaiders")
   await expect(validPages[6].getByTestId("voice-call-view")).toBeVisible({ timeout: 15000 })
-  await expect(validPages[6].getByTestId("room-title")).toHaveText("League Lounge")
+  await expect(validPages[6].getByTestId("room-title")).toContainText("ARC Gaiders")
 
   // Verify user counts
-  const roomAUsersRes = await request.get(`http://127.0.0.1:8080/api/rooms/${roomA.id}/users`, {
+  const roomAUsersRes = await request.get(`${BACKEND_URL}/api/rooms/${roomA.id}/users`, {
     headers: authHeaders,
   })
   const roomAUsers = (await roomAUsersRes.json()) as Array<{ id: string }>
   console.log(`Room A has ${roomAUsers.length} users`)
 
-  const roomBUsersRes = await request.get(`http://127.0.0.1:8080/api/rooms/${roomB.id}/users`, {
+  const roomBUsersRes = await request.get(`${BACKEND_URL}/api/rooms/${roomB.id}/users`, {
     headers: authHeaders,
   })
   const roomBUsers = (await roomBUsersRes.json()) as Array<{ id: string }>

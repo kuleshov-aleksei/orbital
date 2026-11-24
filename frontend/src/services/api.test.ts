@@ -8,6 +8,7 @@ import {
   setAuthToken,
   setOnSessionExpired,
   setTokenExpiry,
+  tokenHasSession,
   tokenNeedsRefresh,
 } from "./api"
 import { setOnClientOutdated } from "./appVersion"
@@ -225,5 +226,28 @@ describe("client version gate", () => {
     await apiRequest("/rooms")
     const headers = fetchMock.mock.calls[0][1]?.headers as Record<string, string>
     expect(headers["X-Orbital-Client"]).toBeUndefined()
+  })
+})
+
+describe("tokenHasSession", () => {
+  // base64url JWT segment, as the backend signs it (no padding).
+  const segment = (obj: object) =>
+    btoa(JSON.stringify(obj)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+  const jwt = (payload: object) => `${segment({ alg: "HS256" })}.${segment(payload)}.sig`
+
+  afterEach(() => clearAuthToken())
+
+  it("is true for a token bound to a session", () => {
+    setAuthToken(jwt({ user_id: "qkUrdzLDoqslx8EEy2cM7Q==", sid: "x-_9aZ" }))
+    expect(tokenHasSession()).toBe(true)
+  })
+
+  it("is false for a legacy token, a garbled token and no token", () => {
+    setAuthToken(jwt({ user_id: "qkUrdzLDoqslx8EEy2cM7Q==", token_version: 0 }))
+    expect(tokenHasSession()).toBe(false)
+    setAuthToken("not-a-jwt")
+    expect(tokenHasSession()).toBe(false)
+    clearAuthToken()
+    expect(tokenHasSession()).toBe(false)
   })
 })

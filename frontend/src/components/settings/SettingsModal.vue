@@ -183,7 +183,7 @@
           <AccountSettings v-else-if="currentTab === 'account'" @logout="close" />
 
           <!-- Security Settings Tab -->
-          <SecuritySettings v-else-if="currentTab === 'security'" />
+          <SecuritySettings v-else-if="currentTab === 'security'" @logout="close" />
 
           <!-- Application Settings Tab -->
           <ApplicationSettings v-else-if="isElectronApp && currentTab === 'application'" />

@@ -15,6 +15,10 @@ export const useConfigStore = defineStore("config", () => {
   const textChannelsEnabled = ref(false)
   // Attachments need S3 on the backend; null when disabled.
   const attachments = ref<AttachmentsConfig | null>(null)
+  // Third-party GIF search provider (`klipy`/`giphy`); empty when disabled.
+  const gifProvider = ref("")
+  // The server can send email (verification, password reset).
+  const emailEnabled = ref(false)
   const isLoaded = ref(false)
   const isLoading = ref(false)
 
@@ -31,6 +35,8 @@ export const useConfigStore = defineStore("config", () => {
     defaultMaxUsers.value = config.room.default_max_users
     textChannelsEnabled.value = config.text_channels === true
     attachments.value = config.attachments ?? null
+    gifProvider.value = config.gif_provider ?? ""
+    emailEnabled.value = config.email === true
   }
 
   /** Applies the cached config; true when there was one. */
@@ -46,26 +52,37 @@ export const useConfigStore = defineStore("config", () => {
   }
 
   // Actions
-  async function loadConfig() {
-    if (isLoading.value || isLoaded.value) {
-      return
-    }
+  /** The in-flight config request, shared by every caller. */
+  let loadPromise: Promise<void> | null = null
+
+  async function loadConfig(): Promise<void> {
+    if (isLoaded.value) return
+    // Callers that raced the first request wait for it instead of returning
+    // early with the defaults (the composer needs `gif_provider`).
+    if (loadPromise) return loadPromise
 
     isLoading.value = true
-    try {
-      const config = await apiService.getConfig()
-      apply(config)
-      isLoaded.value = true
+    loadPromise = (async () => {
       try {
-        localStorage.setItem(CONFIG_CACHE_KEY, JSON.stringify(config))
-      } catch {
-        // storage full or unavailable: the next start just waits for the server
+        const config = await apiService.getConfig()
+        apply(config)
+        isLoaded.value = true
+        try {
+          localStorage.setItem(CONFIG_CACHE_KEY, JSON.stringify(config))
+        } catch {
+          // storage full or unavailable: the next start just waits for the server
+        }
+      } catch (error) {
+        console.error("Failed to load config:", error)
+        // Keep the cached (or default) values; a reconnect retries.
+      } finally {
+        isLoading.value = false
       }
-    } catch (error) {
-      console.error("Failed to load config:", error)
-      // Keep the cached (or default) values; a reconnect retries.
+    })()
+    try {
+      await loadPromise
     } finally {
-      isLoading.value = false
+      loadPromise = null
     }
   }
 
@@ -75,6 +92,8 @@ export const useConfigStore = defineStore("config", () => {
     defaultMaxUsers,
     textChannelsEnabled,
     attachments,
+    gifProvider,
+    emailEnabled,
     isLoaded,
     isLoading,
     roomConfig,

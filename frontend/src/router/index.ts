@@ -19,6 +19,41 @@ const router = createRouter({
       component: () => import("@/views/DownloadView.vue"),
     },
     {
+      // Public: linked from registration and usable as the store privacy URL.
+      path: "/legal/:doc(terms|privacy)",
+      name: "legal",
+      component: () => import("@/views/LegalView.vue"),
+    },
+    {
+      path: "/legal",
+      redirect: "/legal/terms",
+    },
+    {
+      // Public: opened from the emails, possibly on a device that isn't signed in.
+      path: "/verify-email",
+      name: "verify-email",
+      component: () => import("@/views/VerifyEmailView.vue"),
+    },
+    {
+      path: "/reset-password",
+      name: "reset-password",
+      component: () => import("@/views/ResetPasswordView.vue"),
+    },
+    {
+      // Public: confirm link mailed to the new address of an email change.
+      path: "/confirm-email",
+      name: "confirm-email",
+      component: () => import("@/views/VerifyEmailView.vue"),
+      props: { mode: "change" },
+    },
+    {
+      // Public: "this wasn't me" link mailed to the old address.
+      path: "/restore-email",
+      name: "restore-email",
+      component: () => import("@/views/ResetPasswordView.vue"),
+      props: { mode: "restore" },
+    },
+    {
       path: "/admin",
       name: "admin",
       component: () => import("@/views/AdminPanel.vue"),
@@ -39,17 +74,6 @@ const router = createRouter({
       alias: "/auth/callback/",
       component: () => import("@/views/AuthCallback.vue"),
     },
-    // Dev-only balance visualizer: live engine + renderer + bot policies.
-    // Never linked in prod UI; the chunk is unreachable outside dev.
-    ...(import.meta.env.DEV
-      ? [
-          {
-            path: "/dev/balance",
-            name: "dev-balance",
-            component: () => import("@/components/halloween/BalanceVisual.vue"),
-          },
-        ]
-      : []),
   ],
 })
 

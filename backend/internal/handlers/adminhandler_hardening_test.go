@@ -49,7 +49,7 @@ func newTestAdminHandlerWithDebugQuota(t *testing.T, quota int64) (*AdminHandler
 	}
 
 	debugService := service.NewDebugLogService(repository.NewDebugLogRepository(db), t.TempDir(), quota)
-	return NewAdminHandlerWithHub(nil, userRepo, debugService, nil, nil, nil), userRepo, user
+	return NewAdminHandlerWithHub(nil, userRepo, debugService, nil, nil), userRepo, user
 }
 
 func TestUploadDebugLogUsesAuthenticatedIdentity(t *testing.T) {

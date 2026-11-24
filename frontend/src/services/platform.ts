@@ -28,6 +28,26 @@ interface MediaCachePlugin {
 }
 const MediaCache = registerPlugin<MediaCachePlugin>("MediaCache")
 
+export interface KeyboardImageFile {
+  uri: string
+  name: string
+  mime: string
+  size: number
+}
+export type KeyboardImageError = "too_large" | "read_failed"
+export type KeyboardImageEvent = KeyboardImageFile | { error: KeyboardImageError }
+
+/** Local Android plugin (mobile/android/.../KeyboardContentPlugin.java). */
+interface KeyboardContentPlugin {
+  setEnabled(options: { enabled: boolean; maxBytes: number }): Promise<void>
+  release(options: { uri: string }): Promise<void>
+  addListener(
+    eventName: "image",
+    listener: (event: KeyboardImageEvent) => void,
+  ): Promise<PluginListenerHandle>
+}
+const KeyboardContent = registerPlugin<KeyboardContentPlugin>("KeyboardContent")
+
 /**
  * Platform layer over the three shells the frontend runs in:
  * plain browser, Electron (services/electron.ts) and the Android app (Capacitor).
@@ -132,6 +152,39 @@ export async function haptic(style: "light" | "medium" = "light"): Promise<void>
     await Haptics.impact({ style: style === "light" ? ImpactStyle.Light : ImpactStyle.Medium })
   } catch {
     // Haptics are cosmetic; ignore devices without a vibrator.
+  }
+}
+
+/** Advertises keyboard GIF insertion only for the focused text composer. */
+export async function setKeyboardContentEnabled(enabled: boolean, maxBytes: number): Promise<void> {
+  if (!isCapacitor()) return
+  try {
+    await KeyboardContent.setEnabled({ enabled, maxBytes })
+  } catch {
+    // Older shells do not have the local plugin; the file picker still works.
+  }
+}
+
+/** Listens for GIFs committed by the Android keyboard. */
+export async function onKeyboardImage(
+  listener: (event: KeyboardImageEvent) => void,
+): Promise<() => void> {
+  if (!isCapacitor()) return () => {}
+  try {
+    const handle = await KeyboardContent.addListener("image", listener)
+    return () => void handle.remove()
+  } catch {
+    return () => {}
+  }
+}
+
+/** Deletes a native temporary GIF after the WebView has consumed it. */
+export async function releaseKeyboardImage(uri: string): Promise<void> {
+  if (!isCapacitor()) return
+  try {
+    await KeyboardContent.release({ uri })
+  } catch {
+    // The native TTL and startup cleanup remove abandoned temporary files.
   }
 }
 

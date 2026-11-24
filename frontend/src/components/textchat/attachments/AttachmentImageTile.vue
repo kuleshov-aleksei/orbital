@@ -3,19 +3,20 @@
     type="button"
     class="relative block overflow-hidden rounded-lg bg-theme-bg-tertiary border border-theme-border/60 focus-visible:ring-2 focus-visible:ring-theme-accent"
     :style="boxStyle"
-    :aria-label="`Open image ${attachment.filename}`"
+    :aria-label="hidden ? 'Spoiler image, press to reveal' : `Open image ${attachment.filename}`"
     data-testid="attachment-image"
     :data-attachment-id="attachment.id"
-    @click="$emit('open')"
+    :data-spoiler="hidden ? 'hidden' : undefined"
+    @click="hidden ? $emit('reveal') : $emit('open')"
     @mouseenter="hovered = true"
     @mouseleave="hovered = false"
     @contextmenu.prevent="$emit('menu', $event)">
     <img
       v-if="url"
       :src="url"
-      :alt="attachment.filename"
+      :alt="hidden ? '' : attachment.filename"
       class="w-full h-full object-cover"
-      :class="{ 'opacity-0': !loaded }"
+      :class="{ 'opacity-0': !loaded, 'blur-2xl scale-125': hidden }"
       draggable="false"
       @load="loaded = true"
       @error="onError" />
@@ -25,8 +26,9 @@
       <PhImageBroken v-if="gone" class="w-6 h-6" />
       <PhImage v-else class="w-6 h-6 animate-pulse" />
     </div>
+    <SpoilerCover v-if="hidden" :interactive="false" />
     <span
-      v-if="isGif && showStill"
+      v-else-if="isGif && showStill"
       class="absolute bottom-1.5 left-1.5 px-1.5 rounded bg-black/60 text-[10px] font-bold text-white tracking-wide"
       >GIF</span
     >
@@ -36,6 +38,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue"
 import { PhImage, PhImageBroken } from "@phosphor-icons/vue"
+import SpoilerCover from "./SpoilerCover.vue"
 import { useAttachmentUrl } from "@/services/attachments/urls"
 import { useAppSettingsStore } from "@/stores/appSettings"
 import type { TextAttachment } from "@/types/textChat"
@@ -45,11 +48,13 @@ const props = withDefaults(
     attachment: TextAttachment
     /** Single image: sized by aspect ratio; otherwise a square grid cell. */
     single?: boolean
+    /** An unrevealed spoiler: blurred, a click reveals instead of opening. */
+    hidden?: boolean
   }>(),
-  { single: false },
+  { single: false, hidden: false },
 )
 
-defineEmits<{ open: []; menu: [event: MouseEvent] }>()
+defineEmits<{ open: []; reveal: []; menu: [event: MouseEvent] }>()
 
 const appSettings = useAppSettingsStore()
 const hovered = ref(false)
@@ -57,7 +62,10 @@ const loaded = ref(false)
 
 const isGif = computed(() => props.attachment.mime === "image/gif")
 // GIFs play unless motion is reduced (then the still thumbnail, animated on hover).
-const showStill = computed(() => isGif.value && appSettings.reduceEmojiMotion && !hovered.value)
+// A hidden spoiler never animates (the still thumbnail, blurred).
+const showStill = computed(
+  () => isGif.value && (props.hidden || (appSettings.reduceEmojiMotion && !hovered.value)),
+)
 const variant = computed(() =>
   isGif.value && !showStill.value ? "original" : props.attachment.has_thumb ? "thumb" : "original",
 )

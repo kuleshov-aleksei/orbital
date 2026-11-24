@@ -17,11 +17,13 @@ import { useTextNotifyStore } from "./textNotify"
 import type {
   TextAttachment,
   TextErrorEvent,
+  TextGIF,
   TextHistoryPage,
   TextMessage,
   TextMessageDeletedEvent,
   TextMessageNewEvent,
   TextMessageUpdatedEvent,
+  TextPollInput,
   TextReadStateEvent,
   TextTypingEvent,
   TextUnreadResponse,
@@ -63,11 +65,22 @@ export interface PendingTextMessage {
   reply_ping: boolean
   /** Pending upload ids and their display copies (shown while sending). */
   upload_ids: string[]
+  /** The uploads sent as spoilers (missing on outbox entries from before). */
+  spoiler_ids?: string[]
   attachments: TextAttachment[]
+  /** A third-party GIF sent with this message (docs/specs/CHAT_SYSTEM.md §7.17). */
+  gif?: TextGIF
+  /** A poll created with this message (docs/specs/CHAT_SYSTEM.md §7.18). */
+  poll?: TextPollInput
   created_at_ts: number
   /** queued: written offline (or the link dropped), sent on reconnect. */
   status: "queued" | "sending" | "failed"
   error?: string
+  /** The sender's time zone when they hit Send (slash commands only). */
+  tz?: string
+  /** The server refused a slash command (bad arguments): resending gives the
+   * same answer, so the next send in the channel clears it. */
+  rejected?: boolean
 }
 
 /** Offline copy of a channel's newest messages (services/offlineCache.ts). */
@@ -132,6 +145,14 @@ function makeNonce(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
+function currentTimeZone(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined
+  } catch {
+    return undefined
+  }
+}
+
 function describeLoadError(error: unknown): string {
   const status = (error as { status?: number }).status
   if (status === 503) return "Chat is temporarily unavailable."
@@ -149,6 +170,9 @@ export const useTextChatStore = defineStore("textChat", () => {
   const pending = ref<PendingTextMessage[]>([])
   const available = ref(true)
   const replyTarget = ref<TextMessage | null>(null)
+  /** A picked third-party GIF waiting to be sent with the next message
+   * (docs/specs/CHAT_SYSTEM.md §7.17). */
+  const pendingGif = ref<TextGIF | null>(null)
   const editingId = ref<string | null>(null)
   const lastError = ref<string | null>(null)
   /** Pinned messages per channel, loaded when the pins panel opens. */
@@ -156,6 +180,8 @@ export const useTextChatStore = defineStore("textChat", () => {
   const pinsLoading = ref(false)
   /** Right-side panel of the channel view. */
   const sidePanel = ref<"pins" | "search" | null>(null)
+  /** Docked emoji/GIF panel under the composer (mobile layout only). */
+  const composerPanel = ref<"emoji" | "gif" | null>(null)
   const systemLines = ref<Record<string, TextSystemLine[]>>({})
   /** room -> user -> time the indicator expires. */
   const typing = ref<Record<string, Record<string, number>>>({})
@@ -166,6 +192,32 @@ export const useTextChatStore = defineStore("textChat", () => {
   const activeView = computed(() =>
     activeChannelId.value ? (views.value[activeChannelId.value] ?? null) : null,
   )
+
+  // Users who can see the open channel: the user sidebar and the "@"
+  // autocomplete list only them. Loaded by UserSidebarWrapper, which also
+  // refetches on permission changes.
+  const viewers = ref<{ roomId: string; ids: Set<string> } | null>(null)
+  /** Viewer ids of the open channel, or null until they arrive (show everyone). */
+  const activeViewerIds = computed(() =>
+    activeChannelId.value && viewers.value?.roomId === activeChannelId.value
+      ? viewers.value.ids
+      : null,
+  )
+  let viewersSeq = 0
+  async function loadActiveViewers() {
+    const id = activeChannel.value?.id ?? null
+    const seq = ++viewersSeq
+    if (!id) {
+      viewers.value = null
+      return
+    }
+    try {
+      const res = await apiService.getRoomViewers(id)
+      if (seq === viewersSeq) viewers.value = { roomId: id, ids: new Set(res.user_ids) }
+    } catch (error) {
+      console.error("Failed to load channel viewers:", error)
+    }
+  }
   const activePending = computed(() =>
     pending.value.filter((p) => p.room_id === activeChannelId.value),
   )
@@ -366,6 +418,7 @@ export const useTextChatStore = defineStore("textChat", () => {
     if (activeChannelId.value !== roomId) {
       replyTarget.value = null
       editingId.value = null
+      composerPanel.value = null
     }
     activeChannelId.value = roomId
     const s = readState.value[roomId]
@@ -396,6 +449,7 @@ export const useTextChatStore = defineStore("textChat", () => {
     if (activeChannelId.value !== roomId) {
       replyTarget.value = null
       editingId.value = null
+      composerPanel.value = null
     }
     activeChannelId.value = roomId
     await jumpToMessage(roomId, messageId)
@@ -406,6 +460,7 @@ export const useTextChatStore = defineStore("textChat", () => {
     replyTarget.value = null
     editingId.value = null
     sidePanel.value = null
+    composerPanel.value = null
   }
 
   async function loadOlder(roomId: string) {
@@ -527,7 +582,11 @@ export const useTextChatStore = defineStore("textChat", () => {
       content: p.content,
       nonce: p.nonce,
       ...(p.upload_ids.length ? { upload_ids: p.upload_ids } : {}),
+      ...(p.spoiler_ids?.length ? { spoiler_ids: p.spoiler_ids } : {}),
+      ...(p.gif ? { gif: p.gif } : {}),
+      ...(p.poll ? { poll: p.poll } : {}),
       ...(p.reply_to_id ? { reply_to_id: p.reply_to_id, reply_ping: p.reply_ping } : {}),
+      ...(p.tz ? { tz: p.tz } : {}),
     })
     const timer = setTimeout(() => {
       sendTimers.delete(p.nonce)
@@ -545,11 +604,19 @@ export const useTextChatStore = defineStore("textChat", () => {
   function sendMessage(
     roomId: string,
     content: string,
-    files: { ids: string[]; attachments: TextAttachment[] } = { ids: [], attachments: [] },
+    files: { ids: string[]; attachments: TextAttachment[]; spoilerIds?: string[] } = {
+      ids: [],
+      attachments: [],
+    },
+    gif: TextGIF | null = null,
   ) {
     const text = content.trim()
-    if (!text && !files.ids.length) return
+    if (!text && !files.ids.length && !gif) return
     const reply = replyTarget.value?.room_id === roomId ? replyTarget.value : null
+    // A rejected command's usage error has been read once the user sends again.
+    for (const old of pending.value.filter((x) => x.room_id === roomId && x.rejected)) {
+      discardPending(old.nonce)
+    }
     const p: PendingTextMessage = {
       nonce: makeNonce(),
       room_id: roomId,
@@ -557,9 +624,13 @@ export const useTextChatStore = defineStore("textChat", () => {
       reply_to_id: reply?.id ?? null,
       reply_ping: replyPing.value,
       upload_ids: files.ids,
+      ...(files.spoilerIds?.length ? { spoiler_ids: files.spoilerIds } : {}),
       attachments: files.attachments,
+      ...(gif ? { gif } : {}),
       created_at_ts: Date.now(),
       status: "sending",
+      // /remindme reads times in the zone the user is in right now.
+      ...(text.startsWith("/") ? { tz: currentTimeZone() } : {}),
     }
     pending.value.push(p)
     replyTarget.value = null
@@ -635,12 +706,13 @@ export const useTextChatStore = defineStore("textChat", () => {
     }
   }
 
-  function markFailed(nonce: string, error: string) {
+  function markFailed(nonce: string, error: string, rejected = false) {
     clearSendTimer(nonce)
     const p = pending.value.find((x) => x.nonce === nonce)
     if (p) {
       p.status = "failed"
       p.error = error
+      if (rejected) p.rejected = true
       void cachePut("outbox", p.nonce, p)
     }
   }
@@ -648,6 +720,7 @@ export const useTextChatStore = defineStore("textChat", () => {
   function retrySend(nonce: string) {
     const p = pending.value.find((x) => x.nonce === nonce)
     if (!p) return
+    p.rejected = undefined
     transmitOrQueue(p)
     void cachePut("outbox", p.nonce, p)
   }
@@ -658,6 +731,49 @@ export const useTextChatStore = defineStore("textChat", () => {
     void cacheDelete("outbox", nonce)
   }
 
+  /** Creates a poll. It goes through the outbox like any message, so a
+   * poll made offline is sent on reconnect. */
+  function sendPoll(roomId: string, poll: TextPollInput) {
+    const reply = replyTarget.value?.room_id === roomId ? replyTarget.value : null
+    for (const old of pending.value.filter((x) => x.room_id === roomId && x.rejected)) {
+      discardPending(old.nonce)
+    }
+    const p: PendingTextMessage = {
+      nonce: makeNonce(),
+      room_id: roomId,
+      content: "",
+      reply_to_id: reply?.id ?? null,
+      reply_ping: replyPing.value,
+      upload_ids: [],
+      attachments: [],
+      poll,
+      created_at_ts: Date.now(),
+      status: "sending",
+    }
+    pending.value.push(p)
+    replyTarget.value = null
+    const view = viewFor(roomId)
+    if (view.hasMoreAfter) void loadLatest(roomId)
+    else view.scrollRequest = { kind: "bottom" }
+    void cachePut("outbox", p.nonce, p)
+    transmitOrQueue(pending.value[pending.value.length - 1])
+  }
+
+  /** Polls with a vote or close request in flight (spinner, no double taps). */
+  const pollBusy = ref<Record<string, boolean>>({})
+
+  /** Replaces your vote in a poll; no options retracts it. */
+  function votePoll(messageId: string, optionIds: string[]) {
+    pollBusy.value[messageId] = true
+    wsService.sendGlobalMessage("text_poll_vote", { message_id: messageId, option_ids: optionIds })
+  }
+
+  /** Ends a poll early (author or ManageMessages). */
+  function closePoll(messageId: string) {
+    pollBusy.value[messageId] = true
+    wsService.sendGlobalMessage("text_poll_close", { message_id: messageId })
+  }
+
   function editMessage(messageId: string, content: string) {
     wsService.sendGlobalMessage("text_message_edit", { message_id: messageId, content })
     editingId.value = null
@@ -665,6 +781,11 @@ export const useTextChatStore = defineStore("textChat", () => {
 
   function deleteMessage(messageId: string) {
     wsService.sendGlobalMessage("text_message_delete", { message_id: messageId })
+  }
+
+  /** Removes a message's link previews (author or ManageMessages). */
+  function suppressEmbeds(messageId: string) {
+    wsService.sendGlobalMessage("text_message_suppress_embeds", { message_id: messageId })
   }
 
   function toggleReaction(messageId: string, emoji: string) {
@@ -704,6 +825,19 @@ export const useTextChatStore = defineStore("textChat", () => {
 
   function closeSidePanel() {
     sidePanel.value = null
+  }
+
+  /** Opens the docked emoji/GIF panel, or closes it when that tab is open. */
+  function toggleComposerPanel(panel: "emoji" | "gif") {
+    composerPanel.value = composerPanel.value === panel ? null : panel
+  }
+
+  function openComposerPanel(panel: "emoji" | "gif") {
+    composerPanel.value = panel
+  }
+
+  function closeComposerPanel() {
+    composerPanel.value = null
   }
 
   const lastTypingSent = new Map<string, number>()
@@ -781,8 +915,18 @@ export const useTextChatStore = defineStore("textChat", () => {
     for (const view of Object.values(views.value)) fn(view)
   }
 
+  /** Command messages that arrived live (not from history): their
+   * animation (the /vrandom wheel) plays once. Not persisted. */
+  const liveCommandIds = new Set<string>()
+
+  /** True once for a command message that arrived live. */
+  function consumeLiveCommand(id: string): boolean {
+    return liveCommandIds.delete(id)
+  }
+
   function onMessageNew(data: TextMessageNewEvent) {
     const msg = data.message
+    if (msg.command) liveCommandIds.add(msg.id)
     if (data.nonce) {
       clearSendTimer(data.nonce)
       if (pending.value.some((p) => p.nonce === data.nonce)) {
@@ -818,6 +962,7 @@ export const useTextChatStore = defineStore("textChat", () => {
 
   function onMessageUpdated(data: TextMessageUpdatedEvent) {
     const msg = data.message
+    delete pollBusy.value[data.id]
     forEachView((view) => {
       const i = view.messages.findIndex((m) => m.id === data.id)
       if (i !== -1) view.messages[i] = msg
@@ -892,9 +1037,13 @@ export const useTextChatStore = defineStore("textChat", () => {
 
   function onError(data: TextErrorEvent) {
     if (data.nonce) {
-      markFailed(data.nonce, data.message)
+      const p = pending.value.find((x) => x.nonce === data.nonce)
+      // A refused command or poll gets the same answer when resent.
+      const refused = !!p && (p.content.startsWith("/") || !!p.poll)
+      markFailed(data.nonce, data.message, data.code === "invalid" && refused)
       return
     }
+    if (data.message_id) delete pollBusy.value[data.message_id]
     lastError.value = data.message
     if (data.code === "chat_unavailable") available.value = false
   }
@@ -976,20 +1125,26 @@ export const useTextChatStore = defineStore("textChat", () => {
     pins.value = {}
     systemLines.value = {}
     typing.value = {}
+    viewers.value = null
+    viewersSeq++
     useTextNotifyStore().reset()
   }
 
   return {
+    consumeLiveCommand,
     activeChannelId,
     activeChannel,
     activeView,
     activePending,
+    activeViewerIds,
+    loadActiveViewers,
     views,
     readState,
     pending,
     available,
     replyTarget,
     replyPing,
+    pendingGif,
     editingId,
     lastError,
     pins,
@@ -997,6 +1152,10 @@ export const useTextChatStore = defineStore("textChat", () => {
     sidePanel,
     systemLines,
     typing,
+    composerPanel,
+    toggleComposerPanel,
+    openComposerPanel,
+    closeComposerPanel,
     isUnread,
     loadUnread,
     markRead,
@@ -1009,6 +1168,10 @@ export const useTextChatStore = defineStore("textChat", () => {
     jumpToPresent,
     jumpToMessage,
     sendMessage,
+    sendPoll,
+    pollBusy,
+    votePoll,
+    closePoll,
     flushOutbox,
     restoreOutbox,
     onConnectionLost,
@@ -1016,6 +1179,7 @@ export const useTextChatStore = defineStore("textChat", () => {
     discardPending,
     editMessage,
     deleteMessage,
+    suppressEmbeds,
     startReply,
     cancelReply,
     startEdit,

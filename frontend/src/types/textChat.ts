@@ -22,10 +22,127 @@ export interface TextMessage {
   pinned_at_ts: number | null
   pinned_by: string | null
   attachments: TextAttachment[]
+  /** Link previews, filled in by the server after the message is sent.
+   * Missing on messages cached before link previews existed. */
+  embeds?: TextEmbed[]
+  /** The author or a moderator removed the previews. */
+  embeds_suppressed?: boolean
+  /** A shared third-party GIF (docs/specs/CHAT_SYSTEM.md §7.17); the media
+   * is loaded from the provider, never from our storage. */
+  gif?: TextGIF | null
+  /** Server-computed result of a slash command (/random, /d20, ...). */
+  command?: TextCommand
+  /** A poll (docs/specs/CHAT_SYSTEM.md §7.18), as this user may see it. */
+  poll?: TextPoll
+}
+
+/** One poll answer. count is present only when results_visible; user_ids
+ * also needs a non-anonymous poll. */
+export interface TextPollOption {
+  id: string
+  text: string
+  count?: number
+  user_ids?: string[]
+}
+
+/** A poll as the server shows it to the current user. Field names mirror
+ * the backend (chatstore.PublicPoll). */
+export interface TextPoll {
+  question: string
+  options: TextPollOption[]
+  multiple: boolean
+  anonymous: boolean
+  allow_change: boolean
+  closes_at_ts: number | null
+  closed: boolean
+  closed_at_ts: number | null
+  closed_by: string | null
+  voter_count: number
+  my_votes: string[]
+  /** The user voted or the poll closed: counts are included. */
+  results_visible: boolean
+}
+
+/** A poll as the client creates it (chatstore.PollInput). */
+export interface TextPollInput {
+  question: string
+  options: string[]
+  multiple: boolean
+  anonymous: boolean
+  allow_change: boolean
+  closes_at_ts: number | null
+}
+
+/** Poll limits; keep in sync with backend chatstore/poll.go. */
+export const POLL_LIMITS = {
+  questionChars: 300,
+  optionChars: 100,
+  minOptions: 2,
+  maxOptions: 10,
+  minDurationMs: 60_000,
+  maxDurationMs: 31 * 24 * 3600_000,
+} as const
+
+/** A third-party GIF reference. Field names mirror the backend. */
+export interface TextGIF {
+  provider: "klipy" | "giphy"
+  id: string
+  /** Playback rendition (mp4/webp/gif), loaded from the provider. */
+  url: string
+  /** Poster still, shown before the media loads. */
+  preview_url: string
+  width: number
+  height: number
+  title: string
+}
+
+export type TextCommandName = "random" | "vrandom" | "d20" | "remindme" | "reminder" | "poll_closed"
+
+/** Result of a slash command, fixed when the message was created. */
+export interface TextCommand {
+  name: TextCommandName
+  /** Numeric range and the value drawn (random, vrandom, d20). */
+  min?: number
+  max?: number
+  result?: number
+  /** Option pick (random, vrandom): result_index points into options. */
+  options?: string[]
+  result_index?: number
+  label?: "critical_success" | "critical_failure"
+  /** Reminders: when it fires (unix ms), the sender's time zone and note. */
+  due_at_ts?: number
+  tz?: string
+  note?: string
+  /** On a fired reminder: the user it reminds. */
+  reminder_for?: string
+  /** Closed poll announcement: the poll message and its voter count; the
+   * leading option(s) are in options and their vote count in result. */
+  poll_id?: string
+  voters?: number
+}
+
+/** Sender of messages the server posts (fired reminders). */
+export const SYSTEM_SENDER_ID = "system"
+
+export type EmbedKind = "link" | "image" | "video"
+
+/** Preview of one link (docs/specs/CHAT_SYSTEM.md §7.15). */
+export interface TextEmbed {
+  url: string
+  kind: EmbedKind
+  site_name?: string
+  title?: string
+  description?: string
+  /** Proxied thumbnail, served at /api/embeds/{image_id}/image. */
+  image_id?: string
+  image_width?: number
+  image_height?: number
+  video_provider?: "youtube"
+  video_id?: string
 }
 
 export type AttachmentKind = "image" | "video" | "audio"
-export type AttachmentRemovedReason = "quota" | "owner" | "moderator"
+export type AttachmentRemovedReason = "quota" | "owner" | "moderator" | "account_deleted"
 
 /** Display copy of a file in a message (docs/specs/CHAT_SYSTEM.md §7.12). */
 export interface TextAttachment {
@@ -43,6 +160,8 @@ export interface TextAttachment {
   protected: boolean
   /** Set once the file is gone; the message shows a tombstone. */
   removed?: AttachmentRemovedReason
+  /** Images/videos: hidden behind a cover until the viewer reveals it. */
+  spoiler?: boolean
 }
 
 export type AttachmentVariant = "original" | "thumb" | "download"

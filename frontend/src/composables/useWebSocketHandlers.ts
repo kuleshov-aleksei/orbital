@@ -7,10 +7,10 @@ import {
   useUsersStore,
   useSoundPackStore,
   useChatStore,
-  useHalloweenStore,
   usePermissionsStore,
   useSoundboardStore,
   useCustomEmojisStore,
+  useBadgesStore,
   useTextChatStore,
   useTextNotifyStore,
   useConfigStore,
@@ -60,10 +60,10 @@ export function useWebSocketHandlers() {
   const userStore = useUserStore()
   const soundPackStore = useSoundPackStore()
   const chatStore = useChatStore()
-  const halloweenStore = useHalloweenStore()
   const permissionsStore = usePermissionsStore()
   const soundboardStore = useSoundboardStore()
   const customEmojisStore = useCustomEmojisStore()
+  const badgesStore = useBadgesStore()
   const textChatStore = useTextChatStore()
   const textNotifyStore = useTextNotifyStore()
   const configStore = useConfigStore()
@@ -135,13 +135,6 @@ export function useWebSocketHandlers() {
     }
     wsService.on("room_user_left", onRoomUserLeft)
     onCleanup(() => wsService.off("room_user_left", onRoomUserLeft))
-
-    const onHalloweenPumpkinState: MessageCallback = (message) => {
-      const data = message.data as { user_id?: string; equipped_json?: string }
-      halloweenStore.handlePumpkinState(data)
-    }
-    wsService.on("halloween_pumpkin_state", onHalloweenPumpkinState)
-    onCleanup(() => wsService.off("halloween_pumpkin_state", onHalloweenPumpkinState))
 
     const onConnect: ConnectionCallback = () => {
       appStore.clearError()
@@ -239,7 +232,7 @@ export function useWebSocketHandlers() {
     const onSoundPlayed: MessageCallback = (message) => {
       const data = message.data as SoundPlayedData
       if (data.room_id !== roomStore.activeRoomId) return
-      void soundboardStore.onSoundPlayed(data.sound_id)
+      void soundboardStore.onSoundPlayed(data)
     }
     wsService.on("sound_played", onSoundPlayed)
     onCleanup(() => wsService.off("sound_played", onSoundPlayed))
@@ -255,6 +248,27 @@ export function useWebSocketHandlers() {
     }
     wsService.onGlobal("custom_emojis_updated", onCustomEmojisUpdated)
     onCleanup(() => wsService.offGlobal("custom_emojis_updated", onCustomEmojisUpdated))
+
+    // Badge library changed (created/edited/deleted): definitions and the
+    // assignments can both have changed (a delete drops its holders).
+    const onBadgesUpdated: MessageCallback = () => {
+      void badgesStore.onLibraryChanged()
+    }
+    wsService.onGlobal("badges_updated", onBadgesUpdated)
+    onCleanup(() => wsService.offGlobal("badges_updated", onBadgesUpdated))
+
+    // One user's badges changed: patch that user in place.
+    const onUserBadgesUpdated: MessageCallback = (message) => {
+      const data = message.data as
+        | {
+            user_id?: string
+            badges?: { badge_id: string; assigned_at: string; displayed?: boolean }[]
+          }
+        | undefined
+      if (data?.user_id) badgesStore.applyUserBadges(data.user_id, data.badges ?? [])
+    }
+    wsService.onGlobal("user_badges_updated", onUserBadgesUpdated)
+    onCleanup(() => wsService.offGlobal("user_badges_updated", onUserBadgesUpdated))
 
     const onRoomCreated: MessageCallback = (message) => {
       const newRoom = message.data as Room
@@ -485,6 +499,7 @@ export function useWebSocketHandlers() {
           custom_status_emoji?: string
           created_at?: string
           status?: "away"
+          mobile?: boolean
         }>
       }
 
@@ -499,6 +514,7 @@ export function useWebSocketHandlers() {
           custom_status_emoji: user.custom_status_emoji,
           created_at: user.created_at,
           status: user.status,
+          mobile: user.mobile,
         })
       })
 
@@ -512,10 +528,18 @@ export function useWebSocketHandlers() {
     wsService.onGlobal("online_users", onOnlineUsers)
     onCleanup(() => wsService.offGlobal("online_users", onOnlineUsers))
 
-    // Online but no session in use (backend websocket/presence.go).
+    // Away (no session in use) and mobile (only the mobile app is connected);
+    // backend websocket/presence.go.
     const onUserStatus: MessageCallback = (message) => {
-      const data = message.data as { user_id: string; status: "online" | "away" }
-      usersStore.setUserAway(data.user_id, data.status === "away")
+      const data = message.data as {
+        user_id: string
+        status: "online" | "away"
+        mobile?: boolean
+      }
+      usersStore.setUserPresence(data.user_id, {
+        away: data.status === "away",
+        mobile: data.mobile === true,
+      })
     }
     wsService.onGlobal("user_status", onUserStatus)
     onCleanup(() => wsService.offGlobal("user_status", onUserStatus))
@@ -577,6 +601,14 @@ export function useWebSocketHandlers() {
     }
     wsService.onGlobal("custom_status_change", onCustomStatusChange)
     onCleanup(() => wsService.offGlobal("custom_status_change", onCustomStatusChange))
+
+    // An account was deleted (backend websocket/accounts.go).
+    const onUserDeleted: MessageCallback = (message) => {
+      const data = message.data as { user_id: string }
+      usersStore.forgetUser(data.user_id)
+    }
+    wsService.onGlobal("user_deleted", onUserDeleted)
+    onCleanup(() => wsService.offGlobal("user_deleted", onUserDeleted))
   }
 
   const connectGlobalWebSocket = async () => {

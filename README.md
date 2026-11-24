@@ -8,11 +8,16 @@ This project is built by AI (like 90%). AI is not perfect, but MVP was built in 
 
 ## Screenshots
 
-![Room view](docs/images/Screenshot_20260404_154952.png)
+![Room view](docs/images/screenshot-main.png)
 
-![Screensharing](docs/images/Screenshot_20260404_155514.png)
+![Screensharing](docs/images/screenshot-voice.png)
 
-![Talking](docs/images/Screenshot_20260404_155614.png)
+![Chat](docs/images/chat-screenshot.png)
+
+And even apps for Steam OS and Android!
+
+![Devices](docs/images/real-devices.png)
+
 
 ## Features
 
@@ -35,8 +40,8 @@ Persistent, searchable chat channels next to the voice rooms ([user guide](docs/
 - **Attachments**: images, audio (with waveforms) and video. Each user has a storage quota (5 GB by default); when it fills up, your oldest files are removed first unless you protect them. The **My files** page shows and manages everything you have uploaded.
 - **Fast search** as you type, typo-tolerant, with Discord-style filters: `from:`, `in:`, `has:image`, `during:`, `before:`, `after:`, `mentions:`, `pinned:`.
 - **Search inside images**:
-  - **OCR**: finds the text written in a screenshot or photo (Russian, Ukrainian, Belarusian and English).
-  - **CLIP**: finds images by what they show. Search "cat on a keyboard" and get the photo, even if nobody wrote those words. Multiligual: English, Russian, Ukrainian, Belarusian (by default)
+  - **OCR**: finds the text written in a screenshot or photo.
+  - **CLIP**: finds images by what they show. Search "cat on a keyboard" and get the photo, even if nobody wrote those words.
 
 The voice room also has its own quick, temporary chat that is not saved.
 

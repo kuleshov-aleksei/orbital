@@ -59,6 +59,7 @@ import "C"
 
 import (
 	"bytes"
+	"errors"
 	"unsafe"
 
 	"github.com/h2non/bimg"
@@ -101,41 +102,74 @@ func vipsLoadEmoji(data []byte) (*C.VipsImage, emojiImageInfo, error) {
 	return in, info, nil
 }
 
-// checkEmojiSource rejects decompression bombs before any pixel is decoded.
-// Every frame of an animation is decoded in memory, so animated sources get a
-// smaller frame-size limit.
-func checkEmojiSource(info emojiImageInfo) error {
-	limit := maxEmojiSourceDimension
+// webpEncodeOptions is the storage size and the decompression caps of one
+// image kind (emoji images, badge images).
+type webpEncodeOptions struct {
+	// dimension is the largest width/height of the stored image.
+	dimension int
+	// sourceLimit is the largest accepted source frame (a decompression-bomb
+	// cap applied before any pixel is decoded).
+	sourceLimit int
+	// animatedSourceLimit is the same cap for animated sources, which are
+	// decoded frame by frame in memory.
+	animatedSourceLimit int
+	// maxFrames caps animation length.
+	maxFrames int
+}
+
+var (
+	emojiWebPOptions = webpEncodeOptions{
+		dimension:           MaxEmojiDimension,
+		sourceLimit:         maxEmojiSourceDimension,
+		animatedSourceLimit: maxAnimatedSourceDimension,
+		maxFrames:           maxEmojiFrames,
+	}
+	badgeWebPOptions = webpEncodeOptions{
+		dimension:           MaxBadgeDimension,
+		sourceLimit:         maxBadgeSourceDimension,
+		animatedSourceLimit: maxAnimatedBadgeSourceDimension,
+		maxFrames:           maxEmojiFrames,
+	}
+)
+
+// errInvalidImageSource is the shared validation failure of encodeWebPImage;
+// each image kind maps it to its own user-facing error.
+var errInvalidImageSource = errors.New("invalid image source")
+
+// checkImageSource rejects decompression bombs before any pixel is decoded.
+func checkImageSource(info emojiImageInfo, opts webpEncodeOptions) error {
+	limit := opts.sourceLimit
 	if info.pages > 1 {
-		limit = maxAnimatedSourceDimension
+		limit = opts.animatedSourceLimit
 	}
 	if info.width <= 0 || info.pageHeight <= 0 || info.pages <= 0 ||
-		info.width > limit || info.pageHeight > limit || info.pages > maxEmojiFrames {
-		return ErrEmojiInvalidImage
+		info.width > limit || info.pageHeight > limit || info.pages > opts.maxFrames {
+		return errInvalidImageSource
 	}
 	return nil
 }
 
-// encodeEmojiWebP decodes a PNG, GIF or WebP (all frames) with libvips, scales
-// it to fit MaxEmojiDimension and re-encodes it as WebP: lossless for static
-// images, the smaller of lossy and lossless for animated ones. Metadata is dropped, and so is anything
-// appended to or embedded in the upload. Callers must check the magic bytes
-// first, since libvips would otherwise accept any format it knows.
-func encodeEmojiWebP(data []byte) (out []byte, animated bool, err error) {
+// encodeWebPImage decodes a PNG, GIF or WebP (all frames) with libvips, scales
+// it to fit opts.dimension and re-encodes it as WebP: lossless for static
+// images, the smaller of lossy and lossless for animated ones. Metadata is
+// dropped, and so is anything appended to or embedded in the upload. Callers
+// must check the magic bytes first, since libvips would otherwise accept any
+// format it knows.
+func encodeWebPImage(data []byte, opts webpEncodeOptions) (out []byte, animated bool, err error) {
 	in, info, err := vipsLoadEmoji(data)
 	if err != nil {
 		return nil, false, err
 	}
 	defer C.g_object_unref(C.gpointer(in))
-	if err := checkEmojiSource(info); err != nil {
+	if err := checkImageSource(info, opts); err != nil {
 		return nil, false, err
 	}
 	animated = info.pages > 1
 
 	var thumb *C.VipsImage
-	if C.orbital_emoji_thumbnail(in, &thumb, C.int(MaxEmojiDimension), C.int(MaxEmojiDimension)) != 0 {
+	if C.orbital_emoji_thumbnail(in, &thumb, C.int(opts.dimension), C.int(opts.dimension)) != 0 {
 		C.vips_error_clear()
-		return nil, false, ErrEmojiInvalidImage
+		return nil, false, errInvalidImageSource
 	}
 	defer C.g_object_unref(C.gpointer(thumb))
 
@@ -151,7 +185,7 @@ func encodeEmojiWebP(data []byte) (out []byte, animated bool, err error) {
 	mem := C.vips_image_copy_memory(thumb)
 	if mem == nil {
 		C.vips_error_clear()
-		return nil, false, ErrEmojiInvalidImage
+		return nil, false, errInvalidImageSource
 	}
 	defer C.g_object_unref(C.gpointer(mem))
 	lossy, err := saveEmojiWebP(mem, false)
@@ -163,6 +197,24 @@ func encodeEmojiWebP(data []byte) (out []byte, animated bool, err error) {
 		return lossy, true, nil
 	}
 	return lossless, true, nil
+}
+
+// encodeEmojiWebP re-encodes a custom emoji image (see encodeWebPImage).
+func encodeEmojiWebP(data []byte) (out []byte, animated bool, err error) {
+	out, animated, err = encodeWebPImage(data, emojiWebPOptions)
+	if errors.Is(err, errInvalidImageSource) {
+		return nil, false, ErrEmojiInvalidImage
+	}
+	return out, animated, err
+}
+
+// encodeBadgeWebP re-encodes a badge image (see encodeWebPImage).
+func encodeBadgeWebP(data []byte) (out []byte, animated bool, err error) {
+	out, animated, err = encodeWebPImage(data, badgeWebPOptions)
+	if errors.Is(err, errInvalidImageSource) {
+		return nil, false, ErrBadgeInvalidImage
+	}
+	return out, animated, err
 }
 
 func saveEmojiWebP(img *C.VipsImage, lossless bool) ([]byte, error) {

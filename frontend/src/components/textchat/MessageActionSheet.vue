@@ -46,7 +46,12 @@
               @click="act('reply')">
               <PhArrowBendUpLeft class="w-5 h-5" /> Reply
             </button>
-            <button v-if="isOwn" type="button" role="menuitem" :class="row" @click="act('edit')">
+            <button
+              v-if="isOwn && !message.command && !message.poll"
+              type="button"
+              role="menuitem"
+              :class="row"
+              @click="act('edit')">
               <PhPencilSimple class="w-5 h-5" /> Edit
             </button>
             <button
@@ -67,7 +72,7 @@
               <PhCopy class="w-5 h-5" /> Copy text
             </button>
             <button
-              v-if="isOwn || canManage"
+              v-if="isOwn || canManage || isMyReminder"
               type="button"
               role="menuitem"
               :class="[row, '!text-red-400']"
@@ -83,7 +88,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, useTemplateRef, watch } from "vue"
+import { computed, nextTick, useTemplateRef, watch } from "vue"
 import {
   PhArrowBendUpLeft,
   PhCopy,
@@ -96,6 +101,7 @@ import EmojiGlyph from "@/components/EmojiGlyph.vue"
 import SmileyPlusIcon from "./SmileyPlusIcon.vue"
 import { emojiShortcode, recentReactions, resolveEmoji } from "@/services/emoji"
 import type { TextMessage } from "@/types/textChat"
+import { useUserStore } from "@/stores"
 
 const props = defineProps<{
   message: TextMessage | null
@@ -114,6 +120,14 @@ const emit = defineEmits<{
   delete: []
   close: []
 }>()
+
+const userStore = useUserStore()
+// A fired reminder may be dismissed by the user it reminds.
+const isMyReminder = computed(
+  () =>
+    props.message?.command?.name === "reminder" &&
+    props.message.command.reminder_for === userStore.userId,
+)
 
 const reactionBtn =
   "w-11 h-11 flex items-center justify-center rounded-full bg-theme-bg-tertiary active:bg-theme-bg-hover transition-colors"

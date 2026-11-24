@@ -1,5 +1,6 @@
 import { watch } from "vue"
 import {
+  useBadgesStore,
   useCategoryStore,
   useCustomEmojisStore,
   usePermissionsStore,
@@ -10,6 +11,7 @@ import {
 } from "@/stores"
 import type { PermissionsSnapshot } from "@/stores/permissions"
 import type { CustomEmojiSnapshot } from "@/stores/customEmojis"
+import type { BadgesSnapshot } from "@/stores/badges"
 import type { Category, PublicUser, Room } from "@/types"
 import { cacheGet, cachePutDebounced, offlineCacheUser } from "@/services/offlineCache"
 
@@ -28,15 +30,17 @@ export function useOfflinePersistence() {
   const userStore = useUserStore()
   const textChatStore = useTextChatStore()
   const customEmojisStore = useCustomEmojisStore()
+  const badgesStore = useBadgesStore()
 
   async function hydrate() {
     if (!userStore.hasCompletedAuth || !offlineCacheUser()) return
-    const [rooms, categories, users, permissions, emojis] = await Promise.all([
+    const [rooms, categories, users, permissions, emojis, badges] = await Promise.all([
       cacheGet<Room[]>("kv", "rooms"),
       cacheGet<Category[]>("kv", "categories"),
       cacheGet<PublicUser[]>("kv", "users"),
       cacheGet<PermissionsSnapshot>("kv", "permissions"),
       cacheGet<CustomEmojiSnapshot>("kv", "customEmojis"),
+      cacheGet<BadgesSnapshot>("kv", "badges"),
     ])
     // Fresh server data may already be here; never overwrite it.
     if (rooms?.length && !roomStore.rooms.length) roomStore.setRooms(rooms, false)
@@ -46,6 +50,7 @@ export function useOfflinePersistence() {
     if (users?.length) usersStore.hydrateFromCache(users)
     if (permissions) permissionsStore.hydrateFromCache(permissions)
     if (emojis) customEmojisStore.hydrateFromCache(emojis)
+    if (badges) badgesStore.hydrateFromCache(badges)
     // Messages written offline in an earlier session show as queued again.
     void textChatStore.restoreOutbox()
   }
@@ -94,6 +99,18 @@ export function useOfflinePersistence() {
       cachePutDebounced("kv", "customEmojis", () => {
         const snap = customEmojisStore.snapshot()
         return snap.emojis.length || Object.keys(snap.shortcodes).length ? snap : undefined
+      })
+    },
+  )
+
+  // Badge definitions and who holds what: without them, offline profiles show
+  // no badges at all.
+  watch(
+    () => badgesStore.version,
+    () => {
+      cachePutDebounced("kv", "badges", () => {
+        const snap = badgesStore.snapshot()
+        return snap.badges.length ? snap : undefined
       })
     },
   )

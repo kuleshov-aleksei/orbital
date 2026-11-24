@@ -4,6 +4,10 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	// The alpine runtime image has no /usr/share/zoneinfo; embed the database so
+	// these tests never skip and match what the shipped binary does.
+	_ "time/tzdata"
 )
 
 func TestParseQuery(t *testing.T) {
@@ -38,9 +42,9 @@ func TestParseQuery(t *testing.T) {
 }
 
 func TestTimeBounds(t *testing.T) {
-	loc, err := time.LoadLocation("Europe/Moscow")
+	loc, err := time.LoadLocation("Europe/Belgrade")
 	if err != nil {
-		t.Skip("no tzdata")
+		t.Fatalf("Europe/Belgrade must resolve from the embedded tzdata: %v", err)
 	}
 	now := time.Date(2026, 11, 10, 12, 0, 0, 0, loc)
 	day := func(y int, m time.Month, d int) int64 { return time.Date(y, m, d, 0, 0, 0, 0, loc).UnixMilli() }

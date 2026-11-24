@@ -2,8 +2,8 @@
  * Text channel message markup (docs/specs/CHAT_SYSTEM.md §7.6).
  *
  * A small tokenizer for the subset we support: **bold**, *italic* / _italic_,
- * ~~strike~~, ||spoiler||, autolinked http(s) URLs, custom emoji tokens
- * (`<:shortcode:id>`), mention tokens (`<@user_id>`, `<@&role_id>`) and line
+ * ~~strike~~, ||spoiler||, autolinked http(s) URLs (`<url>`: no link preview),
+ * custom emoji tokens (`<:shortcode:id>`), mention tokens (`<@user_id>`, `<@&role_id>`) and line
  * breaks. Everything else is literal text. A backslash escapes a marker.
  *
  * The output is a node tree rendered by MessageNodes.vue (no v-html), so
@@ -40,6 +40,7 @@ const EMOJI_RE = /^<:([\p{L}\p{N}_]{1,64}):([0-9a-f-]{36})>/u
 export const MENTION_ID = "[A-Za-z0-9_=+/-]{1,64}"
 const MENTION_RE = new RegExp(`^<@(&?)(${MENTION_ID})>`)
 const URL_RE = /^https?:\/\/[^\s<>]+/i
+const BRACKET_URL_RE = /^<(https?:\/\/[^\s<>]+)>/i
 // Trailing punctuation is usually sentence punctuation, not part of the URL.
 const URL_TRAILING_RE = /[.,:;!?'")\]}*~|]+$/
 
@@ -108,6 +109,14 @@ class Parser {
           flush()
           nodes.push({ type: "mention", kind: mention[1] ? "role" : "user", id: mention[2] })
           i += mention[0].length
+          continue
+        }
+        // <https://...>: a link without a preview (backend chatstore.PreviewURLs).
+        const bare = BRACKET_URL_RE.exec(rest)
+        if (bare) {
+          flush()
+          nodes.push({ type: "link", href: bare[1], text: bare[1] })
+          i += bare[0].length
           continue
         }
       }

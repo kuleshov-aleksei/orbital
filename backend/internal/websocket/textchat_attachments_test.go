@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"image"
+	"image/png"
 	"path/filepath"
 	"testing"
 	"time"
@@ -43,6 +45,55 @@ func uploadFor(t *testing.T, media *chatmedia.Service, user, roomID string) stri
 		t.Fatal(err)
 	}
 	return res.Record.ID
+}
+
+func imageUploadFor(t *testing.T, media *chatmedia.Service, user, roomID string) string {
+	t.Helper()
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, image.NewRGBA(image.Rect(0, 0, 4, 3))); err != nil {
+		t.Fatal(err)
+	}
+	res, err := media.Upload(context.Background(), chatmedia.UploadInput{
+		RoomID: roomID, UploaderID: user, Filename: "a.png", File: bytes.NewReader(buf.Bytes()), Size: int64(buf.Len()),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res.Record.ID
+}
+
+func TestTextSendSpoilerAttachments(t *testing.T) {
+	f := newTextFixture(t)
+	media := withMedia(t, f)
+	img := imageUploadFor(t, media, "alice", f.text.ID)
+	plain := imageUploadFor(t, media, "alice", f.text.ID)
+	audio := uploadFor(t, media, "alice", f.text.ID)
+
+	f.alice.handleTextMessageSend(map[string]interface{}{
+		"room_id": f.text.ID, "content": "", "nonce": "n1",
+		"upload_ids": []string{img, plain, audio},
+		// audio can't be a spoiler; an unknown id is ignored.
+		"spoiler_ids": []string{img, audio, "qkUrdzLDoqslx8EEy2cM7Q=="},
+	})
+	got := messagesOfType(t, f.bob, "text_message_new")
+	if len(got) != 1 {
+		t.Fatalf("message not broadcast")
+	}
+	atts := got[0].Data.(map[string]interface{})["message"].(map[string]interface{})["attachments"].([]interface{})
+	spoiler := map[string]bool{}
+	for _, a := range atts {
+		m := a.(map[string]interface{})
+		spoiler[m["id"].(string)] = m["spoiler"] == true
+	}
+	if len(atts) != 3 || !spoiler[img] || spoiler[plain] || spoiler[audio] {
+		t.Fatalf("spoilers = %v", spoiler)
+	}
+	for _, a := range atts {
+		m := a.(map[string]interface{})
+		if _, has := m["spoiler"]; has && m["id"] != img {
+			t.Fatalf("spoiler field on %v", m)
+		}
+	}
 }
 
 func TestTextSendWithAttachments(t *testing.T) {

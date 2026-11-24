@@ -31,6 +31,52 @@ type Config struct {
 	ChatML    ChatMLConfig    `yaml:"chat_ml"`
 	Emoji     EmojiConfig     `yaml:"emoji"`
 	Push      PushConfig      `yaml:"push"`
+	SMTP      SMTPConfig      `yaml:"smtp"`
+}
+
+// SMTPConfig configures outgoing email (account verification, password
+// reset). TLS is always required: STARTTLS on 587/2525/25, implicit TLS on
+// 465. Without a host, email is disabled.
+type SMTPConfig struct {
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	Username string `yaml:"username"`
+	Password string `yaml:"-"`
+	// From is the sender, e.g. "Orbital <no-reply@example.com>".
+	From string `yaml:"from"`
+	// TLS is auto|starttls|implicit. auto: implicit on 465, else STARTTLS.
+	TLS string `yaml:"tls"`
+	// Auth is auto|plain|login. auto: PLAIN when advertised, else LOGIN.
+	Auth string `yaml:"auth"`
+	// CAFile adds a trusted root (PEM), e.g. the dev Mailpit certificate.
+	CAFile string `yaml:"ca_file"`
+}
+
+// Enabled reports whether an SMTP server is configured.
+func (s SMTPConfig) Enabled() bool { return s.Host != "" }
+
+// Validate checks the SMTP settings when email is enabled.
+func (s SMTPConfig) Validate() error {
+	if !s.Enabled() {
+		return nil
+	}
+	if s.Port <= 0 || s.Port > 65535 {
+		return fmt.Errorf("SMTP_PORT must be a valid port")
+	}
+	if s.From == "" {
+		return fmt.Errorf("SMTP_FROM is required when SMTP_HOST is set")
+	}
+	switch s.TLS {
+	case "", "auto", "starttls", "implicit":
+	default:
+		return fmt.Errorf("SMTP_TLS must be auto, starttls or implicit")
+	}
+	switch s.Auth {
+	case "", "auto", "plain", "login":
+	default:
+		return fmt.Errorf("SMTP_AUTH must be auto, plain or login")
+	}
+	return nil
 }
 
 // PushConfig configures mobile push notifications through Firebase Cloud
@@ -60,6 +106,24 @@ type ChatConfig struct {
 	MeiliURL    string `yaml:"meili_url"`
 	MeiliAPIKey string `yaml:"meili_api_key"`
 	MeiliIndex  string `yaml:"meili_index"`
+	// LinkPreviews: the server fetches previews of links in messages
+	// (CHAT_LINK_PREVIEWS_ENABLED, default true).
+	LinkPreviews bool `yaml:"link_previews"`
+	// GIFProvider selects the third-party GIF search ("klipy" or "giphy";
+	// empty disables it). Search runs in the client because the providers
+	// forbid proxying their API; the server only hands out the client key
+	// and validates the references stored in messages.
+	GIFProvider string `yaml:"gif_provider"`
+	// GIFAPIKey is the provider's client key (CHAT_GIF_API_KEY).
+	GIFAPIKey string `yaml:"gif_api_key"`
+	// GIFRating is the content rating asked from the provider (Giphy:
+	// g, pg, pg-13, r; CHAT_GIF_RATING, default pg-13).
+	GIFRating string `yaml:"gif_rating"`
+}
+
+// GIFSearchEnabled reports whether a GIF provider and its key are configured.
+func (c ChatConfig) GIFSearchEnabled() bool {
+	return c.GIFAPIKey != "" && (c.GIFProvider == "klipy" || c.GIFProvider == "giphy")
 }
 
 // Development defaults match the meilisearch service in docker-compose.dev.yml,
@@ -265,7 +329,9 @@ func DefaultConfig() *Config {
 		},
 		LiveKit: DefaultLiveKitConfig(),
 		Chat: ChatConfig{
-			MeiliIndex: "text_messages",
+			MeiliIndex:   "text_messages",
+			LinkPreviews: true,
+			GIFRating:    "pg-13",
 		},
 		ChatMedia: ChatMediaConfig{
 			Bucket:         "orbital-chat-media",
@@ -279,7 +345,7 @@ func DefaultConfig() *Config {
 		ChatML: ChatMLConfig{
 			OCREnabled:        true,
 			CLIPEnabled:       true,
-			OCRModel:          "ESLAV__PP-OCRv5_mobile",
+			OCRModel:          "PP-OCRv5_mobile",
 			CLIPModel:         "XLM-Roberta-Large-Vit-B-16Plus",
 			SemanticThreshold: 0.6,
 			TimeoutSeconds:    120,
@@ -461,6 +527,17 @@ func (c *Config) loadFromEnv() {
 		c.Chat.MeiliIndex = v
 	}
 
+	// Third-party GIF search (docs/specs/CHAT_SYSTEM.md §7.17)
+	for key, dst := range map[string]*string{
+		"CHAT_GIF_PROVIDER": &c.Chat.GIFProvider,
+		"CHAT_GIF_API_KEY":  &c.Chat.GIFAPIKey,
+		"CHAT_GIF_RATING":   &c.Chat.GIFRating,
+	} {
+		if v := os.Getenv(key); v != "" {
+			*dst = v
+		}
+	}
+
 	// Text channel attachments (S3)
 	for key, dst := range map[string]*string{
 		"CHAT_MEDIA_S3_ENDPOINT":        &c.ChatMedia.S3Endpoint,
@@ -494,6 +571,29 @@ func (c *Config) loadFromEnv() {
 		c.Push.FCMCredentialsJSON = v
 	}
 
+	// Outgoing email (SMTP)
+	for key, dst := range map[string]*string{
+		"SMTP_HOST":     &c.SMTP.Host,
+		"SMTP_USERNAME": &c.SMTP.Username,
+		"SMTP_PASSWORD": &c.SMTP.Password,
+		"SMTP_FROM":     &c.SMTP.From,
+		"SMTP_TLS":      &c.SMTP.TLS,
+		"SMTP_AUTH":     &c.SMTP.Auth,
+		"SMTP_CA_FILE":  &c.SMTP.CAFile,
+	} {
+		if v := os.Getenv(key); v != "" {
+			*dst = v
+		}
+	}
+	if v, ok := getEnvInt("SMTP_PORT"); ok {
+		c.SMTP.Port = v
+	} else if os.Getenv("SMTP_PORT") != "" {
+		c.SMTP.Port = -1 // rejected by Validate
+	}
+	if c.SMTP.Port == 0 {
+		c.SMTP.Port = 587
+	}
+
 	// Text channel content search (Immich ML)
 	for key, dst := range map[string]*string{
 		"CHAT_ML_URL":        &c.ChatML.URL,
@@ -505,8 +605,9 @@ func (c *Config) loadFromEnv() {
 		}
 	}
 	for key, dst := range map[string]*bool{
-		"CHAT_ML_OCR_ENABLED":  &c.ChatML.OCREnabled,
-		"CHAT_ML_CLIP_ENABLED": &c.ChatML.CLIPEnabled,
+		"CHAT_ML_OCR_ENABLED":        &c.ChatML.OCREnabled,
+		"CHAT_ML_CLIP_ENABLED":       &c.ChatML.CLIPEnabled,
+		"CHAT_LINK_PREVIEWS_ENABLED": &c.Chat.LinkPreviews,
 	} {
 		if v, err := strconv.ParseBool(os.Getenv(key)); err == nil {
 			*dst = v
@@ -632,6 +733,9 @@ func (c *Config) Validate() error {
 	}
 	if err := c.LiveKit.Validate(); err != nil {
 		return fmt.Errorf("livekit configuration: %w", err)
+	}
+	if err := c.SMTP.Validate(); err != nil {
+		return err
 	}
 	if c.ChatML.SemanticThreshold <= 0 || c.ChatML.SemanticThreshold >= 1 {
 		return fmt.Errorf("CHAT_ML_SEMANTIC_THRESHOLD must be between 0 and 1")

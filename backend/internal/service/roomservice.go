@@ -1,8 +1,10 @@
 package service
 
 import (
+	"crypto/rand"
 	"fmt"
 	"log"
+	"math/big"
 	"sync"
 	"time"
 
@@ -668,6 +670,13 @@ func (rs *RoomService) UpdateUserPingTime(roomID, userID string) {
 	}
 }
 
+// ForgetUser drops a deleted account from the in-memory user store.
+func (rs *RoomService) ForgetUser(userID string) {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+	delete(rs.users, userID)
+}
+
 // GetUserByID returns a user by their ID from the in-memory store
 func (rs *RoomService) GetUserByID(userID string) (*models.User, bool) {
 	rs.mu.RLock()
@@ -916,11 +925,19 @@ func generateID() string {
 	return time.Now().Format("20060102150405") + randomString(6)
 }
 
+// randomString returns length characters from [a-zA-Z0-9], drawn with
+// crypto/rand. (Picking them from the clock gave every character the same
+// value and two IDs made in the same tick collided.)
 func randomString(length int) string {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	size := big.NewInt(int64(len(charset)))
 	b := make([]byte, length)
 	for i := range b {
-		b[i] = charset[time.Now().UnixNano()%int64(len(charset))]
+		n, err := rand.Int(rand.Reader, size)
+		if err != nil {
+			panic("crypto/rand failed: " + err.Error())
+		}
+		b[i] = charset[n.Int64()]
 	}
 	return string(b)
 }

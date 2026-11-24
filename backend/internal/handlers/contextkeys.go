@@ -18,6 +18,16 @@ func UserIDFromContext(ctx context.Context) string {
 	return claims.UserID
 }
 
+// SessionIDFromContext returns the auth session of the request's token, or ""
+// for a legacy token issued before per-device sessions.
+func SessionIDFromContext(ctx context.Context) string {
+	claims, ok := ctx.Value(userContextKey).(*models.JWTClaims)
+	if !ok || claims == nil {
+		return ""
+	}
+	return claims.SessionID
+}
+
 func IsGuestFromContext(ctx context.Context) bool {
 	claims, ok := ctx.Value(userContextKey).(*models.JWTClaims)
 	if !ok || claims == nil {

@@ -33,9 +33,6 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile --store-dir /pnpm/store
 
 # Frontend source (cached until source files change).
-# tools/halloween-balance is imported by the dev-only balance visualizer,
-# which vue-tsc checks too
-COPY tools/halloween-balance/ /app/tools/halloween-balance/
 COPY frontend/ .
 
 # Release quality gate: fail the build on type errors
@@ -49,8 +46,10 @@ COPY electron/pnpm-*.yaml ./
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile --store-dir /pnpm/store
 
-# Electron source
+# Electron source (+ shell API version and the OTA bundle generator)
 COPY electron/ .
+COPY shell-api.json /app/shell-api.json
+COPY scripts/ota-manifest.mjs /app/scripts/ota-manifest.mjs
 
 # Release quality gate: main/preload type errors fail the build too
 RUN pnpm run typecheck
@@ -92,6 +91,10 @@ RUN --mount=type=cache,target=/root/.cache/electron,sharing=locked \
 RUN --mount=type=cache,target=/root/.cache/electron,sharing=locked \
     --mount=type=cache,target=/root/.cache/electron-builder,sharing=locked \
     pnpm run package:linux
+
+# Over-the-air frontend bundle (electron/main/features/ota.ts): manifest +
+# content-addressed files, uploaded next to the installers by CI.
+RUN node /app/scripts/ota-manifest.mjs dist electron "$VERSION" "$VITE_BACKEND_URL" release/ota
 
 # Stage 2: Minimal image with only release artifacts
 FROM alpine:3.24

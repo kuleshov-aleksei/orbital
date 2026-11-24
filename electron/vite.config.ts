@@ -15,6 +15,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const backendUrl = process.env.VITE_BACKEND_URL || "http://localhost:8080"
 const backendWsUrl = backendUrl.replace("http://", "ws://").replace("https://", "wss://")
 const appVersion = process.env.VITE_APP_VERSION || "dev-unknown"
+// Shell API version (see AGENTS.md "Shell changes require a shell-api.json bump").
+const shellApi = JSON.parse(fs.readFileSync(resolve(__dirname, "../shell-api.json"), "utf8")).electron as number
+// Update feed root, also used for over-the-air frontend bundles (main/features/ota.ts).
+const updateUrl = process.env.UPDATE_URL || ""
 
 const frontendPath = resolve(__dirname, "../frontend")
 const electronPath = resolve(__dirname)
@@ -96,6 +100,9 @@ export default defineConfig(({ command, mode }) => {
               },
             },
             define: {
+              __SHELL_API__: JSON.stringify(shellApi),
+              __UPDATE_URL__: JSON.stringify(updateUrl),
+              __BACKEND_URL__: JSON.stringify(backendUrl),
               "import.meta.url": isServe
                 ? JSON.stringify(`file://${resolve(electronPath, "dist-electron/main/index.js")}`)
                 : "process.resourcesUrl ? `file://${process.resourcesUrl}/app.asar/dist-electron/main/index.js` : undefined",

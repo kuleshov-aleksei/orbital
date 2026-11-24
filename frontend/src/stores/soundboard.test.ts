@@ -8,6 +8,8 @@ const player = vi.hoisted(() => ({
   setSoundboardEnabled: vi.fn(),
   setSoundboardVolume: vi.fn(),
   syncSoundboardLibrary: vi.fn(),
+  getSoundboardDurationMs: vi.fn(),
+  onSoundboardDuration: vi.fn(),
 }))
 const api = vi.hoisted(() => ({ getSoundboardSounds: vi.fn() }))
 
@@ -15,7 +17,12 @@ vi.mock("@/services/websocket", () => ({ wsService: ws }))
 vi.mock("@/services/soundboardPlayer", () => player)
 vi.mock("@/services/api", () => ({ apiService: api }))
 
-import { matchesSoundQuery, useSoundboardStore, SOUNDBOARD_COOLDOWN_MS } from "./soundboard"
+import {
+  matchesSoundQuery,
+  useSoundboardStore,
+  SOUNDBOARD_COOLDOWN_MS,
+  SOUNDBOARD_HIGHLIGHT_FALLBACK_MS,
+} from "./soundboard"
 
 const sound = (id: string, name: string, aliases: string[] = []): SoundboardSound => ({
   id,
@@ -39,6 +46,7 @@ describe("soundboard store", () => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
     api.getSoundboardSounds.mockResolvedValue(library)
+    player.getSoundboardDurationMs.mockReturnValue(0)
   })
 
   it("matches name and aliases case-insensitively", () => {
@@ -70,11 +78,70 @@ describe("soundboard store", () => {
 
   it("fetches the library before playing an unknown clip", async () => {
     const store = useSoundboardStore()
-    await store.onSoundPlayed("1")
+    await store.onSoundPlayed({ room_id: "r1", sound_id: "1", user_id: "u1" })
     expect(api.getSoundboardSounds).toHaveBeenCalledTimes(1)
     expect(player.playSoundboardSound).toHaveBeenCalledWith("1", expect.any(Number))
-    await store.onSoundPlayed("1")
+    await store.onSoundPlayed({ room_id: "r1", sound_id: "1", user_id: "u1" })
     expect(api.getSoundboardSounds).toHaveBeenCalledTimes(1)
+  })
+
+  it("highlights the player's card for the length of the clip", async () => {
+    vi.useFakeTimers()
+    player.getSoundboardDurationMs.mockReturnValue(1500)
+    const store = useSoundboardStore()
+    await store.onSoundPlayed({ room_id: "r1", sound_id: "1", user_id: "u1" })
+    expect(store.isUserPlayingSound("u1")).toBe(true)
+    expect(store.isUserPlayingSound("u2")).toBe(false)
+    vi.advanceTimersByTime(1499)
+    expect(store.isUserPlayingSound("u1")).toBe(true)
+    vi.advanceTimersByTime(1)
+    expect(store.isUserPlayingSound("u1")).toBe(false)
+    vi.useRealTimers()
+  })
+
+  it("uses a fallback highlight when the clip length is not known yet", async () => {
+    vi.useFakeTimers()
+    const store = useSoundboardStore()
+    await store.onSoundPlayed({ room_id: "r1", sound_id: "2", user_id: "u1" })
+    expect(store.isUserPlayingSound("u1")).toBe(true)
+    vi.advanceTimersByTime(SOUNDBOARD_HIGHLIGHT_FALLBACK_MS - 1)
+    expect(store.isUserPlayingSound("u1")).toBe(true)
+    vi.advanceTimersByTime(1)
+    expect(store.isUserPlayingSound("u1")).toBe(false)
+    vi.useRealTimers()
+  })
+
+  it("extends the highlight to the real clip length once it is known", async () => {
+    vi.useFakeTimers()
+    const store = useSoundboardStore()
+    await store.onSoundPlayed({ room_id: "r1", sound_id: "1", user_id: "u1" })
+    vi.advanceTimersByTime(500)
+
+    // The clip finished loading and turned out to be 4s long: the highlight is
+    // extended from the moment the play arrived, not from the moment it loaded.
+    player.getSoundboardDurationMs.mockReturnValue(4000)
+    const onLoaded = player.onSoundboardDuration.mock.calls[0][1] as () => void
+    onLoaded()
+    vi.advanceTimersByTime(3400)
+    expect(store.isUserPlayingSound("u1")).toBe(true)
+    vi.advanceTimersByTime(100)
+    expect(store.isUserPlayingSound("u1")).toBe(false)
+    vi.useRealTimers()
+  })
+
+  it("keeps the highlight running while the same user plays another clip", async () => {
+    vi.useFakeTimers()
+    player.getSoundboardDurationMs.mockReturnValue(1000)
+    const store = useSoundboardStore()
+    await store.onSoundPlayed({ room_id: "r1", sound_id: "1", user_id: "u1" })
+    vi.advanceTimersByTime(900)
+    await store.onSoundPlayed({ room_id: "r1", sound_id: "2", user_id: "u1" })
+    // The first clip's timer must not end the newer highlight.
+    vi.advanceTimersByTime(200)
+    expect(store.isUserPlayingSound("u1")).toBe(true)
+    vi.advanceTimersByTime(800)
+    expect(store.isUserPlayingSound("u1")).toBe(false)
+    vi.useRealTimers()
   })
 
   it("persists volume and enabled settings", () => {

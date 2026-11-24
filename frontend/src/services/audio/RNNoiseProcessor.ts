@@ -87,19 +87,27 @@ export class RNNoiseProcessor implements TrackProcessor<Track.Kind.Audio, AudioP
       await ensureWorkletLoaded(audioContext)
       const wasmBinary = await ensureWasmLoaded()
 
-      const trackSettings = track.getSettings()
-      const channelCount = trackSettings.channelCount ?? 1
+      debugLog(`[RNNoise][INFO]: Creating mono processor`)
 
-      debugLog(`[RNNoise][INFO]: Creating processor with ${channelCount} channels`)
-
+      // Always run the voice pipeline in mono. The worklet sizes its output bus
+      // from the input channel count but only fills `maxChannels` of them, so a
+      // stereo capture (or a browser that under-reports `getSettings().channelCount`)
+      // would leave the right channel silent - listeners hear the user in one ear
+      // only. Pinning channelCount explicitly down-mixes the input first.
       this.source = audioContext.createMediaStreamSource(new MediaStream([track]))
 
       this.workletNode = new RnnoiseWorkletNode(audioContext, {
         wasmBinary: wasmBinary,
-        maxChannels: channelCount,
+        maxChannels: 1,
       })
+      this.workletNode.channelCount = 1
+      this.workletNode.channelCountMode = "explicit"
+      this.workletNode.channelInterpretation = "speakers"
 
       this.destination = audioContext.createMediaStreamDestination()
+      this.destination.channelCount = 1
+      this.destination.channelCountMode = "explicit"
+      this.destination.channelInterpretation = "speakers"
 
       this.source.connect(this.workletNode)
       this.workletNode.connect(this.destination)
@@ -108,7 +116,9 @@ export class RNNoiseProcessor implements TrackProcessor<Track.Kind.Audio, AudioP
 
       this.processedTrack = processedTrack
 
-      debugLog(`[RNNoise][INFO]: RNNoise processor initialized successfully`)
+      debugLog(
+        `[RNNoise][INFO]: RNNoise processor initialized successfully (capture ${track.getSettings().channelCount ?? "?"}ch -> processed ${processedTrack?.getSettings().channelCount ?? "?"}ch)`,
+      )
     } catch (error) {
       debugError("[RNNoise][ERROR]: Failed to initialize RNNoise processor", error)
       throw error

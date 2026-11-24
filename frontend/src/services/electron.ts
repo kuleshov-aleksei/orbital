@@ -3,6 +3,7 @@ import type {
   UpdateProgressInfo,
   UpdateErrorInfo,
   ElectronSystemInfoData,
+  ElectronUiScaleInfo,
 } from "@/types"
 import { debugLog, debugWarn, debugError } from "@/utils/debug"
 
@@ -149,6 +150,17 @@ export function onOAuthToken(callback: (data: { token: string; expires: string }
   if (isElectron()) {
     window.electronAPI!.onOAuthToken(callback)
   }
+}
+
+/** Interface scale; null outside Electron or on shells older than shell API 4. */
+export async function getUiScale(): Promise<ElectronUiScaleInfo | null> {
+  if (!isElectron() || !window.electronAPI?.getUiScale) return null
+  return window.electronAPI.getUiScale()
+}
+
+export async function setUiScale(value: "auto" | number): Promise<ElectronUiScaleInfo | null> {
+  if (!isElectron() || !window.electronAPI?.setUiScale) return null
+  return window.electronAPI.setUiScale(value)
 }
 
 export async function getCloseToTray(): Promise<boolean | null> {

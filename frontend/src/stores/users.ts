@@ -1,6 +1,7 @@
 import { defineStore } from "pinia"
 import { ref, computed } from "vue"
 import type { PublicUser } from "@/types"
+import { SYSTEM_SENDER_ID } from "@/types/textChat"
 import { apiService } from "@/services/api"
 import { useSoundPackStore } from "./soundPack"
 
@@ -80,8 +81,10 @@ export const useUsersStore = defineStore("users", () => {
         return {
           ...user,
           is_online: isOnline,
-          // Away comes only over WebSocket (user_status); the API doesn't know it.
+          // Away and mobile come only over WebSocket (user_status); the API
+          // doesn't know them.
           status: isOnline ? existing?.status : undefined,
+          mobile: isOnline ? existing?.mobile : undefined,
         }
       })
 
@@ -103,7 +106,12 @@ export const useUsersStore = defineStore("users", () => {
   /** Shows the cached user list (everyone offline) until the server answers. */
   function hydrateFromCache(users: PublicUser[]) {
     if (allUsers.value.length) return
-    allUsers.value = users.map((u) => ({ ...u, is_online: false, status: undefined }))
+    allUsers.value = users.map((u) => ({
+      ...u,
+      is_online: false,
+      status: undefined,
+      mobile: undefined,
+    }))
     fromCache = true
   }
 
@@ -111,23 +119,31 @@ export const useUsersStore = defineStore("users", () => {
     const index = allUsers.value.findIndex((u) => u.id === userId)
     if (index !== -1) {
       // Use splice to ensure reactivity in Vue 3. Coming online or going
-      // offline clears "away"; user_status sets it again if needed.
+      // offline clears "away" and mobile; user_status sets them again if needed.
       allUsers.value.splice(index, 1, {
         ...allUsers.value[index],
         is_online: isOnline,
         status: undefined,
+        mobile: undefined,
       })
       lastOnlineUpdate.value = Date.now()
     }
   }
 
-  /** user_status: "away" when none of the user's sessions is in use. */
-  function setUserAway(userId: string, away: boolean) {
+  /**
+   * user_status: "away" when none of the user's sessions is in use, mobile
+   * when every session is the mobile app (backend websocket/presence.go).
+   */
+  function setUserPresence(userId: string, presence: { away: boolean; mobile: boolean }) {
     const index = allUsers.value.findIndex((u) => u.id === userId)
     if (index === -1) return
     const user = allUsers.value[index]
-    if ((user.status === "away") === away) return
-    allUsers.value.splice(index, 1, { ...user, status: away ? "away" : undefined })
+    if ((user.status === "away") === presence.away && !!user.mobile === presence.mobile) return
+    allUsers.value.splice(index, 1, {
+      ...user,
+      status: presence.away ? "away" : undefined,
+      mobile: presence.mobile || undefined,
+    })
   }
 
   function updateOnlineUsersList(onlineUserIds: string[]) {
@@ -164,6 +180,14 @@ export const useUsersStore = defineStore("users", () => {
       // If user doesn't exist, add them
       addUser(user)
     }
+  }
+
+  /**
+   * Drops a deleted account (`user_deleted`): it leaves every list and its
+   * stored content falls back to "Deleted user" (see displayName).
+   */
+  function forgetUser(userId: string) {
+    allUsers.value = allUsers.value.filter((u) => u.id !== userId)
   }
 
   function removeUser(userId: string) {
@@ -204,6 +228,7 @@ export const useUsersStore = defineStore("users", () => {
    * user list belongs to a deleted user.
    */
   function displayName(userId: string): string {
+    if (userId === SYSTEM_SENDER_ID) return "Reminder"
     const user = allUsers.value.find((u) => u.id === userId)
     if (user) return user.nickname
     // Nothing loaded yet: the user may well exist.
@@ -243,12 +268,13 @@ export const useUsersStore = defineStore("users", () => {
     addUser,
     updateUser,
     removeUser,
+    forgetUser,
     setUsers,
     updateUserNickname,
     updateUserCustomStatus,
     setMyCustomStatus,
     updateOnlineStatus,
-    setUserAway,
+    setUserPresence,
     updateOnlineUsersList,
   }
 })

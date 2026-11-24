@@ -34,6 +34,9 @@ type LatestReleaseResponse struct {
 	// AndroidMinVersion is the oldest Android app the backend accepts
 	// ("" = no minimum); older apps show a blocking "update required" screen.
 	AndroidMinVersion string `json:"android_min_version"`
+	// AndroidOTAManifestURL is the over-the-air frontend manifest the Android app
+	// reads (OtaBundlePlugin); a release built for its shell installs without an APK.
+	AndroidOTAManifestURL string `json:"android_ota_manifest_url"`
 }
 
 // ReleaseHandler resolves the newest release published to the update feed
@@ -131,6 +134,8 @@ func (h *ReleaseHandler) resolve(ctx context.Context) (*LatestReleaseResponse, e
 		WindowsURL: fmt.Sprintf("%s/Orbital-Setup-%s.exe", base, version),
 		LinuxURL:   fmt.Sprintf("%s/Orbital-%s.AppImage", base, version),
 		AndroidURL: fmt.Sprintf("%s/Orbital-%s.apk", base, version),
+		// Promoted together with latest.yml (publish-electron.yml).
+		AndroidOTAManifestURL: base + "/ota-android.json",
 	}, nil
 }
 

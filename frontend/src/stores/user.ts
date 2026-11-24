@@ -6,6 +6,7 @@ import {
   clearAuthToken,
   setTokenExpiry,
   type ApiError,
+  type AuthResponse,
 } from "@/services/api"
 import { setUserSoundPack } from "@/services/sounds"
 import { unregisterPush } from "@/services/push"
@@ -23,6 +24,38 @@ export interface UserSession {
   avatarUrl?: string
   isGuest: boolean
   role: UserRole
+  /**
+   * When the Terms of Service and Privacy Policy were accepted. `null`: the
+   * server says not yet (the acceptance screen is shown). `undefined`: not
+   * known yet (e.g. offline), which never blocks the app.
+   */
+  acceptedTermsAt?: string | null
+  /**
+   * Password accounts: whether the email was confirmed by a link.
+   * `undefined`: not known (offline, other providers); never shows the banner.
+   */
+  emailVerified?: boolean
+}
+
+// Set when the user ticks the terms checkbox and leaves for an OAuth provider,
+// so the acceptance is recorded once the redirect brings them back signed in.
+const TERMS_PENDING_KEY = "orbital_terms_accept_pending"
+
+function readTermsPending(): boolean {
+  try {
+    return sessionStorage.getItem(TERMS_PENDING_KEY) === "1"
+  } catch {
+    return false
+  }
+}
+
+function writeTermsPending(pending: boolean) {
+  try {
+    if (pending) sessionStorage.setItem(TERMS_PENDING_KEY, "1")
+    else sessionStorage.removeItem(TERMS_PENDING_KEY)
+  } catch {
+    // Storage unavailable: the acceptance screen asks after sign-in instead.
+  }
 }
 
 export const useUserStore = defineStore("user", () => {
@@ -47,6 +80,9 @@ export const useUserStore = defineStore("user", () => {
   const avatarUrl = computed(() => currentUser.value?.avatarUrl)
   const role = computed(() => currentUser.value?.role || "guest")
   const isSuperAdmin = computed(() => role.value === "super_admin")
+  const needsTermsAcceptance = computed(
+    () => isAuthenticated.value && currentUser.value?.acceptedTermsAt === null,
+  )
 
   // Offline snapshots (rooms, messages, outbox) belong to this account only.
   watch(userId, (id) => setOfflineCacheUser(id), { immediate: true, flush: "sync" })
@@ -194,6 +230,8 @@ export const useUserStore = defineStore("user", () => {
         user.avatarUrl = freshUser.avatar_url
         user.nickname = freshUser.nickname
         user.role = freshUser.role
+        user.acceptedTermsAt = freshUser.accepted_terms_at
+        user.emailVerified = freshUser.email_verified
         localStorage.setItem("orbital_user_role", freshUser.role)
 
         // Load user's sound pack preference
@@ -247,13 +285,90 @@ export const useUserStore = defineStore("user", () => {
   // Called by the API layer when a request is rejected with 401 and the token
   // could not be refreshed: drop all local auth state and surface the reason so
   // the AuthView can explain why the user landed back on the login screen.
+  // Set while logout() runs: the server closes this device's sockets as part
+  // of the logout, which must not read as "session expired".
+  let loggingOut = false
+
   function handleSessionExpired() {
+    if (loggingOut) return
     console.warn("Session expired, returning to authentication")
     clearUser()
     sessionExpired.value = true
   }
 
-  function loginWithProvider(provider: "discord" | "google") {
+  /** Password account whose email isn't confirmed yet (shows the banner). */
+  const needsEmailVerification = computed(
+    () =>
+      isAuthenticated.value &&
+      currentUser.value?.authProvider === "password" &&
+      currentUser.value?.emailVerified === false,
+  )
+
+  function setEmailVerified(value: boolean) {
+    if (currentUser.value) currentUser.value = { ...currentUser.value, emailVerified: value }
+  }
+
+  function setEmail(value: string, verified: boolean) {
+    if (!currentUser.value) return
+    currentUser.value = { ...currentUser.value, email: value, emailVerified: verified }
+    localStorage.setItem("orbital_user_email", value)
+  }
+
+  /** Signs in on this device with the session a password reset returned. */
+  function completePasswordReset(response: AuthResponse) {
+    const user: UserSession = {
+      id: response.user.id,
+      nickname: response.user.nickname,
+      authProvider: "password",
+      isGuest: false,
+      role: response.user.role || "user",
+      email: response.user.email,
+      avatarUrl: response.user.avatar_url,
+      acceptedTermsAt: response.user.accepted_terms_at,
+      emailVerified: response.user.email_verified,
+    }
+    sessionExpired.value = false
+    setUser(user, response.token, response.expires_at)
+    hasCompletedAuth.value = true
+    localStorage.setItem("orbital_has_completed_auth", "true")
+  }
+
+  function setAcceptedTermsAt(value: string | null | undefined) {
+    if (currentUser.value) currentUser.value = { ...currentUser.value, acceptedTermsAt: value }
+  }
+
+  /** Records acceptance of the Terms of Service and Privacy Policy. */
+  async function acceptTerms() {
+    const user = await apiService.acceptTerms()
+    writeTermsPending(false)
+    setAcceptedTermsAt(user.accepted_terms_at ?? new Date().toISOString())
+  }
+
+  // Sign-ins that don't return our user record (OAuth, QR) learn the
+  // acceptance state here, and record the acceptance ticked before an OAuth
+  // redirect.
+  async function syncTermsAcceptance() {
+    if (!currentUser.value || currentUser.value.acceptedTermsAt) {
+      writeTermsPending(false)
+      return
+    }
+    try {
+      if (readTermsPending()) {
+        await acceptTerms()
+        return
+      }
+      if (currentUser.value.acceptedTermsAt === undefined) {
+        const freshUser = await apiService.getCurrentUser()
+        setAcceptedTermsAt(freshUser.accepted_terms_at)
+      }
+    } catch (error) {
+      // Unknown stays unknown: the next startup's /auth/me check asks again.
+      console.warn("Could not sync terms acceptance:", error)
+    }
+  }
+
+  function loginWithProvider(provider: "discord" | "google", acceptedTerms = false) {
+    writeTermsPending(acceptedTerms)
     // Redirect to OAuth provider
     if (provider === "discord") {
       apiService.initiateDiscordLogin()
@@ -262,9 +377,9 @@ export const useUserStore = defineStore("user", () => {
     }
   }
 
-  async function continueAsGuest() {
+  async function continueAsGuest(acceptedTerms = false) {
     try {
-      const response = await apiService.guestLogin()
+      const response = await apiService.guestLogin(acceptedTerms)
       const user: UserSession = {
         id: response.user.id,
         nickname: response.user.nickname,
@@ -273,6 +388,8 @@ export const useUserStore = defineStore("user", () => {
         role: response.user.role || "guest",
         email: response.user.email,
         avatarUrl: response.user.avatar_url,
+        acceptedTermsAt: response.user.accepted_terms_at,
+        emailVerified: response.user.email_verified,
       }
       sessionExpired.value = false
       setUser(user, response.token, response.expires_at)
@@ -295,6 +412,8 @@ export const useUserStore = defineStore("user", () => {
         role: response.user.role || "user",
         email: response.user.email,
         avatarUrl: response.user.avatar_url,
+        acceptedTermsAt: response.user.accepted_terms_at,
+        emailVerified: response.user.email_verified,
       }
       sessionExpired.value = false
       setUser(user, response.token, response.expires_at)
@@ -306,9 +425,14 @@ export const useUserStore = defineStore("user", () => {
     }
   }
 
-  async function register(email: string, nickname: string, password: string) {
+  async function register(
+    email: string,
+    nickname: string,
+    password: string,
+    acceptedTerms: boolean,
+  ) {
     try {
-      const response = await apiService.register(email, nickname, password)
+      const response = await apiService.register(email, nickname, password, acceptedTerms)
       const user: UserSession = {
         id: response.user.id,
         nickname: response.user.nickname,
@@ -317,6 +441,7 @@ export const useUserStore = defineStore("user", () => {
         role: response.user.role || "user",
         email: response.user.email,
         avatarUrl: response.user.avatar_url,
+        acceptedTermsAt: response.user.accepted_terms_at,
       }
       sessionExpired.value = false
       setUser(user, response.token, response.expires_at)
@@ -329,17 +454,40 @@ export const useUserStore = defineStore("user", () => {
   }
 
   async function logout() {
-    // While the session is still valid, so the server drops this device.
-    await unregisterPush()
+    loggingOut = true
     try {
-      await apiService.logout()
-    } catch {
-      console.warn("Logout API call failed, clearing locally anyway")
+      // While the session is still valid, so the server drops this device.
+      await unregisterPush()
+      try {
+        // Ends this device's session only; other devices stay signed in.
+        await apiService.logout()
+      } catch {
+        console.warn("Logout API call failed, clearing locally anyway")
+      }
+      // Cached chat media must not outlive the account on a shared device.
+      await clearMediaCache()
+      await clearOfflineCache()
+      clearUser()
+    } finally {
+      loggingOut = false
     }
-    // Cached chat media must not outlive the account on a shared device.
-    await clearMediaCache()
-    await clearOfflineCache()
-    clearUser()
+  }
+
+  // Deletes the account, then clears this device like logout(). Throws (and
+  // keeps the user signed in) when the server refuses, e.g. 403 on a wrong
+  // confirmation. The server closes every socket with 4401 as part of it.
+  async function deleteAccount(confirm: { password?: string; nickname?: string }) {
+    loggingOut = true
+    try {
+      await apiService.deleteAccount(confirm)
+      // The server already dropped the push token; this only unregisters FCM.
+      await unregisterPush()
+      await clearMediaCache()
+      await clearOfflineCache()
+      clearUser()
+    } finally {
+      loggingOut = false
+    }
   }
 
   // Handle OAuth callback
@@ -348,6 +496,7 @@ export const useUserStore = defineStore("user", () => {
     setUser(userData, tokenStr, expiresAt)
     hasCompletedAuth.value = true
     localStorage.setItem("orbital_has_completed_auth", "true")
+    void syncTermsAcceptance()
   }
 
   return {
@@ -363,6 +512,12 @@ export const useUserStore = defineStore("user", () => {
     isGuest,
     role,
     isSuperAdmin,
+    needsTermsAcceptance,
+    acceptTerms,
+    needsEmailVerification,
+    setEmailVerified,
+    setEmail,
+    completePasswordReset,
     hasCompletedAuth,
     sessionExpired,
     nicknameUpdateStatus,
@@ -382,6 +537,7 @@ export const useUserStore = defineStore("user", () => {
     loginWithPassword,
     register,
     logout,
+    deleteAccount,
     handleOAuthCallback,
   }
 })

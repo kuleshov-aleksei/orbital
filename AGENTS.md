@@ -10,7 +10,7 @@ Follow sub-agents instructions. If sub-agent instruction says save patch notes t
 
 ## Skills
 
-Project skills live in `.opencode/skills/`. Load the matching skill before starting work in its area:
+Project skills live in `.claude/skills/<name>/SKILL.md`, the one copy both tools read: Claude Code natively, OpenCode through its `.claude/skills` compatibility source. Don't add a `.opencode/skills/` copy: a skill with the same name there overrides this one. Load the matching skill before starting work in its area:
 
 | Skill | Use when |
 |---|---|
@@ -120,6 +120,46 @@ Besides the bit itself, a new server permission touches several easy-to-miss pla
 3. `frontend/src/types/permissions.ts`: the bit, `ROLE_ONLY_PERMISSIONS`, and a `PERMISSION_INFO` entry (otherwise it never shows in the roles editor).
 4. If it unlocks an admin panel tab: the tab + default tab in `frontend/src/views/AdminPanel.vue`, the route guard in `frontend/src/router/index.ts` (`requiresAdminPanel`), and `canOpenAdminPanel` in `frontend/src/components/settings/AccountSettings.vue`.
 
+### Auth sessions (per-device sign-in)
+
+Every signed-in device is a row in `auth_sessions`, and its JWT carries the row id as the `sid` claim (`service/authsessions.go`). Deleting the row signs out that device only; `/api/auth/logout` ends just the current one.
+
+- Issue tokens for a sign-in with `AuthService.StartSession(user, sessionMetaFromRequest(r))` and refresh them with `RefreshSession`. Never use `GenerateJWT` for a new sign-in path: it makes a legacy token with no `sid`, which can't be listed or signed out on its own.
+- Check a token with `CheckSession` (REST `AuthMiddleware` and the WS handshake). Legacy tokens fall back to `users.token_version`, which "sign out all other sessions" bumps. `RevokeTokens` signs out everything, legacy tokens included.
+- Ending sessions also drops the push tokens they registered (`push_devices.session_id`) and closes their sockets with close code **4401** (`websocket/sessions.go`). The frontend treats 4401 as an expired session and stops reconnecting (`services/websocket.ts`).
+- Settings → Security lists the sessions (`GET /api/auth/sessions`). Last-active is written at most once a minute (`AuthSessionTouchInterval`).
+
+### Account email (verification, password reset)
+
+Plain SMTP (`backend/internal/service/mail`, `SMTP_*` env; unset `SMTP_HOST` = disabled, `/api/config` `email: false`). Flows live in `service.EmailAuthService`.
+
+- **TLS is mandatory**: STARTTLS (587/2525/25) or implicit TLS (465); the sender refuses to continue without it and never skips certificate checks (dev trusts Mailpit's cert through `SMTP_CA_FILE`). Auth is PLAIN or LOGIN (`loginAuth`; `net/smtp` has no LOGIN).
+- Tokens: only their SHA-256 is stored (`email_tokens`), single use, verify 24 h / reset 1 h. Verification is soft (a banner, no gate); reset mail goes only to a **verified** email.
+- `POST /api/auth/password/forgot` must stay indistinguishable for every email: the lookup runs in the background and every request waits a random 400 ms–1 s. Don't add a branch that answers differently or faster.
+- Every send is logged in `email_log` for super admins (Admin → Emails), with the token redacted (`Mailer` replaces the secret). Never put a live link in the log or stdout.
+- Settings → Security has change password (ends every *other* session) and change email (`service/accountsecurity.go`). An email change only applies once the link mailed to the new address is opened (`/confirm-email`); a verified old address then gets a "this wasn't me" link (`/restore-email`, 7 days) that restores it, asks for a new password and signs out everywhere. Undo tokens are added with `EmailTokenRepository.Add`, never `Replace`: a later change must not cancel the owner's link. A restore drops undo tokens issued after the one used. "Password changed" notices carry no token. Without SMTP both changes apply directly (email unverified).
+- Dev: `make mail-up` (Mailpit with STARTTLS, UI on :8025), env hints in `.env.example`.
+
+### Account deletion (tombstones)
+
+A deleted account keeps its `users` row as an anonymous tombstone (`deleted_at` set, nickname "Deleted user", email/provider/password/avatar cleared, `auth_provider = 'deleted'`), so messages, reactions, poll votes, call stats (`user_sessions`) and uploads (sounds, emojis) keep a valid id.
+
+- Every deletion goes through `service.AccountService.Erase` (`DELETE /api/auth/account`, admin `DeleteUser`/`DeleteAllGuests`): debug logs, attachments (`chatmedia.RemoveForUploader`), the user's rows (`UserRepository.Erase`, list `eraseStatements`), avatar, cached permissions, then `Hub.AccountDeleted` (voice kick, sockets closed with 4401, `user_deleted` broadcast). The owner (super_admin) is refused.
+- **A new table keyed by a user id must be added to `eraseStatements`** (`backend/internal/repository/user.go`), unless its rows must outlive the account; then say so in the Privacy Policy.
+- `GetAll` skips tombstones, `CheckSession` rejects them, and the permission `userLookup` treats them as missing. `GetByID` still returns them: check `DeletedAt` when that matters.
+- The frontend shows "Deleted user" for any id missing from the user list (`usersStore.displayName`).
+
+### Legal documents (Terms of Service, Privacy Policy)
+
+The texts are Vue components in `frontend/src/components/legal/` (`TermsOfService.vue`, `PrivacyPolicy.vue`). They describe **this deployment** (`orb.encamy.com`), not the software: the contact emails, service URL, minimum age and "last updated" date live in `legalInfo.ts`.
+
+- **Keep the Privacy Policy true.** A change that collects new personal data, stores it longer, or sends it to a new outside service (a new OAuth provider, a third-party API, analytics, a new kind of log) must update `PrivacyPolicy.vue` (and `lastUpdated`) in the same change. It currently promises: no third-party analytics/ads; outside services are limited to Google/Discord sign-in, Firebase push, the SMTP relay for account email, link-preview fetches (server-side), and the client-side loads listed in §2.9 (Klipy/Giphy GIFs, Discord/Google avatar URLs, YouTube player after a click); OCR/image search runs on our own Immich ML; calls are never recorded; messages are not end-to-end encrypted; call history (`user_sessions`) is kept while the account exists and, unlinked, after deletion; account deletion removes uploaded files but keeps messages as "Deleted user". Open GDPR work (export, retention jobs, controller name) is tracked in `TODO.md`.
+- Public pages: `/legal/terms` and `/legal/privacy` (`views/LegalView.vue`, no sign-in needed; `/legal/privacy` is the store privacy URL). In the app they open in `LegalModal`, so a half-filled form survives.
+- **Consent is required on every way in.** `TermsCheckbox` (unchecked by default) gates "Create account", Discord, Google and "Continue as guest" in `AuthView`. Never pre-check it or replace it with a "by continuing you agree" notice.
+- **Proof**: `users.accepted_terms_at` (nullable, migration 55). Register and guest requests send `accepted_terms: true` and the backend stamps it at creation; OAuth sets a `sessionStorage` flag before the redirect and `userStore.syncTermsAcceptance` calls `POST /api/auth/accept-terms` when the user comes back. `NULL` = not accepted: `TermsAcceptanceGate` covers the app (an overlay, never unmounting the call view) until the user accepts or signs out. `undefined` on the client means "unknown" (offline) and never blocks.
+- **Publishing new versions**: after a material change, update `lastUpdated` and run `UPDATE users SET accepted_terms_at = NULL;` so everyone accepts again on their next start.
+- E2E helpers (`frontend/tests/e2e/_helpers.ts`) send `accepted_terms: true` and accept on login; a new helper that creates users must do the same, or the gate covers the page under test.
+
 ### ⚠️ CRITICAL: API Naming Convention
 **Backend (Go)** uses **snake_case** for JSON field names (`max_users`)
 **Frontend (TypeScript)** uses **camelCase** for property names (`maxUsers`)
@@ -168,9 +208,13 @@ Spec and decisions: [`docs/specs/CHAT_SYSTEM.md`](./docs/specs/CHAT_SYSTEM.md). 
 - Attachments (phase 3, spec §7.12): files live in S3 (dev Garage: `make garage-up`, single-node mode creates the dev key and bucket; production uses an external Garage). Ownership, sizes, protection and the per-user quota live in SQLite `chat_attachments`, not in the message document. Every removal (quota, owner, moderator, message/channel delete) goes through one removal path, and the S3 deletes happen in a background janitor. The API is Bearer-only, so `<img>`/`<video>`/`<audio>` get presigned URLs from `POST /api/attachments/urls` via `services/attachments/urls.ts` (`useAttachmentUrl`); never point an element at an `/api/...` URL.
 - Search by image contents (phase 4, spec §7.13) uses an existing **Immich ML** service (`backend/internal/service/immichml`, `CHAT_ML_URL`; dev: `make ml-up`), not our own ML code. Its `/predict` API is Immich-internal: keep the dev image tag in step with production and run `ML_TEST_URL=http://127.0.0.1:3003 go test -tags integration -run ImmichML ./internal/service/immichml/` before bumping it. Once the `image` embedder exists, Meilisearch rejects any document without `_vectors.image`, so whole-document writes must go through `Meili.Add` (which sets `null`).
 - Text channel WS events (`text_*`) go to the global socket only; listen with `wsService.onGlobal`.
+- **Polls** (spec §7.18) are per-viewer: results stay hidden until the viewer voted, and anonymous polls never send voter ids. Send poll messages with `PublicFor(viewerID)` / `Hub.broadcastMessageEvent`, never a shared `Public()` payload.
+- Link previews (spec §7.15) are made on the backend (`service/linkpreview`), never in the client. The fetcher refuses private addresses after DNS resolution, so a preview of a `localhost`/LAN link in dev is *expected* to be missing; tests use `NewFetcher(true)`. Images are proxied through S3 and served by `GET /api/embeds/{id}/image`.
+- **Outbound proxy**: the server's calls to the internet can go through a proxy a super admin sets in Admin → Network (`internal/service/outbound`, stored in `app_settings`, not env). New outbound HTTP clients that reach arbitrary internet hosts should use `outbound.Proxy.Func()` as their transport's `Proxy` (env `HTTP(S)_PROXY` is deliberately ignored). The dev machine reaches some sites (e.g. YouTube) only through a local proxy, so a direct fetch can fail where curl works; `E2E_PROXY_URL=http://127.0.0.1:1081 make e2e-textchat` checks a preview through it.
+- **Slash commands** (`/random`, `/vrandom`, `/d20`, `/remindme`, spec §7.16) run on the server (`service/chatcmd`); the result is the message's `command` field and is never recomputed on the client. Fired reminders are sent by the pseudo-user `system` (`chatstore.SystemSenderID`, frontend `SYSTEM_SENDER_ID`): code that resolves a `sender_id` to a user must tolerate it. `/remindme` reads wall-clock times (`10:00`, `19.11 14:00`) in the sender's IANA zone, which the client sends as `tz`; the backend resolves it with `time.LoadLocation`, so `time/tzdata` is embedded (`cmd/server/main.go`, `service/chatcmd`) — the alpine runtime image has no `/usr/share/zoneinfo`, and without the embed every zone silently degraded to UTC.
 - **Never unmount the call view** (`VoiceCallView` / `SpatialWorldView`) to show something else: `useLiveKit` disconnects from LiveKit in `onUnmounted`. `MainContent.vue` keeps it mounted and hides it with `v-show` while a text channel is open.
 - Tests that need Meilisearch or Garage use the `integration` build tag and run with `make test-integration` (starts both; the S3 test reads `GARAGE_DEFAULT_*` from `.env` and skips without it); PR CI runs only `go test ./...` (unit tests).
-- `make e2e-textchat` runs a live REST/WebSocket check (`scripts/e2e-textchat.mjs`) against a throwaway backend with its own database and index, then cleans up. It includes an attachment pass against the dev Garage (skipped when `GARAGE_DEFAULT_*` is missing from `.env`). The browser side is covered by `frontend/tests/e2e/text-attachments.spec.ts` (Playwright; skips unless Meilisearch and Garage are up; its backend uses the `text_messages_playwright` index). `CHAT_ML_URL=http://127.0.0.1:3003 make e2e-textchat` (after `make ml-up`) adds the search-by-image-contents pass (Cyrillic OCR, image found by meaning). Run it after changes to `chatstore`, `websocket/textchat.go` or the text chat handlers.
+- `make e2e-textchat` runs a live REST/WebSocket check (`scripts/e2e-textchat.mjs`) against a throwaway backend with its own database and index, then cleans up. It includes an attachment pass against the dev Garage (skipped when `GARAGE_DEFAULT_*` is missing from `.env`). The browser side is covered by `frontend/tests/e2e/text-attachments.spec.ts` (Playwright; skips unless Meilisearch and Garage are up; its backend uses the `text_messages_playwright` index). `CHAT_ML_URL=http://127.0.0.1:3003 make e2e-textchat` (after `make ml-up`) adds the search-by-image-contents pass (image found by meaning). Run it after changes to `chatstore`, `websocket/textchat.go` or the text chat handlers.
 
 ### Offline behaviour (unreliable networks)
 
@@ -178,10 +222,28 @@ The Android app runs on flaky mobile data, so the client must never assume the s
 
 - **Reachability**: `stores/connection.ts` (`status: connecting | online | offline`) is fed by `apiRequest` (any HTTP response means online; a network error or timeout means offline) and by the global socket. It drives `ConnectionStatusPill` and the sidebar status line. Check `connectionStore.isOnline` before network-only actions (uploads), never `navigator.onLine`.
 - **Timeouts**: `apiRequest` aborts after 15 s (multipart uploads are exempt), WebSocket handshakes after 10 s, a LiveKit join after 25 s, and a room switch after 20 s. A new await on the network inside a flow that shows an overlay or spinner needs a deadline too. A hung promise in such a flow is what froze the room buttons.
-- **Offline cache**: `services/offlineCache.ts` (IndexedDB, keys scoped to the signed-in user, cleared on logout) holds rooms, categories, users, permissions, unread badges, every custom emoji resolved so far (`customEmojisStore.snapshot`; without it offline text shows `:shortcode:`), the newest 50 messages per opened channel and the message outbox. In Electron and the Android app, custom emoji images load through the on-device media cache (`emojiMediaKey`, variants `_emoji`/`_emojistill`; the native `KEY_PATTERN`s must accept them). Hydrate from it before the network loads, and never overwrite fresh server data with it (`roomStore.roomsFromServer`). Don't add new `localStorage` keys for server data. The server config is the exception: it is cached in `localStorage` (`orbital_config_cache`) because `main.ts` needs it before Pinia hydration.
+- **Offline cache**: `services/offlineCache.ts` (IndexedDB, keys scoped to the signed-in user, cleared on logout) holds rooms, categories, users, permissions, unread badges, badge definitions and who holds which badge (`badgesStore.snapshot`), every custom emoji resolved so far (`customEmojisStore.snapshot`; without it offline text shows `:shortcode:`), the newest 50 messages per opened channel and the message outbox. In Electron and the Android app, custom emoji and badge images load through the on-device media cache (`emojiMediaKey` variants `_emoji`/`_emojistill`, `badgeMediaKey` variant `_badge`; the native `KEY_PATTERN`s must accept them). Hydrate from it before the network loads, and never overwrite fresh server data with it (`roomStore.roomsFromServer`). Don't add new `localStorage` keys for server data. The server config is the exception: it is cached in `localStorage` (`orbital_config_cache`) because `main.ts` needs it before Pinia hydration.
 - **Outbox**: text messages are always written to the outbox first, then sent; offline they show as `queued` and are flushed on reconnect (`textChatStore.flushOutbox`). **Every send must carry a client `nonce`**: the backend dedupes resends per (user, nonce) (`websocket/textchat_nonce.go`), answering a duplicate with the original message, so an outbox resend after a lost echo never duplicates.
 - **Voice failures** set `connectionFailed` (Retry/Leave banner, mirrored as `callStore.voiceConnectionFailed`). Clicking the active room again retries. Never cover the sidebar with a full-screen overlay while waiting on the network.
 - Browser coverage: `frontend/tests/e2e/offline.spec.ts` simulates an unreachable server with `page.route` + `page.routeWebSocket`. Use those, not `context.setOffline`, which also blocks the dev server and doesn't drop open sockets.
+
+### ⚠️ CRITICAL: Shell changes require a `shell-api.json` bump
+
+The desktop and Android apps update their **frontend over the air** (OTA) without a reinstall. The **shell** (native code) only changes through a full installer/APK update. Every OTA bundle records the shell API it was built for, and clients apply it only on that same shell (`docs/notes/MIGRATION_TO_S3.md` "OTA frontend"). If you change the shell without bumping `shell-api.json`, a new frontend reaches old shells that lack what it calls, and breaks there.
+
+Bump the matching number in `shell-api.json` whenever you change:
+
+- **Electron** (`"electron"`): anything under `electron/main/` or `electron/preload/` (IPC channels, the `electronAPI` surface, `orbital://`/`orbital-media://` protocols, the venmic worker); `electron/electron-builder.json` (incl. `extraResources`); `electron/package.json` dependencies or the Electron version.
+- **Android** (`"android"`): anything under `mobile/android/` (Java plugins, `MainActivity`, `AndroidManifest.xml`, Gradle/SDK/AGP versions); `frontend/capacitor.config.ts`; adding, removing or upgrading any `@capacitor/*` package in `frontend/package.json`.
+
+Rules:
+
+- Frontend-only changes (`frontend/src`, assets, styles) must **not** bump it. A bump forces every user through a full reinstall.
+- **Never drop or degrade a feature to avoid a bump.** If what you are building needs the shell — a protocol handler, an IPC channel, a plugin, or a new on-device cache key variant — make the shell change and bump. A feature that quietly loses offline support or a platform capability just to keep the number down is a bug, not a scoping decision.
+- **Check what the pending release already requires before calling a bump expensive.** A bump only costs users a reinstall when the release does not already force one. Compare against the latest release tag: `git describe --tags --abbrev=0`, then `git diff <tag> -- shell-api.json` and `git diff --name-only <tag> -- electron/main electron/preload electron/package.json electron/electron-builder.json mobile/android frontend/capacitor.config.ts`. If `shell-api.json` already changed since that tag (or those paths are already touched), every client is going through a native update anyway and another shell change in the same release is free — include it instead of working around it.
+- Frontend code that calls a new shell API must still work on older shells: feature-detect it (`window.electronAPI?.newThing`, catch "not implemented" from a Capacitor plugin), as `services/platform.ts` already does.
+- `make lint` and the git pre-commit hook (`.githooks/pre-commit`, installed by `make hooks` / `make install`) run `scripts/check-shell-api.sh`, which fails when shell paths changed without a bump. Use `SKIP_SHELL_API_CHECK=1` only for changes that really can't affect the bundle (comments, logging).
+- OTA tests: `make test-ota`.
 
 ### Electron Development
 - Electron desktop app is in the `electron/` directory
@@ -190,6 +252,7 @@ The Android app runs on flaky mobile data, so the client must never assume the s
 - Features include: system tray, window controls, auto-updates, deep linking (`orbital://`), desktop capture for screen sharing
 - Frontend interacts with Electron via `window.electronAPI` (see `frontend/src/services/electron.ts`)
 - The desktop app shares the same frontend code as the web version
+- **UI scale (handhelds)**: page zoom is owned by the main process (`electron/main/features/uiScale.ts`, pure logic in `uiScalePlan.ts`). It auto-scales on Steam Deck / Legion Go (DMI or SteamOS env) to keep ≥1024 CSS px, honours the `uiScale` config setting (Settings → Application), and is reapplied on every `did-finish-load` because Chromium zoom is per origin. Don't add CSS `zoom` or root font-size scaling on top, and don't drop the Electron desktop-layout pin in `stores/app.ts`.
 
 ### ⚠️ Electron Build Traps (venmic worker / utilityProcess)
 
@@ -224,7 +287,7 @@ The Android app wraps the same frontend in a Capacitor WebView.
 - Gradle support lags behind new JDK releases, so `make build-android` uses `ANDROID_JAVA_HOME` (default `/usr/lib/jvm/java-21-openjdk`, the same JDK 21 as CI), not the system Java.
 - Android Gradle Plugin (AGP) upgrades: the SDK build-tools version is the AGP default, installed explicitly in `docker/Dockerfile.android` (`sdkmanager --install "build-tools;X"`). Bump it with AGP, or CI fails with "Failed to install ... build-tools". Locally `/opt/android-sdk` is root-owned, so install it with `sudo sdkmanager`. AGP 9 also turned `resValues` off by default (the app name uses `resValue`, see `buildFeatures` in `app/build.gradle`) and rejects `proguard-android.txt`.
 - **App updates**: the app never downloads/installs updates itself; it offers the APK link (`android_url` from `/api/releases/latest`) in the system browser. A superadmin-set minimum version (Admin → App versions) blocks older apps: `X-Orbital-Client` header → 426, WS `?client=` → close 4426. Any new raw `fetch` to `/api` from the app should send the header (`services/appVersion.ts`). Details: [`docs/notes/ANDROID_UPDATES.md`](./docs/notes/ANDROID_UPDATES.md).
-- **Release APK**: built in CI by `docker/Dockerfile.android` in the same job as Electron (`.github/workflows/build-electron.yml`), then attached to the draft release and uploaded to S3 as `Orbital-<version>.apk`. `versionCode` is derived from the tag (`major*1000000 + minor*1000 + patch`) and passed with `-PversionCode`/`-PversionName`. Signing reads `ORBITAL_KEYSTORE_FILE` / `ORBITAL_KEYSTORE_PASSWORD` / `ORBITAL_KEY_ALIAS` (`app/build.gradle`; unset → unsigned, so local debug builds are unaffected); CI feeds them from the `ANDROID_KEYSTORE_*` / `ANDROID_KEY_ALIAS` secrets as BuildKit secrets, never build args. **Never replace the keystore**: installed apps refuse updates signed with a different key. Creating the key and the secrets: [`docs/notes/ANDROID_SIGNING.md`](./docs/notes/ANDROID_SIGNING.md).
+- **Release APK**: built in CI by `docker/Dockerfile.android` in the same job as Electron (`.github/workflows/build-electron.yml`), then uploaded to S3 as `Orbital-<version>.apk` (GitHub releases carry no artifacts; see `docs/notes/MIGRATION_TO_S3.md`). `versionCode` is derived from the tag (`major*1000000 + minor*1000 + patch`) and passed with `-PversionCode`/`-PversionName`. Signing reads `ORBITAL_KEYSTORE_FILE` / `ORBITAL_KEYSTORE_PASSWORD` / `ORBITAL_KEY_ALIAS` (`app/build.gradle`; unset → unsigned, so local debug builds are unaffected); CI feeds them from the `ANDROID_KEYSTORE_*` / `ANDROID_KEY_ALIAS` secrets as BuildKit secrets, never build args. **Never replace the keystore**: installed apps refuse updates signed with a different key. Creating the key and the secrets: [`docs/notes/ANDROID_SIGNING.md`](./docs/notes/ANDROID_SIGNING.md).
 
 ## Build Commands
 
@@ -240,6 +303,7 @@ The project uses a Makefile for common operations:
 - `make test-backend` - Run backend Go unit tests (what PR CI runs)
 - `make test-integration` - Run backend integration tests (starts Meilisearch via `make meili-up`)
 - `make e2e-textchat` - Live text channel check on a throwaway backend + Meilisearch index
+- `make screenshots-seed` - Seeded demo server for screenshots (throwaway backend + index, frontend on :3090; Ctrl+C deletes it)
 - `make test-headed` - Run tests in headed mode
 - `make docker-build` - Build Docker images
 - `make docker-up` - Run with Docker Compose

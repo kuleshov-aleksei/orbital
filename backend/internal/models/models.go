@@ -12,6 +12,9 @@ const (
 	AuthProviderDiscord  AuthProvider = "discord"
 	AuthProviderGoogle   AuthProvider = "google"
 	AuthProviderPassword AuthProvider = "password"
+	// AuthProviderDeleted marks the tombstone of a deleted account; no login
+	// path matches it.
+	AuthProviderDeleted AuthProvider = "deleted"
 )
 
 // Account kind constants stored in users.role. Authorization beyond "is the
@@ -45,6 +48,32 @@ type User struct {
 	Role              string       `json:"role"` // guest, user, super_admin (owner)
 	PasswordHash      string       `json:"-"`    // Never exposed to frontend
 	TokenVersion      int64        `json:"-"`    // Bumped to revoke all issued tokens
+	// When the user accepted the Terms of Service and Privacy Policy; nil
+	// until they do (accounts created before the documents existed, or after
+	// an operator resets it to ask everyone to accept new versions).
+	AcceptedTermsAt *time.Time `json:"accepted_terms_at"`
+	// When the account was deleted. The row stays as an anonymous tombstone
+	// so stored content (messages, call stats, uploads) keeps a valid id;
+	// GetAll and every login lookup skip it (repository.UserRepository.Erase).
+	DeletedAt *time.Time `json:"-"`
+	// When the user proved they own Email (verification link or a password
+	// reset). nil for unverified and OAuth/guest accounts.
+	EmailVerifiedAt *time.Time `json:"-"`
+	EmailVerified   bool       `json:"email_verified"`
+}
+
+// EmailLogEntry is one sent (or failed) email, as shown to super admins.
+// Body never contains a live token (service/mail redacts it).
+type EmailLogEntry struct {
+	ID        int64     `json:"id"`
+	UserID    string    `json:"user_id,omitempty"`
+	To        string    `json:"to"`
+	Purpose   string    `json:"purpose"`
+	Subject   string    `json:"subject"`
+	Body      string    `json:"body"`
+	Status    string    `json:"status"`
+	Error     string    `json:"error,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // PublicUser represents a user with limited public information
@@ -60,7 +89,10 @@ type PublicUser struct {
 	CustomStatusEmoji string `json:"custom_status_emoji,omitempty"`
 	// Status is "away" for an online user with no active session (hidden or
 	// idle everywhere); omitted otherwise.
-	Status    string    `json:"status,omitempty"`
+	Status string `json:"status,omitempty"`
+	// Mobile is true for an online user whose every session is the mobile
+	// app (see websocket/presence.go); omitted otherwise.
+	Mobile    bool      `json:"mobile,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -333,6 +365,29 @@ type JWTClaims struct {
 	IsGuest      bool         `json:"is_guest"`
 	Role         string       `json:"role"`
 	TokenVersion int64        `json:"token_version"`
+	// SessionID is the auth_sessions row the token belongs to ("sid" claim).
+	// Empty for legacy tokens issued before per-device sessions existed.
+	SessionID string `json:"sid,omitempty"`
+}
+
+// AuthSession is one signed-in device (auth_sessions row).
+type AuthSession struct {
+	ID           string    `json:"id"`
+	UserID       string    `json:"-"`
+	CreatedAt    time.Time `json:"created_at"`
+	LastActiveAt time.Time `json:"last_active_at"`
+	ExpiresAt    time.Time `json:"expires_at"`
+	UserAgent    string    `json:"-"`
+	Client       string    `json:"-"`
+	IP           string    `json:"ip"`
+}
+
+// AuthSessionInfo is an AuthSession as listed in Settings → Security.
+type AuthSessionInfo struct {
+	AuthSession
+	Platform   string `json:"platform"` // "web" | "desktop" | "android"
+	DeviceName string `json:"device_name"`
+	Current    bool   `json:"current"`
 }
 
 // AuthResponse represents the response after successful authentication
@@ -356,6 +411,13 @@ type RegisterRequest struct {
 	Email    string `json:"email"`
 	Nickname string `json:"nickname"`
 	Password string `json:"password"`
+	// AcceptedTerms records the registration form's Terms/Privacy checkbox.
+	AcceptedTerms bool `json:"accepted_terms"`
+}
+
+// GuestLoginRequest is the optional body of POST /api/auth/guest.
+type GuestLoginRequest struct {
+	AcceptedTerms bool `json:"accepted_terms"`
 }
 
 // LoginRequest represents a request to login with email or nickname and password

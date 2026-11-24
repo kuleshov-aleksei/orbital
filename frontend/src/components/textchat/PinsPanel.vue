@@ -40,7 +40,14 @@
           >
         </div>
         <div class="text-sm max-h-40 overflow-hidden">
-          <MessageContent :content="m.content" :edited-at="m.edited_at_ts" />
+          <MessageContent
+            v-if="m.content || m.edited_at_ts"
+            :content="m.content"
+            :edited-at="m.edited_at_ts" />
+          <p v-if="m.poll" class="flex items-center gap-1.5 text-theme-text-secondary">
+            <PhChartBarHorizontal class="w-4 h-4 flex-shrink-0" weight="bold" />
+            <EmojiText :text="m.poll.question" class="truncate" />
+          </p>
         </div>
         <div class="flex gap-2 mt-2 text-xs">
           <button
@@ -65,9 +72,10 @@
 </template>
 
 <script setup lang="ts">
-import { PhPushPin, PhSpinner, PhX } from "@phosphor-icons/vue"
+import { PhChartBarHorizontal, PhPushPin, PhSpinner, PhX } from "@phosphor-icons/vue"
 import UserAvatar from "@/components/UserAvatar.vue"
 import MessageContent from "./MessageContent.vue"
+import EmojiText from "@/components/common/EmojiText.vue"
 import { usePermissionsStore, useUsersStore } from "@/stores"
 import { formatFullTime, formatMessageTime } from "@/utils/messageGrouping"
 import type { TextMessage } from "@/types/textChat"

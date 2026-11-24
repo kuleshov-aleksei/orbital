@@ -191,7 +191,7 @@ OCR and CLIP embeddings for image attachments come from an Immich machine-learni
 |----------|-------------|---------|
 | `CHAT_ML_URL` | Immich ML base URL (port 3003) | unset (disabled); dev: `make ml-up`, then `http://localhost:3003` |
 | `CHAT_ML_OCR_ENABLED` / `CHAT_ML_CLIP_ENABLED` | Turn OCR or image embeddings off separately | true / true |
-| `CHAT_ML_OCR_MODEL` | OCR model, with a language prefix | `ESLAV__PP-OCRv5_mobile` (ru/uk/be + en) |
+| `CHAT_ML_OCR_MODEL` | OCR model, with a language prefix | `ESLAV__PP-OCRv5_mobile`/`PP-OCRv5_mobile` |
 | `CHAT_ML_CLIP_MODEL` | CLIP model; must be multilingual. Changing it re-indexes every image | `XLM-Roberta-Large-Vit-B-16Plus` |
 | `CHAT_ML_SEMANTIC_THRESHOLD` | Minimum score (0..1) of an image found only by meaning | 0.6 |
 | `CHAT_ML_TIMEOUT_SECONDS` | Per request timeout (the first one may wait for a model download) | 120 |

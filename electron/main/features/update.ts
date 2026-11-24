@@ -6,6 +6,7 @@ import log from "electron-log"
 import { autoUpdater } from "electron-updater"
 import { VITE_DEV_SERVER_URL, require } from "../paths"
 import { getMainWindow, setIsQuitting } from "../state"
+import { checkOta, startOtaPolling } from "./ota"
 
 export function installUpdate() {
   setIsQuitting(true)
@@ -177,10 +178,28 @@ export function setupAutoUpdater() {
   })
 
   if (!VITE_DEV_SERVER_URL) {
-    autoUpdater.checkForUpdatesAndNotify().catch((error) => {
-      log.error("Auto updater check failed:", error)
-    })
+    void checkForUpdates()
+    startOtaPolling()
   } else {
     log.info("[Update] Skipping auto update check in dev mode")
+  }
+}
+
+/**
+ * Looks for an over-the-air frontend bundle first (features/ota.ts). The full
+ * installer update (electron-updater + UpdateOverlay) runs only when the newest
+ * release needs a newer shell, or when the OTA feed is missing/unreadable (older
+ * feeds without ota-electron.json behave exactly as before). A bundle that
+ * failed to stage retries on its own: a local disk or transfer error must never
+ * turn into a several-hundred-megabyte installer download.
+ */
+export async function checkForUpdates(): Promise<unknown> {
+  const ota = await checkOta()
+  if (ota !== "native" && ota !== "unreachable") return null
+  try {
+    return await autoUpdater.checkForUpdatesAndNotify()
+  } catch (error) {
+    log.error("Auto updater check failed:", error)
+    return null
   }
 }

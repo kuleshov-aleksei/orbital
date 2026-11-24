@@ -284,14 +284,34 @@ func (h *Hub) messageNotification(tc *TextChat, msg *chatstore.Message, mention 
 	roleName := func(id string) string { return roleNames[id] }
 
 	sender := userName(msg.SenderID)
+	if msg.SenderID == chatstore.SystemSenderID {
+		sender = "Reminder"
+		if msg.Command != nil && msg.Command.Name == chatstore.CommandPollClosed {
+			sender = "Poll"
+		}
+	}
 	if sender == "" {
 		sender = "Someone"
 	}
 	text := strings.Join(strings.Fields(chatstore.PlainText(msg.Content, userName, roleName)), " ")
 	switch {
+	case msg.Poll != nil:
+		text = "created a poll: " + strings.Join(strings.Fields(chatstore.PlainText(msg.Poll.Question, userName, roleName)), " ")
+	case msg.Command != nil && msg.Command.Name == chatstore.CommandPollClosed:
+		// "Poll ended: <question>" plus the leading option.
+		text += pollWinnerSummary(msg.Command, func(s string) string {
+			return strings.Join(strings.Fields(chatstore.PlainText(s, userName, roleName)), " ")
+		})
+	case msg.Command != nil:
+		note := strings.Join(strings.Fields(chatstore.PlainText(msg.Command.Note, userName, roleName)), " ")
+		text = commandSummary(msg.Command, note)
+	}
+	switch {
 	case text != "":
 	case len(msg.Attachments) > 0:
 		text = "sent an attachment"
+	case msg.GIF != nil:
+		text = "sent a GIF"
 	case strings.TrimSpace(msg.Content) != "":
 		// Only custom emoji, which a notification can't show.
 		text = "sent an emoji"
@@ -316,4 +336,48 @@ func (h *Hub) messageNotification(tc *TextChat, msg *chatstore.Message, mention 
 		n.ChannelID = push.AndroidChannelID
 	}
 	return n
+}
+
+// pollWinnerSummary is " — <winner> (N votes)" for a closed poll.
+func pollWinnerSummary(c *chatstore.Command, plain func(string) string) string {
+	if len(c.Options) == 0 || c.Result == nil {
+		return " — no votes"
+	}
+	if len(c.Options) > 1 {
+		return fmt.Sprintf(" — tie, %d votes each", *c.Result)
+	}
+	return fmt.Sprintf(" — %s (%d votes)", plain(c.Options[0]), *c.Result)
+}
+
+// commandSummary is the push text of a slash command result.
+func commandSummary(c *chatstore.Command, note string) string {
+	switch c.Name {
+	case chatstore.CommandD20:
+		if c.Result == nil {
+			return "rolled a d20"
+		}
+		text := fmt.Sprintf("rolled a d20: %d", *c.Result)
+		switch c.Label {
+		case chatstore.LabelCriticalSuccess:
+			text += " — Critical Success"
+		case chatstore.LabelCriticalFailure:
+			text += " — Critical Failure"
+		}
+		return text
+	case chatstore.CommandRandom, chatstore.CommandVRandom:
+		if c.ResultIndex != nil && *c.ResultIndex < len(c.Options) {
+			return "picked " + c.Options[*c.ResultIndex]
+		}
+		if c.Result != nil && c.Min != nil && c.Max != nil {
+			return fmt.Sprintf("rolled %d (%d–%d)", *c.Result, *c.Min, *c.Max)
+		}
+	case chatstore.CommandRemindMe:
+		return "set a reminder"
+	case chatstore.CommandReminder:
+		if note == "" {
+			return "you asked to be reminded"
+		}
+		return note
+	}
+	return ""
 }

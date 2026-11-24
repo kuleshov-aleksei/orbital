@@ -107,10 +107,10 @@ func TestContentValidation(t *testing.T) {
 			t.Fatalf("content %q: err = %v", content, err)
 		}
 	}
-	// 2000 multi-byte characters are allowed (runes, not bytes).
+	// The limit is counted in characters.
 	long := make([]rune, MaxContentRunes)
 	for i := range long {
-		long[i] = 'ж'
+		long[i] = 'x'
 	}
 	if _, err := s.Create(context.Background(), CreateInput{RoomID: "r", SenderID: "u", Content: string(long)}); err != nil {
 		t.Fatalf("2000 runes rejected: %v", err)

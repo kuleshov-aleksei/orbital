@@ -58,9 +58,9 @@ type Hub struct {
 	// Per (user, channel) push cooldown (see textchat_push.go).
 	textPushes *pushThrottle
 
-	// Presence: users shown as "away" (see presence.go)
-	awayMu    sync.Mutex
-	awayUsers map[string]bool
+	// Presence: users shown as "away" or "on mobile" (see presence.go)
+	presenceMu sync.Mutex
+	presence   map[string]presenceState
 }
 
 // Client represents a WebSocket client
@@ -72,6 +72,7 @@ type Client struct {
 	userID            string
 	subject           service.Subject // RBAC identity, resolved at connect
 	clientID          string          // "<platform>/<version>" from ?client= (app builds only)
+	sessionID         string          // auth session of the token ("" for legacy tokens)
 	lastPingTime      time.Time
 	firstPingReceived bool
 	// inactive is set by client_state when the user isn't looking at this
@@ -231,13 +232,16 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 		_ = conn.Close()
 		return
 	}
-	if claims.TokenVersion != user.TokenVersion {
-		log.Printf("WebSocket connection rejected (roomID=%q): token has been revoked", roomID)
+	if err := h.authService.CheckSession(claims, user); err != nil {
+		log.Printf("WebSocket connection rejected (roomID=%q): %v", roomID, err)
+		closeSessionRevoked(conn)
 		_ = conn.Close()
 		return
 	}
+	h.authService.TouchSession(claims.SessionID, service.SessionMeta{})
 	client.mu.Lock()
 	client.userID = claims.UserID
+	client.sessionID = claims.SessionID
 	client.subject = service.SubjectFromUser(user)
 	client.mu.Unlock()
 	userID := claims.UserID
@@ -283,7 +287,7 @@ func (h *Hub) HandleWebSocket(roomID string, w http.ResponseWriter, r *http.Requ
 		log.Printf("[WebSocket] Cannot broadcast user_online: authService is nil")
 	}
 	// user_online reads as "not away" on clients; a new socket starts active.
-	h.resyncAway(userID)
+	h.resyncPresence(userID)
 
 	// Start goroutines for this client FIRST so they can receive messages
 	go client.writePump()
@@ -471,32 +475,6 @@ func (h *Hub) SendToUser(roomID string, userID string, message interface{}) {
 	}
 }
 
-// BroadcastHalloweenPumpkinState broadcasts a user's pumpkin customization
-// change to every room the user is currently in.
-func (h *Hub) BroadcastHalloweenPumpkinState(userID string, equippedJSON string) {
-	h.mu.RLock()
-	rooms := make(map[string]bool)
-	for roomID, clients := range h.roomClients {
-		for client := range clients {
-			if client != nil && client.userID == userID {
-				rooms[roomID] = true
-				break
-			}
-		}
-	}
-	h.mu.RUnlock()
-
-	for roomID := range rooms {
-		h.BroadcastToRoom(roomID, models.WebSocketMessage{
-			Type: "halloween_pumpkin_state",
-			Data: map[string]string{
-				"user_id":       userID,
-				"equipped_json": equippedJSON,
-			},
-		})
-	}
-}
-
 // UpdateUserPing updates a user's last seen timestamp (called on ping)
 func (h *Hub) UpdateUserPing(userID string) {
 	if userID == "" {
@@ -645,9 +623,9 @@ func (c *Client) readPump() {
 			}
 			if isStillOnline {
 				// The closed socket may have been the only active one.
-				c.hub.refreshAway(userID)
+				c.hub.refreshPresence(userID)
 			} else {
-				c.hub.forgetAway(userID)
+				c.hub.forgetPresence(userID)
 			}
 		}
 
@@ -729,10 +707,16 @@ func (c *Client) handleMessage(message models.WebSocketMessage) {
 		c.handleTextMessageEdit(message.Data)
 	case "text_message_delete":
 		c.handleTextMessageDelete(message.Data)
+	case "text_message_suppress_embeds":
+		c.handleTextMessageSuppressEmbeds(message.Data)
 	case "text_channel_read":
 		c.handleTextChannelRead(message.Data)
 	case "text_reaction_toggle":
 		c.handleTextReactionToggle(message.Data)
+	case "text_poll_vote":
+		c.handleTextPollVote(message.Data)
+	case "text_poll_close":
+		c.handleTextPollClose(message.Data)
 	case "text_pin":
 		c.handleTextPin(message.Data)
 	case "text_typing":
@@ -834,7 +818,7 @@ func (c *Client) handleJoinRoom(data interface{}) {
 	}
 
 	c.hub.subscribeClientToRoom(c, c.roomID)
-	c.hub.refreshAway(userID)
+	c.hub.refreshPresence(userID)
 
 	// Track the call session (1 row per user per call)
 	c.hub.recordSessionStart(userID, c.roomID, req.DeviceInfo)
@@ -902,7 +886,7 @@ func (c *Client) handleLeaveRoom(data interface{}) {
 
 	c.hub.unsubscribeClientFromRoom(c, roomID)
 	c.hub.roomService.LeaveRoom(roomID, userID)
-	c.hub.refreshAway(userID)
+	c.hub.refreshPresence(userID)
 
 	// Finalize the call session last_seen so short calls get accurate durations
 	c.hub.updateSessionLastSeen(userID, roomID)
@@ -1071,11 +1055,16 @@ func (c *Client) applyMediaState(req models.UpdateMediaStateRequest) {
 		},
 	})
 	// An open mic in a call counts as active (presence.go).
-	c.hub.refreshAway(userID)
+	c.hub.refreshPresence(userID)
 }
 
 // handlePing handles ping messages and responds with pong
 func (c *Client) handlePing(data interface{}) {
+	if c.hub.authService != nil {
+		// Keeps "last active" in Settings → Security current for a device
+		// that only talks over the socket (throttled in the repository).
+		c.hub.authService.TouchSession(c.sessionID, service.SessionMeta{})
+	}
 	var pingData struct {
 		UserID    string `json:"user_id"`
 		Timestamp int64  `json:"timestamp"`
@@ -1132,7 +1121,7 @@ func (c *Client) handlePing(data interface{}) {
 					Type: "user_online",
 					Data: models.NewPublicUser(user, true),
 				})
-				c.hub.resyncAway(userID)
+				c.hub.resyncPresence(userID)
 			} else {
 				log.Printf("[WebSocket] Cannot broadcast user_online for %s: auth error=%v, user=%v", userID, err, user)
 			}
@@ -1324,6 +1313,9 @@ func (h *Hub) checkGlobalPresenceTimeouts() {
 	// Remove offline users - their offline status will be propagated via the next online_users broadcast
 	for _, userID := range offlineUsers {
 		delete(h.onlineUsers, userID)
+		// Drop the lingering presence (e.g. the mobile flag kept after the
+		// app closed); clients clear it when the user goes offline.
+		h.forgetPresence(userID)
 		log.Printf("User %s marked offline due to inactivity (30s timeout), will be synced via online_users broadcast", userID)
 	}
 }
@@ -1349,7 +1341,7 @@ func (h *Hub) disconnectUserDueToTimeout(roomID, userID string) {
 
 	// Remove user from room service
 	h.roomService.LeaveRoom(roomID, userID)
-	h.refreshAway(userID)
+	h.refreshPresence(userID)
 
 	// Finalize the call session last_seen (ping timeout)
 	h.updateSessionLastSeen(userID, roomID)

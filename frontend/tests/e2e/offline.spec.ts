@@ -95,7 +95,12 @@ test("offline: cached channel, queued messages, delivered once on reconnect", as
     await expect(page.getByTestId("connection-status")).toContainText("Offline", {
       timeout: 20_000,
     })
+    // Uploads need the server (polls in the same ➕ menu still queue).
+    await page.getByTestId("composer-plus").click()
     await expect(page.getByTestId("attach-button")).toBeDisabled()
+    await expect(page.getByTestId("create-poll-button")).toBeEnabled()
+    await composer.click()
+    await expect(page.getByTestId("composer-plus-menu")).toHaveCount(0)
     for (const text of ["queued one", "queued two"]) {
       await composer.fill(text)
       await composer.press("Enter")

@@ -25,7 +25,7 @@
       target="_blank"
       rel="noopener noreferrer nofollow"
       class="text-theme-accent hover:underline break-all"
-      @click="openLink($event, node.href)"
+      @click="openLinkExternally($event, node.href)"
       >{{ node.text }}</a
     >
     <EmojiGlyph
@@ -47,7 +47,7 @@
 import EmojiGlyph from "@/components/EmojiGlyph.vue"
 import SpoilerText from "./SpoilerText.vue"
 import type { MarkupNode } from "@/utils/messageMarkup"
-import { isElectron, openExternal } from "@/services/electron"
+import { openLinkExternally } from "@/utils/externalLink"
 import { usePermissionsStore, useUsersStore } from "@/stores"
 
 withDefaults(defineProps<{ nodes: MarkupNode[]; emojiSize?: number }>(), { emojiSize: 22 })
@@ -69,12 +69,5 @@ function mentionStyle(kind: "user" | "role", id: string) {
   const color = permissionsStore.roles.find((r) => r.id === id)?.color
   if (!color) return undefined
   return { color, backgroundColor: `color-mix(in srgb, ${color} 18%, transparent)` }
-}
-
-function openLink(event: MouseEvent, href: string) {
-  if (isElectron()) {
-    event.preventDefault()
-    void openExternal(href)
-  }
 }
 </script>

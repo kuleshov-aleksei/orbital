@@ -38,6 +38,12 @@ type RoomHandler struct {
 	permissions     *service.PermissionService
 	wsHub           *websocket.Hub
 	textChat        *websocket.TextChat // nil when text channels are disabled
+	emailEnabled    bool                // SMTP configured (verification, password reset)
+}
+
+// SetEmailEnabled reports in /api/config whether account email works.
+func (h *RoomHandler) SetEmailEnabled(enabled bool) {
+	h.emailEnabled = enabled
 }
 
 // SetTextChat enables creating text channels and cleans up their messages
@@ -614,6 +620,10 @@ type AppConfigResponse struct {
 	TextChannels bool `json:"text_channels"`
 	// Attachments reports whether text channel attachments are enabled (S3 configured).
 	Attachments *AttachmentsConfig `json:"attachments,omitempty"`
+	// GIFProvider is the configured GIF search provider; empty when off (§7.17).
+	GIFProvider string `json:"gif_provider,omitempty"`
+	// Email reports whether verification and password reset mail can be sent.
+	Email bool `json:"email"`
 }
 
 // AttachmentsConfig is the client view of the attachment limits.
@@ -636,6 +646,7 @@ func (h *RoomHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
 			DefaultMaxUsers: config.RoomConfig.DefaultMaxUsers,
 		},
 		TextChannels: h.textChat != nil,
+		Email:        h.emailEnabled,
 	}
 	if h.textChat != nil && h.textChat.Media != nil {
 		l := h.textChat.Media.Limits()
@@ -644,6 +655,9 @@ func (h *RoomHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
 			QuotaBytes: l.QuotaBytes, MaxPerMessage: chatstore.MaxAttachmentsPerMessage,
 			ContentSearch: h.textChat.Media.ExtractionEnabled(),
 		}
+	}
+	if h.textChat != nil {
+		cfg.GIFProvider = h.textChat.GIFProvider
 	}
 
 	w.Header().Set("Content-Type", "application/json")

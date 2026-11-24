@@ -10,11 +10,14 @@
           ? 'border-theme-accent bg-theme-accent/15 text-theme-text-primary'
           : 'border-transparent bg-theme-bg-tertiary text-theme-text-secondary hover:border-theme-border'
       "
-      :title="whoReacted(r)"
       :aria-label="`${r.user_ids.length} ${r.user_ids.length === 1 ? 'reaction' : 'reactions'}, ${whoReacted(r)}`"
       :aria-pressed="mine(r)"
       :disabled="!canReact"
       data-testid="reaction-chip"
+      @mouseenter="showPreview(r.emoji, $event)"
+      @mouseleave="hidePreview"
+      @focus="showPreview(r.emoji, $event)"
+      @blur="hidePreview"
       @click="$emit('toggle', r.emoji)">
       <EmojiGlyph :emoji-ref="r.emoji" :size="16" />
       <span class="font-semibold tabular-nums">{{ r.user_ids.length }}</span>
@@ -34,13 +37,23 @@
       @click="$emit('add', $event)">
       <SmileyPlusIcon :size="16" />
     </button>
+
+    <!-- Teleported by EmojiHoverPreview so the message list can't clip it -->
+    <EmojiHoverPreview
+      :emoji-ref="previewRef"
+      :anchor="anchorEl"
+      :caption="previewCaption"
+      test-id="reaction-preview" />
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed, ref } from "vue"
 import EmojiGlyph from "@/components/EmojiGlyph.vue"
+import EmojiHoverPreview from "@/components/common/EmojiHoverPreview.vue"
 import SmileyPlusIcon from "./SmileyPlusIcon.vue"
 import { useAppStore, useUsersStore } from "@/stores"
+import { resolveEmoji } from "@/services/emoji"
 import type { TextReaction } from "@/types/textChat"
 
 const props = defineProps<{
@@ -55,6 +68,8 @@ defineEmits<{
 }>()
 
 const MAX_REACTIONS = 20
+// Names listed in the hover preview before collapsing to "and N more"
+const MAX_PREVIEW_NAMES = 15
 const usersStore = useUsersStore()
 const appStore = useAppStore()
 
@@ -62,9 +77,60 @@ function mine(r: TextReaction): boolean {
   return r.user_ids.includes(props.myUserId)
 }
 
+// "You", "You and Alice", "Alice, Bob and Carol", "Alice, Bob and 5 more"
+function reactorNames(userIds: string[]): string[] {
+  // The current user first, as "You"
+  const ordered = userIds.includes(props.myUserId)
+    ? [props.myUserId, ...userIds.filter((id) => id !== props.myUserId)]
+    : userIds
+  const names = ordered
+    .slice(0, MAX_PREVIEW_NAMES)
+    .map((id) => (id === props.myUserId ? "You" : usersStore.displayName(id)))
+  const more = ordered.length - names.length
+  if (more > 0) names.push(`${more} more`)
+  return names
+}
+
+function joinNames(names: string[]): string {
+  if (names.length <= 2) return names.join(" and ")
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
+}
+
 function whoReacted(r: TextReaction): string {
-  const names = r.user_ids.slice(0, 10).map((id) => usersStore.displayName(id))
-  const more = r.user_ids.length - names.length
-  return more > 0 ? `${names.join(", ")} and ${more} more` : names.join(", ")
+  return joinNames(reactorNames(r.user_ids))
+}
+
+// Hover preview: the emoji enlarged plus everyone who reacted with it.
+// Keyed by emoji so live reaction updates refresh the open preview.
+const previewEmoji = ref<string | null>(null)
+const anchorEl = ref<HTMLElement | null>(null)
+
+const preview = computed(() => {
+  const reaction = props.reactions.find((r) => r.emoji === previewEmoji.value)
+  return reaction ? { reaction } : null
+})
+
+// Null once the last reactor removes the emoji: the chip is gone, so the card
+// must go with it.
+const previewRef = computed(() => preview.value?.reaction.emoji ?? null)
+
+// "You and Alice reacted with thumbs up" — the card's caption for a reaction.
+const previewCaption = computed(() => {
+  const reaction = preview.value?.reaction
+  if (!reaction) return ""
+  const title = resolveEmoji(reaction.emoji)?.name ?? reaction.emoji
+  return `${joinNames(reactorNames(reaction.user_ids))} reacted with ${title}`
+})
+
+function showPreview(emoji: string, event: Event) {
+  // No hover on touch: the long-press action sheet covers mobile
+  if (appStore.isMobile) return
+  previewEmoji.value = emoji
+  anchorEl.value = event.currentTarget as HTMLElement
+}
+
+function hidePreview() {
+  previewEmoji.value = null
+  anchorEl.value = null
 }
 </script>

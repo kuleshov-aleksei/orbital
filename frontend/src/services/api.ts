@@ -14,6 +14,9 @@ import {
   CustomEmojiDto,
   CustomEmojiLookupDto,
   CustomEmojiPageDto,
+  BadgeDto,
+  BadgeAssignmentsDto,
+  UserBadgeDto,
   StatsStatus,
   AnalyticsReport,
   SecuritySelfCheckReport,
@@ -39,22 +42,6 @@ import type {
   MyAttachmentsQuery,
   TextAttachment,
 } from "@/types/textChat"
-import type {
-  HalloweenGameConfig,
-  HalloweenStateResponse,
-  PumpkinStatesResponse,
-  HalloweenGameReport,
-  SubmitGameReportResponse,
-  HalloweenLeaderboardEntry,
-  HalloweenAdminGame,
-  HalloweenAdminReward,
-  HalloweenItem,
-  HalloweenBaseSocket,
-  CreateHalloweenItemRequest,
-  UpdateHalloweenItemRequest,
-  UpsertBaseSocketsRequest,
-  HalloweenPackageResult,
-} from "@/halloween/types"
 import type {
   MyPermissions,
   PermissionOverwrite,
@@ -202,10 +189,27 @@ export function isNetworkError(error: unknown): boolean {
   return error.name === "TypeError" || error.name === "TimeoutError"
 }
 
-function notifySessionExpired() {
+export function notifySessionExpired() {
   setAuthToken(null)
   setTokenExpiry(null)
   sessionExpiredHandler?.()
+}
+
+/**
+ * True when the stored token belongs to a per-device session ("sid" claim).
+ * Tokens issued before sessions existed lack it; App.vue refreshes them once
+ * so this device can be listed and signed out on its own.
+ */
+export function tokenHasSession(): boolean {
+  const token = getAuthToken()
+  if (!token) return false
+  try {
+    const payload = token.split(".")[1] ?? ""
+    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"))
+    return typeof (JSON.parse(json) as { sid?: unknown }).sid === "string"
+  } catch {
+    return false
+  }
 }
 
 // TURN server configuration types
@@ -221,6 +225,18 @@ export interface TURNConfigResponse {
 }
 
 // Auth response types
+/** A signed-in device (GET /api/auth/sessions), snake_case from the backend. */
+export interface AuthSessionInfo {
+  id: string
+  platform: "web" | "desktop" | "android"
+  device_name: string
+  ip: string
+  created_at: string
+  last_active_at: string
+  expires_at: string
+  current: boolean
+}
+
 export interface AuthResponse {
   token: string
   user: User
@@ -231,6 +247,7 @@ export interface AuthStatus {
   discord_enabled: boolean
   google_enabled: boolean
   password_enabled: boolean
+  email_enabled?: boolean
 }
 
 // Login request/response types (snake_case for backend)
@@ -249,6 +266,7 @@ interface RegisterRequest {
   email: string
   nickname: string
   password: string
+  accepted_terms: boolean
 }
 
 // QR device linking types (snake_case for backend)
@@ -291,6 +309,10 @@ export interface AppConfig {
   text_channels?: boolean
   /** Present when text channel attachments are enabled (S3 configured). */
   attachments?: AttachmentsConfig
+  /** `klipy` or `giphy` when third-party GIF search is configured (§7.17). */
+  gif_provider?: string
+  /** True when the server can send email (verification, password reset). */
+  email?: boolean
 }
 
 export interface AttachmentsConfig {
@@ -301,6 +323,13 @@ export interface AttachmentsConfig {
   max_per_message: number
   /** Images are read by OCR/CLIP for search (backend CHAT_ML_URL set). */
   content_search?: boolean
+}
+
+/** GET /api/chat/gif-config: the client key for third-party GIF search. */
+export interface GIFSearchConfig {
+  provider: "klipy" | "giphy"
+  api_key: string
+  rating: string
 }
 
 /** GET /api/admin/attachments/extraction: the image content queue. */
@@ -372,6 +401,8 @@ export interface AttachmentUploadMeta {
   durationMs?: number
   width?: number
   height?: number
+  /** Store an image uncompressed (full resolution, original format). */
+  original?: boolean
 }
 
 /** A failed attachment upload; code is the backend error code. */
@@ -423,6 +454,7 @@ export async function uploadTextAttachment(
   if (meta.durationMs) form.append("duration_ms", String(Math.round(meta.durationMs)))
   if (meta.width) form.append("width", String(meta.width))
   if (meta.height) form.append("height", String(meta.height))
+  if (meta.original) form.append("original", "1")
   form.append("file", file, file.name)
   const url = `${API_BASE}/rooms/${encodeURIComponent(roomId)}/attachments`
   let res = await sendUpload(url, form, onProgress, signal)
@@ -453,6 +485,8 @@ export interface LatestRelease {
   android_url: string
   /** Oldest Android app the backend accepts; "" = no minimum. */
   android_min_version: string
+  /** Over-the-air frontend manifest for the Android app (services/ota.ts); missing on older backends. */
+  android_ota_manifest_url?: string
 }
 
 // Minimum app versions (superadmin, Admin → App versions).
@@ -460,6 +494,56 @@ export interface ClientVersions {
   android_min_version: string
   /** Newest published release; "" when the update feed can't be reached. */
   latest_version: string
+}
+
+/** Proxy for the server's calls to the internet (admin Network tab). */
+export interface OutboundProxy {
+  /** "" = direct connections. The password is masked as "xxxxx". */
+  proxy_url: string
+}
+
+/** One sent (or failed) account email; tokens are redacted by the server. */
+export interface EmailLogEntry {
+  id: number
+  user_id?: string
+  to: string
+  purpose: "verify" | "reset" | "test"
+  subject: string
+  body: string
+  status: "sent" | "failed"
+  error?: string
+  created_at: string
+}
+
+export interface EmailLogResponse {
+  enabled: boolean
+  entries: EmailLogEntry[]
+}
+
+export interface TestEmailResult {
+  ok: boolean
+  error?: string
+}
+
+export interface EmailChangeResult {
+  pending: boolean
+  new_email: string
+  /** The account email now (unchanged while pending). */
+  email: string
+  email_verified: boolean
+}
+
+export interface EmailConfirmResult {
+  user_id: string
+  email: string
+  email_verified: boolean
+}
+
+export interface OutboundProxyTestResult {
+  ok: boolean
+  status?: number
+  elapsed_ms: number
+  error?: string
 }
 
 // LiveKit token response types
@@ -488,6 +572,9 @@ const AUTH_ENDPOINTS_NO_RETRY = [
   "/auth/guest",
   "/auth/refresh",
   "/auth/exchange",
+  "/auth/password/",
+  "/auth/verify-email",
+  "/auth/email/",
 ]
 
 function isCredentialEndpoint(endpoint: string): boolean {
@@ -702,6 +789,12 @@ export const apiService = {
     return apiRequest<AppConfig>("/config")
   },
 
+  // Third-party GIF search (the search itself runs in this client: the
+  // providers forbid proxying their API). 404 when the server has no key.
+  async getGifConfig(): Promise<GIFSearchConfig> {
+    return apiRequest<GIFSearchConfig>("/chat/gif-config")
+  },
+
   // Text channels (history over REST; writes go over the global WebSocket)
   async getTextMessages(roomId: string, cursor: TextHistoryCursor = {}): Promise<TextHistoryPage> {
     const params = new URLSearchParams()
@@ -759,6 +852,35 @@ export const apiService = {
       method: "POST",
       body: JSON.stringify({ items }),
     })
+  },
+
+  /**
+   * The original file's bytes, read same-origin. Copying an image to the
+   * clipboard needs the bytes in JavaScript, and the presigned URL is
+   * cross-origin without CORS headers, so the backend serves them here.
+   */
+  async getAttachmentFile(id: string): Promise<Blob> {
+    const load = () => {
+      const token = getAuthToken()
+      const client = clientId()
+      return fetch(`${API_BASE}/attachments/${encodeURIComponent(id)}/file`, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(client ? { [CLIENT_HEADER]: client } : {}),
+        },
+        signal: withTimeout(undefined, REQUEST_TIMEOUT_MS),
+      })
+    }
+    let response = await load()
+    if (response.status === 401 && !isTokenExpired() && (await refreshAuthToken())) {
+      response = await load()
+    }
+    if (response.status === 401) notifySessionExpired()
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw apiError(errorText || `Download failed (${response.status})`, response.status)
+    }
+    return await response.blob()
   },
 
   async setAttachmentProtected(id: string, isProtected: boolean): Promise<TextAttachment> {
@@ -830,6 +952,39 @@ export const apiService = {
     })
   },
 
+  async getOutboundProxy(): Promise<OutboundProxy> {
+    return apiRequest<OutboundProxy>("/admin/outbound-proxy")
+  },
+
+  async updateOutboundProxy(proxyUrl: string): Promise<OutboundProxy> {
+    return apiRequest<OutboundProxy>("/admin/outbound-proxy", {
+      method: "PUT",
+      body: JSON.stringify({ proxy_url: proxyUrl }),
+    })
+  },
+
+  /** Fetches url through proxyUrl (unsaved; "" = direct) on the server. */
+  async testOutboundProxy(proxyUrl: string, url: string): Promise<OutboundProxyTestResult> {
+    return apiRequest<OutboundProxyTestResult>("/admin/outbound-proxy/test", {
+      method: "POST",
+      body: JSON.stringify({ proxy_url: proxyUrl, url }),
+    })
+  },
+
+  /** Sent-mail log, newest first (super_admin only). */
+  async getEmailLog(before?: number): Promise<EmailLogResponse> {
+    const query = before ? `?before=${before}` : ""
+    return apiRequest<EmailLogResponse>(`/admin/emails${query}`)
+  },
+
+  /** Sends a test email synchronously and reports the SMTP error. */
+  async sendTestEmail(to: string): Promise<TestEmailResult> {
+    return apiRequest<TestEmailResult>("/admin/emails/test", {
+      method: "POST",
+      body: JSON.stringify({ to }),
+    })
+  },
+
   // Category management
   async getCategories(): Promise<Category[]> {
     return apiRequest<Category[]>("/categories")
@@ -868,142 +1023,6 @@ export const apiService = {
   async getTurnConfig(userId?: string): Promise<TURNConfigResponse> {
     const endpoint = userId ? `/turn-config?user_id=${userId}` : "/turn-config"
     return apiRequest<TURNConfigResponse>(endpoint)
-  },
-
-  // Halloween API calls
-  async getHalloweenConfig(): Promise<HalloweenGameConfig> {
-    return apiRequest<HalloweenGameConfig>("/halloween/game/config")
-  },
-
-  async getHalloweenState(): Promise<HalloweenStateResponse> {
-    return apiRequest<HalloweenStateResponse>("/halloween/state")
-  },
-
-  async getHalloweenPumpkinStates(userIds: string[]): Promise<PumpkinStatesResponse> {
-    const ids = encodeURIComponent(userIds.join(","))
-    return apiRequest<PumpkinStatesResponse>(`/halloween/pumpkin-states?user_ids=${ids}`)
-  },
-
-  async updatePumpkin(equippedJson: string): Promise<{ status: string }> {
-    return apiRequest<{ status: string }>("/halloween/pumpkin", {
-      method: "PUT",
-      body: JSON.stringify({ equipped_json: equippedJson }),
-    })
-  },
-
-  async submitHalloweenGame(report: HalloweenGameReport): Promise<SubmitGameReportResponse> {
-    return apiRequest<SubmitGameReportResponse>("/halloween/game/report", {
-      method: "POST",
-      body: JSON.stringify(report),
-    })
-  },
-
-  async getHalloweenLeaderboard(): Promise<HalloweenLeaderboardEntry[]> {
-    return apiRequest<HalloweenLeaderboardEntry[]>("/halloween/leaderboard")
-  },
-
-  // Halloween admin calls (super_admin only)
-  async getHalloweenAdminGames(): Promise<HalloweenAdminGame[]> {
-    return apiRequest<HalloweenAdminGame[]>("/admin/halloween/games")
-  },
-
-  async getHalloweenAdminItems(): Promise<HalloweenItem[]> {
-    return apiRequest<HalloweenItem[]>("/admin/halloween/items")
-  },
-
-  async getHalloweenAdminRewards(): Promise<HalloweenAdminReward[]> {
-    return apiRequest<HalloweenAdminReward[]>("/admin/halloween/rewards")
-  },
-
-  async issueHalloweenReward(
-    userId: string,
-    itemId: string,
-  ): Promise<{ status: string; message: string; granted: boolean }> {
-    return apiRequest<{ status: string; message: string; granted: boolean }>(
-      "/admin/halloween/rewards",
-      {
-        method: "POST",
-        body: JSON.stringify({ user_id: userId, item_id: itemId }),
-      },
-    )
-  },
-
-  // Halloween catalog + socket-layout admin (super_admin only, snake_case).
-  async createHalloweenItem(payload: CreateHalloweenItemRequest): Promise<HalloweenItem> {
-    return apiRequest<HalloweenItem>("/admin/halloween/items", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    })
-  },
-
-  async updateHalloweenItem(
-    id: string,
-    payload: UpdateHalloweenItemRequest,
-  ): Promise<HalloweenItem> {
-    return apiRequest<HalloweenItem>(`/admin/halloween/items/${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      body: JSON.stringify(payload),
-    })
-  },
-
-  async deleteHalloweenItem(id: string): Promise<{ status: string }> {
-    return apiRequest<{ status: string }>(`/admin/halloween/items/${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    })
-  },
-
-  async restoreHalloweenItem(id: string): Promise<{ status: string }> {
-    return apiRequest<{ status: string }>(
-      `/admin/halloween/items/${encodeURIComponent(id)}/restore`,
-      { method: "POST" },
-    )
-  },
-
-  async uploadHalloweenItemAsset(id: string, file: File): Promise<HalloweenItem> {
-    const form = new FormData()
-    form.append("asset", file)
-    return apiRequest<HalloweenItem>(`/admin/halloween/items/${encodeURIComponent(id)}/asset`, {
-      method: "POST",
-      body: form,
-    })
-  },
-
-  async getHalloweenBaseLayouts(baseId: string): Promise<HalloweenBaseSocket[]> {
-    return apiRequest<HalloweenBaseSocket[]>(
-      `/admin/halloween/layouts?base_id=${encodeURIComponent(baseId)}`,
-    )
-  },
-
-  async saveHalloweenBaseLayouts(payload: UpsertBaseSocketsRequest): Promise<{ status: string }> {
-    return apiRequest<{ status: string }>("/admin/halloween/layouts", {
-      method: "PUT",
-      body: JSON.stringify(payload),
-    })
-  },
-
-  // Halloween config package export/import (super_admin only, snake_case).
-  // The package is an uncompressed .tar: config.json (definitions + layouts)
-  // plus assets/<id>.png art. apiRequest only handles JSON, so export uses a
-  // raw authenticated fetch returning a Blob.
-  async exportHalloweenPackage(): Promise<Blob> {
-    const token = getAuthToken()
-    const response = await fetch(`${API_BASE}/admin/halloween/config/export`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw apiError(errorText || `Export failed (${response.status})`, response.status)
-    }
-    return await response.blob()
-  },
-
-  async importHalloweenPackage(file: File): Promise<HalloweenPackageResult> {
-    const form = new FormData()
-    form.append("package", file)
-    return apiRequest<HalloweenPackageResult>("/admin/halloween/config/import", {
-      method: "POST",
-      body: form,
-    })
   },
 
   // Auth API calls
@@ -1057,9 +1076,10 @@ export const apiService = {
     void this.initiateOAuthLogin("google")
   },
 
-  async guestLogin(): Promise<AuthResponse> {
+  async guestLogin(acceptedTerms: boolean): Promise<AuthResponse> {
     const response = await apiRequest<AuthResponse>("/auth/guest", {
       method: "POST",
+      body: JSON.stringify({ accepted_terms: acceptedTerms }),
     })
     // Store token
     setAuthToken(response.token)
@@ -1067,12 +1087,18 @@ export const apiService = {
     return response
   },
 
-  async register(email: string, nickname: string, password: string): Promise<AuthResponse> {
+  async register(
+    email: string,
+    nickname: string,
+    password: string,
+    acceptedTerms: boolean,
+  ): Promise<AuthResponse> {
     // Backend expects snake_case (per AGENTS.md convention)
     const request: RegisterRequest = {
       email,
       nickname,
       password,
+      accepted_terms: acceptedTerms,
     }
     const response = await apiRequest<LoginResponse>("/auth/register", {
       method: "POST",
@@ -1123,6 +1149,32 @@ export const apiService = {
     await apiRequest<void>("/push/devices", {
       method: "DELETE",
       body: JSON.stringify({ token }),
+    })
+  },
+
+  /** The signed-in devices of the current user (Settings → Security). */
+  async listSessions(): Promise<AuthSessionInfo[]> {
+    return apiRequest<AuthSessionInfo[]>("/auth/sessions")
+  },
+
+  /** Signs out one of the user's other devices. */
+  async revokeSession(id: string): Promise<void> {
+    await apiRequest<void>(`/auth/sessions/${encodeURIComponent(id)}`, { method: "DELETE" })
+  },
+
+  /** Signs out every device of the user except this one. */
+  async revokeOtherSessions(): Promise<{ revoked: number }> {
+    return apiRequest<{ revoked: number }>("/auth/sessions/revoke-others", { method: "POST" })
+  },
+
+  /**
+   * Deletes the caller's account. Password accounts confirm with the
+   * password, every other kind with the current nickname (403 on mismatch).
+   */
+  async deleteAccount(confirm: { password?: string; nickname?: string }): Promise<void> {
+    await apiRequest<void>("/auth/account", {
+      method: "DELETE",
+      body: JSON.stringify({ password: confirm.password ?? "", nickname: confirm.nickname ?? "" }),
     })
   },
 
@@ -1181,6 +1233,85 @@ export const apiService = {
 
   async getCurrentUser(): Promise<User> {
     return apiRequest<User>("/auth/me")
+  },
+
+  // Records that the signed-in user accepted the Terms of Service and
+  // Privacy Policy; returns the updated user.
+  async acceptTerms(): Promise<User> {
+    return apiRequest<User>("/auth/accept-terms", { method: "POST" })
+  },
+
+  /** Redeems a verification link (no sign-in needed). */
+  async verifyEmail(token: string): Promise<void> {
+    await apiRequest<{ verified: boolean }>("/auth/verify-email", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    })
+  },
+
+  /** Mails a new verification link to the signed-in user. */
+  async resendVerificationEmail(): Promise<void> {
+    await apiRequest<void>("/auth/verify-email/resend", { method: "POST" })
+  },
+
+  /** Always resolves the same way, whether or not the email has an account. */
+  async requestPasswordReset(email: string): Promise<void> {
+    await apiRequest<{ ok: boolean }>("/auth/password/forgot", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    })
+  },
+
+  /** Sets a new password from a reset link and signs in on this device. */
+  async resetPassword(token: string, password: string): Promise<AuthResponse> {
+    const response = await apiRequest<LoginResponse>("/auth/password/reset", {
+      method: "POST",
+      body: JSON.stringify({ token, password }),
+    })
+    setAuthToken(response.token)
+    setTokenExpiry(response.expires_at)
+    return response
+  },
+
+  /** Changes the password; every other device is signed out. */
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    await apiRequest<void>("/auth/password/change", {
+      method: "POST",
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    })
+  },
+
+  /**
+   * Starts an email change. pending: a confirm link went to the new address and
+   * nothing changed yet; otherwise (email off) the address changed at once.
+   */
+  async requestEmailChange(newEmail: string, password: string): Promise<EmailChangeResult> {
+    return apiRequest<EmailChangeResult>("/auth/email/change", {
+      method: "POST",
+      body: JSON.stringify({ new_email: newEmail, password }),
+    })
+  },
+
+  /** Redeems the confirm link sent to the new address (no sign-in needed). */
+  async confirmEmailChange(token: string): Promise<EmailConfirmResult> {
+    return apiRequest<EmailConfirmResult>("/auth/email/confirm", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    })
+  },
+
+  /**
+   * Redeems the "this wasn't me" link sent to the old address: restores it, sets
+   * a new password, signs out everywhere and signs in on this device.
+   */
+  async restoreEmail(token: string, password: string): Promise<AuthResponse> {
+    const response = await apiRequest<LoginResponse>("/auth/email/restore", {
+      method: "POST",
+      body: JSON.stringify({ token, password }),
+    })
+    setAuthToken(response.token)
+    setTokenExpiry(response.expires_at)
+    return response
   },
 
   async getAuthStatus(): Promise<AuthStatus> {
@@ -1572,6 +1703,72 @@ export const apiService = {
       return `${API_BASE}${emoji.image_url.slice("/api".length)}`
     }
     return resolveUrl(emoji.image_url)
+  },
+
+  // Badge API calls (the library and assignments are readable by every
+  // signed-in user; mutations require the super admin)
+  async getBadges(): Promise<BadgeDto[]> {
+    return apiRequest<BadgeDto[]>("/badges")
+  },
+
+  async getBadgeAssignments(): Promise<BadgeAssignmentsDto> {
+    return apiRequest<BadgeAssignmentsDto>("/badges/assignments")
+  },
+
+  async uploadBadge(input: { file: File; name: string; description: string }): Promise<BadgeDto> {
+    const form = new FormData()
+    form.append("image", input.file)
+    form.append("name", input.name)
+    form.append("description", input.description)
+    return apiRequest<BadgeDto>("/admin/badges", { method: "POST", body: form })
+  },
+
+  async updateBadge(id: string, patch: { name?: string; description?: string }): Promise<BadgeDto> {
+    return apiRequest<BadgeDto>(`/admin/badges/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    })
+  },
+
+  async replaceBadgeImage(id: string, file: File): Promise<BadgeDto> {
+    const form = new FormData()
+    form.append("image", file)
+    return apiRequest<BadgeDto>(`/admin/badges/${id}/image`, { method: "PUT", body: form })
+  },
+
+  async deleteBadge(id: string): Promise<void> {
+    await apiRequest<{ status: string }>(`/admin/badges/${id}`, { method: "DELETE" })
+  },
+
+  /** Replaces one user's whole badge set (super admin only). */
+  async setUserBadges(
+    userId: string,
+    badgeIds: string[],
+  ): Promise<{ user_id: string; badges: UserBadgeDto[] }> {
+    return apiRequest<{ user_id: string; badges: UserBadgeDto[] }>(
+      `/admin/users/${userId}/badges`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ badge_ids: badgeIds }),
+      },
+    )
+  },
+
+  getBadgeImageUrl(badge: BadgeDto): string {
+    if (badge.image_url.startsWith("/api/")) {
+      return `${API_BASE}${badge.image_url.slice("/api".length)}`
+    }
+    return resolveUrl(badge.image_url)
+  },
+
+  /** Pins one of the caller's badges next to their nickname ("" = newest award). */
+  async setDisplayedBadge(
+    badgeId: string | null,
+  ): Promise<{ user_id: string; badges: UserBadgeDto[] }> {
+    return apiRequest<{ user_id: string; badges: UserBadgeDto[] }>("/users/me/displayed-badge", {
+      method: "PUT",
+      body: JSON.stringify({ badge_id: badgeId ?? "" }),
+    })
   },
 
   async deleteSoundboardSound(id: string): Promise<void> {

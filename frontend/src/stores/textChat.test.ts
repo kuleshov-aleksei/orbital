@@ -231,5 +231,52 @@ describe("text chat store", () => {
         vi.useRealTimers()
       }
     })
+
+    it("sends a GIF reference with an otherwise empty message", () => {
+      const gif = {
+        provider: "klipy",
+        id: "8041071659142944",
+        url: "https://static.klipy.com/ii/e2e/aa/clip.mp4",
+        preview_url: "https://static.klipy.com/ii/e2e/aa/poster.jpg",
+        width: 498,
+        height: 498,
+        title: "Hello",
+      } as const
+      const store = useTextChatStore()
+      store.sendMessage(ROOM, "", { ids: [], attachments: [] }, gif)
+
+      expect(store.pending).toHaveLength(1)
+      expect(store.pending[0].content).toBe("")
+      expect((sends()[0][1] as { gif: unknown }).gif).toEqual(gif)
+    })
+  })
+
+  describe("composer picker dock", () => {
+    it("toggles the emoji and GIF tabs like a pair", () => {
+      const store = useTextChatStore()
+      expect(store.composerPanel).toBeNull()
+
+      store.toggleComposerPanel("emoji")
+      expect(store.composerPanel).toBe("emoji")
+
+      // The other tab switches instead of closing the panel.
+      store.toggleComposerPanel("gif")
+      expect(store.composerPanel).toBe("gif")
+
+      // The active tab closes it.
+      store.toggleComposerPanel("gif")
+      expect(store.composerPanel).toBeNull()
+    })
+
+    it("closes with the channel and through closeComposerPanel", () => {
+      const store = useTextChatStore()
+      store.openComposerPanel("emoji")
+      store.closeChannel()
+      expect(store.composerPanel).toBeNull()
+
+      store.openComposerPanel("gif")
+      store.closeComposerPanel()
+      expect(store.composerPanel).toBeNull()
+    })
   })
 })

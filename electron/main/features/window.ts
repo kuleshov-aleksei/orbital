@@ -8,9 +8,11 @@ import { isWayland, isDebugMode } from "../platform"
 import { getConfig, setCloseToTray, setHasSelectedCloseBehavior } from "./config"
 import { flushPendingLogEntries } from "./logRelay"
 import { replayCachedEvents } from "./update"
+import { armBootGuard, watchRendererFailures } from "./ota"
 import { consumePendingDeepLink } from "./deeplink"
 import { stopAudioCapture } from "../venmic"
 import { stopCapture as stopWinAudioCapture } from "../winAudioCapture"
+import { attachUiScale, effectiveZoom } from "./uiScale"
 
 let thumbarIcons: Record<string, NativeImage> = {}
 
@@ -89,6 +91,10 @@ export function createWindow() {
   const primaryDisplay = screen.getPrimaryDisplay()
   const { width: screenW, height: screenH } = primaryDisplay.workAreaSize
 
+  // Bigger UI on touch handhelds (Steam Deck, Legion Go); set up front so the
+  // first paint is already at the right size.
+  const zoomFactor = effectiveZoom()
+
   const win = new BrowserWindow({
     width: screenW,
     height: screenH,
@@ -103,11 +109,14 @@ export function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      zoomFactor,
     },
     autoHideMenuBar: true
   })
 
   setMainWindow(win)
+  attachUiScale(win)
+  win.webContents.on("did-create-window", (child) => attachUiScale(child))
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     // App pages opened in a new tab on the web (the /files storage page)
@@ -131,6 +140,7 @@ export function createWindow() {
             contextIsolation: true,
             nodeIntegration: false,
             sandbox: false,
+            zoomFactor: effectiveZoom(),
           },
         },
       }
@@ -213,7 +223,10 @@ export function createWindow() {
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL)
   } else {
+    watchRendererFailures(win)
     win.loadURL("orbital://app/")
+    // Rolls back to the built-in bundle if an over-the-air one never boots.
+    armBootGuard(win)
   }
 
   if (VITE_DEV_SERVER_URL || isDebugMode) {

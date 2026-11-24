@@ -15,15 +15,40 @@ func NewPushDeviceRepository(db *storage.DB) *PushDeviceRepository {
 	return &PushDeviceRepository{db: db}
 }
 
-// Upsert registers a token for a user. A token already registered by
-// another user moves to this one (shared device, account switch).
-func (r *PushDeviceRepository) Upsert(token, userID, platform string) error {
+// Upsert registers a token for a user and the auth session that registered
+// it. A token already registered by another user moves to this one (shared
+// device, account switch).
+func (r *PushDeviceRepository) Upsert(token, userID, platform, sessionID string) error {
 	now := time.Now().UnixMilli()
-	_, err := r.db.Exec(`INSERT INTO push_devices (token, user_id, platform, created_at, last_seen_at)
-		VALUES (?, ?, ?, ?, ?)
+	_, err := r.db.Exec(`INSERT INTO push_devices (token, user_id, platform, created_at, last_seen_at, session_id)
+		VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT(token) DO UPDATE SET
-			user_id = excluded.user_id, platform = excluded.platform, last_seen_at = excluded.last_seen_at`,
-		token, userID, platform, now, now)
+			user_id = excluded.user_id, platform = excluded.platform,
+			last_seen_at = excluded.last_seen_at, session_id = excluded.session_id`,
+		token, userID, platform, now, now, sessionID)
+	return err
+}
+
+// DeleteForSessions removes the tokens registered by the given sessions of a
+// user (those devices were signed out).
+func (r *PushDeviceRepository) DeleteForSessions(userID string, sessionIDs []string) error {
+	for _, sid := range sessionIDs {
+		if sid == "" {
+			continue
+		}
+		if _, err := r.db.Exec(`DELETE FROM push_devices WHERE user_id = ? AND session_id = ?`, userID, sid); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// DeleteForUserExcept removes every token of a user except those registered
+// by keepSessionID (sign out of all other devices). Tokens registered before
+// sessions existed have no session and are removed too.
+func (r *PushDeviceRepository) DeleteForUserExcept(userID, keepSessionID string) error {
+	_, err := r.db.Exec(`DELETE FROM push_devices WHERE user_id = ? AND (session_id = '' OR session_id != ?)`,
+		userID, keepSessionID)
 	return err
 }
 

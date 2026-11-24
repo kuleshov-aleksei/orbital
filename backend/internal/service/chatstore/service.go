@@ -6,6 +6,7 @@ import (
 	"hash/fnv"
 	"log"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -217,6 +218,14 @@ type CreateInput struct {
 	// Attachments are validated uploads (service/chatmedia); with any,
 	// the content may be empty.
 	Attachments []Attachment
+	// Command is a slash command result (service/chatcmd).
+	Command *Command
+	// GIF is a validated reference to a third-party GIF; with one, the
+	// content may be empty.
+	GIF *GIF
+	// Poll is a validated poll (NormalizePoll); with one, the content may
+	// be empty, and attachments, GIFs and commands are not allowed.
+	Poll *Poll
 }
 
 // Create stores a message and returns it once Meilisearch accepted the write.
@@ -229,7 +238,10 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*Message, error) 
 	if len(in.Attachments) > MaxAttachmentsPerMessage {
 		return nil, invalid("too many attachments")
 	}
-	content, err := NormalizeContent(in.Content, len(in.Attachments) > 0)
+	if in.Poll != nil && (len(in.Attachments) > 0 || in.GIF != nil || in.Command != nil) {
+		return nil, invalid("polls can't have attachments, GIFs or commands")
+	}
+	content, err := NormalizeContent(in.Content, len(in.Attachments) > 0 || in.GIF != nil || in.Poll != nil)
 	if err != nil {
 		return nil, err
 	}
@@ -271,6 +283,12 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*Message, error) 
 		MentionUserIDs: mentionUsers,
 		MentionRoleIDs: mentionRoles,
 		Attachments:    in.Attachments,
+		Command:        in.Command.clone(),
+		GIF:            in.GIF.clone(),
+		Poll:           in.Poll.clone(),
+	}
+	if msg.Poll != nil {
+		msg.ContentSearch = strings.TrimSpace(SearchText(content + "\n" + msg.Poll.searchText()))
 	}
 	msg.AttachmentKinds, msg.AttachmentNames = attachmentIndexFields(in.Attachments)
 	msg.normalize()
@@ -322,10 +340,11 @@ func (s *Service) mutate(ctx context.Context, id string, fn func(m *Message) (ma
 // Edit changes a message's text. Only the author may edit.
 func (s *Service) Edit(ctx context.Context, id, actorID, content string) (*Message, error) {
 	return s.mutate(ctx, id, func(m *Message) (map[string]any, error) {
-		if m.SenderID != actorID {
+		// A command result is fixed once posted (an edit can't re-roll).
+		if m.SenderID != actorID || m.Command != nil || m.Poll != nil {
 			return nil, ErrForbidden
 		}
-		text, err := NormalizeContent(content, len(m.Attachments) > 0)
+		text, err := NormalizeContent(content, len(m.Attachments) > 0 || m.GIF != nil)
 		if err != nil {
 			return nil, err
 		}
@@ -339,9 +358,12 @@ func (s *Service) Edit(ctx context.Context, id, actorID, content string) (*Messa
 		m.ContentSearch = SearchText(text)
 		m.EditedAtTS = &now
 		m.MentionUserIDs, m.MentionRoleIDs = users, roles
+		// Previews of links that are gone go too; new links get theirs from
+		// the link preview worker.
+		m.Embeds = keepEmbeds(m.Embeds, text)
 		return map[string]any{
 			"content": m.Content, "content_search": m.ContentSearch, "edited_at_ts": now,
-			"mention_user_ids": users, "mention_role_ids": roles,
+			"mention_user_ids": users, "mention_role_ids": roles, "embeds": m.Embeds,
 		}, nil
 	})
 }
@@ -350,7 +372,7 @@ func (s *Service) Edit(ctx context.Context, id, actorID, content string) (*Messa
 // canManage(roomID) (ManageMessages in that channel).
 func (s *Service) Delete(ctx context.Context, id, actorID string, canManage func(roomID string) bool) (*Message, error) {
 	m, err := s.mutate(ctx, id, func(m *Message) (map[string]any, error) {
-		if m.SenderID != actorID && (canManage == nil || !canManage(m.RoomID)) {
+		if m.SenderID != actorID && !isReminderFor(m, actorID) && (canManage == nil || !canManage(m.RoomID)) {
 			return nil, ErrForbidden
 		}
 		now := s.opts.Now().UnixMilli()
@@ -371,6 +393,11 @@ func (s *Service) Delete(ctx context.Context, id, actorID string, canManage func
 		cancel()
 	}
 	return m, nil
+}
+
+// isReminderFor: a fired reminder may be dismissed by the user it reminds.
+func isReminderFor(m *Message, userID string) bool {
+	return m.SenderID == SystemSenderID && m.Command != nil && m.Command.ReminderFor == userID
 }
 
 // DeleteRoom removes every message of a deleted channel.
@@ -432,6 +459,8 @@ type HistoryQuery struct {
 	AroundSeq int64
 	BeforeTS  int64
 	Limit     int
+	// ViewerID is who asks (per-viewer poll results).
+	ViewerID string
 }
 
 // Page is a history window, oldest first, plus previews of replied messages.
@@ -501,7 +530,7 @@ func (s *Service) History(ctx context.Context, q HistoryQuery) (*Page, error) {
 
 	page.Messages = make([]PublicMessage, len(msgs))
 	for i, m := range msgs {
-		page.Messages[i] = m.Public()
+		page.Messages[i] = m.PublicFor(q.ViewerID)
 	}
 	replied, err := s.replied(ctx, msgs)
 	if err != nil {

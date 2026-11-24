@@ -80,7 +80,7 @@ Decisions (2026-11-10):
 - Any role can be mentioned; there is no `@everyone` / `@here`.
 - Per-channel notification settings with timed mute (§7.14).
 
-Benchmark: 1M synthetic messages (6 users, 5 rooms, 1 year, mixed Russian and English, 5% typos), `make bench`, **Meilisearch v1.56.2**:
+Benchmark: 1M synthetic messages (6 users, 5 rooms, 1 year, 5% typos), `make bench`, **Meilisearch v1.56.2**:
 
 | | SQLite FTS5 (custom typo logic) | Meilisearch v1.56.2 |
 |---|---|---|
@@ -116,11 +116,12 @@ The production prototype writes only to Meilisearch. The dual writes in `experim
   "is_deleted": false, "deleted_at_ts": null, "deleted_by": null,
   // phase 3/4 (attachments), present but empty until then:
   "attachments": [],                 // see §7.12: {id, kind, mime, size, filename, width, height,
-                                     //   duration_ms, has_thumb, peaks, protected, removed?}
+                                     //   duration_ms, has_thumb, peaks, protected, removed?, spoiler?}
   "attachment_kinds": [],            // ["image","video","audio"] for has: filters
   "attachment_names": [],            // original filenames (searchable)
   "attachment_text": "",             // OCR text of the images (searchable, filled by §7.13)
-  "_vectors": { "image": null }      // phase 4: CLIP embeddings of the images, or null (§7.13)
+  "_vectors": { "image": null },     // phase 4: CLIP embeddings of the images, or null (§7.13)
+  "gif": null                        // §7.17: {provider, id, url, preview_url, width, height, title}
 }
 ```
 
@@ -364,7 +365,7 @@ New package `backend/internal/service/chatstore/`: the Meilisearch client (port 
 | `mentions:@user`, `pinned:true` | Optional extras (cheap; the filters already exist) |
 | anything else | Free text, fuzzy (typo-tolerant, last word treated as a prefix) |
 
-- **Time zone:** dates are interpreted in the user's IANA time zone, sent as `tz=Europe/Moscow`.
+- **Time zone:** dates are interpreted in the user's IANA time zone, sent as `tz=Europe/Belgrade`.
 - **Errors:** unknown keys are treated as text. An unresolvable `from:` or `in:` returns zero results with a `hints` entry ("no user named …").
 - **Text query:** passed raw with `matchingStrategy: "all"`, plus the `typoTolerance` settings from §5.1. Quoted phrases (`"exact phrase"`) are passed through as Meilisearch phrase search.
 - **Forced filter:** `room_id IN [viewable text channels] AND is_deleted = false` is **always** added. User-supplied `in:` values are intersected with that set.
@@ -381,7 +382,7 @@ New package `backend/internal/service/chatstore/`: the Meilisearch client (port 
 ### 7.12 Attachments (F13): phase 3
 
 #### 7.12.1 Storage backend
-- **Bucket:** a private bucket `orbital-chat-media` on Garage S3. It is never public, and no CORS is needed (media elements and `<img>` follow redirects without it, and audio waveforms come from stored peaks, §7.12.2).
+- **Bucket:** a private bucket `orbital-chat-media` on Garage S3. It is never public, and no CORS is needed (media elements and `<img>` follow redirects without it, and audio waveforms come from stored peaks, §7.12.2). The one exception is copying an image to the clipboard, which needs the bytes in JavaScript; it goes through a same-origin backend endpoint (§7.12.6), not the presigned URL.
   - Object keys: `rooms/{room_id}/{attachment_id}/original.{ext}`, plus the derived `thumb.webp` (images, and the first frame of a GIF). A `poster.webp` for video is reserved for later, if server-side probing is ever added.
 - **Environments:**
   - Development: `make garage-up` starts `dxflrs/garage:v2.5.0` from `docker-compose.dev.yml` in single-node mode. On first start it creates the layout, a fixed dev key and the bucket (`garage/garage-dev.toml`). The backend's development defaults match it, following the Meilisearch precedent.
@@ -401,6 +402,10 @@ New package `backend/internal/service/chatstore/`: the Meilisearch client (port 
 4. Content sniffing on magic bytes against an allowlist (png, webp, gif, jpeg, mp3, wav, ogg, mp4). The extension and the client-sent MIME type are not trusted.
 5. Per kind:
    - **Images:** strip EXIF and render a thumbnail with bimg/libvips (as `emojivips.go` does). Record width and height.
+     - **Compression (default):** still images are stored as WebP q85 with the long edge at most 2560 px (EXIF rotation applied first; alpha kept). The stored mime, extension and filename become `.webp`. GIFs and animated WebPs are kept byte-for-byte. A WebP that already fits and has at most 1 byte per pixel only has its `EXIF`/`XMP ` chunks dropped (no re-encode), so a client-compressed upload is not compressed twice. Constants: `maxStoredEdge` / `storedWebPQuality` in `chatmedia/image.go`.
+     - **Client pre-compression:** the client (`frontend/src/utils/compressImage.ts`, same constants) re-encodes the image with a canvas before uploading to save bandwidth on mobile data. It sends the original instead when the result is not smaller, when no WebP encoder is available (Safari), or when decoding fails or takes more than 10 s. The server rule still applies to whatever arrives.
+     - **Crop / rotate:** the crop button on a composer tile opens an editor (`ImageEditModal.vue`, `utils/editImage.ts`): quarter-turn rotation, a crop box with Free/1:1/4:3/3:4/16:9/9:16 presets, and "Reset to original". It works on the EXIF-upright image and re-encodes in the source format (JPEG/WebP q95, PNG), which then goes through the normal pre-compression (or `HD`). Edits always start from the picked file; applying one deletes the pending upload and sends the edited file. GIFs and animated WebP can't be edited. The server never sees the unedited image.
+     - **Original quality:** the `HD` toggle on a composer tile sends the untouched file with the multipart field `original=1`. The server then keeps the format and resolution (JPEG q92 / lossless PNG / WebP q90, metadata stripped). Switching after the upload finished deletes the pending upload and sends again.
    - **Audio:** stored as-is, with no transcoding and no server-side probing. A waveform is precomputed on the client:
      - Before uploading, the client decodes the picked file locally (`file.arrayBuffer()`, then `AudioContext.decodeAudioData`). It downsamples to **200 peaks** (the max of `|sample|` per bucket, mono, normalized, quantized to 0–255) and takes `duration_ms` from the decoded buffer.
      - Both are sent as multipart fields next to the file (`peaks` as a JSON int array). If decoding fails (unsupported codec, out of memory), the file is uploaded without them.
@@ -413,9 +418,12 @@ New package `backend/internal/service/chatstore/`: the Meilisearch client (port 
 7. PUT the original (and thumb) to S3. If that fails, delete the row; the reservation is released.
 8. Return `{upload_id, kind, meta, evicted: [{id, filename, stored_bytes}], usage}`. `usage` has the same shape as `GET /api/me/attachments/usage`.
 
-- **Send:** `text_message_send {…, upload_ids: [≤10]}` (requires `AttachFiles` when `upload_ids` is non-empty). The server:
+- **Android keyboard images and stickers:** while the text composer is focused and attachments are allowed, the local `KeyboardContent` plugin advertises `image/gif`, `image/webp`, `image/png`, and `image/jpeg` through Android's `OnReceiveContentListener`. `OrbitalWebView` publishes those types in `EditorInfo` and wraps the `InputConnection` so Gboard both enables its image/sticker UI and delivers `commitContent()` to the listener; enabling restarts the current input connection. A keyboard-provided content URI is copied to a bounded app-cache file, converted to a normal `File` by the WebView, and passed through the same validation and upload flow as picked, pasted and dropped files. Reception is disabled on blur or unmount, and temporary files are released after reading (with TTL/startup cleanup as a backstop).
+
+- **Send:** `text_message_send {…, upload_ids: [≤10], spoiler_ids?}` (requires `AttachFiles` when `upload_ids` is non-empty). The server:
   - validates that the uploads belong to the sender, are in the same room and are still pending;
-  - embeds the metadata into `attachments[]` (`{id, kind, mime, size, filename, width, height, duration_ms, has_thumb, peaks, protected}`);
+  - embeds the metadata into `attachments[]` (`{id, kind, mime, size, filename, width, height, duration_ms, has_thumb, peaks, protected, spoiler?}`);
+  - sets `spoiler: true` on the images and videos listed in `spoiler_ids` (other ids are ignored). The flag lives only in the message document (not in `chat_attachments`) and can't be changed after sending. Clients show a blurred cover with a "SPOILER" label; a click reveals it for that viewer, and the lightbox never pages onto an unrevealed spoiler. Search thumbnails stay blurred;
   - sets `attachment_kinds` and `attachment_names`;
   - marks the rows `attached` (`message_id`, `attached_at`).
 - **Pending GC:** pending rows older than 24 h are removed (reason `pending_expired`) and purged like any other removal (§7.12.4).
@@ -478,6 +486,7 @@ Removal reasons:
   - anyone else needs `ViewRoom` on the channel and an `attached` file (deleted messages purge their files, so no message lookup is needed).
 - Variants: `original`, `thumb` (falls back to the original without a thumbnail), and `download`, which presigns with `ResponseContentDisposition: attachment; filename*=UTF-8''<filename>`.
 - `PATCH`/`DELETE /api/attachments/{id}` return `410 Gone` for removed files and `404` for files the caller cannot see.
+- `GET /api/attachments/{id}/file` returns the original bytes with the same visibility rules. It exists for the clipboard copy (§7.12.7): the presigned URL is cross-origin and the bucket sends no CORS headers, so JavaScript cannot read it. The response is `Cache-Control: private, no-store`.
 - In Electron, opening or downloading a presigned URL goes to the system browser (the main window sends every external `window.open`/navigation there).
 
 #### 7.12.7 Rendering
@@ -490,12 +499,13 @@ Removal reasons:
     - without peaks, it shows a plain seek bar, and the duration appears from the metadata once loaded;
   - a filename and size row for each.
 - **Attachment context menu:** opened by right-click, a `⋯` button on hover, or long-press on mobile.
-  - Everyone: Open, Download.
+  - Everyone: Open, Download. Images that are not an unrevealed spoiler also get "Copy image".
   - The uploader:
     - "Protect from auto-removal" / "Allow auto-removal";
     - Delete file;
     - Manage my storage.
   - `ManageMessages`: Delete file.
+- **Copying:** "Copy image" (also a button in the lightbox and Ctrl/Cmd+C there) fetches the original through `GET /api/attachments/{id}/file` and writes `image/png` through the Async Clipboard API, rasterizing JPEG/WebP/AVIF/SVG (and a GIF's first frame) on a canvas. It is hidden in the Android app, whose WebView does not reliably write images, and where the Clipboard API is unavailable.
 - **Tombstone:** a removed file renders as a compact row: "📎 filename — removed (storage limit | by uploader | by moderator)".
 
 #### 7.12.8 Storage page (`/files`)
@@ -534,7 +544,7 @@ Removal reasons:
 Images only (phase 4). Audio/video transcripts are not planned yet; an OpenAI-compatible Whisper server (e.g. speaches) could be a second `Extractor` later.
 
 - **ML service: an existing Immich ML** (`ghcr.io/immich-app/immich-machine-learning`), called over HTTP (`backend/internal/service/immichml`). We write no ML code and manage no models: Immich downloads and caches them itself. Decided on 2026-11-12. The alternatives were PaddleX serving for OCR plus Infinity for embeddings, Tika/Tesseract, and hosted embedding APIs.
-  - Models: OCR `ESLAV__PP-OCRv5_mobile` (East Slavic recognition: ru/be/uk + en; Immich lists it as "PP-OCRv5_mobile (Russian, Belarusian, Ukrainian and English)"). Plain `PP-OCRv5_mobile` reads Cyrillic as Latin look-alikes ("ИТОГО" → "MTOTO"). Other prefixes in `immich_ml/models/constants.py`: `EN__`, `LATIN__`, `CH__`, …. CLIP `XLM-Roberta-Large-Vit-B-16Plus` (multilingual text encoder, so Russian queries work).
+  - Models: OCR `PP-OCRv5_mobile`.
   - API (Immich-internal, no versioned docs; `immichml/client_test.go` pins it): `GET /ping`; `POST /predict` as multipart `entries` (JSON) + `image` or `text`. OCR and CLIP visual go in one request; CLIP embeddings come back as a JSON array **inside a string**.
   - Its errors: transport, timeout and 5xx (a model still downloading) mean "unavailable" and pause the worker without using attempts; 4xx counts as a failed attempt.
   - Pin the Immich tag (dev: `docker-compose.dev.yml`) and run the `immichml` integration test before an upgrade.
@@ -587,6 +597,80 @@ Images only (phase 4). Audio/video transcripts are not planned yet; an OpenAI-co
 - Opening a muted channel works normally: read state still advances and history is unaffected.
 - The global sound setting (§7.4, mention sound on/off and volume) stays a separate, app-wide switch on top of this.
 
+### 7.15 Link previews (embeds)
+
+Telegram/Discord-style cards under a message for the links in it: site name, title, description, image; YouTube links get an inline player. Decided on 2026-11-15.
+
+- **The server makes them** (`backend/internal/service/linkpreview`), never the client: viewers' IPs never reach third-party sites.
+  - After `text_message_send` and `text_message_edit` the hub calls `Previews.Schedule`. A background worker (4 messages at a time, 20 s per message) fetches the links and stores the result with `chatstore.SetEmbeds`. Then it broadcasts `text_message_updated`.
+  - `SetEmbeds` drops the result (`ErrStale`) if the message was edited meanwhile or its previews were removed.
+- **Which links** (`chatstore.PreviewURLs`): autolinked http(s) URLs (the same rules as the frontend autolinker), at most 3, without duplicates. There are two exceptions:
+  - `<https://…>` gets no preview; the frontend still renders it as a link, without the brackets.
+  - Links inside `||spoilers||` get no preview either.
+- **Edits** keep the previews of links that are still in the text and drop the rest. New links are fetched.
+- **Fetching** (`linkpreview/fetch.go`):
+  - Only `http`/`https` URLs without credentials, through no proxy.
+  - The dialer refuses non-public addresses *after DNS resolution*: loopback, RFC 1918, link-local (cloud metadata), CGNAT 100.64/10 (Headscale), ULA, multicast and unspecified. This also covers redirects (at most 3) and DNS rebinding.
+  - 6 s timeout; reads at most 1 MB of HTML and 8 MB per image.
+  - **Outbound proxy** (`internal/service/outbound`): a super admin can set an http/https/socks5/socks5h proxy in Admin → Network. It is stored in `app_settings` (`outbound_proxy`), not in the environment. With a proxy set, the private-address check moves from the dialer to the transport's `Proxy` hook, which resolves the target host and refuses it unless every address is public (redirects included). The connection to the proxy itself is not checked. The proxy resolves the name again, so a rebinding DNS server could still win that race. The proxy is read per request, so changes apply at once. `GET/PUT /api/admin/outbound-proxy` return the URL with the password masked (`xxxxx`; sending the masked URL back keeps the stored password). `POST /api/admin/outbound-proxy/test {proxy_url, url}` fetches a URL through an unsaved proxy.
+- **Parsing**: the `<head>` only, in any charset (`x/net/html/charset`, e.g. windows-1251). Sources in order: `og:*`, then `twitter:*`, then `<title>` / `meta description`. Titles are cut to 256 runes and descriptions to 350.
+  - A response that is itself an image becomes `kind: "image"`.
+  - YouTube watch/short/live/youtu.be links become `kind: "video"` with `video_provider: "youtube"` and `video_id`. They still get a card when the page fetch fails, using the `i.ytimg.com` thumbnail.
+  - A link with no title, description or image gets no card.
+- **Images** are proxied: the server downloads `og:image`, renders a WebP that fits 480 px (`chatmedia.EmbedThumbnail`; same decompression-bomb guards, first frame only) and stores it in the chat media bucket at `embeds/<random id>.webp`.
+  - `GET /api/embeds/{id}/image` serves it publicly (like emoji images, since `<img>` has no Bearer header; the ids are 128-bit random), cached forever.
+  - Without S3 there are no images. Thumbnails are never deleted: they are small, and the cache shares them between messages.
+- **Cache**: SQLite `link_previews (url, embed, fetched_at)`. Successes are kept for 24 h and failures for 1 h, so the same link posted again is not fetched again; rows older than 7 days are pruned.
+- **Message fields**: `embeds: [{url, kind, site_name, title, description, image_id, image_width, image_height, video_provider, video_id}]` and `embeds_suppressed`. They are not searchable.
+- **Removing**: `text_message_suppress_embeds {message_id}`. The author may always; others need `ManageMessages` in the channel (otherwise `permission_denied`). It sets `embeds_suppressed`, clears `embeds` and broadcasts `text_message_updated`. No new previews are made for that message afterwards, edits included.
+- **Client** (`components/textchat/embeds/`): the card has an accent border; wide images go under the text and small ones to the side. YouTube shows a thumbnail with a play button, and a click swaps in a `youtube-nocookie.com` iframe (allowed by `frame-src` in `index.html`). A ✕ removes the previews.
+- `CHAT_LINK_PREVIEWS_ENABLED` (default true) turns the feature off.
+- Known limits: preview images are not in the Electron/Android on-device media cache (they use the HTTP cache). The YouTube player in the Android WebView may refuse to play without a Referer.
+
+### 7.16 Slash commands
+
+`/random`, `/vrandom`, `/d20` and `/remindme` run on the **server** (`service/chatcmd`) inside `text_message_send`, so every client sees the same result. The raw command stays in `content` (searchable); the result goes in the message's `command` field (`chatstore.Command`), which never changes: command messages can't be edited, and a resend with the same nonce returns the original roll. Unknown `/words` are plain text; a known command with bad arguments gets `text_error invalid` with a usage line.
+
+- `/random` → 1..100, `/random N` → 1..N, `/random A B` → A..B; anything else is a list of options (split by commas if any, else whitespace; `"quotes"` keep spaces). Randomness: `crypto/rand`.
+- `/vrandom` takes the same arguments, limited to 24 wheel segments. The client spins the wheel only for messages that arrived live (`textChatStore.consumeLiveCommand`); history shows it stopped.
+- `/d20` adds the label `critical_failure` (1) / `critical_success` (20).
+- `/remindme <time> [note]`: `2h`, `30min`, `2d6h`, `1w`, `2m`/`2mo` (months, clamped to month end), `1y`; or `DD.MM [HH:MM]`, `DD.MM.YYYY HH:MM`, `HH:MM`. The client sends its IANA zone as `tz`; the time is read in that zone and stored as UTC ms with the zone (SQLite `chat_reminders`). 1 minute to 1 year ahead, 25 pending per user. Deleting the `/remindme` message cancels it.
+- A due reminder (ticker every 15 s, `Hub.FireReminders`) is posted by the sender `system` as a reply to the `/remindme` message that mentions its owner. It always pings the owner, even in a muted channel, and the owner may delete it. It is dropped if the channel is gone or the owner lost `VIEW_ROOM`.
+
+### 7.17 GIF search (KLIPY / GIPHY)
+
+Search a third-party GIF catalogue from the composer and post the picked animation. Decided on 2026-11-20.
+
+- **Provider:** KLIPY by default (`CHAT_GIF_PROVIDER=klipy`, key from partner.klipy.com), GIPHY as the second adapter (`giphy`). Tenor is not an option: Google shut its API down on 2026-06-30. With no provider or key the feature is off and the composer has no GIF button.
+- **The search and the media load run in the client**, unlike link previews. Both providers require API requests and media loads to come from the end-user client and forbid proxying, mirroring or re-hosting their content without written approval. So the server never fetches a GIF and never stores one.
+  - `GET /api/config` advertises `gif_provider` only (public, no key), so the composer knows whether to offer the button. `GET /api/chat/gif-config` (authenticated) returns `{provider, api_key, rating}`; 404 when disabled. The key is a client key and lives in memory only (never `localStorage`, never logged — KLIPY puts it in the request path).
+  - Adapters live in `frontend/src/services/gif/` behind a `GifProvider` interface (`search`, `trending`). KLIPY: `/api/v1/{key}/gifs/search|trending?q=&page=&per_page=`; GIPHY: `/v1/gifs/search|trending?api_key=&offset=&limit=&rating=`. Both map to `{provider, id, url, preview_url, width, height, title}`, preferring the small mp4/webp rendition over the full-size gif and a still jpg for the poster.
+  - Requests time out after 6 s; pages are cached in memory per picker for the session only (the KLIPY testing key allows 100 requests/hour).
+- **The message stores only the reference** (`gif` field above). `text_message_send` accepts `gif`; `chatstore.NormalizeGIF` checks:
+  - `provider` is one of the known providers;
+  - `id` is `[A-Za-z0-9_-]{1,64}`;
+  - `url`/`preview_url` are `https`, without credentials or an explicit port, on the provider's own domain only (`klipy.com`, `giphy.com`, subdomains included) — every viewer's browser will request them, so an arbitrary host would be a tracking pixel;
+  - dimensions are clamped to 4096 (0 = let the client use the intrinsic size); the title becomes single-line plain text, at most 200 runes.
+- A GIF is content on its own, so the message text may be empty. Editing keeps the GIF; deleting removes the message as usual. A message can carry a GIF and an attachment, though the composer sends one GIF at a time.
+- **Not stored, not cached:** no S3 object, no quota use, no media cache in Electron/Android (`attachments/mediaCache.ts` is not involved; the browser HTTP cache is all there is). A GIF that the provider removes stops rendering, and history GIFs need network.
+- **Client:** a GIF button next to the emoji one (hidden until the config loads and a provider exists), opening `GifPicker.vue`: debounced search, trending when empty, infinite scroll, retry on rate limit. Grid tiles use a small animated webp/gif rendition (`picker_url`, kept in the picker only and never stored); the full rendition and the still (`url`, `preview_url`) go into the message. The pick becomes a chip above the composer (`textChatStore.pendingGif`) and is sent with the message. `MessageGif.vue` renders `<video autoplay muted loop playsinline>` (or `<img>`), shows the still instead under `prefers-reduced-motion` or the app's "Reduce emoji motion" setting (a play button starts it), and shows "GIF unavailable" if the media is gone. Reply previews show "GIF"; pushes for a GIF-only message say "sent a GIF".
+- **Mobile layout:** on the Android app and narrow browser windows both pickers are one panel docked under the composer (`ComposerPickerDock.vue`, state `textChatStore.composerPanel`) instead of the desktop popovers, with a gap under the composer, rounded top corners, an Emoji tab and a GIF tab, and no backdrop. Opening it slides the panel up and the message list gives its height back; picking an emoji keeps it open (the textarea stays blurred and the emoji goes to the saved caret), while picking a GIF closes it. The panel's height is 44 % of the viewport when it opens and is deliberately not re-measured while the soft keyboard shrinks the viewport: it moves up with the composer and covers the chat instead of shrinking. Its handle drags it taller (up to the channel header, so the composer stays visible) or smaller, and pulling it most of the way down dismisses it. Android back and Escape close it.
+- **Attribution:** the search placeholder must read "Search KLIPY"; GIPHY additionally requires a "Powered by GIPHY" mark. The picker footer shows "Powered by" plus the KLIPY wordmark (`frontend/public/assets/attribution/klipy-logo.svg`, via `GifProvider.attributionLogo`) or the provider name when it has no logo.
+- **Privacy:** search terms go to the provider; media requests come from each viewer's device (the provider sees their IP). The client sends no user, room or message identifiers. This is the deliberate cost of using these APIs under their terms.
+
+### 7.18 Polls
+
+A poll is a message with a `poll` field, created from the composer's ➕ menu ("Create a poll", desktop popover / mobile bottom sheet) through `CreatePollModal`. Decided on 2026-11-23.
+
+- **Create:** `text_message_send {..., poll: {question, options[], multiple, anonymous, allow_change, closes_at_ts}}` with `content` empty (a caption is allowed but never run as a slash command). Needs `SendMessages`, like any message, and goes through the outbox and nonce dedupe, so a poll made offline is sent on reconnect. `chatstore.NormalizePoll`: question 1–300 characters, 2–10 distinct options of 1–100 characters (single-line plain text, custom emoji tokens count as one), due date 30 s to 31 days ahead (the client asks for at least 1 minute). Option ids are `o1`…`o10`. No attachments, GIF or command on a poll message; poll messages can't be edited.
+- **Stored** in the message document (Meilisearch, like reactions): options, flags, due date, `closed`/`closed_at_ts`/`closed_by`, and `votes: [{option_id, user_ids}]`. `content_search` includes the question and options. Votes keep user ids even in anonymous polls, so a vote can be changed; nobody else ever receives them.
+- **Per-viewer view** (`Message.PublicFor(viewerID)` → `PublicPoll`): question, options, flags, `voter_count`, `my_votes`, `results_visible`. Counts (`options[].count`) are sent only when the viewer voted or the poll is closed; `options[].user_ids` additionally needs a non-anonymous poll. `Public()` is the view of nobody (results hidden unless closed). Poll events are therefore built per recipient (`Hub.broadcastMessageEvent`), and REST history/context/pins/search use the requester's view.
+- **Vote:** `text_poll_vote {message_id, option_ids[]}` replaces the user's choice; an empty list retracts. Needs `SendMessages` (rate limit 10 per 5 s). Rejected (`invalid`): closed or past due, unknown option, more than one option in a single-choice poll, any change after the first vote when `allow_change` is off.
+- **End early:** `text_poll_close {message_id}` — the author, or `ManageMessages` in the channel (`forbidden` otherwise). Idempotent.
+- **Due date:** stored in SQLite `chat_poll_deadlines` (`repository.TextPollRepository`); the reminder ticker (`Hub.ClosePollsDue`, every 15 s) closes due polls as `system`, re-queueing on a Meilisearch failure. Votes are refused from the due time even if the ticker hasn't run yet. Deleting the poll cancels its deadline.
+- **Announcement:** closing (either way) posts a `system` message replying to the poll (no ping): content `Poll ended: <question>`, `command {name: "poll_closed", poll_id, options: <leading option(s)>, result: <their votes>, voters}`. Pushes read "created a poll: …" and "Poll: Poll ended: … — <winner> (N votes)".
+- **Client:** `MessagePoll.vue` (single choice votes on tap, multiple choice ticks then "Vote"; change/retract/end actions; "Vote to see results" until voted), `PollVotersModal.vue` (voters per option, public polls only, mounted from `MessageList`), the `poll_closed` card in `MessageCommand.vue`. Voting needs a connection.
+
 ## 8. API
 
 JSON is snake_case (see AGENTS.md). Types go in `frontend/src/types/index.ts`; API calls go in `frontend/src/services/api.ts`.
@@ -600,12 +684,14 @@ REST
 | `GET /api/rooms/{id}/viewers` | `user_ids` of everyone with `ViewRoom` (404 unless the caller has it). The user list shows only them while the channel is open and refetches on `permissions_updated`. |
 | `GET /api/chat/search?q=&tz=&sort=&limit=&offset=` | Search; `q` contains the inline filters (§7.11). Returns `hits`, `total`, `hints`, `took_ms`. |
 | `GET /api/chat/unread` | Per channel: `last_read_seq`, `newest_seq`, `mention_count`, `notify_mode`, `muted_until` (for the sidebar on load) |
+| `GET /api/chat/gif-config` | `{provider, api_key, rating}` for client-side GIF search; 404 when disabled (§7.17). `/api/config` carries just `gif_provider` |
 | `PUT /api/rooms/{id}/notify` `{mode, mute_duration: "1h"\|"4h"\|"1d"\|"1w"\|"forever"}` | Change the notification setting (`mute_duration` only with `mode: "muted"`); requires `ViewRoom` |
 | `POST /api/rooms/{id}/attachments` (phase 3) | Upload (multipart; audio adds `peaks`, `duration_ms`; video adds `width`, `height`, `duration_ms`). Returns `upload_id`, `meta`, `evicted`, `usage`. 413 `file_exceeds_quota` / `quota_protected_full`. |
 | `POST /api/attachments/urls` `{items: [{id, variant}]}` (phase 3) | Batched presigned URLs (`original`, `thumb`, `download`); removed or invisible files in `gone` |
 | `PATCH /api/attachments/{id}` `{protected}` (phase 3) | Protect / unprotect; uploader only |
 | `DELETE /api/attachments/{id}` (phase 3) | Remove one file; uploader or `ManageMessages` |
 | `GET /api/attachments/{id}/content[?q=]` (phase 4) | OCR text, embedding and job state of an image; with `q`, how the phrase scores (§7.13) |
+| `GET /api/embeds/{id}/image` (public) | Link preview thumbnail (WebP, §7.15) |
 | `POST /api/attachments/{id}/content/retry` (phase 4) | Re-run extraction of an image; uploader or `ManageMessages` |
 | `GET /api/admin/attachments/extraction` (phase 4) | Image indexing queue counts, worker state, recent errors; super admin |
 | `POST /api/admin/attachments/extraction/retry-failed` (phase 4) | Re-queue all failed images; super admin |
@@ -614,10 +700,12 @@ REST
 | `POST /api/me/attachments/bulk` `{ids, action}` (phase 3) | Bulk delete / protect / unprotect of own files (≤100) |
 
 WebSocket. Client → server:
-- `text_message_send {room_id, content, reply_to_id?, reply_ping?, upload_ids?, nonce}`. The `nonce` lets the client match its optimistic message to the ack.
+- `text_message_send {room_id, content, reply_to_id?, reply_ping?, upload_ids?, spoiler_ids?, gif?, nonce}`. The `nonce` lets the client match its optimistic message to the ack. `gif` is a provider reference (§7.17); with one, `content` may be empty.
 - `text_message_edit {message_id, content}`
 - `text_message_delete {message_id}`
+- `text_message_suppress_embeds {message_id}` (§7.15)
 - `text_reaction_toggle {message_id, emoji}`
+- `text_poll_vote {message_id, option_ids}`, `text_poll_close {message_id}` (§7.18)
 - `text_pin {message_id, pinned}`
 - `text_channel_read {room_id, seq}`
 - `text_typing {room_id}` (optional; typing indicator; throttled to 1 every 3 s)
@@ -710,10 +798,13 @@ Denied-path tests:
 | `RATE_LIMIT_CHAT_UPLOAD_PER_HOUR` | 120 | Phase 3. Per-user upload rate |
 | `CHAT_ML_URL` | none | Phase 4. Immich ML base URL (port 3003). Unset = no search by image contents. Needs attachments. Dev: `make ml-up`, then `http://localhost:3003` |
 | `CHAT_ML_OCR_ENABLED` / `CHAT_ML_CLIP_ENABLED` | true / true | Phase 4. Turn OCR or image embeddings off separately |
-| `CHAT_ML_OCR_MODEL` | `ESLAV__PP-OCRv5_mobile` | Phase 4. Language-prefixed name, see §7.13 |
+| `CHAT_ML_OCR_MODEL` | `PP-OCRv5_mobile` | Phase 4. see §7.13 |
 | `CHAT_ML_CLIP_MODEL` | `XLM-Roberta-Large-Vit-B-16Plus` | Phase 4. Must be multilingual; a change re-indexes every image |
 | `CHAT_ML_SEMANTIC_THRESHOLD` | 0.6 | Phase 4. Minimum ranking score (0..1) of images found by meaning only |
 | `CHAT_ML_TIMEOUT_SECONDS` | 120 | Phase 4. Per request (the first one may wait for a model download) |
+| `CHAT_GIF_PROVIDER` | none | `klipy` or `giphy`. Unset (or no key) = no GIF search (§7.17) |
+| `CHAT_GIF_API_KEY` | none | Client key, handed to signed-in users; it cannot be kept secret |
+| `CHAT_GIF_RATING` | `pg-13` | GIPHY content rating (`g`, `pg`, `pg-13`, `r`) |
 
 Immich ML (phase 4): production reuses the existing Immich instance's machine-learning container. It usually listens only on Immich's internal compose network, so either attach the backend to that network or publish port 3003 on a private interface; never expose it publicly. Asking it for a CLIP model other than the one Immich uses loads that model next to Immich's own (RAM). Immich unloads idle models after `MACHINE_LEARNING_MODEL_TTL`.
 
@@ -777,7 +868,7 @@ Original plan:
 - Backend:
   - `chatstore`: `mentions.go` (`ParseMentions`, `MentionResolver`, cap 20, the reply ping survives edits), `reactions.go` (`ToggleReaction`, `SetPinned`, `Pins`), `query.go` (`ParseQuery`, `TimeBounds`), `search.go` (`Search`, `MentionCounts`), `notify.go` (`NotifyStore`, lazy expiry).
   - `repository/textnotify.go` with migration 43 (`text_notify_settings`).
-  - `websocket/textchat_*.go`, one file per role (`textchat.go` holds the wiring and shared helpers): `textchat_messages.go` (send/edit/delete/read), `textchat_mentions.go` (mention fan-out, `mentionTargets`), `textchat_reactions.go` (`text_reaction_toggle`), `textchat_pins.go` (`text_pin`), `textchat_typing.go` (`text_typing`), `textchat_notify.go` (`StartMuteExpiry`, a 10 s ticker that deletes expired mutes and pushes `text_notify_settings`).
+  - `websocket/textchat_*.go`, one file per role (`textchat.go` holds the wiring and shared helpers): `textchat_messages.go` (send/edit/delete/read), `textchat_mentions.go` (mention fan-out, `mentionTargets`), `textchat_reactions.go` (`text_reaction_toggle`), `textchat_polls.go` (`text_poll_vote`, `text_poll_close`, `ClosePollsDue`), `textchat_pins.go` (`text_pin`), `textchat_typing.go` (`text_typing`), `textchat_notify.go` (`StartMuteExpiry`, a 10 s ticker that deletes expired mutes and pushes `text_notify_settings`).
   - `handlers/textchat*.go`, also one file per role: `textchathandler.go` (type, deps, shared helpers), `textchatmessages.go` (history, context, pins), `textchatunread.go`, `textchatnotify.go`, `textchatsearch.go`.
 - **Mention token ids are padded URL-safe base64** (`…Wg==`), so the token charset is `[A-Za-z0-9_=+/-]` (`chatstore.mentionIDChars`, frontend `MENTION_ID`). Unit tests with short ids did not catch this; the live check did.
 - `has:` returned no results plus a hint until phase 3.
@@ -809,6 +900,11 @@ Original plan:
 
 **Phase 4: content search (ML)**
 - Image OCR and CLIP embeddings from an existing Immich ML (§7.13), the `chat_attachment_jobs` queue and worker, the `userProvided` embedder, and the federated keyword + vector search. Transcripts are not planned yet.
+
+**GIF search (§7.17, 2026-11-20)**
+- `chatstore.GIF` with `NormalizeGIF` (provider/host allowlist, https only, bounded id, dimensions and title); `text_message_send` accepts `gif` and allows a GIF-only message.
+- `GET /api/chat/gif-config` behind `CHAT_GIF_*`; the KLIPY and GIPHY adapters, `GifPicker.vue`, the composer chip and `MessageGif.vue`. No S3, no quota, no media cache.
+- Tests: `chatstore/gif_test.go`, `websocket/textchat_gif_test.go`, `handlers/gifsearchhandler_test.go`, `services/gif/{klipy,giphy}.test.ts`, and `tests/e2e/gif-search.spec.ts` (the provider is mocked, so CI needs no key).
 
 ## 14. Open questions
 

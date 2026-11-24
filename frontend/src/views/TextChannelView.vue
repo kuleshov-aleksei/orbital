@@ -98,7 +98,7 @@
           :my-user-id="userStore.userId ?? ''"
           @edit-last="editLast"
           @escape="leaveChannel" />
-        <TypingIndicator :room-id="channel.id" />
+        <TypingIndicator v-if="!typingHidden" :room-id="channel.id" />
       </div>
 
       <PinsPanel
@@ -150,6 +150,9 @@ const searchBox = useTemplateRef<InstanceType<typeof SearchBox>>("searchBox")
 const view = computed(() => textChatStore.views[props.channel.id] ?? null)
 // On a phone the open search box needs the header's width for itself.
 const mobileSearchOpen = computed(() => appStore.isMobile && textChatStore.sidePanel === "search")
+// The typing hint sits under the composer; the docked picker panel takes that
+// spot, so hide the hint while it is open.
+const typingHidden = computed(() => appStore.isMobile && textChatStore.composerPanel !== null)
 
 // UX hints only; the backend checks every send/delete/pin.
 const canSend = computed(() =>
@@ -160,7 +163,10 @@ const canManage = computed(() =>
 )
 
 function editLast() {
-  const mine = view.value?.messages.filter((m) => m.sender_id === userStore.userId)
+  // Command results and polls can't be edited.
+  const mine = view.value?.messages.filter(
+    (m) => m.sender_id === userStore.userId && !m.command && !m.poll,
+  )
   const last = mine?.[mine.length - 1]
   if (last) textChatStore.startEdit(last.id)
 }
@@ -168,6 +174,11 @@ function editLast() {
 function onEscape(event: KeyboardEvent) {
   // Inner handlers (edit box, picker, reply bar, search) prevent first.
   if (event.defaultPrevented) return
+  // The docked emoji/GIF panel closes before the channel does.
+  if (appStore.isMobile && textChatStore.composerPanel) {
+    textChatStore.closeComposerPanel()
+    return
+  }
   leaveChannel()
 }
 

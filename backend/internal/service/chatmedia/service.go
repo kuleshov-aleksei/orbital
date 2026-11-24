@@ -119,6 +119,9 @@ func (s *Service) SetMessageHook(h MessageHook) {
 // Limits returns the configured limits.
 func (s *Service) Limits() Limits { return s.limits }
 
+// Store is the object storage (link previews keep their thumbnails there).
+func (s *Service) Store() MediaStore { return s.media }
+
 func (s *Service) userLock(userID string) *sync.Mutex {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(userID))
@@ -165,6 +168,9 @@ type UploadInput struct {
 	File       File
 	Size       int64
 	Meta       ClientMeta
+	// Original keeps an image's format and resolution (metadata is still
+	// stripped); otherwise it is compressed (image.go).
+	Original bool
 }
 
 // UploadResult is a stored pending upload plus the files evicted for it.
@@ -211,14 +217,18 @@ func (s *Service) Upload(ctx context.Context, in UploadInput) (*UploadResult, er
 		if err != nil {
 			return nil, err
 		}
-		img, err := processImage(data, ft)
+		img, err := processImage(data, ft, in.Original)
 		if err != nil {
 			return nil, ErrBadImage
+		}
+		if img.ext != ft.ext {
+			rec.Mime, rec.Ext = img.mime, img.ext
+			rec.Filename = withExt(rec.Filename, img.ext)
 		}
 		rec.Width, rec.Height, rec.HasThumb = img.width, img.height, true
 		rec.SizeBytes = int64(len(img.original))
 		objs = append(objs,
-			object{rec.originalKey(), ft.mime, bytes.NewReader(img.original), int64(len(img.original))},
+			object{rec.originalKey(), img.mime, bytes.NewReader(img.original), int64(len(img.original))},
 			object{rec.thumbKey(), "image/webp", bytes.NewReader(img.thumb), int64(len(img.thumb))})
 	case KindAudio:
 		rec.Peaks = validPeaks(in.Meta.Peaks)
@@ -500,6 +510,17 @@ func (s *Service) RemoveRoom(roomID string) error {
 	return err
 }
 
+// RemoveForUploader removes every file a user uploaded (account deletion).
+// Pending uploads go too; the janitor deletes the S3 objects.
+func (s *Service) RemoveForUploader(userID string) error {
+	recs, err := queryRecords(s.db, `uploader_id = ? AND status != 'removed'`, userID)
+	if err != nil {
+		return err
+	}
+	_, err = s.Remove(recs, ReasonAccountDeleted)
+	return err
+}
+
 // Usage returns a user's storage.
 func (s *Service) Usage(userID string) (Usage, error) {
 	u, err := usageOf(s.db, userID)
@@ -611,6 +632,18 @@ func (s *Service) URL(ctx context.Context, rec *Record, variant string) (string,
 	return u, s.now().Add(urlTTL), nil
 }
 
+// ReadOriginal returns the stored bytes of a record's original file. The app
+// uses it when it must read the bytes itself (copying an image to the
+// clipboard): the presigned URL is cross-origin, and the bucket does not send
+// CORS headers.
+func (s *Service) ReadOriginal(ctx context.Context, rec *Record) ([]byte, error) {
+	data, err := s.media.Get(ctx, rec.originalKey())
+	if err != nil {
+		return nil, errors.Join(ErrUnavailable, err)
+	}
+	return data, nil
+}
+
 // Start runs the janitor (and the extraction worker, when an Extractor is
 // set) until ctx ends.
 func (s *Service) Start(ctx context.Context) {
@@ -705,6 +738,16 @@ func cleanFilename(name, ext string) string {
 		name = string(r[:maxFilenameRunes])
 	}
 	return name
+}
+
+// withExt replaces a cleaned filename's extension (photo.jpg → photo.webp)
+// after the stored format changed; names without one get it appended.
+func withExt(name, ext string) string {
+	base := strings.TrimSuffix(name, path.Ext(name))
+	if base == "" {
+		base = "file"
+	}
+	return base + "." + ext
 }
 
 func validPeaks(p []int) []int {

@@ -601,6 +601,172 @@ CREATE INDEX IF NOT EXISTS idx_push_devices_user ON push_devices(user_id);`,
 			updated_at INTEGER NOT NULL
 		);`,
 	},
+	{
+		Version: 49,
+		Name:    "create_link_previews",
+		// Cache of fetched link previews (docs/specs/CHAT_SYSTEM.md §7.15),
+		// so a link posted again is not fetched again. embed is the JSON
+		// chatstore.Embed, or empty when the fetch failed.
+		SQL: `CREATE TABLE IF NOT EXISTS link_previews (
+			url TEXT PRIMARY KEY,
+			embed TEXT NOT NULL DEFAULT '',
+			fetched_at INTEGER NOT NULL
+		);
+CREATE INDEX IF NOT EXISTS idx_link_previews_fetched ON link_previews(fetched_at);`,
+	},
+	{
+		Version: 50,
+		Name:    "create_auth_sessions",
+		// One row per signed-in device. Every JWT carries its row id ("sid");
+		// deleting the row signs that device out without touching the others.
+		// Push tokens remember the session that registered them, so a revoked
+		// device stops receiving notifications.
+		SQL: `CREATE TABLE IF NOT EXISTS auth_sessions (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			created_at INTEGER NOT NULL,
+			last_active_at INTEGER NOT NULL,
+			expires_at INTEGER NOT NULL,
+			user_agent TEXT NOT NULL DEFAULT '',
+			client TEXT NOT NULL DEFAULT '',
+			ip TEXT NOT NULL DEFAULT ''
+		);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id);
+ALTER TABLE push_devices ADD COLUMN session_id TEXT NOT NULL DEFAULT '';`,
+	},
+	{
+		Version: 51,
+		Name:    "create_chat_reminders",
+		// Pending /remindme reminders (service/chatcmd). due_at is unix ms
+		// (UTC); tz is the sender's IANA zone at send time. A row is deleted
+		// when it fires or when its /remindme message is deleted.
+		SQL: `CREATE TABLE IF NOT EXISTS chat_reminders (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id TEXT NOT NULL,
+			room_id TEXT NOT NULL,
+			message_id TEXT NOT NULL,
+			due_at INTEGER NOT NULL,
+			tz TEXT NOT NULL DEFAULT 'UTC',
+			note TEXT NOT NULL DEFAULT '',
+			created_at INTEGER NOT NULL
+		);
+CREATE INDEX IF NOT EXISTS idx_chat_reminders_due ON chat_reminders(due_at);
+CREATE INDEX IF NOT EXISTS idx_chat_reminders_user ON chat_reminders(user_id);
+CREATE INDEX IF NOT EXISTS idx_chat_reminders_message ON chat_reminders(message_id);`,
+	},
+	{
+		Version: 52,
+		Name:    "drop_halloween_tables",
+		// The Halloween 2026 seasonal update is gone; remove its storage.
+		// Child tables first so the foreign keys never dangle.
+		SQL: `DROP TABLE IF EXISTS halloween_rewards;
+DROP TABLE IF EXISTS halloween_base_sockets;
+DROP TABLE IF EXISTS halloween_game_results;
+DROP TABLE IF EXISTS halloween_pumpkins;
+DROP TABLE IF EXISTS halloween_items;`,
+	},
+	{
+		Version: 53,
+		Name:    "create_badges",
+		// Profile badges (achievements): one definition awarded to many users.
+		// Images live next to emoji images, in data/badges.
+		SQL: `CREATE TABLE IF NOT EXISTS badges (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			description TEXT NOT NULL DEFAULT '',
+			filename TEXT NOT NULL,
+			file_size INTEGER NOT NULL DEFAULT 0,
+			created_by TEXT,
+			created_at DATETIME NOT NULL
+		);
+CREATE TABLE IF NOT EXISTS user_badges (
+			user_id TEXT NOT NULL,
+			badge_id TEXT NOT NULL,
+			assigned_by TEXT,
+			assigned_at DATETIME NOT NULL,
+			PRIMARY KEY (user_id, badge_id)
+		);
+CREATE INDEX IF NOT EXISTS idx_user_badges_badge ON user_badges(badge_id);
+CREATE INDEX IF NOT EXISTS idx_badges_created ON badges(created_at);`,
+	},
+	{
+		Version: 54,
+		Name:    "badge_displayed",
+		// One badge per user can be pinned next to their nickname. Without a
+		// pin, clients show the newest award. The partial unique index makes
+		// "at most one displayed badge" a database guarantee.
+		SQL: `ALTER TABLE user_badges ADD COLUMN displayed INTEGER NOT NULL DEFAULT 0;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_badges_displayed ON user_badges(user_id) WHERE displayed = 1;`,
+	},
+	{
+		Version: 55,
+		Name:    "users_accepted_terms_at",
+		// Proof that a user accepted the Terms of Service and Privacy Policy.
+		// NULL for existing users: the client asks them to accept on their
+		// next sign-in. Setting it back to NULL asks again (new versions).
+		SQL: `ALTER TABLE users ADD COLUMN accepted_terms_at DATETIME;`,
+	},
+	{
+		Version: 56,
+		Name:    "create_chat_poll_deadlines",
+		// Due dates of open text channel polls (docs/specs/CHAT_SYSTEM.md
+		// §7.18). due_at is unix ms (UTC). A row is deleted when the poll
+		// closes (at its due date or early) or its message is deleted.
+		SQL: `CREATE TABLE IF NOT EXISTS chat_poll_deadlines (
+			message_id TEXT PRIMARY KEY,
+			room_id TEXT NOT NULL,
+			due_at INTEGER NOT NULL
+		);
+CREATE INDEX IF NOT EXISTS idx_chat_poll_deadlines_due ON chat_poll_deadlines(due_at);`,
+	},
+	{
+		Version: 57,
+		Name:    "users_deleted_at",
+		// Deleted accounts stay as anonymous tombstones (UserRepository.Erase)
+		// so messages, call stats and uploads keep a valid user id.
+		SQL: `ALTER TABLE users ADD COLUMN deleted_at DATETIME;`,
+	},
+	{
+		Version: 58,
+		Name:    "email_verification_and_reset",
+		// Email verification and password reset (service.EmailAuthService).
+		// email_verified_at stays NULL for existing accounts: they verify from
+		// the banner. email_tokens stores only the SHA-256 of each token.
+		// email_log is the super-admin view of sent mail, with tokens
+		// redacted; rows are pruned after 30 days. The unique index makes
+		// "one live password account per email" a database guarantee, which
+		// reset-by-email relies on.
+		SQL: `ALTER TABLE users ADD COLUMN email_verified_at DATETIME;
+CREATE TABLE IF NOT EXISTS email_tokens (
+			token_hash TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			purpose TEXT NOT NULL,
+			expires_at DATETIME NOT NULL,
+			created_at DATETIME NOT NULL
+		);
+CREATE INDEX IF NOT EXISTS idx_email_tokens_user ON email_tokens(user_id, purpose);
+CREATE TABLE IF NOT EXISTS email_log (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id TEXT,
+			to_address TEXT NOT NULL,
+			purpose TEXT NOT NULL,
+			subject TEXT NOT NULL,
+			body_text TEXT NOT NULL,
+			status TEXT NOT NULL,
+			error TEXT NOT NULL DEFAULT '',
+			created_at DATETIME NOT NULL
+		);
+CREATE INDEX IF NOT EXISTS idx_email_log_created ON email_log(created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_password_email ON users(LOWER(email)) WHERE auth_provider = 'password' AND deleted_at IS NULL AND email IS NOT NULL AND email != '';`,
+	},
+	{
+		Version: 59,
+		Name:    "email_tokens_data",
+		// Email change: an email_change token carries the new address, an
+		// email_undo token the old one. The row (and the address) goes away
+		// with the token.
+		SQL: `ALTER TABLE email_tokens ADD COLUMN data TEXT NOT NULL DEFAULT '';`,
+	},
 }
 
 // RunMigrationsUpTo applies migrations up to and including maxVersion.

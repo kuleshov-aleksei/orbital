@@ -1,9 +1,14 @@
 <template>
   <div
-    class="w-full rounded-lg border border-theme-border bg-theme-bg-primary shadow-lg flex flex-col"
+    class="w-full flex flex-col"
+    :class="
+      docked
+        ? 'h-full bg-theme-bg-primary'
+        : 'rounded-lg border border-theme-border bg-theme-bg-primary shadow-lg'
+    "
     data-testid="emoji-picker"
     @keydown.escape.stop="emit('close')">
-    <div class="p-2 border-b border-theme-border flex items-center gap-1.5">
+    <div class="p-2 border-b border-theme-border flex items-center gap-1.5 shrink-0">
       <input
         ref="searchInput"
         v-model="query"
@@ -25,7 +30,7 @@
     </div>
 
     <!-- Category tabs -->
-    <div v-if="!isSearching" class="flex gap-0.5 px-1 pt-1 overflow-x-auto">
+    <div v-if="!isSearching" class="flex gap-0.5 px-1 pt-1 overflow-x-auto shrink-0">
       <button
         v-for="tab in tabs"
         :key="tab.id"
@@ -47,7 +52,7 @@
     </div>
 
     <!-- Grid: virtualized rows of 8; the Server section pages in on scroll -->
-    <div class="relative">
+    <div class="relative" :class="docked ? 'flex-1 min-h-0' : ''">
       <div
         v-if="!isSearching && currentLabel"
         class="pointer-events-none absolute top-0 left-2 right-2 z-10 h-6 flex items-end pb-1 bg-theme-bg-primary text-[10px] font-semibold uppercase tracking-wide text-theme-text-muted">
@@ -55,7 +60,8 @@
       </div>
       <RecycleScroller
         ref="scroller"
-        class="h-52 px-2 pb-2"
+        class="px-2 pb-2"
+        :class="docked ? 'h-full' : 'h-52'"
         :items="rows"
         :item-size="null"
         key-field="id"
@@ -75,7 +81,9 @@
               :key="emoji.ref"
               type="button"
               class="emoji-cell"
-              :title="emoji.name"
+              :aria-label="emoji.name"
+              @mouseenter="showPreview(emoji.ref, $event)"
+              @mouseleave="hidePreview"
               @click="pick(emoji.ref)">
               <EmojiGlyph :emoji-ref="emoji.ref" :size="20" />
             </button>
@@ -86,6 +94,9 @@
         </template>
       </RecycleScroller>
     </div>
+
+    <!-- Enlarges the hovered cell; teleported, so the scroller can't clip it -->
+    <EmojiHoverPreview :emoji-ref="previewEmoji" :anchor="previewAnchor" />
   </div>
 </template>
 
@@ -95,6 +106,7 @@ import { PhClockCounterClockwise, PhPlus } from "@phosphor-icons/vue"
 import { RecycleScroller } from "vue-virtual-scroller"
 import "vue-virtual-scroller/index.css"
 import EmojiGlyph from "@/components/EmojiGlyph.vue"
+import EmojiHoverPreview from "@/components/common/EmojiHoverPreview.vue"
 import { useAppStore, useCustomEmojisStore, usePermissionsStore, useUserStore } from "@/stores"
 import { Permission } from "@/types/permissions"
 import {
@@ -109,7 +121,12 @@ import {
 
 // unicodeOnly: for plain-text fields (e.g. room names) where a "custom:<id>"
 // ref cannot be rendered; hides custom emojis and the upload button.
-const props = withDefaults(defineProps<{ unicodeOnly?: boolean }>(), { unicodeOnly: false })
+// docked: fills a bottom panel under the composer (mobile) instead of the
+// floating popover look.
+const props = withDefaults(defineProps<{ unicodeOnly?: boolean; docked?: boolean }>(), {
+  unicodeOnly: false,
+  docked: false,
+})
 
 const emit = defineEmits<{
   select: [ref: EmojiRef]
@@ -143,6 +160,21 @@ const query = ref("")
 const recent = ref<EmojiRef[]>(getRecentEmojis())
 const activeTab = ref<string>("")
 
+// Hover preview of the cell under the pointer (EmojiHoverPreview owns the
+// delay and positioning). No hover on touch screens: a tap picks immediately.
+const previewEmoji = ref<EmojiRef | null>(null)
+const previewAnchor = ref<HTMLElement | null>(null)
+
+function showPreview(emojiRef: EmojiRef, event: MouseEvent) {
+  if (appStore.isMobile) return
+  previewEmoji.value = emojiRef
+  previewAnchor.value = event.currentTarget as HTMLElement
+}
+
+function hidePreview() {
+  previewAnchor.value = null
+}
+
 const isSearching = computed(() => query.value.trim().length > 0)
 
 // Custom emojis outside the loaded pages are searched on the server
@@ -156,6 +188,8 @@ const isServerSearching = computed(
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 watch(query, (value) => {
   clearTimeout(searchTimer)
+  // The hovered cell may be filtered out or recycled by the new results.
+  hidePreview()
   const q = value.trim()
   if (!q || props.unicodeOnly) {
     serverResults.value = []
@@ -284,6 +318,7 @@ function onUpdate(_start: number, end: number, visibleStart: number) {
 watch(isSearching, () => void nextTick(() => scroller.value?.scrollToItem(0)))
 
 const pick = (emojiRef: EmojiRef) => {
+  hidePreview()
   recent.value = addRecentEmoji(emojiRef)
   emit("select", emojiRef)
 }

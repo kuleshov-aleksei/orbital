@@ -115,6 +115,7 @@ interface User {
   is_deafened?: boolean
   is_online: boolean
   status?: "online" | "away" | "dnd"
+  mobile?: boolean
   custom_status?: string
   custom_status_emoji?: string
 }

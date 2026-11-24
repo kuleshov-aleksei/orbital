@@ -5,7 +5,7 @@
     ":semanticCommitTypeAll(chore)"
   ],
   "minimumReleaseAge": "7 days",
-  "schedule": ["* * * * 5,6"],
+  "schedule": ["* 16,23 1-7,15-21 * 5,6"],
   "labels": ["dependencies"],
   "packageRules": [
     {
@@ -16,6 +16,11 @@
       "description": "pion/rtp v2.0.0 is an abandoned 2020 tag; upstream (and pion/webrtc v4) stay on v1",
       "matchPackageNames": ["github.com/pion/rtp", "github.com/pion/rtp/v2"],
       "allowedVersions": "<2"
+    },
+    {
+      "description": "server-sdk-go v2.20.0 needs replace directives (livekit/webrtc-pion fork on dtls/v4) that don't apply to consumers; revisit when upstream pion/webrtc moves to dtls/v4 or the SDK drops the replaces",
+      "matchPackageNames": ["github.com/livekit/server-sdk-go/v2"],
+      "allowedVersions": "<2.20.0"
     },
     {
       "matchPackageNames": ["**"],

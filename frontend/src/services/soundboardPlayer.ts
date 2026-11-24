@@ -85,6 +85,39 @@ export function playSoundboardSound(soundId: string, receivedAt = Date.now()): v
   })
 }
 
+/**
+ * Length of a preloaded clip in milliseconds, or 0 while it is still loading
+ * or unknown. Used to time how long the player's card is highlighted.
+ */
+function durationMs(howl: HowlInstance): number {
+  if (howl.state() !== "loaded") return 0
+  const seconds = howl.duration()
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 0
+}
+
+export function getSoundboardDurationMs(soundId: string): number {
+  const howl = howls.get(soundId)
+  return howl ? durationMs(howl) : 0
+}
+
+/**
+ * Calls `cb` with the clip's length as soon as it is known: immediately when
+ * the clip is already loaded, otherwise once it finishes loading.
+ */
+export function onSoundboardDuration(soundId: string, cb: (ms: number) => void): void {
+  const howl = howls.get(soundId)
+  if (!howl) return
+  const known = durationMs(howl)
+  if (known > 0) {
+    cb(known)
+    return
+  }
+  howl.once("load", () => {
+    const loaded = durationMs(howl)
+    if (loaded > 0) cb(loaded)
+  })
+}
+
 /** Plays a clip for the local user only (upload preview / admin preview). */
 export function previewSoundboardSound(sound: SoundboardSound): void {
   const howl = ensureHowl(sound)

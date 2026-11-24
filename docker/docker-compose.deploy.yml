@@ -33,6 +33,8 @@ services:
       # Search by image contents reuses an existing Immich ML: set CHAT_ML_URL in
       # .env and make it reachable from this container (e.g. join Immich's network);
       # without it the feature is off (docs/specs/CHAT_SYSTEM.md §7.13).
+      # GIF search runs in the browser: set CHAT_GIF_PROVIDER and
+      # CHAT_GIF_API_KEY in .env (docs/specs/CHAT_SYSTEM.md §7.17).
       # Android mention pushes: put the Firebase service account key in
       # ./data/backend/fcm-service-account.json (chmod 600) and set
       # FCM_CREDENTIALS_FILE=/root/data/fcm-service-account.json in .env.
@@ -51,7 +53,7 @@ services:
   # deploy workflow; restore: docs/notes/BACKUP_RESTORE.md). Upgrades: snapshot + dump first, then
   # start once with MEILI_UPGRADE_DB=true (dumpless upgrades are not atomic).
   meilisearch:
-    image: getmeili/meilisearch:v1.56.2
+    image: getmeili/meilisearch:v1.57.0
     restart: unless-stopped
     environment:
       - MEILI_ENV=production
@@ -62,6 +64,7 @@ services:
       # Keep snapshots and their staging copy on the data volume, not in /tmp.
       - MEILI_SNAPSHOT_DIR=/meili_data/snapshots
       - MEILI_DUMP_DIR=/meili_data/dumps
+      - MEILI_UPGRADE_DB=true
       - TMPDIR=/meili_data/tmp
     volumes:
       - ./data/meilisearch:/meili_data
@@ -96,3 +99,6 @@ services:
 networks:
   orbital-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.31.240.0/24

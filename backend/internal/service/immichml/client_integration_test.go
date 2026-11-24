@@ -23,7 +23,7 @@ func TestImmichMLIntegration(t *testing.T) {
 		t.Skip("ML_TEST_URL not set")
 	}
 	c := New(Options{
-		URL: url, OCRModel: "ESLAV__PP-OCRv5_mobile", CLIPModel: "XLM-Roberta-Large-Vit-B-16Plus",
+		URL: url, OCRModel: "PP-OCRv5_mobile", CLIPModel: "XLM-Roberta-Large-Vit-B-16Plus",
 		Timeout: 10 * time.Minute,
 	})
 	ctx := context.Background()
@@ -40,7 +40,7 @@ func TestImmichMLIntegration(t *testing.T) {
 	}
 	t.Logf("OCR lines: %q, vector dims %d", res.Lines, len(res.Vector))
 
-	red, err := c.EmbedText(ctx, "красный квадрат")
+	red, err := c.EmbedText(ctx, "a red square")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestImmichMLIntegration(t *testing.T) {
 	simRed, simOther := cosine(res.Vector, red), cosine(res.Vector, other)
 	t.Logf("cosine(image, red square) = %.3f, cosine(image, dog in snow) = %.3f", simRed, simOther)
 	if simRed <= simOther {
-		t.Fatalf("a red square should be closer to \"красный квадрат\" (%.3f) than to a dog (%.3f)", simRed, simOther)
+		t.Fatalf("a red square should be closer to \"a red square\" (%.3f) than to a dog (%.3f)", simRed, simOther)
 	}
 }
 

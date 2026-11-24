@@ -1,6 +1,8 @@
 <template>
   <div
-    class="px-4 pb-4 pt-1 flex-shrink-0"
+    ref="composerRoot"
+    class="px-4 pt-1 flex-shrink-0"
+    :class="composerPanel ? 'pb-0' : 'pb-4'"
     @dragover="onDragOver"
     @dragleave="dragging = false"
     @drop="onDrop">
@@ -79,22 +81,30 @@
         dragging ? 'border-theme-accent border-dashed' : 'border-theme-border',
       ]">
       <ComposerUploads v-if="roomUploads.length" :uploads="roomUploads" />
+      <!-- A GIF picked from the provider, sent with the next message -->
+      <div v-if="pendingGif" class="flex items-center gap-2 px-3 pt-2" data-testid="composer-gif">
+        <div
+          class="relative w-24 rounded-md border border-theme-border bg-theme-bg-secondary overflow-hidden">
+          <img :src="pendingGif.preview_url" alt="" class="block w-full h-16 object-cover" />
+          <button
+            type="button"
+            class="absolute top-1 right-1 w-5 h-5 flex items-center justify-center rounded-full bg-black/70 text-white hover:bg-black/90"
+            aria-label="Remove GIF"
+            data-testid="composer-gif-remove"
+            @click="pendingGif = null">
+            <PhX class="w-3 h-3" />
+          </button>
+        </div>
+        <span class="text-[11px] text-theme-text-muted"> GIF · send with your message </span>
+      </div>
       <div ref="box" class="relative flex items-end gap-2 px-3 py-2">
-        <button
-          v-if="canAttach"
-          type="button"
-          class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded text-theme-text-muted hover:text-theme-text-primary hover:bg-theme-bg-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          :title="
-            serverOnline
-              ? 'Attach files (images, audio, mp4 video)'
-              : 'Attachments need a connection'
-          "
-          aria-label="Attach files"
-          :disabled="!serverOnline"
-          data-testid="attach-button"
-          @click="fileInput?.click()">
-          <PhPlusCircle class="w-5 h-5" />
-        </button>
+        <ComposerPlusMenu
+          v-if="canAttach || canSend"
+          :can-attach="canAttach"
+          :can-poll="canSend"
+          :online="serverOnline"
+          @attach="fileInput?.click()"
+          @poll="pollModalOpen = true" />
         <input
           ref="fileInput"
           type="file"
@@ -124,6 +134,7 @@
           @mouseup="updateFormatBar"
           @keyup="updateFormatBar"
           @paste="onPaste"
+          @focus="onInputFocus"
           @blur="onBlur" />
         <span
           v-if="quotaWarning"
@@ -140,15 +151,30 @@
           >{{ MAX_CHARS - charCount }}</span
         >
         <button
+          v-if="gifSearchEnabled"
+          type="button"
+          class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded text-theme-text-muted hover:text-theme-text-primary hover:bg-theme-bg-hover transition-colors"
+          :class="{ 'text-theme-text-primary bg-theme-bg-hover': gifPickerVisible }"
+          title="GIF"
+          aria-label="Insert GIF"
+          :aria-expanded="gifPickerVisible"
+          :disabled="!canSend"
+          data-testid="gif-button"
+          @mousedown.prevent
+          @click="toggleGifPicker">
+          <PhGif class="w-5 h-5" />
+        </button>
+        <button
           type="button"
           class="w-8 h-8 flex items-center justify-center rounded text-theme-text-muted hover:text-theme-text-primary hover:bg-theme-bg-hover transition-colors"
-          :class="{ 'text-theme-text-primary bg-theme-bg-hover': isPickerOpen }"
+          :class="{ 'text-theme-text-primary bg-theme-bg-hover': emojiPickerVisible }"
           title="Emoji"
           aria-label="Insert emoji"
-          :aria-expanded="isPickerOpen"
+          :aria-expanded="emojiPickerVisible"
           :disabled="!canSend"
+          data-testid="emoji-button"
           @mousedown.prevent
-          @click="isPickerOpen = !isPickerOpen">
+          @click="toggleEmojiPicker">
           <PhSmiley class="w-5 h-5" />
         </button>
         <button
@@ -173,6 +199,12 @@
         <div v-if="isPickerOpen" class="absolute bottom-full right-0 mb-2 z-20 w-[320px]">
           <EmojiPicker @select="insertEmoji" @close="closePicker" />
         </div>
+        <div
+          v-if="isGifPickerOpen && gifProvider"
+          class="absolute bottom-full right-0 mb-2 z-20 w-[320px] max-w-[calc(100vw-2rem)]"
+          data-testid="gif-picker-popover">
+          <GifPicker :provider="gifProvider" @select="pickGif" @close="closeGifPicker" />
+        </div>
         <!-- Formatting for the selected text -->
         <div
           v-if="formatBarLeft !== null"
@@ -196,16 +228,58 @@
         </div>
       </div>
     </div>
+
+    <!-- Mobile layout (Android app, narrow window): the emoji/GIF pickers dock
+         under the composer instead of floating over the chat. Collapsing to 0
+         height gives the chat its space back; the panel keeps the height it had
+         when opened while the soft keyboard is up, so the keyboard covers the
+         chat instead of squeezing the panel. The handle drags it taller, over
+         the chat, or smaller (drag far enough down to close it). -->
+    <div
+      v-if="appStore.isMobile"
+      ref="dockSlot"
+      class="composer-dock -mx-4"
+      :class="{
+        'composer-dock--open': composerPanel,
+        'composer-dock--dragging': isDraggingDock,
+      }"
+      :style="{ '--composer-dock-h': `${isDraggingDock ? dragHeight : dockHeight}px` }"
+      :inert="composerPanel ? undefined : true"
+      :aria-hidden="!composerPanel"
+      data-testid="composer-dock">
+      <div
+        v-if="dockMounted"
+        class="composer-dock-inner flex flex-col overflow-hidden rounded-t-2xl border border-b-0 border-theme-border bg-theme-bg-primary">
+        <div
+          class="dock-handle"
+          title="Drag to resize"
+          data-testid="composer-dock-handle"
+          @pointerdown="onDockHandleDown"
+          @pointermove="onDockHandleMove"
+          @pointerup="onDockHandleUp"
+          @pointercancel="onDockHandleUp">
+          <span class="dock-grabber" aria-hidden="true" />
+        </div>
+        <ComposerPickerDock
+          :tab="composerPanel ?? 'emoji'"
+          :gif-provider="gifProvider"
+          @update:tab="textChatStore.openComposerPanel($event)"
+          @select-emoji="insertEmoji"
+          @select-gif="pickGif"
+          @close="closeComposerPanel" />
+      </div>
+    </div>
+    <CreatePollModal v-if="pollModalOpen" @close="pollModalOpen = false" @create="createPoll" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, useTemplateRef, watch } from "vue"
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from "vue"
 import {
   PhEyeSlash,
+  PhGif,
   PhInfo,
   PhPaperPlaneRight,
-  PhPlusCircle,
   PhSmiley,
   PhTextB,
   PhTextItalic,
@@ -213,8 +287,15 @@ import {
   PhX,
 } from "@phosphor-icons/vue"
 import EmojiPicker from "@/components/EmojiPicker.vue"
+import GifPicker from "./GifPicker.vue"
+import ComposerPickerDock from "./ComposerPickerDock.vue"
 import ComposerSuggestions, { type Suggestion } from "./ComposerSuggestions.vue"
 import ComposerUploads from "./ComposerUploads.vue"
+import ComposerPlusMenu from "./ComposerPlusMenu.vue"
+import CreatePollModal from "./polls/CreatePollModal.vue"
+import { useGifSearch } from "@/composables/useGifSearch"
+import { pushBackHandler } from "@/services/backButton"
+import type { TextGIF, TextPollInput } from "@/types/textChat"
 import { openStoragePage } from "@/services/attachments/urls"
 import { formatBytes } from "@/utils/formatBytes"
 import { Permission } from "@/types/permissions"
@@ -227,7 +308,15 @@ import {
   type MentionMap,
 } from "@/utils/mentionText"
 import { wrapSelection } from "@/utils/wrapSelection"
-import { isCapacitor } from "@/services/platform"
+import { activeCommandQuery, matchCommands } from "@/utils/chatCommands"
+import {
+  isCapacitor,
+  onKeyboardImage,
+  releaseKeyboardImage,
+  setKeyboardContentEnabled,
+  type KeyboardImageEvent,
+} from "@/services/platform"
+import { readKeyboardImage } from "@/services/attachments/keyboardContent"
 import {
   CUSTOM_EMOJI_PREFIX,
   emojiShortcode,
@@ -277,6 +366,172 @@ const connectionStore = useConnectionStore()
 const input = useTemplateRef<HTMLTextAreaElement>("input")
 const box = useTemplateRef<HTMLDivElement>("box")
 const isPickerOpen = ref(false)
+// Third-party GIF search (docs/specs/CHAT_SYSTEM.md §7.17): settings load
+// once per app session; the button stays hidden while unknown/disabled.
+const {
+  provider: gifProvider,
+  enabled: gifSearchEnabled,
+  ensureLoaded: ensureGifSearch,
+} = useGifSearch()
+const isGifPickerOpen = ref(false)
+const pendingGif = computed({
+  get: () => textChatStore.pendingGif,
+  set: (gif: TextGIF | null) => (textChatStore.pendingGif = gif),
+})
+void ensureGifSearch()
+
+// --- Mobile emoji/GIF dock ------------------------------------------------
+// On the mobile layout the pickers are a panel under the composer instead of a
+// popover over the chat (see the template and ComposerPickerDock).
+const composerPanel = computed(() => textChatStore.composerPanel)
+const emojiPickerVisible = computed(() =>
+  appStore.isMobile ? composerPanel.value === "emoji" : isPickerOpen.value,
+)
+const gifPickerVisible = computed(() =>
+  appStore.isMobile ? composerPanel.value === "gif" : isGifPickerOpen.value,
+)
+/** Created on the first open, then kept mounted (clipped to 0 height) so each
+ * tab keeps its search, scroll position and loaded pages. */
+const dockMounted = ref(false)
+/** Panel height in px: 44 % of the viewport when it opens. It is deliberately
+ * not re-measured while the soft keyboard shrinks the viewport: the panel keeps
+ * its size and moves up with the composer, covering the chat, instead of being
+ * squeezed. */
+const DOCK_HEIGHT_RATIO = 0.44
+const DOCK_HEIGHT_MAX_PX = 416
+/** Below this the panel can't show anything useful: releasing there closes it. */
+const DOCK_MIN_HEIGHT_PX = 150
+/** Channel header height (h-16): the composer never slides above it. */
+const CHANNEL_HEADER_PX = 64
+const dockHeight = ref(0)
+/** True once the user resized the panel by hand (keep that height on re-measure). */
+let dockResized = false
+let dockBaseline = { width: 0, height: 0 }
+let stopDockBackHandler: (() => void) | null = null
+/** Caret in the text composer while the dock holds focus (the textarea is
+ * blurred so the keyboard doesn't cover the panel). */
+const savedCaret = ref<{ start: number; end: number } | null>(null)
+
+// Drag handle: pull the panel taller over the chat, or smaller.
+const dockSlot = useTemplateRef<HTMLDivElement>("dockSlot")
+const composerRoot = useTemplateRef<HTMLDivElement>("composerRoot")
+const isDraggingDock = ref(false)
+const dragHeight = ref(0)
+let dragPointerId: number | null = null
+let dragStartY = 0
+let dragStartHeight = 0
+let dragMaxHeight = 0
+let dragMoved = false
+
+function measureDockHeight() {
+  dockResized = false
+  dockHeight.value = Math.round(
+    Math.min(window.innerHeight * DOCK_HEIGHT_RATIO, DOCK_HEIGHT_MAX_PX),
+  )
+}
+
+/** The height the panel is actually rendered at (the CSS caps it on tiny screens). */
+function renderedDockHeight(): number {
+  return dockSlot.value?.getBoundingClientRect().height ?? dockHeight.value
+}
+
+/** Tallest the panel may get while keeping the composer on screen: the composer
+ * block's bottom stays put, so growing the panel moves its top up until it
+ * reaches the channel header. */
+function maxDockHeight(): number {
+  const rendered = renderedDockHeight()
+  const root = composerRoot.value?.getBoundingClientRect()
+  if (!root) return Math.round(window.innerHeight * 0.8)
+  return Math.max(DOCK_MIN_HEIGHT_PX, rendered, Math.round(rendered + root.top - CHANNEL_HEADER_PX))
+}
+
+function onDockHandleDown(event: PointerEvent) {
+  if (event.pointerType === "mouse" && event.button !== 0) return
+  // No text selection / focus changes while dragging the panel.
+  event.preventDefault()
+  dragPointerId = event.pointerId
+  dragStartY = event.clientY
+  dragStartHeight = renderedDockHeight()
+  dragMaxHeight = Math.max(dragStartHeight, maxDockHeight())
+  dragHeight.value = dragStartHeight
+  dragMoved = false
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+}
+
+function onDockHandleMove(event: PointerEvent) {
+  if (dragPointerId !== event.pointerId) return
+  const dy = event.clientY - dragStartY
+  if (!dragMoved) {
+    // A tap on the handle must not resize the panel by a pixel.
+    if (Math.abs(dy) < 4) return
+    dragMoved = true
+    isDraggingDock.value = true
+  }
+  dragHeight.value = Math.min(dragMaxHeight, Math.max(0, dragStartHeight - dy))
+}
+
+function onDockHandleUp(event: PointerEvent) {
+  if (dragPointerId !== event.pointerId) return
+  dragPointerId = null
+  if (!dragMoved) return
+  dragMoved = false
+  isDraggingDock.value = false
+  const released = dragHeight.value
+  // Pulled down most of the way (or to nothing): dismiss like a sheet.
+  if (released < DOCK_MIN_HEIGHT_PX || released < dragStartHeight * 0.5) {
+    textChatStore.closeComposerPanel()
+    return
+  }
+  dockHeight.value = Math.round(released)
+  dockResized = true
+}
+
+function onDockResize() {
+  if (!composerPanel.value) return
+  const { innerWidth: width, innerHeight: height } = window
+  // The keyboard is the only thing that shrinks the viewport without changing
+  // the width; keep the panel as it was then. A growing viewport (keyboard
+  // closed again) or a rotation/window resize re-measures.
+  if (width === dockBaseline.width && height <= dockBaseline.height) return
+  dockBaseline = { width, height }
+  if (dockResized) {
+    // Keep the size the user dragged to, just inside the new limits.
+    dockHeight.value = Math.round(Math.min(dockHeight.value, maxDockHeight()))
+  } else {
+    measureDockHeight()
+  }
+}
+
+function closeComposerPanel() {
+  textChatStore.closeComposerPanel()
+}
+
+watch(composerPanel, (panel) => {
+  if (!panel) {
+    stopDockBackHandler?.()
+    stopDockBackHandler = null
+    isDraggingDock.value = false
+    dragPointerId = null
+    dragMoved = false
+    // Focus follows the input into the collapsing panel; drop the keyboard too.
+    const active = document.activeElement
+    if (active instanceof HTMLElement && active.closest("[data-testid='composer-dock']")) {
+      active.blur()
+    }
+    return
+  }
+  dockMounted.value = true
+  const el = input.value
+  // Remember where the caret was, then hide the keyboard so it can't cover the
+  // panel (emoji insertion continues from the saved caret).
+  savedCaret.value =
+    el && document.activeElement === el ? { start: el.selectionStart, end: el.selectionEnd } : null
+  el?.blur()
+  dockBaseline = { width: window.innerWidth, height: window.innerHeight }
+  measureDockHeight()
+  // Android back closes the panel before it leaves the channel.
+  stopDockBackHandler = pushBackHandler(() => textChatStore.closeComposerPanel())
+})
 
 // Drafts survive switching channels (kept for this app session).
 const drafts = draftStore()
@@ -286,6 +541,10 @@ watch(
   async (roomId, previous) => {
     if (previous) drafts.set(previous, draft.value)
     draft.value = drafts.get(roomId) ?? ""
+    // A picked GIF belongs to the channel it was picked in.
+    textChatStore.pendingGif = null
+    isGifPickerOpen.value = false
+    closeComposerPanel()
     closeSuggestions()
     await nextTick()
     autosize()
@@ -360,10 +619,14 @@ async function send() {
     return
   }
   const hasFiles = roomUploads.value.some((u) => u.status === "done")
-  if (!content && !hasFiles) return
+  const gif = pendingGif.value
+  if (!content && !hasFiles && !gif) return
   const files = attachmentsStore.takeReady(props.roomId)
   attachmentsStore.composerError = null
-  textChatStore.sendMessage(props.roomId, content, files)
+  textChatStore.sendMessage(props.roomId, content, files, gif)
+  pendingGif.value = null
+  isGifPickerOpen.value = false
+  closeComposerPanel()
   draft.value = ""
   mentionMap().clear()
   closeSuggestions()
@@ -385,15 +648,24 @@ const canAttach = computed(
     attachmentsStore.enabled &&
     permissionsStore.can(Permission.AttachFiles, { roomId: props.roomId }),
 )
-/** Send button: shown once there is text or an attachment to send. */
+/** Send button: shown once there is text, an attachment or a GIF to send. */
 const showSend = computed(
-  () => props.canSend && (draft.value.trim() !== "" || roomUploads.value.length > 0),
+  () =>
+    props.canSend &&
+    (draft.value.trim() !== "" || roomUploads.value.length > 0 || !!pendingGif.value),
 )
 const quotaWarning = computed(() => canAttach.value && attachmentsStore.usageRatio >= 0.9)
 watch(canAttach, (can) => can && void attachmentsStore.loadUsage(), { immediate: true })
 
 // Messages queue offline (outbox); uploads can't.
 const serverOnline = computed(() => connectionStore.isOnline)
+
+// --- Polls ----------------------------------------------------------------
+const pollModalOpen = ref(false)
+function createPoll(poll: TextPollInput) {
+  pollModalOpen.value = false
+  textChatStore.sendPoll(props.roomId, poll)
+}
 
 function addFiles(files: File[]) {
   if (!files.length) return
@@ -410,6 +682,69 @@ function addFiles(files: File[]) {
   attachmentsStore.addFiles(props.roomId, files)
   focus()
 }
+
+let keyboardInputFocused = false
+let composerDisposed = false
+let stopKeyboardImages: (() => void) | null = null
+
+function syncKeyboardContent() {
+  const enabled = !composerDisposed && keyboardInputFocused && canAttach.value && serverOnline.value
+  void setKeyboardContentEnabled(enabled, Math.max(1, attachmentsStore.maxBytes("image")))
+}
+
+function onInputFocus() {
+  keyboardInputFocused = true
+  syncKeyboardContent()
+}
+
+async function receiveKeyboardImage(event: KeyboardImageEvent) {
+  if ("error" in event) {
+    if (composerDisposed || !keyboardInputFocused) return
+    attachmentsStore.composerError =
+      event.error === "too_large"
+        ? `This image is larger than the ${formatBytes(attachmentsStore.maxBytes("image"))} image limit.`
+        : "The keyboard image or sticker could not be read."
+    return
+  }
+  if (composerDisposed || !keyboardInputFocused) {
+    await releaseKeyboardImage(event.uri)
+    return
+  }
+
+  const roomId = props.roomId
+  try {
+    const file = await readKeyboardImage(event)
+    // Do not add a delayed keyboard event to a different composer.
+    if (composerDisposed || !keyboardInputFocused || roomId !== props.roomId) return
+    addFiles([file])
+  } catch {
+    if (!composerDisposed && roomId === props.roomId) {
+      attachmentsStore.composerError = "The keyboard image or sticker could not be read."
+    }
+  }
+}
+
+watch([canAttach, serverOnline, () => props.roomId], syncKeyboardContent)
+
+onMounted(() => {
+  window.addEventListener("resize", onDockResize)
+  window.addEventListener("orientationchange", onDockResize)
+  void onKeyboardImage((event) => void receiveKeyboardImage(event)).then((stop) => {
+    if (composerDisposed) stop()
+    else stopKeyboardImages = stop
+  })
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener("resize", onDockResize)
+  window.removeEventListener("orientationchange", onDockResize)
+  stopDockBackHandler?.()
+  stopDockBackHandler = null
+  composerDisposed = true
+  keyboardInputFocused = false
+  syncKeyboardContent()
+  stopKeyboardImages?.()
+})
 
 function onPick(e: Event) {
   const el = e.target as HTMLInputElement
@@ -467,7 +802,12 @@ function mentionSuggestions(query: string): Suggestion[] {
     const n = name.toLowerCase()
     return n.startsWith(q) ? 0 : n.includes(q) ? 1 : -1
   }
+  // Only users who can see this channel, like the user sidebar (everyone
+  // until the viewer list for this channel has loaded).
+  const viewerIds =
+    textChatStore.activeChannelId === props.roomId ? textChatStore.activeViewerIds : null
   const users = usersStore.allUsers
+    .filter((u) => !viewerIds || viewerIds.has(u.id))
     .map((u) => ({ u, r: rank(u.nickname) }))
     .filter((x) => x.r >= 0 && x.u.id !== props.myUserId)
     .sort((a, b) => a.r - b.r || a.u.nickname.localeCompare(b.u.nickname))
@@ -541,8 +881,21 @@ function updateSuggestions() {
   const el = input.value
   if (!el || el.selectionStart !== el.selectionEnd) return closeSuggestions()
   const caret = el.selectionStart
-  const mention = activeMentionQuery(draft.value, caret)
-  if (mention) {
+  const command = activeCommandQuery(draft.value, caret)
+  const mention = command ? null : activeMentionQuery(draft.value, caret)
+  if (command) {
+    emojiSearchQuery = ""
+    suggestions.value = matchCommands(command.query).map((c) => ({
+      key: `c:${c.name}`,
+      kind: "command",
+      id: c.name,
+      label: `/${c.name}`,
+      insert: `/${c.name}`,
+      hint: c.description,
+    }))
+    suggestionTitle.value = "Commands"
+    suggestionStart = 0
+  } else if (mention) {
     emojiSearchQuery = ""
     suggestions.value = mentionSuggestions(mention.query)
     suggestionTitle.value = "Members and roles"
@@ -618,7 +971,11 @@ function onKeydown(event: KeyboardEvent) {
   } else if (event.key === "Escape") {
     // Handled here; the channel view ignores prevented Escapes.
     event.preventDefault()
-    if (isPickerOpen.value) {
+    if (composerPanel.value) {
+      closeComposerPanel()
+    } else if (isGifPickerOpen.value) {
+      isGifPickerOpen.value = false
+    } else if (isPickerOpen.value) {
       isPickerOpen.value = false
     } else if (formatBarLeft.value !== null) {
       formatBarLeft.value = null
@@ -682,6 +1039,8 @@ function onFormatKey(event: KeyboardEvent): boolean {
 }
 
 function onBlur() {
+  keyboardInputFocused = false
+  syncKeyboardContent()
   closeSuggestions()
   formatBarLeft.value = null
 }
@@ -693,23 +1052,75 @@ function textFor(ref: EmojiRef): string {
 }
 
 async function insertEmoji(ref: EmojiRef) {
-  isPickerOpen.value = false
   const text = textFor(ref)
   if (!text) return
   const el = input.value
   const value = draft.value
-  const start = el?.selectionStart ?? value.length
-  const end = el?.selectionEnd ?? value.length
+  // In the mobile dock the textarea is blurred (keyboard away), so the caret
+  // comes from the snapshot taken when the dock opened or from the last insert.
+  const docked = appStore.isMobile && !!composerPanel.value
+  if (!docked) isPickerOpen.value = false
+  // Without a saved caret the emoji goes to the end of the draft, not to the
+  // textarea's default selection (0 when it was never focused, e.g. Android).
+  const start = docked
+    ? Math.min(savedCaret.value?.start ?? value.length, value.length)
+    : Math.min(el?.selectionStart ?? value.length, value.length)
+  const end = docked
+    ? Math.min(savedCaret.value?.end ?? value.length, value.length)
+    : Math.min(el?.selectionEnd ?? value.length, value.length)
   draft.value = value.slice(0, start) + text + value.slice(end)
   await nextTick()
-  const caret = start + text.length
-  el?.focus()
-  el?.setSelectionRange(caret, caret)
+  const next = start + text.length
+  if (docked) {
+    // Keep the dock (and the chat) open for more emojis; no focus, or the
+    // keyboard would cover the panel.
+    savedCaret.value = { start: next, end: next }
+  } else {
+    el?.focus()
+    el?.setSelectionRange(next, next)
+  }
   autosize()
 }
 
 function closePicker() {
   isPickerOpen.value = false
+  focus()
+}
+
+/** Emoji and GIF pickers share the same spot above the composer (desktop) or
+ * the same dock (mobile). */
+function toggleEmojiPicker() {
+  if (appStore.isMobile) {
+    textChatStore.toggleComposerPanel("emoji")
+    return
+  }
+  isGifPickerOpen.value = false
+  isPickerOpen.value = !isPickerOpen.value
+}
+
+function toggleGifPicker() {
+  if (appStore.isMobile) {
+    textChatStore.toggleComposerPanel("gif")
+    return
+  }
+  isPickerOpen.value = false
+  isGifPickerOpen.value = !isGifPickerOpen.value
+}
+
+/** The picked GIF waits in the composer until the message is sent. */
+function pickGif(gif: TextGIF) {
+  textChatStore.pendingGif = gif
+  if (appStore.isMobile) {
+    // A GIF is one per message: close the dock, but keep the keyboard away.
+    closeComposerPanel()
+    return
+  }
+  isGifPickerOpen.value = false
+  focus()
+}
+
+function closeGifPicker() {
+  isGifPickerOpen.value = false
   focus()
 }
 
@@ -729,5 +1140,64 @@ function draftStore() {
    Tailwind's layered outline utilities; the surrounding box shows focus. */
 .composer-input:focus-visible {
   outline: none;
+}
+
+/* Mobile emoji/GIF dock. The slot collapses to 0 and clips the full-height
+   panel, so opening slides the panel up (the message list gives its height
+   back) and closing slides it down. The panel keeps the height it had when it
+   opened while the keyboard is up: only the chat is covered. */
+.composer-dock {
+  height: 0;
+  overflow: hidden;
+  transition:
+    height 220ms var(--ease-out-smooth, cubic-bezier(0.22, 1, 0.36, 1)),
+    margin-top 220ms var(--ease-out-smooth, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.composer-dock--open {
+  /* A gap under the composer, and the panel reads as its own sheet. */
+  margin-top: 0.75rem;
+  height: min(var(--composer-dock-h, 0px), calc(100dvh - 8rem));
+}
+
+.composer-dock-inner {
+  /* Fixed, so the content slides in and out with the slot instead of
+     squashing. Never taller than the space under the header: on short
+     viewports (landscape, keyboard up) the composer must stay reachable. */
+  height: min(var(--composer-dock-h, 0px), calc(100dvh - 8rem));
+}
+
+.composer-dock--dragging,
+.composer-dock--dragging .composer-dock-inner {
+  transition: none;
+}
+
+/* Grab handle: a full-width strip so the target is easy to hit. */
+.dock-handle {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  height: 1.25rem;
+  cursor: grab;
+  touch-action: none;
+}
+
+.dock-handle:active {
+  cursor: grabbing;
+}
+
+.dock-grabber {
+  width: 2.5rem;
+  height: 0.25rem;
+  border-radius: 9999px;
+  background-color: var(--color-theme-text-muted);
+  opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-dock {
+    transition: none;
+  }
 }
 </style>

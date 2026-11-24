@@ -8,6 +8,7 @@ import {
   setHotkeys,
   resetHotkeys,
 } from "../features/config"
+import { getUiScaleInfo, setUiScale } from "../features/uiScale"
 import { registerAllHotkeys, pauseHotkeys, resumeHotkeys, getHotkeyBackend } from "../features/hotkeys"
 
 export function registerConfigIpc() {
@@ -26,6 +27,10 @@ export function registerConfigIpc() {
   ipcMain.handle("set-has-selected-close-behavior", (_, value: boolean) => {
     setHasSelectedCloseBehavior(value)
   })
+
+  ipcMain.handle("get-ui-scale", () => getUiScaleInfo())
+
+  ipcMain.handle("set-ui-scale", (_, value: unknown) => setUiScale(value))
 
   ipcMain.handle("get-hotkeys", () => {
     return getConfig().hotkeys

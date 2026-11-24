@@ -1,6 +1,7 @@
 /**
- * On-disk LRU cache for chat attachment media (images, video, audio) and
- * custom emoji images (keys emoji-<id>-<version>_emoji[still], from the backend).
+ * On-disk LRU cache for chat attachment media (images, video, audio), custom
+ * emoji images (keys emoji-<id>-<version>_emoji[still]) and badge images
+ * (badge-<id>-<version>_badge), from the backend.
  *
  * The renderer points <img>/<video>/<audio> at orbital-media://cache/<key>,
  * adding ?src=<presigned S3 URL> when the key isn't cached yet. This handler
@@ -34,7 +35,7 @@ const PART_IDLE_MS = 10 * 60 * 1000
 const UPSTREAM_HEADERS_TIMEOUT_MS = 30_000
 const INDEX_VERSION = 1
 const INDEX_FILE = "index.json"
-const KEY_PATTERN = /^[A-Za-z0-9=-]+_(original|thumb|emoji|emojistill)$/
+const KEY_PATTERN = /^[A-Za-z0-9=-]+_(original|thumb|emoji|emojistill|badge)$/
 
 interface Entry {
   size: number

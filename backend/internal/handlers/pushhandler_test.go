@@ -12,7 +12,7 @@ import (
 
 type memPushDevices struct{ owner map[string]string }
 
-func (m *memPushDevices) Upsert(token, userID, _ string) error {
+func (m *memPushDevices) Upsert(token, userID, _, _ string) error {
 	m.owner[token] = userID
 	return nil
 }

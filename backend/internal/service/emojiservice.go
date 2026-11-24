@@ -84,9 +84,10 @@ func (s *EmojiService) emojiDir() string {
 	return filepath.Join(s.dataDir, "emojis")
 }
 
-// isAllowedEmojiType checks the magic bytes. libvips sniffs and loads many
-// more formats (SVG, PDF, TIFF...), so only these reach it.
-func isAllowedEmojiType(data []byte) bool {
+// isAllowedImageType checks the magic bytes. libvips sniffs and loads many
+// more formats (SVG, PDF, TIFF...), so only these reach it. Shared by custom
+// emoji and badge uploads.
+func isAllowedImageType(data []byte) bool {
 	if bytes.HasPrefix(data, pngMagic) || isWebP(data) {
 		return true
 	}
@@ -104,7 +105,7 @@ func processEmojiImage(data []byte) (encoded []byte, animated bool, err error) {
 	if len(data) > MaxEmojiFileSize {
 		return nil, false, ErrEmojiTooLarge
 	}
-	if !isAllowedEmojiType(data) {
+	if !isAllowedImageType(data) {
 		return nil, false, ErrEmojiInvalidType
 	}
 	return encodeEmojiWebP(data)
@@ -414,7 +415,7 @@ func (s *EmojiService) migrateOneToWebP(e *models.CustomEmoji) error {
 	}
 	// Stored files were already validated and scaled on upload, so the size
 	// limit does not apply here.
-	if !isAllowedEmojiType(src) {
+	if !isAllowedImageType(src) {
 		return ErrEmojiInvalidType
 	}
 	encoded, animated, err := encodeEmojiWebP(src)

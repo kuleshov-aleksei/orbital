@@ -24,6 +24,13 @@ export interface UpdateErrorInfo {
   message: string
 }
 
+export interface OtaStatus {
+  shellApi: number
+  builtinVersion: string
+  activeVersion: string | null
+  pendingVersion: string | null
+}
+
 export interface VenmicNode {
   [key: string]: string | number | boolean | undefined
 }
@@ -53,6 +60,13 @@ export interface WinAudioStartResult {
   sessionId?: number
   unsupported?: boolean
   error?: string
+}
+
+export interface UiScaleInfo {
+  setting: "auto" | number
+  auto: number
+  effective: number
+  handheld: boolean
 }
 
 export interface HotkeySetting {
@@ -102,6 +116,10 @@ export interface ElectronAPI {
   onUpdateError: (callback: (info: UpdateErrorInfo) => void) => void
   onUpdateNotAvailable: (callback: () => void) => void
   installUpdate: () => void
+  otaStatus: () => Promise<OtaStatus>
+  onOtaReady: (callback: (info: { version: string }) => void) => void
+  applyOta: () => Promise<boolean>
+  confirmOtaBoot: () => Promise<void>
   getPlatform: () => Promise<NodeJS.Platform>
   getSystemInfo: () => Promise<SystemInfoData>
   minimizeWindow: () => void
@@ -134,6 +152,8 @@ export interface ElectronAPI {
   hasSelectedCloseBehavior: () => Promise<boolean>
   setHasSelectedCloseBehavior: (value: boolean) => Promise<void>
   showCloseDialog: () => Promise<boolean>
+  getUiScale: () => Promise<UiScaleInfo>
+  setUiScale: (value: "auto" | number) => Promise<UiScaleInfo>
   getHotkeys: () => Promise<HotkeysConfig>
   setHotkeys: (hotkeys: HotkeysConfig) => Promise<{ requiresRestart: boolean }>
   resetHotkeys: () => Promise<{ requiresRestart: boolean }>
@@ -200,6 +220,13 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke("install-update")
   },
 
+  otaStatus: () => ipcRenderer.invoke("ota:status"),
+  onOtaReady: (callback) => {
+    ipcRenderer.on("ota-ready", (_, info) => callback(info))
+  },
+  applyOta: () => ipcRenderer.invoke("ota:apply"),
+  confirmOtaBoot: () => ipcRenderer.invoke("ota:confirm-boot"),
+
   getPlatform: () => ipcRenderer.invoke("get-platform"),
   getSystemInfo: () => ipcRenderer.invoke("get-system-info"),
 
@@ -255,6 +282,9 @@ const electronAPI: ElectronAPI = {
   hasSelectedCloseBehavior: () => ipcRenderer.invoke("has-selected-close-behavior"),
   setHasSelectedCloseBehavior: (value) => ipcRenderer.invoke("set-has-selected-close-behavior", value),
   showCloseDialog: () => ipcRenderer.invoke("show-close-dialog"),
+
+  getUiScale: () => ipcRenderer.invoke("get-ui-scale"),
+  setUiScale: (value) => ipcRenderer.invoke("set-ui-scale", value),
 
   getHotkeys: () => ipcRenderer.invoke("get-hotkeys"),
   setHotkeys: (hotkeys) => ipcRenderer.invoke("set-hotkeys", hotkeys),

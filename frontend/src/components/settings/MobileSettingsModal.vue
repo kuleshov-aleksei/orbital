@@ -157,7 +157,10 @@
             @logout="close" />
 
           <!-- Security Settings Tab -->
-          <SecuritySettings v-else-if="currentTab === 'security'" :hide-header="true" />
+          <SecuritySettings
+            v-else-if="currentTab === 'security'"
+            :hide-header="true"
+            @logout="close" />
 
           <!-- Audio Settings Tab -->
           <AudioSettings v-else-if="currentTab === 'audio'" :hide-header="true" />

@@ -57,6 +57,11 @@
             <QRLoginPanel />
           </div>
 
+          <ForgotPasswordPanel
+            v-else-if="view === 'forgot'"
+            :initial-email="login"
+            @back="view = 'form'" />
+
           <template v-else>
             <!-- Heading -->
             <div class="text-center mb-6">
@@ -203,6 +208,15 @@
                   class="text-red-400 text-xs mt-1">
                   Password does not meet requirements
                 </p>
+                <div v-if="!isRegisterMode && configStore.emailEnabled" class="mt-1.5 text-right">
+                  <button
+                    type="button"
+                    data-testid="auth-forgot-password"
+                    class="text-sm text-theme-text-muted hover:text-theme-text-primary transition-colors"
+                    @click="openForgotPassword">
+                    Forgot password?
+                  </button>
+                </div>
               </div>
 
               <!-- Confirm Password (only in register mode) -->
@@ -241,6 +255,14 @@
                 </p>
               </div>
 
+              <!-- Terms acceptance (register mode): unchecked by default, required -->
+              <div v-if="isRegisterMode" class="mt-4 mb-1">
+                <TermsCheckbox
+                  v-model="acceptedTerms"
+                  testid="auth-accept-terms"
+                  @open="legalDoc = $event" />
+              </div>
+
               <!-- Submit Button -->
               <button
                 type="submit"
@@ -259,11 +281,21 @@
                 <div class="flex-1 border-t border-theme-border" />
               </div>
 
+              <!-- These buttons can create an account, so they need the same
+                   explicit consent as registration. Unchecked by default. -->
+              <div class="mb-3">
+                <TermsCheckbox
+                  v-model="acceptedTerms"
+                  testid="auth-accept-terms-quick"
+                  @open="legalDoc = $event" />
+              </div>
+
               <div class="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   data-testid="auth-oauth-discord"
-                  class="flex items-center justify-center gap-2 px-3 py-3 bg-[#5865F2] hover:bg-[#4752C4] text-white rounded-lg transition-colors duration-200 font-medium"
+                  :disabled="!acceptedTerms"
+                  class="flex items-center justify-center gap-2 px-3 py-3 bg-[#5865F2] hover:bg-[#4752C4] text-white rounded-lg transition-colors duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   @click="handleLoginWithDiscord">
                   <DiscordIcon class="w-5 h-5" />
                   Discord
@@ -271,7 +303,8 @@
                 <button
                   type="button"
                   data-testid="auth-oauth-google"
-                  class="flex items-center justify-center gap-2 px-3 py-3 bg-theme-text-primary hover:bg-theme-text-secondary text-theme-bg-primary rounded-lg transition-colors duration-200 font-medium"
+                  :disabled="!acceptedTerms"
+                  class="flex items-center justify-center gap-2 px-3 py-3 bg-theme-text-primary hover:bg-theme-text-secondary text-theme-bg-primary rounded-lg transition-colors duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   @click="handleLoginWithGoogle">
                   <GoogleIcon class="w-5 h-5" />
                   Google
@@ -281,7 +314,8 @@
               <button
                 type="button"
                 data-testid="auth-guest"
-                class="mt-2 w-full flex items-center justify-center gap-2 px-4 py-3 bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-primary rounded-lg transition-colors duration-200 font-medium"
+                :disabled="!acceptedTerms"
+                class="mt-2 w-full flex items-center justify-center gap-2 px-4 py-3 bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-primary rounded-lg transition-colors duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 @click="handleContinueAsGuest">
                 <PhUser class="w-5 h-5" />
                 Continue as guest
@@ -317,13 +351,15 @@
         </div>
       </div>
     </div>
+
+    <LegalModal v-if="legalDoc" :doc="legalDoc" @close="legalDoc = null" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from "vue"
 import { storeToRefs } from "pinia"
-import { useUserStore, useAppStore } from "@/stores"
+import { useUserStore, useAppStore, useConfigStore } from "@/stores"
 import {
   PhUser,
   PhEye,
@@ -336,10 +372,15 @@ import { isElectron } from "@/services/electron"
 import DiscordIcon from "~icons/simple-icons/discord"
 import GoogleIcon from "~icons/logos/google-icon"
 import QRLoginPanel from "@/components/auth/QRLoginPanel.vue"
+import ForgotPasswordPanel from "@/components/auth/ForgotPasswordPanel.vue"
 import { appOAuthError } from "@/services/oauthApp"
+import LegalModal from "@/components/legal/LegalModal.vue"
+import TermsCheckbox from "@/components/legal/TermsCheckbox.vue"
+import type { LegalDocId } from "@/components/legal/legal"
 
 const userStore = useUserStore()
 const appStore = useAppStore()
+const configStore = useConfigStore()
 const { isMobile } = storeToRefs(appStore)
 
 const inputClass =
@@ -347,10 +388,15 @@ const inputClass =
 
 // The QR code is shown on the device that wants to sign in and scanned by a
 // signed-in phone, so the QR view only exists on the desktop layout.
-const view = ref<"form" | "qr">("form")
+const view = ref<"form" | "qr" | "forgot">("form")
 watch(isMobile, (mobile) => {
-  if (mobile) view.value = "form"
+  if (mobile && view.value === "qr") view.value = "form"
 })
+
+function openForgotPassword() {
+  errorMessage.value = ""
+  view.value = "forgot"
+}
 
 const isRegisterMode = ref(false)
 const isLoading = ref(false)
@@ -372,6 +418,10 @@ const nicknameTouched = ref(false)
 const emailTouched = ref(false)
 const passwordTouched = ref(false)
 const confirmPasswordTouched = ref(false)
+// Registration needs an explicit opt-in to the Terms and Privacy Policy.
+const acceptedTerms = ref(false)
+// Shown in a modal so the half-filled form survives reading the documents.
+const legalDoc = ref<LegalDocId | null>(null)
 
 const nicknameError = computed(() => nicknameTouched.value && !nickname.value)
 const emailError = computed(() => emailTouched.value && !email.value)
@@ -399,7 +449,8 @@ const canSubmit = computed(() => {
     email.value &&
     isEmailValid.value &&
     isPasswordValid.value &&
-    passwordsMatch.value
+    passwordsMatch.value &&
+    acceptedTerms.value
   )
 })
 
@@ -414,17 +465,31 @@ const isPasswordValid = computed(() => {
   return passwordLengthValid.value && passwordNumberValid.value && passwordSpecialValid.value
 })
 
+const termsRequiredMessage = "Please accept the Terms of Service and Privacy Policy"
+
 const handleLoginWithDiscord = () => {
-  userStore.loginWithProvider("discord")
+  if (!acceptedTerms.value) {
+    errorMessage.value = termsRequiredMessage
+    return
+  }
+  userStore.loginWithProvider("discord", true)
 }
 
 const handleLoginWithGoogle = () => {
-  userStore.loginWithProvider("google")
+  if (!acceptedTerms.value) {
+    errorMessage.value = termsRequiredMessage
+    return
+  }
+  userStore.loginWithProvider("google", true)
 }
 
 const handleContinueAsGuest = async () => {
   try {
-    await userStore.continueAsGuest()
+    if (!acceptedTerms.value) {
+      errorMessage.value = termsRequiredMessage
+      return
+    }
+    await userStore.continueAsGuest(true)
   } catch (error: unknown) {
     const err = error as Error
     errorMessage.value = err.message || "Guest login failed. Please try again."
@@ -474,10 +539,14 @@ const handlePasswordSubmit = async () => {
       errorMessage.value = "Please fill in all fields"
       return
     }
+    if (!acceptedTerms.value) {
+      errorMessage.value = termsRequiredMessage
+      return
+    }
 
     isLoading.value = true
     try {
-      await userStore.register(email.value, nickname.value, password.value)
+      await userStore.register(email.value, nickname.value, password.value, true)
     } catch (error: unknown) {
       const err = error as Error
       errorMessage.value = err.message || "Registration failed. Please try again."

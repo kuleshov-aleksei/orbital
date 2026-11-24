@@ -1,0 +1,7 @@
+Hi {{.Nickname}},
+
+Please confirm your email address for {{.AppName}} by opening this link:
+
+{{.Link}}
+
+The link is valid for {{.ExpiresIn}}. If you didn't create an account, you can ignore this email.

@@ -7,6 +7,7 @@ import (
 
 	"github.com/kuleshov-aleksei/orbital/internal/models"
 	"github.com/kuleshov-aleksei/orbital/internal/permissions"
+	"github.com/kuleshov-aleksei/orbital/internal/service/chatcmd"
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatmedia"
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatstore"
 )
@@ -17,7 +18,16 @@ type textSendRequest struct {
 	ReplyToID string   `json:"reply_to_id"`
 	ReplyPing *bool    `json:"reply_ping"`
 	UploadIDs []string `json:"upload_ids"`
-	Nonce     string   `json:"nonce"`
+	// SpoilerIDs is the subset of UploadIDs (images and videos) shown behind
+	// a spoiler cover; other ids are ignored.
+	SpoilerIDs []string `json:"spoiler_ids"`
+	Nonce      string   `json:"nonce"`
+	// TZ is the sender's IANA time zone, used by /remindme.
+	TZ string `json:"tz"`
+	// GIF is a shared third-party GIF (docs/specs/CHAT_SYSTEM.md §7.17).
+	GIF *chatstore.GIF `json:"gif"`
+	// Poll makes the message a poll (docs/specs/CHAT_SYSTEM.md §7.18).
+	Poll *chatstore.PollInput `json:"poll"`
 }
 
 func (c *Client) handleTextMessageSend(data interface{}) {
@@ -66,12 +76,33 @@ func (c *Client) handleTextMessageSend(data interface{}) {
 	}
 
 	replyPing := req.ReplyPing == nil || *req.ReplyPing
+	gif, err := chatstore.NormalizeGIF(req.GIF)
+	if err != nil {
+		c.sendTextError(textErrInvalid, err.Error(), req.Nonce, "")
+		return
+	}
+	poll, err := chatstore.NormalizePoll(req.Poll, tc.Store.Now())
+	if err != nil {
+		c.sendTextError(textErrInvalid, err.Error(), req.Nonce, "")
+		return
+	}
+	if poll != nil && (len(req.UploadIDs) > 0 || gif != nil) {
+		c.sendTextError(textErrInvalid, "Polls can't have attachments or GIFs", req.Nonce, "")
+		return
+	}
 	in := chatstore.CreateInput{
 		RoomID: req.RoomID, SenderID: userID, Content: req.Content,
-		ReplyToID: req.ReplyToID, ReplyPing: replyPing,
+		ReplyToID: req.ReplyToID, ReplyPing: replyPing, GIF: gif, Poll: poll,
+	}
+	var reminder *chatcmd.ReminderSpec
+	if poll == nil {
+		// A poll's text is a caption, never a slash command.
+		var ok bool
+		if reminder, ok = c.runCommand(tc, userID, &req, &in); !ok {
+			return
+		}
 	}
 	var msg *chatstore.Message
-	var err error
 	if len(req.UploadIDs) == 0 {
 		msg, err = tc.Store.Create(context.Background(), in)
 	} else {
@@ -86,6 +117,7 @@ func (c *Client) handleTextMessageSend(data interface{}) {
 		}
 		err = tc.Media.Attach(context.Background(), userID, req.RoomID, req.UploadIDs,
 			func(atts []chatstore.Attachment) (string, error) {
+				markSpoilers(atts, req.SpoilerIDs)
 				in.Attachments = atts
 				m, err := tc.Store.Create(context.Background(), in)
 				if err != nil {
@@ -112,17 +144,105 @@ func (c *Client) handleTextMessageSend(data interface{}) {
 		created = true
 		c.hub.textNonces.complete(userID, req.Nonce, msg.ID)
 	}
-	payload := map[string]any{"room_id": msg.RoomID, "message": msg.Public()}
-	if req.Nonce != "" {
-		payload["nonce"] = req.Nonce
-	}
-	if msg.ReplyToID != nil {
-		if replied, err := tc.Store.Replied(context.Background(), msg); err == nil {
-			payload["replied"] = replied
+	if reminder != nil {
+		err := tc.Reminders.Add(chatstore.Reminder{
+			UserID: userID, RoomID: msg.RoomID, MessageID: msg.ID,
+			DueAtMS: reminder.DueAt.UnixMilli(), TZ: reminder.TZ, Note: reminder.Note,
+		})
+		if err != nil {
+			log.Printf("[TextChat] Failed to store reminder of message %s: %v", msg.ID, err)
 		}
 	}
-	c.hub.broadcastText(msg.RoomID, models.WebSocketMessage{Type: "text_message_new", Data: payload})
-	c.hub.pushMessage(tc, msg, c.hub.pingMentions(tc, msg))
+	if msg.Poll != nil && msg.Poll.ClosesAtTS != nil {
+		err := tc.PollDeadlines.Add(chatstore.PollDeadline{MessageID: msg.ID, RoomID: msg.RoomID, DueAtMS: *msg.Poll.ClosesAtTS})
+		if err != nil {
+			log.Printf("[TextChat] Failed to store the due date of poll %s: %v", msg.ID, err)
+		}
+	}
+	c.hub.publishNewMessage(tc, msg, req.Nonce)
+}
+
+// publishNewMessage broadcasts a stored message and sends its mention pings
+// and pushes (user sends and fired reminders).
+func (h *Hub) publishNewMessage(tc *TextChat, msg *chatstore.Message, nonce string) {
+	var replied map[string]chatstore.PublicMessage
+	if msg.ReplyToID != nil {
+		if r, err := tc.Store.Replied(context.Background(), msg); err == nil {
+			replied = r
+		}
+	}
+	h.broadcastMessageEvent(msg, "text_message_new", func(pub chatstore.PublicMessage) map[string]any {
+		payload := map[string]any{"room_id": msg.RoomID, "message": pub}
+		if nonce != "" {
+			payload["nonce"] = nonce
+		}
+		if replied != nil {
+			payload["replied"] = replied
+		}
+		return payload
+	})
+	h.pushMessage(tc, msg, h.pingMentions(tc, msg))
+	if msg.Command == nil && msg.Poll == nil {
+		tc.Previews.Schedule(msg, h.broadcastUpdated)
+	}
+}
+
+// maxPendingReminders caps /remindme per user.
+const maxPendingReminders = 25
+
+// runCommand turns a slash command into its result on in.Command. It
+// returns false after answering the sender with an error. A /remindme
+// returns the reminder to store once the message exists.
+func (c *Client) runCommand(tc *TextChat, userID string, req *textSendRequest, in *chatstore.CreateInput) (*chatcmd.ReminderSpec, bool) {
+	inv, ok := chatcmd.Parse(req.Content)
+	if !ok {
+		return nil, true
+	}
+	if len(req.UploadIDs) > 0 {
+		c.sendTextError(textErrInvalid, "Commands can't have attachments", req.Nonce, "")
+		return nil, false
+	}
+	if inv.Name == chatstore.CommandRemindMe {
+		n, err := tc.Reminders.CountPending(userID)
+		if err != nil {
+			log.Printf("[TextChat] Failed to count reminders of %s: %v", userID, err)
+			c.sendTextError(textErrWriteFailed, "Couldn't save the reminder", req.Nonce, "")
+			return nil, false
+		}
+		if n >= maxPendingReminders {
+			c.sendTextError(textErrInvalid, "You have too many pending reminders", req.Nonce, "")
+			return nil, false
+		}
+	}
+	cmd, reminder, err := chatcmd.Execute(inv, tc.Store.Now(), req.TZ)
+	if err != nil {
+		if chatcmd.IsUsage(err) {
+			c.sendTextError(textErrInvalid, err.Error(), req.Nonce, "")
+		} else {
+			log.Printf("[TextChat] Command /%s failed: %v", inv.Name, err)
+			c.sendTextError(textErrWriteFailed, "The command failed", req.Nonce, "")
+		}
+		return nil, false
+	}
+	in.Command = cmd
+	return reminder, true
+}
+
+// markSpoilers flags the images and videos whose ids the sender listed.
+func markSpoilers(atts []chatstore.Attachment, ids []string) {
+	if len(ids) == 0 {
+		return
+	}
+	set := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		set[id] = true
+	}
+	for i := range atts {
+		k := atts[i].Kind
+		if set[atts[i].ID] && (k == chatmedia.KindImage || k == chatmedia.KindVideo) {
+			atts[i].Spoiler = true
+		}
+	}
 }
 
 // ackExistingMessage answers a duplicate send with the message the nonce
@@ -134,7 +254,7 @@ func (c *Client) ackExistingMessage(tc *TextChat, messageID, nonce string) {
 		c.sendTextError(textErrNotFound, "Message not found", nonce, messageID)
 		return
 	}
-	payload := map[string]any{"room_id": msg.RoomID, "message": msg.Public(), "nonce": nonce}
+	payload := map[string]any{"room_id": msg.RoomID, "message": msg.PublicFor(c.identity()), "nonce": nonce}
 	if msg.ReplyToID != nil {
 		if replied, err := tc.Store.Replied(context.Background(), msg); err == nil {
 			payload["replied"] = replied
@@ -188,6 +308,42 @@ func (c *Client) handleTextMessageEdit(data interface{}) {
 		return
 	}
 	c.hub.broadcastUpdated(msg)
+	tc.Previews.Schedule(msg, c.hub.broadcastUpdated)
+}
+
+type textSuppressEmbedsRequest struct {
+	MessageID string `json:"message_id"`
+}
+
+// handleTextMessageSuppressEmbeds removes a message's link previews. The
+// author may always; others need ManageMessages in the channel.
+func (c *Client) handleTextMessageSuppressEmbeds(data interface{}) {
+	tc := c.hub.textChatService()
+	userID := c.identity()
+	var req textSuppressEmbedsRequest
+	if err := decodeData(data, &req); err != nil || userID == "" || req.MessageID == "" {
+		return
+	}
+	if tc == nil {
+		c.sendTextError(textErrUnavailable, "Text channels are disabled", "", req.MessageID)
+		return
+	}
+	if _, err := c.visibleMessage(tc, req.MessageID); err != nil {
+		c.sendStoreError(err, "", req.MessageID)
+		return
+	}
+	ps := c.hub.permissionService()
+	msg, err := tc.Store.SuppressEmbeds(context.Background(), req.MessageID, userID, func(roomID string) bool {
+		return c.hub.canInRoom(ps, c, roomID, permissions.ManageMessages)
+	})
+	if err != nil {
+		if errors.Is(err, chatstore.ErrForbidden) {
+			sendPermissionDenied(c, "text_message_suppress_embeds", "")
+		}
+		c.sendStoreError(err, "", req.MessageID)
+		return
+	}
+	c.hub.broadcastUpdated(msg)
 }
 
 type textDeleteRequest struct {
@@ -219,6 +375,17 @@ func (c *Client) handleTextMessageDelete(data interface{}) {
 		}
 		c.sendStoreError(err, "", req.MessageID)
 		return
+	}
+	if msg.Poll != nil {
+		if err := tc.PollDeadlines.DeleteByMessage(msg.ID); err != nil {
+			log.Printf("[TextChat] Failed to cancel the due date of poll %s: %v", msg.ID, err)
+		}
+	}
+	if msg.Command != nil && msg.Command.Name == chatstore.CommandRemindMe {
+		// Deleting a /remindme cancels it.
+		if err := tc.Reminders.DeleteByMessage(msg.ID); err != nil {
+			log.Printf("[TextChat] Failed to cancel reminder of message %s: %v", msg.ID, err)
+		}
 	}
 	c.hub.broadcastText(msg.RoomID, models.WebSocketMessage{
 		Type: "text_message_deleted",

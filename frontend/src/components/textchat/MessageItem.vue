@@ -42,7 +42,21 @@
     <div class="flex gap-3 min-w-0">
       <!-- Gutter: avatar or hover time -->
       <div class="w-10 flex-shrink-0">
-        <UserAvatar v-if="!compact" :user-id="message.sender_id" :size="40" :show-status="false" />
+        <div
+          v-if="!compact && isSystem"
+          class="w-10 h-10 rounded-full bg-theme-accent flex items-center justify-center text-theme-text-on-accent"
+          aria-hidden="true">
+          <PhChartBarHorizontal
+            v-if="message.command?.name === 'poll_closed'"
+            class="w-5 h-5"
+            weight="bold" />
+          <PhAlarm v-else class="w-5 h-5" weight="fill" />
+        </div>
+        <UserAvatar
+          v-else-if="!compact"
+          :user-id="message.sender_id"
+          :size="40"
+          :show-status="false" />
         <span
           v-else
           class="block whitespace-nowrap text-[10px] leading-5 tabular-nums text-right text-theme-text-muted opacity-0 group-hover:opacity-100 select-none"
@@ -114,12 +128,31 @@
           v-else-if="message.content || message.edited_at_ts"
           :content="message.content"
           :edited-at="message.edited_at_ts" />
+        <MessageGif v-if="message.gif" :gif="message.gif" />
+        <MessageCommand
+          v-if="message.command && !editing && !pendingStatus"
+          :command="message.command"
+          :message-id="message.id"
+          :animate="liveCommand" />
+        <MessagePoll
+          v-if="message.poll"
+          :message-id="message.id"
+          :poll="message.poll"
+          :can-vote="canReply"
+          :can-end="isOwn || canManage"
+          :pending="!!pendingStatus"
+          @show-voters="$emit('show-voters')" />
         <MessageAttachments
           v-if="message.attachments.length"
           :attachments="message.attachments"
           :is-own="isOwn"
           :can-manage="canManage"
           :pending="!!pendingStatus" />
+        <MessageEmbeds
+          v-if="message.embeds?.length && !message.embeds_suppressed && !editing"
+          :embeds="message.embeds"
+          :removable="(isOwn || canManage) && !pendingStatus"
+          @remove="$emit('remove-embeds')" />
 
         <ReactionBar
           v-if="message.reactions.length && !pendingStatus"
@@ -207,7 +240,7 @@
         <PhArrowBendUpLeft class="w-4 h-4" />
       </button>
       <button
-        v-if="isOwn"
+        v-if="isOwn && !message.command && !message.poll"
         type="button"
         :class="toolbarBtn"
         title="Edit"
@@ -236,7 +269,7 @@
         <PhCopy class="w-4 h-4" />
       </button>
       <button
-        v-if="isOwn || canManage"
+        v-if="isOwn || canManage || isMyReminder"
         type="button"
         :class="[toolbarBtn, '!text-red-400 hover:!text-red-300']"
         title="Delete (Shift+click skips confirmation)"
@@ -252,7 +285,9 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, useTemplateRef, watch } from "vue"
 import {
+  PhAlarm,
   PhArrowBendUpLeft,
+  PhChartBarHorizontal,
   PhCopy,
   PhPencilSimple,
   PhPushPin,
@@ -263,9 +298,19 @@ import {
 import UserAvatar from "@/components/UserAvatar.vue"
 import EmojiGlyph from "@/components/EmojiGlyph.vue"
 import MessageContent from "./MessageContent.vue"
+import MessageGif from "./MessageGif.vue"
 import ReactionBar from "./ReactionBar.vue"
 import MessageAttachments from "./attachments/MessageAttachments.vue"
-import { useAppStore, useCustomEmojisStore, usePermissionsStore, useUsersStore } from "@/stores"
+import MessageEmbeds from "./embeds/MessageEmbeds.vue"
+import MessageCommand from "./commands/MessageCommand.vue"
+import MessagePoll from "./polls/MessagePoll.vue"
+import {
+  useAppStore,
+  useCustomEmojisStore,
+  usePermissionsStore,
+  useTextChatStore,
+  useUsersStore,
+} from "@/stores"
 import { useLongPress } from "@/composables/useLongPress"
 import {
   emojiShortcode,
@@ -279,7 +324,7 @@ import {
 import { markupToPlain, parseMessage } from "@/utils/messageMarkup"
 import { decodeMentions, encodeMentions, type MentionMap } from "@/utils/mentionText"
 import { formatFullTime, formatMessageTime, formatShortTime } from "@/utils/messageGrouping"
-import type { TextMessage } from "@/types/textChat"
+import { SYSTEM_SENDER_ID, type TextMessage } from "@/types/textChat"
 
 const props = withDefaults(
   defineProps<{
@@ -322,8 +367,12 @@ const emit = defineEmits<{
   react: [emoji: string]
   "add-reaction": [event: MouseEvent]
   pin: [pinned: boolean]
+  /** Remove the message's link previews. */
+  "remove-embeds": []
   /** Mobile long press: open the message action sheet. */
   "open-actions": []
+  /** Show who voted for what in this message's poll. */
+  "show-voters": []
 }>()
 
 const toolbarBtn =
@@ -334,6 +383,20 @@ const permissionsStore = usePermissionsStore()
 const customEmojisStore = useCustomEmojisStore()
 const appStore = useAppStore()
 const isMobile = computed(() => appStore.isMobile)
+
+// Slash commands: fired reminders come from the server ("system") and may be
+// dismissed by the user they remind. The /vrandom wheel spins only for a
+// message that just arrived (checked once, when this item mounts).
+const isSystem = computed(() => props.message.sender_id === SYSTEM_SENDER_ID)
+const isMyReminder = computed(
+  () =>
+    props.message.command?.name === "reminder" &&
+    !!props.myUserId &&
+    props.message.command.reminder_for === props.myUserId,
+)
+const liveCommand = props.message.command
+  ? useTextChatStore().consumeLiveCommand(props.message.id)
+  : false
 
 // --- Mobile long press ---------------------------------------------------
 const canOpenActions = () => isMobile.value && !props.pendingStatus && !props.editing
@@ -376,6 +439,8 @@ const replyPreview = computed(() => {
     kind === "user" ? nameOf(id) : (roleName(id) ?? "unknown-role"),
   ).slice(0, 200)
   if (text) return text
+  if (props.replied.poll) return `📊 ${emojiTextToPlain(props.replied.poll.question)}`
+  if (props.replied.gif) return "GIF"
   const n = props.replied.attachments.length
   return n ? `📎 ${n === 1 ? props.replied.attachments[0].filename : `${n} files`}` : ""
 })
@@ -430,7 +495,7 @@ async function saveEdit() {
     encodeShortcodes(text, (code) => customEmojisStore.idForShortcode(code)),
     editMentions,
   )
-  if (!content && !props.message.attachments.some((a) => !a.removed)) {
+  if (!content && !props.message.attachments.some((a) => !a.removed) && !props.message.gif) {
     editError.value = "A message can't be empty. Delete it instead."
     return
   }

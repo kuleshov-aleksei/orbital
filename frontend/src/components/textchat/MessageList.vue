@@ -77,6 +77,7 @@
           @add-reaction="(e) => openReactionPicker(item.message.id, e)"
           @open-actions="actionsFor = item.message"
           @pin="(pinned) => textChatStore.setPinned(item.message.id, pinned)"
+          @remove-embeds="textChatStore.suppressEmbeds(item.message.id)"
           @reply="textChatStore.startReply(item.message)"
           @edit="textChatStore.startEdit(item.message.id)"
           @delete="(skip) => requestDelete(item.message, skip)"
@@ -84,7 +85,8 @@
           @save-edit="(content) => textChatStore.editMessage(item.message.id, content)"
           @cancel-edit="textChatStore.cancelEdit()"
           @retry="textChatStore.retrySend(item.message.id)"
-          @discard="textChatStore.discardPending(item.message.id)" />
+          @discard="textChatStore.discardPending(item.message.id)"
+          @show-voters="votersFor = item.message.id" />
       </template>
 
       <div v-if="view.loadingNewer" class="py-3 flex justify-center">
@@ -149,6 +151,8 @@
       @copy="withActionsMessage(copyMessage)"
       @delete="withActionsMessage((m) => requestDelete(m, false))" />
 
+    <PollVotersModal v-if="votersPoll" :poll="votersPoll" @close="votersFor = null" />
+
     <DeleteMessageModal
       v-if="deleting"
       :message="deleting"
@@ -168,9 +172,10 @@ import { emojiTextToPlain } from "@/services/emoji"
 import MessageItem from "./MessageItem.vue"
 import MessageActionSheet from "./MessageActionSheet.vue"
 import DeleteMessageModal from "./DeleteMessageModal.vue"
+import PollVotersModal from "./polls/PollVotersModal.vue"
 import { useTextChatStore, type ChannelView, type PendingTextMessage } from "@/stores/textChat"
 import { buildTimeline, formatDay } from "@/utils/messageGrouping"
-import type { TextMessage } from "@/types/textChat"
+import type { TextMessage, TextPoll, TextPollInput } from "@/types/textChat"
 
 const props = defineProps<{
   roomId: string
@@ -216,7 +221,33 @@ const pendingAsMessages = computed<TextMessage[]>(() =>
         pinned_at_ts: null,
         pinned_by: null,
         attachments: p.attachments,
+        gif: p.gif ?? null,
+        ...(p.poll ? { poll: pendingPoll(p.poll) } : {}),
       })),
+)
+
+/** How a poll not sent yet looks: no votes, nothing to click. */
+function pendingPoll(input: TextPollInput): TextPoll {
+  return {
+    question: input.question,
+    options: input.options.map((text, i) => ({ id: `o${i + 1}`, text })),
+    multiple: input.multiple,
+    anonymous: input.anonymous,
+    allow_change: input.allow_change,
+    closes_at_ts: input.closes_at_ts,
+    closed: false,
+    closed_at_ts: null,
+    closed_by: null,
+    voter_count: 0,
+    my_votes: [],
+    results_visible: false,
+  }
+}
+
+// The poll whose voters are shown; looked up live so new votes appear.
+const votersFor = ref<string | null>(null)
+const votersPoll = computed(
+  () => props.view.messages.find((m) => m.id === votersFor.value)?.poll ?? null,
 )
 const pendingById = computed(() => new Map(props.pending.map((p) => [p.nonce, p])))
 
@@ -325,6 +356,26 @@ function scrollToBottom() {
   if (el) el.scrollTop = el.scrollHeight
 }
 
+// Media has no stable size until its bytes arrive, so it can grow the list
+// after a scroll-to-bottom already ran (the open scroll, a send). While the
+// user is still at the bottom, keep the newest message in view. `load` and
+// `loadeddata` don't bubble, hence the capture listener on the scroller.
+// atBottom is the pre-load value: a late load fires no scroll event.
+let repinFrame = 0
+
+function onContentMediaLoad(event: Event) {
+  if (repinFrame) return
+  const target = event.target
+  if (!(target instanceof HTMLElement) || !target.closest("[data-message-id]")) return
+  if (!props.view.atBottom) return
+  repinFrame = requestAnimationFrame(() => {
+    repinFrame = 0
+    scrollToBottom()
+    measure()
+    updateReadPosition()
+  })
+}
+
 // Scroll requests from the store (open, jump, send).
 watch(
   () => props.view.scrollRequest,
@@ -371,6 +422,26 @@ watch(
   },
 )
 
+// The list shrinks when the on-screen keyboard opens (Android) or the composer
+// grows. scrollTop doesn't change then, so the newest messages would slide
+// under the composer: stay at the bottom if the user was there, otherwise
+// keep the message at the bottom edge in place.
+let resizeObserver: ResizeObserver | null = null
+let lastClientHeight = 0
+
+function onScrollerResize() {
+  const el = scroller.value
+  // 0 = hidden by v-show (mobile side panel): nothing to keep in view.
+  if (!el || el.clientHeight === 0 || el.clientHeight === lastClientHeight) return
+  const delta = lastClientHeight - el.clientHeight
+  lastClientHeight = el.clientHeight
+  // atBottom is still the pre-resize value: a resize alone fires no scroll event.
+  if (props.view.atBottom) scrollToBottom()
+  else el.scrollTop += delta
+  measure()
+  updateReadPosition()
+}
+
 function onFocus() {
   updateReadPosition()
 }
@@ -378,10 +449,21 @@ function onFocus() {
 onMounted(() => {
   window.addEventListener("focus", onFocus)
   measure()
+  if (scroller.value) {
+    lastClientHeight = scroller.value.clientHeight
+    resizeObserver = new ResizeObserver(onScrollerResize)
+    resizeObserver.observe(scroller.value)
+    scroller.value.addEventListener("load", onContentMediaLoad, true)
+    scroller.value.addEventListener("loadeddata", onContentMediaLoad, true)
+  }
 })
 onBeforeUnmount(() => {
   window.removeEventListener("focus", onFocus)
   if (scrollFrame) cancelAnimationFrame(scrollFrame)
+  if (repinFrame) cancelAnimationFrame(repinFrame)
+  scroller.value?.removeEventListener("load", onContentMediaLoad, true)
+  scroller.value?.removeEventListener("loadeddata", onContentMediaLoad, true)
+  resizeObserver?.disconnect()
 })
 
 function jumpToPresent() {

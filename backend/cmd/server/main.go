@@ -8,6 +8,11 @@ import (
 	"net/http"
 	"time"
 
+	// The runtime image is alpine, which ships no /usr/share/zoneinfo: without
+	// this, time.LoadLocation fails for every IANA zone and /remindme (and chat
+	// search) silently fall back to UTC.
+	_ "time/tzdata"
+
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 	"github.com/kuleshov-aleksei/orbital/internal/config"
@@ -20,6 +25,9 @@ import (
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatmedia"
 	"github.com/kuleshov-aleksei/orbital/internal/service/chatstore"
 	"github.com/kuleshov-aleksei/orbital/internal/service/immichml"
+	"github.com/kuleshov-aleksei/orbital/internal/service/linkpreview"
+	"github.com/kuleshov-aleksei/orbital/internal/service/mail"
+	"github.com/kuleshov-aleksei/orbital/internal/service/outbound"
 	"github.com/kuleshov-aleksei/orbital/internal/service/push"
 	"github.com/kuleshov-aleksei/orbital/internal/storage"
 	"github.com/kuleshov-aleksei/orbital/internal/version"
@@ -68,15 +76,17 @@ func main() {
 	var audioService *service.AudioService
 	var soundboardService *service.SoundboardService
 	var emojiService *service.EmojiService
+	var badgeService *service.BadgeService
 	var sessionRepo *repository.SessionRepository
 	var qrLoginRepo *repository.QRLoginRepository
 	var analyticsService *service.AnalyticsService
-	var halloweenService *service.HalloweenService
-	var pumpkinAssetService *service.PumpkinAssetService
 	var rbacRepo *repository.RBACRepository
 	var textReadState chatstore.ReadStateStore
 	var textNotify chatstore.NotifyStore
+	var textReminders chatstore.ReminderStore
+	var textPolls chatstore.PollDeadlineStore
 	var pushDevices *repository.PushDeviceRepository
+	var authSessions *repository.AuthSessionRepository
 	var appDB *storage.DB
 	var appSettings service.AppSettingsStore = service.NewMemoryAppSettings()
 
@@ -103,7 +113,10 @@ func main() {
 		rbacRepo = repository.NewRBACRepository(db)
 		textReadState = repository.NewTextReadStateRepository(db)
 		textNotify = repository.NewTextNotifyRepository(db)
+		textReminders = repository.NewTextReminderRepository(db)
+		textPolls = repository.NewTextPollRepository(db)
 		pushDevices = repository.NewPushDeviceRepository(db)
+		authSessions = repository.NewAuthSessionRepository(db)
 		appSettings = repository.NewAppSettingsRepository(db)
 
 		// Initialize services with repositories
@@ -116,9 +129,8 @@ func main() {
 		audioService = service.NewAudioService(repository.NewAudioRepository(db), "data", cfg.RateLimit.AudioQuotaBytes())
 		soundboardService = service.NewSoundboardService(repository.NewSoundboardRepository(db), "data")
 		emojiService = service.NewEmojiService(repository.NewEmojiRepository(db), "data", cfg.Emoji.MaxCustom)
+		badgeService = service.NewBadgeService(repository.NewBadgeRepository(db), userRepo, "data")
 		analyticsService = service.NewAnalyticsService(sessionRepo)
-		halloweenService = service.NewHalloweenService(repository.NewHalloweenRepository(db))
-		pumpkinAssetService = service.NewPumpkinAssetService("data", "assets")
 
 		// Load data from database
 		if err := categoryService.LoadFromDB(); err != nil {
@@ -126,15 +138,6 @@ func main() {
 		}
 		if err := roomService.LoadFromDB(); err != nil {
 			log.Fatalf("Failed to load rooms from database: %v", err)
-		}
-
-		// Seed pumpkin art into the data dir (never overwrites uploads).
-		if catalog, err := halloweenService.GetAdminCatalog(); err != nil {
-			log.Printf("Warning: Failed to load halloween catalog for art seeding: %v", err)
-		} else if seeded, err := pumpkinAssetService.SeedPlaceholders(catalog); err != nil {
-			log.Printf("Warning: Failed to seed pumpkin art: %v", err)
-		} else if seeded > 0 {
-			log.Printf("Seeded %d pumpkin art files", seeded)
 		}
 	} else {
 		// Initialize services without database (memory-only mode)
@@ -158,6 +161,9 @@ func main() {
 				log.Printf("permission lookup for user %s failed: %v", userID, err)
 				return nil
 			}
+			if user != nil && user.DeletedAt != nil {
+				return nil // deleted account: no permissions, not mentionable
+			}
 			return user
 		}
 		user, _ := roomService.GetUserByID(userID)
@@ -170,6 +176,9 @@ func main() {
 
 	// Initialize auth service and role service
 	authService := service.NewAuthService(cfg.GetAuthConfig(), userRepo)
+	if authSessions != nil {
+		authService.SetSessionRepository(authSessions)
+	}
 	roleService := service.NewRoleService(userRepo)
 
 	// QR device linking needs the database; it stays disabled in memory-only mode
@@ -210,6 +219,13 @@ func main() {
 	}
 	wsHub.SetClientVersionService(clientVersions)
 	clientVersions.OnChange(wsHub.OnClientVersionChanged)
+
+	// Proxy for the server's calls to the internet, set in the admin panel
+	// (Network tab).
+	outboundProxy, err := outbound.New(appSettings)
+	if err != nil {
+		log.Fatalf("Failed to initialize outbound proxy: %v", err)
+	}
 	if soundboardService != nil {
 		wsHub.SetSoundboard(soundboardService)
 	}
@@ -231,10 +247,17 @@ func main() {
 			return ids
 		})
 		textChat = &websocket.TextChat{
-			Store: store, ReadState: textReadState, Notify: textNotify,
+			Store: store, ReadState: textReadState, Notify: textNotify, Reminders: textReminders,
+			PollDeadlines: textPolls,
 			UserExists: func(id string) bool { return userLookup(id) != nil },
 			Media:      newChatMedia(cfg, appDB),
 			Push:       newPush(cfg, pushDevices),
+			GIFProvider: func() string {
+				if cfg.Chat.GIFSearchEnabled() {
+					return cfg.Chat.GIFProvider
+				}
+				return ""
+			}(),
 			UserName: func(id string) string {
 				if u := userLookup(id); u != nil {
 					return u.Nickname
@@ -245,11 +268,21 @@ func main() {
 		if textChat.Media != nil {
 			textChat.ML, textChat.SemanticThreshold = newChatML(cfg), cfg.ChatML.SemanticThreshold
 		}
+		if cfg.Chat.LinkPreviews {
+			var media chatmedia.MediaStore
+			if textChat.Media != nil {
+				media = textChat.Media.Store()
+			}
+			textChat.Previews = linkpreview.New(linkpreview.Options{
+				DB: appDB, Messages: store, Media: media, Fetcher: linkpreview.NewFetcher(false, outboundProxy),
+			})
+		}
 		wsHub.SetTextChat(textChat)
 		if textChat.Media != nil {
 			textChat.Media.Start(context.Background()) // after SetTextChat wired the hooks
 		}
 		wsHub.StartMuteExpiry(context.Background())
+		wsHub.StartReminders(context.Background())
 		log.Printf("Text channels enabled (Meilisearch at %s, index %s)", cfg.Chat.MeiliURL, cfg.Chat.MeiliIndex)
 	} else {
 		log.Println("MEILI_URL is not set, text channels are disabled")
@@ -265,8 +298,48 @@ func main() {
 	}
 	categoryHandler := handlers.NewCategoryHandler(categoryService, roomService, livekitService, permissionService, wsHub)
 	authHandler := handlers.NewAuthHandler(authService, roleService, cfg.Server.ExternalURL, cfg.Server.ElectronRedirectURL)
-	adminHandler := handlers.NewAdminHandlerWithHub(roleService, userRepo, debugLogService, analyticsService, halloweenService, wsHub)
+	if pushDevices != nil {
+		authHandler.SetSessionHooks(pushDevices, wsHub)
+	} else {
+		authHandler.SetSessionHooks(nil, wsHub)
+	}
+	adminHandler := handlers.NewAdminHandlerWithHub(roleService, userRepo, debugLogService, analyticsService, wsHub)
 	adminHandler.SetPermissionService(permissionService)
+	// Account deletion: one erase path for "Delete my account" and the admin panel.
+	if userRepo != nil {
+		accountService := service.NewAccountService(userRepo, debugLogService, avatarService)
+		if textChat != nil && textChat.Media != nil {
+			accountService.SetMedia(textChat.Media)
+		}
+		accountService.SetLive(wsHub)
+		accountService.SetPermissionForget(permissionService.ForgetUser)
+		authHandler.SetAccountService(accountService)
+		adminHandler.SetAccountService(accountService)
+	}
+	// Email verification and password reset (SMTP; disabled without SMTP_HOST).
+	if appDB != nil {
+		var sender mail.Sender
+		if cfg.SMTP.Enabled() {
+			smtpSender, err := mail.NewSMTPSender(mail.SMTPConfig{
+				Host: cfg.SMTP.Host, Port: cfg.SMTP.Port,
+				Username: cfg.SMTP.Username, Password: cfg.SMTP.Password,
+				From: cfg.SMTP.From, TLS: cfg.SMTP.TLS, Auth: cfg.SMTP.Auth, CAFile: cfg.SMTP.CAFile,
+			})
+			if err != nil {
+				log.Fatalf("Invalid SMTP configuration: %v", err)
+			}
+			sender = smtpSender
+			log.Printf("Email enabled (SMTP %s:%d)", cfg.SMTP.Host, cfg.SMTP.Port)
+		} else {
+			log.Println("SMTP_HOST is not set, email verification and password reset are disabled")
+		}
+		emailLogs := repository.NewEmailLogRepository(appDB)
+		mailer := mail.NewMailer(sender, emailLogs, "Orbital")
+		emailAuth := service.NewEmailAuthService(userRepo, repository.NewEmailTokenRepository(appDB), emailLogs, authService, mailer, cfg.Server.ExternalURL)
+		authHandler.SetEmailAuth(emailAuth)
+		roomHandler.SetEmailEnabled(emailAuth.Enabled())
+		go emailAuth.StartCleanupLoop(time.Hour)
+	}
 	securityHandler := handlers.NewSecurityHandler(cfg)
 	usersHandler := handlers.NewUsersHandler(userRepo, wsHub)
 	usersHandler.SetPermissionService(permissionService)
@@ -312,9 +385,9 @@ func main() {
 		}
 	}
 
-	var halloweenHandler *handlers.HalloweenHandler
-	if halloweenService != nil {
-		halloweenHandler = handlers.NewHalloweenHandlerWithAssets(halloweenService, pumpkinAssetService, wsHub)
+	var badgeHandler *handlers.BadgeHandler
+	if badgeService != nil {
+		badgeHandler = handlers.NewBadgeHandler(badgeService, wsHub)
 	}
 
 	// Setup router
@@ -369,13 +442,26 @@ func main() {
 	r.Handle("/api/auth/google/url", withRateLimit("oauth-url", cfg.RateLimit.OAuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.GetOAuthUrl))).Methods("GET")
 	r.HandleFunc("/api/auth/google/electron/callback", authHandler.GoogleElectronCallback).Methods("GET")
 	r.Handle("/api/auth/exchange", withRateLimit("auth-exchange", cfg.RateLimit.AuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.ExchangeAppCode))).Methods("POST")
-	r.Handle("/api/auth/guest",withRateLimit("guest-login", cfg.RateLimit.GuestPerHour, time.Hour, clientIPKey, http.HandlerFunc(authHandler.GuestLogin))).Methods("POST")
+	r.Handle("/api/auth/guest", withRateLimit("guest-login", cfg.RateLimit.GuestPerHour, time.Hour, clientIPKey, http.HandlerFunc(authHandler.GuestLogin))).Methods("POST")
 	r.Handle("/api/auth/logout", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.Logout))).Methods("POST")
 	r.Handle("/api/auth/me", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.GetCurrentUser))).Methods("GET")
+	r.Handle("/api/auth/accept-terms", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.AcceptTerms))).Methods("POST")
+	r.Handle("/api/auth/account", authHandler.AuthMiddleware(withRateLimit("delete-account", cfg.RateLimit.AuthPerMinute, time.Minute, userOrIPKey, http.HandlerFunc(authHandler.DeleteAccount)))).Methods("DELETE")
 	r.Handle("/api/auth/refresh", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.RefreshToken))).Methods("POST")
+	r.Handle("/api/auth/sessions", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.ListSessions))).Methods("GET")
+	r.Handle("/api/auth/sessions/revoke-others", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.RevokeOtherSessions))).Methods("POST")
+	r.Handle("/api/auth/sessions/{id}", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.RevokeSession))).Methods("DELETE")
 	r.HandleFunc("/api/auth/status", authHandler.GetAuthStatus).Methods("GET")
 	r.Handle("/api/auth/register", withRateLimit("auth-register", cfg.RateLimit.AuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.Register))).Methods("POST")
 	r.Handle("/api/auth/login", withRateLimit("auth-login", cfg.RateLimit.AuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.LoginPassword))).Methods("POST")
+	r.Handle("/api/auth/verify-email", withRateLimit("auth-verify-email", cfg.RateLimit.AuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.VerifyEmail))).Methods("POST")
+	r.Handle("/api/auth/verify-email/resend", authHandler.AuthMiddleware(withRateLimit("auth-verify-resend", cfg.RateLimit.AuthPerMinute, time.Minute, userOrIPKey, http.HandlerFunc(authHandler.ResendVerification)))).Methods("POST")
+	r.Handle("/api/auth/password/forgot", withRateLimit("auth-password-forgot", cfg.RateLimit.AuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.ForgotPassword))).Methods("POST")
+	r.Handle("/api/auth/password/reset", withRateLimit("auth-password-reset", cfg.RateLimit.AuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.ResetPassword))).Methods("POST")
+	r.Handle("/api/auth/password/change", authHandler.AuthMiddleware(withRateLimit("auth-password-change", cfg.RateLimit.AuthPerMinute, time.Minute, userOrIPKey, http.HandlerFunc(authHandler.ChangePassword)))).Methods("POST")
+	r.Handle("/api/auth/email/change", authHandler.AuthMiddleware(withRateLimit("auth-email-change", cfg.RateLimit.AuthPerMinute, time.Minute, userOrIPKey, http.HandlerFunc(authHandler.RequestEmailChange)))).Methods("POST")
+	r.Handle("/api/auth/email/confirm", withRateLimit("auth-email-confirm", cfg.RateLimit.AuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.ConfirmEmailChange))).Methods("POST")
+	r.Handle("/api/auth/email/restore", withRateLimit("auth-email-restore", cfg.RateLimit.AuthPerMinute, time.Minute, clientIPKey, http.HandlerFunc(authHandler.RestoreEmail))).Methods("POST")
 
 	// QR device linking (single-use pairing; disabled without a database)
 	if qrLoginHandler != nil {
@@ -409,25 +495,6 @@ func main() {
 
 	// General configuration route (public)
 	r.HandleFunc("/api/config", roomHandler.GetConfig).Methods("GET")
-
-	// Halloween routes (protected)
-	if halloweenHandler != nil {
-		halloweenRouter := r.PathPrefix("/api/halloween").Subrouter()
-		halloweenRouter.Use(authHandler.AuthMiddleware)
-		halloweenRouter.HandleFunc("/state", halloweenHandler.GetState).Methods("GET")
-		halloweenRouter.HandleFunc("/pumpkin-states", halloweenHandler.GetPumpkinStates).Methods("GET")
-		halloweenRouter.HandleFunc("/pumpkin", halloweenHandler.UpdatePumpkin).Methods("PUT")
-		halloweenRouter.HandleFunc("/game/config", halloweenHandler.GetConfig).Methods("GET")
-		halloweenRouter.HandleFunc("/game/report", halloweenHandler.SubmitGame).Methods("POST")
-		halloweenRouter.HandleFunc("/leaderboard", halloweenHandler.GetLeaderboard).Methods("GET")
-		// Pumpkin art is public (like audio/avatars): <img> and Pixi loaders
-		// cannot send Authorization headers.
-		r.HandleFunc("/api/halloween/assets/{id}", halloweenHandler.GetAsset).Methods("GET")
-		// Decider submissions from the balance harness (development only, no auth).
-		if cfg.IsDevelopment() {
-			r.HandleFunc("/api/halloween/game/report/bot", halloweenHandler.SubmitBotGame).Methods("POST")
-		}
-	}
 
 	// Latest desktop release (public, resolved from the update feed)
 	r.HandleFunc("/api/releases/latest", releaseHandler.GetLatest).Methods("GET")
@@ -474,6 +541,10 @@ func main() {
 		r.Handle("/api/messages/{id}/context", auth(http.HandlerFunc(textChatHandler.GetMessageContext))).Methods("GET")
 		r.Handle("/api/chat/unread", auth(http.HandlerFunc(textChatHandler.GetUnread))).Methods("GET")
 		r.Handle("/api/chat/search", auth(http.HandlerFunc(textChatHandler.Search))).Methods("GET")
+		// Third-party GIF search config: the search itself runs in the client
+		// (docs/specs/CHAT_SYSTEM.md §7.17).
+		gifHandler := handlers.NewGIFSearchHandler(cfg.Chat)
+		r.Handle("/api/chat/gif-config", auth(http.HandlerFunc(gifHandler.Get))).Methods("GET")
 		r.Handle("/api/rooms/{id}/pins", auth(http.HandlerFunc(textChatHandler.GetPins))).Methods("GET")
 		r.Handle("/api/rooms/{id}/notify", auth(http.HandlerFunc(textChatHandler.SetNotify))).Methods("PUT")
 		if pushDevices != nil {
@@ -488,6 +559,7 @@ func main() {
 			uploadHandler := limiter.Middleware("chat-upload", chatUploadLimit, userOrIPKey, http.HandlerFunc(textChatHandler.UploadAttachment))
 			r.Handle("/api/rooms/{id}/attachments", auth(uploadHandler)).Methods("POST")
 			r.Handle("/api/attachments/urls", auth(http.HandlerFunc(textChatHandler.AttachmentURLs))).Methods("POST")
+			r.Handle("/api/attachments/{id}/file", auth(http.HandlerFunc(textChatHandler.AttachmentFile))).Methods("GET")
 			r.Handle("/api/attachments/{id}", auth(http.HandlerFunc(textChatHandler.UpdateAttachment))).Methods("PATCH")
 			r.Handle("/api/attachments/{id}", auth(http.HandlerFunc(textChatHandler.DeleteAttachment))).Methods("DELETE")
 			r.Handle("/api/attachments/{id}/content", auth(http.HandlerFunc(textChatHandler.AttachmentContent))).Methods("GET")
@@ -550,10 +622,28 @@ func main() {
 	if emojiHandler != nil {
 		r.Handle("/api/emojis", auth(http.HandlerFunc(emojiHandler.ListEmojis))).Methods("GET")
 		r.HandleFunc("/api/emojis/{id}/image", emojiHandler.GetEmojiImage).Methods("GET")
+		// Link preview thumbnails: public like emoji images (<img> sends no
+		// Authorization header; ids are random).
+		r.HandleFunc("/api/embeds/{id}/image", handlers.EmbedImage(func() *linkpreview.Service {
+			if textChat == nil {
+				return nil
+			}
+			return textChat.Previews
+		}())).Methods("GET")
 		emojiUploadHandler := limiter.Middleware("emoji-upload", emojiUploadLimit, userOrIPKey, http.HandlerFunc(emojiHandler.UploadEmoji))
 		r.Handle("/api/emojis", auth(emojiUploadHandler)).Methods("POST")
 		r.Handle("/api/admin/emojis/{id}", auth(http.HandlerFunc(emojiHandler.UpdateEmoji))).Methods("PATCH")
 		r.Handle("/api/admin/emojis/{id}", auth(http.HandlerFunc(emojiHandler.DeleteEmoji))).Methods("DELETE")
+	}
+
+	// Badges: definitions and who holds them are visible to every signed-in
+	// user (profile cards, member list); images are public like emoji images.
+	// Mutations live on the super-admin router below.
+	if badgeHandler != nil {
+		r.Handle("/api/badges", auth(http.HandlerFunc(badgeHandler.ListBadges))).Methods("GET")
+		r.Handle("/api/badges/assignments", auth(http.HandlerFunc(badgeHandler.GetAssignments))).Methods("GET")
+		r.HandleFunc("/api/badges/{id}/image", badgeHandler.GetBadgeImage).Methods("GET")
+		r.Handle("/api/users/me/displayed-badge", auth(http.HandlerFunc(badgeHandler.SetMyDisplayedBadge))).Methods("PUT")
 	}
 
 	// Shared audio management (manage_audio)
@@ -575,7 +665,22 @@ func main() {
 	superAdminRouter.HandleFunc("/logs/{id}", adminHandler.GetDebugLog).Methods("GET")
 	superAdminRouter.HandleFunc("/client-versions", clientVersionHandler.Get).Methods("GET")
 	superAdminRouter.HandleFunc("/client-versions", clientVersionHandler.Update).Methods("PUT")
+	outboundProxyHandler := handlers.NewOutboundProxyHandler(outboundProxy)
+	superAdminRouter.HandleFunc("/outbound-proxy", outboundProxyHandler.Get).Methods("GET")
+	superAdminRouter.HandleFunc("/outbound-proxy", outboundProxyHandler.Update).Methods("PUT")
+	superAdminRouter.HandleFunc("/outbound-proxy/test", outboundProxyHandler.Test).Methods("POST")
+	superAdminRouter.HandleFunc("/emails", authHandler.ListEmailLog).Methods("GET")
+	superAdminRouter.HandleFunc("/emails/test", authHandler.SendTestEmail).Methods("POST")
 	superAdminRouter.HandleFunc("/logs/{id}", adminHandler.DeleteDebugLog).Methods("DELETE")
+	if badgeHandler != nil {
+		badgeUploadHandler := limiter.Middleware("badge-upload", emojiUploadLimit, userOrIPKey, http.HandlerFunc(badgeHandler.UploadBadge))
+		superAdminRouter.Handle("/badges", badgeUploadHandler).Methods("POST")
+		superAdminRouter.HandleFunc("/badges/{id}", badgeHandler.UpdateBadge).Methods("PATCH")
+		badgeImageHandler := limiter.Middleware("badge-upload", emojiUploadLimit, userOrIPKey, http.HandlerFunc(badgeHandler.ReplaceBadgeImage))
+		superAdminRouter.Handle("/badges/{id}/image", badgeImageHandler).Methods("PUT")
+		superAdminRouter.HandleFunc("/badges/{id}", badgeHandler.DeleteBadge).Methods("DELETE")
+		superAdminRouter.HandleFunc("/users/{id}/badges", badgeHandler.SetUserBadges).Methods("PUT")
+	}
 
 	// Stats collection routes (super_admin only)
 	superAdminRouter.HandleFunc("/stats/rooms/{id}/enable", adminHandler.EnableStats).Methods("POST")
@@ -584,23 +689,6 @@ func main() {
 	superAdminRouter.HandleFunc("/stats/rooms/{id}/unsubscribe", adminHandler.StatsUnsubscribe).Methods("POST")
 	superAdminRouter.HandleFunc("/stats/status", adminHandler.GetStatsStatus).Methods("GET")
 	superAdminRouter.HandleFunc("/analytics/report", adminHandler.GetAnalyticsReport).Methods("GET")
-
-	// Halloween admin routes (super_admin only)
-	if halloweenHandler != nil {
-		superAdminRouter.HandleFunc("/halloween/games", halloweenHandler.AdminGetGames).Methods("GET")
-		superAdminRouter.HandleFunc("/halloween/items", halloweenHandler.AdminGetItems).Methods("GET")
-		superAdminRouter.HandleFunc("/halloween/items", halloweenHandler.AdminCreateItem).Methods("POST")
-		superAdminRouter.HandleFunc("/halloween/items/{id}", halloweenHandler.AdminUpdateItem).Methods("PATCH")
-		superAdminRouter.HandleFunc("/halloween/items/{id}", halloweenHandler.AdminDeleteItem).Methods("DELETE")
-		superAdminRouter.HandleFunc("/halloween/items/{id}/restore", halloweenHandler.AdminRestoreItem).Methods("POST")
-		superAdminRouter.HandleFunc("/halloween/items/{id}/asset", halloweenHandler.AdminUploadAsset).Methods("POST")
-		superAdminRouter.HandleFunc("/halloween/layouts", halloweenHandler.AdminGetLayouts).Methods("GET")
-		superAdminRouter.HandleFunc("/halloween/layouts", halloweenHandler.AdminUpsertLayouts).Methods("PUT")
-		superAdminRouter.HandleFunc("/halloween/rewards", halloweenHandler.AdminGetRewards).Methods("GET")
-		superAdminRouter.HandleFunc("/halloween/rewards", halloweenHandler.AdminIssueReward).Methods("POST")
-		superAdminRouter.HandleFunc("/halloween/config/export", halloweenHandler.AdminExportConfig).Methods("GET")
-		superAdminRouter.HandleFunc("/halloween/config/import", halloweenHandler.AdminImportConfig).Methods("POST")
-	}
 
 	// Debug log upload route (authenticated users)
 	debugLogUploadHandler := limiter.Middleware("debug-log-upload", ratelimit.Every(cfg.RateLimit.DebugLogPerMinute, time.Minute), userOrIPKey, http.HandlerFunc(adminHandler.UploadDebugLog))

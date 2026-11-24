@@ -1,8 +1,9 @@
-# Migrating Electron auto-updates to self-hosted Garage S3
+# Electron auto-updates on self-hosted Garage S3
 
-This document tracks the move of the desktop app's update feed from GitHub
-Releases to our self-hosted Garage S3 (served publicly over Traefik). It is
-written so we can pick the work back up later.
+The desktop app's update feed moved from GitHub Releases to our self-hosted
+Garage S3 (served publicly over Traefik) in the 2.55.0 "bridge" release, and
+GitHub releases no longer carry build artifacts at all. This document records
+how the feed works and why, so a future change does not strand clients.
 
 ## Why this works the way it does
 
@@ -22,7 +23,7 @@ So the migration is: deliver **one** build through the old channel (GitHub)
 whose binary now points at S3. After it installs, that client reads S3 forever.
 This is the "bridge" release.
 
-Two important provider facts (verified in `electron-updater@6.8.9`):
+Two important provider facts (verified in `electron-updater@6.8.11`):
 
 - **Generic (S3) provider** fetches `<UPDATE_URL>/latest.yml` and resolves every
   file relative to that root. A missing `latest.yml` throws
@@ -31,16 +32,19 @@ Two important provider facts (verified in `electron-updater@6.8.9`):
 - **GitHub provider** (non-prerelease) calls `GET /releases/latest`, which
   returns the newest **non-draft, non-prerelease** release, then fetches
   `latest.yml` from *that* release only. It does **not** fall back to an older
-  release that happens to contain `latest.yml`. This is why an asset-less GitHub
-  release would strand old clients (see Phase 2).
+  release that happens to contain `latest.yml`. It also builds every artifact
+  URL itself (`/download/<tag>/<file name>`, see `GitHubProvider.resolveFiles`),
+  so absolute S3 URLs in the manifest do **not** help: a release without the
+  binaries strands old clients (see "Old GitHub clients" below).
 
 Garage's website endpoint supports single-range requests (`206`) but ignores
 multi-range, hence `useMultipleRangeRequest: false`.
 
-## Current state (Phase 1 — dual publish) — DONE
+## Current state — S3 only
 
-Every release is published to **both** GitHub (for old clients) and S3 (for
-migrated/new clients), and the update checker points at S3.
+Every artifact is published only to S3. The GitHub release is a body-only
+draft: it exists purely as the manual promotion gate for
+`publish-electron.yml` (and as the place release notes are written).
 
 ### Bucket layout (`<S3_BUCKET>`, served at `https://orbital-updates.encamy.com/`)
 
@@ -51,13 +55,18 @@ Orbital-<version>.AppImage
 Orbital-<version>.apk          # Android, signed release; no update manifest
 latest.yml
 latest-linux.yml
+ota-electron.json              # over-the-air frontend manifests (see "OTA frontend")
+ota-android.json
+ota/<electron|android>/files/<sha256>
 _staging/<version>/latest.yml
 _staging/<version>/latest-linux.yml
+_staging/<version>/ota-electron.json
+_staging/<version>/ota-android.json
 ```
 
-`latest.yml` / `latest-linux.yml` use **relative filenames**, so the same
-manifest works against both GitHub and S3 as long as each host holds the
-binaries. No URL rewriting is needed.
+`latest.yml` / `latest-linux.yml` use **relative filenames**, resolved against
+the feed root (`UPDATE_URL`), so the binaries must sit at the bucket root next
+to the manifests.
 
 ### Two distinct URLs (do not mix them)
 
@@ -72,8 +81,10 @@ runtime `autoUpdater.setFeedURL` override).
 ### Secrets (GitHub repo secrets)
 
 `UPDATE_URL`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_REGION` (Garage region, `garage`),
-`S3_ACCESS_KEY` (Garage access key id), `S3_SECRET_KEY` (Garage secret), plus the
-existing `VT_API_KEY`, `VITE_BACKEND_URL`, `UAT_TOKEN`.
+`S3_ACCESS_KEY` (Garage access key id), `S3_SECRET_KEY` (Garage secret), plus
+`VITE_BACKEND_URL` and `UAT_TOKEN`. `UAT_TOKEN` is a PAT on purpose:
+releases created with `GITHUB_TOKEN` do not trigger workflows, and publishing
+the draft must trigger `publish-electron.yml`.
 
 CI maps the S3 secrets to the AWS CLI environment
 (`S3_ACCESS_KEY → AWS_ACCESS_KEY_ID`, `S3_SECRET_KEY → AWS_SECRET_ACCESS_KEY`,
@@ -85,7 +96,7 @@ via `scripts/aws-cli-config` (mounted as `AWS_CONFIG_FILE`), because the `auto`
 default would try virtual-host style (`bucket.nas`) for the DNS-compatible bucket
 against the hostname endpoint.
 
-### Phase 1 flow
+### Release flow
 
 ```
 manual workflow_dispatch (on tag) — .github/workflows/build-electron.yml
@@ -93,56 +104,102 @@ manual workflow_dispatch (on tag) — .github/workflows/build-electron.yml
   ├─ aws s3 cp binaries → S3 root                    # inert (no latest.yml yet)
   ├─ aws s3 cp manifests → S3 _staging/<version>/    # staged
   ├─ scripts/prune-s3-releases.sh <bucket> 3         # keep newest 3 + live
-  └─ ncipollo draft GitHub release with ALL assets   # old clients' channel
+  └─ ncipollo draft GitHub release, no artifacts     # the manual promotion gate
 
 release: published — .github/workflows/publish-electron.yml
-  ├─ VirusTotal scan of the release .exe (informational, appends link)
-  └─ aws s3 cp _staging/<version>/{latest.yml,latest-linux.yml} → S3 root   # GO LIVE
+  └─ aws s3 cp _staging/<version>/{latest.yml,latest-linux.yml,ota-*.json} → S3 root   # GO LIVE
 ```
 
-The gate is the GitHub draft release: S3 binaries exist at build time but the
+The gate is the draft GitHub release: S3 binaries exist at build time but the
 update only goes live when the manifests are promoted to the S3 root on publish.
-The GitHub release assets (including the binaries) are what old clients download.
+The draft itself carries no files — installers, APKs and blockmaps are only on
+S3, and the download page and `/api/releases/latest` link straight to
+`UPDATE_URL`.
 
 Binary uploads must pass `--content-type` and `--content-disposition attachment`:
 aws-cli guesses the type from the extension and knows neither `.apk` nor `.AppImage`.
 Without a type (Garage also sends `nosniff`), mobile Chrome renders the file as text
 instead of downloading it.
 
-## Phase 2 — drop GitHub artifacts (TO DO LATER)
+## OTA frontend (over-the-air renderer updates)
 
-Goal: stop shipping binaries on GitHub. GitHub releases become manifest-less
-triggers; binaries live only on S3.
+Most releases only change the frontend. The desktop and Android apps download
+newer frontend bundles from this feed and switch to them without a reinstall.
+The installer/APK update runs only when the **shell** changed.
 
-### Precondition
+- **Shell API version**: `shell-api.json` (`electron`, `android`). It is baked into
+  the Electron main process (`__SHELL_API__`) and the APK (`BuildConfig.SHELL_API`).
+  Each bundle's manifest records the shell API it was built for. Bump rules are in
+  `AGENTS.md`; `make lint` runs `scripts/check-shell-api.sh`.
+- **Build**: `scripts/ota-manifest.mjs` runs in `docker/Dockerfile.electron` and
+  `docker/Dockerfile.android`. It writes `ota-<platform>.json`
+  (`version`, `shell_api`, `backend_url`, `files[{path, sha256, size}]`) and
+  copies each file to `ota/<platform>/files/<sha256>`. The blobs are
+  content-addressed, so a client downloads only the files that changed.
+- **CI**: `build-electron.yml` syncs `ota/` to the bucket (inert until promoted)
+  and stages both manifests in `_staging/<version>/`. `publish-electron.yml`
+  promotes them together with `latest.yml`, so the same draft-release gate applies.
+- **Client decision** for the newest manifest:
+  - Version not newer: nothing.
+  - `shell_api` higher than the client's: native update (Electron: electron-updater
+    and `UpdateOverlay`; Android: the APK prompt).
+  - Same `shell_api`: download, verify every sha256, stage.
+  - Lower `shell_api`, a different `backend_url`, or a bundle that failed to boot
+    before: ignore it.
+  - Dev builds (`dev-unknown`) never update over the air.
+- **Staging is the only path that may retry; only an unreadable feed goes native**:
+  - Staging and bundle cleanup share one lock (`createLock` in `otaPlan.ts`).
+    `removeUnusedBundles` used to run fire-and-forget from `confirmBoot`, which
+    lands right after the renderer mounts — deleting `bundles/<version>.tmp` in
+    the middle of a stage. Every file written after that failed with ENOENT, the
+    check reported a failure, and `checkForUpdates` escalated to a full installer
+    download (3.4.0 → 3.5.0 shipped exactly that way). Cleanup now takes the lock
+    and never touches the version being staged or its `.tmp`.
+  - A stage that still fails returns `"staging-failed"`: one retry after 60 s,
+    then the regular poll. **It never starts the installer download.** Only
+    `"native"` (newer shell) and `"unreachable"` (no feed, manifest 4xx/5xx, or an
+    invalid manifest) reach electron-updater.
+  - Each blob is retried up to 3 times on transient errors (timeout, 5xx,
+    connection reset, checksum mismatch) before the stage gives up.
+- **Electron** (`electron/main/features/ota.ts`): checks the feed at startup and
+  every 30 min. Bundles go to `userData/ota/bundles/<version>/` and are served by
+  the `orbital://` protocol (same origin, so IndexedDB is kept).
+  `ORBITAL_OTA_URL=<feed root>` overrides the baked `UPDATE_URL` for local testing.
+- **Android** (`OtaBundlePlugin.java`): the app learns the manifest URL from
+  `GET /api/releases/latest` (`android_ota_manifest_url`). Bundles go to
+  `files/ota/bundles/<version>/` and are served through Capacitor's
+  `setServerBasePath`. Capacitor drops that path itself when a new APK is installed.
+- **Applying**: a "Reload" toast (`OtaReadyToast`), applied automatically after
+  10 min hidden or 30 min idle, or on the next launch. It is never applied during a call.
+- **Rollback**: the web app calls `confirmBoot` on mount. A bundle that doesn't
+  confirm within 30 s, crashes the renderer, or fails to load is marked bad, and
+  the app goes back to the bundle inside the installer/APK.
+- **Rollout**: clients get OTA only after one native update to a build that
+  contains it.
+- **Manual testing**: [`OTA_TEST_PLAN.md`](./OTA_TEST_PLAN.md).
+- **Retention**: `prune-s3-releases.sh` leaves `ota/` alone. Blob GC by the hashes
+  that retained manifests reference is a TODO.
 
-Confirm clients have migrated to an S3-pointing build. Only start Phase 2 once stragglers on pre-bridge versions
-are negligible.
+## Old GitHub clients (assets are gone)
 
-### Tasks
+Clients built before 2.55.0 have `provider: github` baked in and only ever ask
+GitHub: `/releases/latest`, then that release's `latest.yml`, then the assets
+attached to the same release. Releases now carry no assets, so such a client
+gets `ERR_UPDATER_CHANNEL_FILE_NOT_FOUND` on `latest.yml` and stays on the
+version it already has; nothing crashes and the app keeps working.
 
-1. **`build-electron.yml`** — remove the `ncipollo` artifact upload (or attach
-   only the manifests). Keep the draft-release gate and the S3 upload/staging
-   steps. The release draft still triggers `publish-electron.yml` on publish.
-2. **Straggler handling.** A normal asset-less GitHub release becomes
-   `/releases/latest`, and any still-GitHub client then 404s on `latest.yml`
-   (`ERR_UPDATER_CHANNEL_FILE_NOT_FOUND`) and is stuck. Pick one:
-   - **Mark Phase 2 releases as pre-release** → `/releases/latest` keeps
-     returning the Phase 1 bridge, so old clients always migrate. Zero assets.
-     Cost: real releases show as "Pre-release" on GitHub.
-   - **Attach only the manifests** (`latest.yml` + `latest-linux.yml`) with
-     **absolute S3 URLs** → normal releases; old clients read the manifest from
-     GitHub and download from S3. Requires a small rewrite of the manifest URLs
-     before attaching (electron-builder always writes relative filenames).
-   - **Stop creating GitHub releases** and trigger promotion by tag/dispatch.
-     Loses the GitHub notes/VT gate UI.
-3. **VirusTotal step.** Once the release has no `.exe` asset, the
-   `ghaction-virustotal` step has nothing to scan. Download the installer from S3
-   first (`aws s3 cp s3://<bucket>/Orbital-Setup-<version>.exe` into the
-   workspace) and point `files:` at it.
-4. **Optional:** once GitHub releases carry no artifacts, consider whether to
-   keep creating them at all. Keeping the bridge (Phase 1) release available
-   forever is required for any client still on a pre-bridge build.
+That is accepted on purpose: the bridge release shipped on 2026-10-10, and
+GitHub asset download counts on the asset-era releases were 1–3 each, so any
+remaining straggler installs the current build from `/download` by hand.
+
+Consequences:
+
+- **Never delete the old releases that still carry assets** (2.55.x and later
+  up to the last dual-published release). They are the only automatic migration
+  path left for a pre-bridge client.
+- Do not try to keep them alive by attaching only `latest.yml` /
+  `latest-linux.yml`: the GitHub provider builds artifact URLs relative to the
+  release tag, so a manifest without the binaries next to it fails anyway.
 
 ## Troubleshooting
 

@@ -45,6 +45,8 @@ export interface PublicUser {
   created_at?: string // ISO timestamp of registration
   // "away": online but no session in use (hidden or idle 10 min everywhere)
   status?: "away"
+  // true: online, and every session is the mobile app
+  mobile?: boolean
 }
 
 // Screen sharing quality options
@@ -79,6 +81,11 @@ export interface User {
   last_seen?: string
   role: UserRole
   sound_pack?: string
+  // When the Terms/Privacy Policy were accepted; null = not yet accepted.
+  // Only sent for the signed-in user's own record.
+  accepted_terms_at?: string | null
+  // Password accounts only: whether the email was confirmed by a link.
+  email_verified?: boolean
 }
 
 // WebSocket message types
@@ -108,13 +115,15 @@ export type WebSocketMessageType =
   | "request_stats_state"
   | "room_stats"
   | "request_logs"
-  | "halloween_pumpkin_state"
   | "play_sound"
   | "text_message_send"
   | "text_message_edit"
   | "text_message_delete"
+  | "text_message_suppress_embeds"
   | "text_channel_read"
   | "text_reaction_toggle"
+  | "text_poll_vote"
+  | "text_poll_close"
   | "text_pin"
   | "text_typing"
   | "client_state"
@@ -593,6 +602,16 @@ export interface ElectronAPI {
   onUpdateError: (callback: (info: UpdateErrorInfo) => void) => void
   onUpdateNotAvailable: (callback: () => void) => void
   installUpdate: () => void
+  /** Over-the-air frontend updates (electron/main/features/ota.ts); missing in older builds. */
+  otaStatus?: () => Promise<{
+    shellApi: number
+    builtinVersion: string
+    activeVersion: string | null
+    pendingVersion: string | null
+  }>
+  onOtaReady?: (callback: (info: { version: string }) => void) => void
+  applyOta?: () => Promise<boolean>
+  confirmOtaBoot?: () => Promise<void>
   getPlatform: () => Promise<NodeJS.Platform>
   getSystemInfo: () => Promise<ElectronSystemInfoData>
   minimizeWindow: () => void
@@ -612,6 +631,9 @@ export interface ElectronAPI {
   hasSelectedCloseBehavior: () => Promise<boolean>
   setHasSelectedCloseBehavior: (value: boolean) => Promise<void>
   showCloseDialog: () => Promise<boolean>
+  /** Page zoom for touch handhelds (electron/main/features/uiScale.ts); missing in older builds. */
+  getUiScale?: () => Promise<ElectronUiScaleInfo>
+  setUiScale?: (value: "auto" | number) => Promise<ElectronUiScaleInfo>
   getHotkeys: () => Promise<HotkeysConfig>
   setHotkeys: (hotkeys: HotkeysConfig) => Promise<{ requiresRestart: boolean }>
   resetHotkeys: () => Promise<{ requiresRestart: boolean }>
@@ -636,6 +658,15 @@ export interface ElectronAPI {
   winAudioPidOfSource?: (sourceId: string) => Promise<number | null>
   winAudioStart?: (target: WinAudioTarget) => Promise<WinAudioStartResult>
   winAudioStop?: () => Promise<boolean>
+}
+
+export interface ElectronUiScaleInfo {
+  /** "auto" or a fixed factor (1–2). */
+  setting: "auto" | number
+  /** The factor "auto" resolves to on this device (1 unless it is a handheld). */
+  auto: number
+  effective: number
+  handheld: boolean
 }
 
 declare global {
@@ -717,6 +748,30 @@ export interface CustomEmojiLookupDto {
   emojis: CustomEmojiDto[]
   // Matched shortcode -> emoji id (shortcode lookups only)
   shortcodes?: Record<string, string>
+}
+
+// Profile badge (shared achievement definition), super-admin managed
+export interface BadgeDto {
+  id: string
+  name: string
+  description: string
+  file_size: number
+  created_by?: string
+  created_at: string
+  image_url: string
+}
+
+// One user's hold on a badge
+export interface UserBadgeDto {
+  badge_id: string
+  assigned_at: string
+  // true for the one badge the user pinned next to their nickname
+  displayed?: boolean
+}
+
+// GET /api/badges/assignments: every user's badges, keyed by user id
+export interface BadgeAssignmentsDto {
+  assignments: Record<string, UserBadgeDto[]>
 }
 
 // Payload of the "sound_played" WebSocket event

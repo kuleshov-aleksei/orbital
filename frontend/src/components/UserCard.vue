@@ -20,14 +20,25 @@
 
     <!-- User Info -->
     <div class="flex-1 min-w-0">
-      <div
-        class="font-medium text-sm truncate"
-        :class="[
-          user.is_online ? 'text-theme-text-primary' : 'text-theme-text-muted',
-          { 'opacity-60': !user.is_online && nameStyle },
-        ]"
-        :style="nameStyle">
-        {{ user.nickname }}
+      <div class="flex items-center gap-1 min-w-0">
+        <span
+          class="font-medium text-sm truncate"
+          :class="[
+            user.is_online ? 'text-theme-text-primary' : 'text-theme-text-muted',
+            { 'opacity-60': !user.is_online && nameStyle },
+          ]"
+          :style="nameStyle">
+          {{ user.nickname }}
+        </span>
+        <span
+          v-if="user.is_online && user.mobile"
+          class="shrink-0 text-theme-text-muted"
+          title="On mobile"
+          aria-label="On mobile"
+          :data-testid="`user-mobile-icon-${user.id}`">
+          <PhDeviceMobile class="w-3.5 h-3.5" weight="bold" />
+        </span>
+        <UserBadges :user-id="user.id" :size="15" featured />
       </div>
 
       <div class="text-xs text-theme-text-muted truncate">
@@ -92,10 +103,11 @@
 
 <script setup lang="ts">
 import { computed, useTemplateRef } from "vue"
-import { PhMicrophoneSlash, PhSpeakerHigh } from "@phosphor-icons/vue"
+import { PhDeviceMobile, PhMicrophoneSlash, PhSpeakerHigh } from "@phosphor-icons/vue"
 import UserAvatar from "@/components/UserAvatar.vue"
 import EmojiGlyph from "@/components/EmojiGlyph.vue"
 import UserContextMenu from "@/components/UserContextMenu.vue"
+import UserBadges from "@/components/badges/UserBadges.vue"
 import { usePermissionsStore } from "@/stores"
 import type { UserRole } from "@/types"
 
@@ -108,6 +120,7 @@ interface User {
   is_deafened?: boolean
   is_online?: boolean
   status?: "online" | "away" | "dnd"
+  mobile?: boolean
   role?: UserRole
   custom_status?: string
   custom_status_emoji?: string

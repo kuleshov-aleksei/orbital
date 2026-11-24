@@ -10,6 +10,8 @@ import { isCapacitor } from "./platform"
 
 export const CLIENT_HEADER = "X-Orbital-Client"
 export const WS_CLOSE_CLIENT_OUTDATED = 4426
+/** The socket's sign-in session was revoked (signed out from another device). */
+export const WS_CLOSE_SESSION_REVOKED = 4401
 
 /** The build version without the "-<commit>" suffix ("1.5.2-816skays" → "1.5.2"). */
 export function appVersion(): string {

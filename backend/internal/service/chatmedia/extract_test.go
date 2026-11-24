@@ -30,7 +30,7 @@ func (e *fakeExtractor) Extract(_ context.Context, img []byte) (Extraction, erro
 		return Extraction{}, e.err
 	}
 	n := float32(e.calls)
-	return Extraction{Text: "  текст на картинке  ", Vector: []float32{n, 0.5}}, nil
+	return Extraction{Text: "  text in the image  ", Vector: []float32{n, 0.5}}, nil
 }
 
 type contentCall struct {
@@ -122,7 +122,7 @@ func TestExtractionWritesContentOfAllImagesOfAMessage(t *testing.T) {
 		}
 	}
 	c := f.last(t)
-	if c.messageID != msgID || c.text != "текст на картинке\nтекст на картинке" || len(c.vectors) != 2 {
+	if c.messageID != msgID || c.text != "text in the image\ntext in the image" || len(c.vectors) != 2 {
 		t.Fatalf("content = %+v", c)
 	}
 	for _, r := range recs {
@@ -142,7 +142,7 @@ func TestExtractionWritesContentOfAllImagesOfAMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 	c = f.last(t)
-	if c.text != "текст на картинке" || len(c.vectors) != 1 {
+	if c.text != "text in the image" || len(c.vectors) != 1 {
 		t.Fatalf("content after removal = %+v", c)
 	}
 	f.svc.RunJanitor(context.Background())
@@ -240,7 +240,7 @@ func TestExtractionInfoAndRetry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Status != "done" || info.Text != "текст на картинке" || len(info.Vector) != 2 || !info.Current ||
+	if info.Status != "done" || info.Text != "text in the image" || len(info.Vector) != 2 || !info.Current ||
 		info.Signature != "immich;ocr=a;clip=b" {
 		t.Fatalf("after the worker: info = %+v", info)
 	}
@@ -293,7 +293,7 @@ func TestExtractionStatsCountsQueueStates(t *testing.T) {
 		st.WithText != 1 || st.WithVector != 1 || st.LastRunAt == 0 || st.LastDoneAt == 0 {
 		t.Fatalf("after the worker: %+v", st)
 	}
-	if len(st.RecentProblems) != 2 || st.RecentProblems[0].Record.Filename != "shot.png" {
+	if len(st.RecentProblems) != 2 || st.RecentProblems[0].Record.Filename != "shot.webp" {
 		t.Fatalf("problems = %+v", st.RecentProblems)
 	}
 

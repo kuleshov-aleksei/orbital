@@ -1,614 +1,487 @@
 <template>
-  <div class="admin-panel p-4 lg:p-8 overflow-y-auto h-full">
-    <div class="max-w-4xl mx-auto">
-      <!-- Header -->
-      <div class="flex items-center justify-between mb-8">
-        <div class="flex items-center gap-3 min-w-0">
+  <div class="admin-panel h-full min-h-0 flex flex-col md:flex-row">
+    <!-- Section navigation: a sidebar on wide screens, a scrollable strip on narrow ones -->
+    <aside
+      class="flex-shrink-0 md:w-60 flex flex-col bg-theme-bg-secondary border-b md:border-b-0 md:border-r border-theme-border">
+      <div class="flex items-center gap-3 px-4 py-3 md:py-4 md:border-b border-theme-border">
+        <button
+          type="button"
+          class="flex items-center justify-center w-9 h-9 rounded-md bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-muted hover:text-theme-text-primary transition-colors flex-shrink-0"
+          title="Back to app"
+          aria-label="Back to app"
+          data-testid="admin-back"
+          @click="goBack">
+          <PhArrowLeft class="w-5 h-5" />
+        </button>
+
+        <div class="min-w-0 flex-1">
+          <h1 class="text-base font-semibold text-theme-text-primary leading-tight">Admin Panel</h1>
+
+          <p class="text-xs text-theme-text-muted">{{ isSuperAdmin ? "Owner" : "Manager" }}</p>
+        </div>
+      </div>
+
+      <nav
+        aria-label="Admin sections"
+        class="flex md:flex-col gap-1 overflow-x-auto md:overflow-x-visible md:overflow-y-auto px-2 pb-2 md:py-3 md:flex-1 admin-nav">
+        <template v-for="group in tabGroups" :key="group.name">
+          <h2
+            class="hidden md:block px-3 pt-3 pb-1 first:pt-0 text-[11px] font-semibold uppercase tracking-wider text-theme-text-muted">
+            {{ group.name }}
+          </h2>
+
           <button
+            v-for="tab in group.tabs"
+            :key="tab.id"
+            :ref="(el) => setTabRef(tab.id, el)"
             type="button"
-            class="flex items-center justify-center w-9 h-9 rounded-md bg-theme-bg-tertiary hover:bg-theme-bg-hover text-theme-text-muted hover:text-theme-text-primary transition-colors flex-shrink-0"
-            title="Back to app"
-            aria-label="Back to app"
-            data-testid="admin-back"
-            @click="goBack">
-            <PhArrowLeft class="w-5 h-5" />
+            :data-testid="`admin-tab-${tab.id}`"
+            :aria-current="activeTab === tab.id ? 'page' : undefined"
+            class="flex items-center gap-2.5 flex-shrink-0 md:w-full px-3 py-2 rounded-md text-sm font-medium text-left whitespace-nowrap transition-colors"
+            :class="
+              activeTab === tab.id
+                ? 'bg-theme-accent text-theme-text-on-accent'
+                : 'text-theme-text-secondary hover:bg-theme-bg-hover hover:text-theme-text-primary'
+            "
+            @click="activeTab = tab.id">
+            <component :is="tab.icon" class="w-4 h-4 flex-shrink-0" aria-hidden="true" />
+            {{ tab.label }}
           </button>
-          <div class="min-w-0">
-            <h1 class="text-2xl font-bold text-white">Admin Panel</h1>
+        </template>
+      </nav>
+    </aside>
 
-            <p class="text-gray-400 mt-1">Manage users and system settings</p>
-          </div>
+    <!-- Selected section -->
+    <main class="flex-1 min-w-0 min-h-0 overflow-y-auto">
+      <div class="max-w-4xl mx-auto p-4 lg:p-8">
+        <!-- Each section renders its own heading -->
+        <!-- Roles Section -->
+        <div v-if="activeTab === 'roles' && permissionsStore.canManageRoles">
+          <RolesAdmin />
         </div>
 
-        <div class="flex items-center gap-2">
-          <span class="px-3 py-1 bg-indigo-600 text-white text-sm rounded-full">
-            {{ isSuperAdmin ? "Owner" : "Manager" }}
-          </span>
-        </div>
-      </div>
+        <div
+          v-if="activeTab === 'users' && isSuperAdmin"
+          class="bg-gray-800 rounded-lg border border-gray-700">
+          <div class="p-4 border-b border-gray-700 flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-white">Users</h2>
 
-      <!-- Tabs -->
-      <div class="flex border-b border-gray-700 mb-6">
-        <button
-          v-if="isSuperAdmin"
-          type="button"
-          class="px-4 py-2 text-sm font-medium transition-colors"
-          :class="
-            activeTab === 'users'
-              ? 'text-white border-b-2 border-indigo-500'
-              : 'text-gray-400 hover:text-gray-200'
-          "
-          @click="activeTab = 'users'">
-          Users
-        </button>
-        <button
-          v-if="permissionsStore.canManageRoles"
-          type="button"
-          data-testid="admin-tab-roles"
-          class="px-4 py-2 text-sm font-medium transition-colors"
-          :class="
-            activeTab === 'roles'
-              ? 'text-white border-b-2 border-indigo-500'
-              : 'text-gray-400 hover:text-gray-200'
-          "
-          @click="activeTab = 'roles'">
-          Roles
-        </button>
-        <button
-          v-if="isSuperAdmin"
-          type="button"
-          class="px-4 py-2 text-sm font-medium transition-colors"
-          :class="
-            activeTab === 'logs'
-              ? 'text-white border-b-2 border-indigo-500'
-              : 'text-gray-400 hover:text-gray-200'
-          "
-          @click="activeTab = 'logs'">
-          Debug Logs
-        </button>
-        <button
-          v-if="isSuperAdmin"
-          type="button"
-          class="px-4 py-2 text-sm font-medium transition-colors"
-          :class="
-            activeTab === 'security'
-              ? 'text-white border-b-2 border-indigo-500'
-              : 'text-gray-400 hover:text-gray-200'
-          "
-          @click="activeTab = 'security'">
-          Security
-        </button>
-        <button
-          v-if="isSuperAdmin"
-          type="button"
-          data-testid="admin-tab-app-versions"
-          class="px-4 py-2 text-sm font-medium transition-colors"
-          :class="
-            activeTab === 'app-versions'
-              ? 'text-white border-b-2 border-indigo-500'
-              : 'text-gray-400 hover:text-gray-200'
-          "
-          @click="activeTab = 'app-versions'">
-          App versions
-        </button>
-        <button
-          v-if="isSuperAdmin && configStore.attachments"
-          type="button"
-          data-testid="admin-tab-search-indexing"
-          class="px-4 py-2 text-sm font-medium transition-colors"
-          :class="
-            activeTab === 'search-indexing'
-              ? 'text-white border-b-2 border-indigo-500'
-              : 'text-gray-400 hover:text-gray-200'
-          "
-          @click="activeTab = 'search-indexing'">
-          Search indexing
-        </button>
-        <button
-          v-if="canManageAudio"
-          type="button"
-          class="px-4 py-2 text-sm font-medium transition-colors"
-          :class="
-            activeTab === 'audio'
-              ? 'text-white border-b-2 border-indigo-500'
-              : 'text-gray-400 hover:text-gray-200'
-          "
-          @click="activeTab = 'audio'">
-          Audio
-        </button>
-        <button
-          v-if="canManageSoundboard"
-          type="button"
-          data-testid="admin-tab-soundboard"
-          class="px-4 py-2 text-sm font-medium transition-colors"
-          :class="
-            activeTab === 'soundboard'
-              ? 'text-white border-b-2 border-indigo-500'
-              : 'text-gray-400 hover:text-gray-200'
-          "
-          @click="activeTab = 'soundboard'">
-          Soundboard
-        </button>
-        <button
-          v-if="canManageEmojis"
-          type="button"
-          data-testid="admin-tab-emojis"
-          class="px-4 py-2 text-sm font-medium transition-colors"
-          :class="
-            activeTab === 'emojis'
-              ? 'text-white border-b-2 border-indigo-500'
-              : 'text-gray-400 hover:text-gray-200'
-          "
-          @click="activeTab = 'emojis'">
-          Emojis
-        </button>
-        <button
-          v-if="isSuperAdmin"
-          type="button"
-          class="px-4 py-2 text-sm font-medium transition-colors"
-          :class="
-            activeTab === 'stats'
-              ? 'text-white border-b-2 border-indigo-500'
-              : 'text-gray-400 hover:text-gray-200'
-          "
-          @click="activateStatsTab">
-          Stats
-        </button>
-        <button
-          v-if="isSuperAdmin"
-          type="button"
-          class="px-4 py-2 text-sm font-medium transition-colors"
-          :class="
-            activeTab === 'analytics'
-              ? 'text-white border-b-2 border-indigo-500'
-              : 'text-gray-400 hover:text-gray-200'
-          "
-          @click="activeTab = 'analytics'">
-          Analytics
-        </button>
-        <button
-          v-if="isSuperAdmin"
-          type="button"
-          class="px-4 py-2 text-sm font-medium transition-colors"
-          :class="
-            activeTab === 'halloween'
-              ? 'text-white border-b-2 border-orange-500'
-              : 'text-gray-400 hover:text-gray-200'
-          "
-          @click="activeTab = 'halloween'">
-          Halloween
-        </button>
-        <button
-          v-if="isSuperAdmin"
-          type="button"
-          class="px-4 py-2 text-sm font-medium transition-colors"
-          :class="
-            activeTab === 'halloween-assets'
-              ? 'text-white border-b-2 border-orange-500'
-              : 'text-gray-400 hover:text-gray-200'
-          "
-          @click="activeTab = 'halloween-assets'">
-          Halloween assets
-        </button>
-      </div>
-
-      <!-- Users Section -->
-      <div v-if="activeTab === 'roles' && permissionsStore.canManageRoles">
-        <RolesAdmin />
-      </div>
-
-      <div
-        v-if="activeTab === 'users' && isSuperAdmin"
-        class="bg-gray-800 rounded-lg border border-gray-700">
-        <div class="p-4 border-b border-gray-700 flex items-center justify-between">
-          <h2 class="text-lg font-semibold text-white">Users</h2>
-
-          <div class="flex items-center gap-4">
-            <span class="text-sm text-gray-400">{{ users.length }} total</span>
-
-            <button
-              v-if="isSuperAdmin"
-              type="button"
-              class="px-3 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
-              :disabled="deletingGuests"
-              @click="deleteAllGuests">
-              <span v-if="deletingGuests">Deleting...</span>
-              <span v-else>Delete All Guests</span>
-            </button>
-          </div>
-        </div>
-
-        <div class="divide-y divide-gray-700">
-          <div
-            v-for="user in users"
-            :key="user.id"
-            class="p-4 flex items-center justify-between hover:bg-gray-700/50 transition-colors">
             <div class="flex items-center gap-4">
-              <!-- Avatar -->
-              <div
-                class="w-10 h-10 rounded-full bg-gray-600 flex items-center justify-center overflow-hidden flex-shrink-0">
-                <img
-                  v-if="user.avatar_url && !avatarErrors.has(user.id)"
-                  :src="user.avatar_url"
-                  :alt="user.nickname"
-                  class="w-full h-full object-cover"
-                  @error="avatarErrors.add(user.id)" />
+              <span class="text-sm text-gray-400">{{ users.length }} total</span>
 
-                <Avatar
-                  v-else
-                  :name="user.nickname"
-                  :colors="['#E8F5E9', '#C8E6C9', '#A5D6A7', '#81C784', '#66BB6A']"
-                  variant="beam"
-                  :size="40" />
+              <button
+                v-if="isSuperAdmin"
+                type="button"
+                class="px-3 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
+                :disabled="deletingGuests"
+                @click="deleteAllGuests">
+                <span v-if="deletingGuests">Deleting...</span>
+                <span v-else>Delete All Guests</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="divide-y divide-gray-700">
+            <div
+              v-for="user in users"
+              :key="user.id"
+              class="p-4 flex items-center justify-between hover:bg-gray-700/50 transition-colors">
+              <div class="flex items-center gap-4">
+                <!-- Avatar -->
+                <div
+                  class="w-10 h-10 rounded-full bg-gray-600 flex items-center justify-center overflow-hidden flex-shrink-0">
+                  <img
+                    v-if="user.avatar_url && !avatarErrors.has(user.id)"
+                    :src="user.avatar_url"
+                    :alt="user.nickname"
+                    class="w-full h-full object-cover"
+                    @error="avatarErrors.add(user.id)" />
+
+                  <Avatar
+                    v-else
+                    :name="user.nickname"
+                    :colors="['#E8F5E9', '#C8E6C9', '#A5D6A7', '#81C784', '#66BB6A']"
+                    variant="beam"
+                    :size="40" />
+                </div>
+
+                <!-- User Info -->
+                <div>
+                  <div class="flex items-center gap-2">
+                    <span class="font-medium text-white">{{ user.nickname }}</span>
+
+                    <span
+                      v-if="user.original_nickname && user.original_nickname !== user.nickname"
+                      class="text-sm text-gray-500">
+                      ({{ user.original_nickname }})
+                    </span>
+
+                    <span
+                      v-if="user.id === currentUserId"
+                      class="text-xs px-2 py-0.5 bg-gray-600 text-gray-300 rounded">
+                      You
+                    </span>
+                  </div>
+
+                  <div class="text-sm text-gray-400 flex items-center gap-2">
+                    <span>{{ user.auth_provider }}</span>
+
+                    <span class="text-gray-600">•</span>
+
+                    <span :class="getRoleColor(user.role)">{{ formatRole(user.role) }}</span>
+
+                    <span
+                      v-for="role in permissionsStore.rolesOf(user.id)"
+                      :key="role.id"
+                      class="text-xs px-2 py-0.5 rounded-full border"
+                      :style="{
+                        borderColor: role.color || '#4b5563',
+                        color: role.color || '#d1d5db',
+                      }">
+                      {{ role.name }}
+                    </span>
+                  </div>
+                </div>
               </div>
 
-              <!-- User Info -->
+              <!-- Actions (owner only; roles are assigned in the Roles tab or the user context menu) -->
+              <div v-if="user.id !== currentUserId" class="flex items-center gap-2">
+                <button
+                  v-if="user.role !== 'super_admin'"
+                  type="button"
+                  class="px-3 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
+                  :disabled="deletingUserId === user.id"
+                  @click="confirmDeleteUser(user)">
+                  <span v-if="deletingUserId === user.id">Deleting...</span>
+
+                  <span v-else>Delete</span>
+                </button>
+
+                <span v-else class="text-xs px-2 py-1 bg-purple-600/20 text-purple-400 rounded">
+                  Owner
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Empty State -->
+          <div v-if="users.length === 0" class="p-8 text-center">
+            <PhUsers class="w-12 h-12 text-gray-600 mx-auto mb-4" />
+
+            <p class="text-gray-400">No users found</p>
+          </div>
+        </div>
+
+        <!-- Logs Section (Super Admin Only) -->
+        <div
+          v-if="activeTab === 'logs' && isSuperAdmin"
+          class="bg-gray-800 rounded-lg border border-gray-700">
+          <div class="p-4 border-b border-gray-700 flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-white">Debug Logs</h2>
+
+            <div class="flex items-center gap-4">
+              <span class="text-sm text-gray-400">{{ logs.length }} logs</span>
+
+              <button
+                type="button"
+                class="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
+                :disabled="loadingLogs"
+                @click="loadLogs">
+                <span v-if="loadingLogs">Loading...</span>
+                <span v-else>Refresh</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="divide-y divide-gray-700">
+            <div
+              v-for="log in logs"
+              :key="log.id"
+              class="p-4 flex items-center justify-between hover:bg-gray-700/50 transition-colors">
               <div>
                 <div class="flex items-center gap-2">
-                  <span class="font-medium text-white">{{ user.nickname }}</span>
+                  <span class="font-medium text-white">{{ log.username }}</span>
 
-                  <span
-                    v-if="user.original_nickname && user.original_nickname !== user.nickname"
-                    class="text-sm text-gray-500">
-                    ({{ user.original_nickname }})
+                  <span class="text-xs px-2 py-0.5 bg-gray-600 text-gray-300 rounded">
+                    ID: {{ log.user_id.slice(0, 8) }}...
                   </span>
 
                   <span
-                    v-if="user.id === currentUserId"
-                    class="text-xs px-2 py-0.5 bg-gray-600 text-gray-300 rounded">
-                    You
+                    v-if="log.version"
+                    class="text-xs px-2 py-0.5 bg-indigo-600/20 text-indigo-400 rounded">
+                    {{ log.version }}
                   </span>
                 </div>
 
-                <div class="text-sm text-gray-400 flex items-center gap-2">
-                  <span>{{ user.auth_provider }}</span>
+                <div class="text-sm text-gray-400">
+                  {{ formatDate(log.created_at) }} • {{ log.log_filename }}
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  class="px-3 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors"
+                  @click="viewLog(log.id)">
+                  View
+                </button>
+
+                <button
+                  type="button"
+                  class="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
+                  @click="downloadLog(log)">
+                  Download
+                </button>
+
+                <button
+                  type="button"
+                  class="px-3 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
+                  :disabled="deletingLogId === log.id"
+                  @click="confirmDeleteLog(log.id)">
+                  <span v-if="deletingLogId === log.id">Deleting...</span>
+                  <span v-else>Delete</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Empty State -->
+          <div v-if="logs.length === 0 && !loadingLogs" class="p-8 text-center">
+            <PhFileText class="w-12 h-12 text-gray-600 mx-auto mb-4" />
+
+            <p class="text-gray-400">No debug logs found</p>
+          </div>
+        </div>
+
+        <!-- Soundboard Section (manage_soundboard) -->
+        <div v-if="activeTab === 'soundboard' && canManageSoundboard">
+          <SoundboardAdmin />
+        </div>
+
+        <!-- Custom Emojis Section (manage_emojis) -->
+        <div v-if="activeTab === 'emojis' && canManageEmojis">
+          <EmojiAdmin />
+        </div>
+
+        <!-- Badges Section (owner only) -->
+        <div v-if="activeTab === 'badges' && isSuperAdmin">
+          <BadgeAdmin />
+        </div>
+
+        <!-- Audio Section -->
+        <div
+          v-if="activeTab === 'audio' && canManageAudio"
+          class="bg-gray-800 rounded-lg border border-gray-700">
+          <div class="p-4 border-b border-gray-700 flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-white">Audio Files</h2>
+
+            <div class="flex items-center gap-4">
+              <span class="text-sm text-gray-400">{{ audioFiles.length }} files</span>
+
+              <button
+                type="button"
+                class="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
+                :disabled="loadingAudio"
+                @click="loadAudio">
+                <span v-if="loadingAudio">Loading...</span>
+                <span v-else>Refresh</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="divide-y divide-gray-700">
+            <div
+              v-for="file in audioFiles"
+              :key="file.id"
+              class="p-4 flex items-center justify-between hover:bg-gray-700/50 transition-colors">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <!-- Inline rename -->
+                  <template v-if="renamingAudioId === file.id">
+                    <input
+                      v-model="renameValue"
+                      type="text"
+                      class="bg-gray-700 text-white px-2 py-1 rounded text-sm border border-gray-600 focus:border-indigo-500 outline-none w-48"
+                      @keyup.enter="doRenameAudio(file.id)"
+                      @keyup.escape="renamingAudioId = null"
+                      @blur="doRenameAudio(file.id)" />
+                  </template>
+                  <span v-else class="font-medium text-white truncate">{{
+                    file.display_name
+                  }}</span>
+
+                  <span
+                    v-if="file.is_system"
+                    class="text-xs px-2 py-0.5 bg-indigo-600/20 text-indigo-400 rounded">
+                    System
+                  </span>
+                </div>
+
+                <div class="text-sm text-gray-400 flex items-center gap-2 mt-0.5">
+                  <span>{{ formatFileSize(file.file_size) }}</span>
 
                   <span class="text-gray-600">•</span>
 
-                  <span :class="getRoleColor(user.role)">{{ formatRole(user.role) }}</span>
-
-                  <span
-                    v-for="role in permissionsStore.rolesOf(user.id)"
-                    :key="role.id"
-                    class="text-xs px-2 py-0.5 rounded-full border"
-                    :style="{
-                      borderColor: role.color || '#4b5563',
-                      color: role.color || '#d1d5db',
-                    }">
-                    {{ role.name }}
-                  </span>
+                  <span>{{ formatDate(file.created_at) }}</span>
                 </div>
               </div>
+
+              <div class="flex items-center gap-2 ml-4 flex-shrink-0">
+                <button
+                  v-if="!file.is_system && !renamingAudioId && deletingAudioId !== file.id"
+                  type="button"
+                  class="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
+                  @click="startRename(file)">
+                  Rename
+                </button>
+
+                <button
+                  type="button"
+                  class="px-3 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded transition-colors disabled:opacity-50"
+                  :disabled="deletingAudioId === file.id"
+                  @click="confirmDeleteAudio(file.id)">
+                  <span v-if="deletingAudioId === file.id">Deleting...</span>
+                  <span v-else>Delete</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Empty State -->
+          <div v-if="audioFiles.length === 0 && !loadingAudio" class="p-8 text-center">
+            <PhMusicNote class="w-12 h-12 text-gray-600 mx-auto mb-4" />
+
+            <p class="text-gray-400">No audio files found</p>
+          </div>
+        </div>
+
+        <!-- Security Section (Super Admin Only) -->
+        <div v-if="activeTab === 'security' && isSuperAdmin">
+          <SecuritySelfCheck />
+        </div>
+
+        <!-- Minimum Android app version (Super Admin Only) -->
+        <div v-if="activeTab === 'app-versions' && isSuperAdmin">
+          <AppVersionsAdmin />
+        </div>
+
+        <!-- Outbound proxy for the server's internet calls (Super Admin Only) -->
+        <div v-if="activeTab === 'network' && isSuperAdmin">
+          <NetworkAdmin />
+        </div>
+
+        <!-- Sent account email log (Super Admin Only) -->
+        <div v-if="activeTab === 'emails' && isSuperAdmin">
+          <EmailLogAdmin />
+        </div>
+
+        <!-- Search indexing of attachments (Super Admin Only, needs S3) -->
+        <div v-if="activeTab === 'search-indexing' && isSuperAdmin && configStore.attachments">
+          <SearchIndexingAdmin />
+        </div>
+
+        <!-- Stats Section (Super Admin Only) -->
+        <div v-if="activeTab === 'stats' && isSuperAdmin" class="space-y-4">
+          <!-- Room Selector & Controls -->
+          <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+            <div class="flex items-center justify-between mb-2">
+              <h2 class="text-lg font-semibold text-white">Stats Map</h2>
+              <span class="text-sm text-gray-400">
+                {{ enabledRoomsCount }} room{{ enabledRoomsCount !== 1 ? "s" : "" }} collecting
+              </span>
+            </div>
+            <p class="text-sm text-gray-400 mb-4">
+              Hover over an avatar to see per-pair connection metrics.
+            </p>
+
+            <div class="flex items-center gap-4">
+              <div class="flex-1">
+                <select
+                  v-model="statsRoomId"
+                  class="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-indigo-500 outline-none"
+                  @change="onStatsRoomChange">
+                  <option value="" disabled>Select a room...</option>
+                  <option v-for="room in adminStats.rooms.value" :key="room.id" :value="room.id">
+                    <EmojiText :text="room.name" /> ({{ room.user_count }} user{{
+                      room.user_count !== 1 ? "s" : ""
+                    }})
+                  </option>
+                </select>
+              </div>
+
+              <button
+                type="button"
+                class="px-4 py-2 rounded text-sm font-medium transition-colors disabled:opacity-50"
+                :class="
+                  adminStats.statsEnabled.value
+                    ? 'bg-red-600 hover:bg-red-700 text-white'
+                    : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                "
+                :disabled="!statsRoomId || adminStats.toggling.value"
+                @click="onStatsToggle(statsRoomId)">
+                <span v-if="adminStats.toggling.value">Processing...</span>
+                <span v-else-if="adminStats.statsEnabled.value">Disable Stats</span>
+                <span v-else>Enable Stats</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Stats Map -->
+          <div v-if="adminStats.statsEnabled.value && statsRoomId">
+            <StatsMap
+              :reports="adminStats.reports.value"
+              :get-latest-rtt="adminStats.getLatestRtt" />
+          </div>
+
+          <!-- Stats disabled state -->
+          <div
+            v-else-if="statsRoomId && !adminStats.statsEnabled.value"
+            class="bg-gray-800 rounded-lg border border-gray-700 p-8 text-center">
+            <div class="text-gray-400">Stats collection is disabled for this room</div>
+            <div class="text-gray-500 text-sm mt-1">
+              Click "Enable Stats" above to start receiving connection metrics from participants.
+            </div>
+          </div>
+
+          <!-- No room selected -->
+          <div
+            v-if="!statsRoomId"
+            class="bg-gray-800 rounded-lg border border-gray-700 p-8 text-center">
+            <div class="text-gray-400">Select a room to get started</div>
+          </div>
+        </div>
+
+        <!-- Analytics Section (Super Admin Only) -->
+        <div v-if="activeTab === 'analytics' && isSuperAdmin">
+          <UsageAnalytics />
+        </div>
+
+        <!-- Info Section -->
+        <div
+          v-if="activeTab === 'users'"
+          class="mt-6 bg-gray-800/50 rounded-lg border border-gray-700 p-4">
+          <h3 class="text-sm font-medium text-gray-300 mb-2">Accounts and roles</h3>
+
+          <div class="space-y-2 text-sm text-gray-400">
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-purple-500"></span>
+
+              <span><strong>Owner:</strong> The single account that can do everything</span>
             </div>
 
-            <!-- Actions (owner only; roles are assigned in the Roles tab or the user context menu) -->
-            <div v-if="user.id !== currentUserId" class="flex items-center gap-2">
-              <button
-                v-if="user.role !== 'super_admin'"
-                type="button"
-                class="px-3 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
-                :disabled="deletingUserId === user.id"
-                @click="confirmDeleteUser(user)">
-                <span v-if="deletingUserId === user.id">Deleting...</span>
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-blue-500"></span>
 
-                <span v-else>Delete</span>
-              </button>
-
-              <span v-else class="text-xs px-2 py-1 bg-purple-600/20 text-purple-400 rounded">
-                Owner
+              <span>
+                <strong>Everyone else:</strong> Permissions come from <em>@everyone</em>, assigned
+                roles (and <em>Guest</em> for guest accounts), plus per-room and per-category
+                overrides
               </span>
             </div>
           </div>
         </div>
-
-        <!-- Empty State -->
-        <div v-if="users.length === 0" class="p-8 text-center">
-          <PhUsers class="w-12 h-12 text-gray-600 mx-auto mb-4" />
-
-          <p class="text-gray-400">No users found</p>
-        </div>
       </div>
-
-      <!-- Logs Section (Super Admin Only) -->
-      <div
-        v-if="activeTab === 'logs' && isSuperAdmin"
-        class="bg-gray-800 rounded-lg border border-gray-700">
-        <div class="p-4 border-b border-gray-700 flex items-center justify-between">
-          <h2 class="text-lg font-semibold text-white">Debug Logs</h2>
-
-          <div class="flex items-center gap-4">
-            <span class="text-sm text-gray-400">{{ logs.length }} logs</span>
-
-            <button
-              type="button"
-              class="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
-              :disabled="loadingLogs"
-              @click="loadLogs">
-              <span v-if="loadingLogs">Loading...</span>
-              <span v-else>Refresh</span>
-            </button>
-          </div>
-        </div>
-
-        <div class="divide-y divide-gray-700">
-          <div
-            v-for="log in logs"
-            :key="log.id"
-            class="p-4 flex items-center justify-between hover:bg-gray-700/50 transition-colors">
-            <div>
-              <div class="flex items-center gap-2">
-                <span class="font-medium text-white">{{ log.username }}</span>
-
-                <span class="text-xs px-2 py-0.5 bg-gray-600 text-gray-300 rounded">
-                  ID: {{ log.user_id.slice(0, 8) }}...
-                </span>
-
-                <span
-                  v-if="log.version"
-                  class="text-xs px-2 py-0.5 bg-indigo-600/20 text-indigo-400 rounded">
-                  {{ log.version }}
-                </span>
-              </div>
-
-              <div class="text-sm text-gray-400">
-                {{ formatDate(log.created_at) }} • {{ log.log_filename }}
-              </div>
-            </div>
-
-            <div class="flex items-center gap-2">
-              <button
-                type="button"
-                class="px-3 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors"
-                @click="viewLog(log.id)">
-                View
-              </button>
-
-              <button
-                type="button"
-                class="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
-                @click="downloadLog(log)">
-                Download
-              </button>
-
-              <button
-                type="button"
-                class="px-3 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
-                :disabled="deletingLogId === log.id"
-                @click="confirmDeleteLog(log.id)">
-                <span v-if="deletingLogId === log.id">Deleting...</span>
-                <span v-else>Delete</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Empty State -->
-        <div v-if="logs.length === 0 && !loadingLogs" class="p-8 text-center">
-          <PhFileText class="w-12 h-12 text-gray-600 mx-auto mb-4" />
-
-          <p class="text-gray-400">No debug logs found</p>
-        </div>
-      </div>
-
-      <!-- Soundboard Section (manage_soundboard) -->
-      <div v-if="activeTab === 'soundboard' && canManageSoundboard">
-        <SoundboardAdmin />
-      </div>
-
-      <!-- Custom Emojis Section (manage_emojis) -->
-      <div v-if="activeTab === 'emojis' && canManageEmojis">
-        <EmojiAdmin />
-      </div>
-
-      <!-- Audio Section -->
-      <div
-        v-if="activeTab === 'audio' && canManageAudio"
-        class="bg-gray-800 rounded-lg border border-gray-700">
-        <div class="p-4 border-b border-gray-700 flex items-center justify-between">
-          <h2 class="text-lg font-semibold text-white">Audio Files</h2>
-
-          <div class="flex items-center gap-4">
-            <span class="text-sm text-gray-400">{{ audioFiles.length }} files</span>
-
-            <button
-              type="button"
-              class="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
-              :disabled="loadingAudio"
-              @click="loadAudio">
-              <span v-if="loadingAudio">Loading...</span>
-              <span v-else>Refresh</span>
-            </button>
-          </div>
-        </div>
-
-        <div class="divide-y divide-gray-700">
-          <div
-            v-for="file in audioFiles"
-            :key="file.id"
-            class="p-4 flex items-center justify-between hover:bg-gray-700/50 transition-colors">
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2">
-                <!-- Inline rename -->
-                <template v-if="renamingAudioId === file.id">
-                  <input
-                    v-model="renameValue"
-                    type="text"
-                    class="bg-gray-700 text-white px-2 py-1 rounded text-sm border border-gray-600 focus:border-indigo-500 outline-none w-48"
-                    @keyup.enter="doRenameAudio(file.id)"
-                    @keyup.escape="renamingAudioId = null"
-                    @blur="doRenameAudio(file.id)" />
-                </template>
-                <span v-else class="font-medium text-white truncate">{{ file.display_name }}</span>
-
-                <span
-                  v-if="file.is_system"
-                  class="text-xs px-2 py-0.5 bg-indigo-600/20 text-indigo-400 rounded">
-                  System
-                </span>
-              </div>
-
-              <div class="text-sm text-gray-400 flex items-center gap-2 mt-0.5">
-                <span>{{ formatFileSize(file.file_size) }}</span>
-
-                <span class="text-gray-600">•</span>
-
-                <span>{{ formatDate(file.created_at) }}</span>
-              </div>
-            </div>
-
-            <div class="flex items-center gap-2 ml-4 flex-shrink-0">
-              <button
-                v-if="!file.is_system && !renamingAudioId && deletingAudioId !== file.id"
-                type="button"
-                class="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
-                @click="startRename(file)">
-                Rename
-              </button>
-
-              <button
-                type="button"
-                class="px-3 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded transition-colors disabled:opacity-50"
-                :disabled="deletingAudioId === file.id"
-                @click="confirmDeleteAudio(file.id)">
-                <span v-if="deletingAudioId === file.id">Deleting...</span>
-                <span v-else>Delete</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Empty State -->
-        <div v-if="audioFiles.length === 0 && !loadingAudio" class="p-8 text-center">
-          <PhMusicNote class="w-12 h-12 text-gray-600 mx-auto mb-4" />
-
-          <p class="text-gray-400">No audio files found</p>
-        </div>
-      </div>
-
-      <!-- Security Section (Super Admin Only) -->
-      <div v-if="activeTab === 'security' && isSuperAdmin">
-        <SecuritySelfCheck />
-      </div>
-
-      <!-- Minimum Android app version (Super Admin Only) -->
-      <div v-if="activeTab === 'app-versions' && isSuperAdmin">
-        <AppVersionsAdmin />
-      </div>
-
-      <!-- Search indexing of attachments (Super Admin Only, needs S3) -->
-      <div v-if="activeTab === 'search-indexing' && isSuperAdmin && configStore.attachments">
-        <SearchIndexingAdmin />
-      </div>
-
-      <!-- Stats Section (Super Admin Only) -->
-      <div v-if="activeTab === 'stats' && isSuperAdmin" class="space-y-4">
-        <!-- Room Selector & Controls -->
-        <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
-          <div class="flex items-center justify-between mb-2">
-            <h2 class="text-lg font-semibold text-white">Stats Map</h2>
-            <span class="text-sm text-gray-400">
-              {{ enabledRoomsCount }} room{{ enabledRoomsCount !== 1 ? "s" : "" }} collecting
-            </span>
-          </div>
-          <p class="text-sm text-gray-400 mb-4">
-            Hover over an avatar to see per-pair connection metrics.
-          </p>
-
-          <div class="flex items-center gap-4">
-            <div class="flex-1">
-              <select
-                v-model="statsRoomId"
-                class="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-indigo-500 outline-none"
-                @change="onStatsRoomChange">
-                <option value="" disabled>Select a room...</option>
-                <option v-for="room in adminStats.rooms.value" :key="room.id" :value="room.id">
-                  <EmojiText :text="room.name" /> ({{ room.user_count }} user{{
-                    room.user_count !== 1 ? "s" : ""
-                  }})
-                </option>
-              </select>
-            </div>
-
-            <button
-              type="button"
-              class="px-4 py-2 rounded text-sm font-medium transition-colors disabled:opacity-50"
-              :class="
-                adminStats.statsEnabled.value
-                  ? 'bg-red-600 hover:bg-red-700 text-white'
-                  : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-              "
-              :disabled="!statsRoomId || adminStats.toggling.value"
-              @click="onStatsToggle(statsRoomId)">
-              <span v-if="adminStats.toggling.value">Processing...</span>
-              <span v-else-if="adminStats.statsEnabled.value">Disable Stats</span>
-              <span v-else>Enable Stats</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Stats Map -->
-        <div v-if="adminStats.statsEnabled.value && statsRoomId">
-          <StatsMap :reports="adminStats.reports.value" :get-latest-rtt="adminStats.getLatestRtt" />
-        </div>
-
-        <!-- Stats disabled state -->
-        <div
-          v-else-if="statsRoomId && !adminStats.statsEnabled.value"
-          class="bg-gray-800 rounded-lg border border-gray-700 p-8 text-center">
-          <div class="text-gray-400">Stats collection is disabled for this room</div>
-          <div class="text-gray-500 text-sm mt-1">
-            Click "Enable Stats" above to start receiving connection metrics from participants.
-          </div>
-        </div>
-
-        <!-- No room selected -->
-        <div
-          v-if="!statsRoomId"
-          class="bg-gray-800 rounded-lg border border-gray-700 p-8 text-center">
-          <div class="text-gray-400">Select a room to get started</div>
-        </div>
-      </div>
-
-      <!-- Analytics Section (Super Admin Only) -->
-      <div v-if="activeTab === 'analytics' && isSuperAdmin">
-        <UsageAnalytics />
-      </div>
-
-      <!-- Halloween Section (Super Admin Only) -->
-      <div v-if="activeTab === 'halloween' && isSuperAdmin">
-        <HalloweenAdmin :users="users" />
-      </div>
-
-      <!-- Halloween Assets Section (Super Admin Only) -->
-      <div v-if="activeTab === 'halloween-assets' && isSuperAdmin">
-        <HalloweenPumpkinStudio />
-      </div>
-
-      <!-- Info Section -->
-      <div
-        v-if="activeTab === 'users'"
-        class="mt-6 bg-gray-800/50 rounded-lg border border-gray-700 p-4">
-        <h3 class="text-sm font-medium text-gray-300 mb-2">Accounts and roles</h3>
-
-        <div class="space-y-2 text-sm text-gray-400">
-          <div class="flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-purple-500"></span>
-
-            <span><strong>Owner:</strong> The single account that can do everything</span>
-          </div>
-
-          <div class="flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-blue-500"></span>
-
-            <span>
-              <strong>Everyone else:</strong> Permissions come from <em>@everyone</em>, assigned
-              roles (and <em>Guest</em> for guest accounts), plus per-room and per-category
-              overrides
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
+    </main>
 
     <!-- Delete User Confirmation Modal -->
     <div
@@ -735,8 +608,9 @@
 
 <script setup lang="ts">
 import EmojiText from "@/components/common/EmojiText.vue"
-import { ref, computed, onMounted, onUnmounted } from "vue"
-import { useRouter } from "vue-router"
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from "vue"
+import type { Component, ComponentPublicInstance } from "vue"
+import { useRoute, useRouter } from "vue-router"
 import { storeToRefs } from "pinia"
 import Avatar from "vue-boring-avatars"
 import { useUserStore, usePermissionsStore } from "@/stores"
@@ -744,20 +618,39 @@ import { Permission } from "@/types/permissions"
 import RolesAdmin from "@/components/admin/RolesAdmin.vue"
 import SoundboardAdmin from "@/components/admin/SoundboardAdmin.vue"
 import EmojiAdmin from "@/components/admin/EmojiAdmin.vue"
+import BadgeAdmin from "@/components/admin/BadgeAdmin.vue"
 import { apiService } from "@/services/api"
 import { useAdminStats } from "@/composables/useAdminStats"
 import StatsMap from "@/components/admin/StatsMap.vue"
 import UsageAnalytics from "@/components/admin/UsageAnalytics.vue"
 import SecuritySelfCheck from "@/components/admin/SecuritySelfCheck.vue"
 import AppVersionsAdmin from "@/components/admin/AppVersionsAdmin.vue"
+import NetworkAdmin from "@/components/admin/NetworkAdmin.vue"
+import EmailLogAdmin from "@/components/admin/EmailLogAdmin.vue"
 import SearchIndexingAdmin from "@/components/admin/SearchIndexingAdmin.vue"
 import { useConfigStore } from "@/stores/config"
-import HalloweenAdmin from "@/components/admin/HalloweenAdmin.vue"
-import HalloweenPumpkinStudio from "@/components/admin/HalloweenPumpkinStudio.vue"
 import { wsService } from "@/services/websocket"
 import type { RoomStatsMessage } from "@/types"
 import type { User, DebugLog, AudioFile } from "@/types"
-import { PhArrowLeft, PhUsers, PhFileText, PhMusicNote, PhX } from "@phosphor-icons/vue"
+import {
+  PhArrowLeft,
+  PhUsers,
+  PhFileText,
+  PhMusicNote,
+  PhX,
+  PhIdentificationBadge,
+  PhBug,
+  PhShieldCheck,
+  PhDeviceMobile,
+  PhGlobe,
+  PhEnvelopeSimple,
+  PhMagnifyingGlass,
+  PhSpeakerHigh,
+  PhSmiley,
+  PhMedal,
+  PhChartBar,
+  PhChartLine,
+} from "@phosphor-icons/vue"
 
 const userStore = useUserStore()
 const { currentUser, isSuperAdmin } = storeToRefs(userStore)
@@ -776,31 +669,170 @@ const deletingLogId = ref<number | null>(null)
 const deletingGuests = ref(false)
 const avatarErrors = ref<Set<string>>(new Set())
 
-const activeTab = ref<
+type AdminTab =
   | "users"
   | "roles"
   | "logs"
   | "security"
   | "app-versions"
+  | "network"
+  | "emails"
   | "search-indexing"
   | "audio"
   | "soundboard"
   | "emojis"
+  | "badges"
   | "stats"
   | "analytics"
-  | "halloween"
-  | "halloween-assets"
->(
-  userStore.isSuperAdmin
-    ? "users"
-    : permissionsStore.canManageRoles
-      ? "roles"
-      : permissionsStore.can(Permission.ManageSoundboard)
-        ? "soundboard"
-        : permissionsStore.can(Permission.ManageEmojis)
-          ? "emojis"
-          : "audio",
+
+interface AdminTabDef {
+  id: AdminTab
+  label: string
+  icon: Component
+  group: string
+  visible: boolean
+}
+
+// Single source of truth for the navigation: order here is the order on screen.
+// `visible` only hides entries; the backend authorizes every admin call itself.
+const tabs = computed<AdminTabDef[]>(() => {
+  const owner = isSuperAdmin.value
+  return [
+    {
+      id: "users",
+      label: "Users",
+      icon: PhUsers,
+      group: "Members",
+      visible: owner,
+    },
+    {
+      id: "roles",
+      label: "Roles",
+      icon: PhIdentificationBadge,
+      group: "Members",
+      visible: permissionsStore.canManageRoles,
+    },
+    {
+      id: "badges",
+      label: "Badges",
+      icon: PhMedal,
+      group: "Members",
+      visible: owner,
+    },
+    {
+      id: "audio",
+      label: "Audio",
+      icon: PhMusicNote,
+      group: "Content",
+      visible: canManageAudio.value,
+    },
+    {
+      id: "soundboard",
+      label: "Soundboard",
+      icon: PhSpeakerHigh,
+      group: "Content",
+      visible: canManageSoundboard.value,
+    },
+    {
+      id: "emojis",
+      label: "Emojis",
+      icon: PhSmiley,
+      group: "Content",
+      visible: canManageEmojis.value,
+    },
+    {
+      id: "stats",
+      label: "Stats",
+      icon: PhChartBar,
+      group: "Insights",
+      visible: owner,
+    },
+    {
+      id: "analytics",
+      label: "Analytics",
+      icon: PhChartLine,
+      group: "Insights",
+      visible: owner,
+    },
+    {
+      id: "logs",
+      label: "Debug logs",
+      icon: PhBug,
+      group: "Insights",
+      visible: owner,
+    },
+    {
+      id: "security",
+      label: "Security",
+      icon: PhShieldCheck,
+      group: "System",
+      visible: owner,
+    },
+    {
+      id: "network",
+      label: "Network",
+      icon: PhGlobe,
+      group: "System",
+      visible: owner,
+    },
+    {
+      id: "emails",
+      label: "Emails",
+      icon: PhEnvelopeSimple,
+      group: "System",
+      visible: owner,
+    },
+    {
+      id: "app-versions",
+      label: "App versions",
+      icon: PhDeviceMobile,
+      group: "System",
+      visible: owner,
+    },
+    {
+      id: "search-indexing",
+      label: "Search indexing",
+      icon: PhMagnifyingGlass,
+      group: "System",
+      visible: owner && !!configStore.attachments,
+    },
+  ]
+})
+
+const visibleTabs = computed(() => tabs.value.filter((t) => t.visible))
+
+const tabGroups = computed(() => {
+  const groups: { name: string; tabs: AdminTabDef[] }[] = []
+  for (const tab of visibleTabs.value) {
+    const last = groups[groups.length - 1]
+    if (last?.name === tab.group) last.tabs.push(tab)
+    else groups.push({ name: tab.group, tabs: [tab] })
+  }
+  return groups
+})
+
+// The open section lives in the URL (?tab=) so a reload or a shared link
+// lands on the same section.
+const route = useRoute()
+const router = useRouter()
+const queryTab = typeof route.query.tab === "string" ? route.query.tab : ""
+const activeTab = ref<AdminTab>(
+  visibleTabs.value.find((t) => t.id === queryTab)?.id ?? visibleTabs.value[0]?.id ?? "audio",
 )
+
+// Permissions can change live (role edits); never leave a hidden section open.
+watch(visibleTabs, (list) => {
+  if (list.length > 0 && !list.some((t) => t.id === activeTab.value)) {
+    activeTab.value = list[0].id
+  }
+})
+
+// On the narrow layout the nav scrolls horizontally: keep the open section in view.
+const tabRefs = new Map<AdminTab, HTMLElement>()
+function setTabRef(id: AdminTab, el: Element | ComponentPublicInstance | null) {
+  if (el instanceof HTMLElement) tabRefs.set(id, el)
+  else tabRefs.delete(id)
+}
 
 const showDeleteModal = ref(false)
 const userToDelete = ref<User | null>(null)
@@ -839,10 +871,21 @@ const handleRoomStatsMessage = (message: { type: string; data: unknown }) => {
 }
 
 const activateStatsTab = async () => {
-  activeTab.value = "stats"
   wsService.onGlobal("room_stats", handleRoomStatsMessage)
   await Promise.all([adminStats.loadRooms(), adminStats.loadStatsStatus()])
 }
+
+watch(
+  activeTab,
+  (tab) => {
+    if (route.query.tab !== tab) {
+      void router.replace({ query: { ...route.query, tab } })
+    }
+    if (tab === "stats") void activateStatsTab()
+    void nextTick(() => tabRefs.get(tab)?.scrollIntoView({ block: "nearest", inline: "nearest" }))
+  },
+  { immediate: true },
+)
 
 const onStatsRoomChange = async () => {
   if (statsRoomId.value) {
@@ -1065,7 +1108,6 @@ const deleteLog = async () => {
 
 // Back to where the user came from in the app; after a reload or a directly
 // opened /admin there is no in-app history entry, so go to the root.
-const router = useRouter()
 function goBack() {
   if (window.history.state?.back) router.back()
   else void router.push("/")
@@ -1084,3 +1126,10 @@ onMounted(() => {
   }
 })
 </script>
+
+<style scoped>
+/* A thin scrollbar keeps the narrow horizontal strip from growing a tall gutter. */
+.admin-nav {
+  scrollbar-width: thin;
+}
+</style>

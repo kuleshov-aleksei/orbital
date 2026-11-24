@@ -9,11 +9,13 @@
     <div
       v-if="images.length"
       :class="images.length === 1 ? 'max-w-full' : 'grid grid-cols-2 gap-1 w-full max-w-[400px]'">
-      <div v-for="(img, i) in images" :key="img.id" class="relative group/att max-w-full">
+      <div v-for="img in images" :key="img.id" class="relative group/att max-w-full">
         <AttachmentImageTile
           :attachment="img"
           :single="images.length === 1"
-          @open="lightboxIndex = i"
+          :hidden="isHidden(img)"
+          @open="openLightbox(img)"
+          @reveal="reveal(img)"
           @menu="(e) => openMenu(img, e)" />
         <div class="absolute top-1 right-1 flex gap-1">
           <PhLock
@@ -37,6 +39,8 @@
       <AttachmentVideo
         v-if="att.kind === 'video'"
         :attachment="att"
+        :hidden="isHidden(att)"
+        @reveal="reveal(att)"
         @menu="(e) => openMenu(att, e)"
         @download="openAttachment(att.id, 'download')" />
       <AttachmentAudio v-else :attachment="att" @menu="(e) => openMenu(att, e)" />
@@ -76,7 +80,14 @@
       <span>— removed ({{ removedLabel(att) }})</span>
     </div>
 
-    <p v-if="actionError" class="text-xs text-red-400">{{ actionError }}</p>
+    <p v-if="actionError" class="text-xs text-red-400" role="alert">{{ actionError }}</p>
+    <p
+      v-else-if="actionNote"
+      class="text-xs text-green-400"
+      role="status"
+      data-testid="attachment-note">
+      {{ actionNote }}
+    </p>
 
     <AttachmentMenu
       v-if="menu"
@@ -85,12 +96,13 @@
       :y="menu.y"
       :is-own="isOwn"
       :can-manage="canManage"
+      :show-copy="canCopyImages && menu.attachment.kind === 'image' && !isHidden(menu.attachment)"
       :show-content="contentSearch && menu.attachment.kind === 'image'"
       @action="onAction"
       @close="menu = null" />
     <AttachmentLightbox
       v-if="lightboxIndex !== null"
-      :images="images"
+      :images="visibleImages"
       :start-index="lightboxIndex"
       :origin-root="rootEl"
       @close="lightboxIndex = null" />
@@ -99,7 +111,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, useTemplateRef } from "vue"
+import { computed, onBeforeUnmount, ref, useTemplateRef } from "vue"
 import { PhDotsThree, PhDownloadSimple, PhLock, PhPaperclip } from "@phosphor-icons/vue"
 import AttachmentImageTile from "./AttachmentImageTile.vue"
 import AttachmentVideo from "./AttachmentVideo.vue"
@@ -111,6 +123,11 @@ import { useConfigStore } from "@/stores/config"
 import { apiService } from "@/services/api"
 import { forgetAttachmentUrls, openAttachment, openStoragePage } from "@/services/attachments/urls"
 import { evictMedia } from "@/services/attachments/mediaCache"
+import {
+  clipboardImageSupported,
+  copyImageErrorText,
+  copyImageToClipboard,
+} from "@/services/attachments/clipboard"
 import { formatBytes } from "@/utils/formatBytes"
 import type { TextAttachment } from "@/types/textChat"
 
@@ -132,13 +149,45 @@ const images = computed(() => live.value.filter((a) => a.kind === "image"))
 const others = computed(() => live.value.filter((a) => a.kind !== "image"))
 const removed = computed(() => props.attachments.filter((a) => a.removed))
 
+// Spoilers this viewer revealed (per mounted message, like text spoilers).
+const revealed = ref(new Set<string>())
+function isHidden(att: TextAttachment): boolean {
+  return !!att.spoiler && !revealed.value.has(att.id)
+}
+function reveal(att: TextAttachment) {
+  revealed.value = new Set(revealed.value).add(att.id)
+}
+// The lightbox never pages onto an unrevealed spoiler.
+const visibleImages = computed(() => images.value.filter((a) => !isHidden(a)))
+function openLightbox(att: TextAttachment) {
+  reveal(att)
+  lightboxIndex.value = visibleImages.value.findIndex((a) => a.id === att.id)
+}
+
 const rootEl = useTemplateRef<HTMLElement>("rootEl")
 const lightboxIndex = ref<number | null>(null)
 const menu = ref<{ attachment: TextAttachment; x: number; y: number } | null>(null)
 const actionError = ref<string | null>(null)
+const actionNote = ref<string | null>(null)
+let noteTimer: ReturnType<typeof setTimeout> | null = null
 const contentFor = ref<TextAttachment | null>(null)
 const configStore = useConfigStore()
 const contentSearch = computed(() => !!configStore.attachments?.content_search)
+// Feature detection is static for the session; calling it per render would be noise.
+const canCopyImages = clipboardImageSupported()
+
+onBeforeUnmount(() => {
+  if (noteTimer) clearTimeout(noteTimer)
+})
+
+function showNote(text: string) {
+  actionNote.value = text
+  if (noteTimer) clearTimeout(noteTimer)
+  noteTimer = setTimeout(() => {
+    noteTimer = null
+    actionNote.value = null
+  }, 3000)
+}
 
 function openMenu(attachment: TextAttachment, e: MouseEvent) {
   if (props.pending) return
@@ -151,6 +200,8 @@ function removedLabel(att: TextAttachment): string {
       return "storage limit"
     case "moderator":
       return "by a moderator"
+    case "account_deleted":
+      return "account deleted"
     default:
       return "by uploader"
   }
@@ -160,12 +211,16 @@ async function onAction(action: AttachmentAction) {
   const att = menu.value?.attachment
   if (!att) return
   actionError.value = null
+  actionNote.value = null
   try {
     switch (action) {
       case "open":
-        if (att.kind === "image")
-          lightboxIndex.value = images.value.findIndex((a) => a.id === att.id)
+        if (att.kind === "image") openLightbox(att)
         else await openAttachment(att.id, "original")
+        break
+      case "copy":
+        await copyImageToClipboard(att.id)
+        showNote("Copied image to clipboard")
         break
       case "download":
         await openAttachment(att.id, "download")
@@ -186,9 +241,13 @@ async function onAction(action: AttachmentAction) {
         evictMedia(att.id)
         break
     }
-  } catch {
+  } catch (err) {
     actionError.value =
-      action === "delete" ? "The file could not be deleted." : "That didn't work. Try again."
+      action === "copy"
+        ? copyImageErrorText(err)
+        : action === "delete"
+          ? "The file could not be deleted."
+          : "That didn't work. Try again."
   }
 }
 </script>

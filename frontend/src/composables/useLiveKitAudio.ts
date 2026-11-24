@@ -54,6 +54,22 @@ export function useLiveKitAudio(state: LiveKitState) {
     if (state.localAudioTrack.value) {
       const mediaStreamTrack = state.localAudioTrack.value.mediaStreamTrack
       if (mediaStreamTrack && mediaStreamTrack.readyState === "live") {
+        // Track reused across joins (leave/rejoin, room switch, retry after an
+        // abandoned join). Drop the processor left over from the previous room:
+        // a processor makes `track.mediaStreamTrack` return its (2-channel)
+        // processed track, so publishing would mark the mic as stereo while the
+        // worklet only fills the left channel.
+        const staleProcessor = state.localAudioTrack.value.getProcessor()
+        if (staleProcessor) {
+          debugWarn(
+            `[LiveKit][WARN]: Local audio track still has the ${staleProcessor.name} processor before publishing, stopping it first`,
+          )
+          try {
+            await state.localAudioTrack.value.stopProcessor()
+          } catch (e) {
+            debugWarn(`[LiveKit][WARN]: Failed to stop stale audio processor:`, e)
+          }
+        }
         return state.localAudioTrack.value
       }
       debugLog(`[LiveKit][INFO]: Existing audio track ended, creating new track`)
@@ -90,6 +106,9 @@ export function useLiveKitAudio(state: LiveKitState) {
                 noiseSuppression: false,
                 autoGainControl: audioConstraints.autoGainControl,
                 echoCancellation: audioConstraints.echoCancellation,
+                // Voice is mono; asking for it explicitly keeps the capture (and
+                // everything downstream) from being stereo with an empty channel.
+                channelCount: 1,
                 sampleRate:
                   selectedAlgorithm === "rnnoise" ? RNNOISE_REQUIRED_SAMPLE_RATE : undefined,
                 deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
@@ -139,6 +158,8 @@ export function useLiveKitAudio(state: LiveKitState) {
             noiseSuppression: audioConstraints.noiseSuppression,
             autoGainControl: audioConstraints.autoGainControl,
             echoCancellation: audioConstraints.echoCancellation,
+            // See the WASM branch above: mono capture, always.
+            channelCount: 1,
             deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
           })
 
@@ -169,12 +190,31 @@ export function useLiveKitAudio(state: LiveKitState) {
     }
 
     try {
-      debugLog(`[LiveKit][INFO]: 'Publishing audio track...'`)
-      const publication = await state.room.value.localParticipant.publishTrack(
-        state.localAudioTrack.value,
+      const track = state.localAudioTrack.value
+
+      // Safety net: publishing a track that still has a processor attached sends
+      // the processor's 2-channel track, which LiveKit marks as stereo. With a
+      // mono voice pipeline that is how listeners end up with a dead right ear.
+      if (track.getProcessor()) {
+        debugWarn(
+          `[LiveKit][WARN]: Track has a processor attached at publish time, stopping it before publishing`,
+        )
+        await track.stopProcessor()
+      }
+
+      const settings = track.mediaStreamTrack.getSettings()
+      debugLog(
+        `[LiveKit][INFO]: 'Publishing audio track...' (capture ${settings.channelCount ?? "?"}ch)`,
       )
+      // The microphone pipeline is mono: never let LiveKit promote it to a
+      // stereo publication based on a track's channel count.
+      const publication = await state.room.value.localParticipant.publishTrack(track, {
+        forceStereo: false,
+      })
       state.localAudioPublication.value = publication
-      debugLog(`[LiveKit][INFO]: 'Audio track published successfully'`)
+      debugLog(
+        `[LiveKit][INFO]: 'Audio track published successfully' (sid: ${publication.trackSid}, muted: ${publication.isMuted})`,
+      )
 
       const algorithm = activeWasmAlgorithm.value
 
