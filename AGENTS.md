@@ -248,6 +248,7 @@ Rules:
 ### Electron Development
 - Electron desktop app is in the `electron/` directory
 - Release/update changes must follow `docs/notes/MIGRATION_TO_S3.md` and the `orbital-release-ops` skill
+- Release desktop builds assume a prewarmed Docker cache; see `docs/notes/build-cache-prewarm.md` before reordering `docker/Dockerfile.electron`
 - Uses Vite for bundling with `vite-plugin-electron`
 - Features include: system tray, window controls, auto-updates, deep linking (`orbital://`), desktop capture for screen sharing
 - Frontend interacts with Electron via `window.electronAPI` (see `frontend/src/services/electron.ts`)

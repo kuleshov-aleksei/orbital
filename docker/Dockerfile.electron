@@ -9,8 +9,9 @@ RUN rustup target add x86_64-pc-windows-gnu && \
 COPY native/win-audiocap/ /src/native/win-audiocap/
 RUN make -C /src/native/win-audiocap
 
-# Stage 1: Build environment
-FROM node:26.13.0-trixie AS builder
+# Stage 1: Build environment. This stage is source-independent — CI prewarms it
+# with `docker build --target deps` (docs/notes/build-cache-prewarm.md).
+FROM node:26.13.0-trixie AS deps
 
 # System dependencies (rarely changes — cached layer)
 RUN npm install -g pnpm@12.18.0
@@ -34,13 +35,38 @@ RUN dpkg --add-architecture i386 && \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+# ── Source-independent layers ──
+# Nothing in this section may read commit-specific files: it has to stay valid
+# across commits. Only rarely-changing inputs — the lockfiles and the license
+# generator script — are allowed here. CI prewarms exactly this with
+# `--target deps` (docs/notes/build-cache-prewarm.md), so a release inherits it
+# instead of re-downloading toolchains on release night.
+#
+# Both dependency sets are installed before any source is copied, so editing
+# frontend/ or electron/ never re-runs an install.
 WORKDIR /app/frontend
-
-# Frontend dependencies (cached when lockfile unchanged)
 COPY frontend/package.json ./
 COPY frontend/pnpm-*.yaml ./
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile --store-dir /pnpm/store
+
+WORKDIR /app/electron
+COPY electron/package.json ./
+COPY electron/pnpm-*.yaml ./
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile --store-dir /pnpm/store
+
+# Third-party license list: it queries the registry once per dependency, so it
+# lives here and only re-runs when package.json or the script changes.
+COPY electron/scripts/ ./scripts/
+RUN node scripts/generate-licenses.js
+
+# Prewarm boundary. `docker build --target deps` stops here; everything below
+# depends on the repo's source and runs on every release.
+FROM deps AS release-build
+
+# ── Source-dependent layers ──
+WORKDIR /app/frontend
 
 # Frontend source (cached until source files change).
 COPY frontend/ .
@@ -50,12 +76,6 @@ RUN pnpm run typecheck
 
 WORKDIR /app/electron
 
-# Electron dependencies (cached when lockfile unchanged)
-COPY electron/package.json ./
-COPY electron/pnpm-*.yaml ./
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    pnpm install --frozen-lockfile --store-dir /pnpm/store
-
 # Electron source (+ shell API version and the OTA bundle generator)
 COPY electron/ .
 COPY shell-api.json /app/shell-api.json
@@ -63,9 +83,6 @@ COPY scripts/ota-manifest.mjs /app/scripts/ota-manifest.mjs
 
 # Release quality gate: main/preload type errors fail the build too
 RUN pnpm run typecheck
-
-# Generate licenses
-RUN node scripts/generate-licenses.js
 
 # Windows per-app audio helper, built in the audiocap stage.
 COPY --from=audiocap /src/native/win-audiocap/orbital-audiocap.exe /app/native/win-audiocap/orbital-audiocap.exe
@@ -107,4 +124,4 @@ RUN node /app/scripts/ota-manifest.mjs dist electron "$VERSION" "$VITE_BACKEND_U
 FROM alpine:3.24
 RUN apk add --no-cache ca-certificates
 WORKDIR /app/electron
-COPY --from=builder /app/electron/release ./release
+COPY --from=release-build /app/electron/release ./release

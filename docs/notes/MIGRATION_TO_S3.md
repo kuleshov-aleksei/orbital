@@ -116,6 +116,10 @@ The draft itself carries no files — installers, APKs and blockmaps are only on
 S3, and the download page and `/api/releases/latest` link straight to
 `UPDATE_URL`.
 
+Both `docker build` steps reuse the runner's local BuildKit cache;
+`docs/notes/build-cache-prewarm.md` covers the nightly prewarm that keeps the
+desktop image at ~3 minutes instead of ~44.
+
 Binary uploads must pass `--content-type` and `--content-disposition attachment`:
 aws-cli guesses the type from the extension and knows neither `.apk` nor `.AppImage`.
 Without a type (Garage also sends `nosniff`), mobile Chrome renders the file as text
