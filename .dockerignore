@@ -53,3 +53,6 @@ mobile/android/app/src/main/assets/public
 
 # Windows audio helper: always rebuilt inside the image
 native/win-audiocap/*.exe
+
+# Windows audio helper: cargo build output
+native/win-audiocap/target

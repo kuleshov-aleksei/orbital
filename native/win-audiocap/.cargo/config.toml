@@ -1,0 +1,8 @@
+# The helper only runs on Windows; cross-compile from Linux with mingw-w64.
+[build]
+target = "x86_64-pc-windows-gnu"
+
+[target.x86_64-pc-windows-gnu]
+linker = "x86_64-w64-mingw32-gcc"
+# Link the C runtime statically so the exe needs no mingw DLLs next to it.
+rustflags = ["-C", "target-feature=+crt-static"]

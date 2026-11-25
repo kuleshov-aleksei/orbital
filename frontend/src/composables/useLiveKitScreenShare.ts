@@ -460,6 +460,13 @@ export function useLiveKitScreenShare(state: LiveKitState) {
         console.log("[ScreenShare] Publishing Windows app audio")
         await publishScreenShareAudio(capture.track, () => void stopScreenShare())
         capture.onEnded((code) => void handleWinAudioEnded(code))
+        const winPublication = state.localScreenAudioPublication.value
+        debugLog("[WinAudio] app audio published:", {
+          trackSid: winPublication?.trackSid,
+          isMuted: winPublication?.isMuted,
+          readyState: capture.track.readyState,
+          trackMuted: capture.track.muted,
+        })
       } else {
         console.log("[ScreenShare] No audio to publish")
       }

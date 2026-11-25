@@ -16,6 +16,7 @@ const QUERY_TIMEOUT_MS = 5000
 const START_TIMEOUT_MS = 6000
 const STOP_GRACE_MS = 1000
 const BYTES_PER_FRAME = 4 // s16le stereo
+const STATS_INTERVAL_MS = 5000
 
 export const EXIT_UNSUPPORTED = 2
 export const EXIT_TARGET_GONE = 3
@@ -163,10 +164,21 @@ export async function startCapture(
   webContents.postMessage("win-audio:port", { sessionId: session.id }, [port1])
   port2.start()
 
+  // Throughput diagnostics: bytes read from the helper and PCM messages posted
+  // to the renderer, so a silent share shows which hop stops.
+  let rxBytes = 0
+  let postedMessages = 0
+  const statsTimer = setInterval(() => {
+    log.info(`[WinAudio] #${session.id} rx=${rxBytes}B posted=${postedMessages}`)
+  }, STATS_INTERVAL_MS)
+  child.once("exit", () => clearInterval(statsTimer))
+
   // Pipe chunks may split a frame; carry the remainder so every message holds
   // whole frames.
   let carry: Buffer | null = null
   child.stdout?.on("data", (chunk: Buffer) => {
+    if (rxBytes === 0) log.info(`[WinAudio] #${session.id} first PCM chunk: ${chunk.length}B`)
+    rxBytes += chunk.length
     const data = carry ? Buffer.concat([carry, chunk]) : chunk
     const whole = data.length - (data.length % BYTES_PER_FRAME)
     carry = whole < data.length ? Buffer.from(data.subarray(whole)) : null
@@ -174,6 +186,7 @@ export async function startCapture(
       // Copy into a standalone buffer: a pooled Buffer view would serialize
       // its whole backing store.
       port2.postMessage({ type: "pcm", data: new Uint8Array(data.subarray(0, whole)) })
+      postedMessages++
     }
   })
 

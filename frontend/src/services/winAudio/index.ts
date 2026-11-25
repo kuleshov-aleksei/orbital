@@ -138,7 +138,13 @@ export async function startWinAudioCapture(target: WinAudioTarget): Promise<WinA
   }
   const destination = ctx.createMediaStreamDestination()
   node.connect(destination)
-  void ctx.resume()
+  try {
+    // resume() can stay pending without user activation; don't let it block the share.
+    await Promise.race([ctx.resume(), new Promise((resolve) => setTimeout(resolve, 1000))])
+  } catch (e) {
+    debugWarn("[WinAudio] AudioContext resume failed:", e)
+  }
+  debugLog("[WinAudio] AudioContext state after resume:", ctx.state)
 
   const portWaiter = createPortWaiter()
   const teardownGraph = () => {
@@ -169,8 +175,24 @@ export async function startWinAudioCapture(target: WinAudioTarget): Promise<WinA
   let ended = false
   let endedCode: number | null = null
   let stopped = false
+  const track = destination.stream.getAudioTracks()[0]
   node.port.onmessage = (event: MessageEvent) => {
     const msg = event.data as { type?: string; code?: number | null; dropped?: number }
+    if (msg?.type === "attached") {
+      debugLog("[WinAudio] worklet attached to the PCM port")
+      return
+    }
+    if (msg?.type === "stats") {
+      // Diagnostics: shows whether PCM reaches the worklet and leaves it non-silent.
+      debugLog("[WinAudio] worklet stats:", {
+        ...(event.data as object),
+        ctxState: ctx.state,
+        trackState: track?.readyState,
+        trackMuted: track?.muted,
+        trackEnabled: track?.enabled,
+      })
+      return
+    }
     if (msg?.type !== "ended" || ended) return
     ended = true
     endedCode = msg.code ?? null
@@ -178,7 +200,6 @@ export async function startWinAudioCapture(target: WinAudioTarget): Promise<WinA
     if (!stopped) endedCallback?.(msg.code ?? null)
   }
 
-  const track = destination.stream.getAudioTracks()[0]
   debugLog("[WinAudio] capture started:", target)
 
   return {

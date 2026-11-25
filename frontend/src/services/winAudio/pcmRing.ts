@@ -17,6 +17,10 @@ export class PcmRing {
   private primed = false
   /** Frames dropped on overflow, for diagnostics. */
   dropped = 0
+  /** Frames accepted by push(), for diagnostics. */
+  pushedFrames = 0
+  /** Times playback ran dry after it had started, for diagnostics. */
+  underruns = 0
 
   /**
    * @param capacityFrames maximum buffered frames (latency ceiling)
@@ -41,6 +45,7 @@ export class PcmRing {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
     let frames = Math.floor(bytes.byteLength / (2 * CHANNELS))
     let offset = 0
+    this.pushedFrames += frames
 
     // More than fits at all: keep only the newest `capacity` frames.
     if (frames > this.capacity) {
@@ -90,6 +95,7 @@ export class PcmRing {
       outLeft.fill(0, n)
       outRight.fill(0, n)
       this.primed = false // underrun: collect a prebuffer again
+      this.underruns++
     }
     return n
   }

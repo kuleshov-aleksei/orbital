@@ -270,3 +270,6 @@ electron/build/licenses.json
 #LATEST_RELEASE.md
 ISSUES.md
 TODO.md
+
+# Windows audio helper: cargo build output (Cargo.lock is committed)
+native/win-audiocap/target/

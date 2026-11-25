@@ -1,3 +1,14 @@
+# Stage 0: Windows per-app audio helper (native/win-audiocap, Rust), shipped
+# by electron-builder through win.extraResources. Its own stage, so it stays
+# cached and the Node image needs no Rust toolchain.
+FROM rust:1.100-trixie AS audiocap
+RUN rustup target add x86_64-pc-windows-gnu && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64 make && \
+    rm -rf /var/lib/apt/lists/*
+COPY native/win-audiocap/ /src/native/win-audiocap/
+RUN make -C /src/native/win-audiocap
+
 # Stage 1: Build environment
 FROM node:26.13.0-trixie AS builder
 
@@ -20,7 +31,6 @@ RUN dpkg --add-architecture i386 && \
     libpipewire-0.3-dev \
     libpulse-dev \
     libstdc++-12-dev \
-    g++-mingw-w64-x86-64 \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
@@ -57,11 +67,8 @@ RUN pnpm run typecheck
 # Generate licenses
 RUN node scripts/generate-licenses.js
 
-# Windows per-app audio helper (native/win-audiocap), shipped by
-# electron-builder through win.extraResources.
-# Built before the version-sensitive section so it stays cached.
-COPY native/win-audiocap/ /app/native/win-audiocap/
-RUN make -C /app/native/win-audiocap
+# Windows per-app audio helper, built in the audiocap stage.
+COPY --from=audiocap /src/native/win-audiocap/orbital-audiocap.exe /app/native/win-audiocap/orbital-audiocap.exe
 
 # ── Version-sensitive section ──
 # Everything below invalidates every release (unavoidable for builds)

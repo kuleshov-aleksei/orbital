@@ -56,19 +56,26 @@ None of them saves much work: the capture code is about 400 lines based on Micro
 
 - **No Node/Electron ABI.** No `node.lib`, node-gyp, prebuilds, or rebuild when Electron updates.
 - **Isolated.** A crash or hang in COM or audio code kills only the helper. This is the same reason venmic runs behind a utilityProcess bridge (`electron/main/venmic.ts`).
-- **Built on Linux.** It is cross-compiled with mingw-w64 (Debian `g++-mingw-w64-x86-64`, an apt package) inside the existing `docker/Dockerfile.electron`, which already builds the Windows installer on Linux. `-static` produces one exe with no DLLs.
+- **Memory safe.** It is written in Rust on the [`windows`](https://crates.io/crates/windows) crate; `unsafe` is limited to short, commented FFI calls. (The first version was C++; it was rewritten for safety, the CLI is unchanged.)
+- **Built on Linux.** It is cross-compiled for `x86_64-pc-windows-gnu` with the mingw-w64 linker, in a Rust stage of `docker/Dockerfile.electron`, which already builds the Windows installer on Linux. The C runtime is linked statically, so it is one exe with no extra DLLs.
 - **Easy to debug.** It can be run by hand from `cmd` on a user's machine.
 
 ## 4. Helper: `native/win-audiocap/`
 
 ```
 native/win-audiocap/
-  audiocap.cpp   # the whole helper, builds orbital-audiocap.exe
-  Makefile
-  README.md      # build, CLI, attribution
+  Cargo.toml, Cargo.lock
+  .cargo/config.toml   # target x86_64-pc-windows-gnu, mingw linker, static CRT
+  src/main.rs          # CLI, exit codes, JSON output
+  src/loopback.rs      # activation, probe, capture loop
+  src/list.rs          # list, pid-of-hwnd, process tree
+  src/wav.rs           # WAV writer for capture --out
+  src/win.rs           # handle RAII, UTF-16 helpers
+  Makefile             # cargo build, copies orbital-audiocap.exe here
+  README.md            # build, CLI, attribution
 ```
 
-The code follows Microsoft's MIT-licensed [ApplicationLoopback sample](https://learn.microsoft.com/en-us/samples/microsoft/windows-classic-samples/applicationloopbackaudio-sample/); credit it in the file header. It uses plain COM: a hand-written `IActivateAudioInterfaceCompletionHandler` that also implements `IAgileObject`, with no WRL or ATL.
+The code follows Microsoft's MIT-licensed [ApplicationLoopback sample](https://learn.microsoft.com/en-us/samples/microsoft/windows-classic-samples/applicationloopbackaudio-sample/); credit it in the file header. The completion handler is a `#[implement(IActivateAudioInterfaceCompletionHandler, IAgileObject)]` struct that signals an event.
 
 ### 4.1 CLI
 
@@ -79,38 +86,30 @@ stdout carries data, stderr carries logs. Control output is newline-delimited JS
 | `probe` | `{"supported":true,"build":22631}` and exit 0. The exit code is 2 when the API is missing. |
 | `list [--skip-tree <pid>]` | A JSON array `[{"pid":1234,"name":"Spotify","exe":"Spotify.exe","active":true}]` listing processes with an audio session. `--skip-tree` hides a process tree (Orbital passes its own PID). A session from a child process is reported under the topmost ancestor that runs the same exe (browsers play audio from a child process), so an include capture covers the whole app. It walks every active render endpoint (`IMMDeviceEnumerator` → `IAudioSessionManager2` → `IAudioSessionEnumerator`), removes duplicate PIDs, and skips the system sounds session. |
 | `pid-of-hwnd <hwnd>` | `{"pid":1234}` for the process that owns the window, via `GetWindowThreadProcessId`. `desktopCapturer` window ids look like `window:<hwnd>:<n>`. |
-| `capture --include <pid>` / `--exclude <pid>` | Raw PCM on stdout until it stops. |
+| `capture --include <pid>` / `--exclude <pid>` `[--out <file.wav>]` | Raw PCM on stdout until it stops, or a WAV file with `--out` (for manual tests: PowerShell 5's `>` re-encodes binary output as UTF-16 text and destroys it). |
 
 How `capture` works:
 - **Format:** s16le, 48 kHz, stereo. The format is fixed and the client is initialized with `AUDCLNT_STREAMFLAGS_LOOPBACK | AUDCLNT_STREAMFLAGS_EVENTCALLBACK | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM`, so Windows converts whatever the app plays. Throughput is about 192 KB/s.
 - **Gaps:** when the target is silent, no packets arrive. The renderer handles that, so the helper doesn't fill the gaps with silence.
 - **Started event:** once audio flows, stderr gets `{"event":"started",...}`. The Electron side waits for it before reporting success.
-- **Lifetime:** the helper exits when **stdin closes** (the parent died or stopped it), when the target process exits, or on an error.
+- **Stats:** every 5 s stderr gets `{"event":"stats","frames":N,"packets":N,"silent_packets":N,"peak":N}` (totals since the last line; `peak` is the largest absolute s16 sample). Electron logs every stderr line, so these show up in the main log.
+- **Lifetime:** the helper exits when **stdin closes** (the parent died or stopped it), on Ctrl+C, when the target process exits, or on an error.
 - **Exit codes:** 0 = stopped normally, 2 = API unsupported, 3 = target gone, 1 = any other error. The last stderr line is `{"error":"...","hresult":"0x8889000A"}`.
 
 ### 4.2 Old Windows
 
-`ActivateAudioInterfaceAsync` is resolved at run time with `GetProcAddress(LoadLibrary("mmdevapi.dll"))`. The exe therefore starts on any Windows 10 and reports "unsupported" (exit code 2) when process loopback activation fails.
+`ActivateAudioInterfaceAsync` exists since Windows 8, so the exe starts on any Windows 10 and reports "unsupported" (exit code 2) when process loopback activation fails.
 
 Microsoft documents build 20348 as the minimum, but the API works from 19041 (2004) onward. **Detect support at run time and never hard-code a build number.**
-
-Debian trixie's mingw-w64 has no `audioclientactivationparams.h`, so `audiocap.cpp` declares the activation structs, the async-activation interfaces and their IIDs itself, in `namespace orb`.
 
 Target for orbital app is Windows 11, so we do not need to support old Windows anyway
 
 ### 4.3 Build
 
-```make
-# native/win-audiocap/Makefile
-CXX := x86_64-w64-mingw32-g++   # unless set by the caller
-orbital-audiocap.exe: audiocap.cpp
-	$(CXX) -std=c++17 -O2 -Wall -Wextra -static -municode -o $@ $< -lole32 -luuid -lversion
-```
+`make -C native/win-audiocap` runs `cargo build --release --locked` (target and linker come from `.cargo/config.toml`) and copies the exe next to the Makefile. Locally it needs `rustup target add x86_64-pc-windows-gnu` and the mingw-w64 C toolchain (Debian `gcc-mingw-w64-x86-64`, Arch `mingw-w64-gcc`).
 
-- `docker/Dockerfile.electron`:
-  - add `g++-mingw-w64-x86-64` to the apt list;
-  - copy `native/win-audiocap/` and run `make` before the version-sensitive layers, so the result stays cached;
-  - `.dockerignore` excludes a locally built exe, so the image always builds its own.
+- `docker/Dockerfile.electron`: an `audiocap` stage (`rust:<version>-trixie` + the windows-gnu target + `gcc-mingw-w64-x86-64`) builds it; the Node stage copies the exe in with `COPY --from=audiocap`, so it stays cached and the Node image needs no Rust.
+- `.dockerignore` excludes a locally built exe and `target/`, so the image always builds its own.
 - electron-builder `win.extraResources`: `{ from: "../native/win-audiocap/orbital-audiocap.exe", to: "orbital-audiocap.exe" }`. Ship it next to the asar, not inside it, because an exe can't be launched from inside an asar.
 - Root `Makefile`: a `build-win-audiocap` target, which `build-electron-win` depends on.
 - `orbital-audiocap.exe` is gitignored (`*.exe`) and never committed.

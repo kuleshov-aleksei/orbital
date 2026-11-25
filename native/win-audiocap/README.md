@@ -6,7 +6,7 @@ Design and decisions: [`docs/specs/WINDOWS_APP_AUDIO.md`](../../docs/specs/WINDO
 
 ## Build
 
-Cross-compiled on Linux with mingw-w64:
+Written in Rust (the [`windows`](https://crates.io/crates/windows) crate) and cross-compiled on Linux:
 
 ```sh
 make build-win-audiocap        # from the repo root
@@ -14,7 +14,9 @@ make build-win-audiocap        # from the repo root
 make -C native/win-audiocap
 ```
 
-You need the `g++-mingw-w64-x86-64` package (Debian/Ubuntu) or `mingw-w64-gcc` (Arch). The release build runs inside `docker/Dockerfile.electron`, and electron-builder ships the result next to `app.asar` through `win.extraResources`. `orbital-audiocap.exe` is a build artifact and is never committed.
+You need the Windows GNU target (`rustup target add x86_64-pc-windows-gnu`) and the mingw-w64 C toolchain as linker: `gcc-mingw-w64-x86-64` (Debian/Ubuntu) or `mingw-w64-gcc` (Arch). `.cargo/config.toml` sets the target, the linker and a static C runtime, so plain `cargo build`/`cargo clippy` in this directory work too. The release build runs in the `audiocap` stage of `docker/Dockerfile.electron`, and electron-builder ships the result next to `app.asar` through `win.extraResources`. `orbital-audiocap.exe` is a build artifact and is never committed.
+
+Unit tests (pure logic: JSON escaping, WAV header, process tree) run under Wine: `CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUNNER=wine cargo test`.
 
 ## CLI
 
@@ -26,9 +28,10 @@ orbital-audiocap list [--skip-tree <pid>]     [{"pid":1234,"name":"Spotify","exe
 orbital-audiocap pid-of-hwnd <hwnd>           {"pid":1234}
 orbital-audiocap capture --include <pid>      raw s16le 48 kHz stereo PCM on stdout
 orbital-audiocap capture --exclude <pid>
+orbital-audiocap capture --include <pid> --out test.wav    the same, into a WAV file
 ```
 
-`capture` prints `{"event":"started",...}` to stderr once audio flows. It stops when stdin closes.
+`capture` prints `{"event":"started",...}` to stderr once audio flows, then `{"event":"stats",...}` every 5 s (frames, packets, silent packets, peak sample). It stops when stdin closes or on Ctrl+C.
 
 Exit codes:
 
@@ -43,11 +46,12 @@ Manual test on Windows:
 
 ```bat
 orbital-audiocap list
-orbital-audiocap capture --include 1234 > out.raw
-ffplay -f s16le -ar 48000 -ac 2 out.raw
+orbital-audiocap capture --include 1234 --out test.wav
 ```
 
-When run by hand, `capture` stops on Ctrl+Z then Enter, which closes stdin, or on Ctrl+C.
+Press Ctrl+C to stop, then play `test.wav` in any player.
+
+**Don't redirect PCM with `>` in PowerShell 5.** It decodes the bytes as text and writes them back as UTF-16 (the file starts with `FF FE`), which turns valid audio into noise. `cmd.exe`'s `>` and PowerShell 7.4+ keep the bytes intact, but `--out` is the safe choice.
 
 ## Attribution
 

@@ -126,4 +126,24 @@ describe("PcmRing", () => {
     ring.push(bytes)
     expect(ring.buffered).toBe(1)
   })
+
+  it("counts pushed frames and underruns after playback started", () => {
+    const ring = new PcmRing(8)
+    pull(ring, 4) // not primed yet: silence, not an underrun
+    expect(ring.underruns).toBe(0)
+
+    ring.push(
+      pcm([
+        [1, 1],
+        [2, 2],
+        [3, 3],
+      ]),
+    )
+    expect(ring.pushedFrames).toBe(3)
+    pull(ring, 4) // 3 real frames, then runs dry
+    expect(ring.underruns).toBe(1)
+
+    ring.push(pcm([[4, 4]]))
+    expect(ring.pushedFrames).toBe(4)
+  })
 })

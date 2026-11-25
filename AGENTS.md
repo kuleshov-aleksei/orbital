@@ -262,9 +262,10 @@ Rules:
 
 ### Windows audio helper (per-app screen share audio)
 
-Spec: [`docs/specs/WINDOWS_APP_AUDIO.md`](./docs/specs/WINDOWS_APP_AUDIO.md). On Windows, screen share audio comes from `native/win-audiocap/orbital-audiocap.exe`, a small C++ program using the process loopback API. It is not a Node addon.
+Spec: [`docs/specs/WINDOWS_APP_AUDIO.md`](./docs/specs/WINDOWS_APP_AUDIO.md). On Windows, screen share audio comes from `native/win-audiocap/orbital-audiocap.exe`, a small Rust program (`windows` crate) using the process loopback API. It is not a Node addon.
 
-- Built with mingw-w64 (`make build-win-audiocap`; in CI inside `docker/Dockerfile.electron`). The exe is a build artifact; never commit it.
+- Cross-compiled for `x86_64-pc-windows-gnu` with the mingw-w64 linker (`make build-win-audiocap`; needs `rustup target add x86_64-pc-windows-gnu`; in CI the `audiocap` stage of `docker/Dockerfile.electron`). The exe is a build artifact; never commit it.
+- Manual capture tests: use `capture ... --out test.wav`. PowerShell 5's `>` re-encodes binary stdout as UTF-16 text (the file starts with `FF FE`) and makes valid PCM look like noise.
 - It ships through electron-builder `win.extraResources` next to `app.asar`, never inside it, because an exe can't be spawned from an asar.
 - Its lifetime is tied to its stdin: closing stdin stops a capture, and the helper exits when Orbital dies. `electron/main/winAudioCapture.ts` also kills it on stop, window close, renderer crash and quit.
 - PCM goes helper stdout → main → `MessagePort` → page → AudioWorklet (`frontend/src/services/winAudio/`). contextBridge can't carry ports, so the preload forwards the port with `window.postMessage`.

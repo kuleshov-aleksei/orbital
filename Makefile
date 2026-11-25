@@ -38,7 +38,7 @@ help:
 	@echo "  build-electron       - Build Electron desktop app"
 	@echo "  build-electron-win   - Build Electron for Windows"
 	@echo "  build-electron-linux - Build Electron for Linux"
-	@echo "  build-win-audiocap   - Cross-compile the Windows audio helper (needs mingw-w64)"
+	@echo "  build-win-audiocap   - Cross-compile the Windows audio helper (Rust; needs the x86_64-pc-windows-gnu target + mingw-w64)"
 	@echo "  build-android        - Build the Android app (debug APK; needs JDK + Android SDK)"
 	@echo "  build-android-dev    - Build \"Orbital Dev\" against this machine's backend (ANDROID_DEV_HOST)"
 	@echo "  dev-android          - Run the Android app against a live dev server (CAP_SERVER_URL=http://<lan-ip>:3000)"

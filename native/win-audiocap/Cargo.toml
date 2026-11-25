@@ -1,0 +1,21 @@
+[package]
+name = "orbital-audiocap"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Per-application audio capture helper for the Orbital desktop app on Windows"
+
+[[bin]]
+name = "orbital-audiocap"
+path = "src/main.rs"
+
+[dependencies]
+windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_Media_Audio", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_Variant", "Win32_System_Threading", "Win32_System_Diagnostics_ToolHelp", "Win32_Storage_FileSystem", "Win32_UI_WindowsAndMessaging", "Win32_System_Console", "Win32_System_SystemInformation", "Wdk_System_SystemServices", "Win32_Security"] }
+windows-core = "0.62.2"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
