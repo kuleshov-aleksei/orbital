@@ -1,6 +1,7 @@
 // AudioWorklet that plays the PCM stream from the Windows audio helper.
-// Loaded via `?worker&url` (see index.ts). The PCM MessagePort is transferred
-// here directly, so audio never passes through the renderer main thread.
+// Loaded via `?worker&url` (see index.ts). The page forwards each PCM chunk
+// over `this.port` (transferring the buffer). The Electron IPC port itself
+// can't be handed over: re-transferred into this scope it receives nothing.
 import { PcmRing } from "./pcmRing"
 
 // Minimal AudioWorkletGlobalScope declarations (not part of the DOM lib).
@@ -23,7 +24,6 @@ class PcmPlayerProcessor extends AudioWorkletProcessor {
     Math.round((sampleRate * CAPACITY_MS) / 1000),
     Math.round((sampleRate * PREBUFFER_MS) / 1000),
   )
-  private source: MessagePort | null = null
   private alive = true
   // Diagnostics since the last report.
   private messages = 0
@@ -33,38 +33,15 @@ class PcmPlayerProcessor extends AudioWorkletProcessor {
   constructor() {
     super()
     this.port.onmessage = (event: MessageEvent) => {
-      const msg = event.data as { type: string; port?: MessagePort }
-      if (msg.type === "source" && msg.port) {
-        this.attach(msg.port)
-      } else if (msg.type === "stop") {
-        this.detach()
-        this.alive = false
-      }
-    }
-  }
-
-  private attach(port: MessagePort): void {
-    this.detach()
-    this.source = port
-    port.onmessage = (event: MessageEvent) => {
       const msg = event.data as { type: string; data?: Uint8Array; code?: number | null }
       if (msg.type === "pcm" && msg.data) {
         this.messages++
         this.ring.push(msg.data)
       } else if (msg.type === "ended") {
         this.port.postMessage({ type: "ended", code: msg.code ?? null, dropped: this.ring.dropped })
-        this.detach()
+      } else if (msg.type === "stop") {
+        this.alive = false
       }
-    }
-    port.start()
-    this.port.postMessage({ type: "attached" })
-  }
-
-  private detach(): void {
-    if (this.source) {
-      this.source.onmessage = null
-      this.source.close()
-      this.source = null
     }
   }
 
@@ -94,7 +71,6 @@ class PcmPlayerProcessor extends AudioWorkletProcessor {
   private reportStats(): void {
     this.port.postMessage({
       type: "stats",
-      attached: this.source !== null,
       messages: this.messages,
       pushedFrames: this.ring.pushedFrames,
       buffered: this.ring.buffered,

@@ -156,7 +156,7 @@ The PCM `MessagePort` arrives separately. The main process sends it on `win-audi
 New `frontend/src/services/winAudio/`:
 
 - An `AudioWorkletProcessor` (`orbital-pcm-player`, `pcmPlayer.worklet.ts`, loaded with `?worker&url`):
-  - the PCM port is transferred into the worklet, so audio never touches the renderer main thread;
+  - the page keeps the PCM port and forwards each chunk to the worklet over `node.port`, transferring the buffer. Don't transfer the port itself: an Electron IPC port re-transferred into the AudioWorklet scope reports attached but receives no messages (seen on Electron 45);
   - the ring buffer (`pcmRing.ts`) holds up to 150 ms and starts playback after 30 ms of prebuffer;
   - outputs silence on underrun and drops the oldest samples on overflow. This keeps the latency bounded and absorbs clock drift.
 - Pipeline: `AudioContext({ sampleRate: 48000 })` → worklet node → `MediaStreamAudioDestinationNode` → `stream.getAudioTracks()[0]`.

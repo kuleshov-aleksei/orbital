@@ -268,7 +268,7 @@ Spec: [`docs/specs/WINDOWS_APP_AUDIO.md`](./docs/specs/WINDOWS_APP_AUDIO.md). On
 - Manual capture tests: use `capture ... --out test.wav`. PowerShell 5's `>` re-encodes binary stdout as UTF-16 text (the file starts with `FF FE`) and makes valid PCM look like noise.
 - It ships through electron-builder `win.extraResources` next to `app.asar`, never inside it, because an exe can't be spawned from an asar.
 - Its lifetime is tied to its stdin: closing stdin stops a capture, and the helper exits when Orbital dies. `electron/main/winAudioCapture.ts` also kills it on stop, window close, renderer crash and quit.
-- PCM goes helper stdout → main → `MessagePort` → page → AudioWorklet (`frontend/src/services/winAudio/`). contextBridge can't carry ports, so the preload forwards the port with `window.postMessage`.
+- PCM goes helper stdout → main → `MessagePort` → page → `node.port` → AudioWorklet (`frontend/src/services/winAudio/`). contextBridge can't carry ports, so the preload forwards the port with `window.postMessage`. Never transfer that port on into the worklet: it arrives but receives nothing.
 - Wine runs the CLI but not process loopback: real testing needs Windows.
 
 ### Mobile (Android app, Capacitor)

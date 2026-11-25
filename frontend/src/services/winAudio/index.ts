@@ -2,9 +2,12 @@
 // Spec: docs/specs/WINDOWS_APP_AUDIO.md
 //
 // The main process runs the orbital-audiocap helper and sends us a MessagePort
-// carrying s16le 48 kHz stereo PCM. We hand that port straight to an
-// AudioWorklet, which plays it into a MediaStreamAudioDestinationNode. The
-// destination's track is what gets published as screen share audio.
+// carrying s16le 48 kHz stereo PCM. We forward each chunk to an AudioWorklet
+// (over node.port, transferring the buffer), which plays it into a
+// MediaStreamAudioDestinationNode. The destination's track is what gets
+// published as screen share audio. The port itself can't go to the worklet:
+// an Electron IPC port re-transferred into the AudioWorklet scope receives
+// no messages.
 import type { WinAudioApp, WinAudioTarget } from "@/types"
 import { debugLog, debugWarn } from "@/utils/debug"
 
@@ -169,7 +172,23 @@ export async function startWinAudioCapture(target: WinAudioTarget): Promise<WinA
     await winAudioStop()
     return { ok: false, unsupported: false, error: "audio port not received" }
   }
-  node.port.postMessage({ type: "source", port }, [port])
+  // Diagnostics: PCM messages that reached the page since the last stats line.
+  let pageMessages = 0
+  port.onmessage = (event: MessageEvent) => {
+    const msg = event.data as { type?: string; data?: Uint8Array; code?: number | null }
+    if (msg?.type === "pcm" && msg.data) {
+      pageMessages++
+      const data = msg.data
+      node.port.postMessage({ type: "pcm", data }, [data.buffer])
+    } else if (msg?.type === "ended") {
+      node.port.postMessage({ type: "ended", code: msg.code ?? null })
+    }
+  }
+  port.start()
+  const closePort = () => {
+    port.onmessage = null
+    port.close()
+  }
 
   let endedCallback: ((code: number | null) => void) | null = null
   let ended = false
@@ -178,19 +197,17 @@ export async function startWinAudioCapture(target: WinAudioTarget): Promise<WinA
   const track = destination.stream.getAudioTracks()[0]
   node.port.onmessage = (event: MessageEvent) => {
     const msg = event.data as { type?: string; code?: number | null; dropped?: number }
-    if (msg?.type === "attached") {
-      debugLog("[WinAudio] worklet attached to the PCM port")
-      return
-    }
     if (msg?.type === "stats") {
       // Diagnostics: shows whether PCM reaches the worklet and leaves it non-silent.
       debugLog("[WinAudio] worklet stats:", {
         ...(event.data as object),
+        pageMessages,
         ctxState: ctx.state,
         trackState: track?.readyState,
         trackMuted: track?.muted,
         trackEnabled: track?.enabled,
       })
+      pageMessages = 0
       return
     }
     if (msg?.type !== "ended" || ended) return
@@ -214,6 +231,7 @@ export async function startWinAudioCapture(target: WinAudioTarget): Promise<WinA
       stop: async () => {
         if (stopped) return
         stopped = true
+        closePort()
         teardownGraph()
         try {
           await winAudioStop()
