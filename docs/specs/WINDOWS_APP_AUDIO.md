@@ -123,11 +123,10 @@ This is the Windows counterpart of `electron/main/venmic.ts` and follows the sam
 - `probe()` / `listApps()` / `pidOfSource()`: `execFile` with a 5 s timeout, then parse the JSON. Cache the `probe` result for the session.
 - `start(target)`:
   - `spawn` the helper with `stdio: ["pipe", "pipe", "pipe"]`;
-  - open a `MessageChannelMain` and hand one port to the renderer with `webContents.postMessage("win-audio-port", null, [port])`;
-  - forward stdout chunks to the other port. Each chunk is cut to whole frames and copied, since `MessagePortMain` can't transfer buffers;
+  - send stdout chunks to the renderer with `webContents.send("win-audio:pcm", sessionId, Uint8Array)`. Each chunk is cut to whole frames and copied, so a pooled `Buffer` doesn't serialize its whole backing store;
   - forward stderr to `electron-log`;
   - resolve once the helper prints `started` (6 s timeout).
-- On exit, post `{type:"ended", code}` on the port. Exit code 2 or a failed spawn means "use the fallback".
+- On exit, send `win-audio:ended` with `(sessionId, code)`. Exit code 2 or a failed spawn means "use the fallback".
 - `stop()`:
   - close stdin, so the helper stops on its own;
   - after 1 s, kill it if it is still running.
@@ -145,9 +144,10 @@ winAudioList(): Promise<WinAudioApp[]>
 winAudioPidOfSource(sourceId: string): Promise<number | null>
 winAudioStart(target: { mode: "include"; pid: number } | { mode: "exclude-self" }): Promise<WinAudioStartResult>
 winAudioStop(): Promise<boolean>
+setWinAudioSink(sink: { pcm(sessionId, data: Uint8Array); ended(sessionId, code) } | null): void
 ```
 
-The PCM `MessagePort` arrives separately. The main process sends it on `win-audio:port`, and the preload forwards it to the page with `window.postMessage({ type: "orbital:win-audio-port", sessionId }, "*", ports)`, because contextBridge can't carry ports.
+The preload listens on `win-audio:pcm` / `win-audio:ended` and calls the one sink the page installed (contextBridge copies the `Uint8Array`). The page ignores chunks whose session id doesn't match its start result. Don't go back to a `MessagePortMain`: on Electron 45 a port forwarded to the main world with `window.postMessage` arrived but delivered no messages, neither in the page nor re-transferred into the worklet.
 
 `exclude-self` is resolved in the main process to `process.pid` of the Electron main process, so the renderer can never exclude an arbitrary process. Renderer and GPU processes are children of the main process, so the whole Orbital tree is excluded.
 
@@ -156,7 +156,7 @@ The PCM `MessagePort` arrives separately. The main process sends it on `win-audi
 New `frontend/src/services/winAudio/`:
 
 - An `AudioWorkletProcessor` (`orbital-pcm-player`, `pcmPlayer.worklet.ts`, loaded with `?worker&url`):
-  - the page keeps the PCM port and forwards each chunk to the worklet over `node.port`, transferring the buffer. Don't transfer the port itself: an Electron IPC port re-transferred into the AudioWorklet scope reports attached but receives no messages (seen on Electron 45);
+  - the page's sink forwards each chunk to the worklet over `node.port`, transferring the buffer;
   - the ring buffer (`pcmRing.ts`) holds up to 150 ms and starts playback after 30 ms of prebuffer;
   - outputs silence on underrun and drops the oldest samples on overflow. This keeps the latency bounded and absorbs clock drift.
 - Pipeline: `AudioContext({ sampleRate: 48000 })` → worklet node → `MediaStreamAudioDestinationNode` → `stream.getAudioTracks()[0]`.

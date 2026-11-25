@@ -1,13 +1,12 @@
 // Windows per-app audio capture (Electron only).
 // Spec: docs/specs/WINDOWS_APP_AUDIO.md
 //
-// The main process runs the orbital-audiocap helper and sends us a MessagePort
-// carrying s16le 48 kHz stereo PCM. We forward each chunk to an AudioWorklet
-// (over node.port, transferring the buffer), which plays it into a
-// MediaStreamAudioDestinationNode. The destination's track is what gets
-// published as screen share audio. The port itself can't go to the worklet:
-// an Electron IPC port re-transferred into the AudioWorklet scope receives
-// no messages.
+// The main process runs the orbital-audiocap helper and sends its s16le 48 kHz
+// stereo PCM as IPC events, which the preload hands to our sink. We forward
+// each chunk to an AudioWorklet (over node.port, transferring the buffer),
+// which plays it into a MediaStreamAudioDestinationNode. The destination's
+// track is what gets published as screen share audio. Don't route PCM through
+// an Electron MessagePort: one forwarded to the page delivered nothing.
 import type { WinAudioApp, WinAudioTarget } from "@/types"
 import { debugLog, debugWarn } from "@/utils/debug"
 
@@ -17,8 +16,6 @@ import pcmPlayerWorkletUrl from "./pcmPlayer.worklet.ts?worker&url"
 export const WIN_AUDIO_EXIT_TARGET_GONE = 3
 
 const SAMPLE_RATE = 48000
-const PORT_WAIT_MS = 3000
-const PORT_MESSAGE_TYPE = "orbital:win-audio-port"
 
 export interface WinAudioCapture {
   track: MediaStreamTrack
@@ -70,59 +67,14 @@ export async function pidOfWindowSource(sourceId: string): Promise<number | null
   }
 }
 
-/** Resolves with the PCM port the preload forwards for `sessionId`. */
-function createPortWaiter() {
-  const ports = new Map<number, MessagePort>()
-  let waiting: { sessionId: number; resolve: (port: MessagePort | null) => void } | null = null
-
-  const onMessage = (event: MessageEvent) => {
-    if (event.source !== window) return
-    const data = event.data as { type?: string; sessionId?: number } | null
-    if (data?.type !== PORT_MESSAGE_TYPE || typeof data.sessionId !== "number") return
-    const port = event.ports[0]
-    if (!port) return
-    if (waiting?.sessionId === data.sessionId) {
-      waiting.resolve(port)
-      waiting = null
-    } else {
-      ports.set(data.sessionId, port)
-    }
-  }
-  window.addEventListener("message", onMessage)
-
-  return {
-    wait(sessionId: number): Promise<MessagePort | null> {
-      const ready = ports.get(sessionId)
-      if (ready) return Promise.resolve(ready)
-      return new Promise((resolve) => {
-        const timer = setTimeout(() => {
-          waiting = null
-          resolve(null)
-        }, PORT_WAIT_MS)
-        waiting = {
-          sessionId,
-          resolve: (port) => {
-            clearTimeout(timer)
-            resolve(port)
-          },
-        }
-      })
-    },
-    dispose() {
-      window.removeEventListener("message", onMessage)
-      for (const port of ports.values()) port.close()
-      ports.clear()
-    },
-  }
-}
-
 export async function startWinAudioCapture(target: WinAudioTarget): Promise<WinAudioStartOutcome> {
   const api = window.electronAPI
-  if (!api?.winAudioStart || !api.winAudioStop) {
+  if (!api?.winAudioStart || !api.winAudioStop || !api.setWinAudioSink) {
     return { ok: false, unsupported: true, error: "not available" }
   }
   const winAudioStart = api.winAudioStart
   const winAudioStop = api.winAudioStop
+  const setWinAudioSink = api.setWinAudioSink
 
   // Build the audio graph first, so PCM has somewhere to go the moment the
   // helper starts.
@@ -149,8 +101,26 @@ export async function startWinAudioCapture(target: WinAudioTarget): Promise<WinA
   }
   debugLog("[WinAudio] AudioContext state after resume:", ctx.state)
 
-  const portWaiter = createPortWaiter()
+  // Chunks arriving before the start result names our session are dropped
+  // (a few ms of audio).
+  let sessionId: number | null = null
+  // Diagnostics: PCM messages that reached the page since the last stats line.
+  let pageMessages = 0
+  setWinAudioSink({
+    pcm: (id, data) => {
+      if (id !== sessionId) return
+      pageMessages++
+      // Transfer, not copy; slice first if the view doesn't own its buffer.
+      const chunk =
+        data.byteOffset === 0 && data.byteLength === data.buffer.byteLength ? data : data.slice()
+      node.port.postMessage({ type: "pcm", data: chunk }, [chunk.buffer])
+    },
+    ended: (id, code) => {
+      if (id === sessionId) node.port.postMessage({ type: "ended", code })
+    },
+  })
   const teardownGraph = () => {
+    setWinAudioSink(null)
     node.port.postMessage({ type: "stop" })
     node.port.onmessage = null
     node.disconnect()
@@ -160,35 +130,10 @@ export async function startWinAudioCapture(target: WinAudioTarget): Promise<WinA
 
   const result = await winAudioStart(JSON.parse(JSON.stringify(target)) as WinAudioTarget)
   if (!result.ok || result.sessionId === undefined) {
-    portWaiter.dispose()
     teardownGraph()
     return { ok: false, unsupported: !!result.unsupported, error: result.error ?? "start failed" }
   }
-
-  const port = await portWaiter.wait(result.sessionId)
-  portWaiter.dispose()
-  if (!port) {
-    teardownGraph()
-    await winAudioStop()
-    return { ok: false, unsupported: false, error: "audio port not received" }
-  }
-  // Diagnostics: PCM messages that reached the page since the last stats line.
-  let pageMessages = 0
-  port.onmessage = (event: MessageEvent) => {
-    const msg = event.data as { type?: string; data?: Uint8Array; code?: number | null }
-    if (msg?.type === "pcm" && msg.data) {
-      pageMessages++
-      const data = msg.data
-      node.port.postMessage({ type: "pcm", data }, [data.buffer])
-    } else if (msg?.type === "ended") {
-      node.port.postMessage({ type: "ended", code: msg.code ?? null })
-    }
-  }
-  port.start()
-  const closePort = () => {
-    port.onmessage = null
-    port.close()
-  }
+  sessionId = result.sessionId
 
   let endedCallback: ((code: number | null) => void) | null = null
   let ended = false
@@ -231,7 +176,6 @@ export async function startWinAudioCapture(target: WinAudioTarget): Promise<WinA
       stop: async () => {
         if (stopped) return
         stopped = true
-        closePort()
         teardownGraph()
         try {
           await winAudioStop()

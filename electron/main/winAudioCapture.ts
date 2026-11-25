@@ -4,7 +4,7 @@
 // The helper is a child process, not an addon: a hang or crash in COM/audio
 // code never touches the main process, and the binary has no Node ABI.
 // PCM goes helper stdout → main → MessagePort → renderer AudioWorklet.
-import { app, MessageChannelMain, type MessagePortMain, type WebContents } from "electron"
+import { app, type WebContents } from "electron"
 import { execFile, spawn, type ChildProcess } from "node:child_process"
 import { existsSync } from "node:fs"
 import path from "node:path"
@@ -46,7 +46,6 @@ export interface WinAudioStartResult {
 interface Session {
   id: number
   child: ChildProcess
-  port: MessagePortMain
   killTimer: ReturnType<typeof setTimeout> | null
 }
 
@@ -154,15 +153,16 @@ export async function startCapture(
     return { ok: false, unsupported: true, error: (e as Error).message }
   }
 
-  const { port1, port2 } = new MessageChannelMain()
-  const session: Session = { id: ++sessionSeq, child, port: port2, killTimer: null }
+  const session: Session = { id: ++sessionSeq, child, killTimer: null }
   current = session
   log.info(`[WinAudio] Capture #${session.id} started:`, args.join(" "))
 
-  // The renderer's preload forwards port1 to the page (contextBridge cannot
-  // carry ports). Messages posted before the page listens are queued.
-  webContents.postMessage("win-audio:port", { sessionId: session.id }, [port1])
-  port2.start()
+  // PCM goes to the renderer as plain IPC events, which the preload hands to
+  // the page's sink. A MessagePortMain forwarded to the page delivered nothing
+  // (Electron 45), so don't switch back without testing on Windows.
+  const send = (channel: string, ...args: unknown[]) => {
+    if (!webContents.isDestroyed()) webContents.send(channel, session.id, ...args)
+  }
 
   // Throughput diagnostics: bytes read from the helper and PCM messages posted
   // to the renderer, so a silent share shows which hop stops.
@@ -185,7 +185,7 @@ export async function startCapture(
     if (whole > 0) {
       // Copy into a standalone buffer: a pooled Buffer view would serialize
       // its whole backing store.
-      port2.postMessage({ type: "pcm", data: new Uint8Array(data.subarray(0, whole)) })
+      send("win-audio:pcm", new Uint8Array(data.subarray(0, whole)))
       postedMessages++
     }
   })
@@ -232,12 +232,7 @@ export async function startCapture(
     child.on("exit", (code) => {
       log.info(`[WinAudio] Capture #${session.id} exited with code`, code)
       if (session.killTimer) clearTimeout(session.killTimer)
-      try {
-        port2.postMessage({ type: "ended", code })
-      } catch {
-        // port already closed
-      }
-      port2.close()
+      send("win-audio:ended", code)
       if (current === session) current = null
       settle({
         ok: false,

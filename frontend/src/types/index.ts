@@ -658,6 +658,13 @@ export interface ElectronAPI {
   winAudioPidOfSource?: (sourceId: string) => Promise<number | null>
   winAudioStart?: (target: WinAudioTarget) => Promise<WinAudioStartResult>
   winAudioStop?: () => Promise<boolean>
+  /** PCM receiver for the active capture (shell API 6+). */
+  setWinAudioSink?: (
+    sink: {
+      pcm: (sessionId: number, data: Uint8Array) => void
+      ended: (sessionId: number, code: number | null) => void
+    } | null,
+  ) => void
 }
 
 export interface ElectronUiScaleInfo {

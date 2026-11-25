@@ -55,6 +55,12 @@ export interface WinAudioApp {
 
 export type WinAudioTarget = { mode: "include"; pid: number } | { mode: "exclude-self" }
 
+/** Receives the helper's PCM (s16le 48 kHz stereo) and its exit, per capture session. */
+export interface WinAudioSink {
+  pcm: (sessionId: number, data: Uint8Array) => void
+  ended: (sessionId: number, code: number | null) => void
+}
+
 export interface WinAudioStartResult {
   ok: boolean
   sessionId?: number
@@ -147,6 +153,7 @@ export interface ElectronAPI {
   winAudioPidOfSource: (sourceId: string) => Promise<number | null>
   winAudioStart: (target: WinAudioTarget) => Promise<WinAudioStartResult>
   winAudioStop: () => Promise<boolean>
+  setWinAudioSink: (sink: WinAudioSink | null) => void
   getCloseToTray: () => Promise<boolean | null>
   setCloseToTray: (value: boolean) => Promise<void>
   hasSelectedCloseBehavior: () => Promise<boolean>
@@ -180,6 +187,8 @@ ipcRenderer.on("main-process-log", (_event, level, message) => {
     pendingMainProcessLogs.push({ level, message })
   }
 })
+
+let winAudioSink: WinAudioSink | null = null
 
 const electronAPI: ElectronAPI = {
   getDesktopSources: () => ipcRenderer.invoke("get-desktop-sources"),
@@ -276,6 +285,9 @@ const electronAPI: ElectronAPI = {
   winAudioPidOfSource: (sourceId) => ipcRenderer.invoke("win-audio:pid-of-source", sourceId),
   winAudioStart: (target) => ipcRenderer.invoke("win-audio:start", target),
   winAudioStop: () => ipcRenderer.invoke("win-audio:stop"),
+  setWinAudioSink: (sink) => {
+    winAudioSink = sink
+  },
 
   getCloseToTray: () => ipcRenderer.invoke("get-close-to-tray"),
   setCloseToTray: (value) => ipcRenderer.invoke("set-close-to-tray", value),
@@ -313,9 +325,12 @@ const electronAPI: ElectronAPI = {
 
 contextBridge.exposeInMainWorld("electronAPI", electronAPI)
 
-// Windows per-app audio: the main process sends a MessagePort carrying PCM.
-// contextBridge cannot pass ports, so forward it to the page with
-// window.postMessage (the page checks event.source === window).
-ipcRenderer.on("win-audio:port", (event, data: { sessionId: number }) => {
-  window.postMessage({ type: "orbital:win-audio-port", sessionId: data?.sessionId }, "*", event.ports)
+// Windows per-app audio: PCM arrives as plain IPC events and goes to the one
+// sink the page installed (contextBridge copies the Uint8Array). A MessagePort
+// forwarded to the page delivered nothing on Electron 45.
+ipcRenderer.on("win-audio:pcm", (_event, sessionId: number, data: Uint8Array) => {
+  winAudioSink?.pcm(sessionId, data)
+})
+ipcRenderer.on("win-audio:ended", (_event, sessionId: number, code: number | null) => {
+  winAudioSink?.ended(sessionId, code)
 })
