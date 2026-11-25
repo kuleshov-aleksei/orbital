@@ -36,6 +36,18 @@
       "enabled": false
     },
     {
+      "description": "Gradle (wrapper distribution + AGP): majors only. A minor/patch bump throws away the id=gradle-home Docker cache (a fresh ~130 MB distribution download in CI) and AGP minors can move the required build-tools version",
+      "matchPackageNames": ["gradle", "com.android.tools.build:gradle"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "enabled": false
+    },
+    {
+      "description": "Node.js (base images, actions/setup-node, @types/node): majors only, same as the other base images",
+      "matchPackageNames": ["node", "@types/node"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "enabled": false
+    },
+    {
       "description": "pnpm (CI + Dockerfiles): majors only, so all pins move together and the Docker cache isn't busted weekly",
       "matchPackageNames": ["pnpm"],
       "matchUpdateTypes": ["minor", "patch"],
