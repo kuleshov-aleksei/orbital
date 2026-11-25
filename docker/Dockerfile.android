@@ -58,10 +58,13 @@ COPY mobile/android/ /app/mobile/android/
 COPY shell-api.json /app/shell-api.json
 COPY scripts/ota-manifest.mjs /app/scripts/ota-manifest.mjs
 
-# Gradle distribution + dependencies (cached across builds)
+# Gradle distribution + dependencies (cached across builds). Keep the wrapper's
+# output: it prints the "Downloading https://services.gradle.org/..." line, and
+# a Gradle version bump means a real ~130 MB fetch (see the -bin distribution in
+# gradle/wrapper/gradle-wrapper.properties — -all is only docs/sources for IDEs).
 WORKDIR /app/mobile/android
-RUN --mount=type=cache,target=/root/.gradle,sharing=locked \
-    ./gradlew --version > /dev/null
+RUN --mount=type=cache,id=gradle-home,target=/root/.gradle,sharing=locked \
+    ./gradlew --version
 
 # ── Version-sensitive section ──
 ARG VERSION=dev-unknown
@@ -80,7 +83,7 @@ RUN pnpm exec vite build --config vite.config.mobile.ts && \
 RUN node /app/scripts/ota-manifest.mjs /app/mobile/dist android "$VERSION" "$VITE_BACKEND_URL" /app/release/ota
 
 WORKDIR /app/mobile/android
-RUN --mount=type=cache,target=/root/.gradle,sharing=locked \
+RUN --mount=type=cache,id=gradle-home,target=/root/.gradle,sharing=locked \
     --mount=type=secret,id=android_keystore,target=/run/secrets/keystore.jks,required=true \
     --mount=type=secret,id=android_keystore_password,env=ORBITAL_KEYSTORE_PASSWORD,required=true \
     --mount=type=secret,id=android_key_alias,env=ORBITAL_KEY_ALIAS,required=true \

@@ -48,6 +48,10 @@ mobile/android/**/build
 mobile/android/local.properties
 mobile/android/capacitor-cordova-android-plugins
 mobile/android/app/src/main/assets/public
+# Local Firebase config (dev builds / make build-android-dev). CI injects the
+# real one as a BuildKit secret at assembleRelease time; a local copy must never
+# reach an image layer.
+mobile/android/app/google-services.json
 *.jks
 *.keystore
 
