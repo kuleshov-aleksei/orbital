@@ -83,7 +83,7 @@ Nice=10
 Description=Daily Orbital build-cache prewarm
 
 [Timer]
-OnCalendar=*-*-* 04:30:00
+OnCalendar=*-*-* 02:30:00
 Persistent=true
 RandomizedDelaySec=30m
 
