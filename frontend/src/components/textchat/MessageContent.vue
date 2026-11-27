@@ -3,7 +3,7 @@
     class="message-content whitespace-pre-wrap break-words text-theme-text-primary leading-relaxed"
     :class="{ 'jumbo leading-tight py-0.5': jumbo }"
     data-testid="message-content">
-    <MessageNodes :nodes="nodes" :emoji-size="jumbo ? 44 : 22" />
+    <MessageNodes :nodes="nodes" :emoji-size="jumbo ? 88 : 22" />
     <span
       v-if="editedAt"
       class="ml-1 text-[11px] text-theme-text-muted select-none"
@@ -40,6 +40,6 @@ const jumbo = computed(() => {
 
 <style scoped>
 .jumbo {
-  font-size: 2.5rem;
+  font-size: 5rem;
 }
 </style>
