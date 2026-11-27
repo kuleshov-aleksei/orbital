@@ -253,7 +253,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, shallowRef, computed, watch, onMounted, onUnmounted, useTemplateRef } from "vue"
+import {
+  ref,
+  shallowRef,
+  computed,
+  watch,
+  onMounted,
+  onBeforeUnmount,
+  onUnmounted,
+  useTemplateRef,
+} from "vue"
 import {
   PhMonitorPlay,
   PhArrowsOut,
@@ -630,6 +639,15 @@ onMounted(() => {
   document.addEventListener("webkitfullscreenchange", handleFullscreenChange)
   videoElement.value?.addEventListener("enterpictureinpicture", handlePiPChange)
   videoElement.value?.addEventListener("leavepictureinpicture", handlePiPChange)
+})
+
+// Leave fullscreen if our own container is fullscreen (grid layout). When a host element is
+// fullscreen instead, ScreenShareArea decides, so a focus switch doesn't drop fullscreen.
+onBeforeUnmount(() => {
+  const el = document.fullscreenElement
+  if (el && el === videoContainerRef.value) {
+    document.exitFullscreen().catch(() => {})
+  }
 })
 
 onUnmounted(() => {

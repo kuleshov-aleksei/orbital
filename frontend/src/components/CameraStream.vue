@@ -81,7 +81,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, shallowRef, computed, watch, onMounted, onUnmounted, useTemplateRef } from "vue"
+import {
+  ref,
+  shallowRef,
+  computed,
+  watch,
+  onMounted,
+  onBeforeUnmount,
+  onUnmounted,
+  useTemplateRef,
+} from "vue"
 import { PhArrowsOut, PhArrowsIn, PhPictureInPicture, PhSpinner } from "@phosphor-icons/vue"
 import type { RemoteVideoTrack, LocalVideoTrack } from "livekit-client"
 import UserAvatar from "@/components/UserAvatar.vue"
@@ -271,6 +280,15 @@ onMounted(() => {
   document.addEventListener("webkitfullscreenchange", handleFullscreenChange)
   videoElement.value?.addEventListener("enterpictureinpicture", handlePiPChange)
   videoElement.value?.addEventListener("leavepictureinpicture", handlePiPChange)
+})
+
+// Leave fullscreen if our own video is fullscreen (grid layout). When a host element is
+// fullscreen instead, ScreenShareArea decides, so a focus switch doesn't drop fullscreen.
+onBeforeUnmount(() => {
+  const el = document.fullscreenElement
+  if (el && el === videoElement.value) {
+    document.exitFullscreen().catch(() => {})
+  }
 })
 
 onUnmounted(() => {

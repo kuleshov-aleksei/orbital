@@ -156,7 +156,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted, useTemplateRef } from "vue"
+import { ref, computed, watch, onBeforeUnmount, onUnmounted, useTemplateRef } from "vue"
 import ScreenStream from "./ScreenStream.vue"
 import ScreenSharePlaceholder from "./ScreenSharePlaceholder.vue"
 import CameraStream from "./CameraStream.vue"
@@ -398,11 +398,43 @@ const selfViewPositionFullscreen = ref<SelfViewPosition | null>(null)
 
 // Track whether the main stream area is currently the fullscreen element
 const isFullscreen = ref(false)
+// The stream that is shown fullscreen. The host wrapper outlives its streams (and this component
+// is only hidden with v-show), so the browser never leaves fullscreen on its own when it ends.
+let fullscreenStream: Pick<VideoStreamItem, "type" | "userId"> | null = null
 const onFullscreenChange = () => {
   isFullscreen.value = document.fullscreenElement === mainStreamAreaRef.value
+  fullscreenStream = isFullscreen.value ? focusedStream.value : null
 }
 document.addEventListener("fullscreenchange", onFullscreenChange)
 onUnmounted(() => document.removeEventListener("fullscreenchange", onFullscreenChange))
+
+const exitHostFullscreen = () => {
+  if (mainStreamAreaRef.value && document.fullscreenElement === mainStreamAreaRef.value) {
+    document.exitFullscreen().catch(() => {})
+  }
+}
+
+const streamExists = (stream: Pick<VideoStreamItem, "type" | "userId">): boolean => {
+  const list = stream.type === "screen" ? props.screenShares : props.cameraStreams
+  return list.some((s) => s.userId === stream.userId && !!s.videoTrack)
+}
+
+// Leave fullscreen when the stream being watched ends (or the viewer unsubscribes). A deliberate
+// focus switch while fullscreen (self-view "focus") keeps it: the previous stream still exists.
+watch(
+  () => [props.screenShares, props.cameraStreams, focusedStream.value] as const,
+  () => {
+    if (!isFullscreen.value || !fullscreenStream) return
+    if (!streamExists(fullscreenStream)) {
+      fullscreenStream = null
+      exitHostFullscreen()
+    } else {
+      fullscreenStream = focusedStream.value
+    }
+  },
+)
+
+onBeforeUnmount(exitHostFullscreen)
 
 const onSelfViewPositionUpdate = (value: SelfViewPosition) => {
   if (isFullscreen.value) {
