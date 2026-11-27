@@ -24,9 +24,17 @@
             class="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 hover:opacity-100 focus-visible:opacity-100 transition-opacity cursor-pointer"
             title="Change avatar"
             aria-label="Change avatar"
+            data-testid="profile-avatar-button"
             @click="triggerAvatarUpload">
             <PhCamera class="w-5 h-5 text-white" />
           </button>
+          <!-- Always-visible hint: touch screens have no hover to reveal the overlay -->
+          <span
+            v-if="userStore.isLoggedIn && !isUploadingAvatar"
+            class="pointer-events-none absolute -right-0.5 -top-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-theme-accent text-theme-text-on-accent ring-2 ring-theme-bg-tertiary"
+            aria-hidden="true">
+            <PhCamera class="h-3.5 w-3.5" />
+          </span>
           <!-- Loading spinner during upload -->
           <div
             v-if="isUploadingAvatar"

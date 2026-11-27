@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Room for a centered dialog: wide AND tall. Phones in landscape are wider than
+   md but too short, so dialogs that must fit on screen use this, not md:. */
+@custom-variant roomy (@media (min-width: 768px) and (min-height: 640px));
+
 @font-face {
   font-family: "Pixelify Sans";
   src: url("/assets/fonts/Pixelify_Sans/PixelifySans-Medium.ttf") format("truetype");
