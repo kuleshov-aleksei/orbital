@@ -176,7 +176,7 @@ import TextChannelIcon from "@/components/textchat/TextChannelIcon.vue"
 import EmojiText from "@/components/common/EmojiText.vue"
 import EmojiPicker from "@/components/EmojiPicker.vue"
 import { useAppStore, usePermissionsStore, useUsersStore } from "@/stores"
-import { emojiTextToPlain } from "@/services/emoji"
+import { emojiTextToPlain, type EmojiPickOptions } from "@/services/emoji"
 import MessageItem from "./MessageItem.vue"
 import MessageActionSheet from "./MessageActionSheet.vue"
 import DeleteMessageModal from "./DeleteMessageModal.vue"
@@ -519,9 +519,10 @@ function closeReactionPicker() {
   reactionPicker.value = null
 }
 
-function pickReaction(emoji: string) {
+function pickReaction(emoji: string, opts?: EmojiPickOptions) {
   if (reactionPicker.value) textChatStore.toggleReaction(reactionPicker.value.messageId, emoji)
-  closeReactionPicker()
+  // Shift-picks keep the picker open to add several reactions.
+  if (!opts?.keepOpen) closeReactionPicker()
 }
 
 // --- Mobile action sheet (long press) --------------------------------------

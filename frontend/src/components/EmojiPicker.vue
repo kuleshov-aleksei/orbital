@@ -16,7 +16,7 @@
         placeholder="Search emoji"
         class="flex-1 min-w-0 px-2 py-1 text-sm bg-theme-bg-tertiary border border-theme-border rounded focus:outline-none focus:border-theme-accent text-theme-text-primary"
         data-testid="emoji-search"
-        @keydown.enter.prevent="pickFirstResult" />
+        @keydown.enter.prevent="pickFirstResult($event)" />
     </div>
 
     <!-- Category tabs -->
@@ -74,7 +74,7 @@
               :aria-label="emoji.name"
               @mouseenter="highlighted = emoji.ref"
               @focus="highlighted = emoji.ref"
-              @click="pick(emoji.ref)">
+              @click="pick(emoji.ref, $event)">
               <EmojiGlyph :emoji-ref="emoji.ref" :size="20" />
             </button>
           </div>
@@ -131,6 +131,7 @@ import {
   resolveEmoji,
   searchEmojis,
   type Emoji,
+  type EmojiPickOptions,
   type EmojiRef,
 } from "@/services/emoji"
 
@@ -144,7 +145,9 @@ const props = withDefaults(defineProps<{ unicodeOnly?: boolean; docked?: boolean
 })
 
 const emit = defineEmits<{
-  select: [ref: EmojiRef]
+  // Hosts that accept several emojis (composer, reactions) leave the picker
+  // open on opts.keepOpen (Shift held while picking).
+  select: [ref: EmojiRef, opts: EmojiPickOptions]
   close: []
 }>()
 
@@ -328,14 +331,18 @@ function onUpdate(_start: number, end: number, visibleStart: number) {
 // A new query starts at the top of its results.
 watch(isSearching, () => void nextTick(() => scroller.value?.scrollToItem(0)))
 
-const pick = (emojiRef: EmojiRef) => {
-  recent.value = addRecentEmoji(emojiRef)
-  emit("select", emojiRef)
+const pick = (emojiRef: EmojiRef, event?: MouseEvent | KeyboardEvent) => {
+  const keepOpen = !!event?.shiftKey
+  const updated = addRecentEmoji(emojiRef)
+  // While the picker stays open, keep the shown Recent section as it is:
+  // updating it would shift the grid under the cursor between picks.
+  if (!keepOpen) recent.value = updated
+  emit("select", emojiRef, { keepOpen })
 }
 
-const pickFirstResult = () => {
+const pickFirstResult = (event?: KeyboardEvent) => {
   const first = searchResults.value[0]
-  if (first) pick(first.ref)
+  if (first) pick(first.ref, event)
 }
 
 const scrollToCategory = (id: string) => {

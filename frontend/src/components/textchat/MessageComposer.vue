@@ -329,6 +329,7 @@ import {
   resolveEmoji,
   searchEmojis,
   type Emoji,
+  type EmojiPickOptions,
   type EmojiRef,
 } from "@/services/emoji"
 import {
@@ -1053,7 +1054,7 @@ function textFor(ref: EmojiRef): string {
   return emoji ? `:${emojiShortcode(emoji.name)}:` : ""
 }
 
-async function insertEmoji(ref: EmojiRef) {
+async function insertEmoji(ref: EmojiRef, opts?: EmojiPickOptions) {
   const text = textFor(ref)
   if (!text) return
   const el = input.value
@@ -1061,7 +1062,8 @@ async function insertEmoji(ref: EmojiRef) {
   // In the mobile dock the textarea is blurred (keyboard away), so the caret
   // comes from the snapshot taken when the dock opened or from the last insert.
   const docked = appStore.isMobile && !!composerPanel.value
-  if (!docked) isPickerOpen.value = false
+  // Shift-picks keep the popover open for more emojis.
+  if (!docked && !opts?.keepOpen) isPickerOpen.value = false
   // Without a saved caret the emoji goes to the end of the draft, not to the
   // textarea's default selection (0 when it was never focused, e.g. Android).
   const start = docked

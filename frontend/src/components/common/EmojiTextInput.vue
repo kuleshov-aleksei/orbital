@@ -50,6 +50,7 @@ import {
   parseEmojiText,
   resolveEmoji,
   tokenIdsByShortcode,
+  type EmojiPickOptions,
   type EmojiRef,
 } from "@/services/emoji"
 import { useCustomEmojisStore } from "@/stores"
@@ -108,8 +109,9 @@ function textFor(ref: EmojiRef): string {
   return `:${code}:`
 }
 
-async function insert(ref: EmojiRef) {
-  isPickerOpen.value = false
+async function insert(ref: EmojiRef, opts?: EmojiPickOptions) {
+  // Shift-picks keep the picker open for more emojis.
+  if (!opts?.keepOpen) isPickerOpen.value = false
   const text = textFor(ref)
   if (!text) return
   const el = input.value

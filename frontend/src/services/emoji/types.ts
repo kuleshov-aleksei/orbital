@@ -6,6 +6,11 @@
  */
 export type EmojiRef = string
 
+/** Sent with an EmojiPicker `select`. keepOpen: Shift was held, leave the picker open. */
+export interface EmojiPickOptions {
+  keepOpen: boolean
+}
+
 export const CUSTOM_EMOJI_PREFIX = "custom:"
 
 interface EmojiBase {
