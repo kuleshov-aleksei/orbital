@@ -86,7 +86,8 @@
           @cancel-edit="textChatStore.cancelEdit()"
           @retry="textChatStore.retrySend(item.message.id)"
           @discard="textChatStore.discardPending(item.message.id)"
-          @show-voters="votersFor = item.message.id" />
+          @show-voters="votersFor = item.message.id"
+          @show-reactions="(emoji) => (reactionsFor = { messageId: item.message.id, emoji })" />
       </template>
 
       <div v-if="view.loadingNewer" class="py-3 flex justify-center">
@@ -153,6 +154,13 @@
 
     <PollVotersModal v-if="votersPoll" :poll="votersPoll" @close="votersFor = null" />
 
+    <ReactionsModal
+      v-if="reactionsFor && shownReactions.length"
+      :reactions="shownReactions"
+      :initial-emoji="reactionsFor.emoji"
+      :my-user-id="myUserId"
+      @close="reactionsFor = null" />
+
     <DeleteMessageModal
       v-if="deleting"
       :message="deleting"
@@ -173,6 +181,7 @@ import MessageItem from "./MessageItem.vue"
 import MessageActionSheet from "./MessageActionSheet.vue"
 import DeleteMessageModal from "./DeleteMessageModal.vue"
 import PollVotersModal from "./polls/PollVotersModal.vue"
+import ReactionsModal from "./ReactionsModal.vue"
 import { useTextChatStore, type ChannelView, type PendingTextMessage } from "@/stores/textChat"
 import { buildTimeline, formatDay } from "@/utils/messageGrouping"
 import type { TextMessage, TextPoll, TextPollInput } from "@/types/textChat"
@@ -245,6 +254,20 @@ function pendingPoll(input: TextPollInput): TextPoll {
 }
 
 // The poll whose voters are shown; looked up live so new votes appear.
+// Who reacted (mobile long press on a reaction). Live: the sheet follows
+// reaction updates and closes once the message or its last reaction is gone.
+const reactionsFor = ref<{ messageId: string; emoji: string } | null>(null)
+const shownReactions = computed(
+  () => props.view.messages.find((m) => m.id === reactionsFor.value?.messageId)?.reactions ?? [],
+)
+// Forget it once closed that way, so a later reaction doesn't reopen it.
+watch(
+  () => shownReactions.value.length,
+  (n) => {
+    if (n === 0) reactionsFor.value = null
+  },
+)
+
 const votersFor = ref<string | null>(null)
 const votersPoll = computed(
   () => props.view.messages.find((m) => m.id === votersFor.value)?.poll ?? null,

@@ -160,7 +160,8 @@
           :my-user-id="myUserId"
           :can-react="canReply"
           @toggle="(emoji) => $emit('react', emoji)"
-          @add="(e) => $emit('add-reaction', e)" />
+          @add="(e) => $emit('add-reaction', e)"
+          @show-reactors="(emoji) => $emit('show-reactions', emoji)" />
 
         <div
           v-if="pendingStatus === 'queued'"
@@ -373,6 +374,8 @@ const emit = defineEmits<{
   "open-actions": []
   /** Show who voted for what in this message's poll. */
   "show-voters": []
+  /** Mobile long press on a reaction: show who reacted. */
+  "show-reactions": [emoji: string]
 }>()
 
 const toolbarBtn =

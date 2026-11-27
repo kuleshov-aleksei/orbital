@@ -4,21 +4,29 @@
       v-for="r in reactions"
       :key="r.emoji"
       type="button"
-      class="h-6 px-1.5 flex items-center gap-1 rounded-md border text-xs transition-colors"
-      :class="
+      class="reaction-chip h-6 px-1.5 flex items-center gap-1 rounded-md border text-xs transition-colors select-none"
+      :class="[
         mine(r)
           ? 'border-theme-accent bg-theme-accent/15 text-theme-text-primary'
-          : 'border-transparent bg-theme-bg-tertiary text-theme-text-secondary hover:border-theme-border'
-      "
+          : 'border-transparent bg-theme-bg-tertiary text-theme-text-secondary hover:border-theme-border',
+        canReact ? '' : 'cursor-default',
+      ]"
       :aria-label="`${r.user_ids.length} ${r.user_ids.length === 1 ? 'reaction' : 'reactions'}, ${whoReacted(r)}`"
       :aria-pressed="mine(r)"
-      :disabled="!canReact"
+      :aria-disabled="!canReact"
       data-testid="reaction-chip"
+      data-no-long-press
       @mouseenter="showPreview(r.emoji, $event)"
       @mouseleave="hidePreview"
       @focus="showPreview(r.emoji, $event)"
       @blur="hidePreview"
-      @click="$emit('toggle', r.emoji)">
+      @pointerdown="onChipPointerdown(r.emoji, $event)"
+      @pointermove="longPress.onPointermove"
+      @pointerup="longPress.onPointerup"
+      @pointercancel="longPress.onPointercancel"
+      @click.capture="longPress.onClickCapture"
+      @contextmenu="onChipContextMenu"
+      @click="onChipClick(r.emoji)">
       <EmojiGlyph :emoji-ref="r.emoji" :size="16" />
       <span class="font-semibold tabular-nums">{{ r.user_ids.length }}</span>
     </button>
@@ -54,6 +62,8 @@ import EmojiHoverPreview from "@/components/common/EmojiHoverPreview.vue"
 import SmileyPlusIcon from "./SmileyPlusIcon.vue"
 import { useAppStore, useUsersStore } from "@/stores"
 import { resolveEmoji } from "@/services/emoji"
+import { useLongPress } from "@/composables/useLongPress"
+import { orderReactors } from "@/utils/reactions"
 import type { TextReaction } from "@/types/textChat"
 
 const props = defineProps<{
@@ -62,9 +72,11 @@ const props = defineProps<{
   canReact: boolean
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   toggle: [emoji: string]
   add: [event: MouseEvent]
+  /** Mobile long press on a chip: show who reacted. */
+  "show-reactors": [emoji: string]
 }>()
 
 const MAX_REACTIONS = 20
@@ -77,12 +89,43 @@ function mine(r: TextReaction): boolean {
   return r.user_ids.includes(props.myUserId)
 }
 
+// --- Mobile long press: who reacted -------------------------------------
+// One detector for all chips; the pressed chip's emoji is remembered on
+// pointerdown. The chips carry data-no-long-press so the message's own long
+// press (action sheet) stays out of it.
+let pressedEmoji = ""
+const longPress = useLongPress(() => emit("show-reactors", pressedEmoji), {
+  enabled: () => appStore.isMobile,
+})
+
+function onChipPointerdown(emoji: string, e: PointerEvent) {
+  pressedEmoji = emoji
+  // Without the target: data-no-long-press on the chip opts it out of the
+  // message press, not out of its own.
+  longPress.onPointerdown({
+    pointerType: e.pointerType,
+    button: e.button,
+    isPrimary: e.isPrimary,
+    clientX: e.clientX,
+    clientY: e.clientY,
+    target: null,
+  })
+}
+
+// Android also reports the long press as contextmenu (callout).
+function onChipContextMenu(e: MouseEvent) {
+  if (appStore.isMobile) e.preventDefault()
+}
+
+function onChipClick(emoji: string) {
+  // aria-disabled instead of disabled, so the chip still gets the long press
+  if (props.canReact) emit("toggle", emoji)
+}
+
 // "You", "You and Alice", "Alice, Bob and Carol", "Alice, Bob and 5 more"
 function reactorNames(userIds: string[]): string[] {
   // The current user first, as "You"
-  const ordered = userIds.includes(props.myUserId)
-    ? [props.myUserId, ...userIds.filter((id) => id !== props.myUserId)]
-    : userIds
+  const ordered = orderReactors(userIds, props.myUserId)
   const names = ordered
     .slice(0, MAX_PREVIEW_NAMES)
     .map((id) => (id === props.myUserId ? "You" : usersStore.displayName(id)))
@@ -134,3 +177,10 @@ function hidePreview() {
   anchorEl.value = null
 }
 </script>
+
+<style scoped>
+/* No Android callout on a long press: it opens the reactors sheet instead. */
+.reaction-chip {
+  -webkit-touch-callout: none;
+}
+</style>
