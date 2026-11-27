@@ -35,6 +35,7 @@ services:
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-orbital-dev-meili-key}
       MEILI_NO_ANALYTICS: "true"
       MEILI_MAX_INDEXING_MEMORY: 1Gb
+      MEILI_UPGRADE_DB: true
     volumes:
       # Primary data: text channel messages exist only here.
       - ./data/meilisearch:/meili_data

@@ -6,7 +6,7 @@
 #
 #   docker build -t orbital-playwright-tests -f docker/Dockerfile.playwright .
 
-FROM golang:1.27.3-alpine AS go
+FROM golang:1.27.4-alpine AS go
 
 FROM livekit/livekit-server:v1.13.11 AS livekit
 
