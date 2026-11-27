@@ -132,7 +132,7 @@
       </div>
       <div
         v-else
-        class="fixed z-50 w-[320px]"
+        class="fixed z-50 w-[352px]"
         :style="{ top: `${reactionPicker.top}px`, left: `${reactionPicker.left}px` }">
         <EmojiPicker @select="pickReaction" @close="closeReactionPicker" />
       </div>
@@ -495,8 +495,8 @@ function jumpToPresent() {
 
 // --- Reactions -------------------------------------------------------------
 
-const PICKER_W = 320
-const PICKER_H = 380
+const PICKER_W = 352
+const PICKER_H = 420
 const reactionPicker = ref<{ messageId: string; top: number; left: number } | null>(null)
 
 // On mobile the picker is docked to the bottom of the screen (see template).

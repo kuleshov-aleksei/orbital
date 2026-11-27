@@ -196,7 +196,9 @@
           :title="suggestionTitle"
           @hover="(i) => (activeSuggestion = i)"
           @pick="applySuggestion" />
-        <div v-if="isPickerOpen" class="absolute bottom-full right-0 mb-2 z-20 w-[320px]">
+        <div
+          v-if="isPickerOpen"
+          class="absolute bottom-full right-0 mb-2 z-20 w-[352px] max-w-[calc(100vw-2rem)]">
           <EmojiPicker @select="insertEmoji" @close="closePicker" />
         </div>
         <div

@@ -17,16 +17,6 @@
         class="flex-1 min-w-0 px-2 py-1 text-sm bg-theme-bg-tertiary border border-theme-border rounded focus:outline-none focus:border-theme-accent text-theme-text-primary"
         data-testid="emoji-search"
         @keydown.enter.prevent="pickFirstResult" />
-      <button
-        v-if="canUpload"
-        type="button"
-        class="h-7 w-7 shrink-0 rounded flex items-center justify-center text-theme-text-secondary hover:text-theme-text-primary hover:bg-theme-bg-hover"
-        title="Upload a custom emoji"
-        aria-label="Upload a custom emoji"
-        data-testid="emoji-upload-button"
-        @click="openUpload">
-        <PhPlus class="w-4 h-4" />
-      </button>
     </div>
 
     <!-- Category tabs -->
@@ -61,7 +51,7 @@
       <RecycleScroller
         ref="scroller"
         class="px-2 pb-2"
-        :class="docked ? 'h-full' : 'h-52'"
+        :class="docked ? 'h-full' : 'h-64'"
         :items="rows"
         :item-size="null"
         key-field="id"
@@ -82,8 +72,8 @@
               type="button"
               class="emoji-cell"
               :aria-label="emoji.name"
-              @mouseenter="showPreview(emoji.ref, $event)"
-              @mouseleave="hidePreview"
+              @mouseenter="highlighted = emoji.ref"
+              @focus="highlighted = emoji.ref"
               @click="pick(emoji.ref)">
               <EmojiGlyph :emoji-ref="emoji.ref" :size="20" />
             </button>
@@ -95,8 +85,33 @@
       </RecycleScroller>
     </div>
 
-    <!-- Enlarges the hovered cell; teleported, so the scroller can't clip it -->
-    <EmojiHoverPreview :emoji-ref="previewEmoji" :anchor="previewAnchor" />
+    <!-- Hovered (or first) emoji enlarged with its shortcode, plus upload -->
+    <div
+      class="h-16 px-3 border-t border-theme-border flex items-center gap-3 shrink-0"
+      data-testid="emoji-picker-footer">
+      <template v-if="shownEmoji">
+        <EmojiGlyph :emoji-ref="shownEmoji.ref" :size="48" class="shrink-0" />
+        <div class="flex-1 min-w-0 leading-tight">
+          <div class="text-base font-medium text-theme-text-primary truncate">
+            {{ shownEmoji.name }}
+          </div>
+          <div class="text-sm font-mono text-theme-text-muted truncate">
+            :{{ emojiShortcode(shownEmoji.name) }}:
+          </div>
+        </div>
+      </template>
+      <div v-else class="flex-1" />
+      <button
+        v-if="canUpload"
+        type="button"
+        class="h-7 px-2 shrink-0 rounded flex items-center gap-1 text-xs text-theme-text-secondary hover:text-theme-text-primary hover:bg-theme-bg-hover"
+        title="Upload a custom emoji"
+        data-testid="emoji-upload-button"
+        @click="openUpload">
+        <PhPlus class="w-4 h-4" />
+        Add emoji
+      </button>
+    </div>
   </div>
 </template>
 
@@ -106,11 +121,11 @@ import { PhClockCounterClockwise, PhPlus } from "@phosphor-icons/vue"
 import { RecycleScroller } from "vue-virtual-scroller"
 import "vue-virtual-scroller/index.css"
 import EmojiGlyph from "@/components/EmojiGlyph.vue"
-import EmojiHoverPreview from "@/components/common/EmojiHoverPreview.vue"
 import { useAppStore, useCustomEmojisStore, usePermissionsStore, useUserStore } from "@/stores"
 import { Permission } from "@/types/permissions"
 import {
   addRecentEmoji,
+  emojiShortcode,
   getEmojiCategories,
   getRecentEmojis,
   resolveEmoji,
@@ -160,20 +175,9 @@ const query = ref("")
 const recent = ref<EmojiRef[]>(getRecentEmojis())
 const activeTab = ref<string>("")
 
-// Hover preview of the cell under the pointer (EmojiHoverPreview owns the
-// delay and positioning). No hover on touch screens: a tap picks immediately.
-const previewEmoji = ref<EmojiRef | null>(null)
-const previewAnchor = ref<HTMLElement | null>(null)
-
-function showPreview(emojiRef: EmojiRef, event: MouseEvent) {
-  if (appStore.isMobile) return
-  previewEmoji.value = emojiRef
-  previewAnchor.value = event.currentTarget as HTMLElement
-}
-
-function hidePreview() {
-  previewAnchor.value = null
-}
+// Emoji shown in the footer: the last hovered/focused cell. Kept on
+// mouseleave so sweeping across cell gaps doesn't flicker.
+const highlighted = ref<EmojiRef | null>(null)
 
 const isSearching = computed(() => query.value.trim().length > 0)
 
@@ -188,8 +192,8 @@ const isServerSearching = computed(
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 watch(query, (value) => {
   clearTimeout(searchTimer)
-  // The hovered cell may be filtered out or recycled by the new results.
-  hidePreview()
+  // The highlighted emoji may not be in the new results.
+  highlighted.value = null
   const q = value.trim()
   if (!q || props.unicodeOnly) {
     serverResults.value = []
@@ -295,6 +299,13 @@ const rows = computed<Row[]>(() => {
   return out
 })
 
+// Without a hovered cell the footer shows the first emoji in the list (while
+// searching: the first result, i.e. the one Enter picks).
+const shownEmoji = computed(() => {
+  if (highlighted.value) return resolveEmoji(highlighted.value)
+  return rows.value.find((r) => r.type === "row")?.emojis?.[0] ?? null
+})
+
 const currentLabel = computed(
   () => sections.value.find((s) => s.id === activeTab.value)?.label ?? "",
 )
@@ -318,7 +329,6 @@ function onUpdate(_start: number, end: number, visibleStart: number) {
 watch(isSearching, () => void nextTick(() => scroller.value?.scrollToItem(0)))
 
 const pick = (emojiRef: EmojiRef) => {
-  hidePreview()
   recent.value = addRecentEmoji(emojiRef)
   emit("select", emojiRef)
 }
