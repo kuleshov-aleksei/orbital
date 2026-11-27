@@ -65,9 +65,16 @@
               :class="{
                 'ring-2 ring-purple-400 ring-offset-2 ring-offset-theme-bg-primary':
                   draggedCategory && draggedCategory.id === category.id,
+                'touch-category': isMobileView,
               }"
+              :data-testid="`category-header-${category.name}`"
               v-bind="isDraggable ? { draggable: true } : {}"
               @click="toggleCategory(category.name)"
+              @click.capture="categoryLongPress.onClickCapture"
+              @pointerdown="onCategoryPointerdown($event, category)"
+              @pointermove="categoryLongPress.onPointermove"
+              @pointerup="categoryLongPress.onPointerup"
+              @pointercancel="categoryLongPress.onPointercancel"
               @contextmenu.prevent="showContextMenu($event, category)"
               @dragstart="handleCategoryDragStart($event, category)"
               @dragend="handleCategoryDragEnd">
@@ -75,7 +82,9 @@
 
               <div class="flex items-center gap-1">
                 <PhDotsThree
-                  class="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity"
+                  class="w-4 h-4 transition-opacity"
+                  :class="isMobileView ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'"
+                  :data-testid="`category-menu-${category.name}`"
                   @click.stop="showContextMenu($event, category)" />
 
                 <PhCaretDown
@@ -110,8 +119,10 @@
                 :is-dragging="draggedRoom?.id === room.id"
                 :is-draggable="isDraggable"
                 :is-locked="isRoomLocked(room)"
+                :touch-actions="isMobileView"
                 @click="handleRoomClick(room)"
                 @show-context-menu="showRoomContextMenu"
+                @long-press="openRoomSheet"
                 @dragstart="handleDragStart($event, room, category.id)"
                 @dragend="handleDragEnd" />
 
@@ -189,9 +200,9 @@
       </button>
     </div>
 
-    <!-- Category Context Menu -->
+    <!-- Category Context Menu (desktop; mobile uses the action sheet below) -->
     <div
-      v-if="contextMenu.visible"
+      v-if="contextMenu.visible && !isMobileView"
       class="fixed bg-theme-bg-secondary border border-theme-border rounded-lg shadow-xl z-[9999] py-1 min-w-[160px]"
       :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"
       @click.stop>
@@ -251,9 +262,9 @@
       </div>
     </div>
 
-    <!-- Room Context Menu -->
+    <!-- Room Context Menu (desktop; mobile uses the action sheet below) -->
     <div
-      v-if="roomContextMenu.visible"
+      v-if="roomContextMenu.visible && !isMobileView"
       class="fixed bg-theme-bg-secondary border border-theme-border rounded-lg shadow-xl z-[9999] py-1 min-w-[200px]"
       :style="{ top: roomContextMenu.y + 'px', left: roomContextMenu.x + 'px' }"
       @click.stop>
@@ -414,10 +425,166 @@
 
     <!-- Click outside to close context menu -->
     <div
-      v-if="contextMenu.visible || roomContextMenu.visible"
+      v-if="!isMobileView && (contextMenu.visible || roomContextMenu.visible)"
       class="fixed inset-0 z-40"
       @click="closeAllContextMenus"
       @contextmenu.prevent="closeAllContextMenus"></div>
+
+    <!-- Mobile: category actions (long press or the ⋯ button) -->
+    <ActionSheet
+      :open="!!isMobileView && contextMenu.visible"
+      :title="contextMenu.category?.name"
+      testid="category-action-sheet"
+      @close="closeContextMenu">
+      <template v-if="canManageContextCategory">
+        <button
+          type="button"
+          role="menuitem"
+          :class="actionSheetRow"
+          @click="handleCreateRoomInCategory">
+          <PhPlus class="w-5 h-5" /> Create room
+        </button>
+        <button type="button" role="menuitem" :class="actionSheetRow" @click="handleRenameCategory">
+          <PhPencil class="w-5 h-5" /> Rename
+        </button>
+      </template>
+      <button
+        v-if="canEditContextCategoryPermissions"
+        type="button"
+        role="menuitem"
+        :class="actionSheetRow"
+        data-testid="sheet-category-permissions"
+        @click="handleCategoryPermissions">
+        <PhShieldCheck class="w-5 h-5" /> Permissions
+      </button>
+      <button
+        v-if="canManageContextCategory"
+        type="button"
+        role="menuitem"
+        :class="[actionSheetRow, '!text-red-400']"
+        @click="handleDeleteCategory">
+        <PhTrash class="w-5 h-5" /> Delete
+      </button>
+      <div v-if="!canManageContextCategory" class="px-3 py-3 text-sm text-theme-text-muted">
+        No actions available
+      </div>
+    </ActionSheet>
+
+    <!-- Mobile: room actions (long press) -->
+    <ActionSheet
+      :open="!!isMobileView && roomContextMenu.visible"
+      testid="room-action-sheet"
+      @close="closeRoomContextMenu">
+      <template v-if="roomContextMenu.room" #title>
+        <EmojiText :text="roomContextMenu.room.name" />
+      </template>
+
+      <!-- Step 2: choose the target category -->
+      <template v-if="sheetMoveStep">
+        <button type="button" :class="actionSheetRow" @click="sheetMoveStep = false">
+          <PhArrowLeft class="w-5 h-5" /> Move to category
+        </button>
+        <div class="border-t border-theme-border my-1"></div>
+        <button
+          v-for="category in availableCategoriesForMove"
+          :key="category.id"
+          type="button"
+          role="menuitem"
+          :class="actionSheetRow"
+          @click="handleMoveRoom(category.id)">
+          {{ category.name }}
+        </button>
+        <div
+          v-if="availableCategoriesForMove.length === 0"
+          class="px-3 py-3 text-sm text-theme-text-muted">
+          No other categories
+        </div>
+      </template>
+
+      <template v-else>
+        <template v-if="contextTextRoomId">
+          <button
+            v-if="textChatStore.isUnread(contextTextRoomId)"
+            type="button"
+            role="menuitem"
+            :class="actionSheetRow"
+            @click="markContextRoomRead">
+            <PhChecks class="w-5 h-5" /> Mark as read
+          </button>
+          <button
+            v-if="textNotifyStore.isMuted(contextTextRoomId)"
+            type="button"
+            role="menuitem"
+            :class="actionSheetRow"
+            @click="setContextNotify('all')">
+            <PhBell class="w-5 h-5" />
+            <span class="flex flex-col">
+              <span>Unmute channel</span>
+              <span class="text-xs text-theme-text-muted">{{ contextMuteLabel }}</span>
+            </span>
+          </button>
+          <button
+            v-else
+            type="button"
+            role="menuitem"
+            :class="actionSheetRow"
+            @click="openContextMute">
+            <PhBellSlash class="w-5 h-5" /> Mute channel…
+          </button>
+          <button
+            v-if="textNotifyStore.modeOf(contextTextRoomId) === 'no_mentions'"
+            type="button"
+            role="menuitem"
+            :class="actionSheetRow"
+            @click="setContextNotify('all')">
+            <PhBell class="w-5 h-5" /> Notify me about mentions
+          </button>
+          <button
+            v-else-if="!textNotifyStore.isMuted(contextTextRoomId)"
+            type="button"
+            role="menuitem"
+            :class="actionSheetRow"
+            @click="setContextNotify('no_mentions')">
+            <PhBellSimpleSlash class="w-5 h-5" /> Disable mentions
+          </button>
+        </template>
+
+        <template v-if="canManageContextRoom">
+          <button
+            type="button"
+            role="menuitem"
+            :class="actionSheetRow"
+            @click="sheetMoveStep = true">
+            <PhArrowsLeftRight class="w-5 h-5" /> Move to category
+          </button>
+          <button type="button" role="menuitem" :class="actionSheetRow" @click="handleEditRoom">
+            <PhPencil class="w-5 h-5" /> Properties
+          </button>
+        </template>
+        <button
+          v-if="canEditContextRoomPermissions"
+          type="button"
+          role="menuitem"
+          :class="actionSheetRow"
+          data-testid="sheet-room-permissions"
+          @click="handleRoomPermissions">
+          <PhShieldCheck class="w-5 h-5" /> Permissions
+        </button>
+        <button
+          v-if="canManageContextRoom"
+          type="button"
+          role="menuitem"
+          :class="[actionSheetRow, '!text-red-400']"
+          @click="handleDeleteRoom">
+          <PhTrash class="w-5 h-5" /> Delete
+        </button>
+        <div
+          v-if="!canManageContextRoom && !contextTextRoomId"
+          class="px-3 py-3 text-sm text-theme-text-muted">
+          No actions available
+        </div>
+      </template>
+    </ActionSheet>
 
     <PermissionsModal
       v-if="permissionsTarget"
@@ -430,10 +597,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue"
+import { ref, computed, onBeforeUnmount } from "vue"
 import { storeToRefs } from "pinia"
 import RoomCard from "@/components/RoomCard.vue"
 import PermissionsModal from "@/components/PermissionsModal.vue"
+import ActionSheet, { actionSheetRow } from "@/components/common/ActionSheet.vue"
+import EmojiText from "@/components/common/EmojiText.vue"
+import { createLongPress } from "@/composables/useLongPress"
 import {
   PhCaretDown,
   PhPlus,
@@ -446,6 +616,7 @@ import {
   PhBellSimpleSlash,
   PhBellSlash,
   PhChecks,
+  PhArrowLeft,
 } from "@phosphor-icons/vue"
 import {
   useRoomStore,
@@ -509,8 +680,12 @@ const { isUserContextMenuOpen } = useUserContextMenu()
 // UI gating mirrors backend RBAC; the backend re-checks every action.
 const canCreateRooms = computed(() => permissionsStore.canManageAnyRooms)
 // Reordering is a server-wide action (PUT /rooms/order, /categories/reorder).
+// Off on mobile: HTML5 drag would take over the long press.
 const isDraggable = computed(
-  () => permissionsStore.can(Permission.ManageRooms) && !isUserContextMenuOpen.value,
+  () =>
+    !props.isMobileView &&
+    permissionsStore.can(Permission.ManageRooms) &&
+    !isUserContextMenuOpen.value,
 )
 
 // "3 online · 2 in voice": tells at a glance whether anyone is around.
@@ -635,6 +810,23 @@ const closeContextMenu = () => {
   contextMenu.value.category = null
 }
 
+// Mobile: a long press on a category header opens its action sheet.
+let pressedCategory: CategorizedRoom | null = null
+const categoryLongPress = createLongPress(
+  () => {
+    if (!pressedCategory) return
+    closeRoomContextMenu()
+    contextMenu.value = { visible: true, x: 0, y: 0, category: pressedCategory }
+  },
+  { enabled: () => !!props.isMobileView },
+)
+onBeforeUnmount(categoryLongPress.cancel)
+
+const onCategoryPointerdown = (event: PointerEvent, category: CategorizedRoom) => {
+  pressedCategory = category
+  categoryLongPress.onPointerdown(event)
+}
+
 const handleCreateRoomInCategory = () => {
   if (contextMenu.value.category) {
     // Use the category ID and name directly from the context menu
@@ -678,6 +870,8 @@ const roomContextMenu = ref({
 })
 
 const showMoveSubmenu = ref(false)
+// Mobile sheet: second step that lists the target categories.
+const sheetMoveStep = ref(false)
 const isHoveringSubmenu = ref(false)
 let submenuHideTimeout: ReturnType<typeof setTimeout> | null = null
 
@@ -735,9 +929,17 @@ const showRoomContextMenu = (event: MouseEvent, room: Room) => {
   }
 }
 
+// Mobile: the long press opens the room menu as a bottom sheet.
+const openRoomSheet = (room: Room) => {
+  closeContextMenu()
+  sheetMoveStep.value = false
+  roomContextMenu.value = { visible: true, x: 0, y: 0, room }
+}
+
 const closeRoomContextMenu = () => {
   roomContextMenu.value.visible = false
   roomContextMenu.value.room = null
+  sheetMoveStep.value = false
   showMoveSubmenu.value = false
   isHoveringSubmenu.value = false
   // Clear any pending hide timeout
@@ -1221,3 +1423,12 @@ const reorderCategories = async (
   await apiService.updateCategoryOrder(updates)
 }
 </script>
+
+<style scoped>
+/* Long press opens the category action sheet instead of selecting text. */
+.touch-category {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+</style>

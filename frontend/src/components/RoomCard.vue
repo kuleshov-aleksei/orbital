@@ -1,5 +1,6 @@
 <template>
   <div
+    :data-testid="`sidebar-room-${room.id}`"
     class="room-card px-2 py-1.5 rounded-lg cursor-pointer transition-all duration-200 group"
     :class="{
       'bg-transparent hover:bg-theme-bg-hover text-theme-text-primary': isActive,
@@ -7,11 +8,17 @@
         !isActive && !isLocked,
       'bg-transparent text-theme-text-muted opacity-60 cursor-not-allowed': isLocked && !isActive,
       'opacity-50': isDragging,
+      'touch-room': touchActions,
     }"
     :title="isLocked ? 'You don\'t have permission to join this room' : undefined"
     :data-locked="isLocked || undefined"
     v-bind="isDraggable ? { draggable: true } : {}"
     @click="$emit('click')"
+    @click.capture="longPress.onClickCapture"
+    @pointerdown="longPress.onPointerdown"
+    @pointermove="longPress.onPointermove"
+    @pointerup="longPress.onPointerup"
+    @pointercancel="longPress.onPointercancel"
     @contextmenu.prevent="showContextMenu"
     @dragstart="$emit('dragstart', $event)"
     @dragend="$emit('dragend', $event)"
@@ -94,6 +101,7 @@
           v-for="user in room.users"
           :key="user.id"
           class="flex items-center justify-between text-xs py-0.5 pr-1 rounded hover:bg-theme-bg-hover"
+          data-no-long-press
           @contextmenu="showUserContextMenu($event, user.id)">
           <div class="flex items-center min-w-0">
             <!-- Avatar -->
@@ -158,6 +166,7 @@ import {
 import UserAvatar from "./UserAvatar.vue"
 import UserContextMenu from "./UserContextMenu.vue"
 import { usePermissionsStore } from "@/stores"
+import { useLongPress } from "@/composables/useLongPress"
 import type { Room } from "@/types"
 
 const props = withDefaults(defineProps<Props>(), {
@@ -166,11 +175,14 @@ const props = withDefaults(defineProps<Props>(), {
   isUnread: false,
   notifyMode: "all",
   mentionCount: 0,
+  touchActions: false,
 })
 
 const emit = defineEmits<{
   click: []
   "show-context-menu": [event: MouseEvent, room: Room]
+  /** Touch long press (only with touchActions): opens the mobile action sheet. */
+  "long-press": [room: Room]
   dragstart: [event: DragEvent]
   dragend: [event: DragEvent]
   dragover: [event: DragEvent]
@@ -192,11 +204,19 @@ interface Props {
   isUnread?: boolean
   notifyMode?: "all" | "no_mentions" | "muted"
   mentionCount?: number
+  /** Mobile: a long press emits long-press (the sheet replaces the popover). */
+  touchActions?: boolean
 }
 
 const showContextMenu = (event: MouseEvent) => {
+  // Android also reports a long press as contextmenu; the long press handles it.
+  if (props.touchActions) return
   emit("show-context-menu", event, props.room)
 }
+
+const longPress = useLongPress(() => emit("long-press", props.room), {
+  enabled: () => props.touchActions,
+})
 
 const userContextMenuRef =
   useTemplateRef<InstanceType<typeof UserContextMenu>>("userContextMenuRef")
@@ -207,3 +227,12 @@ const showUserContextMenu = (event: MouseEvent, userId: string) => {
   userContextMenuRef.value?.show(event, userId)
 }
 </script>
+
+<style scoped>
+/* Long press opens the action sheet instead of selecting text. */
+.touch-room {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+</style>

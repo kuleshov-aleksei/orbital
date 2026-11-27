@@ -1,35 +1,46 @@
 <template>
   <Teleport to="body">
     <div
-      class="modal-overlay fixed inset-0 bg-theme-backdrop flex items-center justify-center z-[10000] p-4"
+      class="modal-overlay fixed inset-0 bg-theme-backdrop flex z-[10000]"
+      :class="isMobile ? 'items-stretch' : 'items-center justify-center p-4'"
       data-testid="permissions-modal"
       @click.self="$emit('close')">
-      <div class="modal-content bg-gray-800 rounded-lg w-full max-w-3xl max-h-[90vh] flex flex-col">
+      <div
+        class="modal-content bg-gray-800 w-full flex flex-col"
+        :class="isMobile ? 'h-[100dvh] safe-area-pad' : 'rounded-lg max-w-3xl max-h-[90vh]'">
         <!-- Header -->
-        <div class="flex items-center justify-between p-5 border-b border-gray-700">
+        <div
+          class="flex items-start justify-between gap-3 border-b border-gray-700"
+          :class="isMobile ? 'p-4' : 'p-5'">
           <div class="min-w-0">
             <h2 class="text-lg font-semibold text-white truncate">
-              Permissions — {{ targetName }}
+              Permissions — <EmojiText :text="targetName" />
             </h2>
             <p class="text-sm text-gray-400">
-              Overrides for this {{ targetType }}. <span class="text-red-400">✕</span> denies,
-              <span class="text-gray-300">/</span> inherits,
-              <span class="text-green-400">✓</span> allows.
+              Overrides for this {{ targetType }}.
+              <span :class="{ block: isMobile }">
+                <span class="text-red-400">✕</span> denies,
+                <span class="text-gray-300">/</span> inherits,
+                <span class="text-green-400">✓</span> allows.
+              </span>
             </p>
           </div>
           <button
             type="button"
-            class="text-gray-400 hover:text-white"
+            class="text-gray-400 hover:text-white flex-shrink-0"
+            :class="{ 'p-2 -m-2': isMobile }"
             title="Close"
+            data-testid="permissions-close"
             @click="$emit('close')">
-            <PhX class="w-5 h-5" />
+            <PhX :class="isMobile ? 'w-6 h-6' : 'w-5 h-5'" />
           </button>
         </div>
 
         <!-- Sync with category (rooms only) -->
         <div
           v-if="targetType === 'room'"
-          class="px-5 py-3 border-b border-gray-700 flex items-center justify-between gap-4 bg-gray-900/40">
+          class="border-b border-gray-700 flex gap-3 bg-gray-900/40"
+          :class="isMobile ? 'px-4 py-3 flex-col' : 'px-5 py-3 items-center justify-between gap-4'">
           <div class="text-sm">
             <div class="text-gray-200">
               {{ synced ? "Synced with category" : "Custom permissions" }}
@@ -46,45 +57,62 @@
             v-if="!synced"
             type="button"
             data-testid="permissions-sync"
-            class="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 text-white rounded disabled:opacity-50 flex-shrink-0"
+            class="text-sm bg-gray-600 hover:bg-gray-500 text-white rounded disabled:opacity-50 flex-shrink-0"
+            :class="isMobile ? 'px-3 py-2 self-start' : 'px-3 py-1.5'"
             :disabled="busy"
             @click="syncWithCategory">
             Sync with category
           </button>
         </div>
 
-        <div class="flex flex-col md:flex-row flex-1 min-h-0">
+        <!-- On a phone the subjects and the editor share one scroll area. -->
+        <div
+          class="flex flex-1 min-h-0"
+          :class="isMobile ? 'flex-col overflow-y-auto' : 'flex-row'">
           <!-- Subjects -->
           <div
-            class="md:w-60 border-b md:border-b-0 md:border-r border-gray-700 p-2 overflow-y-auto">
+            class="border-gray-700"
+            :class="isMobile ? 'border-b p-3' : 'w-60 border-r p-2 overflow-y-auto'">
             <div class="text-xs font-medium uppercase tracking-wide text-gray-400 px-2 py-1">
               Roles / members
             </div>
-            <button
-              v-for="subject in subjects"
-              :key="subject.key"
-              type="button"
-              class="w-full flex items-center gap-2 px-2 py-2 rounded text-left text-sm"
-              :class="
-                selectedKey === subject.key
-                  ? 'bg-gray-700 text-white'
-                  : 'text-gray-300 hover:bg-gray-700/50'
-              "
-              :data-testid="`permissions-subject-${subject.label}`"
-              @click="selectedKey = subject.key">
-              <span
-                v-if="subject.type === 'role'"
-                class="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                :style="{ backgroundColor: subject.color || '#6b7280' }"></span>
-              <PhUser v-else class="w-3.5 h-3.5 flex-shrink-0" />
-              <span class="truncate">{{ subject.label }}</span>
-            </button>
+            <div :class="isMobile ? 'flex gap-2 overflow-x-auto px-1 py-1' : ''">
+              <button
+                v-for="subject in subjects"
+                :key="subject.key"
+                type="button"
+                class="flex items-center gap-2 text-left text-sm"
+                :class="[
+                  isMobile
+                    ? 'flex-shrink-0 px-3 py-2 rounded-full border'
+                    : 'w-full px-2 py-2 rounded',
+                  selectedKey === subject.key
+                    ? isMobile
+                      ? 'bg-gray-700 border-gray-500 text-white'
+                      : 'bg-gray-700 text-white'
+                    : isMobile
+                      ? 'border-gray-700 text-gray-300'
+                      : 'text-gray-300 hover:bg-gray-700/50',
+                ]"
+                :data-testid="`permissions-subject-${subject.label}`"
+                @click="selectedKey = subject.key">
+                <span
+                  v-if="subject.type === 'role'"
+                  class="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  :style="{ backgroundColor: subject.color || '#6b7280' }"></span>
+                <PhUser v-else class="w-3.5 h-3.5 flex-shrink-0" />
+                <span class="truncate" :class="{ 'max-w-[10rem]': isMobile }">
+                  {{ subject.label }}
+                </span>
+              </button>
+            </div>
 
             <div class="mt-3 px-2 space-y-2">
               <select
                 v-model="toAdd"
                 data-testid="permissions-add-subject"
-                class="w-full px-2 py-1.5 bg-gray-900 border border-gray-700 rounded text-white text-sm"
+                class="w-full px-2 bg-gray-900 border border-gray-700 rounded text-white text-sm"
+                :class="isMobile ? 'py-2.5' : 'py-1.5'"
                 :disabled="busy">
                 <option value="">Add role or member…</option>
                 <optgroup v-if="addableRoles.length" label="Roles">
@@ -102,7 +130,7 @@
           </div>
 
           <!-- Editor -->
-          <div class="flex-1 overflow-y-auto p-4">
+          <div class="flex-1 p-4" :class="{ 'overflow-y-auto': !isMobile }">
             <div v-if="loading" class="text-sm text-gray-400">Loading…</div>
             <template v-else-if="current">
               <div v-for="group in groups" :key="group.id" class="mb-5">
@@ -113,8 +141,13 @@
                   <div
                     v-for="info in group.items"
                     :key="info.key"
-                    class="flex items-center justify-between gap-4 px-3 py-2.5"
-                    :class="{ 'opacity-50': !isEditable(Permission[info.key]) }">
+                    class="flex px-3"
+                    :class="[
+                      isMobile
+                        ? 'flex-col gap-2 py-3'
+                        : 'items-center justify-between gap-4 py-2.5',
+                      { 'opacity-50': !isEditable(Permission[info.key]) },
+                    ]">
                     <div class="min-w-0">
                       <div class="text-sm text-gray-200">{{ info.label }}</div>
                       <div class="text-xs text-gray-500">{{ info.description }}</div>
@@ -123,6 +156,7 @@
                       :model-value="stateOf(Permission[info.key])"
                       :label="info.label"
                       :testid-prefix="`perm-${info.key}`"
+                      :size="isMobile ? 'lg' : 'md'"
                       :disabled="busy || !isEditable(Permission[info.key])"
                       @update:model-value="setState(Permission[info.key], $event)" />
                   </div>
@@ -135,22 +169,25 @@
           </div>
         </div>
 
-        <div class="flex items-center justify-between gap-3 p-4 border-t border-gray-700">
+        <div class="flex flex-wrap items-center justify-between gap-3 p-4 border-t border-gray-700">
+          <span v-if="error && isMobile" class="w-full text-sm text-red-400">{{ error }}</span>
           <button
             v-if="current && current.persisted && current.key !== everyoneKey"
             type="button"
             class="text-sm text-red-400 hover:text-red-300 disabled:opacity-40"
+            :class="{ 'py-2': isMobile }"
             :disabled="busy"
             @click="removeOverwrite">
             Remove override
           </button>
           <span v-else></span>
           <div class="flex items-center gap-3">
-            <span v-if="error" class="text-sm text-red-400">{{ error }}</span>
+            <span v-if="error && !isMobile" class="text-sm text-red-400">{{ error }}</span>
             <button
               type="button"
               data-testid="permissions-save"
-              class="px-4 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded disabled:opacity-50"
+              class="text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded disabled:opacity-50"
+              :class="isMobile ? 'px-6 py-2.5' : 'px-4 py-1.5'"
               :disabled="busy || !current || !current.dirty"
               @click="save">
               {{ busy ? "Saving…" : "Save" }}
@@ -167,7 +204,8 @@ import { ref, computed, onMounted, watch } from "vue"
 import { PhX, PhUser } from "@phosphor-icons/vue"
 import { apiService } from "@/services/api"
 import PermissionTriState, { type TriState } from "@/components/PermissionTriState.vue"
-import { usePermissionsStore, useUsersStore, useRoomStore } from "@/stores"
+import EmojiText from "@/components/common/EmojiText.vue"
+import { usePermissionsStore, useUsersStore, useRoomStore, useAppStore } from "@/stores"
 import {
   Permission,
   PERMISSION_INFO,
@@ -191,6 +229,8 @@ defineEmits<{ close: [] }>()
 const permissionsStore = usePermissionsStore()
 const usersStore = useUsersStore()
 const roomStore = useRoomStore()
+// Phones get a full-screen layout with one scroll area and bigger toggles.
+const isMobile = computed(() => useAppStore().isMobile)
 
 interface Draft {
   key: string

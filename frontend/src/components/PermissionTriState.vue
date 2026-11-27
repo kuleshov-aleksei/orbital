@@ -1,6 +1,7 @@
 <template>
   <div
     class="flex rounded overflow-hidden border border-gray-600 flex-shrink-0"
+    :class="{ 'w-full': size === 'lg' }"
     role="radiogroup"
     :aria-label="label">
     <button
@@ -11,12 +12,13 @@
       :aria-checked="modelValue === state.value"
       :title="state.title"
       :data-testid="`${testidPrefix}-${state.value}`"
-      class="w-9 h-8 text-sm font-semibold transition-colors"
-      :class="
+      class="font-semibold transition-colors"
+      :class="[
+        size === 'lg' ? 'flex-1 h-11 text-base' : 'w-9 h-8 text-sm',
         modelValue === state.value
           ? state.activeClass
-          : 'bg-gray-900 text-gray-500 hover:bg-gray-700'
-      "
+          : 'bg-gray-900 text-gray-500 hover:bg-gray-700',
+      ]"
       :disabled="disabled"
       @click="$emit('update:modelValue', state.value)">
       {{ state.symbol }}
@@ -36,9 +38,15 @@ interface Props {
   disabled?: boolean
   /** Hide "inherit" (used by @everyone, which has nothing below it to inherit from). */
   twoState?: boolean
+  /** "lg": full-width, touch-sized buttons (mobile). */
+  size?: "md" | "lg"
 }
 
-const props = withDefaults(defineProps<Props>(), { disabled: false, twoState: false })
+const props = withDefaults(defineProps<Props>(), {
+  disabled: false,
+  twoState: false,
+  size: "md",
+})
 defineEmits<{ "update:modelValue": [value: TriState] }>()
 
 const states: Array<{ value: TriState; symbol: string; title: string; activeClass: string }> = [
